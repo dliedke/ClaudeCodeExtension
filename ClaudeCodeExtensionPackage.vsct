@@ -10,7 +10,7 @@
         <Parent guid="guidSHLMainMenu" id="IDG_VS_WNDO_OTRWNDWS1"/>
         <Icon guid="guidImages" id="bmpIcon" />
         <Strings>
-          <ButtonText>Claude Code Assistant</ButtonText>
+          <ButtonText>Claude Code Extension</ButtonText>
         </Strings>
       </Button>
     </Buttons>

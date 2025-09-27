@@ -9,7 +9,7 @@ namespace ClaudeCodeVS
     {
         public ClaudeCodeToolWindow() : base(null)
         {
-            this.Caption = "Claude Code Assistant";
+            this.Caption = "Claude Code Extension";
             this.Content = new ClaudeCodeControl();
         }
     }
