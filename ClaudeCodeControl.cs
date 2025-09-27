@@ -39,6 +39,14 @@ namespace ClaudeCodeVS
         [DllImport("user32.dll")]
         private static extern int GetWindowLong(IntPtr hWnd, int nIndex);
 
+        [DllImport("user32.dll")]
+        private static extern bool EnumWindows(EnumWindowsProc lpEnumFunc, IntPtr lParam);
+
+        [DllImport("user32.dll")]
+        private static extern uint GetWindowThreadProcessId(IntPtr hWnd, out uint lpdwProcessId);
+
+        private delegate bool EnumWindowsProc(IntPtr hWnd, IntPtr lParam);
+
         private const uint SWP_NOZORDER = 0x0004;
         private const uint SWP_NOACTIVATE = 0x0010;
         private const int SW_HIDE = 0;
@@ -108,8 +116,7 @@ namespace ClaudeCodeVS
                 MessageBox.Show($"Failed to initialize terminal: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
             }
         }
-
-        private void StartEmbeddedTerminal()
+                private void StartEmbeddedTerminal()
         {
             try
             {
@@ -119,11 +126,10 @@ namespace ClaudeCodeVS
                     cmdProcess.Dispose();
                 }
 
-                // Get workspace directory
                 string workspaceDir = GetWorkspaceDirectory();
                 System.Diagnostics.Debug.WriteLine($"Starting Claude in directory: {workspaceDir}");
 
-                // Start CMD process with Claude
+                // 1) Launch hidden so no standalone console ever appears.
                 cmdProcess = new Process
                 {
                     StartInfo = new ProcessStartInfo
@@ -131,43 +137,45 @@ namespace ClaudeCodeVS
                         FileName = "cmd.exe",
                         Arguments = "/k cd /d \"" + workspaceDir + "\" && claude.cmd",
                         UseShellExecute = false,
-                        CreateNoWindow = false,
+                        CreateNoWindow = false,              // keep a window, but start it hidden
+                        WindowStyle = ProcessWindowStyle.Hidden,
                         WorkingDirectory = workspaceDir
                     }
                 };
 
                 cmdProcess.Start();
 
-                // Wait a moment for the window to be created
-                System.Threading.Thread.Sleep(1500);
+                // 2) Find the (hidden) console window for this process.
+                var hwnd = FindMainWindowHandleByPid(cmdProcess.Id, timeoutMs: 7000, pollIntervalMs: 50);
+                terminalHandle = hwnd;
 
-                // Find and embed the CMD window
-                terminalHandle = cmdProcess.MainWindowHandle;
                 if (terminalHandle != IntPtr.Zero && IsWindow(terminalHandle))
                 {
-                    // Set the CMD window as a child of our panel
+                    // 3) Reparent into our panel while still hidden.
                     SetParent(terminalHandle, terminalPanel.Handle);
 
-                    // Hide window borders and chrome
+                    // Remove borders/chrome.
                     SetWindowLong(terminalHandle, GWL_STYLE,
                         GetWindowLong(terminalHandle, GWL_STYLE) & ~(WS_CAPTION | WS_THICKFRAME | WS_MINIMIZE | WS_MAXIMIZE | WS_SYSMENU));
 
-                    // Show the window and resize to fill the panel
+                    // 4) Now show and size it entirely inside our host.
                     ShowWindow(terminalHandle, SW_SHOW);
                     ResizeEmbeddedTerminal();
                 }
                 else
                 {
-                    MessageBox.Show("Could not find CMD window to embed. Make sure Claude Code is installed and accessible via 'claude.cmd'.",
-                                  "Warning", MessageBoxButton.OK, MessageBoxImage.Warning);
+                    MessageBox.Show(
+                        "Could not find CMD window to embed. Make sure Claude Code is installed and accessible via 'claude.cmd'.",
+                        "Warning", MessageBoxButton.OK, MessageBoxImage.Warning);
                 }
             }
             catch (Exception ex)
             {
                 MessageBox.Show($"Failed to start embedded terminal: {ex.Message}",
-                              "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                                "Error", MessageBoxButton.OK, MessageBoxImage.Error);
             }
         }
+
 
         private void ResizeEmbeddedTerminal()
         {
@@ -650,6 +658,33 @@ namespace ClaudeCodeVS
 
         private const uint INPUT_KEYBOARD = 1;
         private const uint KEYEVENTF_KEYUP = 0x0002;
+
+        private static IntPtr FindMainWindowHandleByPid(int targetPid, int timeoutMs = 5000, int pollIntervalMs = 50)
+        {
+            var sw = System.Diagnostics.Stopwatch.StartNew();
+            while (sw.ElapsedMilliseconds < timeoutMs)
+            {
+                IntPtr found = IntPtr.Zero;
+
+                EnumWindows((hWnd, lParam) =>
+                {
+                    uint pid;
+                    GetWindowThreadProcessId(hWnd, out pid);
+                    if (pid == targetPid)
+                    {
+                        found = hWnd;
+                        return false; // stop enumeration
+                    }
+                    return true; // keep looking
+                }, IntPtr.Zero);
+
+                if (found != IntPtr.Zero)
+                    return found;
+
+                System.Threading.Thread.Sleep(pollIntervalMs);
+            }
+            return IntPtr.Zero;
+        }
 
         // Cleanup when the control is unloaded
         private void ClaudeCodeControl_Unloaded(object sender, RoutedEventArgs e)
