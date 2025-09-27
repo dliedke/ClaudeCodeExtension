@@ -1,0 +1,12 @@
+{
+  "permissions": {
+    "allow": [
+      "Read(//c/GitLab/ChatGPTExtension/**)",
+      "Bash(magick:*)",
+      "Bash(powershell:*)",
+      "Bash(where claude)"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}

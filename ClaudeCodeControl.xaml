@@ -1,0 +1,76 @@
+﻿<UserControl x:Class="ClaudeCodeVS.ClaudeCodeControl"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:wf="clr-namespace:System.Windows.Forms.Integration;assembly=WindowsFormsIntegration"
+             mc:Ignorable="d"
+             d:DesignHeight="600" d:DesignWidth="400"
+             Background="#FF1E1E1E">
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="*" MinHeight="100"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="2*" MinHeight="200"/>
+        </Grid.RowDefinitions>
+
+        <!-- Prompt Input Area -->
+        <GroupBox Grid.Row="0" Header="Prompt" Margin="10,10,10,5" Foreground="#FFDCDCDC" Background="#FF2D2D30">
+            <TextBox x:Name="PromptTextBox"
+                     TextWrapping="Wrap"
+                     AcceptsReturn="False"
+                     VerticalScrollBarVisibility="Auto"
+                     FontFamily="Cascadia Mono"
+                     Background="#FF1E1E1E"
+                     Foreground="#FFDCDCDC"
+                     BorderBrush="#FF3F3F46"
+                     Margin="5"
+                     KeyDown="PromptTextBox_KeyDown"
+                     PreviewKeyDown="PromptTextBox_PreviewKeyDown"/>
+        </GroupBox>
+
+        <!-- Image Drop Area -->
+        <StackPanel Grid.Row="1" Orientation="Horizontal" Margin="10,5">
+            <Border x:Name="ImageDropBorder"
+                    BorderBrush="#FF3F3F46"
+                    BorderThickness="1"
+                    Height="35"
+                    Width="200"
+                    CornerRadius="3"
+                    Background="#FF2D2D30"
+                    AllowDrop="True"
+                    Drop="ImageDropBorder_Drop"
+                    DragOver="ImageDropBorder_DragOver"
+                    Cursor="Hand">
+                <TextBlock x:Name="ImageDropText"
+                           Text="Add image"
+                           HorizontalAlignment="Center"
+                           VerticalAlignment="Center"
+                           Foreground="#FF9A9A9A"
+                           FontSize="11"
+                           MouseLeftButtonUp="ImageDropBorder_Click"/>
+            </Border>
+            <Button x:Name="RestartTerminalButton"
+                    Content="Restart Claude"
+                    Click="RestartTerminalButton_Click"
+                    Padding="8,5"
+                    Margin="10,0,0,0"
+                    Height="35"/>
+        </StackPanel>
+
+        <!-- Resizable Splitter -->
+        <GridSplitter Grid.Row="2"
+                      Height="8"
+                      HorizontalAlignment="Stretch"
+                      VerticalAlignment="Stretch"
+                      Background="#FF3F3F46"
+                      Cursor="SizeNS"
+                      ShowsPreview="True"/>
+
+        <!-- Embedded Terminal -->
+        <GroupBox Grid.Row="3" Header="Claude Code Terminal" Margin="10,5,10,10" Foreground="#FFDCDCDC" Background="#FF2D2D30">
+            <wf:WindowsFormsHost x:Name="TerminalHost" Margin="5" />
+        </GroupBox>
+    </Grid>
+</UserControl>

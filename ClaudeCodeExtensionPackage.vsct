@@ -1,0 +1,34 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<CommandTable xmlns="http://schemas.microsoft.com/VisualStudio/2005-10-18/CommandTable" xmlns:xs="http://www.w3.org/2001/XMLSchema">
+
+  <Extern href="stdidcmd.h"/>
+  <Extern href="vsshlids.h"/>
+
+  <Commands package="guidClaudeCodeExtensionPackage">
+    <Buttons>
+      <Button guid="guidClaudeCodeExtensionPackageCmdSet" id="ClaudeCodeToolWindowCommandId" priority="0x0100" type="Button">
+        <Parent guid="guidSHLMainMenu" id="IDG_VS_WNDO_OTRWNDWS1"/>
+        <Icon guid="guidImages" id="bmpIcon" />
+        <Strings>
+          <ButtonText>Claude Code Assistant</ButtonText>
+        </Strings>
+      </Button>
+    </Buttons>
+
+    <Bitmaps>
+      <Bitmap guid="guidImages" href="Resources\app.png" usedList="bmpIcon"/>
+    </Bitmaps>
+  </Commands>
+
+  <Symbols>
+    <GuidSymbol name="guidClaudeCodeExtensionPackage" value="{3fa29425-3add-418f-82f6-0c9b7419b2ca}" />
+
+    <GuidSymbol name="guidClaudeCodeExtensionPackageCmdSet" value="{11111111-2222-3333-4444-555555555555}">
+      <IDSymbol name="ClaudeCodeToolWindowCommandId" value="0x0100" />
+    </GuidSymbol>
+
+    <GuidSymbol name="guidImages" value="{aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee}">
+      <IDSymbol name="bmpIcon" value="1" />
+    </GuidSymbol>
+  </Symbols>
+</CommandTable>
