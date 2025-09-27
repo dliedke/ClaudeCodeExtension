@@ -7,70 +7,105 @@
              mc:Ignorable="d"
              d:DesignHeight="600" d:DesignWidth="400"
              Background="#FF1E1E1E">
-    <Grid>
-        <Grid.RowDefinitions>
-            <RowDefinition Height="*" MinHeight="100"/>
-            <RowDefinition Height="Auto"/>
-            <RowDefinition Height="Auto"/>
-            <RowDefinition Height="2*" MinHeight="200"/>
-        </Grid.RowDefinitions>
 
-        <!-- Prompt Input Area -->
-        <GroupBox Grid.Row="0" Header="Prompt" Margin="10,10,10,5" Foreground="#FFDCDCDC" Background="#FF2D2D30">
-            <TextBox x:Name="PromptTextBox"
-                     TextWrapping="Wrap"
-                     AcceptsReturn="False"
-                     VerticalScrollBarVisibility="Auto"
-                     FontFamily="Cascadia Mono"
-                     Background="#FF1E1E1E"
-                     Foreground="#FFDCDCDC"
-                     BorderBrush="#FF3F3F46"
-                     Margin="5"
-                     KeyDown="PromptTextBox_KeyDown"
-                     PreviewKeyDown="PromptTextBox_PreviewKeyDown"/>
-        </GroupBox>
+	<UserControl.Resources>
+		<!-- Dark button style -->
+		<Style x:Key="DarkButtonStyle" TargetType="Button">
+			<Setter Property="Background" Value="#FF2D2D30"/>
+			<Setter Property="Foreground" Value="#FFDCDCDC"/>
+			<Setter Property="BorderBrush" Value="#FF3F3F46"/>
+			<Setter Property="BorderThickness" Value="0.5"/>
+			<Setter Property="Padding" Value="8,5"/>
+			<Setter Property="Height" Value="30"/>
+			<Setter Property="Cursor" Value="Hand"/>
+			<Style.Triggers>
+				<Trigger Property="IsMouseOver" Value="True">
+					<Setter Property="Background" Value="#FF3F3F46"/>
+					<!-- Slightly lighter hover -->
+				</Trigger>
+				<Trigger Property="IsPressed" Value="True">
+					<Setter Property="Background" Value="#FF1E1E1E"/>
+					<!-- Darker on press -->
+				</Trigger>
+			</Style.Triggers>
+		</Style>
+	</UserControl.Resources>
 
-        <!-- Image Drop Area -->
-        <StackPanel Grid.Row="1" Orientation="Horizontal" Margin="10,5">
-            <Border x:Name="ImageDropBorder"
-                    BorderBrush="#FF3F3F46"
-                    BorderThickness="1"
-                    Height="35"
-                    Width="200"
-                    CornerRadius="3"
-                    Background="#FF2D2D30"
-                    AllowDrop="True"
-                    Drop="ImageDropBorder_Drop"
-                    DragOver="ImageDropBorder_DragOver"
-                    Cursor="Hand">
-                <TextBlock x:Name="ImageDropText"
-                           Text="Add image"
-                           HorizontalAlignment="Center"
-                           VerticalAlignment="Center"
-                           Foreground="#FF9A9A9A"
-                           FontSize="11"
-                           MouseLeftButtonUp="ImageDropBorder_Click"/>
-            </Border>
-            <Button x:Name="RestartTerminalButton"
-                    Content="Restart Claude"
-                    Click="RestartTerminalButton_Click"
-                    Padding="8,5"
-                    Margin="10,0,0,0"
-                    Height="35"/>
-        </StackPanel>
+	<Grid>
+		<Grid.RowDefinitions>
+			<RowDefinition Height="*" MinHeight="80"/>
+			<RowDefinition Height="4"/>
+			<RowDefinition Height="2*" MinHeight="150"/>
+		</Grid.RowDefinitions>
 
-        <!-- Resizable Splitter -->
-        <GridSplitter Grid.Row="2"
-                      Height="8"
+		<!-- Top Section Container -->
+		<Grid Grid.Row="0" Margin="6,6,6,0">
+			<Grid.RowDefinitions>
+				<RowDefinition Height="*" MinHeight="80"/>
+				<RowDefinition Height="Auto"/>
+			</Grid.RowDefinitions>
+
+			<!-- Prompt Input Area -->
+			<GroupBox Grid.Row="0"
+                      Header="Prompt / Paste Image"
+                      Foreground="#FFDCDCDC"
+                      Background="#FF2D2D30"
+                      BorderThickness="0.5"
+                      Margin="0,0,0,2">
+				<TextBox x:Name="PromptTextBox"
+                         TextWrapping="Wrap"
+                         AcceptsReturn="True"
+                         VerticalScrollBarVisibility="Auto"
+                         FontFamily="Cascadia Mono"
+                         Background="#FF1E1E1E"
+                         Foreground="#FFDCDCDC"
+                         BorderBrush="#FF3F3F46"
+                         Margin="3"
+                         KeyDown="PromptTextBox_KeyDown"
+                         PreviewKeyDown="PromptTextBox_PreviewKeyDown"/>
+			</GroupBox>
+
+			<!-- Buttons + Status -->
+			<StackPanel Grid.Row="1" Orientation="Horizontal" HorizontalAlignment="Left" Margin="0,4,0,6" VerticalAlignment="Top">
+				<StackPanel Margin="0,0,8,0">
+					<Button x:Name="AddImageButton"
+                            Content="Add Image"
+                            Style="{StaticResource DarkButtonStyle}"
+                            PreviewMouseLeftButtonUp="ImageDropBorder_Click"/>
+					<TextBlock x:Name="ImageDropText"
+                               Text="No images attached"
+                               Foreground="#FF9A9A9A"
+                               FontSize="11"
+                               Margin="2,4,0,0"/>
+				</StackPanel>
+
+				<Button x:Name="RestartTerminalButton"
+                        Content="Restart"
+                        Style="{StaticResource DarkButtonStyle}"
+                        Click="RestartTerminalButton_Click"
+                        VerticalAlignment="Top"/>
+			</StackPanel>
+		</Grid>
+
+		<!-- Resizable Splitter -->
+		<GridSplitter Grid.Row="1"
+                      Height="4"
                       HorizontalAlignment="Stretch"
-                      VerticalAlignment="Stretch"
+                      VerticalAlignment="Center"
                       Background="#FF3F3F46"
-                      Cursor="SizeNS"
-                      ShowsPreview="True"/>
+                      ShowsPreview="True"
+                      ResizeDirection="Rows"
+                      ResizeBehavior="PreviousAndNext"
+                      Cursor="SizeNS"/>
 
-        <!-- Embedded Terminal -->
-        <GroupBox Grid.Row="3" Header="Claude Code Terminal" Margin="10,5,10,10" Foreground="#FFDCDCDC" Background="#FF2D2D30">
-            <wf:WindowsFormsHost x:Name="TerminalHost" Margin="5" />
-        </GroupBox>
-    </Grid>
+		<!-- Embedded Terminal -->
+		<GroupBox Grid.Row="2"
+                  Header="Claude Code"
+                  Margin="6"
+                  Foreground="#FFDCDCDC"
+                  Background="#FF2D2D30"
+                  BorderThickness="0.5">
+			<wf:WindowsFormsHost x:Name="TerminalHost" Margin="3"/>
+		</GroupBox>
+	</Grid>
 </UserControl>

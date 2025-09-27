@@ -263,25 +263,23 @@ namespace ClaudeCodeVS
 
         private void PromptTextBox_KeyDown(object sender, KeyEventArgs e)
         {
-            // Handle Enter to send prompt (unless Shift+Enter or Ctrl+Enter for new line)
             if (e.Key == Key.Enter)
             {
-                if ((Keyboard.Modifiers & ModifierKeys.Shift) == ModifierKeys.Shift ||
-                    (Keyboard.Modifiers & ModifierKeys.Control) == ModifierKeys.Control)
+                if ((Keyboard.Modifiers & ModifierKeys.Shift) == ModifierKeys.Shift)
                 {
-                    // Shift+Enter or Ctrl+Enter: Allow new line
-                    int caretIndex = PromptTextBox.CaretIndex;
-                    PromptTextBox.Text = PromptTextBox.Text.Insert(caretIndex, "\r\n");
-                    PromptTextBox.CaretIndex = caretIndex + 2;
-                    e.Handled = true;
+                    // Let TextBox handle Shift+Enter as a real newline
+                    return;
                 }
-                else
+
+                if ((Keyboard.Modifiers & ModifierKeys.Control) == ModifierKeys.Control)
                 {
-                    // Plain Enter: Send prompt
-                    SendButton_Click(sender, null);
-                    e.Handled = true;
+                    // Ctrl+Enter also insert newline
+                    return;
                 }
-                return;
+
+                // Plain Enter: Send prompt
+                SendButton_Click(sender, null);
+                e.Handled = true;
             }
         }
 
@@ -290,10 +288,6 @@ namespace ClaudeCodeVS
             try
             {
                 System.Windows.Media.Imaging.BitmapSource image = null;
-
-                // Debug: Check what's available in clipboard
-                //var formats = Clipboard.GetDataFormats();
-                //System.Diagnostics.Debug.WriteLine($"Clipboard formats: {string.Join(", ", formats)}");
 
                 // Try multiple clipboard formats
                 if (Clipboard.ContainsImage())
@@ -520,7 +514,7 @@ namespace ClaudeCodeVS
                     // Wait a moment then send Enter (sometimes need double enter for submission)
                     System.Threading.Thread.Sleep(1000);
                     SendEnterKey();
-                    
+
                 }
                 else
                 {
@@ -574,12 +568,10 @@ namespace ClaudeCodeVS
             if (attachedImagePaths.Any())
             {
                 ImageDropText.Text = $"{attachedImagePaths.Count} image(s)";
-                ImageDropBorder.Background = new System.Windows.Media.SolidColorBrush((System.Windows.Media.Color)System.Windows.Media.ColorConverter.ConvertFromString("#FF0E639C"));
             }
             else
             {
-                ImageDropText.Text = "Add image";
-                ImageDropBorder.Background = new System.Windows.Media.SolidColorBrush((System.Windows.Media.Color)System.Windows.Media.ColorConverter.ConvertFromString("#FF2D2D30"));
+                ImageDropText.Text = "";
             }
         }
 
