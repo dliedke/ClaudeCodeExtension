@@ -1,4 +1,16 @@
-﻿using System;
+﻿/* *******************************************************************************************************************
+ * Application: ClaudeCodeExtension
+ *
+ * Autor:  Daniel Liedke
+ *
+ * Copyright © Daniel Liedke 2025
+ * Usage and reproduction in any manner whatsoever without the written permission of Daniel Liedke is strictly forbidden.
+ *
+ * Purpose: Main user control for the Claude Code extension for VS.NET 2022
+ *
+ * *******************************************************************************************************************/
+
+using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
@@ -10,6 +22,7 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Forms.Integration;
 using System.Windows.Input;
+using System.Windows.Threading;
 using Microsoft.VisualStudio.Shell;
 using Microsoft.VisualStudio.Shell.Interop;
 using Microsoft.Win32;
@@ -40,6 +53,9 @@ namespace ClaudeCodeVS
             Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
             "ClaudeCodeExtension",
             ConfigurationFileName);
+        private System.Drawing.Color _lastTerminalColor = System.Drawing.Color.Black;
+        private DispatcherTimer _themeCheckTimer;
+        private static bool _claudeNotificationShown = false;
 
         [DllImport("user32.dll")]
         private static extern IntPtr SetParent(IntPtr hWndChild, IntPtr hWndNewParent);
@@ -77,6 +93,7 @@ namespace ClaudeCodeVS
             InitializeComponent();
             InitializeTempDirectory();
             SetupSolutionEvents();
+            SetupThemeChangeEvents();
 
             Loaded += ClaudeCodeControl_Loaded;
             Unloaded += ClaudeCodeControl_Unloaded;
@@ -84,8 +101,20 @@ namespace ClaudeCodeVS
 
         private void InitializeTempDirectory()
         {
-            tempImageDirectory = Path.Combine(Path.GetTempPath(), "ClaudeCodeVS", Guid.NewGuid().ToString());
-            Directory.CreateDirectory(tempImageDirectory);
+            try
+            {
+                tempImageDirectory = Path.Combine(Path.GetTempPath(), "ClaudeCodeVS", Guid.NewGuid().ToString());
+                Directory.CreateDirectory(tempImageDirectory);
+                Debug.WriteLine($"Temp directory created: {tempImageDirectory}");
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"Error creating temp directory: {ex.Message}");
+                // Fallback to a simpler path
+                tempImageDirectory = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString());
+                Directory.CreateDirectory(tempImageDirectory);
+                Debug.WriteLine($"Fallback temp directory created: {tempImageDirectory}");
+            }
         }
 
         private void SetupSolutionEvents()
@@ -108,6 +137,45 @@ namespace ClaudeCodeVS
             catch (Exception ex)
             {
                 Debug.WriteLine($"Error setting up solution events: {ex.Message}");
+            }
+        }
+
+        private void SetupThemeChangeEvents()
+        {
+            try
+            {
+                // Listen for when the control becomes visible to update theme and initialize terminal
+                this.IsVisibleChanged += OnVisibilityChanged;
+
+                // Set up a timer to periodically check for theme changes
+                _themeCheckTimer = new DispatcherTimer
+                {
+                    Interval = TimeSpan.FromSeconds(2)
+                };
+                _themeCheckTimer.Tick += (s, e) => CheckAndUpdateTheme();
+                _themeCheckTimer.Start();
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"Error setting up theme change events: {ex.Message}");
+            }
+        }
+
+        private void OnVisibilityChanged(object sender, DependencyPropertyChangedEventArgs e)
+        {
+            if (this.IsVisible)
+            {
+                UpdateTerminalTheme();
+
+                // Initialize terminal only when control becomes visible
+                if (terminalPanel == null)
+                {
+                    ThreadHelper.JoinableTaskFactory.RunAsync(async delegate
+                    {
+                        await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
+                        await InitializeTerminalAsync();
+                    }).FileAndForget("ClaudeCodeExtension/InitializeTerminalOnVisible");
+                }
             }
         }
 
@@ -284,15 +352,6 @@ namespace ClaudeCodeVS
 
             // Mark initialization as complete to allow settings saving
             _isInitializing = false;
-
-            ThreadHelper.JoinableTaskFactory.RunAsync(async delegate
-            {
-                await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
-                if (terminalPanel == null)
-                {
-                    await InitializeTerminalAsync();
-                }
-            }).FileAndForget("ClaudeCodeExtension/InitializeTerminal");
         }
 
         private void ApplyLoadedSettings()
@@ -308,51 +367,232 @@ namespace ClaudeCodeVS
             }
         }
 
-        private async Task InitializeTerminalAsync()
+        private System.Drawing.Color GetTerminalBackgroundColor()
         {
-            await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
-
             try
             {
+                // Get the VS theme color for window background
+                var brush = (System.Windows.Media.SolidColorBrush)FindResource(Microsoft.VisualStudio.Shell.VsBrushes.WindowKey);
+                var wpfColor = brush.Color;
+
+                // Convert WPF color to System.Drawing color
+                return System.Drawing.Color.FromArgb(wpfColor.A, wpfColor.R, wpfColor.G, wpfColor.B);
+            }
+            catch
+            {
+                // Fallback to black if theme color cannot be retrieved
+                return System.Drawing.Color.Black;
+            }
+        }
+
+
+        private void UpdateTerminalTheme()
+        {
+            if (terminalPanel != null)
+            {
+                var newColor = GetTerminalBackgroundColor();
+                if (terminalPanel.BackColor != newColor)
+                {
+                    terminalPanel.BackColor = newColor;
+                    _lastTerminalColor = newColor;
+                    Debug.WriteLine($"Terminal theme updated to: {newColor}");
+                }
+            }
+        }
+
+        private async Task<bool> IsClaudeCmdAvailableAsync()
+        {
+            try
+            {
+                // Check if claude.cmd is available in PATH using 'where' command
+                var startInfo = new ProcessStartInfo
+                {
+                    FileName = "cmd.exe",
+                    Arguments = "/c where claude.cmd",
+                    UseShellExecute = false,
+                    RedirectStandardOutput = true,
+                    RedirectStandardError = true,
+                    CreateNoWindow = true
+                };
+
+                using (var process = Process.Start(startInfo))
+                {
+                    // Use async wait to avoid blocking UI thread
+                    var completed = await Task.Run(() =>
+                    {
+                        return process.WaitForExit(3000); // 3 second timeout
+                    });
+
+                    if (!completed)
+                    {
+                        try { process.Kill(); } catch { }
+                        Debug.WriteLine("Claude check timed out");
+                        return false;
+                    }
+
+                    string output = await process.StandardOutput.ReadToEndAsync();
+                    string error = await process.StandardError.ReadToEndAsync();
+
+                    Debug.WriteLine($"Claude check - Exit code: {process.ExitCode}");
+                    Debug.WriteLine($"Claude check - Output: {output}");
+                    Debug.WriteLine($"Claude check - Error: {error}");
+
+                    bool isAvailable = process.ExitCode == 0 && !string.IsNullOrWhiteSpace(output);
+                    Debug.WriteLine($"Claude availability result: {isAvailable}");
+
+                    return isAvailable;
+                }
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"Error checking for claude.cmd: {ex.Message}");
+                return false;
+            }
+        }
+
+        private void ShowClaudeInstallationInstructions()
+        {
+            const string setupUrl = "https://docs.claude.com/en/docs/claude-code/setup";
+            const string message = "Claude Code is not installed. A regular CMD terminal will be used instead.\n\n" +
+                                   "To get the full Claude Code experience, you can install it with:\n" +
+                                   "npm install -g @anthropic-ai/claude-code\n\n" +
+                                   "Would you like to open the setup documentation for more details?";
+
+            var result = MessageBox.Show(message, "Claude Code Installation",
+                                       MessageBoxButton.YesNo, MessageBoxImage.Information);
+
+            if (result == MessageBoxResult.Yes)
+            {
+                try
+                {
+                    Process.Start(new ProcessStartInfo
+                    {
+                        FileName = setupUrl,
+                        UseShellExecute = true
+                    });
+                }
+                catch (Exception ex)
+                {
+                    Debug.WriteLine($"Failed to open setup URL: {ex.Message}");
+                    MessageBox.Show($"Please visit: {setupUrl}", "Setup URL",
+                                  MessageBoxButton.OK, MessageBoxImage.Information);
+                }
+            }
+        }
+
+        private void CheckAndUpdateTheme()
+        {
+            try
+            {
+                var currentColor = GetTerminalBackgroundColor();
+                if (currentColor != _lastTerminalColor)
+                {
+                    UpdateTerminalTheme();
+                }
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"Error checking theme: {ex.Message}");
+            }
+        }
+
+        private async Task InitializeTerminalAsync()
+        {
+            try
+            {
+                // Check if Claude Code is available before initializing terminal (off UI thread)
+                Debug.WriteLine("Checking Claude availability...");
+                bool claudeAvailable = await IsClaudeCmdAvailableAsync();
+                Debug.WriteLine($"Claude available: {claudeAvailable}");
+
+                // Switch to main thread for UI operations
+                await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
+
+                // Show installation instructions if Claude is not available and we haven't shown it yet
+                if (!claudeAvailable && !_claudeNotificationShown)
+                {
+                    _claudeNotificationShown = true;
+                    ShowClaudeInstallationInstructions();
+                }
+
+                // Ensure TerminalHost is available
+                if (TerminalHost == null)
+                {
+                    Debug.WriteLine("Error: TerminalHost is null");
+                    return;
+                }
+
                 terminalPanel = new System.Windows.Forms.Panel
                 {
                     Dock = System.Windows.Forms.DockStyle.Fill,
-                    BackColor = System.Drawing.Color.Black
+                    BackColor = GetTerminalBackgroundColor()
                 };
 
                 TerminalHost.Child = terminalPanel;
 
+                if (terminalPanel?.Handle == IntPtr.Zero)
+                {
+                    Debug.WriteLine("Warning: terminalPanel handle not yet created, waiting...");
+                    await Task.Delay(100);
+                }
+
                 terminalPanel.Resize += (s, e) => ResizeEmbeddedTerminal();
 
                 await Task.Delay(500);
-                await StartEmbeddedTerminalAsync();
+                await StartEmbeddedTerminalAsync(claudeAvailable);
             }
             catch (Exception ex)
             {
                 await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
+                Debug.WriteLine($"Error in InitializeTerminalAsync: {ex.Message}");
+                Debug.WriteLine($"Stack trace: {ex.StackTrace}");
                 MessageBox.Show($"Failed to initialize terminal: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
             }
         }
 
-        private async Task StartEmbeddedTerminalAsync()
+        private async Task StartEmbeddedTerminalAsync(bool claudeAvailable = true)
         {
-            string workspaceDir = await GetWorkspaceDirectoryAsync();
-            _lastWorkspaceDirectory = workspaceDir;
-
             try
             {
-                if (cmdProcess != null && !cmdProcess.HasExited)
+                string workspaceDir = await GetWorkspaceDirectoryAsync();
+                if (string.IsNullOrEmpty(workspaceDir))
                 {
-                    cmdProcess.Kill();
-                    cmdProcess.Dispose();
+                    Debug.WriteLine("Warning: Workspace directory is null or empty");
+                    workspaceDir = Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments);
                 }
 
-                Debug.WriteLine($"Starting Claude in directory: {workspaceDir}");
+                _lastWorkspaceDirectory = workspaceDir;
+
+                if (cmdProcess != null && !cmdProcess.HasExited)
+                {
+                    try
+                    {
+                        cmdProcess.Kill();
+                        cmdProcess.Dispose();
+                    }
+                    catch (Exception ex)
+                    {
+                        Debug.WriteLine($"Error disposing previous process: {ex.Message}");
+                    }
+                    cmdProcess = null;
+                }
+
+                string terminalCommand;
+                if (claudeAvailable)
+                {
+                    Debug.WriteLine($"Starting Claude in directory: {workspaceDir}");
+                    terminalCommand = "/k cd /d \"" + workspaceDir + "\" && claude.cmd";
+                }
+                else
+                {
+                    Debug.WriteLine($"Starting regular CMD in directory: {workspaceDir}");
+                    terminalCommand = "/k cd /d \"" + workspaceDir + "\"";
+                }
 
                 var startInfo = new ProcessStartInfo
                 {
                     FileName = "cmd.exe",
-                    Arguments = "/k cd /d \"" + workspaceDir + "\" && claude.cmd",
+                    Arguments = terminalCommand,
                     UseShellExecute = false,
                     CreateNoWindow = false,
                     WindowStyle = ProcessWindowStyle.Minimized,
@@ -361,9 +601,23 @@ namespace ClaudeCodeVS
 
                 await Task.Run(() =>
                 {
-                    cmdProcess = new Process { StartInfo = startInfo };
-                    cmdProcess.Start();
+                    try
+                    {
+                        cmdProcess = new Process { StartInfo = startInfo };
+                        cmdProcess.Start();
+                        Debug.WriteLine($"Process started with ID: {cmdProcess.Id}");
+                    }
+                    catch (Exception ex)
+                    {
+                        Debug.WriteLine($"Error starting process: {ex.Message}");
+                        throw;
+                    }
                 });
+
+                if (cmdProcess == null)
+                {
+                    throw new InvalidOperationException("Failed to create terminal process");
+                }
 
                 var hwnd = FindMainWindowHandleByPid(cmdProcess.Id, timeoutMs: 7000, pollIntervalMs: 50);
                 terminalHandle = hwnd;
@@ -372,25 +626,39 @@ namespace ClaudeCodeVS
 
                 if (terminalHandle != IntPtr.Zero && IsWindow(terminalHandle))
                 {
-                    // Hide the window immediately to prevent blinking
-                    ShowWindow(terminalHandle, SW_HIDE);
+                    if (terminalPanel?.Handle == null || terminalPanel.Handle == IntPtr.Zero)
+                    {
+                        Debug.WriteLine("Warning: terminalPanel.Handle is null or invalid");
+                        return;
+                    }
 
-                    // Embed the window
-                    SetParent(terminalHandle, terminalPanel.Handle);
+                    try
+                    {
+                        // Hide the window immediately to prevent blinking
+                        ShowWindow(terminalHandle, SW_HIDE);
 
-                    // Remove window decorations
-                    SetWindowLong(terminalHandle, GWL_STYLE,
-                        GetWindowLong(terminalHandle, GWL_STYLE) & ~(WS_CAPTION | WS_THICKFRAME | WS_MINIMIZE | WS_MAXIMIZE | WS_SYSMENU));
+                        // Embed the window
+                        SetParent(terminalHandle, terminalPanel.Handle);
 
-                    // Now show it in the embedded context
-                    ShowWindow(terminalHandle, SW_SHOW);
-                    ResizeEmbeddedTerminal();
+                        // Remove window decorations
+                        SetWindowLong(terminalHandle, GWL_STYLE,
+                            GetWindowLong(terminalHandle, GWL_STYLE) & ~(WS_CAPTION | WS_THICKFRAME | WS_MINIMIZE | WS_MAXIMIZE | WS_SYSMENU));
+
+                        // Now show it in the embedded context
+                        ShowWindow(terminalHandle, SW_SHOW);
+                        ResizeEmbeddedTerminal();
+
+                        Debug.WriteLine("Terminal embedded successfully");
+                    }
+                    catch (Exception ex)
+                    {
+                        Debug.WriteLine($"Error embedding terminal window: {ex.Message}");
+                        throw;
+                    }
                 }
                 else
                 {
-                    MessageBox.Show(
-                        "Could not find CMD window to embed. Make sure Claude Code is installed and accessible via 'claude.cmd'.",
-                        "Warning", MessageBoxButton.OK, MessageBoxImage.Warning);
+                    Debug.WriteLine("Could not find CMD window to embed. Terminal may not be available.");
                 }
             }
             catch (Exception ex)
@@ -633,6 +901,12 @@ namespace ClaudeCodeVS
         {
             try
             {
+                if (attachedImagePaths.Count >= 3)
+                {
+                    MessageBox.Show("Maximum of 3 images can be attached.", "Image Limit", MessageBoxButton.OK, MessageBoxImage.Information);
+                    return false;
+                }
+
                 System.Windows.Media.Imaging.BitmapSource image = null;
 
                 if (Clipboard.ContainsImage())
@@ -668,6 +942,13 @@ namespace ClaudeCodeVS
 
                 if (image != null)
                 {
+                    // Ensure temp directory exists
+                    if (!Directory.Exists(tempImageDirectory))
+                    {
+                        Debug.WriteLine($"Temp directory missing, recreating: {tempImageDirectory}");
+                        Directory.CreateDirectory(tempImageDirectory);
+                    }
+
                     string fileName = $"pasted_image_{DateTime.Now:yyyyMMdd_HHmmss_fff}.png";
                     string imagePath = Path.Combine(tempImageDirectory, fileName);
 
@@ -697,6 +978,12 @@ namespace ClaudeCodeVS
         {
             try
             {
+                if (attachedImagePaths.Count >= 3)
+                {
+                    MessageBox.Show("Maximum of 3 images can be attached.", "Image Limit", MessageBoxButton.OK, MessageBoxImage.Information);
+                    return;
+                }
+
                 OpenFileDialog openFileDialog = new OpenFileDialog
                 {
                     Filter = "Image files (*.png;*.jpg;*.jpeg;*.gif;*.bmp)|*.png;*.jpg;*.jpeg;*.gif;*.bmp|All files (*.*)|*.*",
@@ -707,6 +994,11 @@ namespace ClaudeCodeVS
                 {
                     foreach (string filename in openFileDialog.FileNames)
                     {
+                        if (attachedImagePaths.Count >= 3)
+                        {
+                            MessageBox.Show($"Maximum of 3 images can be attached. Only the first {3 - attachedImagePaths.Count} selected images will be added.", "Image Limit", MessageBoxButton.OK, MessageBoxImage.Information);
+                            break;
+                        }
                         attachedImagePaths.Add(filename);
                     }
                     UpdateImageDropDisplay();
@@ -732,9 +1024,9 @@ namespace ClaudeCodeVS
                     var nameBlock = new TextBlock
                     {
                         Text = System.IO.Path.GetFileName(path),
-                        Foreground = System.Windows.Media.Brushes.Gainsboro,
                         VerticalAlignment = VerticalAlignment.Center
                     };
+                    nameBlock.SetResourceReference(TextBlock.ForegroundProperty, Microsoft.VisualStudio.Shell.VsBrushes.ToolWindowTextKey);
                     var removeBtn = new Button
                     {
                         Style = (Style)FindResource("ChipRemoveButton"),
@@ -819,13 +1111,11 @@ namespace ClaudeCodeVS
         {
             if (terminalHandle != IntPtr.Zero && IsWindow(terminalHandle))
             {
-                //PostMessage(terminalHandle, WM_KEYDOWN, new IntPtr(VK_RETURN), IntPtr.Zero);
-                //System.Threading.Thread.Sleep(50);
                 PostMessage(terminalHandle, WM_CHAR, new IntPtr(VK_RETURN), IntPtr.Zero);
-                //System.Threading.Thread.Sleep(50);
-                //PostMessage(terminalHandle, WM_KEYUP, new IntPtr(VK_RETURN), IntPtr.Zero);
             }
         }
+
+
 
         private void ClaudeCodeControl_Unloaded(object sender, RoutedEventArgs e)
         {
@@ -833,6 +1123,14 @@ namespace ClaudeCodeVS
             if (!_isInitializing)
             {
                 SaveSettings();
+            }
+
+
+            // Stop theme check timer
+            if (_themeCheckTimer != null)
+            {
+                _themeCheckTimer.Stop();
+                _themeCheckTimer = null;
             }
 
             // Unregister solution events
@@ -914,6 +1212,7 @@ namespace ClaudeCodeVS
         private static extern bool SetCursorPos(int x, int y);
         [DllImport("user32.dll")]
         private static extern void mouse_event(uint dwFlags, uint dx, uint dy, uint dwData, UIntPtr dwExtraInfo);
+
         [DllImport("user32.dll")]
         private static extern bool PostMessage(IntPtr hWnd, uint Msg, IntPtr wParam, IntPtr lParam);
         [DllImport("gdi32.dll")]
@@ -996,7 +1295,18 @@ namespace ClaudeCodeVS
         private async void RestartTerminalButton_Click(object sender, RoutedEventArgs e)
 #pragma warning restore VSTHRD100 // Avoid async void methods
         {
-            await StartEmbeddedTerminalAsync();
+            try
+            {
+                // Check if Claude Code is available before restarting (off UI thread)
+                bool claudeAvailable = await IsClaudeCmdAvailableAsync();
+
+                await StartEmbeddedTerminalAsync(claudeAvailable);
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"Error in RestartTerminalButton_Click: {ex.Message}");
+                MessageBox.Show($"Failed to restart terminal: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
         }
     }
 

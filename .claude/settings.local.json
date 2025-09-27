@@ -6,7 +6,9 @@
       "Bash(powershell:*)",
       "Bash(where claude)",
       "Bash(dir:*)",
-      "Bash(dotnet build)"
+      "Bash(dotnet build)",
+      "Bash(msbuild:*)",
+      "Bash(where devenv)"
     ],
     "deny": [],
     "ask": []

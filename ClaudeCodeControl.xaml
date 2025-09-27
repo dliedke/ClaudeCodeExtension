@@ -4,17 +4,19 @@
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:wf="clr-namespace:System.Windows.Forms.Integration;assembly=WindowsFormsIntegration"
+             xmlns:vsshell="clr-namespace:Microsoft.VisualStudio.Shell;assembly=Microsoft.VisualStudio.Shell.15.0"
              mc:Ignorable="d"
              d:DesignHeight="600" d:DesignWidth="400"
-             Background="#FF1E1E1E">
+             Background="{DynamicResource {x:Static vsshell:VsBrushes.WindowKey}}"
+             Foreground="{DynamicResource {x:Static vsshell:VsBrushes.WindowTextKey}}">
 
 	<UserControl.Resources>
-		<!-- Dark button style (no light-blue hover) -->
-		<Style x:Key="DarkButtonStyle" TargetType="Button">
-			<Setter Property="Background" Value="#FF2D2D30"/>
-			<Setter Property="Foreground" Value="#FFDCDCDC"/>
-			<Setter Property="BorderBrush" Value="#FF3F3F46"/>
-			<Setter Property="BorderThickness" Value="0.5"/>
+		<!-- Adaptive button style for light/dark theme -->
+		<Style x:Key="AdaptiveButtonStyle" TargetType="Button">
+			<Setter Property="Background" Value="{DynamicResource {x:Static vsshell:VsBrushes.ToolWindowBackgroundKey}}"/>
+			<Setter Property="Foreground" Value="{DynamicResource {x:Static vsshell:VsBrushes.ToolWindowTextKey}}"/>
+			<Setter Property="BorderBrush" Value="{DynamicResource {x:Static vsshell:VsBrushes.ToolWindowBorderKey}}"/>
+			<Setter Property="BorderThickness" Value="1"/>
 			<Setter Property="Padding" Value="8,5"/>
 			<Setter Property="Height" Value="30"/>
 			<Setter Property="Cursor" Value="Hand"/>
@@ -31,17 +33,17 @@
 						</Border>
 						<ControlTemplate.Triggers>
 							<Trigger Property="IsMouseOver" Value="True">
-								<Setter Property="Background" Value="#FF3A3A3F"/>
-								<Setter Property="BorderBrush" Value="#FF505055"/>
+								<Setter Property="Background" Value="{DynamicResource {x:Static vsshell:VsBrushes.CommandBarHoverOverSelectedKey}}"/>
+								<Setter Property="BorderBrush" Value="{DynamicResource {x:Static vsshell:VsBrushes.CommandBarSelectedBorderKey}}"/>
 							</Trigger>
 							<Trigger Property="IsPressed" Value="True">
-								<Setter Property="Background" Value="#FF252529"/>
-								<Setter Property="BorderBrush" Value="#FF3A3A3F"/>
+								<Setter Property="Background" Value="{DynamicResource {x:Static vsshell:VsBrushes.CommandBarSelectedKey}}"/>
+								<Setter Property="BorderBrush" Value="{DynamicResource {x:Static vsshell:VsBrushes.CommandBarSelectedBorderKey}}"/>
 							</Trigger>
 							<Trigger Property="IsEnabled" Value="False">
-								<Setter Property="Background" Value="#FF2A2A2D"/>
-								<Setter Property="Foreground" Value="#FF8A8A8A"/>
-								<Setter Property="BorderBrush" Value="#FF2A2A2D"/>
+								<Setter Property="Background" Value="{DynamicResource {x:Static vsshell:VsBrushes.ToolWindowBackgroundKey}}"/>
+								<Setter Property="Foreground" Value="{DynamicResource {x:Static vsshell:VsBrushes.GrayTextKey}}"/>
+								<Setter Property="BorderBrush" Value="{DynamicResource {x:Static vsshell:VsBrushes.ToolWindowBorderKey}}"/>
 							</Trigger>
 						</ControlTemplate.Triggers>
 					</ControlTemplate>
@@ -51,15 +53,15 @@
 
 		<!-- Small "chip" for attached images -->
 		<Style x:Key="ChipBorder" TargetType="Border">
-			<Setter Property="Background" Value="#FF2D2D30"/>
+			<Setter Property="Background" Value="{DynamicResource {x:Static vsshell:VsBrushes.ToolWindowBackgroundKey}}"/>
 			<Setter Property="CornerRadius" Value="12"/>
 			<Setter Property="Padding" Value="6,2"/>
 			<Setter Property="Margin" Value="0,4,6,0"/>
-			<Setter Property="BorderBrush" Value="#FF3F3F46"/>
-			<Setter Property="BorderThickness" Value="0.5"/>
+			<Setter Property="BorderBrush" Value="{DynamicResource {x:Static vsshell:VsBrushes.ToolWindowBorderKey}}"/>
+			<Setter Property="BorderThickness" Value="1"/>
 		</Style>
 
-		<Style x:Key="ChipRemoveButton" TargetType="Button" BasedOn="{StaticResource DarkButtonStyle}">
+		<Style x:Key="ChipRemoveButton" TargetType="Button" BasedOn="{StaticResource AdaptiveButtonStyle}">
 			<Setter Property="Width" Value="18"/>
 			<Setter Property="Height" Value="18"/>
 			<Setter Property="Padding" Value="0"/>
@@ -88,18 +90,19 @@
 			<!-- Prompt Input Area -->
 			<GroupBox Grid.Row="0"
                       Header="Prompt / Paste Image"
-                      Foreground="#FFDCDCDC"
-                      Background="#FF2D2D30"
-                      BorderThickness="0.5"
+                      Foreground="{DynamicResource {x:Static vsshell:VsBrushes.ToolWindowTextKey}}"
+                      Background="{DynamicResource {x:Static vsshell:VsBrushes.ToolWindowBackgroundKey}}"
+                      BorderBrush="{DynamicResource {x:Static vsshell:VsBrushes.ToolWindowBorderKey}}"
+                      BorderThickness="1"
                       Margin="0,0,0,2">
 				<TextBox x:Name="PromptTextBox"
                          TextWrapping="Wrap"
                          AcceptsReturn="True"
                          VerticalScrollBarVisibility="Auto"
                          FontFamily="Cascadia Mono"
-                         Background="#FF1E1E1E"
-                         Foreground="#FFDCDCDC"
-                         BorderBrush="#FF3F3F46"
+                         Background="{DynamicResource {x:Static vsshell:VsBrushes.WindowKey}}"
+                         Foreground="{DynamicResource {x:Static vsshell:VsBrushes.WindowTextKey}}"
+                         BorderBrush="{DynamicResource {x:Static vsshell:VsBrushes.ToolWindowBorderKey}}"
                          Margin="3"
                          KeyDown="PromptTextBox_KeyDown"
                          PreviewKeyDown="PromptTextBox_PreviewKeyDown"/>
@@ -120,7 +123,7 @@
                             Content="Send"
 							Width="50"
                             MinWidth="50"
-                            Style="{StaticResource DarkButtonStyle}"
+                            Style="{StaticResource AdaptiveButtonStyle}"
                             Click="SendButton_Click"
                             Visibility="Collapsed"
                             Margin="0,0,8,0"/>
@@ -128,7 +131,7 @@
 					<!-- Fixed-width Add Image so it never expands with chips -->
 					<Button x:Name="AddImageButton"
                             Content="Add Image"
-                            Style="{StaticResource DarkButtonStyle}"
+                            Style="{StaticResource AdaptiveButtonStyle}"
                             Width="90"
                             MinWidth="90"
                             HorizontalAlignment="Left"
@@ -148,7 +151,7 @@
                         Content="Restart"
 						Width="60"
                         MinWidth="60"
-                        Style="{StaticResource DarkButtonStyle}"
+                        Style="{StaticResource AdaptiveButtonStyle}"
                         Click="RestartTerminalButton_Click"
                         VerticalAlignment="Top"
                         HorizontalAlignment="Right"/>
@@ -159,7 +162,7 @@
                       x:Name="SendWithEnterCheckBox"
                       Content="Send with Enter"
                       IsChecked="True"
-                      Foreground="#FFDCDCDC"
+                      Foreground="{DynamicResource {x:Static vsshell:VsBrushes.ToolWindowTextKey}}"
                       Margin="0,6,0,6"
                       Checked="SendWithEnterCheckBox_Checked"
                       Unchecked="SendWithEnterCheckBox_Unchecked"/>
@@ -171,7 +174,7 @@
                       Height="4"
                       HorizontalAlignment="Stretch"
                       VerticalAlignment="Center"
-                      Background="#FF3F3F46"
+                      Background="{DynamicResource {x:Static vsshell:VsBrushes.ToolWindowBorderKey}}"
                       ShowsPreview="True"
                       ResizeDirection="Rows"
                       ResizeBehavior="PreviousAndNext"
@@ -182,9 +185,10 @@
 		<GroupBox Grid.Row="2"
                   Header="Claude Code"
                   Margin="6"
-                  Foreground="#FFDCDCDC"
-                  Background="#FF2D2D30"
-                  BorderThickness="0.5">
+                  Foreground="{DynamicResource {x:Static vsshell:VsBrushes.ToolWindowTextKey}}"
+                  Background="{DynamicResource {x:Static vsshell:VsBrushes.ToolWindowBackgroundKey}}"
+                  BorderBrush="{DynamicResource {x:Static vsshell:VsBrushes.ToolWindowBorderKey}}"
+                  BorderThickness="1">
 			<wf:WindowsFormsHost x:Name="TerminalHost" Margin="3"/>
 		</GroupBox>
 	</Grid>

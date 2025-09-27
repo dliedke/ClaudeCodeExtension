@@ -16,7 +16,7 @@
     </Buttons>
 
     <Bitmaps>
-      <Bitmap guid="guidImages" href="Resources\app.png" usedList="bmpIcon"/>
+      <Bitmap guid="guidImages" href="app.ico" usedList="bmpIcon"/>
     </Bitmaps>
   </Commands>
 

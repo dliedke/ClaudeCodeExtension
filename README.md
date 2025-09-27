@@ -2,6 +2,10 @@
 
 A Visual Studio extension that provides seamless integration with Claude Code directly within the Visual Studio IDE.
 
+<center>
+<img src="https://i.ibb.co/mVCs0cNy/Claude-Code-Extension.png" alt="Claude Code Extension Screenshot" />
+</center>
+
 ## Features
 
 ### 🎯 **Integrated Terminal**
@@ -25,20 +29,21 @@ A Visual Studio extension that provides seamless integration with Claude Code di
 - **Fallback Handling**: Smart directory resolution when no solution is open
 
 ### 💾 **Persistent Settings**
-- **JSON Configuration**: Settings stored in `%LocalAppData%\ClaudeCodeExtension\claudecode-settings.json`
+- **JSON Configuration**: Settings stored in `%LocalAppData%\..\Local\ClaudeCodeExtension\claudecode-settings.json`
 - **Send with Enter State**: Remembers your preferred input mode
 - **Splitter Position**: Maintains your preferred layout between sessions
 
 ### 🎨 **Visual Studio Integration**
-- **Dark Theme**: Consistent with Visual Studio's dark theme
+- **Dark/Light Theme**: Consistent with Visual Studio's dark/light theme
 - **Resizable Layout**: Adjustable splitter between prompt and terminal areas
 - **Native Controls**: Follows Visual Studio UI conventions
 
 ## System Requirements
 
-- Visual Studio 2022 or later
-- Claude Pro or higher subscription
-- Claude Code CLI installed and accessible via `claude.cmd`. Refer to https://docs.claude.com/en/docs/claude-code/setup for installation
+- Visual Studio 2022 17.14 or later
+- Claude Pro or better paid subscription
+- Claude Code CLI installed and accessible via `claude.cmd` in path.
+  Refer to https://docs.claude.com/en/docs/claude-code/setup for Claude Code installation
 - Windows operating system
 
 ## Installation
@@ -47,6 +52,14 @@ A Visual Studio extension that provides seamless integration with Claude Code di
 2. Double-click the VSIX file to install
 3. Restart Visual Studio
 4. Open the extension via **View** → **Other Windows** → **Claude Code Extension**
+
+## Quick Start
+
+- **First Time Setup**: Ensure Claude Code CLI is installed and accessible
+- **Open Tool Window**: View → Other Windows → Claude Code Extension
+- **Start Chatting**: Type your prompt and press Enter
+- **Add Images**: Use Ctrl+V to paste or click "Add Image" button
+- **Customize**: Toggle "Send with Enter" and adjust layout as needed
 
 ## Usage
 
@@ -64,29 +77,36 @@ A Visual Studio extension that provides seamless integration with Claude Code di
 
 ## Version History
 
-### Version 1.0.0
-- 🎉 Initial release
-- ✅ Embedded Claude Code terminal
-- ✅ Send with Enter functionality with Shift+Enter and Ctrl+Enter for new lines
-- ✅ Image drag & drop, paste, and file selection support
-- ✅ Automatic workspace directory detection
-- ✅ Solution event monitoring for dynamic directory switching
-- ✅ Persistent JSON settings storage
-- ✅ Resizable layout with splitter position memory
-- ✅ Dark theme integration
-- ✅ Visual Studio threading compliance (no warnings)
+### Version 1.1
+
+- Dynamic dark/light theme according to Visual Studio theme (except for Claude Code terminal because in white does not look good at all)
+- Fixed icon in View -> Other Windows -> Claude Code Extension menu
+- If Claude Code claude.cmd is not found in path, show a message box with instructions and open URL for installation if user requests
+- Fix issues pasting images in prompt area
+
+### Version 1.0
+
+- Initial release
+- Embedded Claude Code terminal
+- Send with Enter functionality with Shift+Enter and Ctrl+Enter for new lines
+- Image drag & drop, paste, and file selection support
+- Automatic workspace directory detection
+- Solution event monitoring for dynamic directory switching
+- Persistent JSON settings storage
+- Resizable layout with splitter position memory
+- Dark theme integration
 
 ## License & Usage
 
-**⚠️ IMPORTANT NOTICE**
+** IMPORTANT NOTICE**
 
 This extension is proprietary software. **Unauthorized cloning, copying, modification, or distribution is strictly prohibited** without explicit written permission from the author.
 
 ### Restrictions
-- ❌ No cloning or forking of source code
-- ❌ No modification or derivative works
-- ❌ No redistribution or commercial use
-- ❌ No reverse engineering
+- No cloning or forking of source code
+- No modification or derivative works
+- No redistribution or commercial use
+- No reverse engineering
 
 ### Permissions
 For licensing inquiries or permission requests, please contact the author.

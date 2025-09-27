@@ -1,4 +1,16 @@
-﻿using Microsoft.VisualStudio.Shell;
+﻿/* *******************************************************************************************************************
+ * Application: ClaudeCodeExtension
+ *
+ * Autor:  Daniel Liedke
+ *
+ * Copyright © Daniel Liedke 2025
+ * Usage and reproduction in any manner whatsoever without the written permission of Daniel Liedke is strictly forbidden.
+ *
+ * Purpose: Tool window class for the Claude Code extension for VS.NET 2022
+ *
+ * *******************************************************************************************************************/
+
+using Microsoft.VisualStudio.Shell;
 using System;
 using System.Runtime.InteropServices;
 
