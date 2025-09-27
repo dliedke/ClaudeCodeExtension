@@ -5,43 +5,56 @@ using System.IO;
 using System.Linq;
 using System.Runtime.InteropServices;
 using System.Text;
+using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Forms.Integration;
 using System.Windows.Input;
+using Microsoft.VisualStudio.Shell;
+using Microsoft.VisualStudio.Shell.Interop;
 using Microsoft.Win32;
+using Newtonsoft.Json;
 
 namespace ClaudeCodeVS
 {
-    public partial class ClaudeCodeControl : UserControl
+    public class ClaudeCodeSettings
+    {
+        public bool SendWithEnter { get; set; } = true;
+        public double SplitterPosition { get; set; } = 236.0; // Default pixel height for first row
+    }
+
+    public partial class ClaudeCodeControl : UserControl, IDisposable
     {
         private System.Windows.Forms.Panel terminalPanel;
         private Process cmdProcess;
         private IntPtr terminalHandle;
-        private List<string> attachedImagePaths = new List<string>();
+        private readonly List<string> attachedImagePaths = new List<string>();
         private string tempImageDirectory;
+        private ClaudeCodeSettings _settings;
+        private bool _isInitializing = true;
+        private IVsSolutionEvents solutionEvents;
+        private uint solutionEventsCookie;
+        private string _lastWorkspaceDirectory;
+        private const string ConfigurationFileName = "claudecode-settings.json";
+        private static readonly string ConfigurationPath = Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+            "ClaudeCodeExtension",
+            ConfigurationFileName);
 
         [DllImport("user32.dll")]
         private static extern IntPtr SetParent(IntPtr hWndChild, IntPtr hWndNewParent);
-
         [DllImport("user32.dll")]
         private static extern bool SetWindowPos(IntPtr hWnd, IntPtr hWndInsertAfter, int X, int Y, int cx, int cy, uint uFlags);
-
         [DllImport("user32.dll")]
         private static extern bool ShowWindow(IntPtr hWnd, int nCmdShow);
-
         [DllImport("user32.dll")]
         private static extern bool IsWindow(IntPtr hWnd);
-
         [DllImport("user32.dll")]
         private static extern int SetWindowLong(IntPtr hWnd, int nIndex, int dwNewLong);
-
         [DllImport("user32.dll")]
         private static extern int GetWindowLong(IntPtr hWnd, int nIndex);
-
         [DllImport("user32.dll")]
         private static extern bool EnumWindows(EnumWindowsProc lpEnumFunc, IntPtr lParam);
-
         [DllImport("user32.dll")]
         private static extern uint GetWindowThreadProcessId(IntPtr hWnd, out uint lpdwProcessId);
 
@@ -49,10 +62,9 @@ namespace ClaudeCodeVS
 
         private const uint SWP_NOZORDER = 0x0004;
         private const uint SWP_NOACTIVATE = 0x0010;
-        private const int SW_HIDE = 0;
         private const int SW_SHOW = 5;
+        private const int SW_HIDE = 0;
 
-        // Window style constants
         private const int GWL_STYLE = -16;
         private const int WS_CAPTION = 0x00C00000;
         private const int WS_THICKFRAME = 0x00040000;
@@ -64,21 +76,10 @@ namespace ClaudeCodeVS
         {
             InitializeComponent();
             InitializeTempDirectory();
-            this.Loaded += ClaudeCodeControl_Loaded;
-            this.Unloaded += ClaudeCodeControl_Unloaded;
-        }
+            SetupSolutionEvents();
 
-        private void ClaudeCodeControl_Loaded(object sender, RoutedEventArgs e)
-        {
-            // Only initialize terminal when the control is actually shown
-            if (terminalPanel == null)
-            {
-                // Delay terminal initialization slightly to ensure VS services are ready
-                Dispatcher.BeginInvoke(new Action(() =>
-                {
-                    InitializeTerminal();
-                }), System.Windows.Threading.DispatcherPriority.ApplicationIdle);
-            }
+            Loaded += ClaudeCodeControl_Loaded;
+            Unloaded += ClaudeCodeControl_Unloaded;
         }
 
         private void InitializeTempDirectory()
@@ -87,37 +88,257 @@ namespace ClaudeCodeVS
             Directory.CreateDirectory(tempImageDirectory);
         }
 
-        private void InitializeTerminal()
+        private void SetupSolutionEvents()
         {
             try
             {
-                // Create a Windows Forms panel to host the terminal
+                ThreadHelper.JoinableTaskFactory.Run(async delegate
+                {
+                    await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
+
+                    var solution = Package.GetGlobalService(typeof(SVsSolution)) as IVsSolution;
+                    if (solution != null)
+                    {
+                        solutionEvents = new SolutionEventsHandler(this);
+                        solution.AdviseSolutionEvents(solutionEvents, out solutionEventsCookie);
+                        Debug.WriteLine("Solution events registered successfully");
+                    }
+                });
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"Error setting up solution events: {ex.Message}");
+            }
+        }
+
+        private void LoadSettings()
+        {
+            try
+            {
+                if (File.Exists(ConfigurationPath))
+                {
+                    var json = File.ReadAllText(ConfigurationPath);
+                    _settings = JsonConvert.DeserializeObject<ClaudeCodeSettings>(json) ?? new ClaudeCodeSettings();
+                    Debug.WriteLine($"Loaded settings: SendWithEnter={_settings.SendWithEnter}, SplitterPosition={_settings.SplitterPosition}");
+                }
+                else
+                {
+                    _settings = new ClaudeCodeSettings();
+                    Debug.WriteLine($"No settings file found, using defaults: SendWithEnter={_settings.SendWithEnter}, SplitterPosition={_settings.SplitterPosition}");
+
+                    // Save the default settings to create the file
+                    SaveDefaultSettings();
+                }
+
+                // Apply loaded settings to UI
+                SendWithEnterCheckBox.IsChecked = _settings.SendWithEnter;
+                Debug.WriteLine($"Set checkbox to: {_settings.SendWithEnter}");
+
+                if (_settings.SplitterPosition > 0)
+                {
+                    SetSplitterPosition(_settings.SplitterPosition);
+                    Debug.WriteLine($"Set splitter position to: {_settings.SplitterPosition}");
+                }
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"Error loading settings: {ex.Message}");
+                _settings = new ClaudeCodeSettings();
+            }
+        }
+
+        private void SaveDefaultSettings()
+        {
+            try
+            {
+                var directory = Path.GetDirectoryName(ConfigurationPath);
+                if (!Directory.Exists(directory))
+                {
+                    Directory.CreateDirectory(directory);
+                }
+
+                var json = JsonConvert.SerializeObject(_settings, Formatting.Indented);
+                File.WriteAllText(ConfigurationPath, json);
+                Debug.WriteLine($"Default settings created at: {ConfigurationPath}");
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"Error saving default settings: {ex.Message}");
+            }
+        }
+
+        private void SaveSettings()
+        {
+            try
+            {
+                // Don't save settings during initialization to prevent overwriting with default values
+                if (_isInitializing)
+                {
+                    Debug.WriteLine("Skipping save during initialization");
+                    return;
+                }
+
+                if (_settings == null)
+                    _settings = new ClaudeCodeSettings();
+
+                // Update settings from UI
+                _settings.SendWithEnter = SendWithEnterCheckBox.IsChecked == true;
+                Debug.WriteLine($"Saving SendWithEnter: {_settings.SendWithEnter}");
+
+                // Only update splitter position if we can get a valid value (not 0.0)
+                var splitterPosition = FindSplitterPosition();
+                if (splitterPosition.HasValue && splitterPosition.Value > 0)
+                {
+                    _settings.SplitterPosition = splitterPosition.Value;
+                    Debug.WriteLine($"Saving splitter position: {_settings.SplitterPosition}");
+                }
+                else
+                {
+                    Debug.WriteLine($"Not saving splitter position, got: {splitterPosition}");
+                }
+
+                // Save to file
+                var directory = Path.GetDirectoryName(ConfigurationPath);
+                if (!Directory.Exists(directory))
+                {
+                    Directory.CreateDirectory(directory);
+                }
+
+                var json = JsonConvert.SerializeObject(_settings, Formatting.Indented);
+                File.WriteAllText(ConfigurationPath, json);
+                Debug.WriteLine($"Settings saved to: {ConfigurationPath}");
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"Error saving settings: {ex.Message}");
+            }
+        }
+
+        private double? FindSplitterPosition()
+        {
+            try
+            {
+                var grid = MainGrid;
+                if (grid?.RowDefinitions?.Count >= 3 && this.ActualHeight > 0)
+                {
+                    var topRow = grid.RowDefinitions[0];
+                    var splitterRow = grid.RowDefinitions[1];
+                    var bottomRow = grid.RowDefinitions[2];
+
+                    // Calculate the actual height of the top row
+                    double topHeight = 0;
+                    if (topRow.Height.IsStar)
+                    {
+                        double totalStars = topRow.Height.Value + bottomRow.Height.Value;
+                        topHeight = (topRow.Height.Value / totalStars) * (this.ActualHeight - splitterRow.Height.Value);
+                    }
+                    else if (topRow.Height.IsAbsolute)
+                    {
+                        topHeight = topRow.Height.Value;
+                    }
+
+                    // Return the actual pixel height for saving
+                    if (topHeight > 0)
+                    {
+                        return topHeight;
+                    }
+                }
+                return null;
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"Error finding splitter position: {ex.Message}");
+                return null;
+            }
+        }
+
+        private void SetSplitterPosition(double position)
+        {
+            try
+            {
+                var grid = MainGrid;
+                if (grid?.RowDefinitions?.Count >= 3 && position > 0)
+                {
+                    // Set absolute height for the top row
+                    grid.RowDefinitions[0].Height = new GridLength(position, GridUnitType.Pixel);
+                    // Keep the bottom row as star to fill remaining space
+                    grid.RowDefinitions[2].Height = new GridLength(1, GridUnitType.Star);
+                }
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"Error setting splitter position: {ex.Message}");
+            }
+        }
+
+        private void MainGridSplitter_DragCompleted(object sender, System.Windows.Controls.Primitives.DragCompletedEventArgs e)
+        {
+            SaveSettings();
+        }
+
+        private void ClaudeCodeControl_Loaded(object sender, RoutedEventArgs e)
+        {
+            // Load settings after UI is fully loaded
+            LoadSettings();
+            ApplyLoadedSettings();
+
+            // Mark initialization as complete to allow settings saving
+            _isInitializing = false;
+
+            ThreadHelper.JoinableTaskFactory.RunAsync(async delegate
+            {
+                await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
+                if (terminalPanel == null)
+                {
+                    await InitializeTerminalAsync();
+                }
+            }).FileAndForget("ClaudeCodeExtension/InitializeTerminal");
+        }
+
+        private void ApplyLoadedSettings()
+        {
+            // Ensure the send button visibility matches the checkbox state
+            if (SendWithEnterCheckBox.IsChecked == true)
+            {
+                SendPromptButton.Visibility = Visibility.Collapsed;
+            }
+            else
+            {
+                SendPromptButton.Visibility = Visibility.Visible;
+            }
+        }
+
+        private async Task InitializeTerminalAsync()
+        {
+            await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
+
+            try
+            {
                 terminalPanel = new System.Windows.Forms.Panel
                 {
                     Dock = System.Windows.Forms.DockStyle.Fill,
                     BackColor = System.Drawing.Color.Black
                 };
 
-                // Set the panel as the child of WindowsFormsHost
                 TerminalHost.Child = terminalPanel;
 
-                // Handle panel resize to resize embedded terminal
                 terminalPanel.Resize += (s, e) => ResizeEmbeddedTerminal();
 
-                // Start CMD with Claude after a brief delay to ensure the panel is ready
-                Dispatcher.BeginInvoke(new Action(async () =>
-                {
-                    await System.Threading.Tasks.Task.Delay(500);
-                    StartEmbeddedTerminal();
-                }), System.Windows.Threading.DispatcherPriority.Loaded);
+                await Task.Delay(500);
+                await StartEmbeddedTerminalAsync();
             }
             catch (Exception ex)
             {
+                await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
                 MessageBox.Show($"Failed to initialize terminal: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
             }
         }
-                private void StartEmbeddedTerminal()
+
+        private async Task StartEmbeddedTerminalAsync()
         {
+            string workspaceDir = await GetWorkspaceDirectoryAsync();
+            _lastWorkspaceDirectory = workspaceDir;
+
             try
             {
                 if (cmdProcess != null && !cmdProcess.HasExited)
@@ -126,39 +347,42 @@ namespace ClaudeCodeVS
                     cmdProcess.Dispose();
                 }
 
-                string workspaceDir = GetWorkspaceDirectory();
-                System.Diagnostics.Debug.WriteLine($"Starting Claude in directory: {workspaceDir}");
+                Debug.WriteLine($"Starting Claude in directory: {workspaceDir}");
 
-                // 1) Launch hidden so no standalone console ever appears.
-                cmdProcess = new Process
+                var startInfo = new ProcessStartInfo
                 {
-                    StartInfo = new ProcessStartInfo
-                    {
-                        FileName = "cmd.exe",
-                        Arguments = "/k cd /d \"" + workspaceDir + "\" && claude.cmd",
-                        UseShellExecute = false,
-                        CreateNoWindow = false,              // keep a window, but start it hidden
-                        WindowStyle = ProcessWindowStyle.Hidden,
-                        WorkingDirectory = workspaceDir
-                    }
+                    FileName = "cmd.exe",
+                    Arguments = "/k cd /d \"" + workspaceDir + "\" && claude.cmd",
+                    UseShellExecute = false,
+                    CreateNoWindow = false,
+                    WindowStyle = ProcessWindowStyle.Minimized,
+                    WorkingDirectory = workspaceDir
                 };
 
-                cmdProcess.Start();
+                await Task.Run(() =>
+                {
+                    cmdProcess = new Process { StartInfo = startInfo };
+                    cmdProcess.Start();
+                });
 
-                // 2) Find the (hidden) console window for this process.
                 var hwnd = FindMainWindowHandleByPid(cmdProcess.Id, timeoutMs: 7000, pollIntervalMs: 50);
                 terminalHandle = hwnd;
 
+                await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
+
                 if (terminalHandle != IntPtr.Zero && IsWindow(terminalHandle))
                 {
-                    // 3) Reparent into our panel while still hidden.
+                    // Hide the window immediately to prevent blinking
+                    ShowWindow(terminalHandle, SW_HIDE);
+
+                    // Embed the window
                     SetParent(terminalHandle, terminalPanel.Handle);
 
-                    // Remove borders/chrome.
+                    // Remove window decorations
                     SetWindowLong(terminalHandle, GWL_STYLE,
                         GetWindowLong(terminalHandle, GWL_STYLE) & ~(WS_CAPTION | WS_THICKFRAME | WS_MINIMIZE | WS_MAXIMIZE | WS_SYSMENU));
 
-                    // 4) Now show and size it entirely inside our host.
+                    // Now show it in the embedded context
                     ShowWindow(terminalHandle, SW_SHOW);
                     ResizeEmbeddedTerminal();
                 }
@@ -171,11 +395,11 @@ namespace ClaudeCodeVS
             }
             catch (Exception ex)
             {
+                await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
                 MessageBox.Show($"Failed to start embedded terminal: {ex.Message}",
                                 "Error", MessageBoxButton.OK, MessageBoxImage.Error);
             }
         }
-
 
         private void ResizeEmbeddedTerminal()
         {
@@ -187,14 +411,12 @@ namespace ClaudeCodeVS
             }
         }
 
-        private string GetWorkspaceDirectory()
+        private async Task<string> GetWorkspaceDirectoryAsync()
         {
             try
             {
-                // Try multiple approaches to get the VS project directory
-
-                // Method 1: Try to get from DTE service
-                var dte = Microsoft.VisualStudio.Shell.Package.GetGlobalService(typeof(EnvDTE.DTE)) as EnvDTE.DTE;
+                await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
+                var dte = Package.GetGlobalService(typeof(EnvDTE.DTE)) as EnvDTE.DTE;
                 if (dte?.Solution?.FullName != null && !string.IsNullOrEmpty(dte.Solution.FullName))
                 {
                     string solutionDir = Path.GetDirectoryName(dte.Solution.FullName);
@@ -204,7 +426,6 @@ namespace ClaudeCodeVS
                     }
                 }
 
-                // Method 2: Try to get active project directory
                 if (dte?.ActiveDocument?.ProjectItem?.ContainingProject?.FullName != null)
                 {
                     string projectDir = Path.GetDirectoryName(dte.ActiveDocument.ProjectItem.ContainingProject.FullName);
@@ -214,22 +435,16 @@ namespace ClaudeCodeVS
                     }
                 }
 
-                // Method 3: Try solution builder
-                var solutionBuildManager = Microsoft.VisualStudio.Shell.Package.GetGlobalService(typeof(Microsoft.VisualStudio.Shell.Interop.SVsSolutionBuildManager));
-                if (solutionBuildManager != null)
+                var solution = Package.GetGlobalService(typeof(Microsoft.VisualStudio.Shell.Interop.SVsSolution)) as Microsoft.VisualStudio.Shell.Interop.IVsSolution;
+                if (solution != null)
                 {
-                    var solution = Microsoft.VisualStudio.Shell.Package.GetGlobalService(typeof(Microsoft.VisualStudio.Shell.Interop.SVsSolution)) as Microsoft.VisualStudio.Shell.Interop.IVsSolution;
-                    if (solution != null)
+                    solution.GetSolutionInfo(out string solutionDir, out string solutionFile, out string userOptsFile);
+                    if (!string.IsNullOrEmpty(solutionDir) && Directory.Exists(solutionDir))
                     {
-                        solution.GetSolutionInfo(out string solutionDir, out string solutionFile, out string userOptsFile);
-                        if (!string.IsNullOrEmpty(solutionDir) && Directory.Exists(solutionDir))
-                        {
-                            return solutionDir;
-                        }
+                        return solutionDir;
                     }
                 }
 
-                // Method 4: Check current working directory if it looks like a project
                 string currentDir = Environment.CurrentDirectory;
                 if (Directory.Exists(currentDir) &&
                     (Directory.GetFiles(currentDir, "*.sln").Length > 0 ||
@@ -241,138 +456,126 @@ namespace ClaudeCodeVS
             }
             catch (Exception ex)
             {
-                // Log error but don't crash
-                System.Diagnostics.Debug.WriteLine($"Error getting workspace directory: {ex.Message}");
+                Debug.WriteLine($"Error getting workspace directory: {ex.Message}");
             }
 
-            // Final fallback
             return Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments);
         }
 
-        // Button event handlers
-        private void RestartTerminalButton_Click(object sender, RoutedEventArgs e)
+        public async Task OnWorkspaceDirectoryChangedAsync()
         {
-            StartEmbeddedTerminal();
-        }
-
-
-        // UI Event Handlers
-        private void PromptTextBox_PreviewKeyDown(object sender, KeyEventArgs e)
-        {
-            // Handle Ctrl+V for pasting images at preview level to catch it earlier
-            if (e.Key == Key.V && (Keyboard.Modifiers & ModifierKeys.Control) == ModifierKeys.Control)
+            try
             {
-                if (TryPasteImage())
+                string newWorkspaceDir = await GetWorkspaceDirectoryAsync();
+
+                // Only restart if the directory actually changed
+                if (_lastWorkspaceDirectory != newWorkspaceDir)
                 {
-                    e.Handled = true; // Prevent normal text paste
+                    Debug.WriteLine($"Workspace directory changed from '{_lastWorkspaceDirectory}' to '{newWorkspaceDir}'. Restarting terminal...");
+                    _lastWorkspaceDirectory = newWorkspaceDir;
+
+                    // Restart the terminal in the new directory
+                    await StartEmbeddedTerminalAsync();
                 }
             }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"Error handling workspace directory change: {ex.Message}");
+            }
         }
+
+        // ===== Send-with-Enter behavior =====
 
         private void PromptTextBox_KeyDown(object sender, KeyEventArgs e)
         {
             if (e.Key == Key.Enter)
             {
-                if ((Keyboard.Modifiers & ModifierKeys.Shift) == ModifierKeys.Shift)
+                bool sendWithEnter = SendWithEnterCheckBox.IsChecked == true;
+
+                Debug.WriteLine($"Enter pressed - SendWithEnter: {sendWithEnter}, Modifiers: {Keyboard.Modifiers}");
+
+                if (sendWithEnter)
                 {
-                    // Let TextBox handle Shift+Enter as a real newline
-                    return;
-                }
-
-                if ((Keyboard.Modifiers & ModifierKeys.Control) == ModifierKeys.Control)
-                {
-                    // Ctrl+Enter also insert newline
-                    return;
-                }
-
-                // Plain Enter: Send prompt
-                SendButton_Click(sender, null);
-                e.Handled = true;
-            }
-        }
-
-        private bool TryPasteImage()
-        {
-            try
-            {
-                System.Windows.Media.Imaging.BitmapSource image = null;
-
-                // Try multiple clipboard formats
-                if (Clipboard.ContainsImage())
-                {
-                    image = Clipboard.GetImage();
-                    System.Diagnostics.Debug.WriteLine("Got image from ContainsImage/GetImage");
-                }
-                else if (Clipboard.ContainsData(DataFormats.Bitmap))
-                {
-                    var bitmapData = Clipboard.GetData(DataFormats.Bitmap);
-                    System.Diagnostics.Debug.WriteLine($"Bitmap data type: {bitmapData?.GetType()}");
-
-                    if (bitmapData is System.Drawing.Bitmap bitmap)
+                    // When SendWithEnter is enabled:
+                    // - Enter sends the prompt
+                    // - Shift+Enter or Ctrl+Enter creates new line
+                    if ((Keyboard.Modifiers & ModifierKeys.Shift) == ModifierKeys.Shift ||
+                        (Keyboard.Modifiers & ModifierKeys.Control) == ModifierKeys.Control)
                     {
-                        var handle = bitmap.GetHbitmap();
-                        try
-                        {
-                            image = System.Windows.Interop.Imaging.CreateBitmapSourceFromHBitmap(
-                                handle, IntPtr.Zero, System.Windows.Int32Rect.Empty,
-                                System.Windows.Media.Imaging.BitmapSizeOptions.FromEmptyOptions());
-                            System.Diagnostics.Debug.WriteLine("Got image from Bitmap conversion");
-                        }
-                        finally
-                        {
-                            DeleteObject(handle);
-                        }
+                        // Allow newline insertion with modifiers
+                        Debug.WriteLine("Allowing newline with modifier key");
+                        return;
                     }
-                }
-                else if (Clipboard.ContainsData("PNG"))
-                {
-                    var pngData = Clipboard.GetData("PNG") as MemoryStream;
-                    if (pngData != null)
+                    else
                     {
-                        image = System.Windows.Media.Imaging.BitmapFrame.Create(pngData);
-                        System.Diagnostics.Debug.WriteLine("Got image from PNG data");
+                        // Plain Enter sends the prompt
+                        Debug.WriteLine("Sending prompt with Enter");
+                        e.Handled = true; // Prevent default newline behavior
+                        SendButton_Click(sender, null);
                     }
-                }
-                else if (Clipboard.ContainsData("DeviceIndependentBitmap"))
-                {
-                    var dibData = Clipboard.GetData("DeviceIndependentBitmap");
-                    System.Diagnostics.Debug.WriteLine($"DIB data type: {dibData?.GetType()}");
-                    // Could add DIB parsing here if needed
-                }
-
-                if (image != null)
-                {
-                    // Create unique filename
-                    string fileName = $"pasted_image_{DateTime.Now:yyyyMMdd_HHmmss_fff}.png";
-                    string imagePath = Path.Combine(tempImageDirectory, fileName);
-
-                    // Save image to temp directory
-                    using (var fileStream = new FileStream(imagePath, FileMode.Create))
-                    {
-                        var encoder = new System.Windows.Media.Imaging.PngBitmapEncoder();
-                        encoder.Frames.Add(System.Windows.Media.Imaging.BitmapFrame.Create(image));
-                        encoder.Save(fileStream);
-                    }
-
-                    // Add to attached images list
-                    attachedImagePaths.Add(imagePath);
-                    UpdateImageDropDisplay();
-
-                    System.Diagnostics.Debug.WriteLine($"Successfully pasted and saved image to: {imagePath}");
-                    return true;
                 }
                 else
                 {
-                    System.Diagnostics.Debug.WriteLine("No image found in clipboard");
+                    // When SendWithEnter is disabled, let default behavior handle Enter (newlines)
+                    Debug.WriteLine("SendWithEnter disabled - allowing newline");
                 }
             }
-            catch (Exception ex)
+        }
+
+        private void PromptTextBox_PreviewKeyDown(object sender, KeyEventArgs e)
+        {
+            // Handle SendWithEnter functionality in PreviewKeyDown to catch it before TextBox handles it
+            if (e.Key == Key.Enter)
             {
-                System.Diagnostics.Debug.WriteLine($"Error pasting image: {ex.Message}");
-                MessageBox.Show($"Error pasting image: {ex.Message}", "Paste Error", MessageBoxButton.OK, MessageBoxImage.Warning);
+                bool sendWithEnter = SendWithEnterCheckBox.IsChecked == true;
+
+                Debug.WriteLine($"PreviewKeyDown Enter pressed - SendWithEnter: {sendWithEnter}, Modifiers: {Keyboard.Modifiers}");
+
+                if (sendWithEnter)
+                {
+                    // When SendWithEnter is enabled:
+                    // - Enter sends the prompt
+                    // - Shift+Enter or Ctrl+Enter creates new line
+                    if ((Keyboard.Modifiers & ModifierKeys.Shift) == ModifierKeys.Shift ||
+                        (Keyboard.Modifiers & ModifierKeys.Control) == ModifierKeys.Control)
+                    {
+                        // Allow newline insertion with modifiers
+                        Debug.WriteLine("PreviewKeyDown: Allowing newline with modifier key");
+                        return;
+                    }
+                    else
+                    {
+                        // Plain Enter sends the prompt
+                        Debug.WriteLine("PreviewKeyDown: Sending prompt with Enter");
+                        e.Handled = true; // Prevent default newline behavior
+                        SendButton_Click(sender, null);
+                        return;
+                    }
+                }
+                // When SendWithEnter is disabled, let default behavior handle Enter (newlines)
             }
 
-            return false;
+            // Preserve paste-image shortcut even with new behavior
+            if (e.Key == Key.V && (Keyboard.Modifiers & ModifierKeys.Control) == ModifierKeys.Control)
+            {
+                if (TryPasteImage())
+                {
+                    e.Handled = true;
+                }
+            }
+        }
+
+        // Send-with-Enter toggle just controls the Send button visibility
+        private void SendWithEnterCheckBox_Checked(object sender, RoutedEventArgs e)
+        {
+            SendPromptButton.Visibility = Visibility.Collapsed;
+            SaveSettings();
+        }
+
+        private void SendWithEnterCheckBox_Unchecked(object sender, RoutedEventArgs e)
+        {
+            SendPromptButton.Visibility = Visibility.Visible;
+            SaveSettings();
         }
 
         private void SendButton_Click(object sender, RoutedEventArgs e)
@@ -386,11 +589,8 @@ namespace ClaudeCodeVS
                     return;
                 }
 
-                // Build the full prompt with images if any
                 StringBuilder fullPrompt = new StringBuilder();
 
-                // Copy images to temp directory and include their paths
-                List<string> tempImagePaths = new List<string>();
                 if (attachedImagePaths.Any())
                 {
                     fullPrompt.AppendLine("Images attached:");
@@ -401,17 +601,13 @@ namespace ClaudeCodeVS
                             string fileName = Path.GetFileName(imagePath);
                             string tempPath = Path.Combine(tempImageDirectory, fileName);
 
-                            // Copy image to temp directory
                             File.Copy(imagePath, tempPath, true);
-                            tempImagePaths.Add(tempPath);
 
-                            // Include full temp path in prompt for Claude Code
                             fullPrompt.AppendLine($"  - {tempPath}");
                         }
                         catch (Exception ex)
                         {
-                            System.Diagnostics.Debug.WriteLine($"Error copying image {imagePath}: {ex.Message}");
-                            // Include original path if copy fails
+                            Debug.WriteLine($"Error copying image {imagePath}: {ex.Message}");
                             fullPrompt.AppendLine($"  - {imagePath}");
                         }
                     }
@@ -420,10 +616,8 @@ namespace ClaudeCodeVS
 
                 fullPrompt.AppendLine(prompt);
 
-                // Send to terminal by simulating keyboard input
                 SendTextToTerminal(fullPrompt.ToString());
 
-                // Always auto-clear after sending
                 PromptTextBox.Clear();
                 ClearAttachedImages();
             }
@@ -433,41 +627,70 @@ namespace ClaudeCodeVS
             }
         }
 
+        // ===== Images (paste, add, chips) =====
 
-        private void ImageDropBorder_Drop(object sender, DragEventArgs e)
+        private bool TryPasteImage()
         {
             try
             {
-                if (e.Data.GetDataPresent(DataFormats.FileDrop))
+                System.Windows.Media.Imaging.BitmapSource image = null;
+
+                if (Clipboard.ContainsImage())
                 {
-                    string[] files = (string[])e.Data.GetData(DataFormats.FileDrop);
-                    foreach (string file in files)
+                    image = Clipboard.GetImage();
+                }
+                else if (Clipboard.ContainsData(DataFormats.Bitmap))
+                {
+                    var bitmapData = Clipboard.GetData(DataFormats.Bitmap);
+                    if (bitmapData is System.Drawing.Bitmap bitmap)
                     {
-                        if (IsImageFile(file))
+                        var handle = bitmap.GetHbitmap();
+                        try
                         {
-                            attachedImagePaths.Add(file);
+                            image = System.Windows.Interop.Imaging.CreateBitmapSourceFromHBitmap(
+                                handle, IntPtr.Zero, System.Windows.Int32Rect.Empty,
+                                System.Windows.Media.Imaging.BitmapSizeOptions.FromEmptyOptions());
+                        }
+                        finally
+                        {
+                            DeleteObject(handle);
                         }
                     }
+                }
+                else if (Clipboard.ContainsData("PNG"))
+                {
+                    var pngData = Clipboard.GetData("PNG") as MemoryStream;
+                    if (pngData != null)
+                    {
+                        image = System.Windows.Media.Imaging.BitmapFrame.Create(pngData);
+                    }
+                }
+
+                if (image != null)
+                {
+                    string fileName = $"pasted_image_{DateTime.Now:yyyyMMdd_HHmmss_fff}.png";
+                    string imagePath = Path.Combine(tempImageDirectory, fileName);
+
+                    using (var fileStream = new FileStream(imagePath, FileMode.Create))
+                    {
+                        var encoder = new System.Windows.Media.Imaging.PngBitmapEncoder();
+                        encoder.Frames.Add(System.Windows.Media.Imaging.BitmapFrame.Create(image));
+                        encoder.Save(fileStream);
+                    }
+
+                    attachedImagePaths.Add(imagePath);
                     UpdateImageDropDisplay();
+
+                    return true;
                 }
             }
             catch (Exception ex)
             {
-                MessageBox.Show($"Error handling dropped files: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                Debug.WriteLine($"Error pasting image: {ex.Message}");
+                MessageBox.Show($"Error pasting image: {ex.Message}", "Paste Error", MessageBoxButton.OK, MessageBoxImage.Warning);
             }
-        }
 
-        private void ImageDropBorder_DragOver(object sender, DragEventArgs e)
-        {
-            if (e.Data.GetDataPresent(DataFormats.FileDrop))
-            {
-                e.Effects = DragDropEffects.Copy;
-            }
-            else
-            {
-                e.Effects = DragDropEffects.None;
-            }
-            e.Handled = true;
+            return false;
         }
 
         private void ImageDropBorder_Click(object sender, MouseButtonEventArgs e)
@@ -495,34 +718,80 @@ namespace ClaudeCodeVS
             }
         }
 
-        // Helper methods
+        private void UpdateImageDropDisplay()
+        {
+            AttachedImagesPanel.Children.Clear();
+
+            if (attachedImagePaths.Any())
+            {
+                foreach (var path in attachedImagePaths.ToList())
+                {
+                    var chip = new Border { Style = (Style)FindResource("ChipBorder") };
+
+                    var sp = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
+                    var nameBlock = new TextBlock
+                    {
+                        Text = System.IO.Path.GetFileName(path),
+                        Foreground = System.Windows.Media.Brushes.Gainsboro,
+                        VerticalAlignment = VerticalAlignment.Center
+                    };
+                    var removeBtn = new Button
+                    {
+                        Style = (Style)FindResource("ChipRemoveButton"),
+                        Tag = path
+                    };
+                    removeBtn.Click += (s, e) =>
+                    {
+                        var p = (string)((Button)s).Tag;
+                        attachedImagePaths.Remove(p);
+                        UpdateImageDropDisplay();
+                    };
+
+                    sp.Children.Add(nameBlock);
+                    sp.Children.Add(removeBtn);
+                    chip.Child = sp;
+
+                    AttachedImagesPanel.Children.Add(chip);
+                }
+            }
+        }
+
+        private void ClearAttachedImages()
+        {
+            attachedImagePaths.Clear();
+            UpdateImageDropDisplay();
+        }
+
+        private bool IsImageFile(string filePath)
+        {
+            string[] imageExtensions = { ".png", ".jpg", ".jpeg", ".gif", ".bmp", ".tiff", ".webp" };
+            string extension = Path.GetExtension(filePath).ToLower();
+            return imageExtensions.Contains(extension);
+        }
+
+        // ===== Terminal I/O =====
+
         private void SendTextToTerminal(string text)
         {
             try
             {
                 if (terminalHandle != IntPtr.Zero && IsWindow(terminalHandle))
                 {
-                    // Copy text to clipboard
                     Clipboard.SetText(text);
 
-                    // Focus the terminal window
                     SetForegroundWindow(terminalHandle);
                     SetFocus(terminalHandle);
 
-                    System.Threading.Thread.Sleep(200); // Wait for focus
+                    System.Threading.Thread.Sleep(200);
 
-                    // Get terminal window rectangle for click positioning
                     GetWindowRect(terminalHandle, out RECT rect);
                     int centerX = rect.Left + (rect.Right - rect.Left) / 2;
                     int centerY = rect.Top + (rect.Bottom - rect.Top) / 2;
 
-                    // Send right-click to paste
                     SendRightClick(centerX, centerY);
 
-                    // Wait a moment then send Enter (sometimes need double enter for submission)
                     System.Threading.Thread.Sleep(1000);
                     SendEnterKey();
-
                 }
                 else
                 {
@@ -539,13 +808,8 @@ namespace ClaudeCodeVS
 
         private void SendRightClick(int x, int y)
         {
-            // Move cursor to the specified position
             SetCursorPos(x, y);
-
-            // Wait a moment for cursor to position
             System.Threading.Thread.Sleep(50);
-
-            // Send right mouse button down and up
             mouse_event(MOUSEEVENTF_RIGHTDOWN, 0, 0, 0, UIntPtr.Zero);
             System.Threading.Thread.Sleep(50);
             mouse_event(MOUSEEVENTF_RIGHTUP, 0, 0, 0, UIntPtr.Zero);
@@ -555,62 +819,103 @@ namespace ClaudeCodeVS
         {
             if (terminalHandle != IntPtr.Zero && IsWindow(terminalHandle))
             {
-                // Send Enter key directly to the terminal window
-                PostMessage(terminalHandle, WM_KEYDOWN, new IntPtr(VK_RETURN), IntPtr.Zero);
-                System.Threading.Thread.Sleep(50);
+                //PostMessage(terminalHandle, WM_KEYDOWN, new IntPtr(VK_RETURN), IntPtr.Zero);
+                //System.Threading.Thread.Sleep(50);
                 PostMessage(terminalHandle, WM_CHAR, new IntPtr(VK_RETURN), IntPtr.Zero);
-                System.Threading.Thread.Sleep(50);
-                PostMessage(terminalHandle, WM_KEYUP, new IntPtr(VK_RETURN), IntPtr.Zero);
+                //System.Threading.Thread.Sleep(50);
+                //PostMessage(terminalHandle, WM_KEYUP, new IntPtr(VK_RETURN), IntPtr.Zero);
             }
         }
 
-        private bool IsImageFile(string filePath)
+        private void ClaudeCodeControl_Unloaded(object sender, RoutedEventArgs e)
         {
-            string[] imageExtensions = { ".png", ".jpg", ".jpeg", ".gif", ".bmp", ".tiff", ".webp" };
-            string extension = Path.GetExtension(filePath).ToLower();
-            return imageExtensions.Contains(extension);
-        }
-
-        private void UpdateImageDropDisplay()
-        {
-            if (attachedImagePaths.Any())
+            // Save settings one final time before unloading
+            if (!_isInitializing)
             {
-                ImageDropText.Text = $"{attachedImagePaths.Count} image(s)";
+                SaveSettings();
             }
-            else
+
+            // Unregister solution events
+            if (solutionEventsCookie != 0)
             {
-                ImageDropText.Text = "";
+                ThreadHelper.JoinableTaskFactory.Run(async delegate
+                {
+                    await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
+                    try
+                    {
+                        var solution = Package.GetGlobalService(typeof(SVsSolution)) as IVsSolution;
+                        solution?.UnadviseSolutionEvents(solutionEventsCookie);
+                    }
+                    catch (Exception ex)
+                    {
+                        Debug.WriteLine($"Error unregistering solution events: {ex.Message}");
+                    }
+                });
+            }
+
+            CleanupResources();
+        }
+
+        private void CleanupResources()
+        {
+            try
+            {
+                if (cmdProcess != null && !cmdProcess.HasExited)
+                {
+                    cmdProcess.Kill();
+                    cmdProcess.Dispose();
+                    cmdProcess = null;
+                }
+
+                if (Directory.Exists(tempImageDirectory))
+                {
+                    try
+                    {
+                        Directory.Delete(tempImageDirectory, true);
+                        Debug.WriteLine($"Cleaned up temp directory: {tempImageDirectory}");
+                    }
+                    catch (Exception ex)
+                    {
+                        Debug.WriteLine($"Error cleaning temp directory: {ex.Message}");
+                        try
+                        {
+                            foreach (string file in Directory.GetFiles(tempImageDirectory))
+                            {
+                                File.Delete(file);
+                            }
+                        }
+                        catch { }
+                    }
+                }
+
+                attachedImagePaths?.Clear();
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"Error during cleanup: {ex.Message}");
             }
         }
 
-        private void ClearAttachedImages()
+        public void Dispose()
         {
-            attachedImagePaths.Clear();
-            UpdateImageDropDisplay();
+            CleanupResources();
         }
 
-        // Additional Win32 APIs for sending input to terminal
+        // ===== Win32 interop =====
         [DllImport("user32.dll")]
         private static extern bool SetFocus(IntPtr hWnd);
-
         [DllImport("user32.dll")]
         private static extern bool SetForegroundWindow(IntPtr hWnd);
-
         [DllImport("user32.dll")]
         private static extern uint SendInput(uint nInputs, INPUT[] pInputs, int cbSize);
-
         [DllImport("user32.dll")]
         private static extern bool GetWindowRect(IntPtr hWnd, out RECT lpRect);
-
         [DllImport("user32.dll")]
         private static extern bool SetCursorPos(int x, int y);
-
         [DllImport("user32.dll")]
         private static extern void mouse_event(uint dwFlags, uint dx, uint dy, uint dwData, UIntPtr dwExtraInfo);
-
         [DllImport("user32.dll")]
         private static extern bool PostMessage(IntPtr hWnd, uint Msg, IntPtr wParam, IntPtr lParam);
-
         [DllImport("gdi32.dll")]
         private static extern bool DeleteObject(IntPtr hObject);
 
@@ -626,7 +931,6 @@ namespace ClaudeCodeVS
         private const uint MOUSEEVENTF_RIGHTDOWN = 0x0008;
         private const uint MOUSEEVENTF_RIGHTUP = 0x0010;
 
-        // Message constants
         private const uint WM_KEYDOWN = 0x0100;
         private const uint WM_KEYUP = 0x0101;
         private const uint WM_CHAR = 0x0102;
@@ -661,7 +965,7 @@ namespace ClaudeCodeVS
 
         private static IntPtr FindMainWindowHandleByPid(int targetPid, int timeoutMs = 5000, int pollIntervalMs = 50)
         {
-            var sw = System.Diagnostics.Stopwatch.StartNew();
+            var sw = Stopwatch.StartNew();
             while (sw.ElapsedMilliseconds < timeoutMs)
             {
                 IntPtr found = IntPtr.Zero;
@@ -673,9 +977,11 @@ namespace ClaudeCodeVS
                     if (pid == targetPid)
                     {
                         found = hWnd;
-                        return false; // stop enumeration
+                        // Hide the window immediately to prevent any blinking
+                        ShowWindow(hWnd, SW_HIDE);
+                        return false;
                     }
-                    return true; // keep looking
+                    return true;
                 }, IntPtr.Zero);
 
                 if (found != IntPtr.Zero)
@@ -686,60 +992,53 @@ namespace ClaudeCodeVS
             return IntPtr.Zero;
         }
 
-        // Cleanup when the control is unloaded
-        private void ClaudeCodeControl_Unloaded(object sender, RoutedEventArgs e)
+#pragma warning disable VSTHRD100 // Avoid async void methods
+        private async void RestartTerminalButton_Click(object sender, RoutedEventArgs e)
+#pragma warning restore VSTHRD100 // Avoid async void methods
         {
-            CleanupResources();
+            await StartEmbeddedTerminalAsync();
+        }
+    }
+
+    // Solution events handler to detect when solutions are opened/closed
+    public class SolutionEventsHandler : IVsSolutionEvents
+    {
+        private readonly ClaudeCodeControl _control;
+
+        public SolutionEventsHandler(ClaudeCodeControl control)
+        {
+            _control = control;
         }
 
-        private void CleanupResources()
+        public int OnAfterOpenSolution(object pUnkReserved, int fNewSolution)
         {
-            try
+            Debug.WriteLine("Solution opened - checking if terminal needs to restart");
+            ThreadHelper.JoinableTaskFactory.Run(async delegate
             {
-                // Kill terminal process
-                if (cmdProcess != null && !cmdProcess.HasExited)
-                {
-                    cmdProcess.Kill();
-                    cmdProcess.Dispose();
-                    cmdProcess = null;
-                }
-
-                // Cleanup temp directory and all images
-                if (Directory.Exists(tempImageDirectory))
-                {
-                    try
-                    {
-                        Directory.Delete(tempImageDirectory, true);
-                        System.Diagnostics.Debug.WriteLine($"Cleaned up temp directory: {tempImageDirectory}");
-                    }
-                    catch (Exception ex)
-                    {
-                        System.Diagnostics.Debug.WriteLine($"Error cleaning temp directory: {ex.Message}");
-                        // Try to delete individual files if directory delete fails
-                        try
-                        {
-                            foreach (string file in Directory.GetFiles(tempImageDirectory))
-                            {
-                                File.Delete(file);
-                            }
-                        }
-                        catch { }
-                    }
-                }
-
-                // Clear image paths
-                attachedImagePaths?.Clear();
-            }
-            catch (Exception ex)
-            {
-                System.Diagnostics.Debug.WriteLine($"Error during cleanup: {ex.Message}");
-            }
+                await _control.OnWorkspaceDirectoryChangedAsync();
+            });
+            return Microsoft.VisualStudio.VSConstants.S_OK;
         }
 
-        // Also implement IDisposable pattern for better cleanup
-        public void Dispose()
+        public int OnAfterOpenProject(IVsHierarchy pHierarchy, int fAdded)
         {
-            CleanupResources();
+            Debug.WriteLine("Project opened - checking if terminal needs to restart");
+            ThreadHelper.JoinableTaskFactory.Run(async delegate
+            {
+                await _control.OnWorkspaceDirectoryChangedAsync();
+            });
+            return Microsoft.VisualStudio.VSConstants.S_OK;
         }
+
+        // These methods are required by the interface but we don't need them
+        public int OnAfterCloseSolution(object pUnkReserved) => Microsoft.VisualStudio.VSConstants.S_OK;
+        public int OnAfterLoadProject(IVsHierarchy pStubHierarchy, IVsHierarchy pRealHierarchy) => Microsoft.VisualStudio.VSConstants.S_OK;
+        public int OnAfterUnloadProject(IVsHierarchy pRealHierarchy, IVsHierarchy pStubHierarchy) => Microsoft.VisualStudio.VSConstants.S_OK;
+        public int OnBeforeCloseProject(IVsHierarchy pHierarchy, int fRemoved) => Microsoft.VisualStudio.VSConstants.S_OK;
+        public int OnBeforeCloseSolution(object pUnkReserved) => Microsoft.VisualStudio.VSConstants.S_OK;
+        public int OnBeforeUnloadProject(IVsHierarchy pRealHierarchy, IVsHierarchy pStubHierarchy) => Microsoft.VisualStudio.VSConstants.S_OK;
+        public int OnQueryCloseProject(IVsHierarchy pHierarchy, int fRemoving, ref int pfCancel) => Microsoft.VisualStudio.VSConstants.S_OK;
+        public int OnQueryCloseSolution(object pUnkReserved, ref int pfCancel) => Microsoft.VisualStudio.VSConstants.S_OK;
+        public int OnQueryUnloadProject(IVsHierarchy pRealHierarchy, ref int pfCancel) => Microsoft.VisualStudio.VSConstants.S_OK;
     }
 }

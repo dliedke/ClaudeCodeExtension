@@ -9,7 +9,7 @@
              Background="#FF1E1E1E">
 
 	<UserControl.Resources>
-		<!-- Dark button style -->
+		<!-- Dark button style (no light-blue hover) -->
 		<Style x:Key="DarkButtonStyle" TargetType="Button">
 			<Setter Property="Background" Value="#FF2D2D30"/>
 			<Setter Property="Foreground" Value="#FFDCDCDC"/>
@@ -18,20 +18,59 @@
 			<Setter Property="Padding" Value="8,5"/>
 			<Setter Property="Height" Value="30"/>
 			<Setter Property="Cursor" Value="Hand"/>
-			<Style.Triggers>
-				<Trigger Property="IsMouseOver" Value="True">
-					<Setter Property="Background" Value="#FF3F3F46"/>
-					<!-- Slightly lighter hover -->
-				</Trigger>
-				<Trigger Property="IsPressed" Value="True">
-					<Setter Property="Background" Value="#FF1E1E1E"/>
-					<!-- Darker on press -->
-				</Trigger>
-			</Style.Triggers>
+			<Setter Property="Focusable" Value="False"/>
+			<Setter Property="SnapsToDevicePixels" Value="True"/>
+			<Setter Property="Template">
+				<Setter.Value>
+					<ControlTemplate TargetType="Button">
+						<Border Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="4">
+							<ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+						</Border>
+						<ControlTemplate.Triggers>
+							<Trigger Property="IsMouseOver" Value="True">
+								<Setter Property="Background" Value="#FF3A3A3F"/>
+								<Setter Property="BorderBrush" Value="#FF505055"/>
+							</Trigger>
+							<Trigger Property="IsPressed" Value="True">
+								<Setter Property="Background" Value="#FF252529"/>
+								<Setter Property="BorderBrush" Value="#FF3A3A3F"/>
+							</Trigger>
+							<Trigger Property="IsEnabled" Value="False">
+								<Setter Property="Background" Value="#FF2A2A2D"/>
+								<Setter Property="Foreground" Value="#FF8A8A8A"/>
+								<Setter Property="BorderBrush" Value="#FF2A2A2D"/>
+							</Trigger>
+						</ControlTemplate.Triggers>
+					</ControlTemplate>
+				</Setter.Value>
+			</Setter>
+		</Style>
+
+		<!-- Small "chip" for attached images -->
+		<Style x:Key="ChipBorder" TargetType="Border">
+			<Setter Property="Background" Value="#FF2D2D30"/>
+			<Setter Property="CornerRadius" Value="12"/>
+			<Setter Property="Padding" Value="6,2"/>
+			<Setter Property="Margin" Value="0,4,6,0"/>
+			<Setter Property="BorderBrush" Value="#FF3F3F46"/>
+			<Setter Property="BorderThickness" Value="0.5"/>
+		</Style>
+
+		<Style x:Key="ChipRemoveButton" TargetType="Button" BasedOn="{StaticResource DarkButtonStyle}">
+			<Setter Property="Width" Value="18"/>
+			<Setter Property="Height" Value="18"/>
+			<Setter Property="Padding" Value="0"/>
+			<Setter Property="Margin" Value="6,0,0,0"/>
+			<Setter Property="Content" Value="×"/>
+			<Setter Property="FontWeight" Value="Bold"/>
+			<Setter Property="FontSize" Value="12"/>
 		</Style>
 	</UserControl.Resources>
 
-	<Grid>
+	<Grid x:Name="MainGrid">
 		<Grid.RowDefinitions>
 			<RowDefinition Height="*" MinHeight="80"/>
 			<RowDefinition Height="4"/>
@@ -42,6 +81,7 @@
 		<Grid Grid.Row="0" Margin="6,6,6,0">
 			<Grid.RowDefinitions>
 				<RowDefinition Height="*" MinHeight="80"/>
+				<RowDefinition Height="Auto"/>
 				<RowDefinition Height="Auto"/>
 			</Grid.RowDefinitions>
 
@@ -65,30 +105,69 @@
                          PreviewKeyDown="PromptTextBox_PreviewKeyDown"/>
 			</GroupBox>
 
-			<!-- Buttons + Status -->
-			<StackPanel Grid.Row="1" Orientation="Horizontal" HorizontalAlignment="Left" Margin="0,4,0,6" VerticalAlignment="Top">
-				<StackPanel Margin="0,0,8,0">
+			<!-- Controls row: [Send + Add Image] | [Chips] | [Restart (right-aligned)] -->
+			<Grid Grid.Row="1" Margin="0,4,0,0" VerticalAlignment="Top">
+				<Grid.ColumnDefinitions>
+					<ColumnDefinition Width="Auto"/>
+					<ColumnDefinition Width="*"/>
+					<ColumnDefinition Width="Auto"/>
+				</Grid.ColumnDefinitions>
+
+				<!-- Left cluster -->
+				<StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Top">
+					<!-- Send button (visible only when Send-with-Enter is off) -->
+					<Button x:Name="SendPromptButton"
+                            Content="Send"
+							Width="50"
+                            MinWidth="50"
+                            Style="{StaticResource DarkButtonStyle}"
+                            Click="SendButton_Click"
+                            Visibility="Collapsed"
+                            Margin="0,0,8,0"/>
+
+					<!-- Fixed-width Add Image so it never expands with chips -->
 					<Button x:Name="AddImageButton"
                             Content="Add Image"
                             Style="{StaticResource DarkButtonStyle}"
+                            Width="90"
+                            MinWidth="90"
+                            HorizontalAlignment="Left"
                             PreviewMouseLeftButtonUp="ImageDropBorder_Click"/>
-					<TextBlock x:Name="ImageDropText"
-                               Text="No images attached"
-                               Foreground="#FF9A9A9A"
-                               FontSize="11"
-                               Margin="2,4,0,0"/>
 				</StackPanel>
 
-				<Button x:Name="RestartTerminalButton"
+				<!-- Chips in their own stretch area so they don't affect button sizing -->
+				<ScrollViewer Grid.Column="1"
+                              VerticalScrollBarVisibility="Disabled"
+                              HorizontalScrollBarVisibility="Auto">
+					<WrapPanel x:Name="AttachedImagesPanel" Margin="8,0,8,0" />
+				</ScrollViewer>
+
+				<!-- Restart aligned right -->
+				<Button Grid.Column="2"
+                        x:Name="RestartTerminalButton"
                         Content="Restart"
+						Width="60"
+                        MinWidth="60"
                         Style="{StaticResource DarkButtonStyle}"
                         Click="RestartTerminalButton_Click"
-                        VerticalAlignment="Top"/>
-			</StackPanel>
+                        VerticalAlignment="Top"
+                        HorizontalAlignment="Right"/>
+			</Grid>
+
+			<!-- Send with Enter toggle -->
+			<CheckBox Grid.Row="2"
+                      x:Name="SendWithEnterCheckBox"
+                      Content="Send with Enter"
+                      IsChecked="True"
+                      Foreground="#FFDCDCDC"
+                      Margin="0,6,0,6"
+                      Checked="SendWithEnterCheckBox_Checked"
+                      Unchecked="SendWithEnterCheckBox_Unchecked"/>
 		</Grid>
 
 		<!-- Resizable Splitter -->
-		<GridSplitter Grid.Row="1"
+		<GridSplitter x:Name="MainGridSplitter"
+                      Grid.Row="1"
                       Height="4"
                       HorizontalAlignment="Stretch"
                       VerticalAlignment="Center"
@@ -96,7 +175,8 @@
                       ShowsPreview="True"
                       ResizeDirection="Rows"
                       ResizeBehavior="PreviousAndNext"
-                      Cursor="SizeNS"/>
+                      Cursor="SizeNS"
+                      DragCompleted="MainGridSplitter_DragCompleted"/>
 
 		<!-- Embedded Terminal -->
 		<GroupBox Grid.Row="2"

@@ -4,7 +4,9 @@
       "Read(//c/GitLab/ChatGPTExtension/**)",
       "Bash(magick:*)",
       "Bash(powershell:*)",
-      "Bash(where claude)"
+      "Bash(where claude)",
+      "Bash(dir:*)",
+      "Bash(dotnet build)"
     ],
     "deny": [],
     "ask": []
