@@ -23,6 +23,7 @@ using System.Windows.Controls;
 using System.Windows.Forms.Integration;
 using System.Windows.Input;
 using System.Windows.Threading;
+using System.Windows.Media;
 using Microsoft.VisualStudio.Shell;
 using Microsoft.VisualStudio.Shell.Interop;
 using Microsoft.Win32;
@@ -30,15 +31,23 @@ using Newtonsoft.Json;
 
 namespace ClaudeCodeVS
 {
+    public enum AiProvider
+    {
+        ClaudeCode,
+        Codex
+    }
+
     public class ClaudeCodeSettings
     {
         public bool SendWithEnter { get; set; } = true;
         public double SplitterPosition { get; set; } = 236.0; // Default pixel height for first row
+        public AiProvider SelectedProvider { get; set; } = AiProvider.ClaudeCode;
     }
 
     public partial class ClaudeCodeControl : UserControl, IDisposable
     {
         private System.Windows.Forms.Panel terminalPanel;
+        private ClaudeCodeVS.ClaudeCodeToolWindow _toolWindow;
         private Process cmdProcess;
         private IntPtr terminalHandle;
         private readonly List<string> attachedImagePaths = new List<string>();
@@ -56,6 +65,7 @@ namespace ClaudeCodeVS
         private System.Drawing.Color _lastTerminalColor = System.Drawing.Color.Black;
         private DispatcherTimer _themeCheckTimer;
         private static bool _claudeNotificationShown = false;
+        private static bool _codexNotificationShown = false;
 
         [DllImport("user32.dll")]
         private static extern IntPtr SetParent(IntPtr hWndChild, IntPtr hWndNewParent);
@@ -97,6 +107,11 @@ namespace ClaudeCodeVS
 
             Loaded += ClaudeCodeControl_Loaded;
             Unloaded += ClaudeCodeControl_Unloaded;
+        }
+
+        public void SetToolWindow(ClaudeCodeVS.ClaudeCodeToolWindow toolWindow)
+        {
+            _toolWindow = toolWindow;
         }
 
         private void InitializeTempDirectory()
@@ -168,14 +183,8 @@ namespace ClaudeCodeVS
                 UpdateTerminalTheme();
 
                 // Initialize terminal only when control becomes visible
-                if (terminalPanel == null)
-                {
-                    ThreadHelper.JoinableTaskFactory.RunAsync(async delegate
-                    {
-                        await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
-                        await InitializeTerminalAsync();
-                    }).FileAndForget("ClaudeCodeExtension/InitializeTerminalOnVisible");
-                }
+                // Terminal initialization is now handled in ClaudeCodeControl_Loaded
+                // after settings are properly loaded
             }
         }
 
@@ -252,6 +261,7 @@ namespace ClaudeCodeVS
                 // Update settings from UI
                 _settings.SendWithEnter = SendWithEnterCheckBox.IsChecked == true;
                 Debug.WriteLine($"Saving SendWithEnter: {_settings.SendWithEnter}");
+                Debug.WriteLine($"Saving SelectedProvider: {_settings.SelectedProvider}");
 
                 // Only update splitter position if we can get a valid value (not 0.0)
                 var splitterPosition = FindSplitterPosition();
@@ -348,7 +358,14 @@ namespace ClaudeCodeVS
         {
             // Load settings after UI is fully loaded
             LoadSettings();
-            ApplyLoadedSettings();
+
+            // Apply settings and initialize terminal after settings are loaded
+            ThreadHelper.JoinableTaskFactory.Run(async delegate
+            {
+                await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
+                ApplyLoadedSettings();
+                await InitializeTerminalAsync();
+            });
 
             // Mark initialization as complete to allow settings saving
             _isInitializing = false;
@@ -356,6 +373,8 @@ namespace ClaudeCodeVS
 
         private void ApplyLoadedSettings()
         {
+            ThreadHelper.ThrowIfNotOnUIThread();
+
             // Ensure the send button visibility matches the checkbox state
             if (SendWithEnterCheckBox.IsChecked == true)
             {
@@ -365,6 +384,9 @@ namespace ClaudeCodeVS
             {
                 SendPromptButton.Visibility = Visibility.Visible;
             }
+
+            // Update provider selection and title
+            UpdateProviderSelection();
         }
 
         private System.Drawing.Color GetTerminalBackgroundColor()
@@ -450,6 +472,67 @@ namespace ClaudeCodeVS
             }
         }
 
+        private async Task<bool> IsCodexCmdAvailableAsync()
+        {
+            try
+            {
+                // Check if codex.cmd is available in user's npm global directory
+                string userProfile = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+                string codexPath = Path.Combine(userProfile, "AppData", "Roaming", "npm", "codex.cmd");
+
+                // First check the known path
+                if (File.Exists(codexPath))
+                {
+                    Debug.WriteLine($"Codex found at: {codexPath}");
+                    return true;
+                }
+
+                // Also check if codex.cmd is available in PATH using 'where' command
+                var startInfo = new ProcessStartInfo
+                {
+                    FileName = "cmd.exe",
+                    Arguments = "/c where codex.cmd",
+                    UseShellExecute = false,
+                    RedirectStandardOutput = true,
+                    RedirectStandardError = true,
+                    CreateNoWindow = true
+                };
+
+                using (var process = Process.Start(startInfo))
+                {
+                    // Use async wait to avoid blocking UI thread
+                    var completed = await Task.Run(() =>
+                    {
+                        return process.WaitForExit(3000); // 3 second timeout
+                    });
+
+                    if (!completed)
+                    {
+                        try { process.Kill(); } catch { }
+                        Debug.WriteLine("Codex check timed out");
+                        return false;
+                    }
+
+                    string output = await process.StandardOutput.ReadToEndAsync();
+                    string error = await process.StandardError.ReadToEndAsync();
+
+                    Debug.WriteLine($"Codex check - Exit code: {process.ExitCode}");
+                    Debug.WriteLine($"Codex check - Output: {output}");
+                    Debug.WriteLine($"Codex check - Error: {error}");
+
+                    bool isAvailable = process.ExitCode == 0 && !string.IsNullOrWhiteSpace(output);
+                    Debug.WriteLine($"Codex availability result: {isAvailable}");
+
+                    return isAvailable;
+                }
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"Error checking for codex.cmd: {ex.Message}");
+                return false;
+            }
+        }
+
         private void ShowClaudeInstallationInstructions()
         {
             const string setupUrl = "https://docs.claude.com/en/docs/claude-code/setup";
@@ -459,6 +542,36 @@ namespace ClaudeCodeVS
                                    "Would you like to open the setup documentation for more details?";
 
             var result = MessageBox.Show(message, "Claude Code Installation",
+                                       MessageBoxButton.YesNo, MessageBoxImage.Information);
+
+            if (result == MessageBoxResult.Yes)
+            {
+                try
+                {
+                    Process.Start(new ProcessStartInfo
+                    {
+                        FileName = setupUrl,
+                        UseShellExecute = true
+                    });
+                }
+                catch (Exception ex)
+                {
+                    Debug.WriteLine($"Failed to open setup URL: {ex.Message}");
+                    MessageBox.Show($"Please visit: {setupUrl}", "Setup URL",
+                                  MessageBoxButton.OK, MessageBoxImage.Information);
+                }
+            }
+        }
+
+        private void ShowCodexInstallationInstructions()
+        {
+            const string setupUrl = "https://developers.openai.com/codex/cli/";
+            const string message = "Codex CLI is not installed. A regular CMD terminal will be used instead.\n\n" +
+                                   "To get the full Codex experience, you can install it by following the instructions at:\n" +
+                                   "https://developers.openai.com/codex/cli/\n\n" +
+                                   "Would you like to open the setup documentation for more details?";
+
+            var result = MessageBox.Show(message, "Codex CLI Installation",
                                        MessageBoxButton.YesNo, MessageBoxImage.Information);
 
             if (result == MessageBoxResult.Yes)
@@ -500,20 +613,29 @@ namespace ClaudeCodeVS
         {
             try
             {
-                // Check if Claude Code is available before initializing terminal (off UI thread)
-                Debug.WriteLine("Checking Claude availability...");
-                bool claudeAvailable = await IsClaudeCmdAvailableAsync();
-                Debug.WriteLine($"Claude available: {claudeAvailable}");
+                // Determine which provider to use based on settings
+                bool useCodex = _settings?.SelectedProvider == AiProvider.Codex;
+                bool providerAvailable = false;
+
+                Debug.WriteLine($"User selected provider: {(useCodex ? "Codex" : "Claude Code")}");
+
+                if (useCodex)
+                {
+                    Debug.WriteLine("Checking Codex availability...");
+                    providerAvailable = await IsCodexCmdAvailableAsync();
+                    Debug.WriteLine($"Codex available: {providerAvailable}");
+                }
+                else
+                {
+                    Debug.WriteLine("Checking Claude Code availability...");
+                    providerAvailable = await IsClaudeCmdAvailableAsync();
+                    Debug.WriteLine($"Claude Code available: {providerAvailable}");
+                }
 
                 // Switch to main thread for UI operations
                 await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
 
-                // Show installation instructions if Claude is not available and we haven't shown it yet
-                if (!claudeAvailable && !_claudeNotificationShown)
-                {
-                    _claudeNotificationShown = true;
-                    ShowClaudeInstallationInstructions();
-                }
+                // Note: Installation instructions are now shown in the main logic below
 
                 // Ensure TerminalHost is available
                 if (TerminalHost == null)
@@ -539,7 +661,46 @@ namespace ClaudeCodeVS
                 terminalPanel.Resize += (s, e) => ResizeEmbeddedTerminal();
 
                 await Task.Delay(500);
-                await StartEmbeddedTerminalAsync(claudeAvailable);
+
+                // Start the selected provider if available, otherwise show message and use regular CMD
+                if (useCodex)
+                {
+                    if (providerAvailable)
+                    {
+                        Debug.WriteLine("Starting Codex terminal...");
+                        await StartEmbeddedTerminalAsync(false, true); // Codex
+                        UpdateToolWindowTitle("Codex");
+                    }
+                    else
+                    {
+                        Debug.WriteLine("Codex not available, showing installation instructions...");
+                        if (!_codexNotificationShown)
+                        {
+                            _codexNotificationShown = true;
+                            ShowCodexInstallationInstructions();
+                        }
+                        await StartEmbeddedTerminalAsync(false, false); // Regular CMD
+                    }
+                }
+                else
+                {
+                    if (providerAvailable)
+                    {
+                        Debug.WriteLine("Starting Claude Code terminal...");
+                        await StartEmbeddedTerminalAsync(true, false); // Claude Code
+                        UpdateToolWindowTitle("Claude Code");
+                    }
+                    else
+                    {
+                        Debug.WriteLine("Claude Code not available, showing installation instructions...");
+                        if (!_claudeNotificationShown)
+                        {
+                            _claudeNotificationShown = true;
+                            ShowClaudeInstallationInstructions();
+                        }
+                        await StartEmbeddedTerminalAsync(false, false); // Regular CMD
+                    }
+                }
             }
             catch (Exception ex)
             {
@@ -550,7 +711,7 @@ namespace ClaudeCodeVS
             }
         }
 
-        private async Task StartEmbeddedTerminalAsync(bool claudeAvailable = true)
+        private async Task StartEmbeddedTerminalAsync(bool claudeAvailable = true, bool useCodex = false)
         {
             try
             {
@@ -578,7 +739,24 @@ namespace ClaudeCodeVS
                 }
 
                 string terminalCommand;
-                if (claudeAvailable)
+                if (useCodex)
+                {
+                    Debug.WriteLine($"Starting Codex in directory: {workspaceDir}");
+
+                    // Try known Codex path first
+                    string userProfile = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+                    string codexPath = Path.Combine(userProfile, "AppData", "Roaming", "npm", "codex.cmd");
+
+                    if (File.Exists(codexPath))
+                    {
+                        terminalCommand = $"/k cd /d \"{workspaceDir}\" && \"{codexPath}\"";
+                    }
+                    else
+                    {
+                        terminalCommand = $"/k cd /d \"{workspaceDir}\" && codex.cmd";
+                    }
+                }
+                else if (claudeAvailable)
                 {
                     Debug.WriteLine($"Starting Claude in directory: {workspaceDir}");
                     terminalCommand = "/k cd /d \"" + workspaceDir + "\" && claude.cmd";
@@ -742,8 +920,66 @@ namespace ClaudeCodeVS
                     Debug.WriteLine($"Workspace directory changed from '{_lastWorkspaceDirectory}' to '{newWorkspaceDir}'. Restarting terminal...");
                     _lastWorkspaceDirectory = newWorkspaceDir;
 
-                    // Restart the terminal in the new directory
-                    await StartEmbeddedTerminalAsync();
+                    // Determine which provider to use based on settings
+                    bool useCodex = _settings?.SelectedProvider == AiProvider.Codex;
+                    bool claudeAvailable = false;
+                    bool codexAvailable = false;
+
+                    Debug.WriteLine($"User selected provider: {(useCodex ? "Codex" : "Claude Code")}");
+
+                    if (useCodex)
+                    {
+                        Debug.WriteLine("Checking Codex availability for workspace change...");
+                        codexAvailable = await IsCodexCmdAvailableAsync();
+                        Debug.WriteLine($"Codex available: {codexAvailable}");
+                    }
+                    else
+                    {
+                        Debug.WriteLine("Checking Claude Code availability for workspace change...");
+                        claudeAvailable = await IsClaudeCmdAvailableAsync();
+                        Debug.WriteLine($"Claude available: {claudeAvailable}");
+                    }
+
+                    // Switch to main thread for UI operations
+                    await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
+
+                    // Restart with the selected provider if available, otherwise show message and use regular CMD
+                    if (useCodex)
+                    {
+                        if (codexAvailable)
+                        {
+                            Debug.WriteLine("Restarting Codex terminal in new directory...");
+                            await StartEmbeddedTerminalAsync(false, true); // Codex
+                        }
+                        else
+                        {
+                            Debug.WriteLine("Codex not available, showing installation instructions...");
+                            if (!_codexNotificationShown)
+                            {
+                                _codexNotificationShown = true;
+                                ShowCodexInstallationInstructions();
+                            }
+                            await StartEmbeddedTerminalAsync(false, false); // Regular CMD
+                        }
+                    }
+                    else
+                    {
+                        if (claudeAvailable)
+                        {
+                            Debug.WriteLine("Restarting Claude Code terminal in new directory...");
+                            await StartEmbeddedTerminalAsync(true, false); // Claude Code
+                        }
+                        else
+                        {
+                            Debug.WriteLine("Claude Code not available, showing installation instructions...");
+                            if (!_claudeNotificationShown)
+                            {
+                                _claudeNotificationShown = true;
+                                ShowClaudeInstallationInstructions();
+                            }
+                            await StartEmbeddedTerminalAsync(false, false); // Regular CMD
+                        }
+                    }
                 }
             }
             catch (Exception ex)
@@ -1111,7 +1347,38 @@ namespace ClaudeCodeVS
         {
             if (terminalHandle != IntPtr.Zero && IsWindow(terminalHandle))
             {
-                PostMessage(terminalHandle, WM_CHAR, new IntPtr(VK_RETURN), IntPtr.Zero);
+                // Check if we're using Codex
+                bool isCodex = _settings?.SelectedProvider == AiProvider.Codex;
+
+                if (isCodex)
+                {
+                    // For Codex, use KEYDOWN/KEYUP approach
+                    SendEnterKeyDownUp();
+                }
+                else
+                {
+                    // For Claude Code, use single WM_CHAR
+                    PostMessage(terminalHandle, WM_CHAR, new IntPtr(VK_RETURN), IntPtr.Zero);
+                }
+            }
+        }
+
+        private void SendEnterKeyDownUp()
+        {
+            if (terminalHandle != IntPtr.Zero && IsWindow(terminalHandle))
+            {
+                // Send KEYDOWN for Enter
+                PostMessage(terminalHandle, WM_KEYDOWN, new IntPtr(VK_RETURN), IntPtr.Zero);
+                System.Threading.Thread.Sleep(50);
+
+                // Send KEYUP for Enter
+                PostMessage(terminalHandle, WM_KEYUP, new IntPtr(VK_RETURN), IntPtr.Zero);
+                System.Threading.Thread.Sleep(100);
+
+                // Try a second time to ensure submission
+                PostMessage(terminalHandle, WM_KEYDOWN, new IntPtr(VK_RETURN), IntPtr.Zero);
+                System.Threading.Thread.Sleep(50);
+                PostMessage(terminalHandle, WM_KEYUP, new IntPtr(VK_RETURN), IntPtr.Zero);
             }
         }
 
@@ -1119,12 +1386,7 @@ namespace ClaudeCodeVS
 
         private void ClaudeCodeControl_Unloaded(object sender, RoutedEventArgs e)
         {
-            // Save settings one final time before unloading
-            if (!_isInitializing)
-            {
-                SaveSettings();
-            }
-
+            // Don't save during unload - settings should only be saved when user makes changes
 
             // Stop theme check timer
             if (_themeCheckTimer != null)
@@ -1152,6 +1414,120 @@ namespace ClaudeCodeVS
             }
 
             CleanupResources();
+        }
+
+        // ===== Provider Menu Handlers =====
+
+        private void ClaudeCodeMenuItem_Click(object sender, RoutedEventArgs e)
+        {
+            if (_settings == null) return;
+
+            ThreadHelper.JoinableTaskFactory.Run(async delegate
+            {
+                bool claudeAvailable = await IsClaudeCmdAvailableAsync();
+                await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
+
+                // Always update the selection regardless of availability
+                _settings.SelectedProvider = AiProvider.ClaudeCode;
+                UpdateProviderSelection();
+                SaveSettings();
+
+                if (!claudeAvailable)
+                {
+                    ShowClaudeInstallationInstructions();
+                    await StartEmbeddedTerminalAsync(false, false); // Regular CMD
+                }
+                else
+                {
+                    await StartEmbeddedTerminalAsync(true, false); // Claude Code
+                }
+            });
+        }
+
+        private void CodexMenuItem_Click(object sender, RoutedEventArgs e)
+        {
+            if (_settings == null) return;
+
+            ThreadHelper.JoinableTaskFactory.Run(async delegate
+            {
+                bool codexAvailable = await IsCodexCmdAvailableAsync();
+
+                await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
+
+                // Always update the selection regardless of availability
+                _settings.SelectedProvider = AiProvider.Codex;
+                UpdateProviderSelection();
+                SaveSettings();
+
+                if (!codexAvailable)
+                {
+                    ShowCodexInstallationInstructions();
+                    await StartEmbeddedTerminalAsync(false, false); // Regular CMD
+                }
+                else
+                {
+                    await StartEmbeddedTerminalAsync(false, true); // Codex
+                }
+            });
+        }
+
+        private void AboutMenuItem_Click(object sender, RoutedEventArgs e)
+        {
+            string version = System.Reflection.Assembly.GetExecutingAssembly().GetName().Version.ToString();
+            string aboutMessage = $"Claude Code Extension for Visual Studio\n\n" +
+                                $"Version: {version}\n" +
+                                $"Author: Daniel Liedke\n" +
+                                $"Copyright © Daniel Liedke 2025\n\n" +
+                                $"Provides seamless integration with Claude Code and Codex AI assistants directly within Visual Studio IDE.";
+
+            MessageBox.Show(aboutMessage, "About Claude Code Extension",
+                          MessageBoxButton.OK, MessageBoxImage.Information);
+        }
+
+        private void MenuDropdownButton_Click(object sender, RoutedEventArgs e)
+        {
+            // Show the context menu when the dropdown button is clicked
+            var button = sender as Button;
+            if (button?.ContextMenu != null)
+            {
+                button.ContextMenu.PlacementTarget = button;
+                button.ContextMenu.Placement = System.Windows.Controls.Primitives.PlacementMode.Bottom;
+                button.ContextMenu.IsOpen = true;
+            }
+        }
+
+        private void UpdateProviderSelection()
+        {
+            ThreadHelper.ThrowIfNotOnUIThread();
+
+            if (_settings == null) return;
+
+            // Update menu item checkmarks
+            ClaudeCodeMenuItem.IsChecked = _settings.SelectedProvider == AiProvider.ClaudeCode;
+            CodexMenuItem.IsChecked = _settings.SelectedProvider == AiProvider.Codex;
+
+            // Update GroupBox header to show current provider
+            string providerName = _settings.SelectedProvider == AiProvider.ClaudeCode ? "Claude Code" : "Codex";
+            TerminalGroupBox.Header = providerName;
+
+            // Update tool window title
+            UpdateToolWindowTitle(providerName);
+        }
+
+        private void UpdateToolWindowTitle(string providerName)
+        {
+            try
+            {
+                ThreadHelper.JoinableTaskFactory.Run(async delegate
+                {
+                    await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
+                    _toolWindow?.UpdateTitle(providerName);
+                });
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"Error updating tool window title: {ex.Message}");
+            }
         }
 
         private void CleanupResources()
@@ -1215,6 +1591,8 @@ namespace ClaudeCodeVS
 
         [DllImport("user32.dll")]
         private static extern bool PostMessage(IntPtr hWnd, uint Msg, IntPtr wParam, IntPtr lParam);
+        [DllImport("user32.dll")]
+        private static extern void keybd_event(int bVk, int bScan, uint dwFlags, UIntPtr dwExtraInfo);
         [DllImport("gdi32.dll")]
         private static extern bool DeleteObject(IntPtr hObject);
 
@@ -1297,10 +1675,21 @@ namespace ClaudeCodeVS
         {
             try
             {
-                // Check if Claude Code is available before restarting (off UI thread)
-                bool claudeAvailable = await IsClaudeCmdAvailableAsync();
+                // Determine which provider to use based on settings
+                bool useCodex = _settings?.SelectedProvider == AiProvider.Codex;
+                bool claudeAvailable = false;
+                bool codexAvailable = false;
 
-                await StartEmbeddedTerminalAsync(claudeAvailable);
+                if (useCodex)
+                {
+                    codexAvailable = await IsCodexCmdAvailableAsync();
+                }
+                else
+                {
+                    claudeAvailable = await IsClaudeCmdAvailableAsync();
+                }
+
+                await StartEmbeddedTerminalAsync(claudeAvailable, useCodex && codexAvailable);
             }
             catch (Exception ex)
             {

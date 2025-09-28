@@ -19,10 +19,22 @@ namespace ClaudeCodeVS
     [Guid("87654321-4321-4321-4321-987654321cba")]
     public class ClaudeCodeToolWindow : ToolWindowPane
     {
+        private ClaudeCodeControl claudeCodeControl;
+
         public ClaudeCodeToolWindow() : base(null)
         {
             this.Caption = "Claude Code Extension";
-            this.Content = new ClaudeCodeControl();
+            claudeCodeControl = new ClaudeCodeControl();
+            this.Content = claudeCodeControl;
+
+            // Set up the reference so the control can update the title
+            claudeCodeControl.SetToolWindow(this);
+        }
+
+        public void UpdateTitle(string providerName)
+        {
+            ThreadHelper.ThrowIfNotOnUIThread();
+            this.Caption = $"{providerName} Extension";
         }
     }
 }

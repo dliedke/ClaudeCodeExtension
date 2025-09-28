@@ -1,6 +1,6 @@
 # Claude Code Extension for Visual Studio
 
-A Visual Studio extension that provides seamless integration with Claude Code directly within the Visual Studio IDE.
+A Visual Studio extension that provides seamless integration with Claude Code or OpenAI Codex directly within the Visual Studio IDE.
 
 <center>
 <img src="https://i.ibb.co/mVCs0cNy/Claude-Code-Extension.png" alt="Claude Code Extension Screenshot" />
@@ -9,9 +9,15 @@ A Visual Studio extension that provides seamless integration with Claude Code di
 ## Features
 
 ### 🎯 **Integrated Terminal**
-- Embedded Claude Code terminal within Visual Studio
+- Embedded terminal within Visual Studio supporting multiple AI providers
 - Automatic workspace directory detection when loading solutions
 - Seamless command execution without leaving the IDE
+
+### 🤖 **Multiple AI Provider Support**
+- **Claude Code**: Full support for Claude Code CLI integration
+- **OpenAI Codex**: Support for Codex CLI AI assistant
+- **Provider Switching**: Right-click context menu to switch between providers
+- **Smart Detection**: Automatic detection and instructions for installation of AI tools
 
 ### ⌨️ **Smart Send Controls**
 - **Send with Enter**: Toggle between Enter-to-send and manual send modes
@@ -32,19 +38,22 @@ A Visual Studio extension that provides seamless integration with Claude Code di
 - **JSON Configuration**: Settings stored in `%LocalAppData%\..\Local\ClaudeCodeExtension\claudecode-settings.json`
 - **Send with Enter State**: Remembers your preferred input mode
 - **Splitter Position**: Maintains your preferred layout between sessions
+- **AI Provider Selection**: Remembers your preferred AI assistant
 
 ### 🎨 **Visual Studio Integration**
 - **Dark/Light Theme**: Consistent with Visual Studio's dark/light theme
 - **Resizable Layout**: Adjustable splitter between prompt and terminal areas
 - **Native Controls**: Follows Visual Studio UI conventions
+- **Dynamic Titles**: Window title changes based on selected AI provider
 
 ## System Requirements
 
 - Visual Studio 2022 17.14 or later
-- Claude Pro or better paid subscription
-- Claude Code CLI installed and accessible via `claude.cmd` in path.
-  Refer to https://docs.claude.com/en/docs/claude-code/setup for Claude Code installation
 - Windows operating system
+- **For Claude Code**: Claude Pro or better paid subscription + Claude Code CLI installed and accessible via `claude.cmd` in path.
+  Refer to https://docs.claude.com/en/docs/claude-code/setup for Claude Code installation
+- **For OpenAI Codex**: Chat GPT Plus or better paid subscription + Codex AI assistant installed and accessible via `codex.cmd` in path.
+  Refer to https://developers.openai.com/codex/cli/ for Codex CLI installation
 
 ## Installation
 
@@ -55,8 +64,9 @@ A Visual Studio extension that provides seamless integration with Claude Code di
 
 ## Quick Start
 
-- **First Time Setup**: Ensure Claude Code CLI is installed and accessible
+- **First Time Setup**: Ensure your preferred AI provider (Claude Code or OpenAI Codex) is installed and accessible
 - **Open Tool Window**: View → Other Windows → Claude Code Extension
+- **Choose AI Provider**: Right-click in the terminal area to select between Claude Code and OpenAI Codex
 - **Start Chatting**: Type your prompt and press Enter
 - **Add Images**: Use Ctrl+V to paste or click "Add Image" button
 - **Customize**: Toggle "Send with Enter" and adjust layout as needed
@@ -64,18 +74,35 @@ A Visual Studio extension that provides seamless integration with Claude Code di
 ## Usage
 
 1. **Open the Tool Window**: Navigate to View → Other Windows → Claude Code Extension
-2. **Enter Prompts**: Type your questions or requests in the prompt area
-3. **Add Images**: Drag & drop, paste, or use the "Add Image" button
-4. **Send Messages**: Press Enter (if enabled) or click the Send button
-5. **View Responses**: See Claude's responses in the embedded terminal below and also interact with it directly
+2. **Select AI Provider**: Right-click in the terminal area and choose your preferred AI assistant
+3. **Enter Prompts**: Type your questions or requests in the prompt area
+4. **Add Images**: Drag & drop, paste, or use the "Add Image" button
+5. **Send Messages**: Press Enter (if enabled) or click the Send button
+6. **View Responses**: See AI responses in the embedded terminal below and also interact with it directly
 
+### AI Provider Menu
+- **Right-click Context Menu**: Access the provider selection menu by right-clicking in the terminal area
+- **Claude Code**: Switch to Claude Code CLI integration
+- **Codex**: Switch to Codex AI assistant
+- **About**: View extension version and information
 
 ### Customization
 - **Send with Enter**: Check/uncheck the checkbox to toggle sending behavior
 - **Layout**: Drag the splitter to adjust the prompt/terminal ratio
+- **AI Provider**: Use the context menu to switch between available providers
 - **Settings persist automatically** between Visual Studio sessions
 
 ## Version History
+
+### Version 1.2
+
+- **Multiple AI Provider Support**: Added support for Codex AI assistant alongside Claude Code
+- **Provider Selection Menu**: Right-click context menu to switch between Claude Code and Codex
+- **Dynamic Title Updates**: Window title changes based on selected AI provider (Claude Code Extension / Codex Extension)
+- **Codex Detection**: Automatic detection of Codex installation at `%UserProfile%\AppData\Roaming\npm\codex.cmd`
+- **Provider Persistence**: Selected AI provider is saved and restored between sessions
+- **About Dialog**: Added About menu item showing extension version and information
+- **Enhanced Terminal Logic**: Improved terminal initialization to work with multiple providers
 
 ### Version 1.1
 

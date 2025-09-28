@@ -70,6 +70,20 @@
 			<Setter Property="FontWeight" Value="Bold"/>
 			<Setter Property="FontSize" Value="12"/>
 		</Style>
+
+		<!-- Small button style for provider selection -->
+		<Style x:Key="ProviderButtonStyle" TargetType="Button" BasedOn="{StaticResource AdaptiveButtonStyle}">
+			<Setter Property="FontSize" Value="10"/>
+			<Setter Property="Height" Value="22"/>
+			<Setter Property="Padding" Value="8,3"/>
+			<Setter Property="Margin" Value="2"/>
+			<Setter Property="MinWidth" Value="80"/>
+		</Style>
+
+		<!-- Gray gear button style -->
+		<Style x:Key="GrayGearButtonStyle" TargetType="Button" BasedOn="{StaticResource AdaptiveButtonStyle}">
+			<Setter Property="Foreground" Value="Gray"/>
+		</Style>
 	</UserControl.Resources>
 
 	<Grid x:Name="MainGrid">
@@ -102,7 +116,8 @@
                          FontFamily="Cascadia Mono"
                          Background="{DynamicResource {x:Static vsshell:VsBrushes.WindowKey}}"
                          Foreground="{DynamicResource {x:Static vsshell:VsBrushes.WindowTextKey}}"
-                         BorderBrush="{DynamicResource {x:Static vsshell:VsBrushes.ToolWindowBorderKey}}"
+                         BorderBrush="Transparent"
+                         BorderThickness="0"
                          Margin="3"
                          KeyDown="PromptTextBox_KeyDown"
                          PreviewKeyDown="PromptTextBox_PreviewKeyDown"/>
@@ -145,16 +160,38 @@
 					<WrapPanel x:Name="AttachedImagesPanel" Margin="8,0,8,0" />
 				</ScrollViewer>
 
-				<!-- Restart aligned right -->
-				<Button Grid.Column="2"
-                        x:Name="RestartTerminalButton"
-                        Content="Restart"
-						Width="60"
-                        MinWidth="60"
-                        Style="{StaticResource AdaptiveButtonStyle}"
-                        Click="RestartTerminalButton_Click"
-                        VerticalAlignment="Top"
-                        HorizontalAlignment="Right"/>
+				<!-- Right-aligned buttons (Restart + Settings) -->
+				<StackPanel Grid.Column="2"
+                            Orientation="Horizontal"
+                            HorizontalAlignment="Right"
+                            VerticalAlignment="Top">
+					<Button x:Name="RestartTerminalButton"
+                            Content="Restart"
+                            Width="60"
+                            MinWidth="60"
+                            Style="{StaticResource AdaptiveButtonStyle}"
+                            Click="RestartTerminalButton_Click"
+                            Margin="0,0,4,0"/>
+
+					<Button x:Name="MenuDropdownButton"
+                            Content="🔽"
+                            Width="30"
+                            Height="30"
+                            FontSize="14"
+                            Style="{StaticResource GrayGearButtonStyle}"
+                            FontFamily="Consolas"
+                            ToolTip="AI Provider Settings"
+                            Click="MenuDropdownButton_Click">
+						<Button.ContextMenu>
+							<ContextMenu x:Name="ProviderContextMenu">
+								<MenuItem Header="Claude Code" x:Name="ClaudeCodeMenuItem" Click="ClaudeCodeMenuItem_Click" IsCheckable="True" IsChecked="True"/>
+								<MenuItem Header="Codex" x:Name="CodexMenuItem" Click="CodexMenuItem_Click" IsCheckable="True"/>
+								<Separator/>
+								<MenuItem Header="About" x:Name="AboutMenuItem" Click="AboutMenuItem_Click"/>
+							</ContextMenu>
+						</Button.ContextMenu>
+					</Button>
+				</StackPanel>
 			</Grid>
 
 			<!-- Send with Enter toggle -->
@@ -188,7 +225,8 @@
                   Foreground="{DynamicResource {x:Static vsshell:VsBrushes.ToolWindowTextKey}}"
                   Background="{DynamicResource {x:Static vsshell:VsBrushes.ToolWindowBackgroundKey}}"
                   BorderBrush="{DynamicResource {x:Static vsshell:VsBrushes.ToolWindowBorderKey}}"
-                  BorderThickness="1">
+                  BorderThickness="1"
+                  x:Name="TerminalGroupBox">
 			<wf:WindowsFormsHost x:Name="TerminalHost" Margin="3"/>
 		</GroupBox>
 	</Grid>
