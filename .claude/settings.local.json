@@ -8,7 +8,8 @@
       "Bash(dir:*)",
       "Bash(dotnet build)",
       "Bash(msbuild:*)",
-      "Bash(where devenv)"
+      "Bash(where devenv)",
+      "Read(//tmp/ClaudeCodeVS/8aeef5f4-be6d-4c30-8bea-8ce3d0bb011c/**)"
     ],
     "deny": [],
     "ask": []

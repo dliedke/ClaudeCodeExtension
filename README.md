@@ -94,6 +94,14 @@ A Visual Studio extension that provides seamless integration with Claude Code or
 
 ## Version History
 
+### Version 1.3
+
+- **Temporary Directory Cleanup**: Automatically clears %temp%\ClaudeCodeVS directories on initialization to prevent accumulation of old temporary files
+- **Simplified Image Naming**: Pasted images now use a clean "image_[n].png" format (e.g., image_1.png, image_2.png) instead of long timestamp-based names
+- **Image Counter Reset**: Image numbering restarts from 1 after each prompt is sent, keeping image names simple and organized
+- **GUID-Based Prompt Directories**: Each prompt with images creates a unique directory %temp%\ClaudeCodeVS\[guid]\ preventing image overwrites and providing clean organization
+- **UI Improvement**: Fixed dropdown button display issue by replacing problematic character with gear icon (⚙)
+
 ### Version 1.2
 
 - **Multiple AI Provider Support**: Added support for Codex AI assistant alongside Claude Code

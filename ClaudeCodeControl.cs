@@ -52,6 +52,7 @@ namespace ClaudeCodeVS
         private IntPtr terminalHandle;
         private readonly List<string> attachedImagePaths = new List<string>();
         private string tempImageDirectory;
+        private int imageCounter = 1;
         private ClaudeCodeSettings _settings;
         private bool _isInitializing = true;
         private IVsSolutionEvents solutionEvents;
@@ -118,7 +119,11 @@ namespace ClaudeCodeVS
         {
             try
             {
-                tempImageDirectory = Path.Combine(Path.GetTempPath(), "ClaudeCodeVS", Guid.NewGuid().ToString());
+                // Clear any existing ClaudeCodeVS temp directories
+                CleanupClaudeCodeVSTempDirectories();
+
+                // Create a session-level temp directory for storing pasted images before sending
+                tempImageDirectory = Path.Combine(Path.GetTempPath(), "ClaudeCodeVS_Session", Guid.NewGuid().ToString());
                 Directory.CreateDirectory(tempImageDirectory);
                 Debug.WriteLine($"Temp directory created: {tempImageDirectory}");
             }
@@ -129,6 +134,37 @@ namespace ClaudeCodeVS
                 tempImageDirectory = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString());
                 Directory.CreateDirectory(tempImageDirectory);
                 Debug.WriteLine($"Fallback temp directory created: {tempImageDirectory}");
+            }
+        }
+
+        private void CleanupClaudeCodeVSTempDirectories()
+        {
+            try
+            {
+                string tempPath = Path.GetTempPath();
+
+                // Clean up old ClaudeCodeVS directories
+                string claudeCodeVSPath = Path.Combine(tempPath, "ClaudeCodeVS");
+                if (Directory.Exists(claudeCodeVSPath))
+                {
+                    Debug.WriteLine($"Cleaning up ClaudeCodeVS temp directory: {claudeCodeVSPath}");
+                    Directory.Delete(claudeCodeVSPath, true);
+                    Debug.WriteLine("ClaudeCodeVS temp directory cleanup completed");
+                }
+
+                // Clean up session directories
+                string sessionPath = Path.Combine(tempPath, "ClaudeCodeVS_Session");
+                if (Directory.Exists(sessionPath))
+                {
+                    Debug.WriteLine($"Cleaning up ClaudeCodeVS_Session temp directory: {sessionPath}");
+                    Directory.Delete(sessionPath, true);
+                    Debug.WriteLine("ClaudeCodeVS_Session temp directory cleanup completed");
+                }
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"Error cleaning up ClaudeCodeVS temp directories: {ex.Message}");
+                // Continue even if cleanup fails
             }
         }
 
@@ -1097,13 +1133,17 @@ namespace ClaudeCodeVS
 
                 if (attachedImagePaths.Any())
                 {
+                    // Create a unique ClaudeCodeVS directory for this prompt with images
+                    string promptDirectory = Path.Combine(Path.GetTempPath(), "ClaudeCodeVS", Guid.NewGuid().ToString());
+                    Directory.CreateDirectory(promptDirectory);
+
                     fullPrompt.AppendLine("Images attached:");
                     foreach (string imagePath in attachedImagePaths)
                     {
                         try
                         {
                             string fileName = Path.GetFileName(imagePath);
-                            string tempPath = Path.Combine(tempImageDirectory, fileName);
+                            string tempPath = Path.Combine(promptDirectory, fileName);
 
                             File.Copy(imagePath, tempPath, true);
 
@@ -1124,6 +1164,9 @@ namespace ClaudeCodeVS
 
                 PromptTextBox.Clear();
                 ClearAttachedImages();
+
+                // Reset image counter after sending prompt
+                imageCounter = 1;
             }
             catch (Exception ex)
             {
@@ -1185,7 +1228,9 @@ namespace ClaudeCodeVS
                         Directory.CreateDirectory(tempImageDirectory);
                     }
 
-                    string fileName = $"pasted_image_{DateTime.Now:yyyyMMdd_HHmmss_fff}.png";
+                    string fileName = $"image_{imageCounter}.png";
+                    imageCounter++;
+                    // Store images in the main temp directory until prompt is sent
                     string imagePath = Path.Combine(tempImageDirectory, fileName);
 
                     using (var fileStream = new FileStream(imagePath, FileMode.Create))
