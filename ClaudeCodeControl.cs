@@ -67,6 +67,7 @@ namespace ClaudeCodeVS
         private DispatcherTimer _themeCheckTimer;
         private static bool _claudeNotificationShown = false;
         private static bool _codexNotificationShown = false;
+        private bool _hasInitialized = false;
 
         [DllImport("user32.dll")]
         private static extern IntPtr SetParent(IntPtr hWndChild, IntPtr hWndNewParent);
@@ -84,6 +85,7 @@ namespace ClaudeCodeVS
         private static extern bool EnumWindows(EnumWindowsProc lpEnumFunc, IntPtr lParam);
         [DllImport("user32.dll")]
         private static extern uint GetWindowThreadProcessId(IntPtr hWnd, out uint lpdwProcessId);
+
 
         private delegate bool EnumWindowsProc(IntPtr hWnd, IntPtr lParam);
 
@@ -216,11 +218,8 @@ namespace ClaudeCodeVS
         {
             if (this.IsVisible)
             {
+                // Only update theme when visible - initialization is handled by Loaded event
                 UpdateTerminalTheme();
-
-                // Initialize terminal only when control becomes visible
-                // Terminal initialization is now handled in ClaudeCodeControl_Loaded
-                // after settings are properly loaded
             }
         }
 
@@ -395,10 +394,22 @@ namespace ClaudeCodeVS
             // Load settings after UI is fully loaded
             LoadSettings();
 
+            // Only initialize once - prevent re-initialization on tab switches
+            if (_hasInitialized)
+            {
+                // Mark initialization as complete to allow settings saving
+                _isInitializing = false;
+                return;
+            }
+
             // Apply settings and initialize terminal after settings are loaded
             ThreadHelper.JoinableTaskFactory.Run(async delegate
             {
                 await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
+
+                // Set the flag before initialization to prevent multiple calls
+                _hasInitialized = true;
+
                 ApplyLoadedSettings();
                 await InitializeTerminalAsync();
             });
@@ -758,6 +769,8 @@ namespace ClaudeCodeVS
                     workspaceDir = Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments);
                 }
 
+                Debug.WriteLine($"StartEmbeddedTerminalAsync: Setting workspace directory to: {workspaceDir}");
+                Debug.WriteLine($"StartEmbeddedTerminalAsync: Previous workspace directory was: {_lastWorkspaceDirectory}");
                 _lastWorkspaceDirectory = workspaceDir;
 
                 if (cmdProcess != null && !cmdProcess.HasExited)
@@ -773,6 +786,9 @@ namespace ClaudeCodeVS
                     }
                     cmdProcess = null;
                 }
+
+                // Reset terminal handle when restarting
+                terminalHandle = IntPtr.Zero;
 
                 string terminalCommand;
                 if (useCodex)
@@ -949,12 +965,22 @@ namespace ClaudeCodeVS
             try
             {
                 string newWorkspaceDir = await GetWorkspaceDirectoryAsync();
+                Debug.WriteLine($"OnWorkspaceDirectoryChangedAsync: Current workspace: '{_lastWorkspaceDirectory}', New workspace: '{newWorkspaceDir}', Initialized: {_hasInitialized}");
+
+                // Only restart terminal if we have already initialized
+                if (!_hasInitialized)
+                {
+                    Debug.WriteLine("Extension not yet initialized, skipping terminal restart");
+                    return;
+                }
 
                 // Only restart if the directory actually changed
                 if (_lastWorkspaceDirectory != newWorkspaceDir)
                 {
-                    Debug.WriteLine($"Workspace directory changed from '{_lastWorkspaceDirectory}' to '{newWorkspaceDir}'. Restarting terminal...");
+                    Debug.WriteLine($"Workspace directory changed from '{_lastWorkspaceDirectory}' to '{newWorkspaceDir}'");
                     _lastWorkspaceDirectory = newWorkspaceDir;
+
+                    Debug.WriteLine("Restarting terminal for new workspace...");
 
                     // Determine which provider to use based on settings
                     bool useCodex = _settings?.SelectedProvider == AiProvider.Codex;
@@ -1518,7 +1544,8 @@ namespace ClaudeCodeVS
 
         private void AboutMenuItem_Click(object sender, RoutedEventArgs e)
         {
-            string version = System.Reflection.Assembly.GetExecutingAssembly().GetName().Version.ToString();
+            var assemblyVersion = System.Reflection.Assembly.GetExecutingAssembly().GetName().Version;
+            string version = $"{assemblyVersion.Major}.{assemblyVersion.Minor}";
             string aboutMessage = $"Claude Code Extension for Visual Studio\n\n" +
                                 $"Version: {version}\n" +
                                 $"Author: Daniel Liedke\n" +
@@ -1756,9 +1783,11 @@ namespace ClaudeCodeVS
 
         public int OnAfterOpenSolution(object pUnkReserved, int fNewSolution)
         {
-            Debug.WriteLine("Solution opened - checking if terminal needs to restart");
+            Debug.WriteLine($"Solution opened - fNewSolution: {fNewSolution}, checking if terminal needs to restart");
             ThreadHelper.JoinableTaskFactory.Run(async delegate
             {
+                // Add small delay to ensure solution is fully loaded
+                await Task.Delay(500);
                 await _control.OnWorkspaceDirectoryChangedAsync();
             });
             return Microsoft.VisualStudio.VSConstants.S_OK;
@@ -1766,9 +1795,11 @@ namespace ClaudeCodeVS
 
         public int OnAfterOpenProject(IVsHierarchy pHierarchy, int fAdded)
         {
-            Debug.WriteLine("Project opened - checking if terminal needs to restart");
+            Debug.WriteLine($"Project opened - fAdded: {fAdded}, checking if terminal needs to restart");
             ThreadHelper.JoinableTaskFactory.Run(async delegate
             {
+                // Add small delay to ensure project is fully loaded
+                await Task.Delay(300);
                 await _control.OnWorkspaceDirectoryChangedAsync();
             });
             return Microsoft.VisualStudio.VSConstants.S_OK;

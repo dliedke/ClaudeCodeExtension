@@ -94,6 +94,16 @@ A Visual Studio extension that provides seamless integration with Claude Code or
 
 ## Version History
 
+### Version 1.5
+
+- **Removed Administrator Requirement**: Extension no longer requires Visual Studio to be run as Administrator
+- **Simplified User Experience**: Removed admin privilege checks and related warnings for easier setup
+
+### Version 1.4
+
+- **Single Initialization**: Fixed issue where extension would reinitialize every time it became visible after being hidden, now initializes only once
+- **Improved Stability**: Enhanced initialization logic prevents multiple terminal instances and improves overall extension stability
+
 ### Version 1.3
 
 - **Temporary Directory Cleanup**: Automatically clears %temp%\ClaudeCodeVS directories on initialization to prevent accumulation of old temporary files
