@@ -96,8 +96,23 @@ A Visual Studio extension that provides seamless integration with Claude Code or
 
 ### Version 1.5
 
-- **Removed Administrator Requirement**: Extension no longer requires Visual Studio to be run as Administrator
-- **Simplified User Experience**: Removed admin privilege checks and related warnings for easier setup
+- **Code Organization Refactoring**: Split the monolithic ClaudeCodeControl.cs into 13 well-organized files for better maintainability
+  - **ClaudeCodeControl.cs**: Core initialization and orchestration (128 lines)
+  - **ClaudeCodeControl.Cleanup.cs**: Resource cleanup and temporary file management
+  - **ClaudeCodeControl.ImageHandling.cs**: Image attachment and paste functionality
+  - **ClaudeCodeControl.Interop.cs**: Win32 API declarations and structures
+  - **ClaudeCodeControl.ProviderManagement.cs**: AI provider detection and switching
+  - **ClaudeCodeControl.Settings.cs**: Settings persistence and management
+  - **ClaudeCodeControl.Terminal.cs**: Terminal initialization and embedding
+  - **ClaudeCodeControl.TerminalIO.cs**: Terminal communication and I/O
+  - **ClaudeCodeControl.Theme.cs**: Visual Studio theme integration
+  - **ClaudeCodeControl.UserInput.cs**: Keyboard and button input handling
+  - **ClaudeCodeControl.Workspace.cs**: Solution and workspace directory management
+  - **ClaudeCodeModels.cs**: Data models and enums
+  - **SolutionEventsHandler.cs**: Solution events handler (separate class)
+- **Enhanced Documentation**: Added comprehensive XML documentation comments to all methods, properties, and classes
+- **Improved Code Structure**: Organized code into logical #region blocks for better navigation
+- **No Functional Changes**: Refactoring maintains 100% backward compatibility with existing functionality
 
 ### Version 1.4
 
@@ -140,6 +155,12 @@ A Visual Studio extension that provides seamless integration with Claude Code or
 - Persistent JSON settings storage
 - Resizable layout with splitter position memory
 - Dark theme integration
+
+- ## Kwown Issues
+
+- In rare cases for some machines terminal might lauch outside the extension and
+  fatal error "Stop code: KERNEL_SECURITY_CHECK_FAILURE (0x139)" can happen.
+  Workaround right now is to run VS.NET 2022 as Administrator.
 
 ## License & Usage
 
