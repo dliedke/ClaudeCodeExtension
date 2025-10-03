@@ -33,6 +33,11 @@ namespace ClaudeCodeVS
         /// </summary>
         private static bool _codexNotificationShown = false;
 
+        /// <summary>
+        /// Flag to show Cursor Agent installation notification only once per session
+        /// </summary>
+        private static bool _cursorAgentNotificationShown = false;
+
         #endregion
 
         #region Provider Detection
@@ -156,6 +161,110 @@ namespace ClaudeCodeVS
             }
         }
 
+        /// <summary>
+        /// Checks if WSL is installed on the system
+        /// </summary>
+        /// <returns>True if WSL is installed, false otherwise</returns>
+        private async Task<bool> IsWslInstalledAsync()
+        {
+            try
+            {
+                var startInfo = new ProcessStartInfo
+                {
+                    FileName = "cmd.exe",
+                    Arguments = "/c wsl --status",
+                    UseShellExecute = false,
+                    RedirectStandardOutput = true,
+                    RedirectStandardError = true,
+                    CreateNoWindow = true
+                };
+
+                using (var process = Process.Start(startInfo))
+                {
+                    var completed = await Task.Run(() =>
+                    {
+                        return process.WaitForExit(3000); // 3 second timeout
+                    });
+
+                    if (!completed)
+                    {
+                        try { process.Kill(); } catch { }
+                        Debug.WriteLine("WSL check timed out");
+                        return false;
+                    }
+
+                    string output = await process.StandardOutput.ReadToEndAsync();
+                    string error = await process.StandardError.ReadToEndAsync();
+
+                    Debug.WriteLine($"WSL check - Exit code: {process.ExitCode}");
+                    Debug.WriteLine($"WSL check - Output: {output}");
+                    Debug.WriteLine($"WSL check - Error: {error}");
+
+                    bool isInstalled = process.ExitCode == 0;
+                    Debug.WriteLine($"WSL installed: {isInstalled}");
+
+                    return isInstalled;
+                }
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"Error checking for WSL: {ex.Message}");
+                return false;
+            }
+        }
+
+        /// <summary>
+        /// Checks if cursor-agent is installed inside WSL by checking for the symlink at ~/.local/bin/cursor-agent
+        /// </summary>
+        /// <returns>True if cursor-agent is available in WSL, false otherwise</returns>
+        private async Task<bool> IsCursorAgentInstalledInWslAsync()
+        {
+            try
+            {
+                var startInfo = new ProcessStartInfo
+                {
+                    FileName = "cmd.exe",
+                    Arguments = "/c wsl bash -c \"test -L ~/.local/bin/cursor-agent && echo 'exists' || echo 'notfound'\"",
+                    UseShellExecute = false,
+                    RedirectStandardOutput = true,
+                    RedirectStandardError = true,
+                    CreateNoWindow = true
+                };
+
+                using (var process = Process.Start(startInfo))
+                {
+                    var completed = await Task.Run(() =>
+                    {
+                        return process.WaitForExit(5000); // 5 second timeout
+                    });
+
+                    if (!completed)
+                    {
+                        try { process.Kill(); } catch { }
+                        Debug.WriteLine("Cursor agent check in WSL timed out");
+                        return false;
+                    }
+
+                    string output = await process.StandardOutput.ReadToEndAsync();
+                    string error = await process.StandardError.ReadToEndAsync();
+
+                    Debug.WriteLine($"Cursor agent WSL check - Exit code: {process.ExitCode}");
+                    Debug.WriteLine($"Cursor agent WSL check - Output: {output}");
+                    Debug.WriteLine($"Cursor agent WSL check - Error: {error}");
+
+                    bool isInstalled = output.Trim().Equals("exists", StringComparison.OrdinalIgnoreCase);
+                    Debug.WriteLine($"Cursor agent symlink exists at ~/.local/bin/cursor-agent: {isInstalled}");
+
+                    return isInstalled;
+                }
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"Error checking for cursor-agent in WSL: {ex.Message}");
+                return false;
+            }
+        }
+
         #endregion
 
         #region Installation Instructions
@@ -226,6 +335,42 @@ namespace ClaudeCodeVS
             }
         }
 
+        /// <summary>
+        /// Shows installation instructions for Cursor Agent (requires WSL)
+        /// </summary>
+        private void ShowCursorAgentInstallationInstructions()
+        {
+            const string instructions = @"To use Cursor Agent, you need to install WSL and cursor-agent.
+
+(you may click CTRL+C to copy full instructions)
+
+Make sure virtualization is enabled in BIOS.
+
+Open PowerShell as Administrator and run:
+
+dism.exe /online /enable-feature /featurename:Microsoft-Windows-Subsystem-Linux /all /norestart
+
+dism.exe /online /enable-feature /featurename:VirtualMachinePlatform /all /norestart
+
+wsl --install
+
+Install cursor agent inside WSL:
+
+curl https://cursor.com/install -fsS | bash
+
+Copy and paste the 2 suggested commands to add cursor to path:
+
+echo 'export PATH=""$HOME/.local/bin:$PATH""' >> ~/.bashrc
+source ~/.bashrc
+
+Start cursor-agent to login:
+
+cursor-agent";
+
+            MessageBox.Show(instructions, "Cursor Agent Installation",
+                          MessageBoxButton.OK, MessageBoxImage.Information);
+        }
+
         #endregion
 
         #region Provider Switching
@@ -250,11 +395,11 @@ namespace ClaudeCodeVS
                 if (!claudeAvailable)
                 {
                     ShowClaudeInstallationInstructions();
-                    await StartEmbeddedTerminalAsync(false, false); // Regular CMD
+                    await StartEmbeddedTerminalAsync(false, false, false); // Regular CMD
                 }
                 else
                 {
-                    await StartEmbeddedTerminalAsync(true, false); // Claude Code
+                    await StartEmbeddedTerminalAsync(true, false, false); // Claude Code
                 }
             });
         }
@@ -280,11 +425,47 @@ namespace ClaudeCodeVS
                 if (!codexAvailable)
                 {
                     ShowCodexInstallationInstructions();
-                    await StartEmbeddedTerminalAsync(false, false); // Regular CMD
+                    await StartEmbeddedTerminalAsync(false, false, false); // Regular CMD
                 }
                 else
                 {
-                    await StartEmbeddedTerminalAsync(false, true); // Codex
+                    await StartEmbeddedTerminalAsync(false, true, false); // Codex
+                }
+            });
+        }
+
+        /// <summary>
+        /// Handles Cursor Agent menu item click - switches to Cursor Agent provider
+        /// </summary>
+        private void CursorAgentMenuItem_Click(object sender, RoutedEventArgs e)
+        {
+            if (_settings == null) return;
+
+            ThreadHelper.JoinableTaskFactory.Run(async delegate
+            {
+                bool wslInstalled = await IsWslInstalledAsync();
+                bool cursorAgentInstalled = false;
+
+                if (wslInstalled)
+                {
+                    cursorAgentInstalled = await IsCursorAgentInstalledInWslAsync();
+                }
+
+                await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
+
+                // Always update the selection regardless of availability
+                _settings.SelectedProvider = AiProvider.CursorAgent;
+                UpdateProviderSelection();
+                SaveSettings();
+
+                if (!wslInstalled || !cursorAgentInstalled)
+                {
+                    ShowCursorAgentInstallationInstructions();
+                    await StartEmbeddedTerminalAsync(false, false, false); // Regular CMD
+                }
+                else
+                {
+                    await StartEmbeddedTerminalAsync(false, false, true); // Cursor Agent
                 }
             });
         }
@@ -301,9 +482,11 @@ namespace ClaudeCodeVS
             // Update menu item checkmarks
             ClaudeCodeMenuItem.IsChecked = _settings.SelectedProvider == AiProvider.ClaudeCode;
             CodexMenuItem.IsChecked = _settings.SelectedProvider == AiProvider.Codex;
+            CursorAgentMenuItem.IsChecked = _settings.SelectedProvider == AiProvider.CursorAgent;
 
             // Update GroupBox header to show current provider
-            string providerName = _settings.SelectedProvider == AiProvider.ClaudeCode ? "Claude Code" : "Codex";
+            string providerName = _settings.SelectedProvider == AiProvider.ClaudeCode ? "Claude Code" :
+                                  _settings.SelectedProvider == AiProvider.Codex ? "Codex" : "Cursor Agent";
             TerminalGroupBox.Header = providerName;
 
             // Update tool window title

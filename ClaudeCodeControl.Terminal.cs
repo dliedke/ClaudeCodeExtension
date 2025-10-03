@@ -51,11 +51,22 @@ namespace ClaudeCodeVS
             {
                 // Determine which provider to use based on settings
                 bool useCodex = _settings?.SelectedProvider == AiProvider.Codex;
+                bool useCursorAgent = _settings?.SelectedProvider == AiProvider.CursorAgent;
                 bool providerAvailable = false;
 
-                Debug.WriteLine($"User selected provider: {(useCodex ? "Codex" : "Claude Code")}");
+                Debug.WriteLine($"User selected provider: {(useCursorAgent ? "Cursor Agent" : useCodex ? "Codex" : "Claude Code")}");
 
-                if (useCodex)
+                if (useCursorAgent)
+                {
+                    Debug.WriteLine("Checking WSL and cursor-agent availability for Cursor Agent...");
+                    bool wslInstalled = await IsWslInstalledAsync();
+                    if (wslInstalled)
+                    {
+                        providerAvailable = await IsCursorAgentInstalledInWslAsync();
+                    }
+                    Debug.WriteLine($"WSL available: {wslInstalled}, cursor-agent available: {providerAvailable}");
+                }
+                else if (useCodex)
                 {
                     Debug.WriteLine("Checking Codex availability...");
                     providerAvailable = await IsCodexCmdAvailableAsync();
@@ -98,12 +109,31 @@ namespace ClaudeCodeVS
                 await Task.Delay(500);
 
                 // Start the selected provider if available, otherwise show message and use regular CMD
-                if (useCodex)
+                if (useCursorAgent)
+                {
+                    if (providerAvailable)
+                    {
+                        Debug.WriteLine("Starting Cursor Agent terminal...");
+                        await StartEmbeddedTerminalAsync(false, false, true); // Cursor Agent
+                        UpdateToolWindowTitle("Cursor Agent");
+                    }
+                    else
+                    {
+                        Debug.WriteLine("WSL not available, showing installation instructions...");
+                        if (!_cursorAgentNotificationShown)
+                        {
+                            _cursorAgentNotificationShown = true;
+                            ShowCursorAgentInstallationInstructions();
+                        }
+                        await StartEmbeddedTerminalAsync(false, false, false); // Regular CMD
+                    }
+                }
+                else if (useCodex)
                 {
                     if (providerAvailable)
                     {
                         Debug.WriteLine("Starting Codex terminal...");
-                        await StartEmbeddedTerminalAsync(false, true); // Codex
+                        await StartEmbeddedTerminalAsync(false, true, false); // Codex
                         UpdateToolWindowTitle("Codex");
                     }
                     else
@@ -114,7 +144,7 @@ namespace ClaudeCodeVS
                             _codexNotificationShown = true;
                             ShowCodexInstallationInstructions();
                         }
-                        await StartEmbeddedTerminalAsync(false, false); // Regular CMD
+                        await StartEmbeddedTerminalAsync(false, false, false); // Regular CMD
                     }
                 }
                 else
@@ -122,7 +152,7 @@ namespace ClaudeCodeVS
                     if (providerAvailable)
                     {
                         Debug.WriteLine("Starting Claude Code terminal...");
-                        await StartEmbeddedTerminalAsync(true, false); // Claude Code
+                        await StartEmbeddedTerminalAsync(true, false, false); // Claude Code
                         UpdateToolWindowTitle("Claude Code");
                     }
                     else
@@ -133,7 +163,7 @@ namespace ClaudeCodeVS
                             _claudeNotificationShown = true;
                             ShowClaudeInstallationInstructions();
                         }
-                        await StartEmbeddedTerminalAsync(false, false); // Regular CMD
+                        await StartEmbeddedTerminalAsync(false, false, false); // Regular CMD
                     }
                 }
             }
@@ -147,11 +177,12 @@ namespace ClaudeCodeVS
         }
 
         /// <summary>
-        /// Starts and embeds the terminal process (Claude Code, Codex, or regular CMD)
+        /// Starts and embeds the terminal process (Claude Code, Codex, Cursor Agent, or regular CMD)
         /// </summary>
         /// <param name="claudeAvailable">True if Claude Code should be started</param>
         /// <param name="useCodex">True if Codex should be started</param>
-        private async Task StartEmbeddedTerminalAsync(bool claudeAvailable = true, bool useCodex = false)
+        /// <param name="useCursorAgent">True if Cursor Agent should be started</param>
+        private async Task StartEmbeddedTerminalAsync(bool claudeAvailable = true, bool useCodex = false, bool useCursorAgent = false)
         {
             try
             {
@@ -186,7 +217,15 @@ namespace ClaudeCodeVS
 
                 // Build the terminal command based on provider
                 string terminalCommand;
-                if (useCodex)
+                if (useCursorAgent)
+                {
+                    Debug.WriteLine($"Starting Cursor Agent via WSL in directory: {workspaceDir}");
+
+                    // Convert Windows path to WSL path format (C:\GitLab\Project -> /mnt/c/GitLab/Project)
+                    string wslPath = ConvertToWslPath(workspaceDir);
+                    terminalCommand = $"/k wsl bash -ic \"cd {wslPath} && cursor-agent\"";
+                }
+                else if (useCodex)
                 {
                     Debug.WriteLine($"Starting Codex in directory: {workspaceDir}");
 
@@ -360,10 +399,20 @@ namespace ClaudeCodeVS
             {
                 // Determine which provider to use based on settings
                 bool useCodex = _settings?.SelectedProvider == AiProvider.Codex;
+                bool useCursorAgent = _settings?.SelectedProvider == AiProvider.CursorAgent;
                 bool claudeAvailable = false;
                 bool codexAvailable = false;
+                bool wslAvailable = false;
 
-                if (useCodex)
+                if (useCursorAgent)
+                {
+                    wslAvailable = await IsWslInstalledAsync();
+                    if (wslAvailable)
+                    {
+                        wslAvailable = await IsCursorAgentInstalledInWslAsync();
+                    }
+                }
+                else if (useCodex)
                 {
                     codexAvailable = await IsCodexCmdAvailableAsync();
                 }
@@ -372,13 +421,34 @@ namespace ClaudeCodeVS
                     claudeAvailable = await IsClaudeCmdAvailableAsync();
                 }
 
-                await StartEmbeddedTerminalAsync(claudeAvailable, useCodex && codexAvailable);
+                await StartEmbeddedTerminalAsync(claudeAvailable, useCodex && codexAvailable, useCursorAgent && wslAvailable);
             }
             catch (Exception ex)
             {
                 Debug.WriteLine($"Error in RestartTerminalButton_Click: {ex.Message}");
                 MessageBox.Show($"Failed to restart terminal: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
             }
+        }
+
+        /// <summary>
+        /// Converts a Windows path to WSL path format
+        /// Example: C:\GitLab\Project -> /mnt/c/GitLab/Project
+        /// </summary>
+        /// <param name="windowsPath">Windows path to convert</param>
+        /// <returns>WSL-formatted path</returns>
+        private string ConvertToWslPath(string windowsPath)
+        {
+            if (string.IsNullOrEmpty(windowsPath))
+                return string.Empty;
+
+            // Get the drive letter and convert to lowercase
+            string driveLetter = windowsPath.Substring(0, 1).ToLower();
+
+            // Remove the drive letter and colon, then replace backslashes with forward slashes
+            string pathWithoutDrive = windowsPath.Substring(2).Replace("\\", "/");
+
+            // Return the WSL path format
+            return $"/mnt/{driveLetter}{pathWithoutDrive}";
         }
 
         #endregion

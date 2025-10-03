@@ -186,6 +186,7 @@
 							<ContextMenu x:Name="ProviderContextMenu">
 								<MenuItem Header="Claude Code" x:Name="ClaudeCodeMenuItem" Click="ClaudeCodeMenuItem_Click" IsCheckable="True" IsChecked="True"/>
 								<MenuItem Header="Codex" x:Name="CodexMenuItem" Click="CodexMenuItem_Click" IsCheckable="True"/>
+								<MenuItem Header="Cursor Agent" x:Name="CursorAgentMenuItem" Click="CursorAgentMenuItem_Click" IsCheckable="True"/>
 								<Separator/>
 								<MenuItem Header="About" x:Name="AboutMenuItem" Click="AboutMenuItem_Click"/>
 							</ContextMenu>

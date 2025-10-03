@@ -1,6 +1,6 @@
 # Claude Code Extension for Visual Studio
 
-A Visual Studio extension that provides seamless integration with Claude Code or OpenAI Codex directly within the Visual Studio IDE.
+A Visual Studio extension that provides seamless integration with Claude Code, OpenAI Codex or Cursor Agent directly within the Visual Studio IDE.
 
 <center>
 <img src="https://i.ibb.co/mVCs0cNy/Claude-Code-Extension.png" alt="Claude Code Extension Screenshot" />
@@ -16,8 +16,9 @@ A Visual Studio extension that provides seamless integration with Claude Code or
 ### 🤖 **Multiple AI Provider Support**
 - **Claude Code**: Full support for Claude Code CLI integration
 - **OpenAI Codex**: Support for Codex CLI AI assistant
-- **Provider Switching**: Right-click context menu to switch between providers
-- **Smart Detection**: Automatic detection and instructions for installation of AI tools
+- **Cursor Agent**: Support for Cursor Agent running inside WSL (Windows Subsystem for Linux)
+- **Provider Switching**: Easy dropdown menu to switch between providers
+- **Smart Detection**: Automatic detection and installation instructions for each AI tool
 
 ### ⌨️ **Smart Send Controls**
 - **Send with Enter**: Toggle between Enter-to-send and manual send modes
@@ -54,6 +55,8 @@ A Visual Studio extension that provides seamless integration with Claude Code or
   Refer to https://docs.claude.com/en/docs/claude-code/setup for Claude Code installation
 - **For OpenAI Codex**: Chat GPT Plus or better paid subscription + Codex AI assistant installed and accessible via `codex.cmd` in path.
   Refer to https://developers.openai.com/codex/cli/ for Codex CLI installation
+- **For Cursor Agent**: Windows Subsystem for Linux (WSL) + Cursor Agent installed inside WSL
+  Installation instructions are provided automatically when selecting Cursor Agent without WSL/cursor-agent installed
 
 ## Installation
 
@@ -64,9 +67,9 @@ A Visual Studio extension that provides seamless integration with Claude Code or
 
 ## Quick Start
 
-- **First Time Setup**: Ensure your preferred AI provider (Claude Code or OpenAI Codex) is installed and accessible
+- **First Time Setup**: Ensure your preferred AI provider (Claude Code, OpenAI Codex, or Cursor Agent) is installed and accessible
 - **Open Tool Window**: View → Other Windows → Claude Code Extension
-- **Choose AI Provider**: Right-click in the terminal area to select between Claude Code and OpenAI Codex
+- **Choose AI Provider**: Click the ⚙ (gear) button to select between Claude Code, Codex, and Cursor Agent
 - **Start Chatting**: Type your prompt and press Enter
 - **Add Images**: Use Ctrl+V to paste or click "Add Image" button
 - **Customize**: Toggle "Send with Enter" and adjust layout as needed
@@ -74,16 +77,17 @@ A Visual Studio extension that provides seamless integration with Claude Code or
 ## Usage
 
 1. **Open the Tool Window**: Navigate to View → Other Windows → Claude Code Extension
-2. **Select AI Provider**: Right-click in the terminal area and choose your preferred AI assistant
+2. **Select AI Provider**: Click the ⚙ (gear) button and choose your preferred AI assistant
 3. **Enter Prompts**: Type your questions or requests in the prompt area
 4. **Add Images**: Drag & drop, paste, or use the "Add Image" button
 5. **Send Messages**: Press Enter (if enabled) or click the Send button
 6. **View Responses**: See AI responses in the embedded terminal below and also interact with it directly
 
 ### AI Provider Menu
-- **Right-click Context Menu**: Access the provider selection menu by right-clicking in the terminal area
+- **Settings Menu**: Click the ⚙ (gear) button in the top-right corner to access provider settings
 - **Claude Code**: Switch to Claude Code CLI integration
 - **Codex**: Switch to Codex AI assistant
+- **Cursor Agent**: Switch to Cursor Agent (runs inside WSL)
 - **About**: View extension version and information
 
 ### Customization
@@ -93,6 +97,20 @@ A Visual Studio extension that provides seamless integration with Claude Code or
 - **Settings persist automatically** between Visual Studio sessions
 
 ## Version History
+
+### Version 1.6
+
+- **Cursor Agent Support**: Added full support for Cursor Agent running inside WSL (Windows Subsystem for Linux)
+  - **WSL Integration**: Seamlessly runs cursor-agent inside WSL with automatic Windows path to WSL path conversion
+  - **Smart Detection**: Checks for both WSL installation and cursor-agent symlink at `~/.local/bin/cursor-agent`
+  - **Installation Instructions**: Comprehensive setup guide including WSL installation, cursor-agent installation, and PATH configuration
+  - **Provider Menu**: Added "Cursor Agent" option to the settings dropdown
+- **Enhanced Provider Management**: Improved AI provider detection and switching logic
+  - All providers (Claude Code, Codex, Cursor Agent) now properly persist across solution changes
+  - Fixed issue where provider selection wasn't maintained when loading new solutions
+  - Settings are now properly applied on every control load to ensure UI consistency
+- **Path Conversion Utility**: Added `ConvertToWslPath()` helper method to convert Windows paths (e.g., `C:\GitLab\Project`) to WSL format (`/mnt/c/GitLab/Project`)
+- **Updated Documentation**: README updated with Cursor Agent requirements and usage instructions
 
 ### Version 1.5
 

@@ -18,7 +18,8 @@ namespace ClaudeCodeVS
     public enum AiProvider
     {
         ClaudeCode,
-        Codex
+        Codex,
+        CursorAgent
     }
 
     /// <summary>

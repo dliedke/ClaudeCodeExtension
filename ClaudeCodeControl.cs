@@ -98,7 +98,14 @@ namespace ClaudeCodeVS
             // Load settings after UI is fully loaded
             LoadSettings();
 
-            // Only initialize once - prevent re-initialization on tab switches
+            // Apply settings to UI every time we load (in case settings changed)
+            ThreadHelper.JoinableTaskFactory.Run(async delegate
+            {
+                await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
+                ApplyLoadedSettings();
+            });
+
+            // Only initialize terminal once - prevent re-initialization on tab switches
             if (_hasInitialized)
             {
                 // Mark initialization as complete to allow settings saving
@@ -106,7 +113,7 @@ namespace ClaudeCodeVS
                 return;
             }
 
-            // Apply settings and initialize terminal after settings are loaded
+            // Initialize terminal after settings are loaded
             ThreadHelper.JoinableTaskFactory.Run(async delegate
             {
                 await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
@@ -114,7 +121,6 @@ namespace ClaudeCodeVS
                 // Set the flag before initialization to prevent multiple calls
                 _hasInitialized = true;
 
-                ApplyLoadedSettings();
                 await InitializeTerminalAsync();
             });
 

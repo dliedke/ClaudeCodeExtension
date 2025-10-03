@@ -162,12 +162,24 @@ namespace ClaudeCodeVS
 
                     // Determine which provider to use based on settings
                     bool useCodex = _settings?.SelectedProvider == AiProvider.Codex;
+                    bool useCursorAgent = _settings?.SelectedProvider == AiProvider.CursorAgent;
                     bool claudeAvailable = false;
                     bool codexAvailable = false;
+                    bool wslAvailable = false;
 
-                    Debug.WriteLine($"User selected provider: {(useCodex ? "Codex" : "Claude Code")}");
+                    Debug.WriteLine($"User selected provider: {(useCursorAgent ? "Cursor Agent" : useCodex ? "Codex" : "Claude Code")}");
 
-                    if (useCodex)
+                    if (useCursorAgent)
+                    {
+                        Debug.WriteLine("Checking WSL and cursor-agent availability for workspace change...");
+                        wslAvailable = await IsWslInstalledAsync();
+                        if (wslAvailable)
+                        {
+                            wslAvailable = await IsCursorAgentInstalledInWslAsync();
+                        }
+                        Debug.WriteLine($"WSL available and cursor-agent installed: {wslAvailable}");
+                    }
+                    else if (useCodex)
                     {
                         Debug.WriteLine("Checking Codex availability for workspace change...");
                         codexAvailable = await IsCodexCmdAvailableAsync();
@@ -184,12 +196,30 @@ namespace ClaudeCodeVS
                     await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
 
                     // Restart with the selected provider if available, otherwise show message and use regular CMD
-                    if (useCodex)
+                    if (useCursorAgent)
+                    {
+                        if (wslAvailable)
+                        {
+                            Debug.WriteLine("Restarting Cursor Agent terminal in new directory...");
+                            await StartEmbeddedTerminalAsync(false, false, true); // Cursor Agent
+                        }
+                        else
+                        {
+                            Debug.WriteLine("WSL not available, showing installation instructions...");
+                            if (!_cursorAgentNotificationShown)
+                            {
+                                _cursorAgentNotificationShown = true;
+                                ShowCursorAgentInstallationInstructions();
+                            }
+                            await StartEmbeddedTerminalAsync(false, false, false); // Regular CMD
+                        }
+                    }
+                    else if (useCodex)
                     {
                         if (codexAvailable)
                         {
                             Debug.WriteLine("Restarting Codex terminal in new directory...");
-                            await StartEmbeddedTerminalAsync(false, true); // Codex
+                            await StartEmbeddedTerminalAsync(false, true, false); // Codex
                         }
                         else
                         {
@@ -199,7 +229,7 @@ namespace ClaudeCodeVS
                                 _codexNotificationShown = true;
                                 ShowCodexInstallationInstructions();
                             }
-                            await StartEmbeddedTerminalAsync(false, false); // Regular CMD
+                            await StartEmbeddedTerminalAsync(false, false, false); // Regular CMD
                         }
                     }
                     else
@@ -207,7 +237,7 @@ namespace ClaudeCodeVS
                         if (claudeAvailable)
                         {
                             Debug.WriteLine("Restarting Claude Code terminal in new directory...");
-                            await StartEmbeddedTerminalAsync(true, false); // Claude Code
+                            await StartEmbeddedTerminalAsync(true, false, false); // Claude Code
                         }
                         else
                         {
@@ -217,7 +247,7 @@ namespace ClaudeCodeVS
                                 _claudeNotificationShown = true;
                                 ShowClaudeInstallationInstructions();
                             }
-                            await StartEmbeddedTerminalAsync(false, false); // Regular CMD
+                            await StartEmbeddedTerminalAsync(false, false, false); // Regular CMD
                         }
                     }
                 }
