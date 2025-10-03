@@ -11,6 +11,45 @@
              Foreground="{DynamicResource {x:Static vsshell:VsBrushes.WindowTextKey}}">
 
 	<UserControl.Resources>
+		<!-- Single border GroupBox style -->
+		<Style x:Key="SingleBorderGroupBoxStyle" TargetType="GroupBox">
+			<Setter Property="Padding" Value="3"/>
+			<Setter Property="Template">
+				<Setter.Value>
+					<ControlTemplate TargetType="GroupBox">
+						<Grid>
+							<Grid.RowDefinitions>
+								<RowDefinition Height="Auto"/>
+								<RowDefinition Height="*"/>
+							</Grid.RowDefinitions>
+
+							<!-- Border around content -->
+							<Border Grid.Row="0" Grid.RowSpan="2"
+							        BorderBrush="{TemplateBinding BorderBrush}"
+							        BorderThickness="{TemplateBinding BorderThickness}"
+							        Background="{TemplateBinding Background}"
+							        CornerRadius="4">
+							</Border>
+
+							<!-- Header with background to cover border -->
+							<Border Grid.Row="0"
+							        Background="{TemplateBinding Background}"
+							        Margin="8,0,0,0"
+							        HorizontalAlignment="Left">
+								<ContentPresenter ContentSource="Header"
+								                  RecognizesAccessKey="True"
+								                  Margin="4,0"/>
+							</Border>
+
+							<!-- Content -->
+							<ContentPresenter Grid.Row="1"
+							                  Margin="{TemplateBinding Padding}"/>
+						</Grid>
+					</ControlTemplate>
+				</Setter.Value>
+			</Setter>
+		</Style>
+
 		<!-- Adaptive button style for light/dark theme -->
 		<Style x:Key="AdaptiveButtonStyle" TargetType="Button">
 			<Setter Property="Background" Value="{DynamicResource {x:Static vsshell:VsBrushes.ToolWindowBackgroundKey}}"/>
@@ -104,11 +143,12 @@
 			<!-- Prompt Input Area -->
 			<GroupBox Grid.Row="0"
                       Header="Prompt / Paste Image"
-                      Foreground="{DynamicResource {x:Static vsshell:VsBrushes.ToolWindowTextKey}}"
+                      Foreground="{DynamicResource {x:Static vsshell:VsBrushes.WindowTextKey}}"
                       Background="{DynamicResource {x:Static vsshell:VsBrushes.ToolWindowBackgroundKey}}"
-                      BorderBrush="{DynamicResource {x:Static vsshell:VsBrushes.ToolWindowBorderKey}}"
+                      BorderBrush="{DynamicResource {x:Static vsshell:VsBrushes.WindowTextKey}}"
                       BorderThickness="1"
-                      Margin="0,0,0,2">
+                      Margin="0,0,0,2"
+                      Style="{StaticResource SingleBorderGroupBoxStyle}">
 				<TextBox x:Name="PromptTextBox"
                          TextWrapping="Wrap"
                          AcceptsReturn="True"
@@ -118,7 +158,6 @@
                          Foreground="{DynamicResource {x:Static vsshell:VsBrushes.WindowTextKey}}"
                          BorderBrush="Transparent"
                          BorderThickness="0"
-                         Margin="3"
                          KeyDown="PromptTextBox_KeyDown"
                          PreviewKeyDown="PromptTextBox_PreviewKeyDown"/>
 			</GroupBox>
@@ -223,12 +262,13 @@
 		<GroupBox Grid.Row="2"
                   Header="Claude Code"
                   Margin="6"
-                  Foreground="{DynamicResource {x:Static vsshell:VsBrushes.ToolWindowTextKey}}"
+                  Foreground="{DynamicResource {x:Static vsshell:VsBrushes.WindowTextKey}}"
                   Background="{DynamicResource {x:Static vsshell:VsBrushes.ToolWindowBackgroundKey}}"
-                  BorderBrush="{DynamicResource {x:Static vsshell:VsBrushes.ToolWindowBorderKey}}"
+                  BorderBrush="{DynamicResource {x:Static vsshell:VsBrushes.WindowTextKey}}"
                   BorderThickness="1"
+                  Style="{StaticResource SingleBorderGroupBoxStyle}"
                   x:Name="TerminalGroupBox">
-			<wf:WindowsFormsHost x:Name="TerminalHost" Margin="3"/>
+			<wf:WindowsFormsHost x:Name="TerminalHost"/>
 		</GroupBox>
 	</Grid>
 </UserControl>

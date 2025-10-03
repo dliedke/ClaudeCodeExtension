@@ -143,12 +143,14 @@ namespace ClaudeCodeVS
             try
             {
                 string newWorkspaceDir = await GetWorkspaceDirectoryAsync();
-                Debug.WriteLine($"OnWorkspaceDirectoryChangedAsync: Current workspace: '{_lastWorkspaceDirectory}', New workspace: '{newWorkspaceDir}', Initialized: {_hasInitialized}");
+                Debug.WriteLine($"OnWorkspaceDirectoryChangedAsync: Current workspace: '{_lastWorkspaceDirectory}', New workspace: '{newWorkspaceDir}', Terminal initialized: {cmdProcess != null}");
 
-                // Only restart terminal if we have already initialized
-                if (!_hasInitialized)
+                // If terminal hasn't been initialized yet, initialize it now
+                if (cmdProcess == null)
                 {
-                    Debug.WriteLine("Extension not yet initialized, skipping terminal restart");
+                    Debug.WriteLine("Terminal not initialized yet - initializing now with workspace");
+                    _lastWorkspaceDirectory = newWorkspaceDir;
+                    await InitializeTerminalAsync();
                     return;
                 }
 

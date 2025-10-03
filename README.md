@@ -98,81 +98,72 @@ A Visual Studio extension that provides seamless integration with Claude Code, O
 
 ## Version History
 
+### Version 1.7 ✨
+
+**What's New:**
+- **🎨 Clean Single-Border Design**: Redesigned the UI with elegant single borders around prompt and terminal areas - no more double borders!
+- **🌓 Better Contrast**: Borders now use high-contrast colors (white in dark mode, black in light mode) for improved visibility
+- **⚡ Smarter Startup**: Terminal now initializes only when you open a solution, not when the extension loads - faster and more efficient!
+- **🔄 Improved Solution Switching**: When switching between solutions, the AI assistant properly reloads with the new workspace context
+- **🐛 Bug Fixes**: Fixed various initialization and workspace detection issues for a smoother experience
+
 ### Version 1.6
 
-- **Cursor Agent Support**: Added full support for Cursor Agent running inside WSL (Windows Subsystem for Linux)
-  - **WSL Integration**: Seamlessly runs cursor-agent inside WSL with automatic Windows path to WSL path conversion
-  - **Smart Detection**: Checks for both WSL installation and cursor-agent symlink at `~/.local/bin/cursor-agent`
-  - **Installation Instructions**: Comprehensive setup guide including WSL installation, cursor-agent installation, and PATH configuration
-  - **Provider Menu**: Added "Cursor Agent" option to the settings dropdown
-- **Enhanced Provider Management**: Improved AI provider detection and switching logic
-  - All providers (Claude Code, Codex, Cursor Agent) now properly persist across solution changes
-  - Fixed issue where provider selection wasn't maintained when loading new solutions
-  - Settings are now properly applied on every control load to ensure UI consistency
-- **Path Conversion Utility**: Added `ConvertToWslPath()` helper method to convert Windows paths (e.g., `C:\GitLab\Project`) to WSL format (`/mnt/c/GitLab/Project`)
-- **Updated Documentation**: README updated with Cursor Agent requirements and usage instructions
+**Cursor Agent Support:**
+- Added full support for Cursor Agent running inside Windows Subsystem for Linux (WSL)
+- Automatic WSL detection and path conversion for seamless integration
+- Comprehensive installation guide displayed when WSL or Cursor Agent is not detected
+
+**Improvements:**
+- Better AI provider persistence across solution changes
+- Enhanced provider detection and switching logic
 
 ### Version 1.5
 
-- **Code Organization Refactoring**: Split the monolithic ClaudeCodeControl.cs into 13 well-organized files for better maintainability
-  - **ClaudeCodeControl.cs**: Core initialization and orchestration (128 lines)
-  - **ClaudeCodeControl.Cleanup.cs**: Resource cleanup and temporary file management
-  - **ClaudeCodeControl.ImageHandling.cs**: Image attachment and paste functionality
-  - **ClaudeCodeControl.Interop.cs**: Win32 API declarations and structures
-  - **ClaudeCodeControl.ProviderManagement.cs**: AI provider detection and switching
-  - **ClaudeCodeControl.Settings.cs**: Settings persistence and management
-  - **ClaudeCodeControl.Terminal.cs**: Terminal initialization and embedding
-  - **ClaudeCodeControl.TerminalIO.cs**: Terminal communication and I/O
-  - **ClaudeCodeControl.Theme.cs**: Visual Studio theme integration
-  - **ClaudeCodeControl.UserInput.cs**: Keyboard and button input handling
-  - **ClaudeCodeControl.Workspace.cs**: Solution and workspace directory management
-  - **ClaudeCodeModels.cs**: Data models and enums
-  - **SolutionEventsHandler.cs**: Solution events handler (separate class)
-- **Enhanced Documentation**: Added comprehensive XML documentation comments to all methods, properties, and classes
-- **Improved Code Structure**: Organized code into logical #region blocks for better navigation
-- **No Functional Changes**: Refactoring maintains 100% backward compatibility with existing functionality
+**Behind the Scenes:**
+- Major code reorganization for better maintainability (split into 13 specialized files)
+- Added comprehensive documentation throughout the codebase
+- No changes to functionality - everything works exactly the same!
 
 ### Version 1.4
 
-- **Single Initialization**: Fixed issue where extension would reinitialize every time it became visible after being hidden, now initializes only once
-- **Improved Stability**: Enhanced initialization logic prevents multiple terminal instances and improves overall extension stability
+**Stability Improvements:**
+- Fixed extension re-initialization issue when switching between windows
+- Prevents multiple terminal instances from being created
+- More reliable overall behavior
 
 ### Version 1.3
 
-- **Temporary Directory Cleanup**: Automatically clears %temp%\ClaudeCodeVS directories on initialization to prevent accumulation of old temporary files
-- **Simplified Image Naming**: Pasted images now use a clean "image_[n].png" format (e.g., image_1.png, image_2.png) instead of long timestamp-based names
-- **Image Counter Reset**: Image numbering restarts from 1 after each prompt is sent, keeping image names simple and organized
-- **GUID-Based Prompt Directories**: Each prompt with images creates a unique directory %temp%\ClaudeCodeVS\[guid]\ preventing image overwrites and providing clean organization
-- **UI Improvement**: Fixed dropdown button display issue by replacing problematic character with gear icon (⚙)
+**File Management & UI:**
+- Automatic cleanup of temporary image directories on startup
+- Simpler image naming: `image_1.png`, `image_2.png` instead of long timestamps
+- Each prompt with images gets its own unique folder to prevent conflicts
+- Fixed gear icon (⚙) display in settings button
 
 ### Version 1.2
 
-- **Multiple AI Provider Support**: Added support for Codex AI assistant alongside Claude Code
-- **Provider Selection Menu**: Right-click context menu to switch between Claude Code and Codex
-- **Dynamic Title Updates**: Window title changes based on selected AI provider (Claude Code Extension / Codex Extension)
-- **Codex Detection**: Automatic detection of Codex installation at `%UserProfile%\AppData\Roaming\npm\codex.cmd`
-- **Provider Persistence**: Selected AI provider is saved and restored between sessions
-- **About Dialog**: Added About menu item showing extension version and information
-- **Enhanced Terminal Logic**: Improved terminal initialization to work with multiple providers
+**Multi-Provider Support:**
+- Added OpenAI Codex as a second AI assistant option
+- Easy switching between Claude Code and Codex via settings menu
+- Window title shows which AI provider you're currently using
+- Your provider choice is saved between sessions
 
 ### Version 1.1
 
-- Dynamic dark/light theme according to Visual Studio theme (except for Claude Code terminal because in white does not look good at all)
-- Fixed icon in View -> Other Windows -> Claude Code Extension menu
-- If Claude Code claude.cmd is not found in path, show a message box with instructions and open URL for installation if user requests
-- Fix issues pasting images in prompt area
+**Visual & Usability:**
+- Theme support: Extension now follows Visual Studio's light/dark theme
+- Better icon display in the View menu
+- Helpful installation instructions if Claude Code is not found
+- Fixed image pasting issues
 
 ### Version 1.0
 
-- Initial release
-- Embedded Claude Code terminal
-- Send with Enter functionality with Shift+Enter and Ctrl+Enter for new lines
-- Image drag & drop, paste, and file selection support
-- Automatic workspace directory detection
-- Solution event monitoring for dynamic directory switching
-- Persistent JSON settings storage
-- Resizable layout with splitter position memory
-- Dark theme integration
+**Initial Release:**
+- Embedded AI assistant terminal right in Visual Studio
+- Send prompts with Enter (or use Shift+Enter for new lines)
+- Full image support: paste, drag & drop, or browse for files
+- Automatic workspace detection when opening solutions
+- All your preferences saved automatically
 
 - ## Kwown Issues
 

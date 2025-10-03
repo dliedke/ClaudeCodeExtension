@@ -202,7 +202,37 @@ namespace ClaudeCodeVS
                 {
                     try
                     {
-                        cmdProcess.Kill();
+                        // Send exit command to gracefully close Claude Code before killing the process
+                        Debug.WriteLine("Sending exit command to terminal before restarting...");
+
+                        // Type "exit" by copying to clipboard and pasting
+                        if (terminalHandle != IntPtr.Zero && IsWindow(terminalHandle))
+                        {
+                            Clipboard.SetText("exit");
+                            SetForegroundWindow(terminalHandle);
+                            SetFocus(terminalHandle);
+                            System.Threading.Thread.Sleep(100);
+
+                            // Paste the exit command
+                            GetWindowRect(terminalHandle, out RECT rect);
+                            int centerX = rect.Left + (rect.Right - rect.Left) / 2;
+                            int centerY = rect.Top + (rect.Bottom - rect.Top) / 2;
+                            SendRightClick(centerX, centerY);
+
+                            System.Threading.Thread.Sleep(200);
+
+                            // Send Enter key
+                            PostMessage(terminalHandle, WM_CHAR, new IntPtr(VK_RETURN), IntPtr.Zero);
+                        }
+
+                        // Give it a moment to process the exit command
+                        await Task.Delay(500);
+
+                        // Force kill if still running
+                        if (!cmdProcess.HasExited)
+                        {
+                            cmdProcess.Kill();
+                        }
                         cmdProcess.Dispose();
                     }
                     catch (Exception ex)

@@ -113,16 +113,12 @@ namespace ClaudeCodeVS
                 return;
             }
 
-            // Initialize terminal after settings are loaded
-            ThreadHelper.JoinableTaskFactory.Run(async delegate
-            {
-                await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
+            // Set the flag to prevent multiple calls
+            _hasInitialized = true;
 
-                // Set the flag before initialization to prevent multiple calls
-                _hasInitialized = true;
-
-                await InitializeTerminalAsync();
-            });
+            // Don't initialize terminal here - wait for solution events to trigger it
+            // This prevents double initialization (once on extension load, once on solution load)
+            System.Diagnostics.Debug.WriteLine("Extension loaded - waiting for solution events to initialize terminal");
 
             // Mark initialization as complete to allow settings saving
             _isInitializing = false;
