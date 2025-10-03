@@ -116,9 +116,25 @@ namespace ClaudeCodeVS
             // Set the flag to prevent multiple calls
             _hasInitialized = true;
 
-            // Don't initialize terminal here - wait for solution events to trigger it
-            // This prevents double initialization (once on extension load, once on solution load)
-            System.Diagnostics.Debug.WriteLine("Extension loaded - waiting for solution events to initialize terminal");
+            // Check if a solution is already open (e.g., VS restarted with solution)
+            // If so, initialize terminal immediately as OnAfterOpenSolution won't fire
+            ThreadHelper.JoinableTaskFactory.Run(async delegate
+            {
+                await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
+
+                var dte = Package.GetGlobalService(typeof(EnvDTE.DTE)) as EnvDTE.DTE;
+                bool solutionAlreadyOpen = dte?.Solution?.FullName != null && !string.IsNullOrEmpty(dte.Solution.FullName);
+
+                if (solutionAlreadyOpen)
+                {
+                    System.Diagnostics.Debug.WriteLine("Solution already open on extension load - initializing terminal");
+                    await OnWorkspaceDirectoryChangedAsync();
+                }
+                else
+                {
+                    System.Diagnostics.Debug.WriteLine("No solution open - waiting for solution events to initialize terminal");
+                }
+            });
 
             // Mark initialization as complete to allow settings saving
             _isInitializing = false;

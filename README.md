@@ -3,7 +3,7 @@
 A Visual Studio extension that provides seamless integration with Claude Code, OpenAI Codex or Cursor Agent directly within the Visual Studio IDE.
 
 <center>
-<img src="https://i.ibb.co/mVCs0cNy/Claude-Code-Extension.png" alt="Claude Code Extension Screenshot" />
+<img src="https://i.ibb.co/mFcsh3nt/BFB9-B830-8122-4091-9-C8-B-869959-B1-B391.png" alt="Claude Code Extension Screenshot" width=350 height=450 />
 </center>
 
 ## Features
@@ -98,14 +98,21 @@ A Visual Studio extension that provides seamless integration with Claude Code, O
 
 ## Version History
 
-### Version 1.7 ✨
+### Version 1.8
 
-**What's New:**
-- **🎨 Clean Single-Border Design**: Redesigned the UI with elegant single borders around prompt and terminal areas - no more double borders!
-- **🌓 Better Contrast**: Borders now use high-contrast colors (white in dark mode, black in light mode) for improved visibility
-- **⚡ Smarter Startup**: Terminal now initializes only when you open a solution, not when the extension loads - faster and more efficient!
-- **🔄 Improved Solution Switching**: When switching between solutions, the AI assistant properly reloads with the new workspace context
-- **🐛 Bug Fixes**: Fixed various initialization and workspace detection issues for a smoother experience
+**VS Restart Fix:**
+- Fixed terminal not opening when Visual Studio restarts with a solution already loaded
+- Extension now detects when a solution is already open on startup and initializes terminal immediately
+- Improves reliability when working with solutions across VS sessions
+
+### Version 1.7
+
+What's New:
+- Clean Single-Border Design: Redesigned the UI with elegant single borders around prompt and terminal areas - no more double borders!
+- Better Contrast: Borders now use high-contrast colors (white in dark mode, black in light mode) for improved visibility
+- Smarter Startup: Terminal now initializes only when you open a solution, not when the extension loads - faster and more efficient!
+- Improved Solution Switching: When switching between solutions, the AI assistant properly reloads with the new workspace context
+- Bug Fixes: Fixed various initialization and workspace detection issues for a smoother experience
 
 ### Version 1.6
 
