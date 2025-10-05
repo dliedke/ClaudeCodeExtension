@@ -96,7 +96,27 @@ A Visual Studio extension that provides seamless integration with Claude Code, O
 - **AI Provider**: Use the context menu to switch between available providers
 - **Settings persist automatically** between Visual Studio sessions
 
+### Updating Your AI Agent
+
+The extension includes a convenient Update Agent button (🔄️) that automatically updates your selected AI provider:
+
+- **Claude Code**: Exits the agent and runs `claude update`
+- **Codex**: Terminates all Codex processes and runs `npm install -g @openai/codex@latest`
+- **Cursor Agent**: Exits the agent and runs `cursor-agent update` inside WSL
+
+Simply click the update button and the extension will handle the entire update process for you.
+
 ## Version History
+
+### Version 2.0
+
+**Agent Update Button:**
+- Added Update Agent button with refresh icon for easy agent updates
+- Smart update command execution based on selected provider:
+  - Claude Code: Runs `claude update` command
+  - Codex: Runs `npm install -g @openai/codex@latest` command
+  - Cursor Agent: Runs `cursor-agent update` inside WSL
+- Convenient one-click updates without manually typing commands
 
 ### Version 1.8
 

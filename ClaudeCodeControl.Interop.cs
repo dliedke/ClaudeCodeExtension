@@ -46,6 +46,8 @@ namespace ClaudeCodeVS
 
         // Virtual key codes
         private const int VK_RETURN = 0x0D;
+        private const int VK_CONTROL = 0x11;
+        private const int VK_C = 0x43;
 
         // Input type constants
         private const uint INPUT_KEYBOARD = 1;

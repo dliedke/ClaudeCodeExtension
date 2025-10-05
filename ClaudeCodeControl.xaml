@@ -180,6 +180,7 @@
                             Style="{StaticResource AdaptiveButtonStyle}"
                             Click="SendButton_Click"
                             Visibility="Collapsed"
+                            ToolTip="Send Prompt to Code Agent"
                             Margin="0,0,8,0"/>
 
 					<!-- Fixed-width Add Image so it never expands with chips -->
@@ -189,6 +190,7 @@
                             Width="90"
                             MinWidth="90"
                             HorizontalAlignment="Left"
+                            ToolTip="Add Image to Prompt"
                             PreviewMouseLeftButtonUp="ImageDropBorder_Click"/>
 				</StackPanel>
 
@@ -199,17 +201,20 @@
 					<WrapPanel x:Name="AttachedImagesPanel" Margin="8,0,8,0" />
 				</ScrollViewer>
 
-				<!-- Right-aligned buttons (Restart + Settings) -->
+                <!-- Right-aligned buttons (Restart + Settings + Update) -->
 				<StackPanel Grid.Column="2"
                             Orientation="Horizontal"
                             HorizontalAlignment="Right"
                             VerticalAlignment="Top">
+					
+
 					<Button x:Name="RestartTerminalButton"
                             Content="Restart"
                             Width="60"
                             MinWidth="60"
                             Style="{StaticResource AdaptiveButtonStyle}"
                             Click="RestartTerminalButton_Click"
+                            ToolTip="Restart Code Agent"
                             Margin="0,0,4,0"/>
 
 					<Button x:Name="MenuDropdownButton"
@@ -219,7 +224,7 @@
                             FontSize="14"
                             Style="{StaticResource GrayGearButtonStyle}"
                             FontFamily="Consolas"
-                            ToolTip="AI Provider Settings"
+                            ToolTip="Code Agent Selection"
                             Click="MenuDropdownButton_Click">
 						<Button.ContextMenu>
 							<ContextMenu x:Name="ProviderContextMenu">
@@ -231,6 +236,14 @@
 							</ContextMenu>
 						</Button.ContextMenu>
 					</Button>
+                    <Button x:Name="UpdateAgentButton"
+						Content="🔄️"
+						Width="30"
+						MinWidth="30"
+						Style="{StaticResource AdaptiveButtonStyle}"
+						Click="UpdateAgentButton_Click"
+						ToolTip="Update Code Agent"
+						Margin="0,0,4,0"/>
 				</StackPanel>
 			</Grid>
 
@@ -241,6 +254,7 @@
                       IsChecked="True"
                       Foreground="{DynamicResource {x:Static vsshell:VsBrushes.ToolWindowTextKey}}"
                       Margin="0,6,0,6"
+                      ToolTip="Automatically send prompt to code agent with enter key. Use Shift+Enter for new lines"
                       Checked="SendWithEnterCheckBox_Checked"
                       Unchecked="SendWithEnterCheckBox_Unchecked"/>
 		</Grid>

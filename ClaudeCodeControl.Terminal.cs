@@ -13,6 +13,7 @@
 using System;
 using System.IO;
 using System.Diagnostics;
+using System.Runtime.InteropServices;
 using System.Threading.Tasks;
 using System.Windows;
 using Microsoft.VisualStudio.Shell;
@@ -416,6 +417,182 @@ namespace ClaudeCodeVS
                 System.Threading.Thread.Sleep(pollIntervalMs);
             }
             return IntPtr.Zero;
+        }
+
+        /// <summary>
+        /// Handles the update agent button click event
+        /// </summary>
+        private void UpdateAgentButton_Click(object sender, RoutedEventArgs e)
+        {
+            try
+            {
+                ThreadHelper.ThrowIfNotOnUIThread();
+
+                if (terminalHandle == IntPtr.Zero || !IsWindow(terminalHandle))
+                {
+                    MessageBox.Show("Terminal is not running. Please restart the terminal first.",
+                                  "Update Agent", MessageBoxButton.OK, MessageBoxImage.Warning);
+                    return;
+                }
+
+                // Determine which provider to use based on settings
+                bool useCodex = _settings?.SelectedProvider == AiProvider.Codex;
+                bool useCursorAgent = _settings?.SelectedProvider == AiProvider.CursorAgent;
+
+                if (useCursorAgent)
+                {
+                    Debug.WriteLine("Exiting Cursor Agent with exit command and running update command inside WSL");
+
+                    // Exit Cursor Agent with exit command
+                    SendTextToTerminal("exit");
+
+                    // Wait for exit to complete
+                    System.Threading.Thread.Sleep(1500);
+
+                    // Run cursor-agent update inside WSL
+                    SendTextToTerminal("wsl bash -ic \"cursor-agent update\"");
+                }
+                else if (useCodex)
+                {
+                    Debug.WriteLine("Killing all Codex processes and running npm update");
+
+                    // Kill all codex.exe processes before updating
+                    try
+                    {
+                        var codexProcesses = Process.GetProcessesByName("codex");
+                        foreach (var process in codexProcesses)
+                        {
+                            try
+                            {
+                                Debug.WriteLine($"Killing codex.exe process with PID: {process.Id}");
+                                process.Kill();
+                                process.WaitForExit(2000); // Wait up to 2 seconds for process to exit
+                                process.Dispose();
+                            }
+                            catch (Exception ex)
+                            {
+                                Debug.WriteLine($"Error killing codex process {process.Id}: {ex.Message}");
+                            }
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        Debug.WriteLine($"Error enumerating codex processes: {ex.Message}");
+                    }
+
+                    // Wait a bit more to ensure processes are fully terminated
+                    System.Threading.Thread.Sleep(1000);
+
+                    // Run npm update command
+                    SendTextToTerminal("npm install -g @openai/codex@latest");
+                }
+                else // Claude Code
+                {
+                    Debug.WriteLine("Exiting Claude Code with exit command and running update");
+
+                    // Exit Claude Code with exit command
+                    SendTextToTerminal("exit");
+
+                    // Wait for exit to complete
+                    System.Threading.Thread.Sleep(1500);
+
+                    // Run claude update command
+                    SendTextToTerminal("claude update");
+                }
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"Error in UpdateAgentButton_Click: {ex.Message}");
+                MessageBox.Show($"Failed to update agent: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+        }
+
+        /// <summary>
+        /// Sends CTRL+C to the terminal window using multiple methods
+        /// </summary>
+        private void SendCtrlC()
+        {
+            if (terminalHandle != IntPtr.Zero && IsWindow(terminalHandle))
+            {
+                SetForegroundWindow(terminalHandle);
+                SetFocus(terminalHandle);
+                System.Threading.Thread.Sleep(100);
+
+                // Method 1: Try using keybd_event (simulates global keyboard input)
+                keybd_event(VK_CONTROL, 0, 0, UIntPtr.Zero); // CTRL down
+                System.Threading.Thread.Sleep(50);
+                keybd_event(VK_C, 0, 0, UIntPtr.Zero); // C down
+                System.Threading.Thread.Sleep(50);
+                keybd_event(VK_C, 0, KEYEVENTF_KEYUP, UIntPtr.Zero); // C up
+                System.Threading.Thread.Sleep(50);
+                keybd_event(VK_CONTROL, 0, KEYEVENTF_KEYUP, UIntPtr.Zero); // CTRL up
+            }
+        }
+
+        /// <summary>
+        /// Alternative method to send CTRL+C using SendInput API
+        /// </summary>
+        private void SendCtrlCWithSendInput()
+        {
+            if (terminalHandle != IntPtr.Zero && IsWindow(terminalHandle))
+            {
+                SetForegroundWindow(terminalHandle);
+                SetFocus(terminalHandle);
+                System.Threading.Thread.Sleep(100);
+
+                // Create input array for CTRL down, C down, C up, CTRL up
+                INPUT[] inputs = new INPUT[4];
+
+                // CTRL down
+                inputs[0].type = INPUT_KEYBOARD;
+                inputs[0].u.ki.wVk = (ushort)VK_CONTROL;
+                inputs[0].u.ki.dwFlags = 0;
+
+                // C down
+                inputs[1].type = INPUT_KEYBOARD;
+                inputs[1].u.ki.wVk = (ushort)VK_C;
+                inputs[1].u.ki.dwFlags = 0;
+
+                // C up
+                inputs[2].type = INPUT_KEYBOARD;
+                inputs[2].u.ki.wVk = (ushort)VK_C;
+                inputs[2].u.ki.dwFlags = KEYEVENTF_KEYUP;
+
+                // CTRL up
+                inputs[3].type = INPUT_KEYBOARD;
+                inputs[3].u.ki.wVk = (ushort)VK_CONTROL;
+                inputs[3].u.ki.dwFlags = KEYEVENTF_KEYUP;
+
+                SendInput(4, inputs, Marshal.SizeOf(typeof(INPUT)));
+            }
+        }
+
+        /// <summary>
+        /// Alternative method to send CTRL+C using PostMessage
+        /// </summary>
+        private void SendCtrlCWithPostMessage()
+        {
+            if (terminalHandle != IntPtr.Zero && IsWindow(terminalHandle))
+            {
+                SetForegroundWindow(terminalHandle);
+                SetFocus(terminalHandle);
+                System.Threading.Thread.Sleep(100);
+
+                // Send CTRL down
+                PostMessage(terminalHandle, WM_KEYDOWN, new IntPtr(VK_CONTROL), IntPtr.Zero);
+                System.Threading.Thread.Sleep(50);
+
+                // Send C down
+                PostMessage(terminalHandle, WM_KEYDOWN, new IntPtr(VK_C), IntPtr.Zero);
+                System.Threading.Thread.Sleep(50);
+
+                // Send C up
+                PostMessage(terminalHandle, WM_KEYUP, new IntPtr(VK_C), IntPtr.Zero);
+                System.Threading.Thread.Sleep(50);
+
+                // Send CTRL up
+                PostMessage(terminalHandle, WM_KEYUP, new IntPtr(VK_CONTROL), IntPtr.Zero);
+            }
         }
 
         /// <summary>

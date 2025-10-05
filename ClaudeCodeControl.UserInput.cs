@@ -188,6 +188,7 @@ namespace ClaudeCodeVS
         private void SendWithEnterCheckBox_Checked(object sender, RoutedEventArgs e)
         {
             SendPromptButton.Visibility = Visibility.Collapsed;
+            SendWithEnterCheckBox.ToolTip = "Automatically send prompt to code agent with enter key. Use Shift+Enter for new lines";
             SaveSettings();
         }
 
@@ -198,6 +199,7 @@ namespace ClaudeCodeVS
         private void SendWithEnterCheckBox_Unchecked(object sender, RoutedEventArgs e)
         {
             SendPromptButton.Visibility = Visibility.Visible;
+            SendWithEnterCheckBox.ToolTip = "Use Send button to send prompt to code agent";
             SaveSettings();
         }
 

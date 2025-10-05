@@ -528,7 +528,7 @@ cursor-agent";
                                 $"Version: {version}\n" +
                                 $"Author: Daniel Liedke\n" +
                                 $"Copyright © Daniel Liedke 2025\n\n" +
-                                $"Provides seamless integration with Claude Code and Codex AI assistants directly within Visual Studio IDE.";
+                                $"Provides seamless integration with Claude Code, Codex and Cursor Agent AI assistants directly within Visual Studio 2022 IDE.";
 
             MessageBox.Show(aboutMessage, "About Claude Code Extension",
                           MessageBoxButton.OK, MessageBoxImage.Information);
