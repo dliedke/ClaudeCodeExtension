@@ -39,6 +39,11 @@ namespace ClaudeCodeVS
         /// </summary>
         private IntPtr terminalHandle;
 
+        /// <summary>
+        /// Tracks the currently running AI provider (before any new selection)
+        /// </summary>
+        private AiProvider? _currentRunningProvider = null;
+
         #endregion
 
         #region Terminal Initialization
@@ -203,31 +208,55 @@ namespace ClaudeCodeVS
                 {
                     try
                     {
-                        // Send exit command to gracefully close Claude Code before killing the process
-                        Debug.WriteLine("Sending exit command to terminal before restarting...");
-
-                        // Type "exit" by copying to clipboard and pasting
                         if (terminalHandle != IntPtr.Zero && IsWindow(terminalHandle))
                         {
-                            Clipboard.SetText("exit");
-                            SetForegroundWindow(terminalHandle);
-                            SetFocus(terminalHandle);
-                            System.Threading.Thread.Sleep(100);
+                            // Use the CURRENTLY RUNNING provider to determine exit method
+                            bool currentIsCodex = _currentRunningProvider == AiProvider.Codex;
 
-                            // Paste the exit command
-                            GetWindowRect(terminalHandle, out RECT rect);
-                            int centerX = rect.Left + (rect.Right - rect.Left) / 2;
-                            int centerY = rect.Top + (rect.Bottom - rect.Top) / 2;
-                            SendRightClick(centerX, centerY);
+                            // For Codex, use Ctrl+C to exit
+                            if (currentIsCodex)
+                            {
+                                Debug.WriteLine("Sending Ctrl+C to Codex terminal before restarting...");
 
-                            System.Threading.Thread.Sleep(200);
+                                // Right-click on terminal center before exiting
+                                RightClickTerminalCenter();
 
-                            // Send Enter key
-                            PostMessage(terminalHandle, WM_CHAR, new IntPtr(VK_RETURN), IntPtr.Zero);
+                                System.Threading.Thread.Sleep(300);
+
+                                // Send Ctrl+C
+                                SendCtrlC();
+
+                                System.Threading.Thread.Sleep(300);
+
+                                // Send Ctrl+C
+                                SendCtrlC();
+
+                                // Give it time to exit
+                                await Task.Delay(1500);
+                            }
+                            else
+                            {
+                                // For Claude Code and Cursor Agent, send exit command
+                                Debug.WriteLine("Sending exit command to terminal before restarting...");
+
+                                // Type "exit" by copying to clipboard and pasting
+                                Clipboard.SetText("exit");
+                                SetForegroundWindow(terminalHandle);
+                                SetFocus(terminalHandle);
+                                System.Threading.Thread.Sleep(100);
+
+                                // Paste the exit command
+                                RightClickTerminalCenter();
+
+                                System.Threading.Thread.Sleep(200);
+
+                                // Send Enter key
+                                PostMessage(terminalHandle, WM_CHAR, new IntPtr(VK_RETURN), IntPtr.Zero);
+
+                                // Give it a moment to process the exit command
+                                await Task.Delay(1000);
+                            }
                         }
-
-                        // Give it a moment to process the exit command
-                        await Task.Delay(500);
 
                         // Force kill if still running
                         if (!cmdProcess.HasExited)
@@ -258,20 +287,11 @@ namespace ClaudeCodeVS
                 }
                 else if (useCodex)
                 {
-                    Debug.WriteLine($"Starting Codex in directory: {workspaceDir}");
+                    Debug.WriteLine($"Starting Codex via WSL in directory: {workspaceDir}");
 
-                    // Try known Codex path first
-                    string userProfile = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
-                    string codexPath = Path.Combine(userProfile, "AppData", "Roaming", "npm", "codex.cmd");
-
-                    if (File.Exists(codexPath))
-                    {
-                        terminalCommand = $"/k cd /d \"{workspaceDir}\" && \"{codexPath}\"";
-                    }
-                    else
-                    {
-                        terminalCommand = $"/k cd /d \"{workspaceDir}\" && codex.cmd";
-                    }
+                    // Convert Windows path to WSL path format (C:\GitLab\Project -> /mnt/c/GitLab/Project)
+                    string wslPath = ConvertToWslPath(workspaceDir);
+                    terminalCommand = $"/k wsl bash -ic \"cd {wslPath} && codex\"";
                 }
                 else if (claudeAvailable)
                 {
@@ -345,7 +365,25 @@ namespace ClaudeCodeVS
                         ShowWindow(terminalHandle, SW_SHOW);
                         ResizeEmbeddedTerminal();
 
-                        Debug.WriteLine("Terminal embedded successfully");
+                        // Track the currently running provider after successful start
+                        if (useCursorAgent)
+                        {
+                            _currentRunningProvider = AiProvider.CursorAgent;
+                        }
+                        else if (useCodex)
+                        {
+                            _currentRunningProvider = AiProvider.Codex;
+                        }
+                        else if (claudeAvailable)
+                        {
+                            _currentRunningProvider = AiProvider.ClaudeCode;
+                        }
+                        else
+                        {
+                            _currentRunningProvider = null; // Regular CMD
+                        }
+
+                        Debug.WriteLine($"Terminal embedded successfully. Running provider: {_currentRunningProvider}");
                     }
                     catch (Exception ex)
                     {
@@ -454,37 +492,21 @@ namespace ClaudeCodeVS
                 }
                 else if (useCodex)
                 {
-                    Debug.WriteLine("Killing all Codex processes and running npm update");
+                    Debug.WriteLine("Exiting Codex with CTRL+C and running npm update inside WSL");
 
-                    // Kill all codex.exe processes before updating
-                    try
-                    {
-                        var codexProcesses = Process.GetProcessesByName("codex");
-                        foreach (var process in codexProcesses)
-                        {
-                            try
-                            {
-                                Debug.WriteLine($"Killing codex.exe process with PID: {process.Id}");
-                                process.Kill();
-                                process.WaitForExit(2000); // Wait up to 2 seconds for process to exit
-                                process.Dispose();
-                            }
-                            catch (Exception ex)
-                            {
-                                Debug.WriteLine($"Error killing codex process {process.Id}: {ex.Message}");
-                            }
-                        }
-                    }
-                    catch (Exception ex)
-                    {
-                        Debug.WriteLine($"Error enumerating codex processes: {ex.Message}");
-                    }
+                    // Right-click on terminal center before exiting
+                    RightClickTerminalCenter();
 
-                    // Wait a bit more to ensure processes are fully terminated
-                    System.Threading.Thread.Sleep(1000);
+                    System.Threading.Thread.Sleep(300);
 
-                    // Run npm update command
-                    SendTextToTerminal("npm install -g @openai/codex@latest");
+                    // Exit Codex with CTRL+C
+                    SendCtrlC();
+
+                    // Wait for exit to complete
+                    System.Threading.Thread.Sleep(1500);
+
+                    // Run npm update command inside WSL
+                    SendTextToTerminal("wsl bash -ic \"npm install -g @openai/codex@latest\"");
                 }
                 else // Claude Code
                 {

@@ -97,29 +97,27 @@ namespace ClaudeCodeVS
         }
 
         /// <summary>
-        /// Checks if Codex CLI is available in the system
+        /// Checks if Codex CLI is available in WSL
         /// </summary>
-        /// <returns>True if codex.cmd is available, false otherwise</returns>
+        /// <returns>True if codex is available in WSL, false otherwise</returns>
         private async Task<bool> IsCodexCmdAvailableAsync()
         {
             try
             {
-                // Check if codex.cmd is available in user's npm global directory
-                string userProfile = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
-                string codexPath = Path.Combine(userProfile, "AppData", "Roaming", "npm", "codex.cmd");
-
-                // First check the known path
-                if (File.Exists(codexPath))
+                // Check if WSL is installed first
+                bool wslInstalled = await IsWslInstalledAsync();
+                if (!wslInstalled)
                 {
-                    Debug.WriteLine($"Codex found at: {codexPath}");
-                    return true;
+                    Debug.WriteLine("WSL is not installed, Codex in WSL not available");
+                    return false;
                 }
 
-                // Also check if codex.cmd is available in PATH using 'where' command
+                // Check if codex is available in WSL using 'which codex' with interactive shell
+                // We need -i flag because codex is installed via nvm which requires interactive shell
                 var startInfo = new ProcessStartInfo
                 {
                     FileName = "cmd.exe",
-                    Arguments = "/c where codex.cmd",
+                    Arguments = "/c wsl bash -ic \"which codex\"",
                     UseShellExecute = false,
                     RedirectStandardOutput = true,
                     RedirectStandardError = true,
@@ -131,32 +129,33 @@ namespace ClaudeCodeVS
                     // Use async wait to avoid blocking UI thread
                     var completed = await Task.Run(() =>
                     {
-                        return process.WaitForExit(3000); // 3 second timeout
+                        return process.WaitForExit(5000); // 5 second timeout
                     });
 
                     if (!completed)
                     {
                         try { process.Kill(); } catch { }
-                        Debug.WriteLine("Codex check timed out");
+                        Debug.WriteLine("Codex check in WSL timed out");
                         return false;
                     }
 
                     string output = await process.StandardOutput.ReadToEndAsync();
                     string error = await process.StandardError.ReadToEndAsync();
 
-                    Debug.WriteLine($"Codex check - Exit code: {process.ExitCode}");
-                    Debug.WriteLine($"Codex check - Output: {output}");
-                    Debug.WriteLine($"Codex check - Error: {error}");
+                    Debug.WriteLine($"Codex WSL check - Exit code: {process.ExitCode}");
+                    Debug.WriteLine($"Codex WSL check - Output: {output}");
+                    Debug.WriteLine($"Codex WSL check - Error: {error}");
 
-                    bool isAvailable = process.ExitCode == 0 && !string.IsNullOrWhiteSpace(output);
-                    Debug.WriteLine($"Codex availability result: {isAvailable}");
+                    // Check if output contains a path to codex (like /home/user/.nvm/versions/node/v22.20.0/bin/codex)
+                    bool isAvailable = process.ExitCode == 0 && !string.IsNullOrWhiteSpace(output) && output.Contains("codex");
+                    Debug.WriteLine($"Codex in WSL availability result: {isAvailable}");
 
                     return isAvailable;
                 }
             }
             catch (Exception ex)
             {
-                Debug.WriteLine($"Error checking for codex.cmd: {ex.Message}");
+                Debug.WriteLine($"Error checking for codex in WSL: {ex.Message}");
                 return false;
             }
         }
@@ -303,36 +302,40 @@ namespace ClaudeCodeVS
         }
 
         /// <summary>
-        /// Shows installation instructions for Codex CLI
+        /// Shows installation instructions for Codex CLI in WSL
         /// </summary>
         private void ShowCodexInstallationInstructions()
         {
-            const string setupUrl = "https://developers.openai.com/codex/cli/";
-            const string message = "Codex CLI is not installed. A regular CMD terminal will be used instead.\n\n" +
-                                   "To get the full Codex experience, you can install it by following the instructions at:\n" +
-                                   "https://developers.openai.com/codex/cli/\n\n" +
-                                   "Would you like to open the setup documentation for more details?";
+            const string instructions = @"To use Codex, you need to install WSL and Codex inside WSL.
 
-            var result = MessageBox.Show(message, "Codex CLI Installation",
-                                       MessageBoxButton.YesNo, MessageBoxImage.Information);
+(you may click CTRL+C to copy full instructions)
 
-            if (result == MessageBoxResult.Yes)
-            {
-                try
-                {
-                    Process.Start(new ProcessStartInfo
-                    {
-                        FileName = setupUrl,
-                        UseShellExecute = true
-                    });
-                }
-                catch (Exception ex)
-                {
-                    Debug.WriteLine($"Failed to open setup URL: {ex.Message}");
-                    MessageBox.Show($"Please visit: {setupUrl}", "Setup URL",
-                                  MessageBoxButton.OK, MessageBoxImage.Information);
-                }
-            }
+Make sure virtualization is enabled in BIOS.
+
+Open PowerShell as Administrator and run:
+
+dism.exe /online /enable-feature /featurename:Microsoft-Windows-Subsystem-Linux /all /norestart
+
+dism.exe /online /enable-feature /featurename:VirtualMachinePlatform /all /norestart
+
+wsl --install
+
+# Start a shell inside of Windows Subsystem for Linux
+wsl
+
+# https://learn.microsoft.com/en-us/windows/dev-environment/javascript/nodejs-on-wsl
+# Install Node.js in WSL
+curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/master/install.sh | bash
+
+# In a new tab or after exiting and running `wsl` again to install Node.js
+nvm install 22
+
+# Install and run Codex in WSL
+npm i -g @openai/codex
+codex";
+
+            MessageBox.Show(instructions, "Codex Installation",
+                          MessageBoxButton.OK, MessageBoxImage.Information);
         }
 
         /// <summary>
@@ -355,6 +358,8 @@ dism.exe /online /enable-feature /featurename:VirtualMachinePlatform /all /nores
 wsl --install
 
 Install cursor agent inside WSL:
+
+wsl 
 
 curl https://cursor.com/install -fsS | bash
 

@@ -15,7 +15,7 @@ A Visual Studio extension that provides seamless integration with Claude Code, O
 
 ### 🤖 **Multiple AI Provider Support**
 - **Claude Code**: Full support for Claude Code CLI integration
-- **OpenAI Codex**: Support for Codex CLI AI assistant
+- **OpenAI Codex**: Support for Codex AI assistant running inside WSL (Windows Subsystem for Linux)
 - **Cursor Agent**: Support for Cursor Agent running inside WSL (Windows Subsystem for Linux)
 - **Provider Switching**: Easy dropdown menu to switch between providers
 - **Smart Detection**: Automatic detection and installation instructions for each AI tool
@@ -53,8 +53,8 @@ A Visual Studio extension that provides seamless integration with Claude Code, O
 - Windows operating system
 - **For Claude Code**: Claude Pro or better paid subscription + Claude Code CLI installed and accessible via `claude.cmd` in path.
   Refer to https://docs.claude.com/en/docs/claude-code/setup for Claude Code installation
-- **For OpenAI Codex**: Chat GPT Plus or better paid subscription + Codex AI assistant installed and accessible via `codex.cmd` in path.
-  Refer to https://developers.openai.com/codex/cli/ for Codex CLI installation
+- **For OpenAI Codex**: Chat GPT Plus or better paid subscription + Windows Subsystem for Linux (WSL) + Codex AI assistant installed inside WSL
+  Installation instructions are provided automatically when selecting Codex without WSL/Codex installed
 - **For Cursor Agent**: Windows Subsystem for Linux (WSL) + Cursor Agent installed inside WSL
   Installation instructions are provided automatically when selecting Cursor Agent without WSL/cursor-agent installed
 
@@ -86,7 +86,7 @@ A Visual Studio extension that provides seamless integration with Claude Code, O
 ### AI Provider Menu
 - **Settings Menu**: Click the ⚙ (gear) button in the top-right corner to access provider settings
 - **Claude Code**: Switch to Claude Code CLI integration
-- **Codex**: Switch to Codex AI assistant
+- **Codex**: Switch to Codex AI assistant (runs inside WSL)
 - **Cursor Agent**: Switch to Cursor Agent (runs inside WSL)
 - **About**: View extension version and information
 
@@ -101,12 +101,21 @@ A Visual Studio extension that provides seamless integration with Claude Code, O
 The extension includes a convenient Update Agent button (🔄️) that automatically updates your selected AI provider:
 
 - **Claude Code**: Exits the agent and runs `claude update`
-- **Codex**: Terminates all Codex processes and runs `npm install -g @openai/codex@latest`
+- **Codex**: Exits the agent and runs `npm install -g @openai/codex@latest` inside WSL
 - **Cursor Agent**: Exits the agent and runs `cursor-agent update` inside WSL
 
 Simply click the update button and the extension will handle the entire update process for you.
 
 ## Version History
+
+### Version 2.1
+
+**Codex WSL Integration & Exit Improvements:**
+- Codex now runs inside WSL for better compatibility and performance
+- Improved Codex exit handling: right-click terminal center before sending Ctrl+C
+- Fixed AI provider switching to correctly exit the current provider (not the new one being selected)
+- Smart provider tracking ensures proper exit commands for each AI assistant
+- Consistent WSL-based architecture for both Codex and Cursor Agent
 
 ### Version 2.0
 
@@ -114,7 +123,7 @@ Simply click the update button and the extension will handle the entire update p
 - Added Update Agent button with refresh icon for easy agent updates
 - Smart update command execution based on selected provider:
   - Claude Code: Runs `claude update` command
-  - Codex: Runs `npm install -g @openai/codex@latest` command
+  - Codex: Runs `npm install -g @openai/codex@latest` inside WSL
   - Cursor Agent: Runs `cursor-agent update` inside WSL
 - Convenient one-click updates without manually typing commands
 

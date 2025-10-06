@@ -12,7 +12,8 @@
       "Read(//tmp/ClaudeCodeVS/8aeef5f4-be6d-4c30-8bea-8ce3d0bb011c/**)",
       "Bash(dotnet build:*)",
       "Bash(where msbuild)",
-      "Bash(\"C:\\Program Files\\Microsoft Visual Studio\\2022\\Enterprise\\MSBuild\\Current\\Bin\\MSBuild.exe\" \"C:\\GitLab\\ClaudeCodeExtension\\ClaudeCodeExtension.csproj\" /p:Configuration=Release)"
+      "Bash(\"C:\\Program Files\\Microsoft Visual Studio\\2022\\Enterprise\\MSBuild\\Current\\Bin\\MSBuild.exe\" \"C:\\GitLab\\ClaudeCodeExtension\\ClaudeCodeExtension.csproj\" /p:Configuration=Release)",
+      "Bash(wsl bash -c:*)"
     ],
     "deny": [],
     "ask": []

@@ -38,13 +38,8 @@ namespace ClaudeCodeVS
 
                     System.Threading.Thread.Sleep(200);
 
-                    // Get window center coordinates for right-click
-                    GetWindowRect(terminalHandle, out RECT rect);
-                    int centerX = rect.Left + (rect.Right - rect.Left) / 2;
-                    int centerY = rect.Top + (rect.Bottom - rect.Top) / 2;
-
                     // Right-click to paste in CMD window
-                    SendRightClick(centerX, centerY);
+                    RightClickTerminalCenter();
 
                     System.Threading.Thread.Sleep(1000);
 
@@ -76,6 +71,20 @@ namespace ClaudeCodeVS
             mouse_event(MOUSEEVENTF_RIGHTDOWN, 0, 0, 0, UIntPtr.Zero);
             System.Threading.Thread.Sleep(50);
             mouse_event(MOUSEEVENTF_RIGHTUP, 0, 0, 0, UIntPtr.Zero);
+        }
+
+        /// <summary>
+        /// Right-clicks on the center of the terminal window
+        /// </summary>
+        private void RightClickTerminalCenter()
+        {
+            if (terminalHandle != IntPtr.Zero && IsWindow(terminalHandle))
+            {
+                GetWindowRect(terminalHandle, out RECT rect);
+                int centerX = rect.Left + (rect.Right - rect.Left) / 2;
+                int centerY = rect.Top + (rect.Bottom - rect.Top) / 2;
+                SendRightClick(centerX, centerY);
+            }
         }
 
         /// <summary>
