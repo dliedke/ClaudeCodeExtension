@@ -29,6 +29,10 @@ namespace ClaudeCodeVS
             {
                 if (terminalHandle != IntPtr.Zero && IsWindow(terminalHandle))
                 {
+                    // Clear clipboard before copying new text to prevent stale content
+                    Clipboard.Clear();
+                    System.Threading.Thread.Sleep(50);
+
                     // Copy text to clipboard
                     Clipboard.SetText(text);
 
@@ -36,7 +40,7 @@ namespace ClaudeCodeVS
                     SetForegroundWindow(terminalHandle);
                     SetFocus(terminalHandle);
 
-                    System.Threading.Thread.Sleep(200);
+                    System.Threading.Thread.Sleep(700);
 
                     // Right-click to paste in CMD window
                     RightClickTerminalCenter();
@@ -89,23 +93,32 @@ namespace ClaudeCodeVS
 
         /// <summary>
         /// Sends the Enter key to the terminal window
-        /// Uses different methods depending on the provider (Codex vs Claude Code)
+        /// Uses different methods depending on the provider (WSL-based vs Windows-based)
         /// </summary>
         private void SendEnterKey()
         {
             if (terminalHandle != IntPtr.Zero && IsWindow(terminalHandle))
             {
-                // Check if we're using Codex
-                bool isCodex = _settings?.SelectedProvider == AiProvider.Codex;
+                // Check CURRENTLY RUNNING provider (not the next one being set)
+                bool isClaudeCodeWSL = _currentRunningProvider == AiProvider.ClaudeCodeWSL;
 
-                if (isCodex)
+                // Check if we're using other WSL-based providers (Codex, CursorAgent)
+                bool isOtherWSLProvider = _currentRunningProvider == AiProvider.Codex ||
+                                         _currentRunningProvider == AiProvider.CursorAgent;
+
+                if (isClaudeCodeWSL)
                 {
-                    // For Codex, use KEYDOWN/KEYUP approach
+                    // For Claude Code (WSL), send Enter using WM_CHAR
+                    PostMessage(terminalHandle, WM_CHAR, new IntPtr(VK_RETURN), IntPtr.Zero);
+                }
+                else if (isOtherWSLProvider)
+                {
+                    // For other WSL-based providers (Codex, CursorAgent), use KEYDOWN/KEYUP approach
                     SendEnterKeyDownUp();
                 }
                 else
                 {
-                    // For Claude Code, use single WM_CHAR
+                    // For Windows-based providers (Claude Code), use single WM_CHAR
                     PostMessage(terminalHandle, WM_CHAR, new IntPtr(VK_RETURN), IntPtr.Zero);
                 }
             }

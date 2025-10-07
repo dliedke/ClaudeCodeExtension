@@ -23,7 +23,7 @@ namespace ClaudeCodeVS
 
         public ClaudeCodeToolWindow() : base(null)
         {
-            this.Caption = "Claude Code Extension";
+            this.Caption = "Claude Code";
             claudeCodeControl = new ClaudeCodeControl();
             this.Content = claudeCodeControl;
 
@@ -34,7 +34,7 @@ namespace ClaudeCodeVS
         public void UpdateTitle(string providerName)
         {
             ThreadHelper.ThrowIfNotOnUIThread();
-            this.Caption = $"{providerName} Extension";
+            this.Caption = $"{providerName}";
         }
     }
 }

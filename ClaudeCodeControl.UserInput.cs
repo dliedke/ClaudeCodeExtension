@@ -47,6 +47,11 @@ namespace ClaudeCodeVS
                     string promptDirectory = Path.Combine(Path.GetTempPath(), "ClaudeCodeVS", Guid.NewGuid().ToString());
                     Directory.CreateDirectory(promptDirectory);
 
+                    // Check if CURRENTLY RUNNING provider is WSL-based
+                    bool isWSLProvider = _currentRunningProvider == AiProvider.Codex ||
+                                         _currentRunningProvider == AiProvider.ClaudeCodeWSL ||
+                                         _currentRunningProvider == AiProvider.CursorAgent;
+
                     fullPrompt.AppendLine("Images attached:");
                     foreach (string imagePath in attachedImagePaths)
                     {
@@ -57,12 +62,15 @@ namespace ClaudeCodeVS
 
                             File.Copy(imagePath, tempPath, true);
 
-                            fullPrompt.AppendLine($"  - {tempPath}");
+                            // Convert to WSL path format if using WSL provider
+                            string displayPath = isWSLProvider ? ConvertToWslPath(tempPath) : tempPath;
+                            fullPrompt.AppendLine($"  - {displayPath}");
                         }
                         catch (Exception ex)
                         {
                             Debug.WriteLine($"Error copying image {imagePath}: {ex.Message}");
-                            fullPrompt.AppendLine($"  - {imagePath}");
+                            string displayPath = isWSLProvider ? ConvertToWslPath(imagePath) : imagePath;
+                            fullPrompt.AppendLine($"  - {displayPath}");
                         }
                     }
                     fullPrompt.AppendLine();

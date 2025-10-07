@@ -56,11 +56,12 @@ namespace ClaudeCodeVS
             try
             {
                 // Determine which provider to use based on settings
+                bool useClaudeCodeWSL = _settings?.SelectedProvider == AiProvider.ClaudeCodeWSL;
                 bool useCodex = _settings?.SelectedProvider == AiProvider.Codex;
                 bool useCursorAgent = _settings?.SelectedProvider == AiProvider.CursorAgent;
                 bool providerAvailable = false;
 
-                Debug.WriteLine($"User selected provider: {(useCursorAgent ? "Cursor Agent" : useCodex ? "Codex" : "Claude Code")}");
+                Debug.WriteLine($"User selected provider: {(useCursorAgent ? "Cursor Agent" : useClaudeCodeWSL ? "Claude Code (WSL)" : useCodex ? "Codex" : "Claude Code")}");
 
                 if (useCursorAgent)
                 {
@@ -77,6 +78,12 @@ namespace ClaudeCodeVS
                     Debug.WriteLine("Checking Codex availability...");
                     providerAvailable = await IsCodexCmdAvailableAsync();
                     Debug.WriteLine($"Codex available: {providerAvailable}");
+                }
+                else if (useClaudeCodeWSL)
+                {
+                    Debug.WriteLine("Checking Claude Code (WSL) availability...");
+                    providerAvailable = await IsClaudeCodeWSLAvailableAsync();
+                    Debug.WriteLine($"Claude Code (WSL) available: {providerAvailable}");
                 }
                 else
                 {
@@ -120,8 +127,7 @@ namespace ClaudeCodeVS
                     if (providerAvailable)
                     {
                         Debug.WriteLine("Starting Cursor Agent terminal...");
-                        await StartEmbeddedTerminalAsync(false, false, true); // Cursor Agent
-                        UpdateToolWindowTitle("Cursor Agent");
+                        await StartEmbeddedTerminalAsync(AiProvider.CursorAgent);
                     }
                     else
                     {
@@ -131,7 +137,7 @@ namespace ClaudeCodeVS
                             _cursorAgentNotificationShown = true;
                             ShowCursorAgentInstallationInstructions();
                         }
-                        await StartEmbeddedTerminalAsync(false, false, false); // Regular CMD
+                        await StartEmbeddedTerminalAsync(null); // Regular CMD
                     }
                 }
                 else if (useCodex)
@@ -139,8 +145,7 @@ namespace ClaudeCodeVS
                     if (providerAvailable)
                     {
                         Debug.WriteLine("Starting Codex terminal...");
-                        await StartEmbeddedTerminalAsync(false, true, false); // Codex
-                        UpdateToolWindowTitle("Codex");
+                        await StartEmbeddedTerminalAsync(AiProvider.Codex);
                     }
                     else
                     {
@@ -150,7 +155,25 @@ namespace ClaudeCodeVS
                             _codexNotificationShown = true;
                             ShowCodexInstallationInstructions();
                         }
-                        await StartEmbeddedTerminalAsync(false, false, false); // Regular CMD
+                        await StartEmbeddedTerminalAsync(null); // Regular CMD
+                    }
+                }
+                else if (useClaudeCodeWSL)
+                {
+                    if (providerAvailable)
+                    {
+                        Debug.WriteLine("Starting Claude Code (WSL) terminal...");
+                        await StartEmbeddedTerminalAsync(AiProvider.ClaudeCodeWSL);
+                    }
+                    else
+                    {
+                        Debug.WriteLine("Claude Code (WSL) not available, showing installation instructions...");
+                        if (!_claudeCodeWSLNotificationShown)
+                        {
+                            _claudeCodeWSLNotificationShown = true;
+                            ShowClaudeCodeWSLInstallationInstructions();
+                        }
+                        await StartEmbeddedTerminalAsync(null); // Regular CMD
                     }
                 }
                 else
@@ -158,8 +181,7 @@ namespace ClaudeCodeVS
                     if (providerAvailable)
                     {
                         Debug.WriteLine("Starting Claude Code terminal...");
-                        await StartEmbeddedTerminalAsync(true, false, false); // Claude Code
-                        UpdateToolWindowTitle("Claude Code");
+                        await StartEmbeddedTerminalAsync(AiProvider.ClaudeCode);
                     }
                     else
                     {
@@ -169,7 +191,7 @@ namespace ClaudeCodeVS
                             _claudeNotificationShown = true;
                             ShowClaudeInstallationInstructions();
                         }
-                        await StartEmbeddedTerminalAsync(false, false, false); // Regular CMD
+                        await StartEmbeddedTerminalAsync(null); // Regular CMD
                     }
                 }
             }
@@ -183,12 +205,10 @@ namespace ClaudeCodeVS
         }
 
         /// <summary>
-        /// Starts and embeds the terminal process (Claude Code, Codex, Cursor Agent, or regular CMD)
+        /// Starts and embeds the terminal process (Claude Code, Claude Code WSL, Codex, Cursor Agent, or regular CMD)
         /// </summary>
-        /// <param name="claudeAvailable">True if Claude Code should be started</param>
-        /// <param name="useCodex">True if Codex should be started</param>
-        /// <param name="useCursorAgent">True if Cursor Agent should be started</param>
-        private async Task StartEmbeddedTerminalAsync(bool claudeAvailable = true, bool useCodex = false, bool useCursorAgent = false)
+        /// <param name="provider">The AI provider to start (null for regular CMD)</param>
+        private async Task StartEmbeddedTerminalAsync(AiProvider? provider)
         {
             try
             {
@@ -210,59 +230,30 @@ namespace ClaudeCodeVS
                     {
                         if (terminalHandle != IntPtr.Zero && IsWindow(terminalHandle))
                         {
-                            // Use the CURRENTLY RUNNING provider to determine exit method
-                            bool currentIsCodex = _currentRunningProvider == AiProvider.Codex;
+                            // Check if CURRENTLY RUNNING provider is Codex (requires CTRL+C instead of exit)
+                            bool isCodex = _currentRunningProvider == AiProvider.Codex;
 
-                            // For Codex, use Ctrl+C to exit
-                            if (currentIsCodex)
+                            if (isCodex)
                             {
-                                Debug.WriteLine("Sending Ctrl+C to Codex terminal before restarting...");
-
-                                // Right-click on terminal center before exiting
-                                RightClickTerminalCenter();
-
-                                System.Threading.Thread.Sleep(300);
-
-                                // Send Ctrl+C
+                                // For Codex, send CTRL+C twice to exit
+                                Debug.WriteLine("Sending CTRL+C CTRL+C to Codex terminal before restarting...");
                                 SendCtrlC();
-
-                                System.Threading.Thread.Sleep(300);
-
-                                // Send Ctrl+C
+                                await Task.Delay(500);
                                 SendCtrlC();
-
-                                // Give it time to exit
-                                await Task.Delay(1500);
                             }
                             else
                             {
-                                // For Claude Code and Cursor Agent, send exit command
+                                // For other agents, send exit command
                                 Debug.WriteLine("Sending exit command to terminal before restarting...");
-
-                                // Type "exit" by copying to clipboard and pasting
-                                Clipboard.SetText("exit");
-                                SetForegroundWindow(terminalHandle);
-                                SetFocus(terminalHandle);
-                                System.Threading.Thread.Sleep(100);
-
-                                // Paste the exit command
-                                RightClickTerminalCenter();
-
-                                System.Threading.Thread.Sleep(200);
-
-                                // Send Enter key
-                                PostMessage(terminalHandle, WM_CHAR, new IntPtr(VK_RETURN), IntPtr.Zero);
-
-                                // Give it a moment to process the exit command
-                                await Task.Delay(1000);
+                                SendTextToTerminal("exit");
                             }
+
+                            // Give it time to exit
+                            await Task.Delay(1500);
                         }
 
-                        // Force kill if still running
-                        if (!cmdProcess.HasExited)
-                        {
-                            cmdProcess.Kill();
-                        }
+                        // Force kill
+                        cmdProcess.Kill();
                         cmdProcess.Dispose();
                     }
                     catch (Exception ex)
@@ -277,31 +268,35 @@ namespace ClaudeCodeVS
 
                 // Build the terminal command based on provider
                 string terminalCommand;
-                if (useCursorAgent)
+                switch (provider)
                 {
-                    Debug.WriteLine($"Starting Cursor Agent via WSL in directory: {workspaceDir}");
+                    case AiProvider.CursorAgent:
+                        Debug.WriteLine($"Starting Cursor Agent via WSL in directory: {workspaceDir}");
+                        string wslPathCursor = ConvertToWslPath(workspaceDir);
+                        terminalCommand = $"/k wsl bash -ic \"cd {wslPathCursor} && cursor-agent\"";
+                        break;
 
-                    // Convert Windows path to WSL path format (C:\GitLab\Project -> /mnt/c/GitLab/Project)
-                    string wslPath = ConvertToWslPath(workspaceDir);
-                    terminalCommand = $"/k wsl bash -ic \"cd {wslPath} && cursor-agent\"";
-                }
-                else if (useCodex)
-                {
-                    Debug.WriteLine($"Starting Codex via WSL in directory: {workspaceDir}");
+                    case AiProvider.Codex:
+                        Debug.WriteLine($"Starting Codex via WSL in directory: {workspaceDir}");
+                        string wslPathCodex = ConvertToWslPath(workspaceDir);
+                        terminalCommand = $"/k wsl bash -ic \"cd {wslPathCodex} && codex\"";
+                        break;
 
-                    // Convert Windows path to WSL path format (C:\GitLab\Project -> /mnt/c/GitLab/Project)
-                    string wslPath = ConvertToWslPath(workspaceDir);
-                    terminalCommand = $"/k wsl bash -ic \"cd {wslPath} && codex\"";
-                }
-                else if (claudeAvailable)
-                {
-                    Debug.WriteLine($"Starting Claude in directory: {workspaceDir}");
-                    terminalCommand = "/k cd /d \"" + workspaceDir + "\" && claude.cmd";
-                }
-                else
-                {
-                    Debug.WriteLine($"Starting regular CMD in directory: {workspaceDir}");
-                    terminalCommand = "/k cd /d \"" + workspaceDir + "\"";
+                    case AiProvider.ClaudeCodeWSL:
+                        Debug.WriteLine($"Starting Claude Code via WSL in directory: {workspaceDir}");
+                        string wslPathClaude = ConvertToWslPath(workspaceDir);
+                        terminalCommand = $"/k wsl bash -ic \"cd {wslPathClaude} && claude\"";
+                        break;
+
+                    case AiProvider.ClaudeCode:
+                        Debug.WriteLine($"Starting Claude in directory: {workspaceDir}");
+                        terminalCommand = "/k cd /d \"" + workspaceDir + "\" && claude.cmd";
+                        break;
+
+                    default: // null or any other value = regular CMD
+                        Debug.WriteLine($"Starting regular CMD in directory: {workspaceDir}");
+                        terminalCommand = "/k cd /d \"" + workspaceDir + "\"";
+                        break;
                 }
 
                 // Configure and start the process
@@ -366,23 +361,29 @@ namespace ClaudeCodeVS
                         ResizeEmbeddedTerminal();
 
                         // Track the currently running provider after successful start
-                        if (useCursorAgent)
+                        _currentRunningProvider = provider;
+
+                        string providerTitle;
+                        switch (provider)
                         {
-                            _currentRunningProvider = AiProvider.CursorAgent;
-                        }
-                        else if (useCodex)
-                        {
-                            _currentRunningProvider = AiProvider.Codex;
-                        }
-                        else if (claudeAvailable)
-                        {
-                            _currentRunningProvider = AiProvider.ClaudeCode;
-                        }
-                        else
-                        {
-                            _currentRunningProvider = null; // Regular CMD
+                            case AiProvider.CursorAgent:
+                                providerTitle = "Cursor Agent";
+                                break;
+                            case AiProvider.Codex:
+                                providerTitle = "Codex";
+                                break;
+                            case AiProvider.ClaudeCodeWSL:
+                                providerTitle = "Claude Code (WSL)";
+                                break;
+                            case AiProvider.ClaudeCode:
+                                providerTitle = "Claude Code";
+                                break;
+                            default:
+                                providerTitle = "CMD";
+                                break;
                         }
 
+                        UpdateToolWindowTitle(providerTitle);
                         Debug.WriteLine($"Terminal embedded successfully. Running provider: {_currentRunningProvider}");
                     }
                     catch (Exception ex)
@@ -473,53 +474,53 @@ namespace ClaudeCodeVS
                     return;
                 }
 
-                // Determine which provider to use based on settings
-                bool useCodex = _settings?.SelectedProvider == AiProvider.Codex;
-                bool useCursorAgent = _settings?.SelectedProvider == AiProvider.CursorAgent;
-
-                if (useCursorAgent)
+                // Use CURRENTLY RUNNING provider (not the next one being set)
+                // Send exit, wait, then update command based on provider
+                switch (_currentRunningProvider)
                 {
-                    Debug.WriteLine("Exiting Cursor Agent with exit command and running update command inside WSL");
+                    case AiProvider.Codex:
+                        // Codex requires CTRL+C to exit
+                        Debug.WriteLine("Exiting Codex with CTRL+C CTRL+C");
+                        SendCtrlC();
+                        System.Threading.Thread.Sleep(500);
+                        SendCtrlC();
+                        System.Threading.Thread.Sleep(1500);
+                        Debug.WriteLine("Sending Codex update command");
+                        SendTextToTerminal("wsl bash -ic \"npm install -g @openai/codex@latest\"");
+                        break;
 
-                    // Exit Cursor Agent with exit command
-                    SendTextToTerminal("exit");
+                    case AiProvider.CursorAgent:
+                        // CursorAgent: exit, wait, then update
+                        Debug.WriteLine("Exiting Cursor Agent");
+                        SendTextToTerminal("exit");
+                        System.Threading.Thread.Sleep(1500);
+                        Debug.WriteLine("Sending Cursor Agent update command");
+                        SendTextToTerminal("wsl bash -ic \"cursor-agent update\"");
+                        break;
 
-                    // Wait for exit to complete
-                    System.Threading.Thread.Sleep(1500);
+                    case AiProvider.ClaudeCodeWSL:
+                        // Claude Code WSL: exit, wait, then update
+                        Debug.WriteLine("Exiting Claude Code (WSL)");
+                        SendTextToTerminal("exit");
+                        System.Threading.Thread.Sleep(1500);
+                        Debug.WriteLine("Sending Claude Code (WSL) update command");
+                        SendTextToTerminal("wsl bash -ic \"claude update\"");
+                        break;
 
-                    // Run cursor-agent update inside WSL
-                    SendTextToTerminal("wsl bash -ic \"cursor-agent update\"");
-                }
-                else if (useCodex)
-                {
-                    Debug.WriteLine("Exiting Codex with CTRL+C and running npm update inside WSL");
+                    case AiProvider.ClaudeCode:
+                        // Claude Code Windows: exit, wait, then update
+                        Debug.WriteLine("Exiting Claude Code");
+                        SendTextToTerminal("exit");
+                        System.Threading.Thread.Sleep(1500);
+                        Debug.WriteLine("Sending Claude Code update command");
+                        SendTextToTerminal("claude update");
+                        break;
 
-                    // Right-click on terminal center before exiting
-                    RightClickTerminalCenter();
-
-                    System.Threading.Thread.Sleep(300);
-
-                    // Exit Codex with CTRL+C
-                    SendCtrlC();
-
-                    // Wait for exit to complete
-                    System.Threading.Thread.Sleep(1500);
-
-                    // Run npm update command inside WSL
-                    SendTextToTerminal("wsl bash -ic \"npm install -g @openai/codex@latest\"");
-                }
-                else // Claude Code
-                {
-                    Debug.WriteLine("Exiting Claude Code with exit command and running update");
-
-                    // Exit Claude Code with exit command
-                    SendTextToTerminal("exit");
-
-                    // Wait for exit to complete
-                    System.Threading.Thread.Sleep(1500);
-
-                    // Run claude update command
-                    SendTextToTerminal("claude update");
+                    default:
+                        // Regular CMD - just try to update Claude if available
+                        Debug.WriteLine("Updating Claude Code from CMD");
+                        SendTextToTerminal("claude update");
+                        break;
                 }
             }
             catch (Exception ex)
@@ -539,6 +540,12 @@ namespace ClaudeCodeVS
                 SetForegroundWindow(terminalHandle);
                 SetFocus(terminalHandle);
                 System.Threading.Thread.Sleep(100);
+
+                // Clear clipboard before copying new text to prevent stale content
+                Clipboard.Clear();
+
+                // Click center
+                RightClickTerminalCenter();
 
                 // Method 1: Try using keybd_event (simulates global keyboard input)
                 keybd_event(VK_CONTROL, 0, 0, UIntPtr.Zero); // CTRL down
@@ -561,6 +568,12 @@ namespace ClaudeCodeVS
                 SetForegroundWindow(terminalHandle);
                 SetFocus(terminalHandle);
                 System.Threading.Thread.Sleep(100);
+
+                // Clear clipboard before copying new text to prevent stale content
+                Clipboard.Clear();
+
+                // Click center
+                RightClickTerminalCenter();
 
                 // Create input array for CTRL down, C down, C up, CTRL up
                 INPUT[] inputs = new INPUT[4];
@@ -600,6 +613,12 @@ namespace ClaudeCodeVS
                 SetFocus(terminalHandle);
                 System.Threading.Thread.Sleep(100);
 
+                // Clear clipboard before copying new text to prevent stale content
+                Clipboard.Clear();
+
+                // Click center
+                RightClickTerminalCenter();
+
                 // Send CTRL down
                 PostMessage(terminalHandle, WM_KEYDOWN, new IntPtr(VK_CONTROL), IntPtr.Zero);
                 System.Threading.Thread.Sleep(50);
@@ -626,31 +645,36 @@ namespace ClaudeCodeVS
         {
             try
             {
-                // Determine which provider to use based on settings
-                bool useCodex = _settings?.SelectedProvider == AiProvider.Codex;
-                bool useCursorAgent = _settings?.SelectedProvider == AiProvider.CursorAgent;
-                bool claudeAvailable = false;
-                bool codexAvailable = false;
-                bool wslAvailable = false;
+                // Get the selected provider from settings
+                AiProvider? selectedProvider = _settings?.SelectedProvider;
+                bool providerAvailable = false;
 
-                if (useCursorAgent)
+                // Check if the selected provider is available
+                switch (selectedProvider)
                 {
-                    wslAvailable = await IsWslInstalledAsync();
-                    if (wslAvailable)
-                    {
-                        wslAvailable = await IsCursorAgentInstalledInWslAsync();
-                    }
-                }
-                else if (useCodex)
-                {
-                    codexAvailable = await IsCodexCmdAvailableAsync();
-                }
-                else
-                {
-                    claudeAvailable = await IsClaudeCmdAvailableAsync();
+                    case AiProvider.CursorAgent:
+                        bool wslAvailable = await IsWslInstalledAsync();
+                        if (wslAvailable)
+                        {
+                            providerAvailable = await IsCursorAgentInstalledInWslAsync();
+                        }
+                        break;
+
+                    case AiProvider.Codex:
+                        providerAvailable = await IsCodexCmdAvailableAsync();
+                        break;
+
+                    case AiProvider.ClaudeCodeWSL:
+                        providerAvailable = await IsClaudeCodeWSLAvailableAsync();
+                        break;
+
+                    case AiProvider.ClaudeCode:
+                        providerAvailable = await IsClaudeCmdAvailableAsync();
+                        break;
                 }
 
-                await StartEmbeddedTerminalAsync(claudeAvailable, useCodex && codexAvailable, useCursorAgent && wslAvailable);
+                // Start the terminal with the selected provider if available, otherwise regular CMD
+                await StartEmbeddedTerminalAsync(providerAvailable ? selectedProvider : null);
             }
             catch (Exception ex)
             {

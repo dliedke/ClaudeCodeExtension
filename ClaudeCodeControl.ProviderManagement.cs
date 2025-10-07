@@ -29,6 +29,11 @@ namespace ClaudeCodeVS
         private static bool _claudeNotificationShown = false;
 
         /// <summary>
+        /// Flag to show Claude Code (WSL) installation notification only once per session
+        /// </summary>
+        private static bool _claudeCodeWSLNotificationShown = false;
+
+        /// <summary>
         /// Flag to show Codex installation notification only once per session
         /// </summary>
         private static bool _codexNotificationShown = false;
@@ -92,6 +97,69 @@ namespace ClaudeCodeVS
             catch (Exception ex)
             {
                 Debug.WriteLine($"Error checking for claude.cmd: {ex.Message}");
+                return false;
+            }
+        }
+
+        /// <summary>
+        /// Checks if Claude Code CLI is available in WSL
+        /// </summary>
+        /// <returns>True if claude is available in WSL, false otherwise</returns>
+        private async Task<bool> IsClaudeCodeWSLAvailableAsync()
+        {
+            try
+            {
+                // Check if WSL is installed first
+                bool wslInstalled = await IsWslInstalledAsync();
+                if (!wslInstalled)
+                {
+                    Debug.WriteLine("WSL is not installed, Claude Code in WSL not available");
+                    return false;
+                }
+
+                // Check if claude is available in WSL using 'which claude'
+                var startInfo = new ProcessStartInfo
+                {
+                    FileName = "cmd.exe",
+                    Arguments = "/c wsl bash -ic \"which claude\"",
+                    UseShellExecute = false,
+                    RedirectStandardOutput = true,
+                    RedirectStandardError = true,
+                    CreateNoWindow = true
+                };
+
+                using (var process = Process.Start(startInfo))
+                {
+                    // Use async wait to avoid blocking UI thread
+                    var completed = await Task.Run(() =>
+                    {
+                        return process.WaitForExit(5000); // 5 second timeout
+                    });
+
+                    if (!completed)
+                    {
+                        try { process.Kill(); } catch { }
+                        Debug.WriteLine("Claude Code WSL check timed out");
+                        return false;
+                    }
+
+                    string output = await process.StandardOutput.ReadToEndAsync();
+                    string error = await process.StandardError.ReadToEndAsync();
+
+                    Debug.WriteLine($"Claude Code WSL check - Exit code: {process.ExitCode}");
+                    Debug.WriteLine($"Claude Code WSL check - Output: {output}");
+                    Debug.WriteLine($"Claude Code WSL check - Error: {error}");
+
+                    // Check if output contains a path to claude
+                    bool isAvailable = process.ExitCode == 0 && !string.IsNullOrWhiteSpace(output) && output.Contains("claude");
+                    Debug.WriteLine($"Claude Code in WSL availability result: {isAvailable}");
+
+                    return isAvailable;
+                }
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"Error checking for claude in WSL: {ex.Message}");
                 return false;
             }
         }
@@ -302,6 +370,43 @@ namespace ClaudeCodeVS
         }
 
         /// <summary>
+        /// Shows installation instructions for Claude Code CLI in WSL
+        /// </summary>
+        private void ShowClaudeCodeWSLInstallationInstructions()
+        {
+            const string instructions = @"To use Claude Code (WSL), you need to install WSL and Claude Code inside WSL.
+
+(you may click CTRL+C to copy full instructions)
+
+Make sure virtualization is enabled in BIOS.
+
+Open PowerShell as Administrator and run:
+
+dism.exe /online /enable-feature /featurename:Microsoft-Windows-Subsystem-Linux /all /norestart
+
+dism.exe /online /enable-feature /featurename:VirtualMachinePlatform /all /norestart
+
+wsl --install
+
+# Start a shell inside of Windows Subsystem for Linux
+wsl
+
+# https://learn.microsoft.com/en-us/windows/dev-environment/javascript/nodejs-on-wsl
+# Install Node.js in WSL
+curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/master/install.sh | bash
+
+# In a new tab or after exiting and running `wsl` again to install Node.js
+nvm install 22
+
+# Install and run Claude Code in WSL
+npm i -g @anthropic-ai/claude-code
+claude";
+
+            MessageBox.Show(instructions, "Claude Code (WSL) Installation",
+                          MessageBoxButton.OK, MessageBoxImage.Information);
+        }
+
+        /// <summary>
         /// Shows installation instructions for Codex CLI in WSL
         /// </summary>
         private void ShowCodexInstallationInstructions()
@@ -400,11 +505,40 @@ cursor-agent";
                 if (!claudeAvailable)
                 {
                     ShowClaudeInstallationInstructions();
-                    await StartEmbeddedTerminalAsync(false, false, false); // Regular CMD
+                    await StartEmbeddedTerminalAsync(null); // Regular CMD
                 }
                 else
                 {
-                    await StartEmbeddedTerminalAsync(true, false, false); // Claude Code
+                    await StartEmbeddedTerminalAsync(AiProvider.ClaudeCode);
+                }
+            });
+        }
+
+        /// <summary>
+        /// Handles Claude Code (WSL) menu item click - switches to Claude Code (WSL) provider
+        /// </summary>
+        private void ClaudeCodeWSLMenuItem_Click(object sender, RoutedEventArgs e)
+        {
+            if (_settings == null) return;
+
+            ThreadHelper.JoinableTaskFactory.Run(async delegate
+            {
+                bool claudeWSLAvailable = await IsClaudeCodeWSLAvailableAsync();
+                await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
+
+                // Always update the selection regardless of availability
+                _settings.SelectedProvider = AiProvider.ClaudeCodeWSL;
+                UpdateProviderSelection();
+                SaveSettings();
+
+                if (!claudeWSLAvailable)
+                {
+                    ShowClaudeCodeWSLInstallationInstructions();
+                    await StartEmbeddedTerminalAsync(null); // Regular CMD
+                }
+                else
+                {
+                    await StartEmbeddedTerminalAsync(AiProvider.ClaudeCodeWSL);
                 }
             });
         }
@@ -430,11 +564,11 @@ cursor-agent";
                 if (!codexAvailable)
                 {
                     ShowCodexInstallationInstructions();
-                    await StartEmbeddedTerminalAsync(false, false, false); // Regular CMD
+                    await StartEmbeddedTerminalAsync(null); // Regular CMD
                 }
                 else
                 {
-                    await StartEmbeddedTerminalAsync(false, true, false); // Codex
+                    await StartEmbeddedTerminalAsync(AiProvider.Codex);
                 }
             });
         }
@@ -466,11 +600,11 @@ cursor-agent";
                 if (!wslInstalled || !cursorAgentInstalled)
                 {
                     ShowCursorAgentInstallationInstructions();
-                    await StartEmbeddedTerminalAsync(false, false, false); // Regular CMD
+                    await StartEmbeddedTerminalAsync(null); // Regular CMD
                 }
                 else
                 {
-                    await StartEmbeddedTerminalAsync(false, false, true); // Cursor Agent
+                    await StartEmbeddedTerminalAsync(AiProvider.CursorAgent);
                 }
             });
         }
@@ -486,16 +620,19 @@ cursor-agent";
 
             // Update menu item checkmarks
             ClaudeCodeMenuItem.IsChecked = _settings.SelectedProvider == AiProvider.ClaudeCode;
+            ClaudeCodeWSLMenuItem.IsChecked = _settings.SelectedProvider == AiProvider.ClaudeCodeWSL;
             CodexMenuItem.IsChecked = _settings.SelectedProvider == AiProvider.Codex;
             CursorAgentMenuItem.IsChecked = _settings.SelectedProvider == AiProvider.CursorAgent;
 
-            // Update GroupBox header to show current provider
+            // Update GroupBox header to show selected provider (not necessarily running yet)
             string providerName = _settings.SelectedProvider == AiProvider.ClaudeCode ? "Claude Code" :
-                                  _settings.SelectedProvider == AiProvider.Codex ? "Codex" : "Cursor Agent";
+                                  _settings.SelectedProvider == AiProvider.ClaudeCodeWSL ? "Claude Code (WSL)" :
+                                  _settings.SelectedProvider == AiProvider.Codex ? "Codex" :
+                                  "Cursor Agent";
             TerminalGroupBox.Header = providerName;
 
-            // Update tool window title
-            UpdateToolWindowTitle(providerName);
+            // Note: Tool window title will be updated after the terminal actually starts
+            // in StartEmbeddedTerminalAsync to reflect what's actually running
         }
 
         /// <summary>

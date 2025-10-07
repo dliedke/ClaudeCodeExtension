@@ -162,95 +162,91 @@ namespace ClaudeCodeVS
 
                     Debug.WriteLine("Restarting terminal for new workspace...");
 
-                    // Determine which provider to use based on settings
-                    bool useCodex = _settings?.SelectedProvider == AiProvider.Codex;
-                    bool useCursorAgent = _settings?.SelectedProvider == AiProvider.CursorAgent;
-                    bool claudeAvailable = false;
-                    bool codexAvailable = false;
-                    bool wslAvailable = false;
+                    // Get the selected provider from settings
+                    AiProvider? selectedProvider = _settings?.SelectedProvider;
+                    bool providerAvailable = false;
 
-                    Debug.WriteLine($"User selected provider: {(useCursorAgent ? "Cursor Agent" : useCodex ? "Codex" : "Claude Code")}");
+                    Debug.WriteLine($"User selected provider: {selectedProvider}");
 
-                    if (useCursorAgent)
+                    // Check if the selected provider is available
+                    switch (selectedProvider)
                     {
-                        Debug.WriteLine("Checking WSL and cursor-agent availability for workspace change...");
-                        wslAvailable = await IsWslInstalledAsync();
-                        if (wslAvailable)
-                        {
-                            wslAvailable = await IsCursorAgentInstalledInWslAsync();
-                        }
-                        Debug.WriteLine($"WSL available and cursor-agent installed: {wslAvailable}");
-                    }
-                    else if (useCodex)
-                    {
-                        Debug.WriteLine("Checking Codex availability for workspace change...");
-                        codexAvailable = await IsCodexCmdAvailableAsync();
-                        Debug.WriteLine($"Codex available: {codexAvailable}");
-                    }
-                    else
-                    {
-                        Debug.WriteLine("Checking Claude Code availability for workspace change...");
-                        claudeAvailable = await IsClaudeCmdAvailableAsync();
-                        Debug.WriteLine($"Claude available: {claudeAvailable}");
+                        case AiProvider.CursorAgent:
+                            Debug.WriteLine("Checking WSL and cursor-agent availability for workspace change...");
+                            bool wslAvailable = await IsWslInstalledAsync();
+                            if (wslAvailable)
+                            {
+                                providerAvailable = await IsCursorAgentInstalledInWslAsync();
+                            }
+                            Debug.WriteLine($"Cursor Agent available: {providerAvailable}");
+                            break;
+
+                        case AiProvider.Codex:
+                            Debug.WriteLine("Checking Codex availability for workspace change...");
+                            providerAvailable = await IsCodexCmdAvailableAsync();
+                            Debug.WriteLine($"Codex available: {providerAvailable}");
+                            break;
+
+                        case AiProvider.ClaudeCodeWSL:
+                            Debug.WriteLine("Checking Claude Code (WSL) availability for workspace change...");
+                            providerAvailable = await IsClaudeCodeWSLAvailableAsync();
+                            Debug.WriteLine($"Claude Code (WSL) available: {providerAvailable}");
+                            break;
+
+                        case AiProvider.ClaudeCode:
+                            Debug.WriteLine("Checking Claude Code availability for workspace change...");
+                            providerAvailable = await IsClaudeCmdAvailableAsync();
+                            Debug.WriteLine($"Claude Code available: {providerAvailable}");
+                            break;
                     }
 
                     // Switch to main thread for UI operations
                     await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
 
                     // Restart with the selected provider if available, otherwise show message and use regular CMD
-                    if (useCursorAgent)
+                    if (providerAvailable)
                     {
-                        if (wslAvailable)
-                        {
-                            Debug.WriteLine("Restarting Cursor Agent terminal in new directory...");
-                            await StartEmbeddedTerminalAsync(false, false, true); // Cursor Agent
-                        }
-                        else
-                        {
-                            Debug.WriteLine("WSL not available, showing installation instructions...");
-                            if (!_cursorAgentNotificationShown)
-                            {
-                                _cursorAgentNotificationShown = true;
-                                ShowCursorAgentInstallationInstructions();
-                            }
-                            await StartEmbeddedTerminalAsync(false, false, false); // Regular CMD
-                        }
-                    }
-                    else if (useCodex)
-                    {
-                        if (codexAvailable)
-                        {
-                            Debug.WriteLine("Restarting Codex terminal in new directory...");
-                            await StartEmbeddedTerminalAsync(false, true, false); // Codex
-                        }
-                        else
-                        {
-                            Debug.WriteLine("Codex not available, showing installation instructions...");
-                            if (!_codexNotificationShown)
-                            {
-                                _codexNotificationShown = true;
-                                ShowCodexInstallationInstructions();
-                            }
-                            await StartEmbeddedTerminalAsync(false, false, false); // Regular CMD
-                        }
+                        Debug.WriteLine($"Restarting {selectedProvider} terminal in new directory...");
+                        await StartEmbeddedTerminalAsync(selectedProvider);
                     }
                     else
                     {
-                        if (claudeAvailable)
+                        Debug.WriteLine($"{selectedProvider} not available, showing installation instructions and using CMD");
+
+                        // Show installation instructions if not already shown
+                        switch (selectedProvider)
                         {
-                            Debug.WriteLine("Restarting Claude Code terminal in new directory...");
-                            await StartEmbeddedTerminalAsync(true, false, false); // Claude Code
+                            case AiProvider.CursorAgent:
+                                if (!_cursorAgentNotificationShown)
+                                {
+                                    _cursorAgentNotificationShown = true;
+                                    ShowCursorAgentInstallationInstructions();
+                                }
+                                break;
+                            case AiProvider.Codex:
+                                if (!_codexNotificationShown)
+                                {
+                                    _codexNotificationShown = true;
+                                    ShowCodexInstallationInstructions();
+                                }
+                                break;
+                            case AiProvider.ClaudeCodeWSL:
+                                if (!_claudeCodeWSLNotificationShown)
+                                {
+                                    _claudeCodeWSLNotificationShown = true;
+                                    ShowClaudeCodeWSLInstallationInstructions();
+                                }
+                                break;
+                            case AiProvider.ClaudeCode:
+                                if (!_claudeNotificationShown)
+                                {
+                                    _claudeNotificationShown = true;
+                                    ShowClaudeInstallationInstructions();
+                                }
+                                break;
                         }
-                        else
-                        {
-                            Debug.WriteLine("Claude Code not available, showing installation instructions...");
-                            if (!_claudeNotificationShown)
-                            {
-                                _claudeNotificationShown = true;
-                                ShowClaudeInstallationInstructions();
-                            }
-                            await StartEmbeddedTerminalAsync(false, false, false); // Regular CMD
-                        }
+
+                        await StartEmbeddedTerminalAsync(null); // Regular CMD
                     }
                 }
             }
