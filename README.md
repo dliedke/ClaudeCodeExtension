@@ -113,6 +113,15 @@ Simply click the update button and the extension will handle the entire update p
 
 ## Version History
 
+### Version 2.3
+
+**WSL Initialization Fix:**
+- Fixed WSL-based agents (Claude Code WSL, Codex, Cursor Agent) not being detected right after system boot
+- Added intelligent retry logic with progressive timeouts (5s, 8s, 12s) for WSL agent detection
+- Implements up to 3 detection attempts with 2-second delays between retries to handle WSL initialization delays
+- Improved reliability when opening Visual Studio immediately after boot
+- Enhanced debug logging for better troubleshooting of WSL-related issues
+
 ### Version 2.2
 
 **Claude Code WSL Support & Simplified Exit Logic:**

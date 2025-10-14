@@ -103,6 +103,7 @@ namespace ClaudeCodeVS
 
         /// <summary>
         /// Checks if Claude Code CLI is available in WSL
+        /// Uses retry logic to handle WSL initialization delays after boot
         /// </summary>
         /// <returns>True if claude is available in WSL, false otherwise</returns>
         private async Task<bool> IsClaudeCodeWSLAvailableAsync()
@@ -117,45 +118,82 @@ namespace ClaudeCodeVS
                     return false;
                 }
 
-                // Check if claude is available in WSL using 'which claude'
-                var startInfo = new ProcessStartInfo
-                {
-                    FileName = "cmd.exe",
-                    Arguments = "/c wsl bash -ic \"which claude\"",
-                    UseShellExecute = false,
-                    RedirectStandardOutput = true,
-                    RedirectStandardError = true,
-                    CreateNoWindow = true
-                };
+                // Retry logic for WSL commands (handles WSL initialization after boot)
+                int[] timeouts = { 5000, 8000, 12000 }; // Progressive timeouts: 5s, 8s, 12s
+                int maxRetries = 3;
 
-                using (var process = Process.Start(startInfo))
+                for (int attempt = 1; attempt <= maxRetries; attempt++)
                 {
-                    // Use async wait to avoid blocking UI thread
-                    var completed = await Task.Run(() =>
-                    {
-                        return process.WaitForExit(5000); // 5 second timeout
-                    });
+                    Debug.WriteLine($"Claude Code WSL check attempt {attempt}/{maxRetries}");
 
-                    if (!completed)
+                    // Check if claude is available in WSL using 'which claude'
+                    var startInfo = new ProcessStartInfo
                     {
-                        try { process.Kill(); } catch { }
-                        Debug.WriteLine("Claude Code WSL check timed out");
-                        return false;
+                        FileName = "cmd.exe",
+                        Arguments = "/c wsl bash -ic \"which claude\"",
+                        UseShellExecute = false,
+                        RedirectStandardOutput = true,
+                        RedirectStandardError = true,
+                        CreateNoWindow = true
+                    };
+
+                    using (var process = Process.Start(startInfo))
+                    {
+                        // Use async wait to avoid blocking UI thread
+                        var completed = await Task.Run(() =>
+                        {
+                            return process.WaitForExit(timeouts[attempt - 1]);
+                        });
+
+                        if (!completed)
+                        {
+                            try { process.Kill(); } catch { }
+                            Debug.WriteLine($"Claude Code WSL check timed out on attempt {attempt}");
+
+                            // If not the last attempt, wait before retrying
+                            if (attempt < maxRetries)
+                            {
+                                Debug.WriteLine($"Waiting 2 seconds before retry (WSL may be initializing)...");
+                                await Task.Delay(2000);
+                                continue;
+                            }
+                            return false;
+                        }
+
+                        string output = await process.StandardOutput.ReadToEndAsync();
+                        string error = await process.StandardError.ReadToEndAsync();
+
+                        Debug.WriteLine($"Claude Code WSL check - Exit code: {process.ExitCode}");
+                        Debug.WriteLine($"Claude Code WSL check - Output: {output}");
+                        Debug.WriteLine($"Claude Code WSL check - Error: {error}");
+
+                        // Check if output contains a path to claude
+                        bool isAvailable = process.ExitCode == 0 && !string.IsNullOrWhiteSpace(output) && output.Contains("claude");
+
+                        if (isAvailable)
+                        {
+                            Debug.WriteLine($"Claude Code in WSL found on attempt {attempt}");
+                            return true;
+                        }
+
+                        // If we got a response but agent not found, no need to retry
+                        if (process.ExitCode == 0 || !string.IsNullOrEmpty(output) || !string.IsNullOrEmpty(error))
+                        {
+                            Debug.WriteLine($"Claude Code in WSL not found (WSL responded, agent not installed)");
+                            return false;
+                        }
+
+                        // WSL didn't respond properly, retry if we have attempts left
+                        if (attempt < maxRetries)
+                        {
+                            Debug.WriteLine($"WSL didn't respond properly, waiting 2 seconds before retry...");
+                            await Task.Delay(2000);
+                        }
                     }
-
-                    string output = await process.StandardOutput.ReadToEndAsync();
-                    string error = await process.StandardError.ReadToEndAsync();
-
-                    Debug.WriteLine($"Claude Code WSL check - Exit code: {process.ExitCode}");
-                    Debug.WriteLine($"Claude Code WSL check - Output: {output}");
-                    Debug.WriteLine($"Claude Code WSL check - Error: {error}");
-
-                    // Check if output contains a path to claude
-                    bool isAvailable = process.ExitCode == 0 && !string.IsNullOrWhiteSpace(output) && output.Contains("claude");
-                    Debug.WriteLine($"Claude Code in WSL availability result: {isAvailable}");
-
-                    return isAvailable;
                 }
+
+                Debug.WriteLine($"Claude Code in WSL not available after {maxRetries} attempts");
+                return false;
             }
             catch (Exception ex)
             {
@@ -166,6 +204,7 @@ namespace ClaudeCodeVS
 
         /// <summary>
         /// Checks if Codex CLI is available in WSL
+        /// Uses retry logic to handle WSL initialization delays after boot
         /// </summary>
         /// <returns>True if codex is available in WSL, false otherwise</returns>
         private async Task<bool> IsCodexCmdAvailableAsync()
@@ -180,46 +219,83 @@ namespace ClaudeCodeVS
                     return false;
                 }
 
-                // Check if codex is available in WSL using 'which codex' with interactive shell
-                // We need -i flag because codex is installed via nvm which requires interactive shell
-                var startInfo = new ProcessStartInfo
-                {
-                    FileName = "cmd.exe",
-                    Arguments = "/c wsl bash -ic \"which codex\"",
-                    UseShellExecute = false,
-                    RedirectStandardOutput = true,
-                    RedirectStandardError = true,
-                    CreateNoWindow = true
-                };
+                // Retry logic for WSL commands (handles WSL initialization after boot)
+                int[] timeouts = { 5000, 8000, 12000 }; // Progressive timeouts: 5s, 8s, 12s
+                int maxRetries = 3;
 
-                using (var process = Process.Start(startInfo))
+                for (int attempt = 1; attempt <= maxRetries; attempt++)
                 {
-                    // Use async wait to avoid blocking UI thread
-                    var completed = await Task.Run(() =>
-                    {
-                        return process.WaitForExit(5000); // 5 second timeout
-                    });
+                    Debug.WriteLine($"Codex WSL check attempt {attempt}/{maxRetries}");
 
-                    if (!completed)
+                    // Check if codex is available in WSL using 'which codex' with interactive shell
+                    // We need -i flag because codex is installed via nvm which requires interactive shell
+                    var startInfo = new ProcessStartInfo
                     {
-                        try { process.Kill(); } catch { }
-                        Debug.WriteLine("Codex check in WSL timed out");
-                        return false;
+                        FileName = "cmd.exe",
+                        Arguments = "/c wsl bash -ic \"which codex\"",
+                        UseShellExecute = false,
+                        RedirectStandardOutput = true,
+                        RedirectStandardError = true,
+                        CreateNoWindow = true
+                    };
+
+                    using (var process = Process.Start(startInfo))
+                    {
+                        // Use async wait to avoid blocking UI thread
+                        var completed = await Task.Run(() =>
+                        {
+                            return process.WaitForExit(timeouts[attempt - 1]);
+                        });
+
+                        if (!completed)
+                        {
+                            try { process.Kill(); } catch { }
+                            Debug.WriteLine($"Codex check in WSL timed out on attempt {attempt}");
+
+                            // If not the last attempt, wait before retrying
+                            if (attempt < maxRetries)
+                            {
+                                Debug.WriteLine($"Waiting 2 seconds before retry (WSL may be initializing)...");
+                                await Task.Delay(2000);
+                                continue;
+                            }
+                            return false;
+                        }
+
+                        string output = await process.StandardOutput.ReadToEndAsync();
+                        string error = await process.StandardError.ReadToEndAsync();
+
+                        Debug.WriteLine($"Codex WSL check - Exit code: {process.ExitCode}");
+                        Debug.WriteLine($"Codex WSL check - Output: {output}");
+                        Debug.WriteLine($"Codex WSL check - Error: {error}");
+
+                        // Check if output contains a path to codex (like /home/user/.nvm/versions/node/v22.20.0/bin/codex)
+                        bool isAvailable = process.ExitCode == 0 && !string.IsNullOrWhiteSpace(output) && output.Contains("codex");
+
+                        if (isAvailable)
+                        {
+                            Debug.WriteLine($"Codex in WSL found on attempt {attempt}");
+                            return true;
+                        }
+
+                        // If we got a response but agent not found, no need to retry
+                        if (process.ExitCode == 0 || !string.IsNullOrEmpty(output) || !string.IsNullOrEmpty(error))
+                        {
+                            Debug.WriteLine($"Codex in WSL not found (WSL responded, agent not installed)");
+                            return false;
+                        }
+
+                        // WSL didn't respond properly, retry if we have attempts left
+                        if (attempt < maxRetries)
+                        {
+                            Debug.WriteLine($"WSL didn't respond properly, waiting 2 seconds before retry...");
+                            await Task.Delay(2000);
+                        }
                     }
-
-                    string output = await process.StandardOutput.ReadToEndAsync();
-                    string error = await process.StandardError.ReadToEndAsync();
-
-                    Debug.WriteLine($"Codex WSL check - Exit code: {process.ExitCode}");
-                    Debug.WriteLine($"Codex WSL check - Output: {output}");
-                    Debug.WriteLine($"Codex WSL check - Error: {error}");
-
-                    // Check if output contains a path to codex (like /home/user/.nvm/versions/node/v22.20.0/bin/codex)
-                    bool isAvailable = process.ExitCode == 0 && !string.IsNullOrWhiteSpace(output) && output.Contains("codex");
-                    Debug.WriteLine($"Codex in WSL availability result: {isAvailable}");
-
-                    return isAvailable;
                 }
+
+                Debug.WriteLine($"Codex in WSL not available after {maxRetries} attempts");
+                return false;
             }
             catch (Exception ex)
             {
@@ -282,48 +358,86 @@ namespace ClaudeCodeVS
 
         /// <summary>
         /// Checks if cursor-agent is installed inside WSL by checking for the symlink at ~/.local/bin/cursor-agent
+        /// Uses retry logic to handle WSL initialization delays after boot
         /// </summary>
         /// <returns>True if cursor-agent is available in WSL, false otherwise</returns>
         private async Task<bool> IsCursorAgentInstalledInWslAsync()
         {
             try
             {
-                var startInfo = new ProcessStartInfo
-                {
-                    FileName = "cmd.exe",
-                    Arguments = "/c wsl bash -c \"test -L ~/.local/bin/cursor-agent && echo 'exists' || echo 'notfound'\"",
-                    UseShellExecute = false,
-                    RedirectStandardOutput = true,
-                    RedirectStandardError = true,
-                    CreateNoWindow = true
-                };
+                // Retry logic for WSL commands (handles WSL initialization after boot)
+                int[] timeouts = { 5000, 8000, 12000 }; // Progressive timeouts: 5s, 8s, 12s
+                int maxRetries = 3;
 
-                using (var process = Process.Start(startInfo))
+                for (int attempt = 1; attempt <= maxRetries; attempt++)
                 {
-                    var completed = await Task.Run(() =>
-                    {
-                        return process.WaitForExit(5000); // 5 second timeout
-                    });
+                    Debug.WriteLine($"Cursor Agent WSL check attempt {attempt}/{maxRetries}");
 
-                    if (!completed)
+                    var startInfo = new ProcessStartInfo
                     {
-                        try { process.Kill(); } catch { }
-                        Debug.WriteLine("Cursor agent check in WSL timed out");
-                        return false;
+                        FileName = "cmd.exe",
+                        Arguments = "/c wsl bash -c \"test -L ~/.local/bin/cursor-agent && echo 'exists' || echo 'notfound'\"",
+                        UseShellExecute = false,
+                        RedirectStandardOutput = true,
+                        RedirectStandardError = true,
+                        CreateNoWindow = true
+                    };
+
+                    using (var process = Process.Start(startInfo))
+                    {
+                        var completed = await Task.Run(() =>
+                        {
+                            return process.WaitForExit(timeouts[attempt - 1]);
+                        });
+
+                        if (!completed)
+                        {
+                            try { process.Kill(); } catch { }
+                            Debug.WriteLine($"Cursor agent check in WSL timed out on attempt {attempt}");
+
+                            // If not the last attempt, wait before retrying
+                            if (attempt < maxRetries)
+                            {
+                                Debug.WriteLine($"Waiting 2 seconds before retry (WSL may be initializing)...");
+                                await Task.Delay(2000);
+                                continue;
+                            }
+                            return false;
+                        }
+
+                        string output = await process.StandardOutput.ReadToEndAsync();
+                        string error = await process.StandardError.ReadToEndAsync();
+
+                        Debug.WriteLine($"Cursor agent WSL check - Exit code: {process.ExitCode}");
+                        Debug.WriteLine($"Cursor agent WSL check - Output: {output}");
+                        Debug.WriteLine($"Cursor agent WSL check - Error: {error}");
+
+                        bool isInstalled = output.Trim().Equals("exists", StringComparison.OrdinalIgnoreCase);
+
+                        if (isInstalled)
+                        {
+                            Debug.WriteLine($"Cursor agent found on attempt {attempt}");
+                            return true;
+                        }
+
+                        // If we got "notfound" response, agent is not installed, no need to retry
+                        if (output.Trim().Equals("notfound", StringComparison.OrdinalIgnoreCase))
+                        {
+                            Debug.WriteLine($"Cursor agent not found (WSL responded, agent not installed)");
+                            return false;
+                        }
+
+                        // WSL didn't respond properly, retry if we have attempts left
+                        if (attempt < maxRetries)
+                        {
+                            Debug.WriteLine($"WSL didn't respond properly, waiting 2 seconds before retry...");
+                            await Task.Delay(2000);
+                        }
                     }
-
-                    string output = await process.StandardOutput.ReadToEndAsync();
-                    string error = await process.StandardError.ReadToEndAsync();
-
-                    Debug.WriteLine($"Cursor agent WSL check - Exit code: {process.ExitCode}");
-                    Debug.WriteLine($"Cursor agent WSL check - Output: {output}");
-                    Debug.WriteLine($"Cursor agent WSL check - Error: {error}");
-
-                    bool isInstalled = output.Trim().Equals("exists", StringComparison.OrdinalIgnoreCase);
-                    Debug.WriteLine($"Cursor agent symlink exists at ~/.local/bin/cursor-agent: {isInstalled}");
-
-                    return isInstalled;
                 }
+
+                Debug.WriteLine($"Cursor agent not available after {maxRetries} attempts");
+                return false;
             }
             catch (Exception ex)
             {

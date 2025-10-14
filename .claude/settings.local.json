@@ -13,7 +13,9 @@
       "Bash(dotnet build:*)",
       "Bash(where msbuild)",
       "Bash(\"C:\\Program Files\\Microsoft Visual Studio\\2022\\Enterprise\\MSBuild\\Current\\Bin\\MSBuild.exe\" \"C:\\GitLab\\ClaudeCodeExtension\\ClaudeCodeExtension.csproj\" /p:Configuration=Release)",
-      "Bash(wsl bash -c:*)"
+      "Bash(wsl bash -c:*)",
+      "Bash(cmd.exe /c where msbuild)",
+      "Bash(cmd.exe /c \"\"\"C:\\Program Files\\Microsoft Visual Studio\\2022\\Enterprise\\MSBuild\\Current\\Bin\\MSBuild.exe\"\" \"\"C:\\GitLab\\ClaudeCodeExtension\\ClaudeCodeExtension.csproj\"\" /p:Configuration=Release\")"
     ],
     "deny": [],
     "ask": []
