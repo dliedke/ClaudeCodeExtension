@@ -373,7 +373,7 @@ namespace ClaudeCodeVS
                                 providerTitle = "Codex";
                                 break;
                             case AiProvider.ClaudeCodeWSL:
-                                providerTitle = "Claude Code (WSL)";
+                                providerTitle = "Claude Code";
                                 break;
                             case AiProvider.ClaudeCode:
                                 providerTitle = "Claude Code";

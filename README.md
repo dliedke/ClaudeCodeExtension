@@ -113,6 +113,13 @@ Simply click the update button and the extension will handle the entire update p
 
 ## Version History
 
+### Version 2.4
+
+**Simplified Window Titles:**
+- Window title now shows "Claude Code" for all Claude Code variants (native Windows and WSL)
+- Removed "(WSL)" suffix from window titles for cleaner UI experience
+- All Claude Code installations now share the same display name in the tool window
+
 ### Version 2.3
 
 **WSL Initialization Fix:**

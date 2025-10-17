@@ -740,7 +740,7 @@ cursor-agent";
 
             // Update GroupBox header to show selected provider (not necessarily running yet)
             string providerName = _settings.SelectedProvider == AiProvider.ClaudeCode ? "Claude Code" :
-                                  _settings.SelectedProvider == AiProvider.ClaudeCodeWSL ? "Claude Code (WSL)" :
+                                  _settings.SelectedProvider == AiProvider.ClaudeCodeWSL ? "Claude Code" :
                                   _settings.SelectedProvider == AiProvider.Codex ? "Codex" :
                                   "Cursor Agent";
             TerminalGroupBox.Header = providerName;
