@@ -68,6 +68,9 @@ A Visual Studio extension that provides seamless integration with Claude Code, O
 3. Restart Visual Studio
 4. Open the extension via **View** → **Other Windows** → **Claude Code Extension**
 
+In case terminal is opening in a new window and not inside the extension:
+Open windows settings, search for "Terminal settings", change Terminal option to "Windows Console Host".
+
 ## Quick Start
 
 - **First Time Setup**: Ensure your preferred AI provider (Claude Code, Claude Code WSL, OpenAI Codex, or Cursor Agent) is installed and accessible
