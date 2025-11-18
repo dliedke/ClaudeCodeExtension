@@ -6,7 +6,7 @@
  * Copyright © Daniel Liedke 2025
  * Usage and reproduction in any manner whatsoever without the written permission of Daniel Liedke is strictly forbidden.
  *
- * Purpose: Assembly information for the Claude Code extension for VS.NET 2022
+ * Purpose: Assembly information for the Claude Code extension for VS.NET
  *
  * *******************************************************************************************************************/
 
@@ -41,5 +41,5 @@ using System.Runtime.InteropServices;
 // You can specify all the values or you can default the Build and Revision Numbers
 // by using the '*' as shown below:
 // [assembly: AssemblyVersion("1.0.*")]
-[assembly: AssemblyVersion("2.5.0.0")]
-[assembly: AssemblyFileVersion("2.5.0.0")]
+[assembly: AssemblyVersion("2.6.0.0")]
+[assembly: AssemblyFileVersion("2.6.0.0")]

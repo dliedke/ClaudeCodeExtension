@@ -183,7 +183,30 @@ namespace ClaudeCodeVS
                 foreach (var path in attachedImagePaths.ToList())
                 {
                     // Create chip border
-                    var chip = new Border { Style = (Style)FindResource("ChipBorder") };
+                    var chip = new Border
+                    {
+                        Style = (Style)FindResource("ChipBorder"),
+                        Cursor = Cursors.Hand,
+                        Tag = path
+                    };
+
+                    // Make chip clickable to open image
+                    chip.MouseLeftButtonUp += (s, e) =>
+                    {
+                        // Don't open if clicking the remove button
+                        if (e.OriginalSource is Button)
+                            return;
+
+                        var imagePath = (string)((Border)s).Tag;
+                        try
+                        {
+                            Process.Start(new ProcessStartInfo(imagePath) { UseShellExecute = true });
+                        }
+                        catch (Exception ex)
+                        {
+                            MessageBox.Show($"Error opening image: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                        }
+                    };
 
                     // Create chip content
                     var sp = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };

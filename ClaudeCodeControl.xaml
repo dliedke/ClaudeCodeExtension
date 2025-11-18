@@ -159,7 +159,13 @@
                          BorderBrush="Transparent"
                          BorderThickness="0"
                          KeyDown="PromptTextBox_KeyDown"
-                         PreviewKeyDown="PromptTextBox_PreviewKeyDown"/>
+                         PreviewKeyDown="PromptTextBox_PreviewKeyDown">
+					<TextBox.ContextMenu>
+						<ContextMenu>
+							<MenuItem Header="Clear Prompt History" Click="ClearPromptHistoryMenuItem_Click"/>
+						</ContextMenu>
+					</TextBox.ContextMenu>
+				</TextBox>
 			</GroupBox>
 
 			<!-- Controls row: [Send + Add Image] | [Chips] | [Restart (right-aligned)] -->

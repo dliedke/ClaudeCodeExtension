@@ -30,6 +30,13 @@ A Visual Studio extension that provides seamless integration with Claude Code, O
 - **Clipboard Paste**: Use Ctrl+V to paste images from clipboard in the prompt area
 - **File Browser**: Click "Add Image" to select images from file system
 - **Image Chips**: Visual representation of attached images with remove functionality
+- **Clickable Chips**: Click on image chips to open and view images
+
+### 📝 **Prompt History**
+- **Smart History**: Automatically saves up to 50 most recent prompts
+- **Quick Navigation**: Use Ctrl+Up/Ctrl+Down to browse through previous prompts
+- **Clear Option**: Right-click in prompt area to clear history
+- **Persistent Storage**: History saved between Visual Studio sessions
 
 ### 🔧 **Workspace Intelligence**
 - **Solution Detection**: Automatically detects and switches to solution directory
@@ -50,7 +57,7 @@ A Visual Studio extension that provides seamless integration with Claude Code, O
 
 ## System Requirements
 
-- Visual Studio 2022 17.14 or later
+- Visual Studio 2022 or 2026
 - Windows operating system
 - **For Claude Code (Windows)**: Claude Pro or better paid subscription + Claude Code CLI installed and accessible via `claude.cmd` in path.
   Refer to https://docs.claude.com/en/docs/claude-code/setup for Claude Code installation
@@ -89,6 +96,14 @@ Open windows settings, search for "Terminal settings", change Terminal option to
 5. **Send Messages**: Press Enter (if enabled) or click the Send button
 6. **View Responses**: See AI responses in the embedded terminal below and also interact with it directly
 
+### Working with Prompt History
+
+- **Browse Previous Prompts**: Press **Ctrl+Up** to navigate to older prompts in your history
+- **Browse Forward**: Press **Ctrl+Down** to move to newer prompts or return to current text
+- **View Attached Images**: Click on any image chip to open and view the image
+- **Clear History**: Right-click in the prompt area and select "Clear Prompt History"
+- **Automatic Saving**: Your last 50 prompts are automatically saved between sessions
+
 ### AI Provider Menu
 - **Settings Menu**: Click the ⚙ (gear) button in the top-right corner to access provider settings
 - **Claude Code**: Switch to Claude Code CLI integration (Windows native)
@@ -115,6 +130,15 @@ The extension includes a convenient Update Agent button (🔄️) that automatic
 Simply click the update button and the extension will handle the entire update process for you. All agents now use a consistent `exit` command before updating.
 
 ## Version History
+
+### Version 2.6
+
+**New Features:**
+- **Clickable Image Chips**: Click on attached image chips to open and view the images
+- **VS 2026 Support**: Extended compatibility to support Visual Studio 2026
+
+**Improvements:**
+- **Prompt History**: Added prompt history feature to prevent lost prompts (navigate with Ctrl+Up/Ctrl+Down, clear with context menu)
 
 ### Version 2.5
 
@@ -244,7 +268,7 @@ What's New:
 
 - In rare cases for some machines terminal might lauch outside the extension and
   fatal error "Stop code: KERNEL_SECURITY_CHECK_FAILURE (0x139)" can happen.
-  Workaround right now is to run VS.NET 2022 as Administrator.
+  Workaround right now is to run VS.NET as Administrator.
 
 ## License & Usage
 

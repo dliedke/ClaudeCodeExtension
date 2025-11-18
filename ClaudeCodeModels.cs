@@ -43,5 +43,10 @@ namespace ClaudeCodeVS
         /// Currently selected AI provider
         /// </summary>
         public AiProvider SelectedProvider { get; set; } = AiProvider.ClaudeCode;
+
+        /// <summary>
+        /// List of previously sent prompts (most recent last)
+        /// </summary>
+        public System.Collections.Generic.List<string> PromptHistory { get; set; } = new System.Collections.Generic.List<string>();
     }
 }
