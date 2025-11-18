@@ -277,10 +277,7 @@ What's New:
 This extension is proprietary software. **Unauthorized cloning, copying, modification, or distribution is strictly prohibited** without explicit written permission from the author.
 
 ### Restrictions
-- No cloning or forking of source code
-- No modification or derivative works
-- No redistribution or commercial use
-- No reverse engineering
+- No commercial use
 
 ### Permissions
 For licensing inquiries or permission requests, please contact the author.
