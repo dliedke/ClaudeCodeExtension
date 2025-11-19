@@ -98,38 +98,20 @@ namespace ClaudeCodeVS
         #region Unload and Cleanup
 
         /// <summary>
-        /// Handles control unload event - cleans up resources and unregisters events
+        /// Handles control unload event - stops timers but keeps terminal alive for tab switches
         /// </summary>
         private void ClaudeCodeControl_Unloaded(object sender, RoutedEventArgs e)
         {
             // Don't save during unload - settings should only be saved when user makes changes
+            // NOTE: Don't cleanup terminal here - Unloaded fires during tab switches
+            // Terminal cleanup only happens in Dispose() when VS is actually closing
 
-            // Stop theme check timer
+            // Stop theme check timer to reduce background activity when not visible
             if (_themeCheckTimer != null)
             {
                 _themeCheckTimer.Stop();
-                _themeCheckTimer = null;
+                Debug.WriteLine("Theme check timer stopped (control unloaded)");
             }
-
-            // Unregister solution events
-            if (solutionEventsCookie != 0)
-            {
-                ThreadHelper.JoinableTaskFactory.Run(async delegate
-                {
-                    await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
-                    try
-                    {
-                        var solution = Package.GetGlobalService(typeof(SVsSolution)) as IVsSolution;
-                        solution?.UnadviseSolutionEvents(solutionEventsCookie);
-                    }
-                    catch (Exception ex)
-                    {
-                        Debug.WriteLine($"Error unregistering solution events: {ex.Message}");
-                    }
-                });
-            }
-
-            CleanupResources();
         }
 
         /// <summary>

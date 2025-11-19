@@ -131,6 +131,10 @@ Simply click the update button and the extension will handle the entire update p
 
 ## Version History
 
+### Version 2.8
+
+- Fix issues hiding terminal in tab switching
+
 ### Version 2.7
 
 - Native Claude Code support for Windows

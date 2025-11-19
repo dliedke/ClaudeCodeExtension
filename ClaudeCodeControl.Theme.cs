@@ -74,6 +74,30 @@ namespace ClaudeCodeVS
             {
                 // Only update theme when visible - initialization is handled by Loaded event
                 UpdateTerminalTheme();
+
+                // Restart theme check timer when control becomes visible
+                if (_themeCheckTimer != null && !_themeCheckTimer.IsEnabled)
+                {
+                    _themeCheckTimer.Start();
+                    Debug.WriteLine("Theme check timer restarted (control visible)");
+                }
+
+                // Ensure terminal window is visible and properly sized when tab is switched back
+                if (terminalHandle != IntPtr.Zero && IsWindow(terminalHandle))
+                {
+                    Debug.WriteLine("Control became visible - ensuring terminal window is shown");
+                    ShowWindow(terminalHandle, SW_SHOW);
+                    ResizeEmbeddedTerminal();
+                }
+            }
+            else
+            {
+                // Stop theme check timer when control becomes invisible to save resources
+                if (_themeCheckTimer != null && _themeCheckTimer.IsEnabled)
+                {
+                    _themeCheckTimer.Stop();
+                    Debug.WriteLine("Theme check timer stopped (control invisible)");
+                }
             }
         }
 
