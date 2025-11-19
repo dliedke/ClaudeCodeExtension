@@ -119,7 +119,16 @@ namespace ClaudeCodeVS
 
                 terminalPanel.Resize += (s, e) => ResizeEmbeddedTerminal();
 
-                await Task.Delay(500);
+                // Wait for panel to be properly sized (not just created)
+                int maxWaitMs = 5000; // 5 seconds max
+                int waitedMs = 0;
+                while ((terminalPanel.Width < 100 || terminalPanel.Height < 100) && waitedMs < maxWaitMs)
+                {
+                    await Task.Delay(100);
+                    waitedMs += 100;
+                }
+
+                Debug.WriteLine($"Panel ready after {waitedMs}ms: {terminalPanel.Width}x{terminalPanel.Height}");
 
                 // Start the selected provider if available, otherwise show message and use regular CMD
                 if (useCursorAgent)
@@ -267,35 +276,37 @@ namespace ClaudeCodeVS
                 terminalHandle = IntPtr.Zero;
 
                 // Build the terminal command based on provider
+                // Use cls to clear initial Windows banner for clean appearance
                 string terminalCommand;
                 switch (provider)
                 {
                     case AiProvider.CursorAgent:
                         Debug.WriteLine($"Starting Cursor Agent via WSL in directory: {workspaceDir}");
                         string wslPathCursor = ConvertToWslPath(workspaceDir);
-                        terminalCommand = $"/k wsl bash -ic \"cd {wslPathCursor} && cursor-agent\"";
+                        terminalCommand = $"/k cls && wsl bash -ic \"cd {wslPathCursor} && cursor-agent\"";
                         break;
 
                     case AiProvider.Codex:
                         Debug.WriteLine($"Starting Codex via WSL in directory: {workspaceDir}");
                         string wslPathCodex = ConvertToWslPath(workspaceDir);
-                        terminalCommand = $"/k wsl bash -ic \"cd {wslPathCodex} && codex\"";
+                        terminalCommand = $"/k cls && wsl bash -ic \"cd {wslPathCodex} && codex\"";
                         break;
 
                     case AiProvider.ClaudeCodeWSL:
                         Debug.WriteLine($"Starting Claude Code via WSL in directory: {workspaceDir}");
                         string wslPathClaude = ConvertToWslPath(workspaceDir);
-                        terminalCommand = $"/k wsl bash -ic \"cd {wslPathClaude} && claude\"";
+                        terminalCommand = $"/k cls && wsl bash -ic \"cd {wslPathClaude} && claude\"";
                         break;
 
                     case AiProvider.ClaudeCode:
-                        Debug.WriteLine($"Starting Claude in directory: {workspaceDir}");
-                        terminalCommand = "/k cd /d \"" + workspaceDir + "\" && claude.cmd";
+                        Debug.WriteLine($"Starting Claude Code in directory: {workspaceDir}");
+                        string claudeCommand = GetClaudeCommand();
+                        terminalCommand = $"/k cd /d \"{workspaceDir}\" && ping localhost -n 3 >nul && cls && {claudeCommand}";
                         break;
 
                     default: // null or any other value = regular CMD
                         Debug.WriteLine($"Starting regular CMD in directory: {workspaceDir}");
-                        terminalCommand = "/k cd /d \"" + workspaceDir + "\"";
+                        terminalCommand = $"/k cd /d \"{workspaceDir}\"";
                         break;
                 }
 
@@ -360,7 +371,7 @@ namespace ClaudeCodeVS
                         ShowWindow(terminalHandle, SW_SHOW);
                         ResizeEmbeddedTerminal();
 
-                        // Track the currently running provider after successful start
+                        // Track the currently running provider
                         _currentRunningProvider = provider;
 
                         string providerTitle;
@@ -702,6 +713,28 @@ namespace ClaudeCodeVS
 
             // Return the WSL path format
             return $"/mnt/{driveLetter}{pathWithoutDrive}";
+        }
+
+        /// <summary>
+        /// Gets the appropriate Claude Code command to use
+        /// Prioritizes native installation (%USERPROFILE%\.local\bin\claude.exe) over NPM installation (claude.cmd)
+        /// </summary>
+        /// <returns>The claude command to execute</returns>
+        private string GetClaudeCommand()
+        {
+            // Check for native installation first
+            string userProfile = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+            string nativeClaudePath = Path.Combine(userProfile, ".local", "bin", "claude.exe");
+
+            if (File.Exists(nativeClaudePath))
+            {
+                Debug.WriteLine($"Using native Claude installation: {nativeClaudePath}");
+                return $"\"{nativeClaudePath}\"";
+            }
+
+            // Fall back to NPM installation
+            Debug.WriteLine("Using NPM Claude installation: claude.cmd");
+            return "claude.cmd";
         }
 
         #endregion

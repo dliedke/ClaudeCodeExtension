@@ -59,7 +59,7 @@ A Visual Studio extension that provides seamless integration with Claude Code, O
 
 - Visual Studio 2022 or 2026
 - Windows operating system
-- **For Claude Code (Windows)**: Claude Pro or better paid subscription + Claude Code CLI installed and accessible via `claude.cmd` in path.
+- **For Claude Code (Windows)**: Claude Pro or better paid subscription + Claude Code CLI installed and accessible via `claude` in path.
   Refer to https://docs.claude.com/en/docs/claude-code/setup for Claude Code installation
 - **For Claude Code (WSL)**: Claude Pro or better paid subscription + Windows Subsystem for Linux (WSL) + Claude Code CLI installed inside WSL
   Installation instructions are provided automatically if not installed
@@ -130,6 +130,10 @@ The extension includes a convenient Update Agent button (🔄️) that automatic
 Simply click the update button and the extension will handle the entire update process for you. All agents now use a consistent `exit` command before updating.
 
 ## Version History
+
+### Version 2.7
+
+- Native Claude Code support for Windows
 
 ### Version 2.6
 

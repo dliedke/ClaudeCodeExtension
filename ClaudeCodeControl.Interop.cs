@@ -131,6 +131,12 @@ namespace ClaudeCodeVS
         private static extern bool IsWindow(IntPtr hWnd);
 
         /// <summary>
+        /// Determines the visibility state of the specified window
+        /// </summary>
+        [DllImport("user32.dll")]
+        private static extern bool IsWindowVisible(IntPtr hWnd);
+
+        /// <summary>
         /// Changes an attribute of the specified window
         /// </summary>
         [DllImport("user32.dll")]

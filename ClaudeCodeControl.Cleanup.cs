@@ -13,6 +13,7 @@
 using System;
 using System.IO;
 using System.Diagnostics;
+using System.Management;
 using System.Windows;
 using Microsoft.VisualStudio.Shell;
 using Microsoft.VisualStudio.Shell.Interop;
@@ -138,11 +139,32 @@ namespace ClaudeCodeVS
         {
             try
             {
+                // Kill child processes (like claude.exe) before killing the main cmd process
+                if (cmdProcess != null && !cmdProcess.HasExited)
+                {
+                    try
+                    {
+                        Debug.WriteLine($"Killing child processes of cmd process (PID: {cmdProcess.Id})");
+                        KillProcessAndChildren(cmdProcess.Id);
+                    }
+                    catch (Exception ex)
+                    {
+                        Debug.WriteLine($"Error killing child processes: {ex.Message}");
+                    }
+                }
+
                 // Kill and dispose terminal process
                 if (cmdProcess != null && !cmdProcess.HasExited)
                 {
-                    cmdProcess.Kill();
-                    cmdProcess.Dispose();
+                    try
+                    {
+                        cmdProcess.Kill();
+                        cmdProcess.Dispose();
+                    }
+                    catch (Exception ex)
+                    {
+                        Debug.WriteLine($"Error disposing cmd process: {ex.Message}");
+                    }
                     cmdProcess = null;
                 }
 
@@ -175,6 +197,49 @@ namespace ClaudeCodeVS
             catch (Exception ex)
             {
                 Debug.WriteLine($"Error during cleanup: {ex.Message}");
+            }
+        }
+
+        /// <summary>
+        /// Kills a process and all its child processes
+        /// </summary>
+        /// <param name="processId">The process ID to kill</param>
+        private void KillProcessAndChildren(int processId)
+        {
+            try
+            {
+                // Use WMI to find and kill child processes
+                using (var searcher = new System.Management.ManagementObjectSearcher(
+                    $"SELECT ProcessId FROM Win32_Process WHERE ParentProcessId={processId}"))
+                {
+                    foreach (var obj in searcher.Get())
+                    {
+                        try
+                        {
+                            int childProcessId = Convert.ToInt32(obj["ProcessId"]);
+                            Debug.WriteLine($"Killing child process: {childProcessId}");
+
+                            // Recursively kill children of this child
+                            KillProcessAndChildren(childProcessId);
+
+                            // Kill the child process
+                            var childProcess = Process.GetProcessById(childProcessId);
+                            if (!childProcess.HasExited)
+                            {
+                                childProcess.Kill();
+                                childProcess.Dispose();
+                            }
+                        }
+                        catch (Exception ex)
+                        {
+                            Debug.WriteLine($"Error killing child process: {ex.Message}");
+                        }
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"Error in KillProcessAndChildren: {ex.Message}");
             }
         }
 

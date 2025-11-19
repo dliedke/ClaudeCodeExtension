@@ -48,14 +48,30 @@ namespace ClaudeCodeVS
         #region Provider Detection
 
         /// <summary>
-        /// Checks if Claude Code CLI is available in the system PATH
+        /// Checks if Claude Code CLI is available (native or NPM installation)
+        /// Prioritizes native installation at %USERPROFILE%\.local\bin\claude.exe
+        /// Falls back to NPM installation (claude.cmd in PATH)
         /// </summary>
-        /// <returns>True if claude.cmd is available, false otherwise</returns>
+        /// <returns>True if claude is available, false otherwise</returns>
         private async Task<bool> IsClaudeCmdAvailableAsync()
         {
             try
             {
-                // Check if claude.cmd is available in PATH using 'where' command
+                // First, check for native installation at %USERPROFILE%\.local\bin\claude.exe
+                string userProfile = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+                string nativeClaudePath = Path.Combine(userProfile, ".local", "bin", "claude.exe");
+
+                Debug.WriteLine($"Checking for native Claude installation at: {nativeClaudePath}");
+
+                if (File.Exists(nativeClaudePath))
+                {
+                    Debug.WriteLine("Native Claude installation found");
+                    return true;
+                }
+
+                Debug.WriteLine("Native Claude installation not found, checking NPM installation...");
+
+                // If native not found, check for NPM installation (claude.cmd in PATH)
                 var startInfo = new ProcessStartInfo
                 {
                     FileName = "cmd.exe",
@@ -77,26 +93,26 @@ namespace ClaudeCodeVS
                     if (!completed)
                     {
                         try { process.Kill(); } catch { }
-                        Debug.WriteLine("Claude check timed out");
+                        Debug.WriteLine("Claude NPM check timed out");
                         return false;
                     }
 
                     string output = await process.StandardOutput.ReadToEndAsync();
                     string error = await process.StandardError.ReadToEndAsync();
 
-                    Debug.WriteLine($"Claude check - Exit code: {process.ExitCode}");
-                    Debug.WriteLine($"Claude check - Output: {output}");
-                    Debug.WriteLine($"Claude check - Error: {error}");
+                    Debug.WriteLine($"Claude NPM check - Exit code: {process.ExitCode}");
+                    Debug.WriteLine($"Claude NPM check - Output: {output}");
+                    Debug.WriteLine($"Claude NPM check - Error: {error}");
 
                     bool isAvailable = process.ExitCode == 0 && !string.IsNullOrWhiteSpace(output);
-                    Debug.WriteLine($"Claude availability result: {isAvailable}");
+                    Debug.WriteLine($"Claude NPM availability result: {isAvailable}");
 
                     return isAvailable;
                 }
             }
             catch (Exception ex)
             {
-                Debug.WriteLine($"Error checking for claude.cmd: {ex.Message}");
+                Debug.WriteLine($"Error checking for Claude: {ex.Message}");
                 return false;
             }
         }
@@ -455,32 +471,29 @@ namespace ClaudeCodeVS
         /// </summary>
         private void ShowClaudeInstallationInstructions()
         {
-            const string setupUrl = "https://docs.claude.com/en/docs/claude-code/setup";
-            const string message = "Claude Code is not installed. A regular CMD terminal will be used instead.\n\n" +
-                                   "To get the full Claude Code experience, you can install it with:\n" +
-                                   "npm install -g @anthropic-ai/claude-code\n\n" +
-                                   "Would you like to open the setup documentation for more details?";
+            const string instructions = @"Claude Code is not installed. A regular CMD terminal will be used instead.
 
-            var result = MessageBox.Show(message, "Claude Code Installation",
-                                       MessageBoxButton.YesNo, MessageBoxImage.Information);
+(you may click CTRL+C to copy full instructions)
 
-            if (result == MessageBoxResult.Yes)
-            {
-                try
-                {
-                    Process.Start(new ProcessStartInfo
-                    {
-                        FileName = setupUrl,
-                        UseShellExecute = true
-                    });
-                }
-                catch (Exception ex)
-                {
-                    Debug.WriteLine($"Failed to open setup URL: {ex.Message}");
-                    MessageBox.Show($"Please visit: {setupUrl}", "Setup URL",
-                                  MessageBoxButton.OK, MessageBoxImage.Information);
-                }
-            }
+RECOMMENDED: Native Installation (Windows)
+
+Open cmd as administrator and run:
+
+curl -fsSL https://claude.ai/install.cmd -o install.cmd && install.cmd && del install.cmd
+
+Then add claude.exe to the PATH environment variable:
+C:\Users\%username%\.local\bin
+
+ALTERNATIVE: NPM Installation
+
+If you prefer using NPM, you can install it with:
+
+npm install -g @anthropic-ai/claude-code
+
+For more details, visit: https://docs.claude.com/en/docs/claude-code/setup";
+
+            MessageBox.Show(instructions, "Claude Code Installation",
+                          MessageBoxButton.OK, MessageBoxImage.Information);
         }
 
         /// <summary>
