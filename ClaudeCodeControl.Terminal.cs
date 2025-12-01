@@ -59,9 +59,10 @@ namespace ClaudeCodeVS
                 bool useClaudeCodeWSL = _settings?.SelectedProvider == AiProvider.ClaudeCodeWSL;
                 bool useCodex = _settings?.SelectedProvider == AiProvider.Codex;
                 bool useCursorAgent = _settings?.SelectedProvider == AiProvider.CursorAgent;
+                bool useQwenCode = _settings?.SelectedProvider == AiProvider.QwenCode;
                 bool providerAvailable = false;
 
-                Debug.WriteLine($"User selected provider: {(useCursorAgent ? "Cursor Agent" : useClaudeCodeWSL ? "Claude Code (WSL)" : useCodex ? "Codex" : "Claude Code")}");
+                Debug.WriteLine($"User selected provider: {(useCursorAgent ? "Cursor Agent" : useClaudeCodeWSL ? "Claude Code (WSL)" : useCodex ? "Codex" : useQwenCode ? "Qwen Code" : "Claude Code")}");
 
                 if (useCursorAgent)
                 {
@@ -84,6 +85,12 @@ namespace ClaudeCodeVS
                     Debug.WriteLine("Checking Claude Code (WSL) availability...");
                     providerAvailable = await IsClaudeCodeWSLAvailableAsync();
                     Debug.WriteLine($"Claude Code (WSL) available: {providerAvailable}");
+                }
+                else if (useQwenCode)
+                {
+                    Debug.WriteLine("Checking Qwen Code availability...");
+                    providerAvailable = await IsQwenCodeAvailableAsync();
+                    Debug.WriteLine($"Qwen Code available: {providerAvailable}");
                 }
                 else
                 {
@@ -185,6 +192,24 @@ namespace ClaudeCodeVS
                         await StartEmbeddedTerminalAsync(null); // Regular CMD
                     }
                 }
+                else if (useQwenCode)
+                {
+                    if (providerAvailable)
+                    {
+                        Debug.WriteLine("Starting Qwen Code terminal...");
+                        await StartEmbeddedTerminalAsync(AiProvider.QwenCode);
+                    }
+                    else
+                    {
+                        Debug.WriteLine("Qwen Code not available, showing installation instructions...");
+                        if (!_qwenCodeNotificationShown)
+                        {
+                            _qwenCodeNotificationShown = true;
+                            ShowQwenCodeInstallationInstructions();
+                        }
+                        await StartEmbeddedTerminalAsync(null); // Regular CMD
+                    }
+                }
                 else
                 {
                     if (providerAvailable)
@@ -245,16 +270,24 @@ namespace ClaudeCodeVS
                             if (isCodex)
                             {
                                 // For Codex, send CTRL+C twice to exit
-                                Debug.WriteLine("Sending CTRL+C CTRL+C to Codex terminal before restarting...");
+                                Debug.WriteLine($"Sending CTRL+C CTRL+C to {_currentRunningProvider} terminal before restarting...");
                                 SendCtrlC();
                                 await Task.Delay(500);
                                 SendCtrlC();
                             }
                             else
                             {
-                                // For other agents, send exit command
-                                Debug.WriteLine("Sending exit command to terminal before restarting...");
-                                SendTextToTerminal("exit");
+                                // For other agents including QwenCode, send appropriate exit command
+                                if (_currentRunningProvider == AiProvider.QwenCode)
+                                {
+                                    Debug.WriteLine("Sending /quit command to Qwen Code terminal before restarting...");
+                                    SendTextToTerminal("/quit");
+                                }
+                                else
+                                {
+                                    Debug.WriteLine("Sending exit command to terminal before restarting...");
+                                    SendTextToTerminal("exit");
+                                }
                             }
 
                             // Give it time to exit
@@ -302,6 +335,11 @@ namespace ClaudeCodeVS
                         Debug.WriteLine($"Starting Claude Code in directory: {workspaceDir}");
                         string claudeCommand = GetClaudeCommand();
                         terminalCommand = $"/k cd /d \"{workspaceDir}\" && ping localhost -n 3 >nul && cls && {claudeCommand}";
+                        break;
+
+                    case AiProvider.QwenCode:
+                        Debug.WriteLine($"Starting Qwen Code in directory: {workspaceDir}");
+                        terminalCommand = $"/k cd /d \"{workspaceDir}\" && ping localhost -n 3 >nul && cls && qwen";
                         break;
 
                     default: // null or any other value = regular CMD
@@ -388,6 +426,9 @@ namespace ClaudeCodeVS
                                 break;
                             case AiProvider.ClaudeCode:
                                 providerTitle = "Claude Code";
+                                break;
+                            case AiProvider.QwenCode:
+                                providerTitle = "Qwen Code";
                                 break;
                             default:
                                 providerTitle = "CMD";
@@ -525,6 +566,15 @@ namespace ClaudeCodeVS
                         System.Threading.Thread.Sleep(1500);
                         Debug.WriteLine("Sending Claude Code update command");
                         SendTextToTerminal("claude update");
+                        break;
+
+                    case AiProvider.QwenCode:
+                        // Qwen Code: send /quit command to exit
+                        Debug.WriteLine("Exiting Qwen Code with /quit command");
+                        SendTextToTerminal("/quit");
+                        System.Threading.Thread.Sleep(1500);
+                        Debug.WriteLine("Sending Qwen Code update command");
+                        SendTextToTerminal("npm install -g @qwen-code/qwen-code@latest");
                         break;
 
                     default:
@@ -681,6 +731,10 @@ namespace ClaudeCodeVS
 
                     case AiProvider.ClaudeCode:
                         providerAvailable = await IsClaudeCmdAvailableAsync();
+                        break;
+
+                    case AiProvider.QwenCode:
+                        providerAvailable = await IsQwenCodeAvailableAsync();
                         break;
                 }
 

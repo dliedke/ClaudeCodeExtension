@@ -21,5 +21,5 @@
 - **Constants**: Use `const` for hardcoded strings (e.g., `ConfigurationFileName`), `static readonly` for computed values
 
 ## Architecture
-- Extension embeds terminal (cmd.exe or wsl.exe) using Win32 interop to host AI CLI tools (Claude Code, Codex, Cursor Agent)
+- Extension embeds terminal (cmd.exe or wsl.exe) using Win32 interop to host AI CLI tools (Claude Code, Codex, Cursor Agent, Qwen Code)
 - Settings, theme, workspace, terminal I/O, and provider management are separated into partial class files for maintainability

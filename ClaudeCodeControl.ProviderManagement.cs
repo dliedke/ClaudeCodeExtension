@@ -43,6 +43,11 @@ namespace ClaudeCodeVS
         /// </summary>
         private static bool _cursorAgentNotificationShown = false;
 
+        /// <summary>
+        /// Flag to show Qwen Code installation notification only once per session
+        /// </summary>
+        private static bool _qwenCodeNotificationShown = false;
+
         #endregion
 
         #region Provider Detection
@@ -462,6 +467,60 @@ namespace ClaudeCodeVS
             }
         }
 
+        /// <summary>
+        /// Checks if Qwen Code CLI is available (native or NPM installation)
+        /// Prioritizes NPM installation (qwen in PATH) but also checks for other possible installations
+        /// </summary>
+        /// <returns>True if qwen is available, false otherwise</returns>
+        private async Task<bool> IsQwenCodeAvailableAsync()
+        {
+            try
+            {
+                var startInfo = new ProcessStartInfo
+                {
+                    FileName = "cmd.exe",
+                    Arguments = "/c where qwen",
+                    UseShellExecute = false,
+                    RedirectStandardOutput = true,
+                    RedirectStandardError = true,
+                    CreateNoWindow = true
+                };
+
+                using (var process = Process.Start(startInfo))
+                {
+                    // Use async wait to avoid blocking UI thread
+                    var completed = await Task.Run(() =>
+                    {
+                        return process.WaitForExit(3000); // 3 second timeout
+                    });
+
+                    if (!completed)
+                    {
+                        try { process.Kill(); } catch { }
+                        Debug.WriteLine("Qwen Code check timed out");
+                        return false;
+                    }
+
+                    string output = await process.StandardOutput.ReadToEndAsync();
+                    string error = await process.StandardError.ReadToEndAsync();
+
+                    Debug.WriteLine($"Qwen Code check - Exit code: {process.ExitCode}");
+                    Debug.WriteLine($"Qwen Code check - Output: {output}");
+                    Debug.WriteLine($"Qwen Code check - Error: {error}");
+
+                    bool isAvailable = process.ExitCode == 0 && !string.IsNullOrWhiteSpace(output);
+                    Debug.WriteLine($"Qwen Code availability result: {isAvailable}");
+
+                    return isAvailable;
+                }
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"Error checking for Qwen Code: {ex.Message}");
+                return false;
+            }
+        }
+
         #endregion
 
         #region Installation Instructions
@@ -608,9 +667,69 @@ cursor-agent";
                           MessageBoxButton.OK, MessageBoxImage.Information);
         }
 
+        /// <summary>
+        /// Shows installation instructions for Qwen Code CLI
+        /// </summary>
+        private void ShowQwenCodeInstallationInstructions()
+        {
+            const string instructions = @"Qwen Code is not installed. A regular CMD terminal will be used instead.
+
+(you may click CTRL+C to copy full instructions)
+
+INSTALLATION: NPM Installation (Recommended)
+
+Open cmd and run:
+
+npm install -g @qwen-code/qwen-code@latest
+
+Alternatively, you can install from source:
+
+git clone https://github.com/QwenLM/qwen-code.git
+cd qwen-code
+npm install
+npm install -g .
+
+Requirements:
+- Node.js version 20 or higher
+
+For more details, visit: https://github.com/QwenLM/qwen-code";
+
+            MessageBox.Show(instructions, "Qwen Code Installation",
+                          MessageBoxButton.OK, MessageBoxImage.Information);
+        }
+
         #endregion
 
         #region Provider Switching
+
+        /// <summary>
+        /// Handles Qwen Code menu item click - switches to Qwen Code provider
+        /// </summary>
+        private void QwenCodeMenuItem_Click(object sender, RoutedEventArgs e)
+        {
+            if (_settings == null) return;
+
+            ThreadHelper.JoinableTaskFactory.Run(async delegate
+            {
+                bool qwenCodeAvailable = await IsQwenCodeAvailableAsync();
+                await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
+
+                // Always update the selection regardless of availability
+                _settings.SelectedProvider = AiProvider.QwenCode;
+                UpdateProviderSelection();
+                SaveSettings();
+
+                if (!qwenCodeAvailable)
+                {
+                    ShowQwenCodeInstallationInstructions();
+                    await StartEmbeddedTerminalAsync(null); // Regular CMD
+                }
+                else
+                {
+                    await StartEmbeddedTerminalAsync(AiProvider.QwenCode);
+                }
+            });
+        }
 
         /// <summary>
         /// Handles Claude Code menu item click - switches to Claude Code provider
@@ -750,11 +869,13 @@ cursor-agent";
             ClaudeCodeWSLMenuItem.IsChecked = _settings.SelectedProvider == AiProvider.ClaudeCodeWSL;
             CodexMenuItem.IsChecked = _settings.SelectedProvider == AiProvider.Codex;
             CursorAgentMenuItem.IsChecked = _settings.SelectedProvider == AiProvider.CursorAgent;
+            QwenCodeMenuItem.IsChecked = _settings.SelectedProvider == AiProvider.QwenCode;
 
             // Update GroupBox header to show selected provider (not necessarily running yet)
             string providerName = _settings.SelectedProvider == AiProvider.ClaudeCode ? "Claude Code" :
                                   _settings.SelectedProvider == AiProvider.ClaudeCodeWSL ? "Claude Code" :
                                   _settings.SelectedProvider == AiProvider.Codex ? "Codex" :
+                                  _settings.SelectedProvider == AiProvider.QwenCode ? "Qwen Code" :
                                   "Cursor Agent";
             TerminalGroupBox.Header = providerName;
 

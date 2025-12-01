@@ -18,6 +18,7 @@ A Visual Studio extension that provides seamless integration with Claude Code, O
 - **Claude Code (WSL)**: Support for Claude Code running inside WSL (Windows Subsystem for Linux)
 - **OpenAI Codex**: Support for Codex AI assistant running inside WSL
 - **Cursor Agent**: Support for Cursor Agent running inside WSL
+- **Qwen Code**: Support for Qwen Code AI assistant (requires Node.js 20+)
 - **Provider Switching**: Easy dropdown menu to switch between providers
 - **Smart Detection**: Automatic detection and installation instructions for each AI tool
 
@@ -67,6 +68,8 @@ A Visual Studio extension that provides seamless integration with Claude Code, O
   Installation instructions are provided automatically if not installed
 - **For Cursor Agent**: Windows Subsystem for Linux (WSL) + Cursor Agent installed inside WSL
   Installation instructions are provided automatically if not installed
+- **For Qwen Code**: Node.js version 20 or higher + Qwen Code CLI installed and accessible via `qwen` in path.
+  Installation instructions are provided automatically if not installed
 
 ## Installation
 
@@ -110,6 +113,7 @@ Open windows settings, search for "Terminal settings", change Terminal option to
 - **Claude Code (WSL)**: Switch to Claude Code running inside WSL
 - **Codex**: Switch to Codex AI assistant (runs inside WSL)
 - **Cursor Agent**: Switch to Cursor Agent (runs inside WSL)
+- **Qwen Code**: Switch to Qwen Code AI assistant (requires Node.js 20+)
 - **About**: View extension version and information
 
 ### Customization
@@ -126,10 +130,15 @@ The extension includes a convenient Update Agent button (🔄️) that automatic
 - **Claude Code (WSL)**: Exits the agent and runs `claude update` inside WSL
 - **Codex**: Exits the agent and runs `npm install -g @openai/codex@latest` inside WSL
 - **Cursor Agent**: Exits the agent and runs `cursor-agent update` inside WSL
+- **Qwen Code**: Exits the agent (using /quit command) and runs `npm install -g @qwen-code/qwen-code@latest` to update
 
-Simply click the update button and the extension will handle the entire update process for you. All agents now use a consistent `exit` command before updating.
+Simply click the update button and the extension will handle the entire update process for you. Agents use appropriate exit methods (exit command for most, double CTRL+C for Codex, /quit command for Qwen Code) before updating.
 
 ## Version History
+
+### Version 3.0
+
+- Qwen Code support. And yes, it was developed with Qwen Code itself for testing purposes. Images not supported.
 
 ### Version 2.8
 

@@ -106,6 +106,8 @@ namespace ClaudeCodeVS
                 bool isOtherWSLProvider = _currentRunningProvider == AiProvider.Codex ||
                                          _currentRunningProvider == AiProvider.CursorAgent;
 
+                bool isQwenCode = _currentRunningProvider == AiProvider.QwenCode;
+
                 if (isClaudeCodeWSL)
                 {
                     // For Claude Code (WSL), send Enter using WM_CHAR
@@ -115,6 +117,11 @@ namespace ClaudeCodeVS
                 {
                     // For other WSL-based providers (Codex, CursorAgent), use KEYDOWN/KEYUP approach
                     SendEnterKeyDownUp();
+                }
+                else if (isQwenCode)
+                {
+                    // For Qwen Code, use single WM_CHAR (similar to Claude Code)
+                    PostMessage(terminalHandle, WM_CHAR, new IntPtr(VK_RETURN), IntPtr.Zero);
                 }
                 else
                 {
