@@ -136,6 +136,10 @@ Simply click the update button and the extension will handle the entire update p
 
 ## Version History
 
+### Version 3.1
+
+- Fixed instructions and about screens
+
 ### Version 3.0
 
 - Qwen Code support. And yes, it was developed with Qwen Code itself for testing purposes. Images not supported.
@@ -303,4 +307,4 @@ For licensing inquiries or permission requests, please contact the author.
 
 *Claude Code Extension for Visual Studio - Enhancing your AI-assisted development workflow*
 
-*Build with the help of Claude Opus 4.1, Claude Code and GPT-5*
+*Build with the help of Claude Opus 4.1, Claude Code, GPT-5 and Qwen Code*
