@@ -918,7 +918,7 @@ For more details, visit: https://github.com/QwenLM/qwen-code";
                                 $"Version: {version}\n" +
                                 $"Author: Daniel Liedke\n" +
                                 $"Copyright © Daniel Liedke 2025\n\n" +
-                                $"Provides seamless integration with Claude Code, Codex and Cursor Agent AI assistants directly within Visual Studio 2022 IDE.";
+                                $"Provides seamless integration with Claude Code, Codex, Cursor Agent and Qwen Code AI assistants directly within Visual Studio 2022 IDE.";
 
             MessageBox.Show(aboutMessage, "About Claude Code Extension",
                           MessageBoxButton.OK, MessageBoxImage.Information);

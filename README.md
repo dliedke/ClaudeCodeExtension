@@ -83,9 +83,9 @@ Open windows settings, search for "Terminal settings", change Terminal option to
 
 ## Quick Start
 
-- **First Time Setup**: Ensure your preferred AI provider (Claude Code, Claude Code WSL, OpenAI Codex, or Cursor Agent) is installed and accessible
+- **First Time Setup**: Ensure your preferred AI provider (Claude Code, Claude Code WSL, OpenAI Codex, Cursor Agent, or Qwen Code) is installed and accessible
 - **Open Tool Window**: View → Other Windows → Claude Code Extension
-- **Choose AI Provider**: Click the ⚙ (gear) button to select between Claude Code, Claude Code (WSL), Codex, and Cursor Agent
+- **Choose AI Provider**: Click the ⚙ (gear) button to select between Claude Code, Claude Code (WSL), Codex, Cursor Agent, and Qwen Code
 - **Start Chatting**: Type your prompt and press Enter
 - **Add Images**: Use Ctrl+V to paste or click "Add Image" button
 - **Customize**: Toggle "Send with Enter" and adjust layout as needed
