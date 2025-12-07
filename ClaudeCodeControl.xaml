@@ -223,6 +223,24 @@
                             ToolTip="Restart Code Agent"
                             Margin="0,0,4,0"/>
 
+					<Button x:Name="ModelDropdownButton"
+                            Content="🤖"
+                            Width="30"
+                            Height="30"
+                            FontSize="14"
+                            Style="{StaticResource GrayGearButtonStyle}"
+                            FontFamily="Consolas"
+                            ToolTip="Claude Model Selection"
+                            Click="ModelDropdownButton_Click"
+                            Margin="0,0,4,0">
+						<Button.ContextMenu>
+							<ContextMenu x:Name="ModelContextMenu">
+								<MenuItem Header="Opus - Complex tasks" x:Name="OpusMenuItem" Click="OpusMenuItem_Click" IsCheckable="True"/>
+								<MenuItem Header="Sonnet - Everyday tasks" x:Name="SonnetMenuItem" Click="SonnetMenuItem_Click" IsCheckable="True" IsChecked="True"/>
+								<MenuItem Header="Haiku - Easy tasks" x:Name="HaikuMenuItem" Click="HaikuMenuItem_Click" IsCheckable="True"/>
+							</ContextMenu>
+						</Button.ContextMenu>
+					</Button>
 					<Button x:Name="MenuDropdownButton"
                             Content="⚙"
                             Width="30"

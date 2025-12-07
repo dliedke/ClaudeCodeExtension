@@ -262,6 +262,9 @@ namespace ClaudeCodeVS
 
             // Update provider selection and title
             UpdateProviderSelection();
+
+            // Update model selection
+            UpdateModelSelection();
         }
 
         #endregion

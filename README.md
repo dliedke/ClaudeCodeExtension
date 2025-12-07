@@ -21,6 +21,7 @@ A Visual Studio extension that provides seamless integration with Claude Code, O
 - **Qwen Code**: Support for Qwen Code AI assistant (requires Node.js 20+)
 - **Provider Switching**: Easy dropdown menu to switch between providers
 - **Smart Detection**: Automatic detection and installation instructions for each AI tool
+- **Claude Model Selection**: Quick model switching for Claude Code (Opus, Sonnet, Haiku) with dropdown menu
 
 ### ⌨️ **Smart Send Controls**
 - **Send with Enter**: Toggle between Enter-to-send and manual send modes
@@ -49,6 +50,7 @@ A Visual Studio extension that provides seamless integration with Claude Code, O
 - **Send with Enter State**: Remembers your preferred input mode
 - **Splitter Position**: Maintains your preferred layout between sessions
 - **AI Provider Selection**: Remembers your preferred AI assistant
+- **Claude Model Selection**: Remembers your last selected Claude model (Opus, Sonnet, or Haiku)
 
 ### 🎨 **Visual Studio Integration**
 - **Dark/Light Theme**: Consistent with Visual Studio's dark/light theme
@@ -86,6 +88,7 @@ Open windows settings, search for "Terminal settings", change Terminal option to
 - **First Time Setup**: Ensure your preferred AI provider (Claude Code, Claude Code WSL, OpenAI Codex, Cursor Agent, or Qwen Code) is installed and accessible
 - **Open Tool Window**: View → Other Windows → Claude Code Extension
 - **Choose AI Provider**: Click the ⚙ (gear) button to select between Claude Code, Claude Code (WSL), Codex, Cursor Agent, and Qwen Code
+- **Select Claude Model**: Click the 🤖 (robot) button to choose between Opus, Sonnet, or Haiku (only visible when Claude Code is selected)
 - **Start Chatting**: Type your prompt and press Enter
 - **Add Images**: Use Ctrl+V to paste or click "Add Image" button
 - **Customize**: Toggle "Send with Enter" and adjust layout as needed
@@ -116,6 +119,14 @@ Open windows settings, search for "Terminal settings", change Terminal option to
 - **Qwen Code**: Switch to Qwen Code AI assistant (requires Node.js 20+)
 - **About**: View extension version and information
 
+### Claude Model Selection Menu
+- **Model Menu**: Click the 🤖 (robot) button to access Claude model selection (only visible when Claude Code or Claude Code WSL is selected)
+- **Opus - Complex tasks**: Switch to Claude Opus for complex, multi-step tasks requiring deep reasoning
+- **Sonnet - Everyday tasks**: Switch to Claude Sonnet for balanced performance on everyday coding tasks (default)
+- **Haiku - Easy tasks**: Switch to Claude Haiku for quick, straightforward tasks with faster responses
+- **Instant Switching**: Model changes are applied immediately by sending the `/model` command to the running terminal
+- **Persistent Selection**: Your model choice is saved and restored between Visual Studio sessions
+
 ### Customization
 - **Send with Enter**: Check/uncheck the checkbox to toggle sending behavior
 - **Layout**: Drag the splitter to adjust the prompt/terminal ratio
@@ -135,6 +146,14 @@ The extension includes a convenient Update Agent button (🔄️) that automatic
 Simply click the update button and the extension will handle the entire update process for you. Agents use appropriate exit methods (exit command for most, double CTRL+C for Codex, /quit command for Qwen Code) before updating.
 
 ## Version History
+
+### Version 3.2
+
+**New Features:**
+- **Claude Model Selection Dropdown**: Added a new 🤖 (robot) button next to the provider settings that allows quick switching between Claude models
+  - **Opus**: For complex, multi-step tasks requiring deep reasoning
+  - **Sonnet**: For everyday coding tasks with balanced performance (default)
+  - **Haiku**: For quick, straightforward tasks with faster responses
 
 ### Version 3.1
 

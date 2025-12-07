@@ -25,6 +25,16 @@ namespace ClaudeCodeVS
     }
 
     /// <summary>
+    /// Claude model types for Claude Code and Claude Code WSL
+    /// </summary>
+    public enum ClaudeModel
+    {
+        Opus,
+        Sonnet,
+        Haiku
+    }
+
+    /// <summary>
     /// Settings configuration for Claude Code extension
     /// </summary>
     public class ClaudeCodeSettings
@@ -44,6 +54,11 @@ namespace ClaudeCodeVS
         /// Currently selected AI provider
         /// </summary>
         public AiProvider SelectedProvider { get; set; } = AiProvider.ClaudeCode;
+
+        /// <summary>
+        /// Currently selected Claude model (for Claude Code and Claude Code WSL providers)
+        /// </summary>
+        public ClaudeModel SelectedClaudeModel { get; set; } = ClaudeModel.Sonnet;
 
         /// <summary>
         /// List of previously sent prompts (most recent last)

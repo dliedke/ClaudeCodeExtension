@@ -879,6 +879,11 @@ For more details, visit: https://github.com/QwenLM/qwen-code";
                                   "Cursor Agent";
             TerminalGroupBox.Header = providerName;
 
+            // Show/hide model selection button based on provider
+            bool isClaudeProvider = _settings.SelectedProvider == AiProvider.ClaudeCode ||
+                                   _settings.SelectedProvider == AiProvider.ClaudeCodeWSL;
+            ModelDropdownButton.Visibility = isClaudeProvider ? Visibility.Visible : Visibility.Collapsed;
+
             // Note: Tool window title will be updated after the terminal actually starts
             // in StartEmbeddedTerminalAsync to reflect what's actually running
         }
@@ -937,6 +942,108 @@ For more details, visit: https://github.com/QwenLM/qwen-code";
                 button.ContextMenu.Placement = System.Windows.Controls.Primitives.PlacementMode.Bottom;
                 button.ContextMenu.IsOpen = true;
             }
+        }
+
+        /// <summary>
+        /// Handles model dropdown button click - shows the Claude model selection menu
+        /// </summary>
+        private void ModelDropdownButton_Click(object sender, RoutedEventArgs e)
+        {
+            // Show the context menu when the model dropdown button is clicked
+            var button = sender as System.Windows.Controls.Button;
+            if (button?.ContextMenu != null)
+            {
+                button.ContextMenu.PlacementTarget = button;
+                button.ContextMenu.Placement = System.Windows.Controls.Primitives.PlacementMode.Bottom;
+                button.ContextMenu.IsOpen = true;
+            }
+        }
+
+        /// <summary>
+        /// Handles Opus menu item click - switches to Opus model
+        /// </summary>
+        private void OpusMenuItem_Click(object sender, RoutedEventArgs e)
+        {
+            if (_settings == null) return;
+
+            ThreadHelper.JoinableTaskFactory.Run(async delegate
+            {
+                await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
+
+                _settings.SelectedClaudeModel = ClaudeModel.Opus;
+                UpdateModelSelection();
+                SaveSettings();
+
+                // Send /model command directly without restarting terminal
+                if (_currentRunningProvider == AiProvider.ClaudeCode ||
+                    _currentRunningProvider == AiProvider.ClaudeCodeWSL)
+                {
+                    SendTextToTerminal("/model opus");
+                }
+            });
+        }
+
+        /// <summary>
+        /// Handles Sonnet menu item click - switches to Sonnet model
+        /// </summary>
+        private void SonnetMenuItem_Click(object sender, RoutedEventArgs e)
+        {
+            if (_settings == null) return;
+
+            ThreadHelper.JoinableTaskFactory.Run(async delegate
+            {
+                await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
+
+                _settings.SelectedClaudeModel = ClaudeModel.Sonnet;
+                UpdateModelSelection();
+                SaveSettings();
+
+                // Send /model command directly without restarting terminal
+                if (_currentRunningProvider == AiProvider.ClaudeCode ||
+                    _currentRunningProvider == AiProvider.ClaudeCodeWSL)
+                {
+                    SendTextToTerminal("/model default");
+                }
+            });
+        }
+
+        /// <summary>
+        /// Handles Haiku menu item click - switches to Haiku model
+        /// </summary>
+        private void HaikuMenuItem_Click(object sender, RoutedEventArgs e)
+        {
+            if (_settings == null) return;
+
+            ThreadHelper.JoinableTaskFactory.Run(async delegate
+            {
+                await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
+
+                _settings.SelectedClaudeModel = ClaudeModel.Haiku;
+                UpdateModelSelection();
+                SaveSettings();
+
+                // Send /model command directly without restarting terminal
+                if (_currentRunningProvider == AiProvider.ClaudeCode ||
+                    _currentRunningProvider == AiProvider.ClaudeCodeWSL)
+                {
+                    SendTextToTerminal("/model haiku");
+                }
+            });
+        }
+
+        /// <summary>
+        /// Updates the model selection UI checkmarks
+        /// </summary>
+        private void UpdateModelSelection()
+        {
+            ThreadHelper.ThrowIfNotOnUIThread();
+
+            if (_settings == null) return;
+
+            // Update menu item checkmarks
+            OpusMenuItem.IsChecked = _settings.SelectedClaudeModel == ClaudeModel.Opus;
+            SonnetMenuItem.IsChecked = _settings.SelectedClaudeModel == ClaudeModel.Sonnet;
+            HaikuMenuItem.IsChecked = _settings.SelectedClaudeModel == ClaudeModel.Haiku;
         }
 
         #endregion
