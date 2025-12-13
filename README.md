@@ -147,6 +147,15 @@ Simply click the update button and the extension will handle the entire update p
 
 ## Version History
 
+### Version 3.3
+
+**Improvements:**
+- **Clipboard Preservation**: The extension now preserves and restores your original clipboard content when sending commands to the AI agent
+  - Supports all clipboard content types including Office data (Excel cells, Word content), images, files, HTML, and RTF
+  - Excel cells are restored properly so you can paste them back as cells (not as images)
+  - Your clipboard contents are automatically saved before sending a command and restored afterward
+  - No more losing copied content when interacting with the AI terminal
+
 ### Version 3.2
 
 **New Features:**

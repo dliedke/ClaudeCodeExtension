@@ -21,14 +21,21 @@ namespace ClaudeCodeVS
 
         /// <summary>
         /// Sends text to the embedded terminal by copying to clipboard and simulating paste
+        /// Preserves the original clipboard content and restores it after sending
         /// </summary>
         /// <param name="text">The text to send to the terminal</param>
         private void SendTextToTerminal(string text)
         {
+            // Dictionary to store all original clipboard formats and their data
+            System.Collections.Generic.Dictionary<string, object> originalClipboardData = null;
+
             try
             {
                 if (terminalHandle != IntPtr.Zero && IsWindow(terminalHandle))
                 {
+                    // Save the current clipboard content before modifying it
+                    originalClipboardData = SaveClipboardContent();
+
                     // Clear clipboard before copying new text to prevent stale content
                     Clipboard.Clear();
                     System.Threading.Thread.Sleep(50);
@@ -60,6 +67,147 @@ namespace ClaudeCodeVS
             {
                 MessageBox.Show($"Error sending text to terminal: {ex.Message}",
                               "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+            finally
+            {
+                // Restore the original clipboard content
+                RestoreClipboardContent(originalClipboardData);
+            }
+        }
+
+        /// <summary>
+        /// Saves all clipboard content formats for later restoration
+        /// Preserves all formats including Office-specific formats (Excel, Word, etc.)
+        /// </summary>
+        /// <returns>Dictionary of format names to data objects, or null if clipboard is empty</returns>
+        private System.Collections.Generic.Dictionary<string, object> SaveClipboardContent()
+        {
+            try
+            {
+                IDataObject dataObject = Clipboard.GetDataObject();
+                if (dataObject == null)
+                    return null;
+
+                string[] formats = dataObject.GetFormats();
+                if (formats == null || formats.Length == 0)
+                    return null;
+
+                var savedData = new System.Collections.Generic.Dictionary<string, object>();
+
+                foreach (string format in formats)
+                {
+                    try
+                    {
+                        // Skip formats that can cause issues
+                        if (format == "EnhancedMetafile" ||
+                            format == "MetaFilePict" ||
+                            format == "DeviceIndependentBitmap" ||
+                            format == "System.Drawing.Bitmap" ||
+                            format.StartsWith("Object Descriptor") ||
+                            format.StartsWith("Link Source") ||
+                            format.StartsWith("Ole Private Data"))
+                            continue;
+
+                        object data = dataObject.GetData(format);
+                        if (data != null)
+                        {
+                            // For MemoryStream, we need to copy it as the original may be disposed
+                            if (data is System.IO.MemoryStream ms)
+                            {
+                                try
+                                {
+                                    if (ms.CanRead && ms.CanSeek)
+                                    {
+                                        var copy = new System.IO.MemoryStream();
+                                        ms.Position = 0;
+                                        ms.CopyTo(copy);
+                                        copy.Position = 0;
+                                        savedData[format] = copy;
+                                    }
+                                }
+                                catch
+                                {
+                                    // Skip streams that can't be copied
+                                }
+                            }
+                            // For other Stream types, skip them as they can cause issues
+                            else if (data is System.IO.Stream)
+                            {
+                                continue;
+                            }
+                            // Save primitive types and strings directly
+                            else if (data is string || data is string[] || data.GetType().IsPrimitive)
+                            {
+                                savedData[format] = data;
+                            }
+                            // For byte arrays, make a copy
+                            else if (data is byte[] bytes)
+                            {
+                                var copy = new byte[bytes.Length];
+                                Array.Copy(bytes, copy, bytes.Length);
+                                savedData[format] = copy;
+                            }
+                        }
+                    }
+                    catch
+                    {
+                        // Skip formats that can't be read
+                    }
+                }
+
+                return savedData.Count > 0 ? savedData : null;
+            }
+            catch
+            {
+                // Silently fail if we can't access clipboard
+                return null;
+            }
+        }
+
+        /// <summary>
+        /// Restores previously saved clipboard content with all formats
+        /// This preserves Office application data (Excel cells, Word content, etc.)
+        /// </summary>
+        /// <param name="savedData">Dictionary of format names to data objects</param>
+        private void RestoreClipboardContent(System.Collections.Generic.Dictionary<string, object> savedData)
+        {
+            try
+            {
+                // Small delay to ensure the paste operation has completed
+                System.Threading.Thread.Sleep(100);
+
+                if (savedData == null || savedData.Count == 0)
+                {
+                    // Original clipboard was empty, clear it
+                    Clipboard.Clear();
+                    return;
+                }
+
+                // Create a new DataObject and add all saved formats
+                DataObject newDataObject = new DataObject();
+
+                foreach (var kvp in savedData)
+                {
+                    try
+                    {
+                        // Reset stream position if it's a stream
+                        if (kvp.Value is System.IO.MemoryStream ms)
+                        {
+                            ms.Position = 0;
+                        }
+                        newDataObject.SetData(kvp.Key, kvp.Value);
+                    }
+                    catch
+                    {
+                        // Skip formats that can't be set
+                    }
+                }
+
+                Clipboard.SetDataObject(newDataObject, true);
+            }
+            catch
+            {
+                // Silently fail if we can't restore clipboard
             }
         }
 
