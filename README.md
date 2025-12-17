@@ -147,6 +147,10 @@ Simply click the update button and the extension will handle the entire update p
 
 ## Version History
 
+### Version 3.5
+
+- Fixes for products supported
+
 ### Version 3.4
 
 **New Features:**
