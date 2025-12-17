@@ -60,7 +60,7 @@ A Visual Studio extension that provides seamless integration with Claude Code, O
 
 ## System Requirements
 
-- Visual Studio 2022 or 2026
+- Visual Studio 2022 or 2026 (x64 and ARM64 supported)
 - Windows operating system
 - **For Claude Code (Windows)**: Claude Pro or better paid subscription + Claude Code CLI installed and accessible via `claude` in path.
   Refer to https://docs.claude.com/en/docs/claude-code/setup for Claude Code installation
@@ -146,6 +146,11 @@ The extension includes a convenient Update Agent button (🔄️) that automatic
 Simply click the update button and the extension will handle the entire update process for you. Agents use appropriate exit methods (exit command for most, double CTRL+C for Codex, /quit command for Qwen Code) before updating.
 
 ## Version History
+
+### Version 3.4
+
+**New Features:**
+- **ARM64 Support**: Added support for ARM64 architecture, enabling the extension to run on Visual Studio 2022/2026 ARM64 versions (e.g., Surface Pro X, Windows Dev Kit 2023, and other ARM-based Windows devices)
 
 ### Version 3.3
 
