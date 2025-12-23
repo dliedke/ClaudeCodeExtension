@@ -21,7 +21,8 @@ namespace ClaudeCodeVS
         ClaudeCodeWSL,
         Codex,
         CursorAgent,
-        QwenCode
+        QwenCode,
+        OpenCode
     }
 
     /// <summary>

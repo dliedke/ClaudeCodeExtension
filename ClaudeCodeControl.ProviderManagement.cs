@@ -48,6 +48,11 @@ namespace ClaudeCodeVS
         /// </summary>
         private static bool _qwenCodeNotificationShown = false;
 
+        /// <summary>
+        /// Flag to show Open Code installation notification only once per session
+        /// </summary>
+        private static bool _openCodeNotificationShown = false;
+
         #endregion
 
         #region Provider Detection
@@ -521,6 +526,60 @@ namespace ClaudeCodeVS
             }
         }
 
+        /// <summary>
+        /// Checks if Open Code CLI is available (NPM installation)
+        /// Uses 'where opencode' to check if opencode is in PATH
+        /// </summary>
+        /// <returns>True if opencode is available, false otherwise</returns>
+        private async Task<bool> IsOpenCodeAvailableAsync()
+        {
+            try
+            {
+                var startInfo = new ProcessStartInfo
+                {
+                    FileName = "cmd.exe",
+                    Arguments = "/c where opencode",
+                    UseShellExecute = false,
+                    RedirectStandardOutput = true,
+                    RedirectStandardError = true,
+                    CreateNoWindow = true
+                };
+
+                using (var process = Process.Start(startInfo))
+                {
+                    // Use async wait to avoid blocking UI thread
+                    var completed = await Task.Run(() =>
+                    {
+                        return process.WaitForExit(3000); // 3 second timeout
+                    });
+
+                    if (!completed)
+                    {
+                        try { process.Kill(); } catch { }
+                        Debug.WriteLine("Open Code check timed out");
+                        return false;
+                    }
+
+                    string output = await process.StandardOutput.ReadToEndAsync();
+                    string error = await process.StandardError.ReadToEndAsync();
+
+                    Debug.WriteLine($"Open Code check - Exit code: {process.ExitCode}");
+                    Debug.WriteLine($"Open Code check - Output: {output}");
+                    Debug.WriteLine($"Open Code check - Error: {error}");
+
+                    bool isAvailable = process.ExitCode == 0 && !string.IsNullOrWhiteSpace(output);
+                    Debug.WriteLine($"Open Code availability result: {isAvailable}");
+
+                    return isAvailable;
+                }
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"Error checking for Open Code: {ex.Message}");
+                return false;
+            }
+        }
+
         #endregion
 
         #region Installation Instructions
@@ -698,6 +757,30 @@ For more details, visit: https://github.com/QwenLM/qwen-code";
                           MessageBoxButton.OK, MessageBoxImage.Information);
         }
 
+        /// <summary>
+        /// Shows installation instructions for Open Code CLI
+        /// </summary>
+        private void ShowOpenCodeInstallationInstructions()
+        {
+            const string instructions = @"Open Code is not installed. A regular CMD terminal will be used instead.
+
+(you may click CTRL+C to copy full instructions)
+
+INSTALLATION: NPM Installation
+
+Open cmd and run:
+
+npm i -g opencode-ai
+
+Requirements:
+- Node.js installed
+
+For more details, visit: https://opencode.ai";
+
+            MessageBox.Show(instructions, "Open Code Installation",
+                          MessageBoxButton.OK, MessageBoxImage.Information);
+        }
+
         #endregion
 
         #region Provider Switching
@@ -727,6 +810,35 @@ For more details, visit: https://github.com/QwenLM/qwen-code";
                 else
                 {
                     await StartEmbeddedTerminalAsync(AiProvider.QwenCode);
+                }
+            });
+        }
+
+        /// <summary>
+        /// Handles Open Code menu item click - switches to Open Code provider
+        /// </summary>
+        private void OpenCodeMenuItem_Click(object sender, RoutedEventArgs e)
+        {
+            if (_settings == null) return;
+
+            ThreadHelper.JoinableTaskFactory.Run(async delegate
+            {
+                bool openCodeAvailable = await IsOpenCodeAvailableAsync();
+                await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
+
+                // Always update the selection regardless of availability
+                _settings.SelectedProvider = AiProvider.OpenCode;
+                UpdateProviderSelection();
+                SaveSettings();
+
+                if (!openCodeAvailable)
+                {
+                    ShowOpenCodeInstallationInstructions();
+                    await StartEmbeddedTerminalAsync(null); // Regular CMD
+                }
+                else
+                {
+                    await StartEmbeddedTerminalAsync(AiProvider.OpenCode);
                 }
             });
         }
@@ -870,12 +982,14 @@ For more details, visit: https://github.com/QwenLM/qwen-code";
             CodexMenuItem.IsChecked = _settings.SelectedProvider == AiProvider.Codex;
             CursorAgentMenuItem.IsChecked = _settings.SelectedProvider == AiProvider.CursorAgent;
             QwenCodeMenuItem.IsChecked = _settings.SelectedProvider == AiProvider.QwenCode;
+            OpenCodeMenuItem.IsChecked = _settings.SelectedProvider == AiProvider.OpenCode;
 
             // Update GroupBox header to show selected provider (not necessarily running yet)
             string providerName = _settings.SelectedProvider == AiProvider.ClaudeCode ? "Claude Code" :
                                   _settings.SelectedProvider == AiProvider.ClaudeCodeWSL ? "Claude Code" :
                                   _settings.SelectedProvider == AiProvider.Codex ? "Codex" :
                                   _settings.SelectedProvider == AiProvider.QwenCode ? "Qwen Code" :
+                                  _settings.SelectedProvider == AiProvider.OpenCode ? "Open Code" :
                                   "Cursor Agent";
             TerminalGroupBox.Header = providerName;
 
@@ -923,7 +1037,7 @@ For more details, visit: https://github.com/QwenLM/qwen-code";
                                 $"Version: {version}\n" +
                                 $"Author: Daniel Liedke\n" +
                                 $"Copyright © Daniel Liedke 2025\n\n" +
-                                $"Provides seamless integration with Claude Code, Codex, Cursor Agent and Qwen Code AI assistants directly within Visual Studio 2022 IDE.";
+                                $"Provides seamless integration with Claude Code, Codex, Cursor Agent, Qwen Code and Open Code AI assistants directly within Visual Studio 2022/2026 IDE.";
 
             MessageBox.Show(aboutMessage, "About Claude Code Extension",
                           MessageBoxButton.OK, MessageBoxImage.Information);

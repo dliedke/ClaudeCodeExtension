@@ -1,4 +1,4 @@
-﻿<UserControl x:Class="ClaudeCodeVS.ClaudeCodeControl"
+<UserControl x:Class="ClaudeCodeVS.ClaudeCodeControl"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
@@ -256,6 +256,7 @@
 								<MenuItem Header="Claude Code (WSL)" x:Name="ClaudeCodeWSLMenuItem" Click="ClaudeCodeWSLMenuItem_Click" IsCheckable="True"/>
 								<MenuItem Header="Codex" x:Name="CodexMenuItem" Click="CodexMenuItem_Click" IsCheckable="True"/>
 								<MenuItem Header="Cursor Agent" x:Name="CursorAgentMenuItem" Click="CursorAgentMenuItem_Click" IsCheckable="True"/>
+								<MenuItem Header="Open Code" x:Name="OpenCodeMenuItem" Click="OpenCodeMenuItem_Click" IsCheckable="True"/>
 								<MenuItem Header="Qwen Code" x:Name="QwenCodeMenuItem" Click="QwenCodeMenuItem_Click" IsCheckable="True"/>
 								<Separator/>
 								<MenuItem Header="About" x:Name="AboutMenuItem" Click="AboutMenuItem_Click"/>

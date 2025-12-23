@@ -46,6 +46,7 @@ namespace ClaudeCodeVS
 
         // Virtual key codes
         private const int VK_RETURN = 0x0D;
+        private const int VK_SHIFT = 0x10;
         private const int VK_CONTROL = 0x11;
         private const int VK_C = 0x43;
 

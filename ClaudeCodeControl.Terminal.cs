@@ -60,9 +60,10 @@ namespace ClaudeCodeVS
                 bool useCodex = _settings?.SelectedProvider == AiProvider.Codex;
                 bool useCursorAgent = _settings?.SelectedProvider == AiProvider.CursorAgent;
                 bool useQwenCode = _settings?.SelectedProvider == AiProvider.QwenCode;
+                bool useOpenCode = _settings?.SelectedProvider == AiProvider.OpenCode;
                 bool providerAvailable = false;
 
-                Debug.WriteLine($"User selected provider: {(useCursorAgent ? "Cursor Agent" : useClaudeCodeWSL ? "Claude Code (WSL)" : useCodex ? "Codex" : useQwenCode ? "Qwen Code" : "Claude Code")}");
+                Debug.WriteLine($"User selected provider: {(useCursorAgent ? "Cursor Agent" : useClaudeCodeWSL ? "Claude Code (WSL)" : useCodex ? "Codex" : useQwenCode ? "Qwen Code" : useOpenCode ? "Open Code" : "Claude Code")}");
 
                 if (useCursorAgent)
                 {
@@ -91,6 +92,12 @@ namespace ClaudeCodeVS
                     Debug.WriteLine("Checking Qwen Code availability...");
                     providerAvailable = await IsQwenCodeAvailableAsync();
                     Debug.WriteLine($"Qwen Code available: {providerAvailable}");
+                }
+                else if (useOpenCode)
+                {
+                    Debug.WriteLine("Checking Open Code availability...");
+                    providerAvailable = await IsOpenCodeAvailableAsync();
+                    Debug.WriteLine($"Open Code available: {providerAvailable}");
                 }
                 else
                 {
@@ -206,6 +213,24 @@ namespace ClaudeCodeVS
                         {
                             _qwenCodeNotificationShown = true;
                             ShowQwenCodeInstallationInstructions();
+                        }
+                        await StartEmbeddedTerminalAsync(null); // Regular CMD
+                    }
+                }
+                else if (useOpenCode)
+                {
+                    if (providerAvailable)
+                    {
+                        Debug.WriteLine("Starting Open Code terminal...");
+                        await StartEmbeddedTerminalAsync(AiProvider.OpenCode);
+                    }
+                    else
+                    {
+                        Debug.WriteLine("Open Code not available, showing installation instructions...");
+                        if (!_openCodeNotificationShown)
+                        {
+                            _openCodeNotificationShown = true;
+                            ShowOpenCodeInstallationInstructions();
                         }
                         await StartEmbeddedTerminalAsync(null); // Regular CMD
                     }
@@ -342,6 +367,11 @@ namespace ClaudeCodeVS
                         terminalCommand = $"/k cd /d \"{workspaceDir}\" && ping localhost -n 3 >nul && cls && qwen";
                         break;
 
+                    case AiProvider.OpenCode:
+                        Debug.WriteLine($"Starting Open Code in directory: {workspaceDir}");
+                        terminalCommand = $"/k cd /d \"{workspaceDir}\" && ping localhost -n 3 >nul && cls && opencode";
+                        break;
+
                     default: // null or any other value = regular CMD
                         Debug.WriteLine($"Starting regular CMD in directory: {workspaceDir}");
                         terminalCommand = $"/k cd /d \"{workspaceDir}\"";
@@ -429,6 +459,9 @@ namespace ClaudeCodeVS
                                 break;
                             case AiProvider.QwenCode:
                                 providerTitle = "Qwen Code";
+                                break;
+                            case AiProvider.OpenCode:
+                                providerTitle = "Open Code";
                                 break;
                             default:
                                 providerTitle = "CMD";
@@ -575,6 +608,15 @@ namespace ClaudeCodeVS
                         System.Threading.Thread.Sleep(1500);
                         Debug.WriteLine("Sending Qwen Code update command");
                         SendTextToTerminal("npm install -g @qwen-code/qwen-code@latest");
+                        break;
+
+                    case AiProvider.OpenCode:
+                        // Open Code: send exit command
+                        Debug.WriteLine("Exiting Open Code");
+                        SendTextToTerminal("exit");
+                        System.Threading.Thread.Sleep(1500);
+                        Debug.WriteLine("Sending Open Code update command");
+                        SendTextToTerminal("npm i -g opencode-ai");
                         break;
 
                     default:
@@ -735,6 +777,10 @@ namespace ClaudeCodeVS
 
                     case AiProvider.QwenCode:
                         providerAvailable = await IsQwenCodeAvailableAsync();
+                        break;
+
+                    case AiProvider.OpenCode:
+                        providerAvailable = await IsOpenCodeAvailableAsync();
                         break;
                 }
 

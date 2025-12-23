@@ -1,6 +1,6 @@
 # Claude Code Extension for Visual Studio
 
-A Visual Studio extension that provides seamless integration with Claude Code, OpenAI Codex or Cursor Agent directly within the Visual Studio IDE.
+A Visual Studio extension that provides seamless integration with Claude Code, OpenAI Codex, Cursor Agent, Qwen Code or Open Code directly within the Visual Studio IDE.
 
 <center>
 <img src="https://i.ibb.co/mFcsh3nt/BFB9-B830-8122-4091-9-C8-B-869959-B1-B391.png" alt="Claude Code Extension Screenshot" width=350 height=450 />
@@ -19,6 +19,7 @@ A Visual Studio extension that provides seamless integration with Claude Code, O
 - **OpenAI Codex**: Support for Codex AI assistant running inside WSL
 - **Cursor Agent**: Support for Cursor Agent running inside WSL
 - **Qwen Code**: Support for Qwen Code AI assistant (requires Node.js 20+)
+- **Open Code**: Support for Open Code AI assistant (requires Node.js 14+)
 - **Provider Switching**: Easy dropdown menu to switch between providers
 - **Smart Detection**: Automatic detection and installation instructions for each AI tool
 - **Claude Model Selection**: Quick model switching for Claude Code (Opus, Sonnet, Haiku) with dropdown menu
@@ -72,6 +73,8 @@ A Visual Studio extension that provides seamless integration with Claude Code, O
   Installation instructions are provided automatically if not installed
 - **For Qwen Code**: Node.js version 20 or higher + Qwen Code CLI installed and accessible via `qwen` in path.
   Installation instructions are provided automatically if not installed
+- **For Open Code**: Node.js version 14 or higher + Open Code CLI installed and accessible via `opencode` in path.
+  Installation instructions are provided automatically if not installed
 
 ## Installation
 
@@ -88,6 +91,7 @@ Open windows settings, search for "Terminal settings", change Terminal option to
 - **First Time Setup**: Ensure your preferred AI provider (Claude Code, Claude Code WSL, OpenAI Codex, Cursor Agent, or Qwen Code) is installed and accessible
 - **Open Tool Window**: View → Other Windows → Claude Code Extension
 - **Choose AI Provider**: Click the ⚙ (gear) button to select between Claude Code, Claude Code (WSL), Codex, Cursor Agent, and Qwen Code
+- **Connect to Provider**: If using open code, press **Ctrl+P**, search for "connect providers", and connect to authenticate with your AI provider if you have login credentials
 - **Select Claude Model**: Click the 🤖 (robot) button to choose between Opus, Sonnet, or Haiku (only visible when Claude Code is selected)
 - **Start Chatting**: Type your prompt and press Enter
 - **Add Images**: Use Ctrl+V to paste or click "Add Image" button
@@ -116,6 +120,7 @@ Open windows settings, search for "Terminal settings", change Terminal option to
 - **Claude Code (WSL)**: Switch to Claude Code running inside WSL
 - **Codex**: Switch to Codex AI assistant (runs inside WSL)
 - **Cursor Agent**: Switch to Cursor Agent (runs inside WSL)
+- **Open Code**: Switch to Open Code AI assistant (Windows)
 - **Qwen Code**: Switch to Qwen Code AI assistant (requires Node.js 20+)
 - **About**: View extension version and information
 
@@ -141,11 +146,18 @@ The extension includes a convenient Update Agent button (🔄️) that automatic
 - **Claude Code (WSL)**: Exits the agent and runs `claude update` inside WSL
 - **Codex**: Exits the agent and runs `npm install -g @openai/codex@latest` inside WSL
 - **Cursor Agent**: Exits the agent and runs `cursor-agent update` inside WSL
+- **Open Code**: Exits the agent and runs `npm i -g opencode-ai`
 - **Qwen Code**: Exits the agent (using /quit command) and runs `npm install -g @qwen-code/qwen-code@latest` to update
 
 Simply click the update button and the extension will handle the entire update process for you. Agents use appropriate exit methods (exit command for most, double CTRL+C for Codex, /quit command for Qwen Code) before updating.
 
 ## Version History
+
+### Version 3.6
+
+**New Features:**
+- **Open Code Support**: Added support for open code integration
+
 
 ### Version 3.5
 

@@ -50,7 +50,15 @@ namespace ClaudeCodeVS
                     System.Threading.Thread.Sleep(700);
 
                     // Right-click to paste in CMD window
-                    RightClickTerminalCenter();
+                    // For OpenCode, use SHIFT+Right-click instead
+                    if (_currentRunningProvider == AiProvider.OpenCode)
+                    {
+                        ShiftRightClickTerminalCenter();
+                    }
+                    else
+                    {
+                        RightClickTerminalCenter();
+                    }
 
                     System.Threading.Thread.Sleep(1000);
 
@@ -240,6 +248,37 @@ namespace ClaudeCodeVS
         }
 
         /// <summary>
+        /// Performs SHIFT+Right-click on the center of the terminal window
+        /// Required for Open Code to paste text properly
+        /// </summary>
+        private void ShiftRightClickTerminalCenter()
+        {
+            if (terminalHandle != IntPtr.Zero && IsWindow(terminalHandle))
+            {
+                GetWindowRect(terminalHandle, out RECT rect);
+                int centerX = rect.Left + (rect.Right - rect.Left) / 2;
+                int centerY = rect.Top + (rect.Bottom - rect.Top) / 2;
+
+                // Move cursor to center
+                SetCursorPos(centerX, centerY);
+                System.Threading.Thread.Sleep(50);
+
+                // Hold SHIFT key down
+                keybd_event(VK_SHIFT, 0, 0, UIntPtr.Zero);
+                System.Threading.Thread.Sleep(50);
+
+                // Perform right-click
+                mouse_event(MOUSEEVENTF_RIGHTDOWN, 0, 0, 0, UIntPtr.Zero);
+                System.Threading.Thread.Sleep(50);
+                mouse_event(MOUSEEVENTF_RIGHTUP, 0, 0, 0, UIntPtr.Zero);
+                System.Threading.Thread.Sleep(50);
+
+                // Release SHIFT key
+                keybd_event(VK_SHIFT, 0, KEYEVENTF_KEYUP, UIntPtr.Zero);
+            }
+        }
+
+        /// <summary>
         /// Sends the Enter key to the terminal window
         /// Uses different methods depending on the provider (WSL-based vs Windows-based)
         /// </summary>
@@ -255,6 +294,7 @@ namespace ClaudeCodeVS
                                          _currentRunningProvider == AiProvider.CursorAgent;
 
                 bool isQwenCode = _currentRunningProvider == AiProvider.QwenCode;
+                bool isOpenCode = _currentRunningProvider == AiProvider.OpenCode;
 
                 if (isClaudeCodeWSL)
                 {
@@ -269,6 +309,11 @@ namespace ClaudeCodeVS
                 else if (isQwenCode)
                 {
                     // For Qwen Code, use single WM_CHAR (similar to Claude Code)
+                    PostMessage(terminalHandle, WM_CHAR, new IntPtr(VK_RETURN), IntPtr.Zero);
+                }
+                else if (isOpenCode)
+                {
+                    // For Open Code, use single WM_CHAR (similar to Claude Code)
                     PostMessage(terminalHandle, WM_CHAR, new IntPtr(VK_RETURN), IntPtr.Zero);
                 }
                 else
