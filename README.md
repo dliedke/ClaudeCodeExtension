@@ -153,11 +153,14 @@ Simply click the update button and the extension will handle the entire update p
 
 ## Version History
 
+### Version 3.7
+- Performance improvements
+- Fix issues setting Sonnet model in some scenarios
+
 ### Version 3.6
 
 **New Features:**
 - **Open Code Support**: Added support for open code integration
-
 
 ### Version 3.5
 

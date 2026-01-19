@@ -11,7 +11,10 @@
  * *******************************************************************************************************************/
 
 using System;
+using System.Threading;
+using System.Threading.Tasks;
 using System.Windows;
+using Microsoft.VisualStudio.Shell;
 
 namespace ClaudeCodeVS
 {
@@ -20,11 +23,31 @@ namespace ClaudeCodeVS
         #region Terminal Communication
 
         /// <summary>
+        /// Timeout for clipboard operations in milliseconds
+        /// </summary>
+        private const int ClipboardTimeoutMs = 2000;
+
+        /// <summary>
         /// Sends text to the embedded terminal by copying to clipboard and simulating paste
         /// Preserves the original clipboard content and restores it after sending
+        /// This is the synchronous wrapper for backward compatibility
         /// </summary>
         /// <param name="text">The text to send to the terminal</param>
         private void SendTextToTerminal(string text)
+        {
+            // Fire and forget with error handling - the async version handles the actual work
+            ThreadHelper.JoinableTaskFactory.Run(async delegate
+            {
+                await SendTextToTerminalAsync(text);
+            });
+        }
+
+        /// <summary>
+        /// Sends text to the embedded terminal asynchronously
+        /// Preserves the original clipboard content and restores it after sending
+        /// </summary>
+        /// <param name="text">The text to send to the terminal</param>
+        private async Task SendTextToTerminalAsync(string text)
         {
             // Dictionary to store all original clipboard formats and their data
             System.Collections.Generic.Dictionary<string, object> originalClipboardData = null;
@@ -33,12 +56,15 @@ namespace ClaudeCodeVS
             {
                 if (terminalHandle != IntPtr.Zero && IsWindow(terminalHandle))
                 {
+                    // Make sure we're on the UI thread for clipboard operations
+                    await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
+
                     // Save the current clipboard content before modifying it
                     originalClipboardData = SaveClipboardContent();
 
                     // Clear clipboard before copying new text to prevent stale content
                     Clipboard.Clear();
-                    System.Threading.Thread.Sleep(50);
+                    await Task.Delay(50);
 
                     // Copy text to clipboard
                     Clipboard.SetText(text);
@@ -47,39 +73,50 @@ namespace ClaudeCodeVS
                     SetForegroundWindow(terminalHandle);
                     SetFocus(terminalHandle);
 
-                    System.Threading.Thread.Sleep(700);
+                    await Task.Delay(500); // Reduced from 700ms
 
                     // Right-click to paste in CMD window
                     // For OpenCode, use SHIFT+Right-click instead
                     if (_currentRunningProvider == AiProvider.OpenCode)
                     {
-                        ShiftRightClickTerminalCenter();
+                        await ShiftRightClickTerminalCenterAsync();
                     }
                     else
                     {
-                        RightClickTerminalCenter();
+                        await RightClickTerminalCenterAsync();
                     }
 
-                    System.Threading.Thread.Sleep(1000);
+                    await Task.Delay(800); // Reduced from 1000ms
 
                     // Send Enter key to execute the command
                     SendEnterKey();
                 }
                 else
                 {
+                    await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
                     MessageBox.Show("Terminal is not available. Please restart the terminal.",
                                   "Terminal Error", MessageBoxButton.OK, MessageBoxImage.Warning);
                 }
             }
             catch (Exception ex)
             {
+                await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
                 MessageBox.Show($"Error sending text to terminal: {ex.Message}",
                               "Error", MessageBoxButton.OK, MessageBoxImage.Error);
             }
             finally
             {
-                // Restore the original clipboard content
-                RestoreClipboardContent(originalClipboardData);
+                // Restore the original clipboard content on UI thread
+                try
+                {
+                    await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
+                    await Task.Delay(100); // Small delay to ensure paste completed
+                    RestoreClipboardContent(originalClipboardData);
+                }
+                catch (Exception ex)
+                {
+                    System.Diagnostics.Debug.WriteLine($"Error restoring clipboard: {ex.Message}");
+                }
             }
         }
 
@@ -181,9 +218,6 @@ namespace ClaudeCodeVS
         {
             try
             {
-                // Small delay to ensure the paste operation has completed
-                System.Threading.Thread.Sleep(100);
-
                 if (savedData == null || savedData.Count == 0)
                 {
                     // Original clipboard was empty, clear it
@@ -220,21 +254,47 @@ namespace ClaudeCodeVS
         }
 
         /// <summary>
-        /// Simulates a right-click at the specified screen coordinates
+        /// Simulates a right-click at the specified screen coordinates (async version)
         /// </summary>
         /// <param name="x">Screen X coordinate</param>
         /// <param name="y">Screen Y coordinate</param>
-        private void SendRightClick(int x, int y)
+        private async Task SendRightClickAsync(int x, int y)
         {
             SetCursorPos(x, y);
-            System.Threading.Thread.Sleep(50);
+            await Task.Delay(30); // Reduced from 50ms
             mouse_event(MOUSEEVENTF_RIGHTDOWN, 0, 0, 0, UIntPtr.Zero);
-            System.Threading.Thread.Sleep(50);
+            await Task.Delay(30); // Reduced from 50ms
             mouse_event(MOUSEEVENTF_RIGHTUP, 0, 0, 0, UIntPtr.Zero);
         }
 
         /// <summary>
-        /// Right-clicks on the center of the terminal window
+        /// Simulates a right-click at the specified screen coordinates (sync version for backward compat)
+        /// </summary>
+        private void SendRightClick(int x, int y)
+        {
+            SetCursorPos(x, y);
+            System.Threading.Thread.Sleep(30);
+            mouse_event(MOUSEEVENTF_RIGHTDOWN, 0, 0, 0, UIntPtr.Zero);
+            System.Threading.Thread.Sleep(30);
+            mouse_event(MOUSEEVENTF_RIGHTUP, 0, 0, 0, UIntPtr.Zero);
+        }
+
+        /// <summary>
+        /// Right-clicks on the center of the terminal window (async version)
+        /// </summary>
+        private async Task RightClickTerminalCenterAsync()
+        {
+            if (terminalHandle != IntPtr.Zero && IsWindow(terminalHandle))
+            {
+                GetWindowRect(terminalHandle, out RECT rect);
+                int centerX = rect.Left + (rect.Right - rect.Left) / 2;
+                int centerY = rect.Top + (rect.Bottom - rect.Top) / 2;
+                await SendRightClickAsync(centerX, centerY);
+            }
+        }
+
+        /// <summary>
+        /// Right-clicks on the center of the terminal window (sync version for backward compat)
         /// </summary>
         private void RightClickTerminalCenter()
         {
@@ -248,7 +308,38 @@ namespace ClaudeCodeVS
         }
 
         /// <summary>
-        /// Performs SHIFT+Right-click on the center of the terminal window
+        /// Performs SHIFT+Right-click on the center of the terminal window (async version)
+        /// Required for Open Code to paste text properly
+        /// </summary>
+        private async Task ShiftRightClickTerminalCenterAsync()
+        {
+            if (terminalHandle != IntPtr.Zero && IsWindow(terminalHandle))
+            {
+                GetWindowRect(terminalHandle, out RECT rect);
+                int centerX = rect.Left + (rect.Right - rect.Left) / 2;
+                int centerY = rect.Top + (rect.Bottom - rect.Top) / 2;
+
+                // Move cursor to center
+                SetCursorPos(centerX, centerY);
+                await Task.Delay(30); // Reduced from 50ms
+
+                // Hold SHIFT key down
+                keybd_event(VK_SHIFT, 0, 0, UIntPtr.Zero);
+                await Task.Delay(30); // Reduced from 50ms
+
+                // Perform right-click
+                mouse_event(MOUSEEVENTF_RIGHTDOWN, 0, 0, 0, UIntPtr.Zero);
+                await Task.Delay(30); // Reduced from 50ms
+                mouse_event(MOUSEEVENTF_RIGHTUP, 0, 0, 0, UIntPtr.Zero);
+                await Task.Delay(30); // Reduced from 50ms
+
+                // Release SHIFT key
+                keybd_event(VK_SHIFT, 0, KEYEVENTF_KEYUP, UIntPtr.Zero);
+            }
+        }
+
+        /// <summary>
+        /// Performs SHIFT+Right-click on the center of the terminal window (sync version)
         /// Required for Open Code to paste text properly
         /// </summary>
         private void ShiftRightClickTerminalCenter()
@@ -261,17 +352,17 @@ namespace ClaudeCodeVS
 
                 // Move cursor to center
                 SetCursorPos(centerX, centerY);
-                System.Threading.Thread.Sleep(50);
+                System.Threading.Thread.Sleep(30);
 
                 // Hold SHIFT key down
                 keybd_event(VK_SHIFT, 0, 0, UIntPtr.Zero);
-                System.Threading.Thread.Sleep(50);
+                System.Threading.Thread.Sleep(30);
 
                 // Perform right-click
                 mouse_event(MOUSEEVENTF_RIGHTDOWN, 0, 0, 0, UIntPtr.Zero);
-                System.Threading.Thread.Sleep(50);
+                System.Threading.Thread.Sleep(30);
                 mouse_event(MOUSEEVENTF_RIGHTUP, 0, 0, 0, UIntPtr.Zero);
-                System.Threading.Thread.Sleep(50);
+                System.Threading.Thread.Sleep(30);
 
                 // Release SHIFT key
                 keybd_event(VK_SHIFT, 0, KEYEVENTF_KEYUP, UIntPtr.Zero);

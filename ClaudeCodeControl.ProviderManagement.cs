@@ -13,6 +13,7 @@
 using System;
 using System.IO;
 using System.Diagnostics;
+using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
 using Microsoft.VisualStudio.Shell;
@@ -55,16 +56,83 @@ namespace ClaudeCodeVS
 
         #endregion
 
+        #region Provider Availability Cache
+
+        /// <summary>
+        /// Cache entry for provider availability with timestamp
+        /// </summary>
+        private class ProviderCacheEntry
+        {
+            public bool IsAvailable { get; set; }
+            public DateTime CachedAt { get; set; }
+        }
+
+        /// <summary>
+        /// Cache for provider availability results to avoid repeated slow checks
+        /// </summary>
+        private static readonly System.Collections.Generic.Dictionary<AiProvider, ProviderCacheEntry> _providerCache
+            = new System.Collections.Generic.Dictionary<AiProvider, ProviderCacheEntry>();
+
+        /// <summary>
+        /// Cache for WSL installation status
+        /// </summary>
+        private static ProviderCacheEntry _wslCache = null;
+
+        /// <summary>
+        /// How long to cache provider availability results (5 minutes)
+        /// </summary>
+        private static readonly TimeSpan ProviderCacheExpiry = TimeSpan.FromMinutes(5);
+
+        /// <summary>
+        /// Lock object for thread-safe cache access
+        /// </summary>
+        private static readonly object _cacheLock = new object();
+
+        /// <summary>
+        /// Checks if a cached provider result is still valid
+        /// </summary>
+        private static bool IsCacheValid(ProviderCacheEntry entry)
+        {
+            return entry != null && (DateTime.UtcNow - entry.CachedAt) < ProviderCacheExpiry;
+        }
+
+        /// <summary>
+        /// Clears the provider availability cache (call when user explicitly checks or after install)
+        /// </summary>
+        public static void ClearProviderCache()
+        {
+            lock (_cacheLock)
+            {
+                _providerCache.Clear();
+                _wslCache = null;
+                Debug.WriteLine("Provider availability cache cleared");
+            }
+        }
+
+        #endregion
+
         #region Provider Detection
 
         /// <summary>
         /// Checks if Claude Code CLI is available (native or NPM installation)
         /// Prioritizes native installation at %USERPROFILE%\.local\bin\claude.exe
         /// Falls back to NPM installation (claude.cmd in PATH)
+        /// Uses caching to avoid repeated slow checks
         /// </summary>
+        /// <param name="cancellationToken">Optional cancellation token</param>
         /// <returns>True if claude is available, false otherwise</returns>
-        private async Task<bool> IsClaudeCmdAvailableAsync()
+        private async Task<bool> IsClaudeCmdAvailableAsync(CancellationToken cancellationToken = default)
         {
+            // Check cache first
+            lock (_cacheLock)
+            {
+                if (_providerCache.TryGetValue(AiProvider.ClaudeCode, out var cached) && IsCacheValid(cached))
+                {
+                    Debug.WriteLine($"Using cached Claude Code availability: {cached.IsAvailable}");
+                    return cached.IsAvailable;
+                }
+            }
+
             try
             {
                 // First, check for native installation at %USERPROFILE%\.local\bin\claude.exe
@@ -76,10 +144,13 @@ namespace ClaudeCodeVS
                 if (File.Exists(nativeClaudePath))
                 {
                     Debug.WriteLine("Native Claude installation found");
+                    CacheProviderResult(AiProvider.ClaudeCode, true);
                     return true;
                 }
 
                 Debug.WriteLine("Native Claude installation not found, checking NPM installation...");
+
+                cancellationToken.ThrowIfCancellationRequested();
 
                 // If native not found, check for NPM installation (claude.cmd in PATH)
                 var startInfo = new ProcessStartInfo
@@ -94,16 +165,14 @@ namespace ClaudeCodeVS
 
                 using (var process = Process.Start(startInfo))
                 {
-                    // Use async wait to avoid blocking UI thread
-                    var completed = await Task.Run(() =>
-                    {
-                        return process.WaitForExit(3000); // 3 second timeout
-                    });
+                    // Use async wait with cancellation support
+                    var completed = await WaitForProcessExitAsync(process, 3000, cancellationToken);
 
                     if (!completed)
                     {
                         try { process.Kill(); } catch { }
                         Debug.WriteLine("Claude NPM check timed out");
+                        CacheProviderResult(AiProvider.ClaudeCode, false);
                         return false;
                     }
 
@@ -117,12 +186,63 @@ namespace ClaudeCodeVS
                     bool isAvailable = process.ExitCode == 0 && !string.IsNullOrWhiteSpace(output);
                     Debug.WriteLine($"Claude NPM availability result: {isAvailable}");
 
+                    CacheProviderResult(AiProvider.ClaudeCode, isAvailable);
                     return isAvailable;
                 }
+            }
+            catch (OperationCanceledException)
+            {
+                Debug.WriteLine("Claude Code check was cancelled");
+                throw;
             }
             catch (Exception ex)
             {
                 Debug.WriteLine($"Error checking for Claude: {ex.Message}");
+                CacheProviderResult(AiProvider.ClaudeCode, false);
+                return false;
+            }
+        }
+
+        /// <summary>
+        /// Caches a provider availability result
+        /// </summary>
+        private static void CacheProviderResult(AiProvider provider, bool isAvailable)
+        {
+            lock (_cacheLock)
+            {
+                _providerCache[provider] = new ProviderCacheEntry
+                {
+                    IsAvailable = isAvailable,
+                    CachedAt = DateTime.UtcNow
+                };
+                Debug.WriteLine($"Cached {provider} availability: {isAvailable}");
+            }
+        }
+
+        /// <summary>
+        /// Waits for a process to exit with timeout and cancellation support
+        /// </summary>
+        private static async Task<bool> WaitForProcessExitAsync(Process process, int timeoutMs, CancellationToken cancellationToken = default)
+        {
+            try
+            {
+                using (var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken))
+                {
+                    cts.CancelAfter(timeoutMs);
+                    await Task.Run(() =>
+                    {
+                        while (!process.HasExited)
+                        {
+                            cts.Token.ThrowIfCancellationRequested();
+                            Thread.Sleep(50);
+                        }
+                    }, cts.Token);
+                    return true;
+                }
+            }
+            catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+            {
+                // Timeout occurred, not user cancellation
                 return false;
             }
         }
@@ -130,26 +250,42 @@ namespace ClaudeCodeVS
         /// <summary>
         /// Checks if Claude Code CLI is available in WSL
         /// Uses retry logic to handle WSL initialization delays after boot
+        /// Uses caching to avoid repeated slow checks
         /// </summary>
+        /// <param name="cancellationToken">Optional cancellation token</param>
         /// <returns>True if claude is available in WSL, false otherwise</returns>
-        private async Task<bool> IsClaudeCodeWSLAvailableAsync()
+        private async Task<bool> IsClaudeCodeWSLAvailableAsync(CancellationToken cancellationToken = default)
         {
+            // Check cache first
+            lock (_cacheLock)
+            {
+                if (_providerCache.TryGetValue(AiProvider.ClaudeCodeWSL, out var cached) && IsCacheValid(cached))
+                {
+                    Debug.WriteLine($"Using cached Claude Code WSL availability: {cached.IsAvailable}");
+                    return cached.IsAvailable;
+                }
+            }
+
             try
             {
                 // Check if WSL is installed first
-                bool wslInstalled = await IsWslInstalledAsync();
+                bool wslInstalled = await IsWslInstalledAsync(cancellationToken);
                 if (!wslInstalled)
                 {
                     Debug.WriteLine("WSL is not installed, Claude Code in WSL not available");
+                    CacheProviderResult(AiProvider.ClaudeCodeWSL, false);
                     return false;
                 }
 
-                // Retry logic for WSL commands (handles WSL initialization after boot)
-                int[] timeouts = { 5000, 8000, 12000 }; // Progressive timeouts: 5s, 8s, 12s
-                int maxRetries = 3;
+                cancellationToken.ThrowIfCancellationRequested();
+
+                // Reduced retry logic - only retry once with shorter timeouts
+                int[] timeouts = { 3000, 5000 }; // Reduced timeouts: 3s, 5s
+                int maxRetries = 2;
 
                 for (int attempt = 1; attempt <= maxRetries; attempt++)
                 {
+                    cancellationToken.ThrowIfCancellationRequested();
                     Debug.WriteLine($"Claude Code WSL check attempt {attempt}/{maxRetries}");
 
                     // Check if claude is available in WSL using 'which claude'
@@ -165,24 +301,21 @@ namespace ClaudeCodeVS
 
                     using (var process = Process.Start(startInfo))
                     {
-                        // Use async wait to avoid blocking UI thread
-                        var completed = await Task.Run(() =>
-                        {
-                            return process.WaitForExit(timeouts[attempt - 1]);
-                        });
+                        var completed = await WaitForProcessExitAsync(process, timeouts[attempt - 1], cancellationToken);
 
                         if (!completed)
                         {
                             try { process.Kill(); } catch { }
                             Debug.WriteLine($"Claude Code WSL check timed out on attempt {attempt}");
 
-                            // If not the last attempt, wait before retrying
+                            // If not the last attempt, wait before retrying (reduced delay)
                             if (attempt < maxRetries)
                             {
-                                Debug.WriteLine($"Waiting 2 seconds before retry (WSL may be initializing)...");
-                                await Task.Delay(2000);
+                                Debug.WriteLine($"Waiting 1 second before retry (WSL may be initializing)...");
+                                await Task.Delay(1000, cancellationToken);
                                 continue;
                             }
+                            CacheProviderResult(AiProvider.ClaudeCodeWSL, false);
                             return false;
                         }
 
@@ -199,6 +332,7 @@ namespace ClaudeCodeVS
                         if (isAvailable)
                         {
                             Debug.WriteLine($"Claude Code in WSL found on attempt {attempt}");
+                            CacheProviderResult(AiProvider.ClaudeCodeWSL, true);
                             return true;
                         }
 
@@ -206,24 +340,32 @@ namespace ClaudeCodeVS
                         if (process.ExitCode == 0 || !string.IsNullOrEmpty(output) || !string.IsNullOrEmpty(error))
                         {
                             Debug.WriteLine($"Claude Code in WSL not found (WSL responded, agent not installed)");
+                            CacheProviderResult(AiProvider.ClaudeCodeWSL, false);
                             return false;
                         }
 
                         // WSL didn't respond properly, retry if we have attempts left
                         if (attempt < maxRetries)
                         {
-                            Debug.WriteLine($"WSL didn't respond properly, waiting 2 seconds before retry...");
-                            await Task.Delay(2000);
+                            Debug.WriteLine($"WSL didn't respond properly, waiting 1 second before retry...");
+                            await Task.Delay(1000, cancellationToken);
                         }
                     }
                 }
 
                 Debug.WriteLine($"Claude Code in WSL not available after {maxRetries} attempts");
+                CacheProviderResult(AiProvider.ClaudeCodeWSL, false);
                 return false;
+            }
+            catch (OperationCanceledException)
+            {
+                Debug.WriteLine("Claude Code WSL check was cancelled");
+                throw;
             }
             catch (Exception ex)
             {
                 Debug.WriteLine($"Error checking for claude in WSL: {ex.Message}");
+                CacheProviderResult(AiProvider.ClaudeCodeWSL, false);
                 return false;
             }
         }
@@ -231,26 +373,42 @@ namespace ClaudeCodeVS
         /// <summary>
         /// Checks if Codex CLI is available in WSL
         /// Uses retry logic to handle WSL initialization delays after boot
+        /// Uses caching to avoid repeated slow checks
         /// </summary>
+        /// <param name="cancellationToken">Optional cancellation token</param>
         /// <returns>True if codex is available in WSL, false otherwise</returns>
-        private async Task<bool> IsCodexCmdAvailableAsync()
+        private async Task<bool> IsCodexCmdAvailableAsync(CancellationToken cancellationToken = default)
         {
+            // Check cache first
+            lock (_cacheLock)
+            {
+                if (_providerCache.TryGetValue(AiProvider.Codex, out var cached) && IsCacheValid(cached))
+                {
+                    Debug.WriteLine($"Using cached Codex availability: {cached.IsAvailable}");
+                    return cached.IsAvailable;
+                }
+            }
+
             try
             {
                 // Check if WSL is installed first
-                bool wslInstalled = await IsWslInstalledAsync();
+                bool wslInstalled = await IsWslInstalledAsync(cancellationToken);
                 if (!wslInstalled)
                 {
                     Debug.WriteLine("WSL is not installed, Codex in WSL not available");
+                    CacheProviderResult(AiProvider.Codex, false);
                     return false;
                 }
 
-                // Retry logic for WSL commands (handles WSL initialization after boot)
-                int[] timeouts = { 5000, 8000, 12000 }; // Progressive timeouts: 5s, 8s, 12s
-                int maxRetries = 3;
+                cancellationToken.ThrowIfCancellationRequested();
+
+                // Reduced retry logic - only retry once with shorter timeouts
+                int[] timeouts = { 3000, 5000 }; // Reduced timeouts: 3s, 5s
+                int maxRetries = 2;
 
                 for (int attempt = 1; attempt <= maxRetries; attempt++)
                 {
+                    cancellationToken.ThrowIfCancellationRequested();
                     Debug.WriteLine($"Codex WSL check attempt {attempt}/{maxRetries}");
 
                     // Check if codex is available in WSL using 'which codex' with interactive shell
@@ -267,24 +425,21 @@ namespace ClaudeCodeVS
 
                     using (var process = Process.Start(startInfo))
                     {
-                        // Use async wait to avoid blocking UI thread
-                        var completed = await Task.Run(() =>
-                        {
-                            return process.WaitForExit(timeouts[attempt - 1]);
-                        });
+                        var completed = await WaitForProcessExitAsync(process, timeouts[attempt - 1], cancellationToken);
 
                         if (!completed)
                         {
                             try { process.Kill(); } catch { }
                             Debug.WriteLine($"Codex check in WSL timed out on attempt {attempt}");
 
-                            // If not the last attempt, wait before retrying
+                            // If not the last attempt, wait before retrying (reduced delay)
                             if (attempt < maxRetries)
                             {
-                                Debug.WriteLine($"Waiting 2 seconds before retry (WSL may be initializing)...");
-                                await Task.Delay(2000);
+                                Debug.WriteLine($"Waiting 1 second before retry (WSL may be initializing)...");
+                                await Task.Delay(1000, cancellationToken);
                                 continue;
                             }
+                            CacheProviderResult(AiProvider.Codex, false);
                             return false;
                         }
 
@@ -301,6 +456,7 @@ namespace ClaudeCodeVS
                         if (isAvailable)
                         {
                             Debug.WriteLine($"Codex in WSL found on attempt {attempt}");
+                            CacheProviderResult(AiProvider.Codex, true);
                             return true;
                         }
 
@@ -308,34 +464,54 @@ namespace ClaudeCodeVS
                         if (process.ExitCode == 0 || !string.IsNullOrEmpty(output) || !string.IsNullOrEmpty(error))
                         {
                             Debug.WriteLine($"Codex in WSL not found (WSL responded, agent not installed)");
+                            CacheProviderResult(AiProvider.Codex, false);
                             return false;
                         }
 
                         // WSL didn't respond properly, retry if we have attempts left
                         if (attempt < maxRetries)
                         {
-                            Debug.WriteLine($"WSL didn't respond properly, waiting 2 seconds before retry...");
-                            await Task.Delay(2000);
+                            Debug.WriteLine($"WSL didn't respond properly, waiting 1 second before retry...");
+                            await Task.Delay(1000, cancellationToken);
                         }
                     }
                 }
 
                 Debug.WriteLine($"Codex in WSL not available after {maxRetries} attempts");
+                CacheProviderResult(AiProvider.Codex, false);
                 return false;
+            }
+            catch (OperationCanceledException)
+            {
+                Debug.WriteLine("Codex check was cancelled");
+                throw;
             }
             catch (Exception ex)
             {
                 Debug.WriteLine($"Error checking for codex in WSL: {ex.Message}");
+                CacheProviderResult(AiProvider.Codex, false);
                 return false;
             }
         }
 
         /// <summary>
         /// Checks if WSL is installed on the system
+        /// Uses caching to avoid repeated slow checks
         /// </summary>
+        /// <param name="cancellationToken">Optional cancellation token</param>
         /// <returns>True if WSL is installed, false otherwise</returns>
-        private async Task<bool> IsWslInstalledAsync()
+        private async Task<bool> IsWslInstalledAsync(CancellationToken cancellationToken = default)
         {
+            // Check cache first
+            lock (_cacheLock)
+            {
+                if (IsCacheValid(_wslCache))
+                {
+                    Debug.WriteLine($"Using cached WSL availability: {_wslCache.IsAvailable}");
+                    return _wslCache.IsAvailable;
+                }
+            }
+
             try
             {
                 var startInfo = new ProcessStartInfo
@@ -350,15 +526,13 @@ namespace ClaudeCodeVS
 
                 using (var process = Process.Start(startInfo))
                 {
-                    var completed = await Task.Run(() =>
-                    {
-                        return process.WaitForExit(3000); // 3 second timeout
-                    });
+                    var completed = await WaitForProcessExitAsync(process, 3000, cancellationToken);
 
                     if (!completed)
                     {
                         try { process.Kill(); } catch { }
                         Debug.WriteLine("WSL check timed out");
+                        CacheWslResult(false);
                         return false;
                     }
 
@@ -372,31 +546,67 @@ namespace ClaudeCodeVS
                     bool isInstalled = process.ExitCode == 0;
                     Debug.WriteLine($"WSL installed: {isInstalled}");
 
+                    CacheWslResult(isInstalled);
                     return isInstalled;
                 }
+            }
+            catch (OperationCanceledException)
+            {
+                Debug.WriteLine("WSL check was cancelled");
+                throw;
             }
             catch (Exception ex)
             {
                 Debug.WriteLine($"Error checking for WSL: {ex.Message}");
+                CacheWslResult(false);
                 return false;
+            }
+        }
+
+        /// <summary>
+        /// Caches WSL installation result
+        /// </summary>
+        private static void CacheWslResult(bool isInstalled)
+        {
+            lock (_cacheLock)
+            {
+                _wslCache = new ProviderCacheEntry
+                {
+                    IsAvailable = isInstalled,
+                    CachedAt = DateTime.UtcNow
+                };
+                Debug.WriteLine($"Cached WSL availability: {isInstalled}");
             }
         }
 
         /// <summary>
         /// Checks if cursor-agent is installed inside WSL by checking for the symlink at ~/.local/bin/cursor-agent
         /// Uses retry logic to handle WSL initialization delays after boot
+        /// Uses caching to avoid repeated slow checks
         /// </summary>
+        /// <param name="cancellationToken">Optional cancellation token</param>
         /// <returns>True if cursor-agent is available in WSL, false otherwise</returns>
-        private async Task<bool> IsCursorAgentInstalledInWslAsync()
+        private async Task<bool> IsCursorAgentInstalledInWslAsync(CancellationToken cancellationToken = default)
         {
+            // Check cache first
+            lock (_cacheLock)
+            {
+                if (_providerCache.TryGetValue(AiProvider.CursorAgent, out var cached) && IsCacheValid(cached))
+                {
+                    Debug.WriteLine($"Using cached Cursor Agent availability: {cached.IsAvailable}");
+                    return cached.IsAvailable;
+                }
+            }
+
             try
             {
-                // Retry logic for WSL commands (handles WSL initialization after boot)
-                int[] timeouts = { 5000, 8000, 12000 }; // Progressive timeouts: 5s, 8s, 12s
-                int maxRetries = 3;
+                // Reduced retry logic - only retry once with shorter timeouts
+                int[] timeouts = { 3000, 5000 }; // Reduced timeouts: 3s, 5s
+                int maxRetries = 2;
 
                 for (int attempt = 1; attempt <= maxRetries; attempt++)
                 {
+                    cancellationToken.ThrowIfCancellationRequested();
                     Debug.WriteLine($"Cursor Agent WSL check attempt {attempt}/{maxRetries}");
 
                     var startInfo = new ProcessStartInfo
@@ -411,23 +621,21 @@ namespace ClaudeCodeVS
 
                     using (var process = Process.Start(startInfo))
                     {
-                        var completed = await Task.Run(() =>
-                        {
-                            return process.WaitForExit(timeouts[attempt - 1]);
-                        });
+                        var completed = await WaitForProcessExitAsync(process, timeouts[attempt - 1], cancellationToken);
 
                         if (!completed)
                         {
                             try { process.Kill(); } catch { }
                             Debug.WriteLine($"Cursor agent check in WSL timed out on attempt {attempt}");
 
-                            // If not the last attempt, wait before retrying
+                            // If not the last attempt, wait before retrying (reduced delay)
                             if (attempt < maxRetries)
                             {
-                                Debug.WriteLine($"Waiting 2 seconds before retry (WSL may be initializing)...");
-                                await Task.Delay(2000);
+                                Debug.WriteLine($"Waiting 1 second before retry (WSL may be initializing)...");
+                                await Task.Delay(1000, cancellationToken);
                                 continue;
                             }
+                            CacheProviderResult(AiProvider.CursorAgent, false);
                             return false;
                         }
 
@@ -443,6 +651,7 @@ namespace ClaudeCodeVS
                         if (isInstalled)
                         {
                             Debug.WriteLine($"Cursor agent found on attempt {attempt}");
+                            CacheProviderResult(AiProvider.CursorAgent, true);
                             return true;
                         }
 
@@ -450,24 +659,32 @@ namespace ClaudeCodeVS
                         if (output.Trim().Equals("notfound", StringComparison.OrdinalIgnoreCase))
                         {
                             Debug.WriteLine($"Cursor agent not found (WSL responded, agent not installed)");
+                            CacheProviderResult(AiProvider.CursorAgent, false);
                             return false;
                         }
 
                         // WSL didn't respond properly, retry if we have attempts left
                         if (attempt < maxRetries)
                         {
-                            Debug.WriteLine($"WSL didn't respond properly, waiting 2 seconds before retry...");
-                            await Task.Delay(2000);
+                            Debug.WriteLine($"WSL didn't respond properly, waiting 1 second before retry...");
+                            await Task.Delay(1000, cancellationToken);
                         }
                     }
                 }
 
                 Debug.WriteLine($"Cursor agent not available after {maxRetries} attempts");
+                CacheProviderResult(AiProvider.CursorAgent, false);
                 return false;
+            }
+            catch (OperationCanceledException)
+            {
+                Debug.WriteLine("Cursor Agent check was cancelled");
+                throw;
             }
             catch (Exception ex)
             {
                 Debug.WriteLine($"Error checking for cursor-agent in WSL: {ex.Message}");
+                CacheProviderResult(AiProvider.CursorAgent, false);
                 return false;
             }
         }
@@ -475,10 +692,22 @@ namespace ClaudeCodeVS
         /// <summary>
         /// Checks if Qwen Code CLI is available (native or NPM installation)
         /// Prioritizes NPM installation (qwen in PATH) but also checks for other possible installations
+        /// Uses caching to avoid repeated slow checks
         /// </summary>
+        /// <param name="cancellationToken">Optional cancellation token</param>
         /// <returns>True if qwen is available, false otherwise</returns>
-        private async Task<bool> IsQwenCodeAvailableAsync()
+        private async Task<bool> IsQwenCodeAvailableAsync(CancellationToken cancellationToken = default)
         {
+            // Check cache first
+            lock (_cacheLock)
+            {
+                if (_providerCache.TryGetValue(AiProvider.QwenCode, out var cached) && IsCacheValid(cached))
+                {
+                    Debug.WriteLine($"Using cached Qwen Code availability: {cached.IsAvailable}");
+                    return cached.IsAvailable;
+                }
+            }
+
             try
             {
                 var startInfo = new ProcessStartInfo
@@ -493,16 +722,13 @@ namespace ClaudeCodeVS
 
                 using (var process = Process.Start(startInfo))
                 {
-                    // Use async wait to avoid blocking UI thread
-                    var completed = await Task.Run(() =>
-                    {
-                        return process.WaitForExit(3000); // 3 second timeout
-                    });
+                    var completed = await WaitForProcessExitAsync(process, 3000, cancellationToken);
 
                     if (!completed)
                     {
                         try { process.Kill(); } catch { }
                         Debug.WriteLine("Qwen Code check timed out");
+                        CacheProviderResult(AiProvider.QwenCode, false);
                         return false;
                     }
 
@@ -516,12 +742,19 @@ namespace ClaudeCodeVS
                     bool isAvailable = process.ExitCode == 0 && !string.IsNullOrWhiteSpace(output);
                     Debug.WriteLine($"Qwen Code availability result: {isAvailable}");
 
+                    CacheProviderResult(AiProvider.QwenCode, isAvailable);
                     return isAvailable;
                 }
+            }
+            catch (OperationCanceledException)
+            {
+                Debug.WriteLine("Qwen Code check was cancelled");
+                throw;
             }
             catch (Exception ex)
             {
                 Debug.WriteLine($"Error checking for Qwen Code: {ex.Message}");
+                CacheProviderResult(AiProvider.QwenCode, false);
                 return false;
             }
         }
@@ -529,10 +762,22 @@ namespace ClaudeCodeVS
         /// <summary>
         /// Checks if Open Code CLI is available (NPM installation)
         /// Uses 'where opencode' to check if opencode is in PATH
+        /// Uses caching to avoid repeated slow checks
         /// </summary>
+        /// <param name="cancellationToken">Optional cancellation token</param>
         /// <returns>True if opencode is available, false otherwise</returns>
-        private async Task<bool> IsOpenCodeAvailableAsync()
+        private async Task<bool> IsOpenCodeAvailableAsync(CancellationToken cancellationToken = default)
         {
+            // Check cache first
+            lock (_cacheLock)
+            {
+                if (_providerCache.TryGetValue(AiProvider.OpenCode, out var cached) && IsCacheValid(cached))
+                {
+                    Debug.WriteLine($"Using cached Open Code availability: {cached.IsAvailable}");
+                    return cached.IsAvailable;
+                }
+            }
+
             try
             {
                 var startInfo = new ProcessStartInfo
@@ -547,16 +792,13 @@ namespace ClaudeCodeVS
 
                 using (var process = Process.Start(startInfo))
                 {
-                    // Use async wait to avoid blocking UI thread
-                    var completed = await Task.Run(() =>
-                    {
-                        return process.WaitForExit(3000); // 3 second timeout
-                    });
+                    var completed = await WaitForProcessExitAsync(process, 3000, cancellationToken);
 
                     if (!completed)
                     {
                         try { process.Kill(); } catch { }
                         Debug.WriteLine("Open Code check timed out");
+                        CacheProviderResult(AiProvider.OpenCode, false);
                         return false;
                     }
 
@@ -570,12 +812,19 @@ namespace ClaudeCodeVS
                     bool isAvailable = process.ExitCode == 0 && !string.IsNullOrWhiteSpace(output);
                     Debug.WriteLine($"Open Code availability result: {isAvailable}");
 
+                    CacheProviderResult(AiProvider.OpenCode, isAvailable);
                     return isAvailable;
                 }
+            }
+            catch (OperationCanceledException)
+            {
+                Debug.WriteLine("Open Code check was cancelled");
+                throw;
             }
             catch (Exception ex)
             {
                 Debug.WriteLine($"Error checking for Open Code: {ex.Message}");
+                CacheProviderResult(AiProvider.OpenCode, false);
                 return false;
             }
         }
@@ -1092,7 +1341,7 @@ For more details, visit: https://opencode.ai";
                 if (_currentRunningProvider == AiProvider.ClaudeCode ||
                     _currentRunningProvider == AiProvider.ClaudeCodeWSL)
                 {
-                    SendTextToTerminal("/model opus");
+                    await SendTextToTerminalAsync("/model opus");
                 }
             });
         }
@@ -1116,7 +1365,7 @@ For more details, visit: https://opencode.ai";
                 if (_currentRunningProvider == AiProvider.ClaudeCode ||
                     _currentRunningProvider == AiProvider.ClaudeCodeWSL)
                 {
-                    SendTextToTerminal("/model default");
+                    await SendTextToTerminalAsync("/model sonnet");
                 }
             });
         }
@@ -1140,7 +1389,7 @@ For more details, visit: https://opencode.ai";
                 if (_currentRunningProvider == AiProvider.ClaudeCode ||
                     _currentRunningProvider == AiProvider.ClaudeCodeWSL)
                 {
-                    SendTextToTerminal("/model haiku");
+                    await SendTextToTerminalAsync("/model haiku");
                 }
             });
         }

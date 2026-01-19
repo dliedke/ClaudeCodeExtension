@@ -14,6 +14,7 @@ using System;
 using System.IO;
 using System.Diagnostics;
 using System.Runtime.InteropServices;
+using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
 using Microsoft.VisualStudio.Shell;
@@ -133,13 +134,13 @@ namespace ClaudeCodeVS
 
                 terminalPanel.Resize += (s, e) => ResizeEmbeddedTerminal();
 
-                // Wait for panel to be properly sized (not just created)
-                int maxWaitMs = 5000; // 5 seconds max
+                // Wait for panel to be properly sized (not just created) - reduced timeout
+                int maxWaitMs = 2000; // Reduced from 5 seconds to 2 seconds
                 int waitedMs = 0;
                 while ((terminalPanel.Width < 100 || terminalPanel.Height < 100) && waitedMs < maxWaitMs)
                 {
-                    await Task.Delay(100);
-                    waitedMs += 100;
+                    await Task.Delay(50); // Reduced poll interval from 100ms to 50ms
+                    waitedMs += 50;
                 }
 
                 Debug.WriteLine($"Panel ready after {waitedMs}ms: {terminalPanel.Width}x{terminalPanel.Height}");
@@ -297,7 +298,7 @@ namespace ClaudeCodeVS
                                 // For Codex, send CTRL+C twice to exit
                                 Debug.WriteLine($"Sending CTRL+C CTRL+C to {_currentRunningProvider} terminal before restarting...");
                                 SendCtrlC();
-                                await Task.Delay(500);
+                                await Task.Delay(400); // Reduced from 500ms
                                 SendCtrlC();
                             }
                             else
@@ -306,17 +307,17 @@ namespace ClaudeCodeVS
                                 if (_currentRunningProvider == AiProvider.QwenCode)
                                 {
                                     Debug.WriteLine("Sending /quit command to Qwen Code terminal before restarting...");
-                                    SendTextToTerminal("/quit");
+                                    await SendTextToTerminalAsync("/quit");
                                 }
                                 else
                                 {
                                     Debug.WriteLine("Sending exit command to terminal before restarting...");
-                                    SendTextToTerminal("exit");
+                                    await SendTextToTerminalAsync("exit");
                                 }
                             }
 
-                            // Give it time to exit
-                            await Task.Delay(1500);
+                            // Give it time to exit - reduced delay
+                            await Task.Delay(1000);
                         }
 
                         // Force kill
@@ -409,8 +410,8 @@ namespace ClaudeCodeVS
                     throw new InvalidOperationException("Failed to create terminal process");
                 }
 
-                // Find and embed the terminal window
-                var hwnd = FindMainWindowHandleByPid(cmdProcess.Id, timeoutMs: 7000, pollIntervalMs: 50);
+                // Find and embed the terminal window (using async version with reduced timeout)
+                var hwnd = await FindMainWindowHandleByPidAsync(cmdProcess.Id, timeoutMs: 5000, pollIntervalMs: 50);
                 terminalHandle = hwnd;
 
                 await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
@@ -508,7 +509,46 @@ namespace ClaudeCodeVS
         }
 
         /// <summary>
-        /// Finds the main window handle for a process by its process ID
+        /// Finds the main window handle for a process by its process ID (async version)
+        /// </summary>
+        /// <param name="targetPid">The process ID to search for</param>
+        /// <param name="timeoutMs">Timeout in milliseconds</param>
+        /// <param name="pollIntervalMs">Polling interval in milliseconds</param>
+        /// <param name="cancellationToken">Optional cancellation token</param>
+        /// <returns>The window handle, or IntPtr.Zero if not found</returns>
+        private static async Task<IntPtr> FindMainWindowHandleByPidAsync(int targetPid, int timeoutMs = 5000, int pollIntervalMs = 50, CancellationToken cancellationToken = default)
+        {
+            var sw = Stopwatch.StartNew();
+            while (sw.ElapsedMilliseconds < timeoutMs)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+
+                IntPtr found = IntPtr.Zero;
+
+                EnumWindows((hWnd, lParam) =>
+                {
+                    uint pid;
+                    GetWindowThreadProcessId(hWnd, out pid);
+                    if (pid == targetPid)
+                    {
+                        found = hWnd;
+                        // Hide the window immediately to prevent any blinking
+                        ShowWindow(hWnd, SW_HIDE);
+                        return false;
+                    }
+                    return true;
+                }, IntPtr.Zero);
+
+                if (found != IntPtr.Zero)
+                    return found;
+
+                await Task.Delay(pollIntervalMs, cancellationToken);
+            }
+            return IntPtr.Zero;
+        }
+
+        /// <summary>
+        /// Finds the main window handle for a process by its process ID (sync version for backward compat)
         /// </summary>
         /// <param name="targetPid">The process ID to search for</param>
         /// <param name="timeoutMs">Timeout in milliseconds</param>
@@ -538,7 +578,7 @@ namespace ClaudeCodeVS
                 if (found != IntPtr.Zero)
                     return found;
 
-                System.Threading.Thread.Sleep(pollIntervalMs);
+                Thread.Sleep(pollIntervalMs);
             }
             return IntPtr.Zero;
         }
@@ -546,11 +586,13 @@ namespace ClaudeCodeVS
         /// <summary>
         /// Handles the update agent button click event
         /// </summary>
-        private void UpdateAgentButton_Click(object sender, RoutedEventArgs e)
+#pragma warning disable VSTHRD100 // Avoid async void methods
+        private async void UpdateAgentButton_Click(object sender, RoutedEventArgs e)
+#pragma warning restore VSTHRD100 // Avoid async void methods
         {
             try
             {
-                ThreadHelper.ThrowIfNotOnUIThread();
+                await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
 
                 if (terminalHandle == IntPtr.Zero || !IsWindow(terminalHandle))
                 {
@@ -567,62 +609,62 @@ namespace ClaudeCodeVS
                         // Codex requires CTRL+C to exit
                         Debug.WriteLine("Exiting Codex with CTRL+C CTRL+C");
                         SendCtrlC();
-                        System.Threading.Thread.Sleep(500);
+                        await Task.Delay(400); // Reduced from 500ms
                         SendCtrlC();
-                        System.Threading.Thread.Sleep(1500);
+                        await Task.Delay(1000); // Reduced from 1500ms
                         Debug.WriteLine("Sending Codex update command");
-                        SendTextToTerminal("wsl bash -ic \"npm install -g @openai/codex@latest\"");
+                        await SendTextToTerminalAsync("wsl bash -ic \"npm install -g @openai/codex@latest\"");
                         break;
 
                     case AiProvider.CursorAgent:
                         // CursorAgent: exit, wait, then update
                         Debug.WriteLine("Exiting Cursor Agent");
-                        SendTextToTerminal("exit");
-                        System.Threading.Thread.Sleep(1500);
+                        await SendTextToTerminalAsync("exit");
+                        await Task.Delay(1000); // Reduced from 1500ms
                         Debug.WriteLine("Sending Cursor Agent update command");
-                        SendTextToTerminal("wsl bash -ic \"cursor-agent update\"");
+                        await SendTextToTerminalAsync("wsl bash -ic \"cursor-agent update\"");
                         break;
 
                     case AiProvider.ClaudeCodeWSL:
                         // Claude Code WSL: exit, wait, then update
                         Debug.WriteLine("Exiting Claude Code (WSL)");
-                        SendTextToTerminal("exit");
-                        System.Threading.Thread.Sleep(1500);
+                        await SendTextToTerminalAsync("exit");
+                        await Task.Delay(1000); // Reduced from 1500ms
                         Debug.WriteLine("Sending Claude Code (WSL) update command");
-                        SendTextToTerminal("wsl bash -ic \"claude update\"");
+                        await SendTextToTerminalAsync("wsl bash -ic \"claude update\"");
                         break;
 
                     case AiProvider.ClaudeCode:
                         // Claude Code Windows: exit, wait, then update
                         Debug.WriteLine("Exiting Claude Code");
-                        SendTextToTerminal("exit");
-                        System.Threading.Thread.Sleep(1500);
+                        await SendTextToTerminalAsync("exit");
+                        await Task.Delay(1000); // Reduced from 1500ms
                         Debug.WriteLine("Sending Claude Code update command");
-                        SendTextToTerminal("claude update");
+                        await SendTextToTerminalAsync("claude update");
                         break;
 
                     case AiProvider.QwenCode:
                         // Qwen Code: send /quit command to exit
                         Debug.WriteLine("Exiting Qwen Code with /quit command");
-                        SendTextToTerminal("/quit");
-                        System.Threading.Thread.Sleep(1500);
+                        await SendTextToTerminalAsync("/quit");
+                        await Task.Delay(1000); // Reduced from 1500ms
                         Debug.WriteLine("Sending Qwen Code update command");
-                        SendTextToTerminal("npm install -g @qwen-code/qwen-code@latest");
+                        await SendTextToTerminalAsync("npm install -g @qwen-code/qwen-code@latest");
                         break;
 
                     case AiProvider.OpenCode:
                         // Open Code: send exit command
                         Debug.WriteLine("Exiting Open Code");
-                        SendTextToTerminal("exit");
-                        System.Threading.Thread.Sleep(1500);
+                        await SendTextToTerminalAsync("exit");
+                        await Task.Delay(1000); // Reduced from 1500ms
                         Debug.WriteLine("Sending Open Code update command");
-                        SendTextToTerminal("npm i -g opencode-ai");
+                        await SendTextToTerminalAsync("npm i -g opencode-ai");
                         break;
 
                     default:
                         // Regular CMD - just try to update Claude if available
                         Debug.WriteLine("Updating Claude Code from CMD");
-                        SendTextToTerminal("claude update");
+                        await SendTextToTerminalAsync("claude update");
                         break;
                 }
             }
@@ -642,7 +684,7 @@ namespace ClaudeCodeVS
             {
                 SetForegroundWindow(terminalHandle);
                 SetFocus(terminalHandle);
-                System.Threading.Thread.Sleep(100);
+                Thread.Sleep(50); // Reduced from 100ms
 
                 // Clear clipboard before copying new text to prevent stale content
                 Clipboard.Clear();
@@ -652,11 +694,11 @@ namespace ClaudeCodeVS
 
                 // Method 1: Try using keybd_event (simulates global keyboard input)
                 keybd_event(VK_CONTROL, 0, 0, UIntPtr.Zero); // CTRL down
-                System.Threading.Thread.Sleep(50);
+                Thread.Sleep(30); // Reduced from 50ms
                 keybd_event(VK_C, 0, 0, UIntPtr.Zero); // C down
-                System.Threading.Thread.Sleep(50);
+                Thread.Sleep(30); // Reduced from 50ms
                 keybd_event(VK_C, 0, KEYEVENTF_KEYUP, UIntPtr.Zero); // C up
-                System.Threading.Thread.Sleep(50);
+                Thread.Sleep(30); // Reduced from 50ms
                 keybd_event(VK_CONTROL, 0, KEYEVENTF_KEYUP, UIntPtr.Zero); // CTRL up
             }
         }
@@ -670,7 +712,7 @@ namespace ClaudeCodeVS
             {
                 SetForegroundWindow(terminalHandle);
                 SetFocus(terminalHandle);
-                System.Threading.Thread.Sleep(100);
+                Thread.Sleep(50); // Reduced from 100ms
 
                 // Clear clipboard before copying new text to prevent stale content
                 Clipboard.Clear();
@@ -714,7 +756,7 @@ namespace ClaudeCodeVS
             {
                 SetForegroundWindow(terminalHandle);
                 SetFocus(terminalHandle);
-                System.Threading.Thread.Sleep(100);
+                Thread.Sleep(50); // Reduced from 100ms
 
                 // Clear clipboard before copying new text to prevent stale content
                 Clipboard.Clear();
@@ -724,15 +766,15 @@ namespace ClaudeCodeVS
 
                 // Send CTRL down
                 PostMessage(terminalHandle, WM_KEYDOWN, new IntPtr(VK_CONTROL), IntPtr.Zero);
-                System.Threading.Thread.Sleep(50);
+                Thread.Sleep(30); // Reduced from 50ms
 
                 // Send C down
                 PostMessage(terminalHandle, WM_KEYDOWN, new IntPtr(VK_C), IntPtr.Zero);
-                System.Threading.Thread.Sleep(50);
+                Thread.Sleep(30); // Reduced from 50ms
 
                 // Send C up
                 PostMessage(terminalHandle, WM_KEYUP, new IntPtr(VK_C), IntPtr.Zero);
-                System.Threading.Thread.Sleep(50);
+                Thread.Sleep(30); // Reduced from 50ms
 
                 // Send CTRL up
                 PostMessage(terminalHandle, WM_KEYUP, new IntPtr(VK_CONTROL), IntPtr.Zero);

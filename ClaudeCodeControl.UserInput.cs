@@ -15,6 +15,7 @@ using System.IO;
 using System.Linq;
 using System.Text;
 using System.Diagnostics;
+using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Input;
 
@@ -46,7 +47,9 @@ namespace ClaudeCodeVS
         /// <summary>
         /// Handles send button click - sends the prompt to the terminal
         /// </summary>
-        private void SendButton_Click(object sender, RoutedEventArgs e)
+#pragma warning disable VSTHRD100 // Avoid async void methods
+        private async void SendButton_Click(object sender, RoutedEventArgs e)
+#pragma warning restore VSTHRD100 // Avoid async void methods
         {
             try
             {
@@ -101,7 +104,7 @@ namespace ClaudeCodeVS
                 AddToPromptHistory(prompt);
 
                 // Send to terminal
-                SendTextToTerminal(fullPrompt.ToString());
+                await SendTextToTerminalAsync(fullPrompt.ToString());
 
                 // Clear prompt and images
                 PromptTextBox.Clear();
