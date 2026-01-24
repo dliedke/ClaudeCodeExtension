@@ -14,7 +14,7 @@ using System;
 using System.Diagnostics;
 using System.Windows;
 using System.Windows.Media;
-using System.Windows.Threading;
+using Microsoft.VisualStudio.PlatformUI;
 using Microsoft.VisualStudio.Shell;
 
 namespace ClaudeCodeVS
@@ -27,11 +27,6 @@ namespace ClaudeCodeVS
         /// Last applied terminal background color to detect theme changes
         /// </summary>
         private System.Drawing.Color _lastTerminalColor = System.Drawing.Color.Black;
-
-        /// <summary>
-        /// Timer to periodically check for theme changes
-        /// </summary>
-        private DispatcherTimer _themeCheckTimer;
 
         #endregion
 
@@ -47,19 +42,37 @@ namespace ClaudeCodeVS
                 // Listen for when the control becomes visible to update theme and initialize terminal
                 this.IsVisibleChanged += OnVisibilityChanged;
 
-                // Set up a timer to periodically check for theme changes
-                _themeCheckTimer = new DispatcherTimer
-                {
-                    Interval = TimeSpan.FromSeconds(2)
-                };
-                _themeCheckTimer.Tick += (s, e) => CheckAndUpdateTheme();
-                _themeCheckTimer.Start();
+                // Subscribe to VS theme change event instead of polling
+                VSColorTheme.ThemeChanged += OnVSThemeChanged;
             }
             catch (Exception ex)
             {
                 Debug.WriteLine($"Error setting up theme change events: {ex.Message}");
             }
         }
+
+        /// <summary>
+        /// Handles Visual Studio theme changes (fire-and-forget by design)
+        /// </summary>
+#pragma warning disable VSSDK007 // Intentional fire-and-forget for event handler
+        private void OnVSThemeChanged(ThemeChangedEventArgs e)
+        {
+            Debug.WriteLine("VS theme changed - updating terminal theme");
+            // Switch to UI thread using VS threading pattern
+            _ = ThreadHelper.JoinableTaskFactory.RunAsync(async delegate
+            {
+                await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
+                try
+                {
+                    UpdateTerminalTheme();
+                }
+                catch (Exception ex)
+                {
+                    Debug.WriteLine($"Error handling theme change: {ex.Message}");
+                }
+            });
+        }
+#pragma warning restore VSSDK007
 
         #endregion
 
@@ -75,28 +88,12 @@ namespace ClaudeCodeVS
                 // Only update theme when visible - initialization is handled by Loaded event
                 UpdateTerminalTheme();
 
-                // Restart theme check timer when control becomes visible
-                if (_themeCheckTimer != null && !_themeCheckTimer.IsEnabled)
-                {
-                    _themeCheckTimer.Start();
-                    Debug.WriteLine("Theme check timer restarted (control visible)");
-                }
-
                 // Ensure terminal window is visible and properly sized when tab is switched back
                 if (terminalHandle != IntPtr.Zero && IsWindow(terminalHandle))
                 {
                     Debug.WriteLine("Control became visible - ensuring terminal window is shown");
                     ShowWindow(terminalHandle, SW_SHOW);
                     ResizeEmbeddedTerminal();
-                }
-            }
-            else
-            {
-                // Stop theme check timer when control becomes invisible to save resources
-                if (_themeCheckTimer != null && _themeCheckTimer.IsEnabled)
-                {
-                    _themeCheckTimer.Stop();
-                    Debug.WriteLine("Theme check timer stopped (control invisible)");
                 }
             }
         }
@@ -140,22 +137,22 @@ namespace ClaudeCodeVS
             }
         }
 
+        #endregion
+
+        #region Theme Cleanup
+
         /// <summary>
-        /// Periodically checks if the theme has changed and updates accordingly
+        /// Unsubscribes from theme change events to prevent memory leaks
         /// </summary>
-        private void CheckAndUpdateTheme()
+        private void CleanupThemeEvents()
         {
             try
             {
-                var currentColor = GetTerminalBackgroundColor();
-                if (currentColor != _lastTerminalColor)
-                {
-                    UpdateTerminalTheme();
-                }
+                VSColorTheme.ThemeChanged -= OnVSThemeChanged;
             }
             catch (Exception ex)
             {
-                Debug.WriteLine($"Error checking theme: {ex.Message}");
+                Debug.WriteLine($"Error cleaning up theme events: {ex.Message}");
             }
         }
 

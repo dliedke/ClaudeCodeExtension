@@ -98,20 +98,13 @@ namespace ClaudeCodeVS
         #region Unload and Cleanup
 
         /// <summary>
-        /// Handles control unload event - stops timers but keeps terminal alive for tab switches
+        /// Handles control unload event - keeps terminal alive for tab switches
         /// </summary>
         private void ClaudeCodeControl_Unloaded(object sender, RoutedEventArgs e)
         {
             // Don't save during unload - settings should only be saved when user makes changes
             // NOTE: Don't cleanup terminal here - Unloaded fires during tab switches
             // Terminal cleanup only happens in Dispose() when VS is actually closing
-
-            // Stop theme check timer to reduce background activity when not visible
-            if (_themeCheckTimer != null)
-            {
-                _themeCheckTimer.Stop();
-                Debug.WriteLine("Theme check timer stopped (control unloaded)");
-            }
         }
 
         /// <summary>
@@ -121,6 +114,9 @@ namespace ClaudeCodeVS
         {
             try
             {
+                // Unsubscribe from theme change events
+                CleanupThemeEvents();
+
                 // Kill child processes (like claude.exe) before killing the main cmd process
                 if (cmdProcess != null && !cmdProcess.HasExited)
                 {

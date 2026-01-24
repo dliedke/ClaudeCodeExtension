@@ -153,6 +153,9 @@ Simply click the update button and the extension will handle the entire update p
 
 ## Version History
 
+### Version 3.8
+- Fixed UI lag when typing in prompt textbox by replacing polling-based theme detection with event-driven approach
+
 ### Version 3.7
 - Performance improvements
 - Fix issues setting Sonnet model in some scenarios
@@ -359,4 +362,4 @@ For licensing inquiries or permission requests, please contact the author.
 
 *Claude Code Extension for Visual Studio - Enhancing your AI-assisted development workflow*
 
-*Build with the help of Claude Opus 4.1, Claude Code, GPT-5 and Qwen Code*
+*Build with the help of Claude Opus 4.5, Claude Code, GPT-5 and Qwen Code*
