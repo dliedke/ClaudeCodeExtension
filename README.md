@@ -153,6 +153,10 @@ Simply click the update button and the extension will handle the entire update p
 
 ## Version History
 
+### Version 4.0
+- Fixed Excel cell paste issue - Excel data now pastes as text instead of as an image
+- Clipboard text content is now prioritized over image formats to ensure proper paste behavior
+
 ### Version 3.8
 - Fixed UI lag when typing in prompt textbox by replacing polling-based theme detection with event-driven approach
 

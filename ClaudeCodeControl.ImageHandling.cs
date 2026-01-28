@@ -49,6 +49,13 @@ namespace ClaudeCodeVS
         {
             try
             {
+                // Check if clipboard contains text first - if so, let normal text paste happen
+                // This prevents Excel cells (which have both text and image formats) from pasting as images
+                if (Clipboard.ContainsText())
+                {
+                    return false;
+                }
+
                 // Check image limit
                 if (attachedImagePaths.Count >= 3)
                 {
