@@ -56,10 +56,10 @@ namespace ClaudeCodeVS
                     return false;
                 }
 
-                // Check image limit
-                if (attachedImagePaths.Count >= 3)
+                // Check file limit
+                if (attachedImagePaths.Count >= 5)
                 {
-                    MessageBox.Show("Maximum of 3 images can be attached.", "Image Limit", MessageBoxButton.OK, MessageBoxImage.Information);
+                    MessageBox.Show("Maximum of 5 files can be attached.", "File Limit", MessageBoxButton.OK, MessageBoxImage.Information);
                     return false;
                 }
 
@@ -134,36 +134,45 @@ namespace ClaudeCodeVS
         }
 
         /// <summary>
-        /// Handles click on image drop border to open file selection dialog
+        /// Handles click on file drop border to open file selection dialog
         /// </summary>
         private void ImageDropBorder_Click(object sender, MouseButtonEventArgs e)
         {
             try
             {
-                // Check image limit
-                if (attachedImagePaths.Count >= 3)
+                // Check file limit
+                if (attachedImagePaths.Count >= 5)
                 {
-                    MessageBox.Show("Maximum of 3 images can be attached.", "Image Limit", MessageBoxButton.OK, MessageBoxImage.Information);
+                    MessageBox.Show("Maximum of 5 files can be attached.", "File Limit", MessageBoxButton.OK, MessageBoxImage.Information);
                     return;
                 }
 
-                // Open file dialog for image selection
+                // Open file dialog for file selection with common data formats
                 OpenFileDialog openFileDialog = new OpenFileDialog
                 {
-                    Filter = "Image files (*.png;*.jpg;*.jpeg;*.gif;*.bmp)|*.png;*.jpg;*.jpeg;*.gif;*.bmp|All files (*.*)|*.*",
+                    Filter = "All files (*.*)|*.*|" +
+                             "Images (*.png;*.jpg;*.jpeg;*.gif;*.bmp;*.webp)|*.png;*.jpg;*.jpeg;*.gif;*.bmp;*.webp|" +
+                             "Documents (*.pdf;*.doc;*.docx;*.txt;*.rtf)|*.pdf;*.doc;*.docx;*.txt;*.rtf|" +
+                             "Spreadsheets (*.xls;*.xlsx;*.csv)|*.xls;*.xlsx;*.csv|" +
+                             "Data (*.json;*.xml;*.yaml;*.yml)|*.json;*.xml;*.yaml;*.yml|" +
+                             "Code (*.cs;*.py;*.js;*.java;*.cpp;*.h)|*.cs;*.py;*.js;*.java;*.cpp;*.h",
                     Multiselect = true
                 };
 
                 if (openFileDialog.ShowDialog() == true)
                 {
+                    int remainingSlots = 5 - attachedImagePaths.Count;
+                    int filesAdded = 0;
+
                     foreach (string filename in openFileDialog.FileNames)
                     {
-                        if (attachedImagePaths.Count >= 3)
+                        if (attachedImagePaths.Count >= 5)
                         {
-                            MessageBox.Show($"Maximum of 3 images can be attached. Only the first {3 - attachedImagePaths.Count} selected images will be added.", "Image Limit", MessageBoxButton.OK, MessageBoxImage.Information);
+                            MessageBox.Show($"Maximum of 5 files can be attached. Only the first {remainingSlots} selected file(s) were added.", "File Limit", MessageBoxButton.OK, MessageBoxImage.Information);
                             break;
                         }
                         attachedImagePaths.Add(filename);
+                        filesAdded++;
                     }
                     UpdateImageDropDisplay();
                 }
@@ -218,11 +227,18 @@ namespace ClaudeCodeVS
                     // Create chip content
                     var sp = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
 
-                    // Filename text
+                    // Filename text - truncate if too long
+                    string fileName = Path.GetFileName(path);
+                    string displayName = fileName.Length > 18 ? fileName.Substring(0, 15) + "..." : fileName;
+
                     var nameBlock = new TextBlock
                     {
-                        Text = Path.GetFileName(path),
-                        VerticalAlignment = VerticalAlignment.Center
+                        Text = displayName,
+                        VerticalAlignment = VerticalAlignment.Center,
+                        MaxWidth = 120,
+                        TextTrimming = TextTrimming.CharacterEllipsis,
+                        ToolTip = fileName,
+                        FontSize = 11
                     };
                     nameBlock.SetResourceReference(TextBlock.ForegroundProperty, Microsoft.VisualStudio.Shell.VsBrushes.ToolWindowTextKey);
 

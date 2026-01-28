@@ -29,11 +29,13 @@ A Visual Studio extension that provides seamless integration with Claude Code, O
 - **Shift+Enter** or **Ctrl+Enter**: Create new lines when Send with Enter is enabled
 - **Manual Send Button**: Appears when Send with Enter is disabled
 
-### 🖼️ **Image Support**
-- **Clipboard Paste**: Use Ctrl+V to paste images from clipboard in the prompt area
-- **File Browser**: Click "Add Image" to select images from file system
-- **Image Chips**: Visual representation of attached images with remove functionality
-- **Clickable Chips**: Click on image chips to open and view images
+### 🖼️ **File Attachment Support**
+- **Clipboard Paste**: Use Ctrl+V to paste images from clipboard in the prompt area (text content like Excel cells will paste as text)
+- **File Browser**: Click "Add File" to select up to 5 files from file system
+- **Supported File Types**: Images, PDFs, documents (Word, text), spreadsheets (Excel, CSV), data files (JSON, XML, YAML), code files, and more
+- **File Chips**: Visual representation of attached files with remove functionality
+- **Clickable Chips**: Click on file chips to open and view files
+- **Smart Paste**: Excel cells and other text content paste as text, not images
 
 ### 📝 **Prompt History**
 - **Smart History**: Automatically saves up to 50 most recent prompts
@@ -102,7 +104,7 @@ Open windows settings, search for "Terminal settings", change Terminal option to
 1. **Open the Tool Window**: Navigate to View → Other Windows → Claude Code Extension
 2. **Select AI Provider**: Click the ⚙ (gear) button and choose your preferred AI assistant
 3. **Enter Prompts**: Type your questions or requests in the prompt area
-4. **Add Images**: Drag & drop, paste, or use the "Add Image" button
+4. **Add Files**: Paste images/text with Ctrl+V or use the "Add File" button to attach up to 5 files
 5. **Send Messages**: Press Enter (if enabled) or click the Send button
 6. **View Responses**: See AI responses in the embedded terminal below and also interact with it directly
 
@@ -110,7 +112,7 @@ Open windows settings, search for "Terminal settings", change Terminal option to
 
 - **Browse Previous Prompts**: Press **Ctrl+Up** to navigate to older prompts in your history
 - **Browse Forward**: Press **Ctrl+Down** to move to newer prompts or return to current text
-- **View Attached Images**: Click on any image chip to open and view the image
+- **View Attached Files**: Click on any file chip to open and view the file
 - **Clear History**: Right-click in the prompt area and select "Clear Prompt History"
 - **Automatic Saving**: Your last 50 prompts are automatically saved between sessions
 
@@ -152,6 +154,12 @@ The extension includes a convenient Update Agent button (🔄️) that automatic
 Simply click the update button and the extension will handle the entire update process for you. Agents use appropriate exit methods (exit command for most, double CTRL+C for Codex, /quit command for Qwen Code) before updating.
 
 ## Version History
+
+### Version 4.1
+- **Enhanced File Support**: "Add Image" button renamed to "Add File" with support for multiple file types
+- **Increased File Limit**: Now supports up to 5 file attachments (previously 3 images)
+- **Common File Formats**: Added support for documents (PDF, Word, text), spreadsheets (Excel, CSV), data files (JSON, XML, YAML), code files, and more
+- **Flexible File Selection**: File browser now accepts all file types (*.*) plus convenient filters for common formats
 
 ### Version 4.0
 - Fixed Excel cell paste issue - Excel data now pastes as text instead of as an image

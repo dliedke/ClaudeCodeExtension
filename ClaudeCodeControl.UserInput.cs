@@ -62,10 +62,10 @@ namespace ClaudeCodeVS
 
                 StringBuilder fullPrompt = new StringBuilder();
 
-                // If images are attached, copy them to a unique directory and include paths
+                // If files are attached, copy them to a unique directory and include paths
                 if (attachedImagePaths.Any())
                 {
-                    // Create a unique ClaudeCodeVS directory for this prompt with images
+                    // Create a unique ClaudeCodeVS directory for this prompt with files
                     string promptDirectory = Path.Combine(Path.GetTempPath(), "ClaudeCodeVS", Guid.NewGuid().ToString());
                     Directory.CreateDirectory(promptDirectory);
 
@@ -74,7 +74,7 @@ namespace ClaudeCodeVS
                                          _currentRunningProvider == AiProvider.ClaudeCodeWSL ||
                                          _currentRunningProvider == AiProvider.CursorAgent;
 
-                    fullPrompt.AppendLine("Images attached:");
+                    fullPrompt.AppendLine("Files attached:");
                     foreach (string imagePath in attachedImagePaths)
                     {
                         try

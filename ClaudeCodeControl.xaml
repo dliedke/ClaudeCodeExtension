@@ -90,24 +90,25 @@
 			</Setter>
 		</Style>
 
-		<!-- Small "chip" for attached images -->
+		<!-- Small "chip" for attached files -->
 		<Style x:Key="ChipBorder" TargetType="Border">
 			<Setter Property="Background" Value="{DynamicResource {x:Static vsshell:VsBrushes.ToolWindowBackgroundKey}}"/>
-			<Setter Property="CornerRadius" Value="12"/>
-			<Setter Property="Padding" Value="6,2"/>
-			<Setter Property="Margin" Value="0,4,6,0"/>
+			<Setter Property="CornerRadius" Value="10"/>
+			<Setter Property="Padding" Value="5,1"/>
+			<Setter Property="Margin" Value="0,2,4,0"/>
 			<Setter Property="BorderBrush" Value="{DynamicResource {x:Static vsshell:VsBrushes.ToolWindowBorderKey}}"/>
 			<Setter Property="BorderThickness" Value="1"/>
+			<Setter Property="Height" Value="22"/>
 		</Style>
 
 		<Style x:Key="ChipRemoveButton" TargetType="Button" BasedOn="{StaticResource AdaptiveButtonStyle}">
-			<Setter Property="Width" Value="18"/>
-			<Setter Property="Height" Value="18"/>
+			<Setter Property="Width" Value="14"/>
+			<Setter Property="Height" Value="14"/>
 			<Setter Property="Padding" Value="0"/>
-			<Setter Property="Margin" Value="6,0,0,0"/>
+			<Setter Property="Margin" Value="4,0,0,0"/>
 			<Setter Property="Content" Value="×"/>
 			<Setter Property="FontWeight" Value="Bold"/>
-			<Setter Property="FontSize" Value="12"/>
+			<Setter Property="FontSize" Value="10"/>
 		</Style>
 
 		<!-- Small button style for provider selection -->
@@ -189,30 +190,32 @@
                             ToolTip="Send Prompt to Code Agent"
                             Margin="0,0,8,0"/>
 
-					<!-- Fixed-width Add Image so it never expands with chips -->
+					<!-- Fixed-width Add File so it never expands with chips -->
 					<Button x:Name="AddImageButton"
-                            Content="Add Image"
+                            Content="Add File"
                             Style="{StaticResource AdaptiveButtonStyle}"
-                            Width="90"
-                            MinWidth="90"
+                            Width="80"
+                            MinWidth="80"
                             HorizontalAlignment="Left"
-                            ToolTip="Add Image to Prompt"
+                            ToolTip="Add Files to Prompt (Images, PDFs, Documents, etc.)"
                             PreviewMouseLeftButtonUp="ImageDropBorder_Click"/>
 				</StackPanel>
 
 				<!-- Chips in their own stretch area so they don't affect button sizing -->
 				<ScrollViewer Grid.Column="1"
                               VerticalScrollBarVisibility="Disabled"
-                              HorizontalScrollBarVisibility="Auto">
-					<WrapPanel x:Name="AttachedImagesPanel" Margin="8,0,8,0" />
+                              HorizontalScrollBarVisibility="Auto"
+                              Margin="8,0,12,0">
+					<WrapPanel x:Name="AttachedImagesPanel" />
 				</ScrollViewer>
 
-                <!-- Right-aligned buttons (Restart + Settings + Update) -->
+                <!-- Right-aligned buttons (Restart + Model + Settings + Update) -->
 				<StackPanel Grid.Column="2"
                             Orientation="Horizontal"
                             HorizontalAlignment="Right"
-                            VerticalAlignment="Top">
-					
+                            VerticalAlignment="Top"
+                            Margin="6,0,0,0">
+
 
 					<Button x:Name="RestartTerminalButton"
                             Content="Restart"
@@ -221,7 +224,7 @@
                             Style="{StaticResource AdaptiveButtonStyle}"
                             Click="RestartTerminalButton_Click"
                             ToolTip="Restart Code Agent"
-                            Margin="0,0,4,0"/>
+                            Margin="0,0,6,0"/>
 
 					<Button x:Name="ModelDropdownButton"
                             Content="🤖"
@@ -232,7 +235,7 @@
                             FontFamily="Consolas"
                             ToolTip="Claude Model Selection"
                             Click="ModelDropdownButton_Click"
-                            Margin="0,0,4,0">
+                            Margin="0,0,6,0">
 						<Button.ContextMenu>
 							<ContextMenu x:Name="ModelContextMenu">
 								<MenuItem Header="Opus - Complex tasks" x:Name="OpusMenuItem" Click="OpusMenuItem_Click" IsCheckable="True"/>
@@ -249,7 +252,8 @@
                             Style="{StaticResource GrayGearButtonStyle}"
                             FontFamily="Consolas"
                             ToolTip="Code Agent Selection"
-                            Click="MenuDropdownButton_Click">
+                            Click="MenuDropdownButton_Click"
+                            Margin="0,0,6,0">
 						<Button.ContextMenu>
 							<ContextMenu x:Name="ProviderContextMenu">
 								<MenuItem Header="Claude Code" x:Name="ClaudeCodeMenuItem" Click="ClaudeCodeMenuItem_Click" IsCheckable="True" IsChecked="True"/>
@@ -270,7 +274,7 @@
 						Style="{StaticResource AdaptiveButtonStyle}"
 						Click="UpdateAgentButton_Click"
 						ToolTip="Update Code Agent"
-						Margin="0,0,4,0"/>
+						Margin="0"/>
 				</StackPanel>
 			</Grid>
 
