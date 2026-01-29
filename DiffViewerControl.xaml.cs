@@ -3,7 +3,7 @@
  *
  * Autor:  Daniel Liedke
  *
- * Copyright © Daniel Liedke 2025
+ * Copyright © Daniel Liedke 2026
  * Usage and reproduction in any manner whatsoever without the written permission of Daniel Liedke is strictly forbidden.
  *
  * Purpose: Code-behind for the diff viewer control
@@ -64,7 +64,23 @@ namespace ClaudeCodeVS
         {
             try
             {
-                _changedFiles = changedFiles ?? new List<ChangedFile>();
+                var newFiles = changedFiles ?? new List<ChangedFile>();
+                var expandedState = _changedFiles.ToDictionary(f => f.FilePath, f => f.IsExpanded, StringComparer.OrdinalIgnoreCase);
+                bool expandAll = ExpandCollapseAllButton.IsChecked == true;
+
+                foreach (var file in newFiles)
+                {
+                    if (expandedState.TryGetValue(file.FilePath, out bool isExpanded))
+                    {
+                        file.IsExpanded = isExpanded;
+                    }
+                    else
+                    {
+                        file.IsExpanded = expandAll;
+                    }
+                }
+
+                _changedFiles = newFiles;
 
                 // Compute diffs for all files
                 DiffComputer.ComputeDiffs(_changedFiles);
@@ -191,8 +207,6 @@ namespace ClaudeCodeVS
                 SummaryText.Text = "No changes detected";
                 AdditionsText.Text = "";
                 DeletionsText.Text = "";
-                ExpandCollapseAllButton.IsEnabled = false;
-                ExpandCollapseAllButton.IsChecked = false;
                 return;
             }
 
@@ -421,7 +435,6 @@ namespace ClaudeCodeVS
             ThreadHelper.ThrowIfNotOnUIThread();
             if (_changedFiles.Count == 0)
             {
-                ExpandCollapseAllButton.IsChecked = false;
                 return;
             }
 
