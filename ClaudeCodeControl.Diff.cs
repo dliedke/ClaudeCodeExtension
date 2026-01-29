@@ -16,6 +16,7 @@ using System.Diagnostics;
 using System.IO;
 using System.Threading.Tasks;
 using System.Windows;
+using System.Windows.Threading;
 using ClaudeCodeVS.Diff;
 using Microsoft.VisualStudio.Shell;
 using Microsoft.VisualStudio.Shell.Interop;
@@ -75,6 +76,16 @@ namespace ClaudeCodeVS
         /// Tracks if reset handler is already wired
         /// </summary>
         private bool _diffViewerResetSubscribed;
+
+        /// <summary>
+        /// Periodic poll timer to detect clean git state after commit/push
+        /// </summary>
+        private DispatcherTimer _gitStatusPollTimer;
+
+        /// <summary>
+        /// Poll interval for git clean checks in milliseconds
+        /// </summary>
+        private const int GitStatusPollIntervalMs = 15000;
 
         #endregion
 
@@ -243,6 +254,8 @@ namespace ClaudeCodeVS
                 _diffViewerResetSubscribed = true;
             }
 
+            EnsureGitStatusPollTimer();
+
             string workspaceDir = await GetEffectiveWorkspaceDirectoryAsync();
             string repoRoot = FindGitRepositoryRoot(workspaceDir);
             if (_diffViewerWindow.DiffViewerControl != null)
@@ -255,6 +268,51 @@ namespace ClaudeCodeVS
                 var windowFrame = (IVsWindowFrame)_diffViewerWindow.Frame;
                 Microsoft.VisualStudio.ErrorHandler.ThrowOnFailure(windowFrame.Show());
             }
+        }
+
+        private void EnsureGitStatusPollTimer()
+        {
+            if (_gitStatusPollTimer != null)
+                return;
+
+            _gitStatusPollTimer = new DispatcherTimer(DispatcherPriority.Background)
+            {
+                Interval = TimeSpan.FromMilliseconds(GitStatusPollIntervalMs)
+            };
+            _gitStatusPollTimer.Tick += OnGitStatusPollTimerTick;
+            _gitStatusPollTimer.Start();
+        }
+
+        private void StopGitStatusPollTimer()
+        {
+            if (_gitStatusPollTimer == null)
+                return;
+
+            _gitStatusPollTimer.Stop();
+            _gitStatusPollTimer.Tick -= OnGitStatusPollTimerTick;
+            _gitStatusPollTimer = null;
+        }
+
+        private void OnGitStatusPollTimerTick(object sender, EventArgs e)
+        {
+            if (_isAutoResetting || !_isDiffTrackingActive)
+                return;
+
+            _ = ThreadHelper.JoinableTaskFactory.RunAsync(async () =>
+            {
+                try
+                {
+                    bool shouldAutoReset = await ShouldAutoResetDiffBaselineAsync();
+                    if (shouldAutoReset)
+                    {
+                        await ResetDiffBaselineAsync(true, true, false, false, null, false);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Debug.WriteLine($"Error in git status poll: {ex.Message}");
+                }
+            });
         }
 
         /// <summary>
@@ -744,6 +802,7 @@ namespace ClaudeCodeVS
                 }
                 _isDiffTrackingActive = false;
                 _diffViewerResetSubscribed = false;
+                StopGitStatusPollTimer();
             }
             catch (Exception ex)
             {
