@@ -3,7 +3,7 @@
  *
  * Autor:  Daniel Liedke
  *
- * Copyright © Daniel Liedke 2025
+ * Copyright © Daniel Liedke 2026
  * Usage and reproduction in any manner whatsoever without the written permission of Daniel Liedke is strictly forbidden.
  *
  * Purpose: AI provider detection, switching, and installation instructions
@@ -1285,7 +1285,7 @@ For more details, visit: https://opencode.ai";
             string aboutMessage = $"Claude Code Extension for Visual Studio\n\n" +
                                 $"Version: {version}\n" +
                                 $"Author: Daniel Liedke\n" +
-                                $"Copyright © Daniel Liedke 2025\n\n" +
+                                $"Copyright © Daniel Liedke 2026\n\n" +
                                 $"Provides seamless integration with Claude Code, Codex, Cursor Agent, Qwen Code and Open Code AI assistants directly within Visual Studio 2022/2026 IDE.";
 
             MessageBox.Show(aboutMessage, "About Claude Code Extension",

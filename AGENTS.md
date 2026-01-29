@@ -7,7 +7,7 @@
 
 ## Code Style
 - **Language**: C# targeting .NET Framework 4.7.2 for Visual Studio 2022 SDK
-- **File Headers**: Every `.cs` file must include copyright header with author (Daniel Liedke), copyright year (2025), and proprietary usage notice
+- **File Headers**: Every `.cs` file must include copyright header with author (Daniel Liedke), copyright year (2026), and proprietary usage notice
 - **Namespace**: Use `ClaudeCodeVS` for main controls, `ClaudeCodeExtension` for package class
 - **Partial Classes**: Main control is split into specialized partial classes (e.g., `ClaudeCodeControl.Settings.cs`, `ClaudeCodeControl.Terminal.cs`)
 - **Imports**: Use explicit `using` statements; avoid wildcard imports. Common: `System`, `System.Windows`, `Microsoft.VisualStudio.Shell`

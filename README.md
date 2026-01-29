@@ -107,6 +107,7 @@ Open windows settings, search for "Terminal settings", change Terminal option to
 4. **Add Files**: Paste images/text with Ctrl+V or use the "Add File" button to attach up to 5 files
 5. **Send Messages**: Press Enter (if enabled) or click the Send button
 6. **View Responses**: See AI responses in the embedded terminal below and also interact with it directly
+7. **Code Changes**: Use the integrated diff tool to compare code changes in a new tab in real time while AI is working
 
 ### Working with Prompt History
 
@@ -157,8 +158,10 @@ Simply click the update button and the extension will handle the entire update p
 
 ### Version 5.0
 - ** Integrated Diff Tool**: Major release adding built-in diff tool for comparing code changes in a new tab.
-Notice that this is a new big implementation. It will get more stabilized in future releases.
-
+Notice that this is a new big implementation.
+It will get more stabilized in future releases. 
+If you find issues please log in my git repository and I will work on it, do not send bad reviews please.
+- Supports both projects in git and standalone projects.
 
 ### Version 4.2
 - **Updated License & Usage Section**: Clarified that the extension is free for all users including commercial/internal use

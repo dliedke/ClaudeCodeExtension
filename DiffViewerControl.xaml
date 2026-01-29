@@ -39,6 +39,71 @@
                 </Setter.Value>
             </Setter>
         </Style>
+
+        <!-- Header toggle icon button style -->
+        <Style x:Key="HeaderToggleButtonStyle" TargetType="ToggleButton">
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Padding" Value="4,2"/>
+            <Setter Property="Margin" Value="4,0,0,0"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Foreground" Value="{DynamicResource {x:Static vsshell:VsBrushes.WindowTextKey}}"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ToggleButton">
+                        <Border x:Name="toggleBorder"
+                                Background="{TemplateBinding Background}"
+                                Padding="{TemplateBinding Padding}"
+                                CornerRadius="2">
+                            <Grid Width="16" Height="16">
+                                <!-- Expand (outward arrows) -->
+                                <Grid x:Name="ExpandIcon">
+                                    <Line X1="2" Y1="8" X2="14" Y2="8"
+                                          Stroke="{TemplateBinding Foreground}"
+                                          StrokeThickness="1.5"/>
+                                    <Path Fill="{TemplateBinding Foreground}"
+                                          Data="M5,2 H11 L8,5 Z"/>
+                                    <Path Fill="{TemplateBinding Foreground}"
+                                          Data="M8,11 L11,14 H5 Z"/>
+                                </Grid>
+
+                                <!-- Collapse (inward arrows) -->
+                                <Grid x:Name="CollapseIcon" Visibility="Collapsed">
+                                    <Line X1="2" Y1="8" X2="14" Y2="8"
+                                          Stroke="{TemplateBinding Foreground}"
+                                          StrokeThickness="1.5"/>
+                                    <Path Fill="{TemplateBinding Foreground}"
+                                          Data="M8,2 L11,5 H5 Z"/>
+                                    <Path Fill="{TemplateBinding Foreground}"
+                                          Data="M5,11 H11 L8,14 Z"/>
+                                </Grid>
+                            </Grid>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="toggleBorder" Property="Background" Value="{DynamicResource {x:Static vsshell:VsBrushes.CommandBarHoverOverSelectedKey}}"/>
+                            </Trigger>
+                            <Trigger Property="IsChecked" Value="True">
+                                <Setter TargetName="ExpandIcon" Property="Visibility" Value="Visible"/>
+                                <Setter TargetName="CollapseIcon" Property="Visibility" Value="Collapsed"/>
+                            </Trigger>
+                            <Trigger Property="IsChecked" Value="False">
+                                <Setter TargetName="ExpandIcon" Property="Visibility" Value="Collapsed"/>
+                                <Setter TargetName="CollapseIcon" Property="Visibility" Value="Visible"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+            <Style.Triggers>
+                <Trigger Property="IsChecked" Value="True">
+                    <Setter Property="ToolTip" Value="Collapse all diffs"/>
+                </Trigger>
+                <Trigger Property="IsChecked" Value="False">
+                    <Setter Property="ToolTip" Value="Expand all diffs"/>
+                </Trigger>
+            </Style.Triggers>
+        </Style>
     </UserControl.Resources>
 
     <Grid>
@@ -56,6 +121,7 @@
             <Grid>
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
                     <ColumnDefinition Width="Auto"/>
                     <ColumnDefinition Width="Auto"/>
                 </Grid.ColumnDefinitions>
@@ -78,8 +144,16 @@
                                FontWeight="SemiBold"/>
                 </StackPanel>
 
+                <StackPanel Grid.Column="2" Orientation="Horizontal" Margin="8,0,0,0">
+                    <ToggleButton x:Name="ExpandCollapseAllButton"
+                                  Style="{StaticResource HeaderToggleButtonStyle}"
+                                  IsChecked="False"
+                                  Checked="ExpandCollapseAllButton_Checked"
+                                  Unchecked="ExpandCollapseAllButton_Unchecked"/>
+                </StackPanel>
+
                 <Button x:Name="ResetBaselineButton"
-                        Grid.Column="2"
+                        Grid.Column="3"
                         Content="Reset"
                         Padding="8,2"
                         Margin="8,0,0,0"

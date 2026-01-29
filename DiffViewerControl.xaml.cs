@@ -20,6 +20,7 @@ using System.Windows.Media;
 using ClaudeCodeVS.Diff;
 using Microsoft.VisualStudio.PlatformUI;
 using Microsoft.VisualStudio.Shell;
+using Microsoft.VisualStudio.Threading;
 
 namespace ClaudeCodeVS
 {
@@ -71,7 +72,11 @@ namespace ClaudeCodeVS
                 // Update UI on UI thread
                 if (!Dispatcher.CheckAccess())
                 {
-                    Dispatcher.Invoke(() => RefreshUI());
+                    ThreadHelper.JoinableTaskFactory.Run(async () =>
+                    {
+                        await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
+                        RefreshUI();
+                    });
                 }
                 else
                 {
@@ -89,6 +94,17 @@ namespace ClaudeCodeVS
         /// </summary>
         public void Clear()
         {
+            if (!Dispatcher.CheckAccess())
+            {
+                ThreadHelper.JoinableTaskFactory.Run(async () =>
+                {
+                    await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
+                    _changedFiles.Clear();
+                    RefreshUI();
+                });
+                return;
+            }
+
             _changedFiles.Clear();
             RefreshUI();
         }
@@ -98,6 +114,16 @@ namespace ClaudeCodeVS
         /// </summary>
         public void SetResetBaselineVisible(bool isVisible)
         {
+            if (!Dispatcher.CheckAccess())
+            {
+                ThreadHelper.JoinableTaskFactory.Run(async () =>
+                {
+                    await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
+                    ResetBaselineButton.Visibility = isVisible ? Visibility.Visible : Visibility.Collapsed;
+                });
+                return;
+            }
+
             ResetBaselineButton.Visibility = isVisible ? Visibility.Visible : Visibility.Collapsed;
         }
 
@@ -122,12 +148,19 @@ namespace ClaudeCodeVS
 
         private void OnThemeChanged(ThemeChangedEventArgs e)
         {
-            _ = ThreadHelper.JoinableTaskFactory.RunAsync(async () =>
+            if (!Dispatcher.CheckAccess())
             {
-                await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
-                DetectTheme();
-                RefreshUI();
-            });
+                ThreadHelper.JoinableTaskFactory.Run(async () =>
+                {
+                    await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
+                    DetectTheme();
+                    RefreshUI();
+                });
+                return;
+            }
+
+            DetectTheme();
+            RefreshUI();
         }
 
         private void DetectTheme()
@@ -148,6 +181,7 @@ namespace ClaudeCodeVS
 
         private void RefreshUI()
         {
+            ThreadHelper.ThrowIfNotOnUIThread();
             FileListPanel.Children.Clear();
 
             if (_changedFiles.Count == 0)
@@ -157,11 +191,14 @@ namespace ClaudeCodeVS
                 SummaryText.Text = "No changes detected";
                 AdditionsText.Text = "";
                 DeletionsText.Text = "";
+                ExpandCollapseAllButton.IsEnabled = false;
+                ExpandCollapseAllButton.IsChecked = false;
                 return;
             }
 
             EmptyStateText.Visibility = Visibility.Collapsed;
             FileListScrollViewer.Visibility = Visibility.Visible;
+            ExpandCollapseAllButton.IsEnabled = true;
 
             // Update summary
             int totalAdded = _changedFiles.Sum(f => f.LinesAdded);
@@ -176,6 +213,8 @@ namespace ClaudeCodeVS
                 var fileItem = CreateFileItem(file);
                 FileListPanel.Children.Add(fileItem);
             }
+
+            UpdateExpandCollapseToggleState();
         }
 
         private void ResetBaselineButton_Click(object sender, RoutedEventArgs e)
@@ -183,8 +222,41 @@ namespace ClaudeCodeVS
             ResetRequested?.Invoke(this, EventArgs.Empty);
         }
 
+        private void ExpandCollapseAllButton_Checked(object sender, RoutedEventArgs e)
+        {
+            ThreadHelper.ThrowIfNotOnUIThread();
+            if (_changedFiles.Count == 0)
+            {
+                return;
+            }
+
+            foreach (var file in _changedFiles)
+            {
+                file.IsExpanded = true;
+            }
+
+            RefreshUI();
+        }
+
+        private void ExpandCollapseAllButton_Unchecked(object sender, RoutedEventArgs e)
+        {
+            ThreadHelper.ThrowIfNotOnUIThread();
+            if (_changedFiles.Count == 0)
+            {
+                return;
+            }
+
+            foreach (var file in _changedFiles)
+            {
+                file.IsExpanded = false;
+            }
+
+            RefreshUI();
+        }
+
         private UIElement CreateFileItem(ChangedFile file)
         {
+            ThreadHelper.ThrowIfNotOnUIThread();
             var container = new StackPanel();
 
             // File header row
@@ -325,6 +397,7 @@ namespace ClaudeCodeVS
                 file.IsExpanded = !file.IsExpanded;
                 expandIndicator.Text = file.IsExpanded ? "\u25BC" : "\u25B6";
                 diffPanel.Visibility = file.IsExpanded ? Visibility.Visible : Visibility.Collapsed;
+                UpdateExpandCollapseToggleState();
             };
 
             // Double-click to open file
@@ -341,6 +414,19 @@ namespace ClaudeCodeVS
             container.Children.Add(diffPanel);
 
             return container;
+        }
+
+        private void UpdateExpandCollapseToggleState()
+        {
+            ThreadHelper.ThrowIfNotOnUIThread();
+            if (_changedFiles.Count == 0)
+            {
+                ExpandCollapseAllButton.IsChecked = false;
+                return;
+            }
+
+            bool allExpanded = _changedFiles.All(file => file.IsExpanded);
+            ExpandCollapseAllButton.IsChecked = allExpanded;
         }
 
         private UIElement CreateDiffLine(DiffLine line)

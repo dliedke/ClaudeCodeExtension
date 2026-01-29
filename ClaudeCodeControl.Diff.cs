@@ -3,7 +3,7 @@
  *
  * Autor:  Daniel Liedke
  *
- * Copyright © Daniel Liedke 2025
+ * Copyright © Daniel Liedke 2026
  * Usage and reproduction in any manner whatsoever without the written permission of Daniel Liedke is strictly forbidden.
  *
  * Purpose: Diff viewer integration - file change tracking and diff window management
@@ -20,6 +20,7 @@ using System.Windows.Threading;
 using ClaudeCodeVS.Diff;
 using Microsoft.VisualStudio.Shell;
 using Microsoft.VisualStudio.Shell.Interop;
+using Microsoft.VisualStudio.Threading;
 
 namespace ClaudeCodeVS
 {
@@ -152,7 +153,7 @@ namespace ClaudeCodeVS
             try
             {
                 // Refresh diff view on UI thread
-                _ = ThreadHelper.JoinableTaskFactory.RunAsync(async () =>
+                ThreadHelper.JoinableTaskFactory.Run(async () =>
                 {
                     await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
                     await RefreshDiffViewAsync();
@@ -298,7 +299,7 @@ namespace ClaudeCodeVS
             if (_isAutoResetting || !_isDiffTrackingActive)
                 return;
 
-            _ = ThreadHelper.JoinableTaskFactory.RunAsync(async () =>
+            ThreadHelper.JoinableTaskFactory.Run(async () =>
             {
                 try
                 {
@@ -348,35 +349,41 @@ namespace ClaudeCodeVS
         /// <summary>
         /// Handles the View Changes button click
         /// </summary>
-        private async void ViewChangesButton_Click(object sender, RoutedEventArgs e)
+        private void ViewChangesButton_Click(object sender, RoutedEventArgs e)
         {
-            try
+            ThreadHelper.JoinableTaskFactory.Run(async () =>
             {
-                await EnsureDiffTrackingStartedAsync(true);
-
-                // If tracking is active, refresh the view
-                if (_isDiffTrackingActive)
+                try
                 {
-                    await RefreshDiffViewAsync();
+                    await EnsureDiffTrackingStartedAsync(true);
+
+                    // If tracking is active, refresh the view
+                    if (_isDiffTrackingActive)
+                    {
+                        await RefreshDiffViewAsync();
+                    }
                 }
-            }
-            catch (Exception ex)
-            {
-                Debug.WriteLine($"Error in ViewChangesButton_Click: {ex.Message}");
-            }
+                catch (Exception ex)
+                {
+                    Debug.WriteLine($"Error in ViewChangesButton_Click: {ex.Message}");
+                }
+            });
         }
 
-        private async void OnDiffViewerResetRequested(object sender, EventArgs e)
+        private void OnDiffViewerResetRequested(object sender, EventArgs e)
         {
-            try
+            ThreadHelper.JoinableTaskFactory.Run(async () =>
             {
-                await ResetDiffBaselineAsync(true, false, true, true, null, false);
-            }
-            catch (Exception ex)
-            {
-                Debug.WriteLine($"Error in OnDiffViewerResetRequested: {ex.Message}");
-                MessageBox.Show("Failed to reset code changes baseline.", "Claude Code", MessageBoxButton.OK, MessageBoxImage.Error);
-            }
+                try
+                {
+                    await ResetDiffBaselineAsync(true, false, true, true, null, false);
+                }
+                catch (Exception ex)
+                {
+                    Debug.WriteLine($"Error in OnDiffViewerResetRequested: {ex.Message}");
+                    MessageBox.Show("Failed to reset code changes baseline.", "Claude Code", MessageBoxButton.OK, MessageBoxImage.Error);
+                }
+            });
         }
 
         private async Task ResetDiffBaselineAsync(bool refreshView, bool isAutoReset, bool showErrors, bool startTracking, string workspaceDirOverride, bool useGitBaseline)

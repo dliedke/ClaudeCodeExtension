@@ -3,7 +3,7 @@
  *
  * Autor:  Daniel Liedke
  *
- * Copyright © Daniel Liedke 2025
+ * Copyright © Daniel Liedke 2026
  * Usage and reproduction in any manner whatsoever without the written permission of Daniel Liedke is strictly forbidden.
  *
  * Purpose: User input handling - keyboard events, send button, and prompt submission
@@ -105,7 +105,6 @@ namespace ClaudeCodeVS
 
                 // Ensure tracking is active and reset baseline before sending prompt
                 await EnsureDiffTrackingStartedAsync(false);
-                await ResetDiffBaselineAsync(false, false, false, false, null, false);
 
                 // Send to terminal
                 await SendTextToTerminalAsync(fullPrompt.ToString());
