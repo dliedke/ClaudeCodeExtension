@@ -85,29 +85,29 @@ A Visual Studio extension that provides seamless integration with Claude Code, O
 3. Restart Visual Studio
 4. Open the extension via **View** → **Other Windows** → **Claude Code Extension**
 
-**In case terminal is opening in a new window and not inside the extension:
-Open windows settings, search for "Terminal settings", change Terminal option to "Windows Console Host".**
+**If the terminal opens in a separate window instead of inside the extension:
+Open Windows Settings, search for "Terminal settings", and set the Terminal option to "Windows Console Host".**
 
 ## Quick Start
 
-- **First Time Setup**: Ensure your preferred AI provider (Claude Code, Claude Code WSL, OpenAI Codex, Cursor Agent, or Qwen Code) is installed and accessible
-- **Open Tool Window**: View → Other Windows → Claude Code Extension
-- **Choose AI Provider**: Click the ⚙ (gear) button to select between Claude Code, Claude Code (WSL), Codex, Cursor Agent, and Qwen Code
-- **Connect to Provider**: If using open code, press **Ctrl+P**, search for "connect providers", and connect to authenticate with your AI provider if you have login credentials
-- **Select Claude Model**: Click the 🤖 (robot) button to choose between Opus, Sonnet, or Haiku (only visible when Claude Code is selected)
-- **Start Chatting**: Type your prompt and press Enter
-- **Add Images**: Use Ctrl+V to paste or click "Add Image" button
-- **Customize**: Toggle "Send with Enter" and adjust layout as needed
+- **First-Time Setup**: Verify that your preferred AI provider (Claude Code, Claude Code WSL, OpenAI Codex, Cursor Agent, or Qwen Code) is installed and accessible
+- **Open the Tool Window**: View → Other Windows → Claude Code Extension
+- **Select an AI Provider**: Click the ⚙ (gear) button and choose among Claude Code, Claude Code (WSL), Codex, Cursor Agent, Qwen Code, or Open Code
+- **Connect to Provider**: If you use Open Code, press **Ctrl+P**, search for "connect providers", and complete the authentication flow
+- **Select a Claude Model**: Click the 🤖 (robot) button to choose Opus, Sonnet, or Haiku (available only when Claude Code is selected)
+- **Start a Session**: Enter your prompt and press Enter
+- **Attach Files**: Use Ctrl+V to paste or click the "Add File" button
+- **Customize**: Toggle "Send with Enter" and adjust the layout as needed
 
 ## Usage
 
 1. **Open the Tool Window**: Navigate to View → Other Windows → Claude Code Extension
-2. **Select AI Provider**: Click the ⚙ (gear) button and choose your preferred AI assistant
+2. **Select an AI Provider**: Click the ⚙ (gear) button and choose your preferred assistant
 3. **Enter Prompts**: Type your questions or requests in the prompt area
-4. **Add Files**: Paste images/text with Ctrl+V or use the "Add File" button to attach up to 5 files
+4. **Attach Files**: Paste images/text with Ctrl+V or use the "Add File" button to attach up to five files
 5. **Send Messages**: Press Enter (if enabled) or click the Send button
-6. **View Responses**: See AI responses in the embedded terminal below and also interact with it directly
-7. **Code Changes**: Use the integrated diff tool to compare code changes in a new tab in real time while AI is working
+6. **Review Responses**: Read responses in the embedded terminal and interact with it directly as needed
+7. **Review Code Changes**: Use the integrated diff tool to compare code changes in a new tab while the AI is working
 
 ### Working with Prompt History
 
@@ -139,11 +139,11 @@ Open windows settings, search for "Terminal settings", change Terminal option to
 - **Send with Enter**: Check/uncheck the checkbox to toggle sending behavior
 - **Layout**: Drag the splitter to adjust the prompt/terminal ratio
 - **AI Provider**: Use the context menu to switch between available providers
-- **Settings persist automatically** between Visual Studio sessions
+- **Settings Persist Automatically**: Preferences are saved between Visual Studio sessions
 
 ### Updating Your AI Agent
 
-The extension includes a convenient Update Agent button (🔄️) that automatically updates your selected AI provider:
+The extension includes an Update Agent button (🔄️) that updates your selected AI provider:
 
 - **Claude Code (Windows)**: Exits the agent and runs `claude update`
 - **Claude Code (WSL)**: Exits the agent and runs `claude update` inside WSL
@@ -152,16 +152,14 @@ The extension includes a convenient Update Agent button (🔄️) that automatic
 - **Open Code**: Exits the agent and runs `npm i -g opencode-ai`
 - **Qwen Code**: Exits the agent (using /quit command) and runs `npm install -g @qwen-code/qwen-code@latest` to update
 
-Simply click the update button and the extension will handle the entire update process for you. Agents use appropriate exit methods (exit command for most, double CTRL+C for Codex, /quit command for Qwen Code) before updating.
+Click the update button and the extension will handle the update process. Agents use the appropriate exit methods before updating (exit command for most, double CTRL+C for Codex, /quit command for Qwen Code).
 
 ## Version History
 
 ### Version 5.0
-- ** Integrated Diff Tool**: Major release adding built-in diff tool for comparing code changes in a new tab.
-Notice that this is a new big implementation.
-It will get more stabilized in future releases. 
-If you find issues please log in my git repository and I will work on it, do not send bad reviews please.
-- Supports both projects in git and standalone projects.
+- **Integrated Diff Tool**: Major release adding a built-in diff tool for comparing code changes in a new tab.
+- This is a large new feature and will be stabilized in future releases. If you find issues, please open an issue in the Git repository.
+- Supports both Git projects and standalone projects.
 
 ### Version 4.2
 - **Updated License & Usage Section**: Clarified that the extension is free for all users including commercial/internal use
