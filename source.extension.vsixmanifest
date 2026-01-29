@@ -1,9 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <PackageManifest Version="2.0.0" xmlns="http://schemas.microsoft.com/developer/vsx-schema/2011" xmlns:d="http://schemas.microsoft.com/developer/vsx-schema-design/2011">
     <Metadata>
-        <Identity Id="ClaudeCodeExtension.87de5d13-743e-46b3-b05e-24e1cbeca0c3" Version="5.1" Language="en-US" Publisher="Daniel Carvalho Liedke" />
+        <Identity Id="ClaudeCodeExtension.87de5d13-743e-46b3-b05e-24e1cbeca0c3" Version="5.2" Language="en-US" Publisher="Daniel Carvalho Liedke" />
         <DisplayName>Claude Code Extension for Visual Studio</DisplayName>
-        <Description xml:space="preserve">A Visual Studio .NET extension that provides a better interface for Claude Code CLI with support for multi-line prompts, image and file attachments. Open AI Codex, Cursor Agent, Qwen Code and Open Code also supported. Integrated diff tool is also available to quickly review code change made by AI Agents.</Description>
+        <Description xml:space="preserve">A Visual Studio .NET extension that provides a better interface for Claude Code CLI with support for multi-line prompts, image and file attachments. Codex, Cursor, Qwen and Opencode also supported. Also integrated diff tool to review code change made by AI Agents.</Description>
         <MoreInfo>https://github.com/dliedke/ClaudeCodeExtension</MoreInfo>
         <License>LICENSE.txt</License>
         <Icon>app.ico</Icon>

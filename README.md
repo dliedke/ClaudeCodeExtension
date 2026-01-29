@@ -156,6 +156,9 @@ Click the update button and the extension will handle the update process. Agents
 
 ## Version History
 
+### Version 5.2
+- Fix extension description
+
 ### Version 5.1
 - **Performance Optimizations for Diff Tool**: Improved performance for large projects
   - Static window title ("Code Changes") instead of dynamic updates with line counts
