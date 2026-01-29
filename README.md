@@ -156,6 +156,18 @@ Click the update button and the extension will handle the update process. Agents
 
 ## Version History
 
+### Version 5.3
+- **Repository-Wide Diff Tracking**: Fixed diff tool to detect all changed files across the entire git repository, not just files within the opened solution directory
+  - Files in other projects/directories within the same git repository are now properly detected
+  - Modified files outside the solution directory now correctly show as "Modified" instead of "Created"
+  - Uses git baseline (`git show HEAD:path`) to get original file content for accurate diff comparison
+- **Auto-Scroll for Diff View**: New auto-scroll feature that follows changes as the AI agent codes
+  - Automatically enables when new changes are detected
+  - Scrolls to show the latest modified files
+  - Automatically disables after 3 seconds of inactivity
+  - Toggle button (↓↓) to manually enable/disable auto-scroll
+- **Improved performance for large repositories using git** (tested with .net runtime repo with 57k+ files)
+
 ### Version 5.2
 - Fix extension description
 

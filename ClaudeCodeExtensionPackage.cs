@@ -3,7 +3,7 @@
  *
  * Autor:  Daniel Liedke
  *
- * Copyright © Daniel Liedke 2026
+ * Copyright © Daniel Carvalho Liedke 2026
  * Usage and reproduction in any manner whatsoever without the written permission of Daniel Liedke is strictly forbidden.
  *
  * Purpose: Main package class for the Claude Code extension for VS.NET
@@ -41,7 +41,7 @@ namespace ClaudeCodeExtension
     [PackageRegistration(UseManagedResourcesOnly = true, AllowsBackgroundLoading = true)]
     [ProvideAutoLoad(VSConstants.UICONTEXT.SolutionExists_string, PackageAutoLoadFlags.BackgroundLoad)]
     [ProvideToolWindow(typeof(ClaudeCodeVS.ClaudeCodeToolWindow))]
-    [ProvideToolWindow(typeof(ClaudeCodeVS.DiffViewerToolWindow))]
+    [ProvideToolWindow(typeof(ClaudeCodeVS.DiffViewerToolWindow), Transient = true)]
     [ProvideMenuResource("Menus.ctmenu", 1)]
     [Guid(ClaudeCodeExtensionPackage.PackageGuidString)]
     public sealed class ClaudeCodeExtensionPackage : AsyncPackage

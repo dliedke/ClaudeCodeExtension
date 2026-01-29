@@ -3,7 +3,7 @@
  *
  * Autor:  Daniel Liedke
  *
- * Copyright © Daniel Liedke 2026
+ * Copyright © Daniel Carvalho Liedke 2026
  * Usage and reproduction in any manner whatsoever without the written permission of Daniel Liedke is strictly forbidden.
  *
  * Purpose: Tracks file changes in the workspace using FileSystemWatcher with debouncing
@@ -39,6 +39,7 @@ namespace ClaudeCodeVS.Diff
         private string _workspaceDirectory;
         private bool _isTracking;
         private bool _disposed;
+        private const int MaxTrackedFileBytes = 4 * 1024 * 1024;
 
         /// <summary>
         /// File extensions to track (source code files)
@@ -104,8 +105,15 @@ namespace ClaudeCodeVS.Diff
 
             try
             {
-                var files = GetTrackedFiles(workspaceDirectory);
-                foreach (var file in files)
+                var files = GetTrackedFiles(workspaceDirectory).ToList();
+
+                // Read files in parallel for better performance
+                var parallelOptions = new ParallelOptions
+                {
+                    MaxDegreeOfParallelism = Math.Min(files.Count, Environment.ProcessorCount * 2)
+                };
+
+                Parallel.ForEach(files, parallelOptions, file =>
                 {
                     try
                     {
@@ -119,7 +127,7 @@ namespace ClaudeCodeVS.Diff
                     {
                         Debug.WriteLine($"Error reading file {file}: {ex.Message}");
                     }
-                }
+                });
 
             }
             catch (Exception ex)
@@ -220,7 +228,12 @@ namespace ClaudeCodeVS.Diff
             if (string.IsNullOrEmpty(_workspaceDirectory))
                 return changedFiles;
 
-            // Check for modified and deleted files
+            // Track which files have been processed to avoid duplicates
+            var processedFiles = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            Dictionary<string, string> currentFiles = null;
+            HashSet<string> createdFilesSnapshot = null;
+
+            // Check for modified, deleted, and renamed files
             foreach (var kvp in _originalContents)
             {
                 var filePath = kvp.Key;
@@ -230,18 +243,71 @@ namespace ClaudeCodeVS.Diff
                 {
                     if (!File.Exists(filePath))
                     {
-                        // File was deleted
-                        var changedFile = CreateChangedFile(filePath, originalContent, null, ChangeType.Deleted);
-                        changedFiles.Add(changedFile);
+                        // File was deleted or possibly renamed
+                        // Check if content exists elsewhere (indicating a rename)
+                        if (currentFiles == null)
+                        {
+                            lock (_lock)
+                            {
+                                createdFilesSnapshot = new HashSet<string>(_createdFiles, StringComparer.OrdinalIgnoreCase);
+                            }
+
+                            currentFiles = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+                            foreach (var createdPath in createdFilesSnapshot)
+                            {
+                                if (!ShouldTrackFile(createdPath))
+                                    continue;
+
+                                if (!File.Exists(createdPath))
+                                    continue;
+
+                                var createdContent = ReadFileContent(createdPath);
+                                if (createdContent != null)
+                                {
+                                    currentFiles[createdPath] = createdContent;
+                                }
+                            }
+                        }
+
+                        string newPath = FindNewPathForContent(originalContent, currentFiles, filePath);
+                        if (!string.IsNullOrEmpty(newPath))
+                        {
+                            // This is a rename operation - get the current content at the new location
+                            string currentContentAtNewPath = null;
+                            if (currentFiles.ContainsKey(newPath))
+                            {
+                                currentContentAtNewPath = currentFiles[newPath];
+                            }
+                            else
+                            {
+                                // If not in currentFiles, read it directly
+                                currentContentAtNewPath = ReadFileContent(newPath);
+                            }
+
+                            var changedFile = CreateChangedFileWithRename(filePath, newPath, originalContent, currentContentAtNewPath);
+                            changedFiles.Add(changedFile);
+                            processedFiles.Add(newPath); // Mark as processed
+                        }
+                        else
+                        {
+                            // File was actually deleted
+                            var changedFile = CreateChangedFile(filePath, originalContent, null, ChangeType.Deleted);
+                            changedFiles.Add(changedFile);
+                        }
                     }
                     else
                     {
-                        // Check if content changed
+                        // File still exists at original location, check if content changed
                         var currentContent = ReadFileContent(filePath);
-                        if (currentContent != null && currentContent != originalContent)
+                        if (currentContent != null)
                         {
-                            var changedFile = CreateChangedFile(filePath, originalContent, currentContent, ChangeType.Modified);
-                            changedFiles.Add(changedFile);
+                            if (currentContent != originalContent)
+                            {
+                                // Content was modified
+                                var changedFile = CreateChangedFile(filePath, originalContent, currentContent, ChangeType.Modified);
+                                changedFiles.Add(changedFile);
+                            }
+                            // If content is the same, it's unchanged - don't add to changes
                         }
                     }
                 }
@@ -251,12 +317,12 @@ namespace ClaudeCodeVS.Diff
                 }
             }
 
-            // Check for new files
+            // Check for new files (not created as a result of rename)
             lock (_lock)
             {
                 foreach (var filePath in _createdFiles)
                 {
-                    if (!_originalContents.ContainsKey(filePath) && File.Exists(filePath))
+                    if (!_originalContents.ContainsKey(filePath) && File.Exists(filePath) && !processedFiles.Contains(filePath))
                     {
                         try
                         {
@@ -265,6 +331,7 @@ namespace ClaudeCodeVS.Diff
                             {
                                 var changedFile = CreateChangedFile(filePath, null, currentContent, ChangeType.Created);
                                 changedFiles.Add(changedFile);
+                                processedFiles.Add(filePath); // Mark as processed
                             }
                         }
                         catch (Exception ex)
@@ -363,6 +430,71 @@ namespace ClaudeCodeVS.Diff
             };
         }
 
+        private ChangedFile CreateChangedFileWithRename(string oldFilePath, string newFilePath, string originalContent, string modifiedContent)
+        {
+            var fileName = Path.GetFileName(newFilePath);
+            var relativePath = GetRelativePath(newFilePath);
+
+            return new ChangedFile
+            {
+                FilePath = newFilePath,  // Use the new path as the current location
+                OldFilePath = oldFilePath,  // Store the old path for rename indication
+                FileName = fileName,
+                RelativePath = relativePath,
+                OriginalContent = originalContent,
+                ModifiedContent = modifiedContent,
+                Type = ChangeType.Renamed
+            };
+        }
+
+        private string FindNewPathForContent(string originalContent, Dictionary<string, string> currentFiles, string originalPath)
+        {
+            // First, look for exact content matches (pure rename without modification)
+            foreach (var currentFileKvp in currentFiles)
+            {
+                var currentPath = currentFileKvp.Key;
+                var currentContent = currentFileKvp.Value;
+
+                // Don't consider the same path as a rename
+                if (string.Equals(currentPath, originalPath, StringComparison.OrdinalIgnoreCase))
+                    continue;
+
+                // Look for exact content matches first (pure rename)
+                if (currentContent == originalContent)
+                {
+                    // Exact match - definitely a rename
+                    return currentPath;
+                }
+            }
+
+            // If no exact match found, look for files that were created (likely renames with modifications)
+            // But only consider them if they have the same content as the original (before modification)
+            foreach (var currentFileKvp in currentFiles)
+            {
+                var currentPath = currentFileKvp.Key;
+                var currentContent = currentFileKvp.Value;
+
+                // Don't consider the same path as a rename
+                if (string.Equals(currentPath, originalPath, StringComparison.OrdinalIgnoreCase))
+                    continue;
+
+                // Check if this might be a rename with modifications
+                // If the file was marked as created, it could be a rename with changes
+                lock (_lock)
+                {
+                    if (_createdFiles.Contains(currentPath))
+                    {
+                        // For rename + modification, the content will be different, but we can still consider it a rename
+                        // if it was marked as created (which happens during rename operations)
+                        return currentPath;
+                    }
+                }
+            }
+
+            return null;
+        }
+
+
         private string GetRelativePath(string fullPath)
         {
             if (string.IsNullOrEmpty(_workspaceDirectory))
@@ -436,9 +568,9 @@ namespace ClaudeCodeVS.Diff
         {
             try
             {
-                // Skip large files (> 1MB)
+                // Skip large files
                 var fileInfo = new FileInfo(filePath);
-                if (fileInfo.Length > 1024 * 1024)
+                if (fileInfo.Length > MaxTrackedFileBytes)
                     return null;
 
                 // Try to read with shared access
@@ -499,12 +631,29 @@ namespace ClaudeCodeVS.Diff
 
         private void OnFileRenamed(object sender, RenamedEventArgs e)
         {
-            // Treat rename as delete old + create new
+            // Handle rename properly by tracking it as a rename operation
             if (ShouldTrackFile(e.OldFullPath))
             {
                 lock (_lock)
                 {
-                    _deletedFiles.Add(e.OldFullPath);
+                    // Remove from original contents and add to deleted files if it was being tracked
+                    if (_originalContents.ContainsKey(e.OldFullPath))
+                    {
+                        // Move the original content from old path to new path to track the rename properly
+                        string originalContent = _originalContents[e.OldFullPath];
+                        _originalContents.TryRemove(e.OldFullPath, out _);
+
+                        // Add the content to the new path
+                        if (ShouldTrackFile(e.FullPath))
+                        {
+                            _originalContents[e.FullPath] = originalContent;
+                        }
+                    }
+
+                    // Remove from created files if it was marked as created
+                    _createdFiles.Remove(e.OldFullPath);
+                    // Remove from deleted files if it was marked as deleted
+                    _deletedFiles.Remove(e.OldFullPath);
                 }
                 _pendingChanges[e.OldFullPath] = DateTime.Now;
             }
@@ -513,7 +662,10 @@ namespace ClaudeCodeVS.Diff
             {
                 lock (_lock)
                 {
-                    _createdFiles.Add(e.FullPath);
+                    // Remove from created files if it was marked as created (to avoid duplicates)
+                    _createdFiles.Remove(e.FullPath);
+                    // Remove from deleted files if it was marked as deleted
+                    _deletedFiles.Remove(e.FullPath);
                 }
                 _pendingChanges[e.FullPath] = DateTime.Now;
             }

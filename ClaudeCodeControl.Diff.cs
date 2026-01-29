@@ -3,7 +3,7 @@
  *
  * Autor:  Daniel Liedke
  *
- * Copyright © Daniel Liedke 2026
+ * Copyright © Daniel Carvalho Liedke 2026
  * Usage and reproduction in any manner whatsoever without the written permission of Daniel Liedke is strictly forbidden.
  *
  * Purpose: Diff viewer integration - file change tracking and diff window management
@@ -71,7 +71,9 @@ namespace ClaudeCodeVS
         /// <summary>
         /// Timeout for git status command in milliseconds
         /// </summary>
-        private const int GitStatusTimeoutMs = 1500;
+        private const int GitStatusTimeoutMs = 8000;
+        private const int GitShowTimeoutMs = 4000;
+        private const int MaxGitFileBytes = 4 * 1024 * 1024;
 
         /// <summary>
         /// Tracks if reset handler is already wired
@@ -84,14 +86,19 @@ namespace ClaudeCodeVS
         private bool _diffViewerVisibilitySubscribed;
 
         /// <summary>
-        /// Periodic poll timer to detect clean git state after commit/push
+        /// Periodic poll timer to detect changes via git status
         /// </summary>
         private DispatcherTimer _gitStatusPollTimer;
 
         /// <summary>
-        /// Poll interval for git clean checks in milliseconds
+        /// Poll interval for git status checks in milliseconds (used instead of FileSystemWatcher for git repos)
         /// </summary>
-        private const int GitStatusPollIntervalMs = 15000;
+        private const int GitStatusPollIntervalMs = 3000;
+
+        /// <summary>
+        /// Tracks if we're using git-based change detection (vs FileSystemWatcher)
+        /// </summary>
+        private bool _isGitBasedTracking;
 
         #endregion
 
@@ -126,13 +133,37 @@ namespace ClaudeCodeVS
                     return;
                 }
 
+                // Use git repository root if available, otherwise fall back to workspace directory
+                string repoRoot = FindGitRepositoryRoot(workspaceDir);
+                string trackingDir = repoRoot ?? workspaceDir;
+
                 if (!_isDiffTrackingActive)
                 {
-                    // Take snapshot of current files
-                    _fileChangeTracker.TakeSnapshot(workspaceDir);
+                    // For git repos, use git status polling instead of FileSystemWatcher (more efficient for large projects)
+                    // For non-git projects, use FileSystemWatcher with snapshot
+                    _isGitBasedTracking = !string.IsNullOrEmpty(repoRoot);
 
-                    // Start watching for changes
-                    _fileChangeTracker.StartTracking(workspaceDir);
+                    if (_isGitBasedTracking)
+                    {
+                        // Git repo: just apply git baseline (reads only changed files from git)
+                        // No need for snapshot - git tracks everything
+                        string repoRootCopy = repoRoot;
+                        await System.Threading.Tasks.Task.Run(() => TryApplyGitBaseline(repoRootCopy));
+                    }
+                    else
+                    {
+                        // Non-git project: take snapshot of all files and use FileSystemWatcher
+                        string trackingDirCopy = trackingDir;
+                        await System.Threading.Tasks.Task.Run(() => _fileChangeTracker.TakeSnapshot(trackingDirCopy));
+                    }
+
+                    // Back to UI thread for tracking setup
+                    await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
+
+                    if (!_isGitBasedTracking)
+                    {
+                        _fileChangeTracker.StartTracking(trackingDir);
+                    }
                     _isDiffTrackingActive = true;
                 }
 
@@ -140,7 +171,10 @@ namespace ClaudeCodeVS
                 if (_diffViewerWindow != null && _diffViewerWindow.IsWindowVisible)
                 {
                     EnsureGitStatusPollTimer();
-                    _fileChangeTracker?.Resume();
+                    if (!_isGitBasedTracking)
+                    {
+                        _fileChangeTracker?.Resume();
+                    }
                 }
 
                 if (openWindow)
@@ -181,12 +215,15 @@ namespace ClaudeCodeVS
         {
             try
             {
-                await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
-
                 if (_fileChangeTracker == null)
                     return;
 
-                var changedFiles = _fileChangeTracker.GetChangedFiles();
+                // Run heavy file operations on background thread
+                var tracker = _fileChangeTracker;
+                var changedFiles = await System.Threading.Tasks.Task.Run(() => tracker.GetChangedFiles());
+
+                // Switch to UI thread for the rest
+                await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
 
                 if (!_isAutoResetting && _isDiffTrackingActive && changedFiles.Count > 0)
                 {
@@ -319,7 +356,13 @@ namespace ClaudeCodeVS
                     bool shouldAutoReset = await ShouldAutoResetDiffBaselineAsync();
                     if (shouldAutoReset)
                     {
-                        await ResetDiffBaselineAsync(true, true, false, false, null, false);
+                        await ResetDiffBaselineAsync(true, true, false, false, null, true);
+                    }
+                    else if (_isGitBasedTracking)
+                    {
+                        // For git-based tracking, refresh the diff view on each poll
+                        // This replaces FileSystemWatcher for git repos
+                        await RefreshDiffViewAsync();
                     }
                 }
                 catch (Exception ex)
@@ -389,7 +432,8 @@ namespace ClaudeCodeVS
             {
                 try
                 {
-                    await ResetDiffBaselineAsync(true, false, true, true, null, false);
+                    // Use git baseline when resetting to properly track changes relative to HEAD
+                    await ResetDiffBaselineAsync(true, false, true, true, null, true);
                 }
                 catch (Exception ex)
                 {
@@ -405,14 +449,31 @@ namespace ClaudeCodeVS
             {
                 // Window became visible - resume tracking and force refresh
                 EnsureGitStatusPollTimer();
-                _fileChangeTracker?.Resume();
+
+                // Only use FileSystemWatcher for non-git projects
+                if (!_isGitBasedTracking)
+                {
+                    _fileChangeTracker?.Resume();
+                }
 
                 // Force a refresh to catch any changes that occurred while hidden
                 ThreadHelper.JoinableTaskFactory.Run(async () =>
                 {
                     try
                     {
-                        await RefreshDiffViewAsync();
+                        if (_isAutoResetting)
+                            return;
+
+                        if (_isGitBasedTracking)
+                        {
+                            // For git projects, refresh baseline from git when the window is activated
+                            await ResetDiffBaselineAsync(true, false, false, false, null, true);
+                        }
+                        else
+                        {
+                            // For non-git projects, just refresh the view (don't reset baseline)
+                            await RefreshDiffViewAsync();
+                        }
                     }
                     catch (Exception ex)
                     {
@@ -424,7 +485,12 @@ namespace ClaudeCodeVS
             {
                 // Window hidden - pause tracking to save resources
                 StopGitStatusPollTimer();
-                _fileChangeTracker?.Pause();
+
+                // Only use FileSystemWatcher for non-git projects
+                if (!_isGitBasedTracking)
+                {
+                    _fileChangeTracker?.Pause();
+                }
             }
         }
 
@@ -449,21 +515,40 @@ namespace ClaudeCodeVS
 
                 _isAutoResetting = isAutoReset;
 
-                bool baselineApplied = false;
                 string repoRoot = FindGitRepositoryRoot(workspaceDir);
-                if (useGitBaseline)
+                // Use git repository root if available, otherwise fall back to workspace directory
+                string trackingDir = repoRoot ?? workspaceDir;
+
+                // For git repos, use git status polling instead of FileSystemWatcher (more efficient for large projects)
+                // For non-git projects, use FileSystemWatcher with snapshot
+                _isGitBasedTracking = !string.IsNullOrEmpty(repoRoot);
+
+                if (_isGitBasedTracking)
                 {
-                    baselineApplied = TryApplyGitBaseline(workspaceDir, repoRoot);
+                    // Git repo: just apply git baseline (reads only changed files from git)
+                    // No need for snapshot - git tracks everything
+                    if (useGitBaseline)
+                    {
+                        string repoRootCopy = repoRoot;
+                        await System.Threading.Tasks.Task.Run(() => TryApplyGitBaseline(repoRootCopy));
+                    }
+                }
+                else
+                {
+                    // Non-git project: take snapshot of all files
+                    string trackingDirCopy = trackingDir;
+                    await System.Threading.Tasks.Task.Run(() => _fileChangeTracker.TakeSnapshot(trackingDirCopy));
                 }
 
-                if (!baselineApplied)
-                {
-                    _fileChangeTracker.TakeSnapshot(workspaceDir);
-                }
+                // Back to UI thread for the rest
+                await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
 
                 if (startTracking)
                 {
-                    _fileChangeTracker.StartTracking(workspaceDir);
+                    if (!_isGitBasedTracking)
+                    {
+                        _fileChangeTracker.StartTracking(trackingDir);
+                    }
                     _isDiffTrackingActive = true;
                 }
 
@@ -476,7 +561,10 @@ namespace ClaudeCodeVS
                 if (_diffViewerWindow != null && _diffViewerWindow.IsWindowVisible)
                 {
                     EnsureGitStatusPollTimer();
-                    _fileChangeTracker?.Resume();
+                    if (!_isGitBasedTracking)
+                    {
+                        _fileChangeTracker?.Resume();
+                    }
                 }
 
                 if (refreshView)
@@ -489,6 +577,7 @@ namespace ClaudeCodeVS
                 Debug.WriteLine($"Error resetting diff baseline: {ex.Message}");
                 if (showErrors)
                 {
+                    await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
                     MessageBox.Show("Failed to reset code changes baseline.", "Claude Code", MessageBoxButton.OK, MessageBoxImage.Error);
                 }
             }
@@ -623,7 +712,7 @@ namespace ClaudeCodeVS
             return isClean;
         }
 
-        private bool TryApplyGitBaseline(string workspaceDir, string repoRoot)
+        private bool TryApplyGitBaseline(string repoRoot)
         {
             try
             {
@@ -633,13 +722,20 @@ namespace ClaudeCodeVS
                 if (!Directory.Exists(repoRoot))
                     return false;
 
-                string statusOutput = RunGitCommand(repoRoot, "status --porcelain=v1 -z");
+                string statusOutput = RunGitCommand(repoRoot, "status --porcelain=v1 -z", GitStatusTimeoutMs);
                 if (string.IsNullOrEmpty(statusOutput))
-                    return false;
+                {
+                    // No changes - clear the tracker to show empty state
+                    _fileChangeTracker.Clear();
+                    return true;
+                }
 
-                var originalContents = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+                var originalContents = new System.Collections.Concurrent.ConcurrentDictionary<string, string>(StringComparer.OrdinalIgnoreCase);
                 var createdFiles = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
                 var deletedFiles = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+                // Collect all files that need their original content fetched
+                var filesToFetch = new List<(string fullPath, string relativePath, bool isDeleted)>();
 
                 foreach (var entry in ParseGitStatusEntries(statusOutput))
                 {
@@ -648,58 +744,79 @@ namespace ClaudeCodeVS
                         string oldFullPath = BuildFullPath(repoRoot, entry.Path);
                         string newFullPath = BuildFullPath(repoRoot, entry.NewPath);
 
-                        if (IsPathUnderDirectory(oldFullPath, workspaceDir) && _fileChangeTracker.IsTrackablePath(oldFullPath))
+                        // Track files under the git repository root
+                        if (IsPathUnderDirectory(oldFullPath, repoRoot) && _fileChangeTracker.IsTrackablePath(oldFullPath))
                         {
-                            string original = ReadGitFile(repoRoot, entry.Path);
-                            if (original != null)
-                            {
-                                originalContents[oldFullPath] = original;
-                            }
+                            filesToFetch.Add((oldFullPath, entry.Path, false));
                         }
 
-                        if (IsPathUnderDirectory(newFullPath, workspaceDir) && _fileChangeTracker.IsTrackablePath(newFullPath))
+                        if (IsPathUnderDirectory(newFullPath, repoRoot) && _fileChangeTracker.IsTrackablePath(newFullPath))
                         {
-                            createdFiles.Add(newFullPath);
+                            lock (createdFiles)
+                            {
+                                createdFiles.Add(newFullPath);
+                            }
                         }
 
                         continue;
                     }
 
                     string fullPath = BuildFullPath(repoRoot, entry.Path);
-                    if (!IsPathUnderDirectory(fullPath, workspaceDir) || !_fileChangeTracker.IsTrackablePath(fullPath))
+                    // Track files under the git repository root (not just workspace directory)
+                    if (!IsPathUnderDirectory(fullPath, repoRoot) || !_fileChangeTracker.IsTrackablePath(fullPath))
                         continue;
 
                     if (entry.IsUntracked || entry.IsAdded)
                     {
-                        createdFiles.Add(fullPath);
+                        lock (createdFiles)
+                        {
+                            createdFiles.Add(fullPath);
+                        }
                         continue;
                     }
 
                     if (entry.IsDeleted)
                     {
-                        string original = ReadGitFile(repoRoot, entry.Path);
-                        if (original != null)
+                        filesToFetch.Add((fullPath, entry.Path, true));
+                        lock (deletedFiles)
                         {
-                            originalContents[fullPath] = original;
+                            deletedFiles.Add(fullPath);
                         }
-                        deletedFiles.Add(fullPath);
                         continue;
                     }
 
                     if (entry.IsModified || entry.IsTypeChanged || entry.IsUnmerged)
                     {
-                        string original = ReadGitFile(repoRoot, entry.Path);
-                        if (original != null)
-                        {
-                            originalContents[fullPath] = original;
-                        }
+                        filesToFetch.Add((fullPath, entry.Path, false));
                     }
                 }
 
-                if (originalContents.Count == 0 && createdFiles.Count == 0 && deletedFiles.Count == 0)
-                    return false;
+                // Fetch original contents in parallel for better performance
+                if (filesToFetch.Count > 0)
+                {
+                    var parallelOptions = new System.Threading.Tasks.ParallelOptions
+                    {
+                        MaxDegreeOfParallelism = Math.Min(filesToFetch.Count, Environment.ProcessorCount * 2)
+                    };
 
-                _fileChangeTracker.SetBaseline(workspaceDir, originalContents, createdFiles, deletedFiles);
+                    System.Threading.Tasks.Parallel.ForEach(filesToFetch, parallelOptions, fileInfo =>
+                    {
+                        string original = ReadGitFile(repoRoot, fileInfo.relativePath);
+                        if (original != null)
+                        {
+                            originalContents[fileInfo.fullPath] = original;
+                        }
+                    });
+                }
+
+                if (originalContents.Count == 0 && createdFiles.Count == 0 && deletedFiles.Count == 0)
+                {
+                    // No trackable changes - clear the tracker to show empty state
+                    _fileChangeTracker.Clear();
+                    return true;
+                }
+
+                _fileChangeTracker.SetBaseline(repoRoot, originalContents, createdFiles, deletedFiles);
                 return true;
             }
             catch (Exception ex)
@@ -709,7 +826,7 @@ namespace ClaudeCodeVS
             }
         }
 
-        private string RunGitCommand(string workingDirectory, string arguments)
+        private string RunGitCommand(string workingDirectory, string arguments, int timeoutMs)
         {
             try
             {
@@ -730,7 +847,7 @@ namespace ClaudeCodeVS
                         return null;
 
                     string output = process.StandardOutput.ReadToEnd();
-                    bool exited = process.WaitForExit(GitStatusTimeoutMs);
+                    bool exited = process.WaitForExit(timeoutMs);
                     if (!exited)
                     {
                         try
@@ -762,8 +879,8 @@ namespace ClaudeCodeVS
                 return null;
 
             string gitPath = relativePath.Replace("\\", "/");
-            string output = RunGitCommand(repoRoot, $"show HEAD:{gitPath}");
-            if (output != null && output.Length > 1024 * 1024)
+            string output = RunGitCommand(repoRoot, $"show HEAD:{gitPath}", GitShowTimeoutMs);
+            if (output != null && output.Length > MaxGitFileBytes)
             {
                 return null;
             }
@@ -847,6 +964,8 @@ namespace ClaudeCodeVS
         /// </summary>
         private void CleanupDiffTracking()
         {
+            ThreadHelper.ThrowIfNotOnUIThread();
+
             try
             {
                 if (_fileChangeTracker != null)
@@ -856,11 +975,29 @@ namespace ClaudeCodeVS
                     _fileChangeTracker.Dispose();
                     _fileChangeTracker = null;
                 }
-                if (_diffViewerWindow != null && _diffViewerVisibilitySubscribed)
+                if (_diffViewerWindow != null)
                 {
-                    _diffViewerWindow.VisibilityChanged -= OnDiffViewerVisibilityChanged;
+                    if (_diffViewerVisibilitySubscribed)
+                    {
+                        _diffViewerWindow.VisibilityChanged -= OnDiffViewerVisibilityChanged;
+                    }
+
+                    // Close the diff viewer window
+                    try
+                    {
+                        if (_diffViewerWindow.Frame is IVsWindowFrame windowFrame)
+                        {
+                            windowFrame.CloseFrame((uint)__FRAMECLOSE.FRAMECLOSE_NoSave);
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        Debug.WriteLine($"Error closing diff viewer window: {ex.Message}");
+                    }
+                    _diffViewerWindow = null;
                 }
                 _isDiffTrackingActive = false;
+                _isGitBasedTracking = false;
                 _diffViewerResetSubscribed = false;
                 _diffViewerVisibilitySubscribed = false;
                 StopGitStatusPollTimer();

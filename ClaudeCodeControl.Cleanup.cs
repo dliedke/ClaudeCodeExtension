@@ -3,7 +3,7 @@
  *
  * Autor:  Daniel Liedke
  *
- * Copyright © Daniel Liedke 2026
+ * Copyright © Daniel Carvalho Liedke 2026
  * Usage and reproduction in any manner whatsoever without the written permission of Daniel Liedke is strictly forbidden.
  *
  * Purpose: Resource cleanup and temporary file management
@@ -14,6 +14,7 @@ using System;
 using System.IO;
 using System.Diagnostics;
 using System.Windows;
+using Microsoft.VisualStudio.Shell;
 
 namespace ClaudeCodeVS
 {
@@ -103,6 +104,8 @@ namespace ClaudeCodeVS
         /// </summary>
         private void CleanupResources()
         {
+            ThreadHelper.ThrowIfNotOnUIThread();
+
             try
             {
                 // Cleanup diff tracking
@@ -217,6 +220,7 @@ namespace ClaudeCodeVS
         /// </summary>
         public void Dispose()
         {
+            ThreadHelper.ThrowIfNotOnUIThread();
             CleanupResources();
         }
 

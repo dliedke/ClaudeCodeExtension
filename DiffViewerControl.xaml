@@ -104,6 +104,37 @@
                 </Trigger>
             </Style.Triggers>
         </Style>
+
+        <!-- Auto-scroll toggle button style -->
+        <Style x:Key="AutoScrollToggleButtonStyle" TargetType="ToggleButton">
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Padding" Value="4,2"/>
+            <Setter Property="Margin" Value="0,0,4,0"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Foreground" Value="{DynamicResource {x:Static vsshell:VsBrushes.WindowTextKey}}"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ToggleButton">
+                        <Border x:Name="autoScrollBorder"
+                                Background="{TemplateBinding Background}"
+                                Padding="{TemplateBinding Padding}"
+                                CornerRadius="2">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="autoScrollBorder" Property="Background" Value="{DynamicResource {x:Static vsshell:VsBrushes.CommandBarHoverOverSelectedKey}}"/>
+                            </Trigger>
+                            <Trigger Property="IsChecked" Value="True">
+                                <Setter TargetName="autoScrollBorder" Property="Background" Value="{DynamicResource {x:Static vsshell:VsBrushes.CommandBarSelectedKey}}"/>
+                                <Setter Property="Foreground" Value="{DynamicResource {x:Static vsshell:VsBrushes.ToolWindowTextKey}}"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
     </UserControl.Resources>
 
     <Grid>
@@ -145,6 +176,15 @@
                 </StackPanel>
 
                 <StackPanel Grid.Column="2" Orientation="Horizontal" Margin="8,0,0,0">
+                    <ToggleButton x:Name="AutoScrollButton"
+                                  Style="{StaticResource AutoScrollToggleButtonStyle}"
+                                  ToolTip="Auto-scroll to latest changes"
+                                  IsChecked="False"
+                                  Checked="AutoScrollButton_Checked"
+                                  Unchecked="AutoScrollButton_Unchecked">
+                        <TextBlock Text="&#x2193;&#x2193;" FontWeight="Bold" FontSize="12"
+                                   Foreground="{Binding RelativeSource={RelativeSource AncestorType=ToggleButton}, Path=Foreground}"/>
+                    </ToggleButton>
                     <ToggleButton x:Name="ExpandCollapseAllButton"
                                   Style="{StaticResource HeaderToggleButtonStyle}"
                                   IsChecked="False"

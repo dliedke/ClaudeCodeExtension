@@ -3,7 +3,7 @@
  *
  * Autor:  Daniel Liedke
  *
- * Copyright © Daniel Liedke 2026
+ * Copyright © Daniel Carvalho Liedke 2026
  * Usage and reproduction in any manner whatsoever without the written permission of Daniel Liedke is strictly forbidden.
  *
  * Purpose: Tool window for displaying file diffs in Visual Studio
@@ -14,6 +14,8 @@ using Microsoft.VisualStudio;
 using Microsoft.VisualStudio.Shell;
 using Microsoft.VisualStudio.Shell.Interop;
 using System;
+using System.Diagnostics;
+using System.IO;
 using System.Runtime.InteropServices;
 
 namespace ClaudeCodeVS
@@ -27,6 +29,7 @@ namespace ClaudeCodeVS
         private DiffViewerControl _diffViewerControl;
         private bool _isVisible;
         private uint _notifyCookie;
+
 
         /// <summary>
         /// Gets the diff viewer control
@@ -93,6 +96,8 @@ namespace ClaudeCodeVS
 
             base.OnClose();
         }
+
+
 
         #region IVsWindowFrameNotify Implementation
 

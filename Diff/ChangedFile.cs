@@ -3,7 +3,7 @@
  *
  * Autor:  Daniel Liedke
  *
- * Copyright © Daniel Liedke 2026
+ * Copyright © Daniel Carvalho Liedke 2026
  * Usage and reproduction in any manner whatsoever without the written permission of Daniel Liedke is strictly forbidden.
  *
  * Purpose: Data models for tracking file changes and diff information
@@ -23,7 +23,8 @@ namespace ClaudeCodeVS.Diff
     {
         Created,
         Modified,
-        Deleted
+        Deleted,
+        Renamed
     }
 
     /// <summary>
@@ -69,6 +70,7 @@ namespace ClaudeCodeVS.Diff
     {
         private bool _isExpanded;
         private string _filePath;
+        private string _oldFilePath;
         private string _fileName;
         private string _relativePath;
         private string _originalContent;
@@ -85,6 +87,15 @@ namespace ClaudeCodeVS.Diff
         {
             get => _filePath;
             set { _filePath = value; OnPropertyChanged(); }
+        }
+
+        /// <summary>
+        /// Previous path for renamed files (null for non-renamed files)
+        /// </summary>
+        public string OldFilePath
+        {
+            get => _oldFilePath;
+            set { _oldFilePath = value; OnPropertyChanged(); }
         }
 
         /// <summary>
@@ -184,6 +195,7 @@ namespace ClaudeCodeVS.Diff
                 {
                     case ChangeType.Created: return "[new]";
                     case ChangeType.Deleted: return "[del]";
+                    case ChangeType.Renamed: return "[ren]";
                     default: return "";
                 }
             }

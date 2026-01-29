@@ -3,7 +3,7 @@
  *
  * Autor:  Daniel Liedke
  *
- * Copyright © Daniel Liedke 2026
+ * Copyright © Daniel Carvalho Liedke 2026
  * Usage and reproduction in any manner whatsoever without the written permission of Daniel Liedke is strictly forbidden.
  *
  * Purpose: Code-behind for the diff viewer control
@@ -18,6 +18,7 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
+using System.Windows.Threading;
 using ClaudeCodeVS.Diff;
 using Microsoft.VisualStudio.PlatformUI;
 using Microsoft.VisualStudio.Shell;
@@ -39,6 +40,12 @@ namespace ClaudeCodeVS
         private const double ZoomMax = 3.0;
         private const double ZoomStep = 0.1;
 
+        // Auto-scroll fields
+        private bool _autoScrollEnabled = false;
+        private DispatcherTimer _autoScrollDisableTimer;
+        private int _previousFileCount = 0;
+        private const int AutoScrollDisableDelayMs = 3000;
+
         #endregion
 
         #region Constructor
@@ -51,6 +58,13 @@ namespace ClaudeCodeVS
             // Subscribe to theme changes
             VSColorTheme.ThemeChanged += OnThemeChanged;
             Loaded += OnLoaded;
+
+            // Initialize auto-scroll disable timer
+            _autoScrollDisableTimer = new DispatcherTimer
+            {
+                Interval = TimeSpan.FromMilliseconds(AutoScrollDisableDelayMs)
+            };
+            _autoScrollDisableTimer.Tick += OnAutoScrollDisableTimerTick;
         }
 
         #endregion
@@ -85,6 +99,10 @@ namespace ClaudeCodeVS
                     }
                 }
 
+                // Detect if changes are actively happening (file count changed or content changed)
+                bool hasNewChanges = newFiles.Count != _previousFileCount || HasContentChanges(newFiles);
+                _previousFileCount = newFiles.Count;
+
                 _changedFiles = newFiles;
 
                 // Compute diffs for all files
@@ -97,11 +115,13 @@ namespace ClaudeCodeVS
                     {
                         await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
                         RefreshUI();
+                        HandleAutoScroll(hasNewChanges);
                     });
                 }
                 else
                 {
                     RefreshUI();
+                    HandleAutoScroll(hasNewChanges);
                 }
             }
             catch (Exception ex)
@@ -210,8 +230,8 @@ namespace ClaudeCodeVS
                 EmptyStateText.Visibility = Visibility.Visible;
                 FileListScrollViewer.Visibility = Visibility.Collapsed;
                 SummaryText.Text = "No changes detected";
-                AdditionsText.Text = "";
-                DeletionsText.Text = "";
+                AdditionsText.Visibility = Visibility.Collapsed;
+                DeletionsText.Visibility = Visibility.Collapsed;
                 return;
             }
 
@@ -224,7 +244,9 @@ namespace ClaudeCodeVS
             int totalRemoved = _changedFiles.Sum(f => f.LinesRemoved);
             SummaryText.Text = $"{_changedFiles.Count} file{(_changedFiles.Count != 1 ? "s" : "")} changed";
             AdditionsText.Text = $"+{totalAdded}";
+            AdditionsText.Visibility = Visibility.Visible;
             DeletionsText.Text = $"-{totalRemoved}";
+            DeletionsText.Visibility = Visibility.Visible;
 
             // Create file items
             foreach (var file in _changedFiles)
@@ -574,6 +596,91 @@ namespace ClaudeCodeVS
                 ZoomTransform.ScaleY = _zoomLevel;
                 e.Handled = true;
             }
+        }
+
+        #endregion
+
+        #region Auto-Scroll Methods
+
+        private void HandleAutoScroll(bool hasNewChanges)
+        {
+            ThreadHelper.ThrowIfNotOnUIThread();
+
+            if (hasNewChanges && _changedFiles.Count > 0)
+            {
+                // Enable auto-scroll when changes start happening
+                if (!_autoScrollEnabled)
+                {
+                    _autoScrollEnabled = true;
+                    UpdateAutoScrollButtonState();
+                }
+
+                // Reset the disable timer
+                _autoScrollDisableTimer.Stop();
+                _autoScrollDisableTimer.Start();
+
+                // Scroll to bottom if auto-scroll is enabled
+                if (_autoScrollEnabled)
+                {
+                    ScrollToBottom();
+                }
+            }
+        }
+
+        private bool HasContentChanges(List<ChangedFile> newFiles)
+        {
+            if (newFiles.Count != _changedFiles.Count)
+                return true;
+
+            // Compare total lines added/removed as a quick check for content changes
+            int newTotalAdded = newFiles.Sum(f => f.LinesAdded);
+            int newTotalRemoved = newFiles.Sum(f => f.LinesRemoved);
+            int oldTotalAdded = _changedFiles.Sum(f => f.LinesAdded);
+            int oldTotalRemoved = _changedFiles.Sum(f => f.LinesRemoved);
+
+            return newTotalAdded != oldTotalAdded || newTotalRemoved != oldTotalRemoved;
+        }
+
+        private void ScrollToBottom()
+        {
+            ThreadHelper.ThrowIfNotOnUIThread();
+
+            // ScrollToEnd after layout updates
+            FileListScrollViewer.ScrollToEnd();
+        }
+
+        private void OnAutoScrollDisableTimerTick(object sender, EventArgs e)
+        {
+            // DispatcherTimer fires on the UI thread, so we're already on the main thread
+            _autoScrollDisableTimer.Stop();
+
+            // Disable auto-scroll after period of inactivity
+            _autoScrollEnabled = false;
+            UpdateAutoScrollButtonState();
+        }
+
+        private void UpdateAutoScrollButtonState()
+        {
+            // This method is always called from UI thread (either from HandleAutoScroll or from DispatcherTimer)
+            AutoScrollButton.IsChecked = _autoScrollEnabled;
+            AutoScrollButton.ToolTip = _autoScrollEnabled
+                ? "Auto-scroll enabled (click to disable)"
+                : "Auto-scroll disabled (click to enable)";
+        }
+
+        private void AutoScrollButton_Checked(object sender, RoutedEventArgs e)
+        {
+            ThreadHelper.ThrowIfNotOnUIThread();
+            _autoScrollEnabled = true;
+            _autoScrollDisableTimer.Stop();
+            _autoScrollDisableTimer.Start();
+            ScrollToBottom();
+        }
+
+        private void AutoScrollButton_Unchecked(object sender, RoutedEventArgs e)
+        {
+            _autoScrollEnabled = false;
+            _autoScrollDisableTimer.Stop();
         }
 
         #endregion
