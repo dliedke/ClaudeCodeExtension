@@ -176,9 +176,14 @@
         <ScrollViewer Grid.Row="1"
                       x:Name="FileListScrollViewer"
                       VerticalScrollBarVisibility="Auto"
-                      HorizontalScrollBarVisibility="Disabled"
+                      HorizontalScrollBarVisibility="Auto"
+                      PreviewMouseWheel="FileListScrollViewer_PreviewMouseWheel"
                       Visibility="Collapsed">
-            <StackPanel x:Name="FileListPanel"/>
+            <StackPanel x:Name="FileListPanel">
+                <StackPanel.LayoutTransform>
+                    <ScaleTransform x:Name="ZoomTransform" ScaleX="1" ScaleY="1"/>
+                </StackPanel.LayoutTransform>
+            </StackPanel>
         </ScrollViewer>
     </Grid>
 </UserControl>

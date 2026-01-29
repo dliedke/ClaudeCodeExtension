@@ -10,7 +10,9 @@
  *
  * *******************************************************************************************************************/
 
+using Microsoft.VisualStudio;
 using Microsoft.VisualStudio.Shell;
+using Microsoft.VisualStudio.Shell.Interop;
 using System;
 using System.Runtime.InteropServices;
 
@@ -20,14 +22,26 @@ namespace ClaudeCodeVS
     /// Tool window for displaying file changes and diffs
     /// </summary>
     [Guid("A1B2C3D4-E5F6-7890-ABCD-EF1234567890")]
-    public class DiffViewerToolWindow : ToolWindowPane
+    public class DiffViewerToolWindow : ToolWindowPane, IVsWindowFrameNotify, IVsWindowFrameNotify2
     {
         private DiffViewerControl _diffViewerControl;
+        private bool _isVisible;
+        private uint _notifyCookie;
 
         /// <summary>
         /// Gets the diff viewer control
         /// </summary>
         public DiffViewerControl DiffViewerControl => _diffViewerControl;
+
+        /// <summary>
+        /// Gets whether the window is currently visible
+        /// </summary>
+        public bool IsWindowVisible => _isVisible;
+
+        /// <summary>
+        /// Fired when window visibility changes
+        /// </summary>
+        public event EventHandler<bool> VisibilityChanged;
 
         public DiffViewerToolWindow() : base(null)
         {
@@ -37,28 +51,106 @@ namespace ClaudeCodeVS
         }
 
         /// <summary>
-        /// Updates the title of the tool window
+        /// Called when the tool window is created - subscribe to frame notifications
         /// </summary>
-        public void UpdateTitle(string title)
+        public override void OnToolWindowCreated()
         {
+            base.OnToolWindowCreated();
             ThreadHelper.ThrowIfNotOnUIThread();
-            this.Caption = title;
+
+            // Subscribe to window frame notifications
+            if (Frame is IVsWindowFrame2 windowFrame2)
+            {
+                windowFrame2.Advise(this, out _notifyCookie);
+            }
+
+            // Check initial visibility
+            if (Frame is IVsWindowFrame windowFrame)
+            {
+                _isVisible = windowFrame.IsVisible() == VSConstants.S_OK;
+            }
         }
 
         /// <summary>
-        /// Updates the title with file count and change stats
+        /// Called when the window is closed
         /// </summary>
-        public void UpdateTitleWithStats(int fileCount, int linesAdded, int linesRemoved)
+        protected override void OnClose()
         {
             ThreadHelper.ThrowIfNotOnUIThread();
-            if (fileCount == 0)
+
+            // Unsubscribe from notifications
+            if (_notifyCookie != 0 && Frame is IVsWindowFrame2 windowFrame2)
             {
-                this.Caption = "Code Changes";
+                windowFrame2.Unadvise(_notifyCookie);
+                _notifyCookie = 0;
             }
-            else
+
+            if (_isVisible)
             {
-                this.Caption = $"Code Changes ({fileCount} files, +{linesAdded} -{linesRemoved})";
+                _isVisible = false;
+                VisibilityChanged?.Invoke(this, false);
             }
+
+            base.OnClose();
         }
+
+        #region IVsWindowFrameNotify Implementation
+
+        public int OnShow(int fShow)
+        {
+            var frameShow = (__FRAMESHOW)fShow;
+            bool nowVisible = frameShow == __FRAMESHOW.FRAMESHOW_WinShown ||
+                              frameShow == __FRAMESHOW.FRAMESHOW_WinRestored ||
+                              frameShow == __FRAMESHOW.FRAMESHOW_WinMaximized ||
+                              frameShow == __FRAMESHOW.FRAMESHOW_TabActivated;
+
+            bool nowHidden = frameShow == __FRAMESHOW.FRAMESHOW_WinHidden ||
+                             frameShow == __FRAMESHOW.FRAMESHOW_WinMinimized ||
+                             frameShow == __FRAMESHOW.FRAMESHOW_TabDeactivated;
+
+            if (nowVisible && !_isVisible)
+            {
+                _isVisible = true;
+                VisibilityChanged?.Invoke(this, true);
+            }
+            else if (nowHidden && _isVisible)
+            {
+                _isVisible = false;
+                VisibilityChanged?.Invoke(this, false);
+            }
+
+            return VSConstants.S_OK;
+        }
+
+        public int OnMove()
+        {
+            return VSConstants.S_OK;
+        }
+
+        public int OnSize()
+        {
+            return VSConstants.S_OK;
+        }
+
+        public int OnDockableChange(int fDockable)
+        {
+            return VSConstants.S_OK;
+        }
+
+        #endregion
+
+        #region IVsWindowFrameNotify2 Implementation
+
+        public int OnClose(ref uint pgrfSaveOptions)
+        {
+            if (_isVisible)
+            {
+                _isVisible = false;
+                VisibilityChanged?.Invoke(this, false);
+            }
+            return VSConstants.S_OK;
+        }
+
+        #endregion
     }
 }

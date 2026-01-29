@@ -156,6 +156,15 @@ Click the update button and the extension will handle the update process. Agents
 
 ## Version History
 
+### Version 5.1
+- **Performance Optimizations for Diff Tool**: Improved performance for large projects
+  - Static window title ("Code Changes") instead of dynamic updates with line counts
+  - Git status polling now only runs when the diff tab is active
+  - File watcher pauses when diff tab is hidden, resumes with forced refresh when activated
+  - Reduces CPU and I/O overhead when working with large repositories
+- **Zoom Support**: Use Ctrl+Scroll to zoom in/out on the diff view (50% to 300%)
+- **Additional Tracked File Types**: Added support for `.vsixmanifest`, `.csproj`, `.vbproj`, `.fsproj`, `.sln`, `.props`, `.targets`, `.resx`, and `.settings` files
+
 ### Version 5.0
 - **Integrated Diff Tool**: Major release adding a built-in diff tool for comparing code changes in a new tab.
 - This is a large new feature and will be stabilized in future releases. If you find issues, please open an issue in the Git repository.

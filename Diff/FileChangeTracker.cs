@@ -45,12 +45,12 @@ namespace ClaudeCodeVS.Diff
         /// </summary>
         private static readonly HashSet<string> TrackedExtensions = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
         {
-            ".cs", ".vb", ".fs", ".xaml", ".xml", ".json", ".config",
+            ".cs", ".vb", ".fs", ".xaml", ".xml", ".json", ".config", ".vsixmanifest", ".csproj", ".vbproj", ".fsproj", ".sln", ".props", ".targets",
             ".js", ".ts", ".jsx", ".tsx", ".vue", ".html", ".css", ".scss", ".less",
             ".py", ".rb", ".php", ".java", ".kt", ".scala", ".go", ".rs", ".swift",
             ".c", ".cpp", ".h", ".hpp", ".m", ".mm",
             ".sql", ".sh", ".ps1", ".bat", ".cmd",
-            ".yaml", ".yml", ".toml", ".ini", ".md", ".txt"
+            ".yaml", ".yml", ".toml", ".ini", ".md", ".txt", ".resx", ".settings"
         };
 
         /// <summary>
@@ -186,6 +186,28 @@ namespace ClaudeCodeVS.Diff
             _debounceTimer = null;
             _isTracking = false;
 
+        }
+
+        /// <summary>
+        /// Pauses file watching without disposing the watcher
+        /// </summary>
+        public void Pause()
+        {
+            if (_watcher != null && _isTracking)
+            {
+                _watcher.EnableRaisingEvents = false;
+            }
+        }
+
+        /// <summary>
+        /// Resumes file watching after being paused
+        /// </summary>
+        public void Resume()
+        {
+            if (_watcher != null && _isTracking)
+            {
+                _watcher.EnableRaisingEvents = true;
+            }
         }
 
         /// <summary>

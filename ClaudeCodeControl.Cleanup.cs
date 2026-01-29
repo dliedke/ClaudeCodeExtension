@@ -13,15 +13,12 @@
 using System;
 using System.IO;
 using System.Diagnostics;
-using System.Management;
 using System.Windows;
-using Microsoft.VisualStudio.Shell;
-using Microsoft.VisualStudio.Shell.Interop;
 
 namespace ClaudeCodeVS
 {
-    public partial class ClaudeCodeControl
-    {
+    public partial class ClaudeCodeControl 
+    { 
         #region Temporary Directory Fields
 
         /// <summary>

@@ -79,6 +79,11 @@ namespace ClaudeCodeVS
         private bool _diffViewerResetSubscribed;
 
         /// <summary>
+        /// Tracks if visibility handler is already wired
+        /// </summary>
+        private bool _diffViewerVisibilitySubscribed;
+
+        /// <summary>
         /// Periodic poll timer to detect clean git state after commit/push
         /// </summary>
         private DispatcherTimer _gitStatusPollTimer;
@@ -129,7 +134,13 @@ namespace ClaudeCodeVS
                     // Start watching for changes
                     _fileChangeTracker.StartTracking(workspaceDir);
                     _isDiffTrackingActive = true;
+                }
 
+                // Ensure tracking is active if window is visible (handles solution change with tab already open)
+                if (_diffViewerWindow != null && _diffViewerWindow.IsWindowVisible)
+                {
+                    EnsureGitStatusPollTimer();
+                    _fileChangeTracker?.Resume();
                 }
 
                 if (openWindow)
@@ -191,10 +202,6 @@ namespace ClaudeCodeVS
                 {
                     _diffViewerWindow.DiffViewerControl.UpdateChangedFiles(changedFiles);
 
-                    // Update window title with stats
-                    var stats = _diffViewerWindow.DiffViewerControl.GetStats();
-                    _diffViewerWindow.UpdateTitleWithStats(stats.fileCount, stats.linesAdded, stats.linesRemoved);
-
                     string repoRoot = FindGitRepositoryRoot(await GetEffectiveWorkspaceDirectoryAsync());
                     _diffViewerWindow.DiffViewerControl.SetResetBaselineVisible(string.IsNullOrEmpty(repoRoot));
                 }
@@ -250,7 +257,18 @@ namespace ClaudeCodeVS
                 _diffViewerResetSubscribed = true;
             }
 
-            EnsureGitStatusPollTimer();
+            if (!_diffViewerVisibilitySubscribed)
+            {
+                _diffViewerWindow.VisibilityChanged += OnDiffViewerVisibilityChanged;
+                _diffViewerVisibilitySubscribed = true;
+            }
+
+            // Only start polling if window is visible
+            if (_diffViewerWindow.IsWindowVisible)
+            {
+                EnsureGitStatusPollTimer();
+                _fileChangeTracker?.Resume();
+            }
 
             string workspaceDir = await GetEffectiveWorkspaceDirectoryAsync();
             string repoRoot = FindGitRepositoryRoot(workspaceDir);
@@ -381,6 +399,35 @@ namespace ClaudeCodeVS
             });
         }
 
+        private void OnDiffViewerVisibilityChanged(object sender, bool isVisible)
+        {
+            if (isVisible)
+            {
+                // Window became visible - resume tracking and force refresh
+                EnsureGitStatusPollTimer();
+                _fileChangeTracker?.Resume();
+
+                // Force a refresh to catch any changes that occurred while hidden
+                ThreadHelper.JoinableTaskFactory.Run(async () =>
+                {
+                    try
+                    {
+                        await RefreshDiffViewAsync();
+                    }
+                    catch (Exception ex)
+                    {
+                        Debug.WriteLine($"Error refreshing diff view on visibility change: {ex.Message}");
+                    }
+                });
+            }
+            else
+            {
+                // Window hidden - pause tracking to save resources
+                StopGitStatusPollTimer();
+                _fileChangeTracker?.Pause();
+            }
+        }
+
         private async Task ResetDiffBaselineAsync(bool refreshView, bool isAutoReset, bool showErrors, bool startTracking, string workspaceDirOverride, bool useGitBaseline)
         {
             try
@@ -423,6 +470,13 @@ namespace ClaudeCodeVS
                 if (_diffViewerWindow?.DiffViewerControl != null)
                 {
                     _diffViewerWindow.DiffViewerControl.SetResetBaselineVisible(string.IsNullOrEmpty(repoRoot));
+                }
+
+                // Ensure tracking is active if window is visible (handles solution change with tab already open)
+                if (_diffViewerWindow != null && _diffViewerWindow.IsWindowVisible)
+                {
+                    EnsureGitStatusPollTimer();
+                    _fileChangeTracker?.Resume();
                 }
 
                 if (refreshView)
@@ -802,8 +856,13 @@ namespace ClaudeCodeVS
                     _fileChangeTracker.Dispose();
                     _fileChangeTracker = null;
                 }
+                if (_diffViewerWindow != null && _diffViewerVisibilitySubscribed)
+                {
+                    _diffViewerWindow.VisibilityChanged -= OnDiffViewerVisibilityChanged;
+                }
                 _isDiffTrackingActive = false;
                 _diffViewerResetSubscribed = false;
+                _diffViewerVisibilitySubscribed = false;
                 StopGitStatusPollTimer();
             }
             catch (Exception ex)

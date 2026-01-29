@@ -16,6 +16,7 @@ using System.Diagnostics;
 using System.Linq;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Input;
 using System.Windows.Media;
 using ClaudeCodeVS.Diff;
 using Microsoft.VisualStudio.PlatformUI;
@@ -33,6 +34,10 @@ namespace ClaudeCodeVS
 
         private List<ChangedFile> _changedFiles;
         private bool _isDarkTheme = true;
+        private double _zoomLevel = 1.0;
+        private const double ZoomMin = 0.5;
+        private const double ZoomMax = 3.0;
+        private const double ZoomStep = 0.1;
 
         #endregion
 
@@ -400,7 +405,7 @@ namespace ClaudeCodeVS
             {
                 foreach (var line in file.DiffLines)
                 {
-                    var lineElement = CreateDiffLine(line);
+                    var lineElement = CreateDiffLineElement(line);
                     diffPanel.Children.Add(lineElement);
                 }
             }
@@ -442,13 +447,8 @@ namespace ClaudeCodeVS
             ExpandCollapseAllButton.IsChecked = allExpanded;
         }
 
-        private UIElement CreateDiffLine(DiffLine line)
+        private UIElement CreateDiffLineElement(DiffLine line)
         {
-            var grid = new Grid();
-            grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(50) }); // Line number
-            grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(20) }); // +/- indicator
-            grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) }); // Content
-
             Brush background;
             Brush foreground;
             string indicator;
@@ -480,9 +480,7 @@ namespace ClaudeCodeVS
                     break;
             }
 
-            grid.Background = background;
-
-            // Line number
+            // Build line number text
             var lineNumText = "";
             if (line.OldLineNumber.HasValue && line.NewLineNumber.HasValue)
             {
@@ -497,14 +495,21 @@ namespace ClaudeCodeVS
                 lineNumText = $"{line.NewLineNumber}";
             }
 
+            var grid = new Grid { Background = background };
+            grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(50) }); // Line number
+            grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(20) }); // +/- indicator
+            grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) }); // Content
+
+            // Line number
             var lineNum = new TextBlock
             {
                 Text = lineNumText,
                 FontFamily = new FontFamily("Cascadia Mono, Consolas, Courier New"),
                 FontSize = 11,
                 Foreground = (Brush)FindResource(VsBrushes.GrayTextKey),
-                Padding = new Thickness(4, 1, 4, 1),
-                TextAlignment = TextAlignment.Right
+                Padding = new Thickness(4, 2, 4, 2),
+                TextAlignment = TextAlignment.Right,
+                VerticalAlignment = VerticalAlignment.Center
             };
             Grid.SetColumn(lineNum, 0);
             grid.Children.Add(lineNum);
@@ -516,8 +521,9 @@ namespace ClaudeCodeVS
                 FontFamily = new FontFamily("Cascadia Mono, Consolas, Courier New"),
                 FontSize = 11,
                 Foreground = foreground,
-                Padding = new Thickness(2, 1, 2, 1),
-                FontWeight = FontWeights.Bold
+                Padding = new Thickness(2, 2, 2, 2),
+                FontWeight = FontWeights.Bold,
+                VerticalAlignment = VerticalAlignment.Center
             };
             Grid.SetColumn(indicatorText, 1);
             grid.Children.Add(indicatorText);
@@ -528,9 +534,10 @@ namespace ClaudeCodeVS
                 Text = line.Text,
                 FontFamily = new FontFamily("Cascadia Mono, Consolas, Courier New"),
                 FontSize = 11,
-                Foreground = line.Type == DiffLineType.Context ? foreground : foreground,
-                Padding = new Thickness(4, 1, 4, 1),
-                TextWrapping = TextWrapping.NoWrap
+                Foreground = foreground,
+                Padding = new Thickness(4, 2, 4, 2),
+                TextWrapping = TextWrapping.NoWrap,
+                VerticalAlignment = VerticalAlignment.Center
             };
             Grid.SetColumn(content, 2);
             grid.Children.Add(content);
@@ -553,6 +560,19 @@ namespace ClaudeCodeVS
             catch (Exception ex)
             {
                 Debug.WriteLine($"Error opening file {filePath}: {ex.Message}");
+            }
+        }
+
+        private void FileListScrollViewer_PreviewMouseWheel(object sender, MouseWheelEventArgs e)
+        {
+            if (Keyboard.Modifiers == ModifierKeys.Control)
+            {
+                // Zoom in/out with CTRL+scroll
+                double delta = e.Delta > 0 ? ZoomStep : -ZoomStep;
+                _zoomLevel = Math.Max(ZoomMin, Math.Min(ZoomMax, _zoomLevel + delta));
+                ZoomTransform.ScaleX = _zoomLevel;
+                ZoomTransform.ScaleY = _zoomLevel;
+                e.Handled = true;
             }
         }
 
