@@ -155,6 +155,11 @@ Simply click the update button and the extension will handle the entire update p
 
 ## Version History
 
+### Version 4.2
+- **Updated License & Usage Section**: Clarified that the extension is free for all users including commercial/internal use
+- **Data Privacy Documentation**: Added links to data retention policies for all supported AI providers (Claude Code, OpenAI Codex, Cursor, Qwen Code, Open Code)
+- **Contact Information**: Added author contact email for licensing inquiries
+
 ### Version 4.1
 - **Enhanced File Support**: "Add Image" button renamed to "Add File" with support for multiple file types
 - **Increased File Limit**: Now supports up to 5 file attachments (previously 3 images)
@@ -360,15 +365,30 @@ What's New:
 
 ## License & Usage
 
-** IMPORTANT NOTICE**
+This extension is provided free of charge under the MIT License.
 
-This extension is proprietary software. **Unauthorized cloning, copying, modification, or distribution is strictly prohibited** without explicit written permission from the author.
+### Usage Rights
+- **Free for All**: The extension is free to use for personal, educational, and commercial purposes
+- **Output Ownership**: All prompts, source code, and generated outputs belong to the user
+- **Internal Use**: Commercial organizations may use this extension internally without restriction
 
 ### Restrictions
-- No commercial use
+- **No Reselling**: The extension itself may not be sold commercially
+- **No Unauthorized Clones**: Creating derivative extensions requires author permission
 
-### Permissions
-For licensing inquiries or permission requests, please contact the author.
+### Data Handling & Privacy
+- **Local Storage**: Up to 50 prompts are cached locally at `%LocalAppData%\ClaudeCodeExtension\claudecode-settings.json`
+- **Cloud Processing**: All prompts are sent to the configured AI provider
+- **Data Retention**: Follows each provider's data usage policy:
+  - [Anthropic/Claude Code](https://code.claude.com/docs/en/data-usage)
+  - [OpenAI/Codex](https://platform.openai.com/docs/guides/your-data)
+  - [Cursor](https://cursor.com/privacy)
+  - [Qwen Code](https://qwen.ai/privacypolicy)
+  - [Open Code](https://opencode.ai/legal/privacy-policy)
+- **No Third-Party Access**: Data is only accessible to the configured model provider
+
+### Contact
+For licensing inquiries or permission requests, please contact the author at dliedke@gmail.com.
 
 ---
 

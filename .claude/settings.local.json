@@ -19,7 +19,8 @@
       "Bash(\"C:\\Program Files\\Microsoft Visual Studio\\2022\\Enterprise\\MSBuild\\Current\\Bin\\MSBuild.exe\" \"C:\\GitLab\\ClaudeCodeExtension\\ClaudeCodeExtension.csproj\" /p:Configuration=Release /v:minimal)",
       "Bash(cmd.exe /c \"msbuild \"\"C:\\GitLab\\ClaudeCodeExtension\\ClaudeCodeExtension.csproj\"\" /p:Configuration=Release /v:minimal\")",
       "Bash(cmd.exe /c \"msbuild \"C:GitLabClaudeCodeExtensionClaudeCodeExtension.csproj\" /p:Configuration=Release /v:minimal\")",
-      "Bash(ls:*)"
+      "Bash(ls:*)",
+      "WebSearch"
     ],
     "deny": [],
     "ask": []
