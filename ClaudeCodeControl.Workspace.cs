@@ -138,12 +138,14 @@ namespace ClaudeCodeVS
         /// Handles workspace directory changes (solution opened/closed)
         /// Restarts the terminal in the new workspace directory
         /// </summary>
-        public async Task OnWorkspaceDirectoryChangedAsync()
+        public async Task OnWorkspaceDirectoryChangedAsync(bool forceDiffReset = false)
         {
             try
             {
                 string newWorkspaceDir = await GetWorkspaceDirectoryAsync();
                 Debug.WriteLine($"OnWorkspaceDirectoryChangedAsync: Current workspace: '{_lastWorkspaceDirectory}', New workspace: '{newWorkspaceDir}', Terminal initialized: {cmdProcess != null}");
+                bool workspaceChanged = _lastWorkspaceDirectory != newWorkspaceDir;
+                bool resetDiff = forceDiffReset || workspaceChanged;
 
                 // If terminal hasn't been initialized yet, initialize it now
                 if (cmdProcess == null)
@@ -151,11 +153,25 @@ namespace ClaudeCodeVS
                     Debug.WriteLine("Terminal not initialized yet - initializing now with workspace");
                     _lastWorkspaceDirectory = newWorkspaceDir;
                     await InitializeTerminalAsync();
+                    if (resetDiff)
+                    {
+                        bool refreshView = _diffViewerWindow != null;
+                        if (!refreshView)
+                        {
+                            await EnsureDiffViewerWindowAsync(false);
+                            refreshView = _diffViewerWindow != null;
+                        }
+                        await ResetDiffBaselineAsync(refreshView, false, false, true, newWorkspaceDir, true);
+                    }
+                    else
+                    {
+                        await EnsureDiffTrackingStartedAsync(false);
+                    }
                     return;
                 }
 
                 // Only restart if the directory actually changed
-                if (_lastWorkspaceDirectory != newWorkspaceDir)
+                if (workspaceChanged)
                 {
                     Debug.WriteLine($"Workspace directory changed from '{_lastWorkspaceDirectory}' to '{newWorkspaceDir}'");
                     _lastWorkspaceDirectory = newWorkspaceDir;
@@ -247,6 +263,25 @@ namespace ClaudeCodeVS
                         }
 
                         await StartEmbeddedTerminalAsync(null); // Regular CMD
+                    }
+                }
+
+                if (resetDiff)
+                {
+                    bool refreshView = _diffViewerWindow != null;
+                    if (!refreshView)
+                    {
+                        await EnsureDiffViewerWindowAsync(false);
+                        refreshView = _diffViewerWindow != null;
+                    }
+                    await ResetDiffBaselineAsync(refreshView, false, false, true, newWorkspaceDir, true);
+                }
+                else
+                {
+                    await EnsureDiffTrackingStartedAsync(false);
+                    if (_diffViewerWindow != null)
+                    {
+                        await RefreshDiffViewAsync();
                     }
                 }
             }

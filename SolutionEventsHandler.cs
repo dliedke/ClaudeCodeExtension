@@ -62,7 +62,7 @@ namespace ClaudeCodeVS
             {
                 // Add small delay to ensure solution is fully loaded
                 await Task.Delay(500);
-                await _control.OnWorkspaceDirectoryChangedAsync();
+                await _control.OnWorkspaceDirectoryChangedAsync(true);
             });
             return VSConstants.S_OK;
         }
@@ -80,7 +80,7 @@ namespace ClaudeCodeVS
             {
                 // Add small delay to ensure project is fully loaded
                 await Task.Delay(300);
-                await _control.OnWorkspaceDirectoryChangedAsync();
+                await _control.OnWorkspaceDirectoryChangedAsync(true);
             });
             return VSConstants.S_OK;
         }

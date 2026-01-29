@@ -41,6 +41,7 @@ namespace ClaudeCodeExtension
     [PackageRegistration(UseManagedResourcesOnly = true, AllowsBackgroundLoading = true)]
     [ProvideAutoLoad(VSConstants.UICONTEXT.SolutionExists_string, PackageAutoLoadFlags.BackgroundLoad)]
     [ProvideToolWindow(typeof(ClaudeCodeVS.ClaudeCodeToolWindow))]
+    [ProvideToolWindow(typeof(ClaudeCodeVS.DiffViewerToolWindow))]
     [ProvideMenuResource("Menus.ctmenu", 1)]
     [Guid(ClaudeCodeExtensionPackage.PackageGuidString)]
     public sealed class ClaudeCodeExtensionPackage : AsyncPackage

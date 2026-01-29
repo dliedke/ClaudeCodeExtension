@@ -20,7 +20,8 @@
       "Bash(cmd.exe /c \"msbuild \"\"C:\\GitLab\\ClaudeCodeExtension\\ClaudeCodeExtension.csproj\"\" /p:Configuration=Release /v:minimal\")",
       "Bash(cmd.exe /c \"msbuild \"C:GitLabClaudeCodeExtensionClaudeCodeExtension.csproj\" /p:Configuration=Release /v:minimal\")",
       "Bash(ls:*)",
-      "WebSearch"
+      "WebSearch",
+      "WebFetch(domain:github.com)"
     ],
     "deny": [],
     "ask": []

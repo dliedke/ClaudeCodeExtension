@@ -128,7 +128,7 @@ namespace ClaudeCodeVS
                 if (solutionAlreadyOpen)
                 {
                     System.Diagnostics.Debug.WriteLine("Solution already open on extension load - initializing terminal");
-                    await OnWorkspaceDirectoryChangedAsync();
+                    await OnWorkspaceDirectoryChangedAsync(true);
                 }
                 else
                 {

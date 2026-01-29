@@ -114,6 +114,9 @@ namespace ClaudeCodeVS
         {
             try
             {
+                // Cleanup diff tracking
+                CleanupDiffTracking();
+
                 // Unsubscribe from theme change events
                 CleanupThemeEvents();
 

@@ -217,6 +217,15 @@
                             Margin="6,0,0,0">
 
 
+					<Button x:Name="ViewChangesButton"
+                            Content="Changes"
+                            Width="65"
+                            MinWidth="65"
+                            Style="{StaticResource AdaptiveButtonStyle}"
+                            Click="ViewChangesButton_Click"
+                            ToolTip="View Code Changes"
+                            Margin="0,0,6,0"/>
+
 					<Button x:Name="RestartTerminalButton"
                             Content="Restart"
                             Width="60"

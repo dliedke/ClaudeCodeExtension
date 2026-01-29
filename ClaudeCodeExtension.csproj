@@ -47,6 +47,7 @@
   <ItemGroup>
     <Compile Include="ClaudeCodeControl.cs" />
     <Compile Include="ClaudeCodeControl.Cleanup.cs" />
+    <Compile Include="ClaudeCodeControl.Diff.cs" />
     <Compile Include="ClaudeCodeControl.ImageHandling.cs" />
     <Compile Include="ClaudeCodeControl.Interop.cs" />
     <Compile Include="ClaudeCodeControl.ProviderManagement.cs" />
@@ -58,6 +59,13 @@
     <Compile Include="ClaudeCodeControl.Workspace.cs" />
     <Compile Include="ClaudeCodeModels.cs" />
     <Compile Include="ClaudeCodeToolWindow.cs" />
+    <Compile Include="DiffViewerToolWindow.cs" />
+    <Compile Include="DiffViewerControl.xaml.cs">
+      <DependentUpon>DiffViewerControl.xaml</DependentUpon>
+    </Compile>
+    <Compile Include="Diff\ChangedFile.cs" />
+    <Compile Include="Diff\DiffComputer.cs" />
+    <Compile Include="Diff\FileChangeTracker.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="ClaudeCodeExtensionPackage.cs" />
     <Compile Include="SolutionEventsHandler.cs" />
@@ -87,6 +95,7 @@
     <PackageReference Include="Microsoft.VisualStudio.SDK" Version="17.0.32112.339" ExcludeAssets="runtime" NoWarn="NU1604" />
     <PackageReference Include="Microsoft.VSSDK.BuildTools" Version="17.14.2101" NoWarn="NU1604" />
     <PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
+    <PackageReference Include="DiffPlex" Version="1.7.2" />
   </ItemGroup>
   <ItemGroup>
     <VSCTCompile Include="ClaudeCodeExtensionPackage.vsct">
@@ -95,6 +104,9 @@
   </ItemGroup>
   <ItemGroup>
     <Page Include="ClaudeCodeControl.xaml">
+      <Generator>MSBuild:Compile</Generator>
+    </Page>
+    <Page Include="DiffViewerControl.xaml">
       <Generator>MSBuild:Compile</Generator>
     </Page>
   </ItemGroup>

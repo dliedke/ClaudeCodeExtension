@@ -103,6 +103,10 @@ namespace ClaudeCodeVS
                 // Add to prompt history (before clearing)
                 AddToPromptHistory(prompt);
 
+                // Ensure tracking is active and reset baseline before sending prompt
+                await EnsureDiffTrackingStartedAsync(false);
+                await ResetDiffBaselineAsync(false, false, false, false, null, false);
+
                 // Send to terminal
                 await SendTextToTerminalAsync(fullPrompt.ToString());
 

@@ -155,6 +155,11 @@ Simply click the update button and the extension will handle the entire update p
 
 ## Version History
 
+### Version 5.0
+- ** Integrated Diff Tool**: Major release adding built-in diff tool for comparing code changes in a new tab.
+Notice that this is a new big implementation. It will get more stabilized in future releases.
+
+
 ### Version 4.2
 - **Updated License & Usage Section**: Clarified that the extension is free for all users including commercial/internal use
 - **Data Privacy Documentation**: Added links to data retention policies for all supported AI providers (Claude Code, OpenAI Codex, Cursor, Qwen Code, Open Code)
