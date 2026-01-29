@@ -60,12 +60,10 @@ namespace ClaudeCodeVS
                 {
                     var json = File.ReadAllText(ConfigurationPath);
                     _settings = JsonConvert.DeserializeObject<ClaudeCodeSettings>(json) ?? new ClaudeCodeSettings();
-                    Debug.WriteLine($"Loaded settings: SendWithEnter={_settings.SendWithEnter}, SplitterPosition={_settings.SplitterPosition}");
                 }
                 else
                 {
                     _settings = new ClaudeCodeSettings();
-                    Debug.WriteLine($"No settings file found, using defaults: SendWithEnter={_settings.SendWithEnter}, SplitterPosition={_settings.SplitterPosition}");
 
                     // Save the default settings to create the file
                     SaveDefaultSettings();
@@ -73,12 +71,10 @@ namespace ClaudeCodeVS
 
                 // Apply loaded settings to UI
                 SendWithEnterCheckBox.IsChecked = _settings.SendWithEnter;
-                Debug.WriteLine($"Set checkbox to: {_settings.SendWithEnter}");
 
                 if (_settings.SplitterPosition > 0)
                 {
                     SetSplitterPosition(_settings.SplitterPosition);
-                    Debug.WriteLine($"Set splitter position to: {_settings.SplitterPosition}");
                 }
             }
             catch (Exception ex)
@@ -103,7 +99,6 @@ namespace ClaudeCodeVS
 
                 var json = JsonConvert.SerializeObject(_settings, Formatting.Indented);
                 File.WriteAllText(ConfigurationPath, json);
-                Debug.WriteLine($"Default settings created at: {ConfigurationPath}");
             }
             catch (Exception ex)
             {
@@ -121,7 +116,6 @@ namespace ClaudeCodeVS
                 // Don't save settings during initialization to prevent overwriting with default values
                 if (_isInitializing)
                 {
-                    Debug.WriteLine("Skipping save during initialization");
                     return;
                 }
 
@@ -130,19 +124,15 @@ namespace ClaudeCodeVS
 
                 // Update settings from UI
                 _settings.SendWithEnter = SendWithEnterCheckBox.IsChecked == true;
-                Debug.WriteLine($"Saving SendWithEnter: {_settings.SendWithEnter}");
-                Debug.WriteLine($"Saving SelectedProvider: {_settings.SelectedProvider}");
 
                 // Only update splitter position if we can get a valid value (not 0.0)
                 var splitterPosition = FindSplitterPosition();
                 if (splitterPosition.HasValue && splitterPosition.Value > 0)
                 {
                     _settings.SplitterPosition = splitterPosition.Value;
-                    Debug.WriteLine($"Saving splitter position: {_settings.SplitterPosition}");
                 }
                 else
                 {
-                    Debug.WriteLine($"Not saving splitter position, got: {splitterPosition}");
                 }
 
                 // Save to file
@@ -154,7 +144,6 @@ namespace ClaudeCodeVS
 
                 var json = JsonConvert.SerializeObject(_settings, Formatting.Indented);
                 File.WriteAllText(ConfigurationPath, json);
-                Debug.WriteLine($"Settings saved to: {ConfigurationPath}");
             }
             catch (Exception ex)
             {

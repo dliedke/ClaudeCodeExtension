@@ -57,7 +57,6 @@ namespace ClaudeCodeVS
 #pragma warning disable VSSDK007 // Intentional fire-and-forget for event handler
         private void OnVSThemeChanged(ThemeChangedEventArgs e)
         {
-            Debug.WriteLine("VS theme changed - updating terminal theme");
             // Switch to UI thread using VS threading pattern
             _ = ThreadHelper.JoinableTaskFactory.RunAsync(async delegate
             {
@@ -91,7 +90,6 @@ namespace ClaudeCodeVS
                 // Ensure terminal window is visible and properly sized when tab is switched back
                 if (terminalHandle != IntPtr.Zero && IsWindow(terminalHandle))
                 {
-                    Debug.WriteLine("Control became visible - ensuring terminal window is shown");
                     ShowWindow(terminalHandle, SW_SHOW);
                     ResizeEmbeddedTerminal();
                 }
@@ -132,7 +130,6 @@ namespace ClaudeCodeVS
                 {
                     terminalPanel.BackColor = newColor;
                     _lastTerminalColor = newColor;
-                    Debug.WriteLine($"Terminal theme updated to: {newColor}");
                 }
             }
         }

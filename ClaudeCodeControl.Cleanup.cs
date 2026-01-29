@@ -47,7 +47,6 @@ namespace ClaudeCodeVS
                 // Create a session-level temp directory for storing pasted images before sending
                 tempImageDirectory = Path.Combine(Path.GetTempPath(), "ClaudeCodeVS_Session", Guid.NewGuid().ToString());
                 Directory.CreateDirectory(tempImageDirectory);
-                Debug.WriteLine($"Temp directory created: {tempImageDirectory}");
             }
             catch (Exception ex)
             {
@@ -55,7 +54,6 @@ namespace ClaudeCodeVS
                 // Fallback to a simpler path
                 tempImageDirectory = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString());
                 Directory.CreateDirectory(tempImageDirectory);
-                Debug.WriteLine($"Fallback temp directory created: {tempImageDirectory}");
             }
         }
 
@@ -72,18 +70,14 @@ namespace ClaudeCodeVS
                 string claudeCodeVSPath = Path.Combine(tempPath, "ClaudeCodeVS");
                 if (Directory.Exists(claudeCodeVSPath))
                 {
-                    Debug.WriteLine($"Cleaning up ClaudeCodeVS temp directory: {claudeCodeVSPath}");
                     Directory.Delete(claudeCodeVSPath, true);
-                    Debug.WriteLine("ClaudeCodeVS temp directory cleanup completed");
                 }
 
                 // Clean up session directories
                 string sessionPath = Path.Combine(tempPath, "ClaudeCodeVS_Session");
                 if (Directory.Exists(sessionPath))
                 {
-                    Debug.WriteLine($"Cleaning up ClaudeCodeVS_Session temp directory: {sessionPath}");
                     Directory.Delete(sessionPath, true);
-                    Debug.WriteLine("ClaudeCodeVS_Session temp directory cleanup completed");
                 }
             }
             catch (Exception ex)
@@ -125,7 +119,6 @@ namespace ClaudeCodeVS
                 {
                     try
                     {
-                        Debug.WriteLine($"Killing child processes of cmd process (PID: {cmdProcess.Id})");
                         KillProcessAndChildren(cmdProcess.Id);
                     }
                     catch (Exception ex)
@@ -155,7 +148,6 @@ namespace ClaudeCodeVS
                     try
                     {
                         Directory.Delete(tempImageDirectory, true);
-                        Debug.WriteLine($"Cleaned up temp directory: {tempImageDirectory}");
                     }
                     catch (Exception ex)
                     {
@@ -198,7 +190,6 @@ namespace ClaudeCodeVS
                         try
                         {
                             int childProcessId = Convert.ToInt32(obj["ProcessId"]);
-                            Debug.WriteLine($"Killing child process: {childProcessId}");
 
                             // Recursively kill children of this child
                             KillProcessAndChildren(childProcessId);

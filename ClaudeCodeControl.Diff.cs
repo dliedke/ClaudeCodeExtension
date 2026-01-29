@@ -118,7 +118,6 @@ namespace ClaudeCodeVS
                 string workspaceDir = await GetWorkspaceDirectoryAsync();
                 if (string.IsNullOrEmpty(workspaceDir))
                 {
-                    Debug.WriteLine("No workspace directory - skipping diff tracking");
                     return;
                 }
 
@@ -131,7 +130,6 @@ namespace ClaudeCodeVS
                     _fileChangeTracker.StartTracking(workspaceDir);
                     _isDiffTrackingActive = true;
 
-                    Debug.WriteLine($"Diff tracking started for: {workspaceDir}");
                 }
 
                 if (openWindow)
@@ -218,7 +216,6 @@ namespace ClaudeCodeVS
 
                 await EnsureDiffViewerWindowAsync(true);
 
-                Debug.WriteLine("Diff viewer window opened");
             }
             catch (Exception ex)
             {
@@ -234,7 +231,6 @@ namespace ClaudeCodeVS
             var vsPackage = await GetPackageAsync();
             if (vsPackage == null)
             {
-                Debug.WriteLine("Could not get extension package");
                 return;
             }
 
@@ -244,7 +240,6 @@ namespace ClaudeCodeVS
             {
                 if (createWindow)
                 {
-                    Debug.WriteLine("Cannot create diff viewer tool window");
                 }
                 return;
             }

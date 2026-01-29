@@ -57,7 +57,6 @@ namespace ClaudeCodeVS
         /// <returns>S_OK if successful</returns>
         public int OnAfterOpenSolution(object pUnkReserved, int fNewSolution)
         {
-            Debug.WriteLine($"Solution opened - fNewSolution: {fNewSolution}, checking if terminal needs to restart");
             ThreadHelper.JoinableTaskFactory.Run(async delegate
             {
                 // Add small delay to ensure solution is fully loaded
@@ -75,7 +74,6 @@ namespace ClaudeCodeVS
         /// <returns>S_OK if successful</returns>
         public int OnAfterOpenProject(IVsHierarchy pHierarchy, int fAdded)
         {
-            Debug.WriteLine($"Project opened - fAdded: {fAdded}, checking if terminal needs to restart");
             ThreadHelper.JoinableTaskFactory.Run(async delegate
             {
                 // Add small delay to ensure project is fully loaded

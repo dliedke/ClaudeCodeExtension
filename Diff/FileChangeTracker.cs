@@ -101,7 +101,6 @@ namespace ClaudeCodeVS.Diff
             _deletedFiles.Clear();
             _pendingChanges.Clear();
 
-            Debug.WriteLine($"Taking snapshot of workspace: {workspaceDirectory}");
 
             try
             {
@@ -122,7 +121,6 @@ namespace ClaudeCodeVS.Diff
                     }
                 }
 
-                Debug.WriteLine($"Snapshot complete: {_originalContents.Count} files tracked");
             }
             catch (Exception ex)
             {
@@ -160,7 +158,6 @@ namespace ClaudeCodeVS.Diff
                 _watcher.EnableRaisingEvents = true;
                 _isTracking = true;
 
-                Debug.WriteLine($"Started tracking changes in: {workspaceDirectory}");
             }
             catch (Exception ex)
             {
@@ -189,7 +186,6 @@ namespace ClaudeCodeVS.Diff
             _debounceTimer = null;
             _isTracking = false;
 
-            Debug.WriteLine("Stopped tracking changes");
         }
 
         /// <summary>

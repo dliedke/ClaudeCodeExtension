@@ -102,7 +102,6 @@ namespace ClaudeCodeVS
                     // Ensure temp directory exists
                     if (!Directory.Exists(tempImageDirectory))
                     {
-                        Debug.WriteLine($"Temp directory missing, recreating: {tempImageDirectory}");
                         Directory.CreateDirectory(tempImageDirectory);
                     }
 

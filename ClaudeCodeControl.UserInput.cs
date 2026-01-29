@@ -140,7 +140,6 @@ namespace ClaudeCodeVS
             {
                 bool sendWithEnter = SendWithEnterCheckBox.IsChecked == true;
 
-                Debug.WriteLine($"Enter pressed - SendWithEnter: {sendWithEnter}, Modifiers: {Keyboard.Modifiers}");
 
                 if (sendWithEnter)
                 {
@@ -151,13 +150,11 @@ namespace ClaudeCodeVS
                         (Keyboard.Modifiers & ModifierKeys.Control) == ModifierKeys.Control)
                     {
                         // Allow newline insertion with modifiers
-                        Debug.WriteLine("Allowing newline with modifier key");
                         return;
                     }
                     else
                     {
                         // Plain Enter sends the prompt
-                        Debug.WriteLine("Sending prompt with Enter");
                         e.Handled = true; // Prevent default newline behavior
                         SendButton_Click(sender, null);
                     }
@@ -165,7 +162,6 @@ namespace ClaudeCodeVS
                 else
                 {
                     // When SendWithEnter is disabled, let default behavior handle Enter (newlines)
-                    Debug.WriteLine("SendWithEnter disabled - allowing newline");
                 }
             }
         }
@@ -198,7 +194,6 @@ namespace ClaudeCodeVS
             {
                 bool sendWithEnter = SendWithEnterCheckBox.IsChecked == true;
 
-                Debug.WriteLine($"PreviewKeyDown Enter pressed - SendWithEnter: {sendWithEnter}, Modifiers: {Keyboard.Modifiers}");
 
                 if (sendWithEnter)
                 {
@@ -209,13 +204,11 @@ namespace ClaudeCodeVS
                         (Keyboard.Modifiers & ModifierKeys.Control) == ModifierKeys.Control)
                     {
                         // Allow newline insertion with modifiers
-                        Debug.WriteLine("PreviewKeyDown: Allowing newline with modifier key");
                         return;
                     }
                     else
                     {
                         // Plain Enter sends the prompt
-                        Debug.WriteLine("PreviewKeyDown: Sending prompt with Enter");
                         e.Handled = true; // Prevent default newline behavior
                         SendButton_Click(sender, null);
                         return;

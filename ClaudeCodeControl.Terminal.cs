@@ -64,47 +64,34 @@ namespace ClaudeCodeVS
                 bool useOpenCode = _settings?.SelectedProvider == AiProvider.OpenCode;
                 bool providerAvailable = false;
 
-                Debug.WriteLine($"User selected provider: {(useCursorAgent ? "Cursor Agent" : useClaudeCodeWSL ? "Claude Code (WSL)" : useCodex ? "Codex" : useQwenCode ? "Qwen Code" : useOpenCode ? "Open Code" : "Claude Code")}");
 
                 if (useCursorAgent)
                 {
-                    Debug.WriteLine("Checking WSL and cursor-agent availability for Cursor Agent...");
                     bool wslInstalled = await IsWslInstalledAsync();
                     if (wslInstalled)
                     {
                         providerAvailable = await IsCursorAgentInstalledInWslAsync();
                     }
-                    Debug.WriteLine($"WSL available: {wslInstalled}, cursor-agent available: {providerAvailable}");
                 }
                 else if (useCodex)
                 {
-                    Debug.WriteLine("Checking Codex availability...");
                     providerAvailable = await IsCodexCmdAvailableAsync();
-                    Debug.WriteLine($"Codex available: {providerAvailable}");
                 }
                 else if (useClaudeCodeWSL)
                 {
-                    Debug.WriteLine("Checking Claude Code (WSL) availability...");
                     providerAvailable = await IsClaudeCodeWSLAvailableAsync();
-                    Debug.WriteLine($"Claude Code (WSL) available: {providerAvailable}");
                 }
                 else if (useQwenCode)
                 {
-                    Debug.WriteLine("Checking Qwen Code availability...");
                     providerAvailable = await IsQwenCodeAvailableAsync();
-                    Debug.WriteLine($"Qwen Code available: {providerAvailable}");
                 }
                 else if (useOpenCode)
                 {
-                    Debug.WriteLine("Checking Open Code availability...");
                     providerAvailable = await IsOpenCodeAvailableAsync();
-                    Debug.WriteLine($"Open Code available: {providerAvailable}");
                 }
                 else
                 {
-                    Debug.WriteLine("Checking Claude Code availability...");
                     providerAvailable = await IsClaudeCmdAvailableAsync();
-                    Debug.WriteLine($"Claude Code available: {providerAvailable}");
                 }
 
                 // Switch to main thread for UI operations
@@ -128,7 +115,6 @@ namespace ClaudeCodeVS
 
                 if (terminalPanel?.Handle == IntPtr.Zero)
                 {
-                    Debug.WriteLine("Warning: terminalPanel handle not yet created, waiting...");
                     await Task.Delay(100);
                 }
 
@@ -143,19 +129,16 @@ namespace ClaudeCodeVS
                     waitedMs += 50;
                 }
 
-                Debug.WriteLine($"Panel ready after {waitedMs}ms: {terminalPanel.Width}x{terminalPanel.Height}");
 
                 // Start the selected provider if available, otherwise show message and use regular CMD
                 if (useCursorAgent)
                 {
                     if (providerAvailable)
                     {
-                        Debug.WriteLine("Starting Cursor Agent terminal...");
                         await StartEmbeddedTerminalAsync(AiProvider.CursorAgent);
                     }
                     else
                     {
-                        Debug.WriteLine("WSL not available, showing installation instructions...");
                         if (!_cursorAgentNotificationShown)
                         {
                             _cursorAgentNotificationShown = true;
@@ -168,12 +151,10 @@ namespace ClaudeCodeVS
                 {
                     if (providerAvailable)
                     {
-                        Debug.WriteLine("Starting Codex terminal...");
                         await StartEmbeddedTerminalAsync(AiProvider.Codex);
                     }
                     else
                     {
-                        Debug.WriteLine("Codex not available, showing installation instructions...");
                         if (!_codexNotificationShown)
                         {
                             _codexNotificationShown = true;
@@ -186,12 +167,10 @@ namespace ClaudeCodeVS
                 {
                     if (providerAvailable)
                     {
-                        Debug.WriteLine("Starting Claude Code (WSL) terminal...");
                         await StartEmbeddedTerminalAsync(AiProvider.ClaudeCodeWSL);
                     }
                     else
                     {
-                        Debug.WriteLine("Claude Code (WSL) not available, showing installation instructions...");
                         if (!_claudeCodeWSLNotificationShown)
                         {
                             _claudeCodeWSLNotificationShown = true;
@@ -204,12 +183,10 @@ namespace ClaudeCodeVS
                 {
                     if (providerAvailable)
                     {
-                        Debug.WriteLine("Starting Qwen Code terminal...");
                         await StartEmbeddedTerminalAsync(AiProvider.QwenCode);
                     }
                     else
                     {
-                        Debug.WriteLine("Qwen Code not available, showing installation instructions...");
                         if (!_qwenCodeNotificationShown)
                         {
                             _qwenCodeNotificationShown = true;
@@ -222,12 +199,10 @@ namespace ClaudeCodeVS
                 {
                     if (providerAvailable)
                     {
-                        Debug.WriteLine("Starting Open Code terminal...");
                         await StartEmbeddedTerminalAsync(AiProvider.OpenCode);
                     }
                     else
                     {
-                        Debug.WriteLine("Open Code not available, showing installation instructions...");
                         if (!_openCodeNotificationShown)
                         {
                             _openCodeNotificationShown = true;
@@ -240,12 +215,10 @@ namespace ClaudeCodeVS
                 {
                     if (providerAvailable)
                     {
-                        Debug.WriteLine("Starting Claude Code terminal...");
                         await StartEmbeddedTerminalAsync(AiProvider.ClaudeCode);
                     }
                     else
                     {
-                        Debug.WriteLine("Claude Code not available, showing installation instructions...");
                         if (!_claudeNotificationShown)
                         {
                             _claudeNotificationShown = true;
@@ -275,12 +248,9 @@ namespace ClaudeCodeVS
                 string workspaceDir = await GetWorkspaceDirectoryAsync();
                 if (string.IsNullOrEmpty(workspaceDir))
                 {
-                    Debug.WriteLine("Warning: Workspace directory is null or empty");
                     workspaceDir = Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments);
                 }
 
-                Debug.WriteLine($"StartEmbeddedTerminalAsync: Setting workspace directory to: {workspaceDir}");
-                Debug.WriteLine($"StartEmbeddedTerminalAsync: Previous workspace directory was: {_lastWorkspaceDirectory}");
                 _lastWorkspaceDirectory = workspaceDir;
 
                 // Kill existing process if running
@@ -296,7 +266,6 @@ namespace ClaudeCodeVS
                             if (isCodex)
                             {
                                 // For Codex, send CTRL+C twice to exit
-                                Debug.WriteLine($"Sending CTRL+C CTRL+C to {_currentRunningProvider} terminal before restarting...");
                                 SendCtrlC();
                                 await Task.Delay(400); // Reduced from 500ms
                                 SendCtrlC();
@@ -306,12 +275,10 @@ namespace ClaudeCodeVS
                                 // For other agents including QwenCode, send appropriate exit command
                                 if (_currentRunningProvider == AiProvider.QwenCode)
                                 {
-                                    Debug.WriteLine("Sending /quit command to Qwen Code terminal before restarting...");
                                     await SendTextToTerminalAsync("/quit");
                                 }
                                 else
                                 {
-                                    Debug.WriteLine("Sending exit command to terminal before restarting...");
                                     await SendTextToTerminalAsync("exit");
                                 }
                             }
@@ -340,41 +307,34 @@ namespace ClaudeCodeVS
                 switch (provider)
                 {
                     case AiProvider.CursorAgent:
-                        Debug.WriteLine($"Starting Cursor Agent via WSL in directory: {workspaceDir}");
                         string wslPathCursor = ConvertToWslPath(workspaceDir);
                         terminalCommand = $"/k cls && wsl bash -ic \"cd {wslPathCursor} && cursor-agent\"";
                         break;
 
                     case AiProvider.Codex:
-                        Debug.WriteLine($"Starting Codex via WSL in directory: {workspaceDir}");
                         string wslPathCodex = ConvertToWslPath(workspaceDir);
                         terminalCommand = $"/k cls && wsl bash -ic \"cd {wslPathCodex} && codex\"";
                         break;
 
                     case AiProvider.ClaudeCodeWSL:
-                        Debug.WriteLine($"Starting Claude Code via WSL in directory: {workspaceDir}");
                         string wslPathClaude = ConvertToWslPath(workspaceDir);
                         terminalCommand = $"/k cls && wsl bash -ic \"cd {wslPathClaude} && claude\"";
                         break;
 
                     case AiProvider.ClaudeCode:
-                        Debug.WriteLine($"Starting Claude Code in directory: {workspaceDir}");
                         string claudeCommand = GetClaudeCommand();
                         terminalCommand = $"/k cd /d \"{workspaceDir}\" && ping localhost -n 3 >nul && cls && {claudeCommand}";
                         break;
 
                     case AiProvider.QwenCode:
-                        Debug.WriteLine($"Starting Qwen Code in directory: {workspaceDir}");
                         terminalCommand = $"/k cd /d \"{workspaceDir}\" && ping localhost -n 3 >nul && cls && qwen";
                         break;
 
                     case AiProvider.OpenCode:
-                        Debug.WriteLine($"Starting Open Code in directory: {workspaceDir}");
                         terminalCommand = $"/k cd /d \"{workspaceDir}\" && ping localhost -n 3 >nul && cls && opencode";
                         break;
 
                     default: // null or any other value = regular CMD
-                        Debug.WriteLine($"Starting regular CMD in directory: {workspaceDir}");
                         terminalCommand = $"/k cd /d \"{workspaceDir}\"";
                         break;
                 }
@@ -396,7 +356,6 @@ namespace ClaudeCodeVS
                     {
                         cmdProcess = new Process { StartInfo = startInfo };
                         cmdProcess.Start();
-                        Debug.WriteLine($"Process started with ID: {cmdProcess.Id}");
                     }
                     catch (Exception ex)
                     {
@@ -420,7 +379,6 @@ namespace ClaudeCodeVS
                 {
                     if (terminalPanel?.Handle == null || terminalPanel.Handle == IntPtr.Zero)
                     {
-                        Debug.WriteLine("Warning: terminalPanel.Handle is null or invalid");
                         return;
                     }
 
@@ -470,7 +428,6 @@ namespace ClaudeCodeVS
                         }
 
                         UpdateToolWindowTitle(providerTitle);
-                        Debug.WriteLine($"Terminal embedded successfully. Running provider: {_currentRunningProvider}");
                     }
                     catch (Exception ex)
                     {
@@ -607,63 +564,50 @@ namespace ClaudeCodeVS
                 {
                     case AiProvider.Codex:
                         // Codex requires CTRL+C to exit
-                        Debug.WriteLine("Exiting Codex with CTRL+C CTRL+C");
                         SendCtrlC();
                         await Task.Delay(400); // Reduced from 500ms
                         SendCtrlC();
                         await Task.Delay(1000); // Reduced from 1500ms
-                        Debug.WriteLine("Sending Codex update command");
                         await SendTextToTerminalAsync("wsl bash -ic \"npm install -g @openai/codex@latest\"");
                         break;
 
                     case AiProvider.CursorAgent:
                         // CursorAgent: exit, wait, then update
-                        Debug.WriteLine("Exiting Cursor Agent");
                         await SendTextToTerminalAsync("exit");
                         await Task.Delay(1000); // Reduced from 1500ms
-                        Debug.WriteLine("Sending Cursor Agent update command");
                         await SendTextToTerminalAsync("wsl bash -ic \"cursor-agent update\"");
                         break;
 
                     case AiProvider.ClaudeCodeWSL:
                         // Claude Code WSL: exit, wait, then update
-                        Debug.WriteLine("Exiting Claude Code (WSL)");
                         await SendTextToTerminalAsync("exit");
                         await Task.Delay(1000); // Reduced from 1500ms
-                        Debug.WriteLine("Sending Claude Code (WSL) update command");
                         await SendTextToTerminalAsync("wsl bash -ic \"claude update\"");
                         break;
 
                     case AiProvider.ClaudeCode:
                         // Claude Code Windows: exit, wait, then update
-                        Debug.WriteLine("Exiting Claude Code");
                         await SendTextToTerminalAsync("exit");
                         await Task.Delay(1000); // Reduced from 1500ms
-                        Debug.WriteLine("Sending Claude Code update command");
                         await SendTextToTerminalAsync("claude update");
                         break;
 
                     case AiProvider.QwenCode:
                         // Qwen Code: send /quit command to exit
-                        Debug.WriteLine("Exiting Qwen Code with /quit command");
                         await SendTextToTerminalAsync("/quit");
                         await Task.Delay(1000); // Reduced from 1500ms
-                        Debug.WriteLine("Sending Qwen Code update command");
                         await SendTextToTerminalAsync("npm install -g @qwen-code/qwen-code@latest");
                         break;
 
                     case AiProvider.OpenCode:
                         // Open Code: send exit command
-                        Debug.WriteLine("Exiting Open Code");
                         await SendTextToTerminalAsync("exit");
                         await Task.Delay(1000); // Reduced from 1500ms
-                        Debug.WriteLine("Sending Open Code update command");
                         await SendTextToTerminalAsync("npm i -g opencode-ai");
                         break;
 
                     default:
                         // Regular CMD - just try to update Claude if available
-                        Debug.WriteLine("Updating Claude Code from CMD");
                         await SendTextToTerminalAsync("claude update");
                         break;
                 }
@@ -870,12 +814,10 @@ namespace ClaudeCodeVS
 
             if (File.Exists(nativeClaudePath))
             {
-                Debug.WriteLine($"Using native Claude installation: {nativeClaudePath}");
                 return $"\"{nativeClaudePath}\"";
             }
 
             // Fall back to NPM installation
-            Debug.WriteLine("Using NPM Claude installation: claude.cmd");
             return "claude.cmd";
         }
 

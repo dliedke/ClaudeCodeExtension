@@ -59,7 +59,6 @@ namespace ClaudeCodeVS
                     {
                         solutionEvents = new SolutionEventsHandler(this);
                         solution.AdviseSolutionEvents(solutionEvents, out solutionEventsCookie);
-                        Debug.WriteLine("Solution events registered successfully");
                     }
                 });
             }
@@ -143,14 +142,12 @@ namespace ClaudeCodeVS
             try
             {
                 string newWorkspaceDir = await GetWorkspaceDirectoryAsync();
-                Debug.WriteLine($"OnWorkspaceDirectoryChangedAsync: Current workspace: '{_lastWorkspaceDirectory}', New workspace: '{newWorkspaceDir}', Terminal initialized: {cmdProcess != null}");
                 bool workspaceChanged = _lastWorkspaceDirectory != newWorkspaceDir;
                 bool resetDiff = forceDiffReset || workspaceChanged;
 
                 // If terminal hasn't been initialized yet, initialize it now
                 if (cmdProcess == null)
                 {
-                    Debug.WriteLine("Terminal not initialized yet - initializing now with workspace");
                     _lastWorkspaceDirectory = newWorkspaceDir;
                     await InitializeTerminalAsync();
                     if (resetDiff)
@@ -173,46 +170,35 @@ namespace ClaudeCodeVS
                 // Only restart if the directory actually changed
                 if (workspaceChanged)
                 {
-                    Debug.WriteLine($"Workspace directory changed from '{_lastWorkspaceDirectory}' to '{newWorkspaceDir}'");
                     _lastWorkspaceDirectory = newWorkspaceDir;
 
-                    Debug.WriteLine("Restarting terminal for new workspace...");
 
                     // Get the selected provider from settings
                     AiProvider? selectedProvider = _settings?.SelectedProvider;
                     bool providerAvailable = false;
 
-                    Debug.WriteLine($"User selected provider: {selectedProvider}");
 
                     // Check if the selected provider is available
                     switch (selectedProvider)
                     {
                         case AiProvider.CursorAgent:
-                            Debug.WriteLine("Checking WSL and cursor-agent availability for workspace change...");
                             bool wslAvailable = await IsWslInstalledAsync();
                             if (wslAvailable)
                             {
                                 providerAvailable = await IsCursorAgentInstalledInWslAsync();
                             }
-                            Debug.WriteLine($"Cursor Agent available: {providerAvailable}");
                             break;
 
                         case AiProvider.Codex:
-                            Debug.WriteLine("Checking Codex availability for workspace change...");
                             providerAvailable = await IsCodexCmdAvailableAsync();
-                            Debug.WriteLine($"Codex available: {providerAvailable}");
                             break;
 
                         case AiProvider.ClaudeCodeWSL:
-                            Debug.WriteLine("Checking Claude Code (WSL) availability for workspace change...");
                             providerAvailable = await IsClaudeCodeWSLAvailableAsync();
-                            Debug.WriteLine($"Claude Code (WSL) available: {providerAvailable}");
                             break;
 
                         case AiProvider.ClaudeCode:
-                            Debug.WriteLine("Checking Claude Code availability for workspace change...");
                             providerAvailable = await IsClaudeCmdAvailableAsync();
-                            Debug.WriteLine($"Claude Code available: {providerAvailable}");
                             break;
                     }
 
@@ -222,12 +208,10 @@ namespace ClaudeCodeVS
                     // Restart with the selected provider if available, otherwise show message and use regular CMD
                     if (providerAvailable)
                     {
-                        Debug.WriteLine($"Restarting {selectedProvider} terminal in new directory...");
                         await StartEmbeddedTerminalAsync(selectedProvider);
                     }
                     else
                     {
-                        Debug.WriteLine($"{selectedProvider} not available, showing installation instructions and using CMD");
 
                         // Show installation instructions if not already shown
                         switch (selectedProvider)
