@@ -309,6 +309,7 @@ namespace ClaudeCodeVS
             await EnsureDiffViewerWindowAsync(true);
 
             // Enable auto-scroll and expand all files
+            await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
             if (_diffViewerWindow?.DiffViewerControl != null)
             {
                 _diffViewerWindow.DiffViewerControl.EnableAutoScrollAndExpandAll();
