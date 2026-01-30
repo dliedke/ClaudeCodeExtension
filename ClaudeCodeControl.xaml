@@ -264,13 +264,15 @@
                             Click="MenuDropdownButton_Click"
                             Margin="0,0,6,0">
 						<Button.ContextMenu>
-							<ContextMenu x:Name="ProviderContextMenu">
+							<ContextMenu x:Name="ProviderContextMenu" Opened="ProviderContextMenu_Opened">
 								<MenuItem Header="Claude Code" x:Name="ClaudeCodeMenuItem" Click="ClaudeCodeMenuItem_Click" IsCheckable="True" IsChecked="True"/>
 								<MenuItem Header="Claude Code (WSL)" x:Name="ClaudeCodeWSLMenuItem" Click="ClaudeCodeWSLMenuItem_Click" IsCheckable="True"/>
 								<MenuItem Header="Codex" x:Name="CodexMenuItem" Click="CodexMenuItem_Click" IsCheckable="True"/>
 								<MenuItem Header="Cursor Agent" x:Name="CursorAgentMenuItem" Click="CursorAgentMenuItem_Click" IsCheckable="True"/>
 								<MenuItem Header="Open Code" x:Name="OpenCodeMenuItem" Click="OpenCodeMenuItem_Click" IsCheckable="True"/>
 								<MenuItem Header="Qwen Code" x:Name="QwenCodeMenuItem" Click="QwenCodeMenuItem_Click" IsCheckable="True"/>
+								<Separator x:Name="AutoOpenChangesSeparator"/>
+								<MenuItem Header="Auto-open Changes on Send" x:Name="AutoOpenChangesMenuItem" Click="AutoOpenChangesMenuItem_Click" IsCheckable="True" ToolTip="Automatically open Changes view, expand files, and enable auto-scroll when a prompt is sent"/>
 								<Separator/>
 								<MenuItem Header="About" x:Name="AboutMenuItem" Click="AboutMenuItem_Click"/>
 							</ContextMenu>

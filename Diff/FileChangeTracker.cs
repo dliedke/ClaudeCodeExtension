@@ -137,7 +137,8 @@ namespace ClaudeCodeVS.Diff
                 }
             }
 
-            return changedFiles.OrderBy(f => f.FileName).ToList();
+            // Sort by last modified time (oldest first, so newest/last updated appear at bottom)
+            return changedFiles.OrderBy(f => GetFileLastModifiedTime(f.FilePath)).ToList();
         }
 
         /// <summary>
@@ -278,6 +279,23 @@ namespace ClaudeCodeVS.Diff
             catch
             {
                 return null;
+            }
+        }
+
+        private DateTime GetFileLastModifiedTime(string filePath)
+        {
+            try
+            {
+                if (File.Exists(filePath))
+                {
+                    return File.GetLastWriteTimeUtc(filePath);
+                }
+                // Deleted files: use MinValue so they appear first (oldest)
+                return DateTime.MinValue;
+            }
+            catch
+            {
+                return DateTime.MinValue;
             }
         }
 

@@ -125,6 +125,7 @@ Open Windows Settings, search for "Terminal settings", and set the Terminal opti
 - **Cursor Agent**: Switch to Cursor Agent (runs inside WSL)
 - **Open Code**: Switch to Open Code AI assistant (Windows)
 - **Qwen Code**: Switch to Qwen Code AI assistant (requires Node.js 20+)
+- **Auto-open Changes on Send**: (Git projects only) Automatically opens the Changes view, expands all files, and enables auto-scroll when you send a prompt - perfect for watching the AI work in real-time
 - **About**: View extension version and information
 
 ### Claude Model Selection Menu
@@ -155,6 +156,27 @@ The extension includes an Update Agent button (🔄️) that updates your select
 Click the update button and the extension will handle the update process. Agents use the appropriate exit methods before updating (exit command for most, double CTRL+C for Codex, /quit command for Qwen Code).
 
 ## Version History
+
+### Version 5.5
+- **Auto-open Changes on Send**: New option in the Code Agent Selection menu (⚙) to automatically open the Changes view when you send a prompt
+  - Automatically opens the Changes tab, expands all files, and enables auto-scroll
+  - Perfect for watching the AI work on your code in real-time
+  - Only appears when working with Git repositories
+  - Setting is saved and persists between Visual Studio sessions
+  - Disabled by default - enable it in the ⚙ menu
+- **Improved File Change Detection**: Fixed issue where newly created/modified files weren't appearing in the Changes view until the window was reopened
+  - Git baseline now refreshes on each poll cycle to detect new files immediately
+  - Files that couldn't be read from git HEAD are now still tracked (shown with all lines as additions)
+  - Increased git command timeout for better reliability
+- **Files Sorted by Modification Time**: Changed files in the diff view are now sorted by last modified time
+  - Most recently updated files appear at the bottom of the list
+  - Makes it easier to see which files the AI is currently working on
+- **Improved Auto-Scroll Toggle Button Visibility**: The auto-scroll button now displays with a distinct blue background and white text when enabled, making it much clearer when auto-scroll is active
+- **Auto-Scroll User Preference Tracking**: Auto-scroll now respects user preference
+  - When you manually disable auto-scroll, it stays disabled and won't automatically re-enable
+  - When you manually enable auto-scroll, automatic re-enabling is allowed again
+  - User preference resets after baseline reset (when starting fresh with new changes)
+- **Fixed Auto-Scroll Button State Sync**: Resolved issue where button events could fire unexpectedly during programmatic state updates
 
 ### Version 5.4
 - **Diff View only for projects in Git**: Due to impossible complexities for filewatcher implementation, projects not

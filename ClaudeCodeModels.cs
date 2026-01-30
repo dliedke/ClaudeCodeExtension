@@ -65,5 +65,11 @@ namespace ClaudeCodeVS
         /// List of previously sent prompts (most recent last)
         /// </summary>
         public System.Collections.Generic.List<string> PromptHistory { get; set; } = new System.Collections.Generic.List<string>();
+
+        /// <summary>
+        /// If true, automatically opens the Changes view, expands files, and enables auto-scroll when a prompt is sent
+        /// Only applies when the project is in a git repository
+        /// </summary>
+        public bool AutoOpenChangesOnPrompt { get; set; } = false;
     }
 }

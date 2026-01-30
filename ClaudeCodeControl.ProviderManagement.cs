@@ -1337,6 +1337,52 @@ For more details, visit: https://opencode.ai";
             HaikuMenuItem.IsChecked = _settings.SelectedClaudeModel == ClaudeModel.Haiku;
         }
 
+        /// <summary>
+        /// Handles the provider context menu opening - shows/hides git-specific options
+        /// </summary>
+        private void ProviderContextMenu_Opened(object sender, RoutedEventArgs e)
+        {
+            ThreadHelper.ThrowIfNotOnUIThread();
+
+            // Check if project is in a git repository
+            bool isInGitRepo = false;
+            try
+            {
+                string workspaceDir = ThreadHelper.JoinableTaskFactory.Run(async () => await GetWorkspaceDirectoryAsync());
+                if (!string.IsNullOrEmpty(workspaceDir))
+                {
+                    isInGitRepo = !string.IsNullOrEmpty(FindGitRepositoryRoot(workspaceDir));
+                }
+            }
+            catch
+            {
+                isInGitRepo = false;
+            }
+
+            // Show/hide the auto-open changes option based on git status
+            AutoOpenChangesSeparator.Visibility = isInGitRepo ? Visibility.Visible : Visibility.Collapsed;
+            AutoOpenChangesMenuItem.Visibility = isInGitRepo ? Visibility.Visible : Visibility.Collapsed;
+
+            // Update checkbox state from settings
+            if (_settings != null)
+            {
+                AutoOpenChangesMenuItem.IsChecked = _settings.AutoOpenChangesOnPrompt;
+            }
+        }
+
+        /// <summary>
+        /// Handles auto-open changes menu item click
+        /// </summary>
+        private void AutoOpenChangesMenuItem_Click(object sender, RoutedEventArgs e)
+        {
+            ThreadHelper.ThrowIfNotOnUIThread();
+
+            if (_settings == null) return;
+
+            _settings.AutoOpenChangesOnPrompt = AutoOpenChangesMenuItem.IsChecked;
+            SaveSettings();
+        }
+
         #endregion
     }
 }

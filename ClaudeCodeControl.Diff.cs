@@ -59,6 +59,11 @@ namespace ClaudeCodeVS
         private string _lastGitStatusRepoRoot;
 
         /// <summary>
+        /// Current git repository root (set when diff tracking starts)
+        /// </summary>
+        private string _gitRepositoryRoot;
+
+        /// <summary>
         /// Cached clean state result from the last git status check
         /// </summary>
         private bool _lastGitStatusClean;
@@ -72,7 +77,7 @@ namespace ClaudeCodeVS
         /// Timeout for git status command in milliseconds
         /// </summary>
         private const int GitStatusTimeoutMs = 8000;
-        private const int GitShowTimeoutMs = 4000;
+        private const int GitShowTimeoutMs = 8000;
         private const int MaxGitFileBytes = 4 * 1024 * 1024;
 
         /// <summary>
@@ -122,6 +127,7 @@ namespace ClaudeCodeVS
                 string workspaceDir = await GetWorkspaceDirectoryAsync();
                 if (string.IsNullOrEmpty(workspaceDir))
                 {
+                    _gitRepositoryRoot = null;
                     return;
                 }
 
@@ -129,9 +135,11 @@ namespace ClaudeCodeVS
                 string repoRoot = FindGitRepositoryRoot(workspaceDir);
                 if (string.IsNullOrEmpty(repoRoot))
                 {
+                    _gitRepositoryRoot = null;
                     return;
                 }
 
+                _gitRepositoryRoot = repoRoot;
                 InitializeDiffTracking();
 
                 if (!_isDiffTrackingActive)
@@ -291,6 +299,22 @@ namespace ClaudeCodeVS
             }
         }
 
+        /// <summary>
+        /// Opens the Changes view, expands all files, and enables auto-scroll
+        /// Called when a prompt is sent with auto-open changes enabled
+        /// </summary>
+        private async Task AutoOpenChangesViewAsync()
+        {
+            // Open the diff viewer window
+            await EnsureDiffViewerWindowAsync(true);
+
+            // Enable auto-scroll and expand all files
+            if (_diffViewerWindow?.DiffViewerControl != null)
+            {
+                _diffViewerWindow.DiffViewerControl.EnableAutoScrollAndExpandAll();
+            }
+        }
+
         private void EnsureGitStatusPollTimer()
         {
             if (_gitStatusPollTimer != null)
@@ -330,7 +354,12 @@ namespace ClaudeCodeVS
                     }
                     else
                     {
-                        // Refresh the diff view on each poll
+                        // Re-apply git baseline to pick up any new files, then refresh view
+                        string repoRoot = _gitRepositoryRoot;
+                        if (!string.IsNullOrEmpty(repoRoot))
+                        {
+                            await System.Threading.Tasks.Task.Run(() => TryApplyGitBaseline(repoRoot));
+                        }
                         await RefreshDiffViewAsync();
                     }
                 }
@@ -758,6 +787,13 @@ namespace ClaudeCodeVS
                         if (original != null)
                         {
                             originalContents[fileInfo.fullPath] = original;
+                        }
+                        else
+                        {
+                            // Even if we can't get original content, still track the file
+                            // Use empty string so it shows as "all lines added" in the diff
+                            originalContents[fileInfo.fullPath] = string.Empty;
+                            Debug.WriteLine($"Could not read git HEAD content for: {fileInfo.relativePath}");
                         }
                     });
                 }

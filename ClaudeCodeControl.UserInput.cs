@@ -106,6 +106,12 @@ namespace ClaudeCodeVS
                 // Ensure tracking is active and reset baseline before sending prompt
                 await EnsureDiffTrackingStartedAsync(false);
 
+                // Auto-open changes view if enabled and project is in git
+                if (_settings != null && _settings.AutoOpenChangesOnPrompt && !string.IsNullOrEmpty(_gitRepositoryRoot))
+                {
+                    await AutoOpenChangesViewAsync();
+                }
+
                 // Send to terminal
                 await SendTextToTerminalAsync(fullPrompt.ToString());
 

@@ -42,6 +42,8 @@ namespace ClaudeCodeVS
 
         // Auto-scroll fields
         private bool _autoScrollEnabled = false;
+        private bool _autoScrollUserDisabled = false; // Track if user manually disabled auto-scroll
+        private bool _updatingAutoScrollButton = false; // Prevent re-entrant event handling
         private DispatcherTimer _autoScrollDisableTimer;
         private int _previousFileCount = 0;
         private const int AutoScrollDisableDelayMs = 3000;
@@ -101,6 +103,13 @@ namespace ClaudeCodeVS
 
                 // Detect if changes are actively happening (file count changed or content changed)
                 bool hasNewChanges = newFiles.Count != _previousFileCount || HasContentChanges(newFiles);
+
+                // Reset user-disabled flag when going from empty to having files (fresh start after baseline reset)
+                if (_previousFileCount == 0 && newFiles.Count > 0)
+                {
+                    _autoScrollUserDisabled = false;
+                }
+
                 _previousFileCount = newFiles.Count;
 
                 _changedFiles = newFiles;
@@ -176,6 +185,47 @@ namespace ClaudeCodeVS
             int totalAdded = _changedFiles.Sum(f => f.LinesAdded);
             int totalRemoved = _changedFiles.Sum(f => f.LinesRemoved);
             return (_changedFiles.Count, totalAdded, totalRemoved);
+        }
+
+        /// <summary>
+        /// Enables auto-scroll and expands all files (called when user sends a prompt with auto-open enabled)
+        /// </summary>
+        public void EnableAutoScrollAndExpandAll()
+        {
+            if (!Dispatcher.CheckAccess())
+            {
+                ThreadHelper.JoinableTaskFactory.Run(async () =>
+                {
+                    await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
+                    EnableAutoScrollAndExpandAllInternal();
+                });
+                return;
+            }
+
+            EnableAutoScrollAndExpandAllInternal();
+        }
+
+        private void EnableAutoScrollAndExpandAllInternal()
+        {
+            ThreadHelper.ThrowIfNotOnUIThread();
+
+            // Enable auto-scroll
+            _autoScrollEnabled = true;
+            _autoScrollUserDisabled = false;
+            _autoScrollDisableTimer.Stop();
+            _autoScrollDisableTimer.Start();
+            UpdateAutoScrollButtonState();
+
+            // Expand all files
+            ExpandCollapseAllButton.IsChecked = true;
+            foreach (var file in _changedFiles)
+            {
+                file.IsExpanded = true;
+            }
+            RefreshUI();
+
+            // Scroll to bottom
+            ScrollToBottom();
         }
 
         #endregion
@@ -608,6 +658,12 @@ namespace ClaudeCodeVS
 
             if (hasNewChanges && _changedFiles.Count > 0)
             {
+                // Don't auto-enable if user manually disabled it
+                if (_autoScrollUserDisabled)
+                {
+                    return;
+                }
+
                 // Enable auto-scroll when changes start happening
                 if (!_autoScrollEnabled)
                 {
@@ -655,6 +711,7 @@ namespace ClaudeCodeVS
             _autoScrollDisableTimer.Stop();
 
             // Disable auto-scroll after period of inactivity
+            // Note: Don't set _autoScrollUserDisabled here - timer auto-disable should allow re-enabling
             _autoScrollEnabled = false;
             UpdateAutoScrollButtonState();
         }
@@ -662,16 +719,29 @@ namespace ClaudeCodeVS
         private void UpdateAutoScrollButtonState()
         {
             // This method is always called from UI thread (either from HandleAutoScroll or from DispatcherTimer)
-            AutoScrollButton.IsChecked = _autoScrollEnabled;
-            AutoScrollButton.ToolTip = _autoScrollEnabled
-                ? "Auto-scroll enabled (click to disable)"
-                : "Auto-scroll disabled (click to enable)";
+            _updatingAutoScrollButton = true;
+            try
+            {
+                AutoScrollButton.IsChecked = _autoScrollEnabled;
+                AutoScrollButton.ToolTip = _autoScrollEnabled
+                    ? "Auto-scroll enabled (click to disable)"
+                    : "Auto-scroll disabled (click to enable)";
+            }
+            finally
+            {
+                _updatingAutoScrollButton = false;
+            }
         }
 
         private void AutoScrollButton_Checked(object sender, RoutedEventArgs e)
         {
+            // Skip if this is a programmatic update
+            if (_updatingAutoScrollButton)
+                return;
+
             ThreadHelper.ThrowIfNotOnUIThread();
             _autoScrollEnabled = true;
+            _autoScrollUserDisabled = false; // User manually enabled, allow auto-enabling again
             _autoScrollDisableTimer.Stop();
             _autoScrollDisableTimer.Start();
             ScrollToBottom();
@@ -679,7 +749,12 @@ namespace ClaudeCodeVS
 
         private void AutoScrollButton_Unchecked(object sender, RoutedEventArgs e)
         {
+            // Skip if this is a programmatic update
+            if (_updatingAutoScrollButton)
+                return;
+
             _autoScrollEnabled = false;
+            _autoScrollUserDisabled = true; // User manually disabled, prevent auto-enabling
             _autoScrollDisableTimer.Stop();
         }
 
