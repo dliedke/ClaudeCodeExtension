@@ -145,6 +145,9 @@ namespace ClaudeCodeVS
                 bool workspaceChanged = _lastWorkspaceDirectory != newWorkspaceDir;
                 bool resetDiff = forceDiffReset || workspaceChanged;
 
+                // Update View Changes button visibility based on git availability
+                await UpdateViewChangesButtonVisibilityAsync();
+
                 // If terminal hasn't been initialized yet, initialize it now
                 if (cmdProcess == null)
                 {

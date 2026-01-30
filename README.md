@@ -107,7 +107,7 @@ Open Windows Settings, search for "Terminal settings", and set the Terminal opti
 4. **Attach Files**: Paste images/text with Ctrl+V or use the "Add File" button to attach up to five files
 5. **Send Messages**: Press Enter (if enabled) or click the Send button
 6. **Review Responses**: Read responses in the embedded terminal and interact with it directly as needed
-7. **Review Code Changes**: Use the integrated diff tool to compare code changes in a new tab while the AI is working
+7. **Review Code Changes**: (Only projects in Git) Use the integrated diff tool to compare code changes in a new tab while the AI is working
 
 ### Working with Prompt History
 
@@ -155,6 +155,10 @@ The extension includes an Update Agent button (🔄️) that updates your select
 Click the update button and the extension will handle the update process. Agents use the appropriate exit methods before updating (exit command for most, double CTRL+C for Codex, /quit command for Qwen Code).
 
 ## Version History
+
+### Version 5.4
+- **Diff View only for projects in Git**: Due to impossible complexities for filewatcher implementation, projects not
+in Git repositories will no longer show change button the diff tab. Not the most advanced coding AI or even I could fix the issues.
 
 ### Version 5.3
 - **Repository-Wide Diff Tracking**: Fixed diff tool to detect all changed files across the entire git repository, not just files within the opened solution directory

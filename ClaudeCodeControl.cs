@@ -131,6 +131,8 @@ namespace ClaudeCodeVS
                 }
                 else
                 {
+                    // Update button visibility even when no solution is open
+                    await UpdateViewChangesButtonVisibilityAsync();
                 }
             });
 

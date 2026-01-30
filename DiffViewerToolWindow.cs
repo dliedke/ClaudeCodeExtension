@@ -11,6 +11,7 @@
  * *******************************************************************************************************************/
 
 using Microsoft.VisualStudio;
+using Microsoft.VisualStudio.Imaging;
 using Microsoft.VisualStudio.Shell;
 using Microsoft.VisualStudio.Shell.Interop;
 using System;
@@ -49,6 +50,7 @@ namespace ClaudeCodeVS
         public DiffViewerToolWindow() : base(null)
         {
             this.Caption = "Code Changes";
+            this.BitmapImageMoniker = KnownMonikers.FileGroupDefault;
             _diffViewerControl = new DiffViewerControl();
             this.Content = _diffViewerControl;
         }
