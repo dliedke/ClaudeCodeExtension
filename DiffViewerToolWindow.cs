@@ -1,10 +1,10 @@
 /* *******************************************************************************************************************
  * Application: ClaudeCodeExtension
  *
- * Autor:  Daniel Liedke
+ * Autor:  Daniel Carvalho Liedke
  *
  * Copyright © Daniel Carvalho Liedke 2026
- * Usage and reproduction in any manner whatsoever without the written permission of Daniel Liedke is strictly forbidden.
+ * Usage and reproduction in any manner whatsoever without the written permission of Daniel Carvalho Liedke is strictly forbidden.
  *
  * Purpose: Tool window for displaying file diffs in Visual Studio
  *
@@ -18,6 +18,7 @@ using System;
 using System.Diagnostics;
 using System.IO;
 using System.Runtime.InteropServices;
+using System.Windows.Input;
 
 namespace ClaudeCodeVS
 {
@@ -53,6 +54,21 @@ namespace ClaudeCodeVS
             this.BitmapImageMoniker = KnownMonikers.FileGroupDefault;
             _diffViewerControl = new DiffViewerControl();
             this.Content = _diffViewerControl;
+
+            // Handle Ctrl+F at the tool window level
+            _diffViewerControl.PreviewKeyDown += OnDiffViewerPreviewKeyDown;
+        }
+
+        private void OnDiffViewerPreviewKeyDown(object sender, KeyEventArgs e)
+        {
+            ThreadHelper.ThrowIfNotOnUIThread();
+
+            // Intercept Ctrl+F before VS handles it
+            if (e.Key == Key.F && Keyboard.Modifiers == ModifierKeys.Control)
+            {
+                _diffViewerControl.ActivateSearch();
+                e.Handled = true;
+            }
         }
 
         /// <summary>

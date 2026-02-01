@@ -1,10 +1,10 @@
 /* *******************************************************************************************************************
  * Application: ClaudeCodeExtension
  *
- * Autor:  Daniel Liedke
+ * Autor:  Daniel Carvalho Liedke
  *
  * Copyright © Daniel Carvalho Liedke 2026
- * Usage and reproduction in any manner whatsoever without the written permission of Daniel Liedke is strictly forbidden.
+ * Usage and reproduction in any manner whatsoever without the written permission of Daniel Carvalho Liedke is strictly forbidden.
  *
  * Purpose: Code-behind for the diff viewer control
  *
@@ -48,6 +48,24 @@ namespace ClaudeCodeVS
         private int _previousFileCount = 0;
         private const int AutoScrollDisableDelayMs = 3000;
 
+        // Search fields
+        private List<SearchMatch> _searchMatches = new List<SearchMatch>();
+        private int _currentMatchIndex = -1;
+        private string _currentSearchText = "";
+        private bool _isSearchActive = false;
+        private int _highlightedFileIndex = -1;
+        private int _highlightedLineIndex = -1;
+
+        /// <summary>
+        /// Wrapper class for DiffLine with file/line indices for highlighting
+        /// </summary>
+        private class DiffLineWrapper
+        {
+            public DiffLine Line { get; set; }
+            public int FileIndex { get; set; }
+            public int LineIndex { get; set; }
+        }
+
         #endregion
 
         #region Constructor
@@ -67,6 +85,9 @@ namespace ClaudeCodeVS
                 Interval = TimeSpan.FromMilliseconds(AutoScrollDisableDelayMs)
             };
             _autoScrollDisableTimer.Tick += OnAutoScrollDisableTimerTick;
+
+            // Add keyboard shortcut handler for Ctrl+F
+            PreviewKeyDown += OnPreviewKeyDown;
         }
 
         #endregion
@@ -245,12 +266,14 @@ namespace ClaudeCodeVS
                 {
                     await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
                     DetectTheme();
+                    _diffLineTemplate = null; // Clear cached template to update colors
                     RefreshUI();
                 });
                 return;
             }
 
             DetectTheme();
+            _diffLineTemplate = null; // Clear cached template to update colors
             RefreshUI();
         }
 
@@ -299,9 +322,10 @@ namespace ClaudeCodeVS
             DeletionsText.Visibility = Visibility.Visible;
 
             // Create file items
-            foreach (var file in _changedFiles)
+            for (int fileIndex = 0; fileIndex < _changedFiles.Count; fileIndex++)
             {
-                var fileItem = CreateFileItem(file);
+                var file = _changedFiles[fileIndex];
+                var fileItem = CreateFileItem(file, fileIndex);
                 FileListPanel.Children.Add(fileItem);
             }
 
@@ -345,7 +369,7 @@ namespace ClaudeCodeVS
             RefreshUI();
         }
 
-        private UIElement CreateFileItem(ChangedFile file)
+        private UIElement CreateFileItem(ChangedFile file, int fileIndex)
         {
             ThreadHelper.ThrowIfNotOnUIThread();
             var container = new StackPanel();
@@ -464,22 +488,49 @@ namespace ClaudeCodeVS
                 headerBorder.Background = Brushes.Transparent;
             };
 
-            // Diff content panel (hidden by default)
-            var diffPanel = new StackPanel
+            // Diff content panel (hidden by default) - using virtualized ListBox for performance
+            var diffPanel = new ListBox
             {
                 Visibility = file.IsExpanded ? Visibility.Visible : Visibility.Collapsed,
                 Background = (Brush)FindResource(VsBrushes.ToolWindowBackgroundKey),
-                Margin = new Thickness(20, 0, 0, 0)
+                Margin = new Thickness(20, 0, 0, 0),
+                BorderThickness = new Thickness(0),
+                Padding = new Thickness(0),
+                HorizontalContentAlignment = HorizontalAlignment.Stretch,
+                ItemContainerStyle = (Style)FindResource("DiffLineContainerStyle"),
+                // Enable virtualization
+                MaxHeight = 600, // Fixed height enables virtualization
             };
 
-            // Populate diff lines
+            // Configure virtualization
+            VirtualizingPanel.SetIsVirtualizing(diffPanel, true);
+            VirtualizingPanel.SetVirtualizationMode(diffPanel, VirtualizationMode.Recycling);
+            ScrollViewer.SetCanContentScroll(diffPanel, true);
+            ScrollViewer.SetHorizontalScrollBarVisibility(diffPanel, ScrollBarVisibility.Auto);
+            ScrollViewer.SetVerticalScrollBarVisibility(diffPanel, ScrollBarVisibility.Auto);
+
+            // Store file index for scroll handling
+            diffPanel.Tag = fileIndex;
+
+            // Handle scroll to refresh highlighting for visible items
+            diffPanel.AddHandler(ScrollViewer.ScrollChangedEvent, new ScrollChangedEventHandler(OnDiffPanelScrollChanged));
+
+            // Populate diff lines using ItemsSource for virtualization
             if (file.DiffLines != null)
             {
-                foreach (var line in file.DiffLines)
+                // Wrap diff lines with indices for highlighting
+                var wrappedLines = new List<DiffLineWrapper>();
+                for (int i = 0; i < file.DiffLines.Count; i++)
                 {
-                    var lineElement = CreateDiffLineElement(line);
-                    diffPanel.Children.Add(lineElement);
+                    wrappedLines.Add(new DiffLineWrapper
+                    {
+                        Line = file.DiffLines[i],
+                        FileIndex = fileIndex,
+                        LineIndex = i
+                    });
                 }
+                diffPanel.ItemsSource = wrappedLines;
+                diffPanel.ItemTemplate = CreateDiffLineDataTemplate();
             }
 
             // Click to expand/collapse
@@ -519,102 +570,218 @@ namespace ClaudeCodeVS
             ExpandCollapseAllButton.IsChecked = allExpanded;
         }
 
-        private UIElement CreateDiffLineElement(DiffLine line)
+        private DataTemplate _diffLineTemplate;
+
+        private DataTemplate CreateDiffLineDataTemplate()
         {
+            // Cache the template since it's the same for all lines
+            if (_diffLineTemplate != null)
+            {
+                return _diffLineTemplate;
+            }
+
+            // Create a DataTemplate using FrameworkElementFactory
+            var template = new DataTemplate(typeof(DiffLineWrapper));
+
+            // Create the factory for the Border (container for consistent height)
+            var borderFactory = new FrameworkElementFactory(typeof(Border));
+            borderFactory.SetValue(Border.HeightProperty, 20.0); // Fixed height for virtualization
+            borderFactory.AddHandler(FrameworkElement.LoadedEvent, new RoutedEventHandler(OnDiffLineLoaded));
+
+            template.VisualTree = borderFactory;
+            template.Seal();
+
+            _diffLineTemplate = template;
+            return _diffLineTemplate;
+        }
+
+        private void OnDiffLineLoaded(object sender, RoutedEventArgs e)
+        {
+            if (sender is Border border && border.DataContext is DiffLineWrapper wrapper)
+            {
+                // Subscribe to DataContextChanged for virtualization recycling (only once)
+                if (border.Tag == null)
+                {
+                    border.Tag = true; // Mark as subscribed
+                    border.DataContextChanged += OnDiffLineDataContextChanged;
+                }
+
+                // Check if grid already exists (virtualization recycling)
+                if (border.Child is Grid existingGrid)
+                {
+                    // Always update to ensure highlighting is correct after scroll
+                    UpdateDiffLineGrid(existingGrid, wrapper);
+                    return;
+                }
+
+                // Create the grid structure on first load
+                var grid = new Grid();
+                grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(50) });
+                grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(20) });
+                grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+
+                // Line number
+                var lineNum = new TextBlock
+                {
+                    FontFamily = new FontFamily("Cascadia Mono, Consolas, Courier New"),
+                    FontSize = 11,
+                    Padding = new Thickness(4, 2, 4, 2),
+                    TextAlignment = TextAlignment.Right,
+                    VerticalAlignment = VerticalAlignment.Center
+                };
+                Grid.SetColumn(lineNum, 0);
+                grid.Children.Add(lineNum);
+
+                // Indicator
+                var indicator = new TextBlock
+                {
+                    FontFamily = new FontFamily("Cascadia Mono, Consolas, Courier New"),
+                    FontSize = 11,
+                    Padding = new Thickness(2, 2, 2, 2),
+                    FontWeight = FontWeights.Bold,
+                    VerticalAlignment = VerticalAlignment.Center
+                };
+                Grid.SetColumn(indicator, 1);
+                grid.Children.Add(indicator);
+
+                // Content
+                var content = new TextBlock
+                {
+                    FontFamily = new FontFamily("Cascadia Mono, Consolas, Courier New"),
+                    FontSize = 11,
+                    Padding = new Thickness(4, 2, 4, 2),
+                    TextWrapping = TextWrapping.NoWrap,
+                    VerticalAlignment = VerticalAlignment.Center
+                };
+                Grid.SetColumn(content, 2);
+                grid.Children.Add(content);
+
+                border.Child = grid;
+                UpdateDiffLineGrid(grid, wrapper);
+            }
+        }
+
+        private void OnDiffLineDataContextChanged(object sender, DependencyPropertyChangedEventArgs e)
+        {
+            // Handle virtualization recycling - update content when DataContext changes
+            if (sender is Border border && border.Child is Grid grid && e.NewValue is DiffLineWrapper wrapper)
+            {
+                UpdateDiffLineGrid(grid, wrapper);
+            }
+        }
+
+        private void OnDiffPanelScrollChanged(object sender, ScrollChangedEventArgs e)
+        {
+            // Only refresh when scroll actually changed position (not just layout changes)
+            if (e.VerticalChange == 0 && e.HorizontalChange == 0) return;
+
+            // Only refresh if search is active and we have a highlight
+            if (!_isSearchActive || _highlightedFileIndex < 0) return;
+
+            if (sender is ListBox listBox && listBox.Tag is int fileIndex)
+            {
+                // Only process if this is the file containing the highlight
+                if (fileIndex != _highlightedFileIndex) return;
+
+                // Refresh the highlighted line's container
+                var container = listBox.ItemContainerGenerator.ContainerFromIndex(_highlightedLineIndex) as ListBoxItem;
+                if (container != null)
+                {
+                    var border = FindVisualChild<Border>(container);
+                    if (border?.Child is Grid grid && border.DataContext is DiffLineWrapper wrapper)
+                    {
+                        UpdateDiffLineGrid(grid, wrapper);
+                    }
+                }
+            }
+        }
+
+        private T FindVisualChild<T>(DependencyObject parent) where T : DependencyObject
+        {
+            for (int i = 0; i < VisualTreeHelper.GetChildrenCount(parent); i++)
+            {
+                var child = VisualTreeHelper.GetChild(parent, i);
+                if (child is T typedChild)
+                    return typedChild;
+
+                var result = FindVisualChild<T>(child);
+                if (result != null)
+                    return result;
+            }
+            return null;
+        }
+
+        private void UpdateDiffLineGrid(Grid grid, DiffLineWrapper wrapper)
+        {
+            var line = wrapper.Line;
+
+            // Check if this line is the current search highlight using indices
+            bool isCurrentSearchMatch = _isSearchActive &&
+                                        wrapper.FileIndex == _highlightedFileIndex &&
+                                        wrapper.LineIndex == _highlightedLineIndex;
+
+            // Apply colors based on line type
             Brush background;
             Brush foreground;
-            string indicator;
 
-            switch (line.Type)
+            if (isCurrentSearchMatch)
             {
-                case DiffLineType.Added:
-                    background = _isDarkTheme
-                        ? (Brush)FindResource("AddedLineBackground")
-                        : (Brush)FindResource("AddedLineBackgroundLight");
-                    foreground = _isDarkTheme
-                        ? (Brush)FindResource("AddedLineForeground")
-                        : (Brush)FindResource("AddedLineForegroundLight");
-                    indicator = "+";
-                    break;
-                case DiffLineType.Removed:
-                    background = _isDarkTheme
-                        ? (Brush)FindResource("RemovedLineBackground")
-                        : (Brush)FindResource("RemovedLineBackgroundLight");
-                    foreground = _isDarkTheme
-                        ? (Brush)FindResource("RemovedLineForeground")
-                        : (Brush)FindResource("RemovedLineForegroundLight");
-                    indicator = "-";
-                    break;
-                default:
-                    background = Brushes.Transparent;
-                    foreground = (Brush)FindResource(VsBrushes.WindowTextKey);
-                    indicator = " ";
-                    break;
+                // Use search highlight colors
+                background = _isDarkTheme
+                    ? (Brush)FindResource("SearchCurrentHighlightDark")
+                    : (Brush)FindResource("SearchCurrentHighlight");
+                foreground = _isDarkTheme ? Brushes.White : Brushes.Black;
+            }
+            else
+            {
+                switch (line.Type)
+                {
+                    case DiffLineType.Added:
+                        background = _isDarkTheme
+                            ? (Brush)FindResource("AddedLineBackground")
+                            : (Brush)FindResource("AddedLineBackgroundLight");
+                        foreground = _isDarkTheme
+                            ? (Brush)FindResource("AddedLineForeground")
+                            : (Brush)FindResource("AddedLineForegroundLight");
+                        break;
+                    case DiffLineType.Removed:
+                        background = _isDarkTheme
+                            ? (Brush)FindResource("RemovedLineBackground")
+                            : (Brush)FindResource("RemovedLineBackgroundLight");
+                        foreground = _isDarkTheme
+                            ? (Brush)FindResource("RemovedLineForeground")
+                            : (Brush)FindResource("RemovedLineForegroundLight");
+                        break;
+                    default:
+                        background = Brushes.Transparent;
+                        foreground = (Brush)FindResource(VsBrushes.WindowTextKey);
+                        break;
+                }
             }
 
-            // Build line number text
-            var lineNumText = "";
-            if (line.OldLineNumber.HasValue && line.NewLineNumber.HasValue)
+            grid.Background = background;
+
+            // Update text values and colors
+            if (grid.Children.Count >= 3)
             {
-                lineNumText = $"{line.NewLineNumber}";
+                if (grid.Children[0] is TextBlock lineNum)
+                {
+                    lineNum.Text = line.DisplayLineNumber;
+                    lineNum.Foreground = isCurrentSearchMatch
+                        ? foreground
+                        : (Brush)FindResource(VsBrushes.GrayTextKey);
+                }
+                if (grid.Children[1] is TextBlock indicator)
+                {
+                    indicator.Text = line.Indicator;
+                    indicator.Foreground = foreground;
+                }
+                if (grid.Children[2] is TextBlock content)
+                {
+                    content.Text = line.Text;
+                    content.Foreground = foreground;
+                }
             }
-            else if (line.OldLineNumber.HasValue)
-            {
-                lineNumText = $"{line.OldLineNumber}";
-            }
-            else if (line.NewLineNumber.HasValue)
-            {
-                lineNumText = $"{line.NewLineNumber}";
-            }
-
-            var grid = new Grid { Background = background };
-            grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(50) }); // Line number
-            grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(20) }); // +/- indicator
-            grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) }); // Content
-
-            // Line number
-            var lineNum = new TextBlock
-            {
-                Text = lineNumText,
-                FontFamily = new FontFamily("Cascadia Mono, Consolas, Courier New"),
-                FontSize = 11,
-                Foreground = (Brush)FindResource(VsBrushes.GrayTextKey),
-                Padding = new Thickness(4, 2, 4, 2),
-                TextAlignment = TextAlignment.Right,
-                VerticalAlignment = VerticalAlignment.Center
-            };
-            Grid.SetColumn(lineNum, 0);
-            grid.Children.Add(lineNum);
-
-            // Indicator
-            var indicatorText = new TextBlock
-            {
-                Text = indicator,
-                FontFamily = new FontFamily("Cascadia Mono, Consolas, Courier New"),
-                FontSize = 11,
-                Foreground = foreground,
-                Padding = new Thickness(2, 2, 2, 2),
-                FontWeight = FontWeights.Bold,
-                VerticalAlignment = VerticalAlignment.Center
-            };
-            Grid.SetColumn(indicatorText, 1);
-            grid.Children.Add(indicatorText);
-
-            // Content
-            var content = new TextBlock
-            {
-                Text = line.Text,
-                FontFamily = new FontFamily("Cascadia Mono, Consolas, Courier New"),
-                FontSize = 11,
-                Foreground = foreground,
-                Padding = new Thickness(4, 2, 4, 2),
-                TextWrapping = TextWrapping.NoWrap,
-                VerticalAlignment = VerticalAlignment.Center
-            };
-            Grid.SetColumn(content, 2);
-            grid.Children.Add(content);
-
-            return grid;
         }
 
         private void OpenFileInEditor(string filePath)
@@ -655,6 +822,12 @@ namespace ClaudeCodeVS
         private void HandleAutoScroll(bool hasNewChanges)
         {
             ThreadHelper.ThrowIfNotOnUIThread();
+
+            // Don't auto-scroll if search is active
+            if (_isSearchActive)
+            {
+                return;
+            }
 
             if (hasNewChanges && _changedFiles.Count > 0)
             {
@@ -756,6 +929,287 @@ namespace ClaudeCodeVS
             _autoScrollEnabled = false;
             _autoScrollUserDisabled = true; // User manually disabled, prevent auto-enabling
             _autoScrollDisableTimer.Stop();
+        }
+
+        #endregion
+
+        #region Search Methods
+
+        /// <summary>
+        /// Represents a search match in the diff view
+        /// </summary>
+        private class SearchMatch
+        {
+            public int FileIndex { get; set; }
+            public int LineIndex { get; set; }
+            public DiffLine Line { get; set; }
+        }
+
+        private void OnPreviewKeyDown(object sender, KeyEventArgs e)
+        {
+            ThreadHelper.ThrowIfNotOnUIThread();
+           
+            // Escape to close search
+            if (e.Key == Key.Escape && SearchBar.Visibility == Visibility.Visible)
+            {
+                CloseSearchInternal();
+                e.Handled = true;
+            }
+        }
+
+        /// <summary>
+        /// Public method to open search - can be called from tool window
+        /// </summary>
+        public void ActivateSearch()
+        {
+            ThreadHelper.ThrowIfNotOnUIThread();
+            OpenSearchInternal();
+        }
+
+        private void SearchButton_Click(object sender, RoutedEventArgs e)
+        {
+            ThreadHelper.ThrowIfNotOnUIThread();
+            if (SearchBar.Visibility == Visibility.Visible)
+            {
+                CloseSearchInternal();
+            }
+            else
+            {
+                OpenSearchInternal();
+            }
+        }
+
+        private void OpenSearchInternal()
+        {
+            ThreadHelper.ThrowIfNotOnUIThread();
+
+            // Disable auto-scroll when searching
+            _autoScrollEnabled = false;
+            _autoScrollUserDisabled = true;
+            _autoScrollDisableTimer.Stop();
+            UpdateAutoScrollButtonState();
+
+            // Expand all files for easier searching
+            foreach (var file in _changedFiles)
+            {
+                file.IsExpanded = true;
+            }
+            ExpandCollapseAllButton.IsChecked = true;
+            RefreshUI();
+
+            _isSearchActive = true;
+            SearchBar.Visibility = Visibility.Visible;
+            SearchTextBox.Focus();
+            SearchTextBox.SelectAll();
+        }
+
+        private void CloseSearchInternal()
+        {
+            ThreadHelper.ThrowIfNotOnUIThread();
+
+            _isSearchActive = false;
+            _highlightedFileIndex = -1;
+            _highlightedLineIndex = -1;
+            SearchBar.Visibility = Visibility.Collapsed;
+            _searchMatches.Clear();
+            _currentMatchIndex = -1;
+            _currentSearchText = "";
+            SearchResultsText.Text = "";
+
+            // Refresh to clear highlights
+            if (_changedFiles.Count > 0)
+            {
+                RefreshUI();
+            }
+        }
+
+        private void SearchCloseButton_Click(object sender, RoutedEventArgs e)
+        {
+            ThreadHelper.ThrowIfNotOnUIThread();
+            CloseSearchInternal();
+        }
+
+        private void SearchTextBox_TextChanged(object sender, TextChangedEventArgs e)
+        {
+            // Search is triggered by Enter key, not real-time
+            // Clear results text when text changes to indicate new search needed
+            if (_searchMatches.Count > 0 && SearchTextBox.Text != _currentSearchText)
+            {
+                SearchResultsText.Text = "Press Enter to search";
+            }
+        }
+
+        private void SearchTextBox_KeyDown(object sender, KeyEventArgs e)
+        {
+            ThreadHelper.ThrowIfNotOnUIThread();
+            if (e.Key == Key.Enter)
+            {
+                // If search text changed or no search yet, perform new search
+                if (SearchTextBox.Text != _currentSearchText || _searchMatches.Count == 0)
+                {
+                    PerformSearchInternal(SearchTextBox.Text);
+                }
+                else if (Keyboard.Modifiers == ModifierKeys.Shift)
+                {
+                    // Shift+Enter for previous match
+                    NavigateToPreviousMatchInternal();
+                }
+                else
+                {
+                    // Enter for next match
+                    NavigateToNextMatchInternal();
+                }
+                e.Handled = true;
+            }
+            else if (e.Key == Key.Escape)
+            {
+                CloseSearchInternal();
+                e.Handled = true;
+            }
+        }
+
+        private void SearchPrevButton_Click(object sender, RoutedEventArgs e)
+        {
+            ThreadHelper.ThrowIfNotOnUIThread();
+            NavigateToPreviousMatchInternal();
+        }
+
+        private void SearchNextButton_Click(object sender, RoutedEventArgs e)
+        {
+            ThreadHelper.ThrowIfNotOnUIThread();
+            NavigateToNextMatchInternal();
+        }
+
+        private void PerformSearchInternal(string searchText)
+        {
+            ThreadHelper.ThrowIfNotOnUIThread();
+
+            // Ensure auto-scroll stays disabled during search
+            _autoScrollEnabled = false;
+            _autoScrollUserDisabled = true;
+
+            _currentSearchText = searchText;
+            _searchMatches.Clear();
+            _currentMatchIndex = -1;
+            _highlightedFileIndex = -1;
+            _highlightedLineIndex = -1;
+
+            if (string.IsNullOrWhiteSpace(searchText))
+            {
+                SearchResultsText.Text = "";
+                RefreshUI();
+                return;
+            }
+
+            // Find all matches across all files
+            for (int fileIndex = 0; fileIndex < _changedFiles.Count; fileIndex++)
+            {
+                var file = _changedFiles[fileIndex];
+                if (file.DiffLines == null) continue;
+
+                for (int lineIndex = 0; lineIndex < file.DiffLines.Count; lineIndex++)
+                {
+                    var line = file.DiffLines[lineIndex];
+                    if (line.Text != null && line.Text.IndexOf(searchText, StringComparison.OrdinalIgnoreCase) >= 0)
+                    {
+                        _searchMatches.Add(new SearchMatch
+                        {
+                            FileIndex = fileIndex,
+                            LineIndex = lineIndex,
+                            Line = line
+                        });
+                    }
+                }
+            }
+
+            UpdateSearchResultsTextInternal();
+
+            // Navigate to first match if any
+            if (_searchMatches.Count > 0)
+            {
+                _currentMatchIndex = 0;
+                NavigateToCurrentMatch();
+            }
+            else
+            {
+                RefreshUI();
+            }
+        }
+
+        private void NavigateToNextMatchInternal()
+        {
+            ThreadHelper.ThrowIfNotOnUIThread();
+            if (_searchMatches.Count == 0) return;
+
+            _currentMatchIndex = (_currentMatchIndex + 1) % _searchMatches.Count;
+            NavigateToCurrentMatch();
+        }
+
+        private void NavigateToPreviousMatchInternal()
+        {
+            ThreadHelper.ThrowIfNotOnUIThread();
+            if (_searchMatches.Count == 0) return;
+
+            _currentMatchIndex = (_currentMatchIndex - 1 + _searchMatches.Count) % _searchMatches.Count;
+            NavigateToCurrentMatch();
+        }
+
+        private void NavigateToCurrentMatch()
+        {
+            ThreadHelper.ThrowIfNotOnUIThread();
+            if (_currentMatchIndex < 0 || _currentMatchIndex >= _searchMatches.Count) return;
+
+            var match = _searchMatches[_currentMatchIndex];
+
+            // Set the highlighted indices
+            _highlightedFileIndex = match.FileIndex;
+            _highlightedLineIndex = match.LineIndex;
+
+            // Refresh to update highlighting
+            RefreshUI();
+
+            UpdateSearchResultsTextInternal();
+
+            // Scroll to the match
+            ScrollToMatchInternal(match);
+        }
+
+        private void ScrollToMatchInternal(SearchMatch match)
+        {
+            ThreadHelper.ThrowIfNotOnUIThread();
+
+            // Find the file panel in the UI
+            if (match.FileIndex >= FileListPanel.Children.Count) return;
+
+            var fileContainer = FileListPanel.Children[match.FileIndex] as StackPanel;
+            if (fileContainer == null || fileContainer.Children.Count < 2) return;
+
+            // Get the diff panel (ListBox)
+            var diffPanel = fileContainer.Children[1] as ListBox;
+            if (diffPanel == null) return;
+
+            // Scroll the ListBox to the matching line
+            if (match.LineIndex < diffPanel.Items.Count)
+            {
+                // First scroll the file container into view
+                fileContainer.BringIntoView();
+
+                // Scroll to the item in the ListBox
+                diffPanel.ScrollIntoView(diffPanel.Items[match.LineIndex]);
+            }
+        }
+
+        private void UpdateSearchResultsTextInternal()
+        {
+            ThreadHelper.ThrowIfNotOnUIThread();
+            if (_searchMatches.Count == 0)
+            {
+                SearchResultsText.Text = string.IsNullOrWhiteSpace(_currentSearchText) ? "" : "No results";
+            }
+            else
+            {
+                SearchResultsText.Text = $"{_currentMatchIndex + 1} of {_searchMatches.Count}";
+            }
         }
 
         #endregion

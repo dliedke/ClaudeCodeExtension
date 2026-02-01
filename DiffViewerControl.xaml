@@ -7,7 +7,8 @@
              mc:Ignorable="d"
              d:DesignHeight="400" d:DesignWidth="600"
              Background="{DynamicResource {x:Static vsshell:VsBrushes.WindowKey}}"
-             Foreground="{DynamicResource {x:Static vsshell:VsBrushes.WindowTextKey}}">
+             Foreground="{DynamicResource {x:Static vsshell:VsBrushes.WindowTextKey}}"
+             Focusable="True">
 
     <UserControl.Resources>
         <!-- Diff line colors -->
@@ -21,6 +22,26 @@
         <SolidColorBrush x:Key="RemovedLineBackgroundLight" Color="#FFE6E6"/>
         <SolidColorBrush x:Key="AddedLineForegroundLight" Color="#22863A"/>
         <SolidColorBrush x:Key="RemovedLineForegroundLight" Color="#B31D28"/>
+
+        <!-- Search highlight colors -->
+        <SolidColorBrush x:Key="SearchHighlightBackground" Color="#FFFF00"/>
+        <SolidColorBrush x:Key="SearchHighlightBackgroundDark" Color="#605000"/>
+        <SolidColorBrush x:Key="SearchCurrentHighlight" Color="#FF8C00"/>
+        <SolidColorBrush x:Key="SearchCurrentHighlightDark" Color="#804600"/>
+
+        <!-- Virtualized diff line item container style -->
+        <Style x:Key="DiffLineContainerStyle" TargetType="ListBoxItem">
+            <Setter Property="Padding" Value="0"/>
+            <Setter Property="Margin" Value="0"/>
+            <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ListBoxItem">
+                        <ContentPresenter/>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
 
         <!-- Expander button style -->
         <Style x:Key="ExpanderButtonStyle" TargetType="ToggleButton">
@@ -105,6 +126,33 @@
             </Style.Triggers>
         </Style>
 
+        <!-- Search button style -->
+        <Style x:Key="SearchButtonStyle" TargetType="Button">
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Padding" Value="4,2"/>
+            <Setter Property="Margin" Value="0,0,4,0"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Foreground" Value="{DynamicResource {x:Static vsshell:VsBrushes.WindowTextKey}}"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="searchBorder"
+                                Background="{TemplateBinding Background}"
+                                Padding="{TemplateBinding Padding}"
+                                CornerRadius="2">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="searchBorder" Property="Background" Value="{DynamicResource {x:Static vsshell:VsBrushes.CommandBarHoverOverSelectedKey}}"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
         <!-- Auto-scroll toggle button style -->
         <SolidColorBrush x:Key="AutoScrollActiveBackground" Color="#3078D7"/>
         <SolidColorBrush x:Key="AutoScrollActiveForeground" Color="White"/>
@@ -139,8 +187,11 @@
         </Style>
     </UserControl.Resources>
 
-    <Grid>
+    <Grid x:Name="MainGrid"
+          KeyboardNavigation.TabNavigation="Local"
+          Focusable="True">
         <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="*"/>
         </Grid.RowDefinitions>
@@ -178,6 +229,23 @@
                 </StackPanel>
 
                 <StackPanel Grid.Column="2" Orientation="Horizontal" Margin="8,0,0,0">
+                    <!-- Search button -->
+                    <Button x:Name="SearchButton"
+                            Style="{StaticResource SearchButtonStyle}"
+                            ToolTip="Find"
+                            Click="SearchButton_Click">
+                        <Grid Width="16" Height="16">
+                            <!-- Magnifying glass icon -->
+                            <Ellipse Width="10" Height="10"
+                                     Stroke="{Binding RelativeSource={RelativeSource AncestorType=Button}, Path=Foreground}"
+                                     StrokeThickness="1.5"
+                                     HorizontalAlignment="Left" VerticalAlignment="Top"
+                                     Margin="1,1,0,0"/>
+                            <Line X1="9" Y1="9" X2="14" Y2="14"
+                                  Stroke="{Binding RelativeSource={RelativeSource AncestorType=Button}, Path=Foreground}"
+                                  StrokeThickness="1.5"/>
+                        </Grid>
+                    </Button>
                     <ToggleButton x:Name="AutoScrollButton"
                                   Style="{StaticResource AutoScrollToggleButtonStyle}"
                                   ToolTip="Auto-scroll to latest changes"
@@ -204,9 +272,72 @@
             </Grid>
         </Border>
 
+        <!-- Search bar -->
+        <Border x:Name="SearchBar"
+                Grid.Row="1"
+                Background="{DynamicResource {x:Static vsshell:VsBrushes.ToolWindowBackgroundKey}}"
+                BorderBrush="{DynamicResource {x:Static vsshell:VsBrushes.ToolWindowBorderKey}}"
+                BorderThickness="0,0,0,1"
+                Padding="8,4"
+                Visibility="Collapsed">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+
+                <TextBox x:Name="SearchTextBox"
+                         Grid.Column="0"
+                         Padding="4,2"
+                         VerticalContentAlignment="Center"
+                         TextChanged="SearchTextBox_TextChanged"
+                         KeyDown="SearchTextBox_KeyDown"/>
+
+                <TextBlock x:Name="SearchResultsText"
+                           Grid.Column="1"
+                           VerticalAlignment="Center"
+                           Foreground="{DynamicResource {x:Static vsshell:VsBrushes.GrayTextKey}}"
+                           Margin="8,0,0,0"
+                           Text=""/>
+
+                <Button x:Name="SearchPrevButton"
+                        Grid.Column="2"
+                        Style="{StaticResource SearchButtonStyle}"
+                        ToolTip="Previous match (Shift+Enter)"
+                        Click="SearchPrevButton_Click"
+                        Margin="4,0,0,0">
+                    <TextBlock Text="&#x25B2;" FontSize="10"
+                               Foreground="{Binding RelativeSource={RelativeSource AncestorType=Button}, Path=Foreground}"/>
+                </Button>
+
+                <Button x:Name="SearchNextButton"
+                        Grid.Column="3"
+                        Style="{StaticResource SearchButtonStyle}"
+                        ToolTip="Next match (Enter)"
+                        Click="SearchNextButton_Click"
+                        Margin="2,0,0,0">
+                    <TextBlock Text="&#x25BC;" FontSize="10"
+                               Foreground="{Binding RelativeSource={RelativeSource AncestorType=Button}, Path=Foreground}"/>
+                </Button>
+
+                <Button x:Name="SearchCloseButton"
+                        Grid.Column="4"
+                        Style="{StaticResource SearchButtonStyle}"
+                        ToolTip="Close (Escape)"
+                        Click="SearchCloseButton_Click"
+                        Margin="4,0,0,0">
+                    <TextBlock Text="&#x2715;" FontSize="10"
+                               Foreground="{Binding RelativeSource={RelativeSource AncestorType=Button}, Path=Foreground}"/>
+                </Button>
+            </Grid>
+        </Border>
+
         <!-- Empty state -->
         <TextBlock x:Name="EmptyStateText"
-                   Grid.Row="1"
+                   Grid.Row="2"
                    HorizontalAlignment="Center"
                    VerticalAlignment="Center"
                    Foreground="{DynamicResource {x:Static vsshell:VsBrushes.GrayTextKey}}"
@@ -215,7 +346,7 @@
                    Visibility="Visible"/>
 
         <!-- File list -->
-        <ScrollViewer Grid.Row="1"
+        <ScrollViewer Grid.Row="2"
                       x:Name="FileListScrollViewer"
                       VerticalScrollBarVisibility="Auto"
                       HorizontalScrollBarVisibility="Auto"

@@ -157,6 +157,15 @@ Click the update button and the extension will handle the update process. Agents
 
 ## Version History
 
+### Version 5.6
+- **Improved Diff View Performance**: Enhanced performance for large repositories with many changed files
+  - Reduced CPU and memory usage during git polling
+  - Optimized diff rendering for faster updates
+- **Search Functionality in Diff View**: Added search box to find specific changes quickly
+  - Type keywords to quickly locate specific code in the diff list
+  - Supports partial matches and case-insensitive search
+  - Enter to search and Shift+Enter for last search
+
 ### Version 5.5
 - **Auto-open Changes on Send**: New option in the Code Agent Selection menu (⚙) to automatically open the Changes view when you send a prompt
   - Automatically opens the Changes tab, expands all files, and enables auto-scroll

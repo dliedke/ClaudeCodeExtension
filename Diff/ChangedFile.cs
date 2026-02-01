@@ -1,10 +1,10 @@
 /* *******************************************************************************************************************
  * Application: ClaudeCodeExtension
  *
- * Autor:  Daniel Liedke
+ * Autor:  Daniel Carvalho Liedke
  *
  * Copyright © Daniel Carvalho Liedke 2026
- * Usage and reproduction in any manner whatsoever without the written permission of Daniel Liedke is strictly forbidden.
+ * Usage and reproduction in any manner whatsoever without the written permission of Daniel Carvalho Liedke is strictly forbidden.
  *
  * Purpose: Data models for tracking file changes and diff information
  *
@@ -61,6 +61,37 @@ namespace ClaudeCodeVS.Diff
         /// The type of diff line (Context, Added, or Removed)
         /// </summary>
         public DiffLineType Type { get; set; }
+
+        /// <summary>
+        /// Display line number for UI binding (prefers new line number, falls back to old)
+        /// </summary>
+        public string DisplayLineNumber
+        {
+            get
+            {
+                if (NewLineNumber.HasValue)
+                    return NewLineNumber.Value.ToString();
+                if (OldLineNumber.HasValue)
+                    return OldLineNumber.Value.ToString();
+                return "";
+            }
+        }
+
+        /// <summary>
+        /// Indicator character for UI binding (+, -, or space)
+        /// </summary>
+        public string Indicator
+        {
+            get
+            {
+                switch (Type)
+                {
+                    case DiffLineType.Added: return "+";
+                    case DiffLineType.Removed: return "-";
+                    default: return " ";
+                }
+            }
+        }
     }
 
     /// <summary>
