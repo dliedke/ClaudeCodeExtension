@@ -811,7 +811,7 @@ namespace ClaudeCodeVS
                         if (thirdSlash > 0)
                         {
                             // Extract everything after the distro name and convert backslashes to forward slashes
-                            string linuxPath = windowsPath.Substring(thirdSlash).Replace("\\", "/");
+                            string linuxPath = windowsPath.Substring(secondSlash).Replace("\\", "/");
                             return linuxPath;
                         }
                     }

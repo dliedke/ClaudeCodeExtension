@@ -23,7 +23,8 @@
       "WebSearch",
       "WebFetch(domain:github.com)",
       "Bash(\"C:\\\\Program Files\\\\Microsoft Visual Studio\\\\2022\\\\Professional\\\\MSBuild\\\\Current\\\\Bin\\\\MSBuild.exe\" ClaudeCodeExtension.csproj -t:Build -p:Configuration=Debug -verbosity:minimal)",
-      "Bash(git checkout:*)"
+      "Bash(git checkout:*)",
+      "Bash(gh issue view:*)"
     ],
     "deny": [],
     "ask": []
