@@ -16,6 +16,7 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
+using System.Text;
 
 namespace ClaudeCodeVS.Diff
 {
@@ -269,9 +270,9 @@ namespace ClaudeCodeVS.Diff
                 if (fileInfo.Length > MaxTrackedFileBytes)
                     return null;
 
-                // Try to read with shared access
+                // Try to read with shared access using UTF-8 encoding (with BOM detection)
                 using (var stream = new FileStream(filePath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite))
-                using (var reader = new StreamReader(stream))
+                using (var reader = new StreamReader(stream, Encoding.UTF8, detectEncodingFromByteOrderMarks: true))
                 {
                     return reader.ReadToEnd();
                 }

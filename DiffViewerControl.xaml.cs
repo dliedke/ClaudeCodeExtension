@@ -44,6 +44,7 @@ namespace ClaudeCodeVS
         private bool _autoScrollEnabled = false;
         private bool _autoScrollUserDisabled = false; // Track if user manually disabled auto-scroll
         private bool _updatingAutoScrollButton = false; // Prevent re-entrant event handling
+        private bool _isProgrammaticScroll = false; // Track programmatic scrolls to avoid disabling auto-scroll
         private DispatcherTimer _autoScrollDisableTimer;
         private int _previousFileCount = 0;
         private const int AutoScrollDisableDelayMs = 3000;
@@ -55,6 +56,9 @@ namespace ClaudeCodeVS
         private bool _isSearchActive = false;
         private int _highlightedFileIndex = -1;
         private int _highlightedLineIndex = -1;
+
+        // Scroll position preservation for refresh
+        private Dictionary<string, double> _savedScrollPositions = new Dictionary<string, double>(StringComparer.OrdinalIgnoreCase);
 
         /// <summary>
         /// Wrapper class for DiffLine with file/line indices for highlighting
@@ -88,6 +92,12 @@ namespace ClaudeCodeVS
 
             // Add keyboard shortcut handler for Ctrl+F
             PreviewKeyDown += OnPreviewKeyDown;
+
+            // Detect user scroll to disable auto-scroll
+            Loaded += (s, e) =>
+            {
+                FileListScrollViewer.ScrollChanged += OnFileListScrollViewerScrollChanged;
+            };
         }
 
         #endregion
@@ -124,6 +134,12 @@ namespace ClaudeCodeVS
 
                 // Detect if changes are actively happening (file count changed or content changed)
                 bool hasNewChanges = newFiles.Count != _previousFileCount || HasContentChanges(newFiles);
+
+                // Skip refresh if nothing has changed to prevent screen blinking
+                if (!hasNewChanges)
+                {
+                    return;
+                }
 
                 // Reset user-disabled flag when going from empty to having files (fresh start after baseline reset)
                 if (_previousFileCount == 0 && newFiles.Count > 0)
@@ -296,6 +312,10 @@ namespace ClaudeCodeVS
         private void RefreshUI()
         {
             ThreadHelper.ThrowIfNotOnUIThread();
+
+            // Save scroll positions of existing ListBoxes before clearing
+            SaveScrollPositions();
+
             FileListPanel.Children.Clear();
 
             if (_changedFiles.Count == 0)
@@ -305,6 +325,7 @@ namespace ClaudeCodeVS
                 SummaryText.Text = "No changes detected";
                 AdditionsText.Visibility = Visibility.Collapsed;
                 DeletionsText.Visibility = Visibility.Collapsed;
+                _savedScrollPositions.Clear();
                 return;
             }
 
@@ -330,6 +351,57 @@ namespace ClaudeCodeVS
             }
 
             UpdateExpandCollapseToggleState();
+
+            // Restore scroll positions after layout is complete
+            void RestoreAfterLayout(object s, EventArgs args)
+            {
+                FileListPanel.LayoutUpdated -= RestoreAfterLayout;
+                RestoreScrollPositions();
+            }
+            FileListPanel.LayoutUpdated += RestoreAfterLayout;
+        }
+
+        private void SaveScrollPositions()
+        {
+            _savedScrollPositions.Clear();
+
+            for (int i = 0; i < FileListPanel.Children.Count && i < _changedFiles.Count; i++)
+            {
+                if (FileListPanel.Children[i] is StackPanel container && container.Children.Count >= 2)
+                {
+                    if (container.Children[1] is ListBox listBox)
+                    {
+                        var scrollViewer = FindVisualChild<ScrollViewer>(listBox);
+                        if (scrollViewer != null)
+                        {
+                            string filePath = _changedFiles[i].FilePath;
+                            _savedScrollPositions[filePath] = scrollViewer.VerticalOffset;
+                        }
+                    }
+                }
+            }
+        }
+
+        private void RestoreScrollPositions()
+        {
+            for (int i = 0; i < FileListPanel.Children.Count && i < _changedFiles.Count; i++)
+            {
+                string filePath = _changedFiles[i].FilePath;
+                if (_savedScrollPositions.TryGetValue(filePath, out double scrollPosition) && scrollPosition > 0)
+                {
+                    if (FileListPanel.Children[i] is StackPanel container && container.Children.Count >= 2)
+                    {
+                        if (container.Children[1] is ListBox listBox)
+                        {
+                            var scrollViewer = FindVisualChild<ScrollViewer>(listBox);
+                            if (scrollViewer != null)
+                            {
+                                scrollViewer.ScrollToVerticalOffset(scrollPosition);
+                            }
+                        }
+                    }
+                }
+            }
         }
 
         private void ResetBaselineButton_Click(object sender, RoutedEventArgs e)
@@ -515,6 +587,10 @@ namespace ClaudeCodeVS
             // Handle scroll to refresh highlighting for visible items
             diffPanel.AddHandler(ScrollViewer.ScrollChangedEvent, new ScrollChangedEventHandler(OnDiffPanelScrollChanged));
 
+            // Disable mouse wheel on inner ListBox - let parent ScrollViewer handle all scrolling
+            // This prevents the nested scroll issue where inner scroll fights with outer scroll
+            diffPanel.PreviewMouseWheel += OnDiffPanelPreviewMouseWheel;
+
             // Populate diff lines using ItemsSource for virtualization
             if (file.DiffLines != null)
             {
@@ -696,6 +772,64 @@ namespace ClaudeCodeVS
             }
         }
 
+        private void OnDiffPanelPreviewMouseWheel(object sender, MouseWheelEventArgs e)
+        {
+            if (!(sender is ListBox listBox))
+                return;
+
+            // Find the internal ScrollViewer of the ListBox
+            var scrollViewer = FindVisualChild<ScrollViewer>(listBox);
+            if (scrollViewer == null)
+                return;
+
+            bool scrollingUp = e.Delta > 0;
+            bool scrollingDown = e.Delta < 0;
+
+            // Check boundaries
+            const double tolerance = 1.0;
+            bool hasScrollableContent = scrollViewer.ScrollableHeight > tolerance;
+            bool innerAtTop = scrollViewer.VerticalOffset < tolerance;
+            bool innerAtBottom = !hasScrollableContent ||
+                                 scrollViewer.VerticalOffset >= scrollViewer.ScrollableHeight - tolerance;
+
+            bool parentAtTop = FileListScrollViewer.VerticalOffset < tolerance;
+            bool parentAtBottom = FileListScrollViewer.VerticalOffset >=
+                                  FileListScrollViewer.ScrollableHeight - tolerance;
+
+            // If inner can scroll, let it handle naturally (don't set e.Handled)
+            if (hasScrollableContent && !((scrollingUp && innerAtTop) || (scrollingDown && innerAtBottom)))
+            {
+                // Let ListBox handle it naturally
+                return;
+            }
+
+            // Inner at boundary - handle the event to prevent ListBox from doing anything weird
+            e.Handled = true;
+
+            // If at absolute limits, do nothing
+            if ((scrollingUp && parentAtTop) || (scrollingDown && parentAtBottom))
+            {
+                return;
+            }
+
+            // Scroll the parent
+            _isProgrammaticScroll = true;
+            try
+            {
+                for (int i = 0; i < 3; i++)
+                {
+                    if (scrollingDown)
+                        FileListScrollViewer.LineDown();
+                    else
+                        FileListScrollViewer.LineUp();
+                }
+            }
+            finally
+            {
+                _isProgrammaticScroll = false;
+            }
+        }
+
         private T FindVisualChild<T>(DependencyObject parent) where T : DependencyObject
         {
             for (int i = 0; i < VisualTreeHelper.GetChildrenCount(parent); i++)
@@ -874,8 +1008,17 @@ namespace ClaudeCodeVS
         {
             ThreadHelper.ThrowIfNotOnUIThread();
 
-            // ScrollToEnd after layout updates
+            // Mark as programmatic scroll to avoid disabling auto-scroll
+            _isProgrammaticScroll = true;
             FileListScrollViewer.ScrollToEnd();
+
+            // Reset flag after layout is complete using a one-shot event handler
+            void ResetFlag(object s, EventArgs args)
+            {
+                FileListScrollViewer.LayoutUpdated -= ResetFlag;
+                _isProgrammaticScroll = false;
+            }
+            FileListScrollViewer.LayoutUpdated += ResetFlag;
         }
 
         private void OnAutoScrollDisableTimerTick(object sender, EventArgs e)
@@ -929,6 +1072,26 @@ namespace ClaudeCodeVS
             _autoScrollEnabled = false;
             _autoScrollUserDisabled = true; // User manually disabled, prevent auto-enabling
             _autoScrollDisableTimer.Stop();
+        }
+
+        private void OnFileListScrollViewerScrollChanged(object sender, ScrollChangedEventArgs e)
+        {
+            // Only process actual scroll position changes (not layout changes)
+            if (e.VerticalChange == 0)
+                return;
+
+            // Skip if this is a programmatic scroll
+            if (_isProgrammaticScroll)
+                return;
+
+            // If auto-scroll is enabled and user scrolled manually, disable it
+            if (_autoScrollEnabled)
+            {
+                _autoScrollEnabled = false;
+                _autoScrollUserDisabled = true;
+                _autoScrollDisableTimer.Stop();
+                UpdateAutoScrollButtonState();
+            }
         }
 
         #endregion

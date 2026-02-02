@@ -11,7 +11,7 @@ A Visual Studio extension that provides seamless integration with Claude Code, O
 ### 🎯 **Integrated Terminal**
 - Embedded terminal within Visual Studio supporting multiple AI providers
 - Automatic workspace directory detection when loading solutions
-- Seamless command execution without leaving the IDE
+- Seamless command execution without leaving the IDE YES
 
 ### 🤖 **Multiple AI Provider Support**
 - **Claude Code**: Full support for Claude Code CLI integration (Windows native)
@@ -156,6 +156,17 @@ The extension includes an Update Agent button (🔄️) that updates your select
 Click the update button and the extension will handle the update process. Agents use the appropriate exit methods before updating (exit command for most, double CTRL+C for Codex, /quit command for Qwen Code).
 
 ## Version History
+
+### Version 5.7
+- **Fix encoding issues with diff view**: Ensured proper handling of different file encodings to prevent garbled text in diffs
+  - Now correctly displays UTF-8, UTF-16, and other common encodings
+  - Added fallback logic for unsupported encodings
+- **Fixed Diff View Auto-Scroll Bug**: Resolved issue where auto-scroll could get stuck enabled after rapid file changes
+  - Improved state management to ensure auto-scroll toggles correctly
+  - Added additional logging for troubleshooting
+- **Auto stop Auto-Scroll on Manual Scroll**: Auto-scroll now immediately disables when the user manually scrolls the diff view
+  - Prevents conflicts between automatic and manual scrolling
+  - Enhances user control over the diff view experience
 
 ### Version 5.6
 - **Improved Diff View Performance**: Enhanced performance for large repositories with many changed files
