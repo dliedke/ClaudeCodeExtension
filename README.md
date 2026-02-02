@@ -157,6 +157,13 @@ Click the update button and the extension will handle the update process. Agents
 
 ## Version History
 
+### Version 5.8
+- **Fixed WSL Path Conversion Bug**: Corrected handling of WSL UNC paths when running Claude Code (WSL) or other WSL-based AI providers
+  - Now properly converts `\\wsl.localhost\<distro>\path` to `/path` instead of incorrectly converting to `/mnt/wsl.localhost/...`
+  - Also supports legacy `\\wsl$\<distro>\path` format
+  - Maintains correct behavior for Windows drive paths (e.g., `C:\` still converts to `/mnt/c/`)
+  - Fixes issue where solutions opened from WSL paths would fail with "No such file or directory" errors
+
 ### Version 5.7
 - **Fix encoding issues with diff view**: Ensured proper handling of different file encodings to prevent garbled text in diffs
   - Now correctly displays UTF-8, UTF-16, and other common encodings

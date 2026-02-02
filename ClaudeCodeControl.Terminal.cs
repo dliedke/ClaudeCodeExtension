@@ -782,7 +782,10 @@ namespace ClaudeCodeVS
 
         /// <summary>
         /// Converts a Windows path to WSL path format
-        /// Example: C:\GitLab\Project -> /mnt/c/GitLab/Project
+        /// Examples:
+        ///   - C:\GitLab\Project -> /mnt/c/GitLab/Project
+        ///   - \\wsl.localhost\Ubuntu\home\user\Project -> /home/user/Project
+        ///   - \\wsl$\Ubuntu\home\user\Project -> /home/user/Project
         /// </summary>
         /// <param name="windowsPath">Windows path to convert</param>
         /// <returns>WSL-formatted path</returns>
@@ -791,14 +794,46 @@ namespace ClaudeCodeVS
             if (string.IsNullOrEmpty(windowsPath))
                 return string.Empty;
 
-            // Get the drive letter and convert to lowercase
-            string driveLetter = windowsPath.Substring(0, 1).ToLower();
+            // Check if this is a WSL UNC path (\\wsl.localhost\<distro>\ or \\wsl$\<distro>\)
+            if (windowsPath.StartsWith("\\\\wsl.localhost\\", StringComparison.OrdinalIgnoreCase) ||
+                windowsPath.StartsWith("\\\\wsl$\\", StringComparison.OrdinalIgnoreCase))
+            {
+                // Extract the path after the distro name
+                // Format: \\wsl.localhost\<distro>\<actual-linux-path>
+                // or:     \\wsl$\<distro>\<actual-linux-path>
+                int firstSlash = windowsPath.IndexOf('\\', 2); // Skip the leading \\
+                if (firstSlash > 0)
+                {
+                    int secondSlash = windowsPath.IndexOf('\\', firstSlash + 1); // Find the end of the prefix
+                    if (secondSlash > 0)
+                    {
+                        int thirdSlash = windowsPath.IndexOf('\\', secondSlash + 1); // Find the end of the distro name
+                        if (thirdSlash > 0)
+                        {
+                            // Extract everything after the distro name and convert backslashes to forward slashes
+                            string linuxPath = windowsPath.Substring(thirdSlash).Replace("\\", "/");
+                            return linuxPath;
+                        }
+                    }
+                }
+                // If parsing failed, fall through to default behavior
+            }
 
-            // Remove the drive letter and colon, then replace backslashes with forward slashes
-            string pathWithoutDrive = windowsPath.Substring(2).Replace("\\", "/");
+            // Check if this is a regular Windows drive path (e.g., C:\)
+            if (windowsPath.Length >= 2 && windowsPath[1] == ':')
+            {
+                // Get the drive letter and convert to lowercase
+                string driveLetter = windowsPath.Substring(0, 1).ToLower();
 
-            // Return the WSL path format
-            return $"/mnt/{driveLetter}{pathWithoutDrive}";
+                // Remove the drive letter and colon, then replace backslashes with forward slashes
+                string pathWithoutDrive = windowsPath.Substring(2).Replace("\\", "/");
+
+                // Return the WSL path format
+                return $"/mnt/{driveLetter}{pathWithoutDrive}";
+            }
+
+            // If it's not a recognized format, just replace backslashes with forward slashes
+            return windowsPath.Replace("\\", "/");
         }
 
         /// <summary>
