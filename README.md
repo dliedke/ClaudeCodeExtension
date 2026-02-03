@@ -157,6 +157,9 @@ Click the update button and the extension will handle the update process. Agents
 
 ## Version History
 
+### Version 5.9
+- **Improved WSL Path Conversion Logic**: Enhanced handling of WSL UNC paths for Claude Code (WSL) and other WSL-based AI providers
+
 ### Version 5.8
 - **Fixed WSL Path Conversion Bug**: Corrected handling of WSL UNC paths when running Claude Code (WSL) or other WSL-based AI providers
   - Now properly converts `\\wsl.localhost\<distro>\path` to `/path` instead of incorrectly converting to `/mnt/wsl.localhost/...`
