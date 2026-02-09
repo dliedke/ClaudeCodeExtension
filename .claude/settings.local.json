@@ -28,7 +28,9 @@
       "Bash(where:*)",
       "Bash(cmd /c \"dir \"\"C:\\\\Program Files\\\\Microsoft Visual Studio\\\\2022\"\" /b 2>&1\")",
       "Bash(\"C:/Program Files/Microsoft Visual Studio/18/Enterprise/MSBuild/Current/Bin/MSBuild.exe\" \"C:\\\\GitLab\\\\ClaudeCodeExtension\\\\ClaudeCodeExtension.csproj\" /t:Build /p:Configuration=Release /v:q /nologo)",
-      "Bash(\"C:\\\\Program Files\\\\Microsoft Visual Studio\\\\18\\\\Enterprise\\\\MSBuild\\\\Current\\\\Bin\\\\MSBuild.exe\" ClaudeCodeExtension.csproj -t:Build -p:Configuration=Release -v:minimal -nologo)"
+      "Bash(\"C:\\\\Program Files\\\\Microsoft Visual Studio\\\\18\\\\Enterprise\\\\MSBuild\\\\Current\\\\Bin\\\\MSBuild.exe\" ClaudeCodeExtension.csproj -t:Build -p:Configuration=Release -v:minimal -nologo)",
+      "Bash(\"C:\\\\Program Files\\\\Microsoft Visual Studio\\\\2022\\\\Professional\\\\MSBuild\\\\Current\\\\Bin\\\\MSBuild.exe\" ClaudeCodeExtension.csproj /p:Configuration=Release /v:minimal)",
+      "Bash(cmd /c \"dir /s /b \"\"C:\\\\Program Files\\\\Microsoft Visual Studio\\\\*MSBuild.exe\"\" 2>NUL\")"
     ],
     "deny": [],
     "ask": []

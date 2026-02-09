@@ -151,10 +151,7 @@ namespace ClaudeCodeVS
 
                 _changedFiles = newFiles;
 
-                // Compute diffs for all files
-                DiffComputer.ComputeDiffs(_changedFiles);
-
-                // Update UI on UI thread
+                // Update UI on UI thread (diffs are pre-computed on background thread by caller)
                 if (!Dispatcher.CheckAccess())
                 {
                     ThreadHelper.JoinableTaskFactory.Run(async () =>
@@ -591,22 +588,10 @@ namespace ClaudeCodeVS
             // This prevents the nested scroll issue where inner scroll fights with outer scroll
             diffPanel.PreviewMouseWheel += OnDiffPanelPreviewMouseWheel;
 
-            // Populate diff lines using ItemsSource for virtualization
-            if (file.DiffLines != null)
+            // Only populate diff lines when expanded (lazy loading for performance)
+            if (file.IsExpanded && file.DiffLines != null)
             {
-                // Wrap diff lines with indices for highlighting
-                var wrappedLines = new List<DiffLineWrapper>();
-                for (int i = 0; i < file.DiffLines.Count; i++)
-                {
-                    wrappedLines.Add(new DiffLineWrapper
-                    {
-                        Line = file.DiffLines[i],
-                        FileIndex = fileIndex,
-                        LineIndex = i
-                    });
-                }
-                diffPanel.ItemsSource = wrappedLines;
-                diffPanel.ItemTemplate = CreateDiffLineDataTemplate();
+                PopulateDiffPanel(diffPanel, file, fileIndex);
             }
 
             // Click to expand/collapse
@@ -615,6 +600,13 @@ namespace ClaudeCodeVS
                 file.IsExpanded = !file.IsExpanded;
                 expandIndicator.Text = file.IsExpanded ? "\u25BC" : "\u25B6";
                 diffPanel.Visibility = file.IsExpanded ? Visibility.Visible : Visibility.Collapsed;
+
+                // Lazy populate on first expand
+                if (file.IsExpanded && diffPanel.ItemsSource == null && file.DiffLines != null)
+                {
+                    PopulateDiffPanel(diffPanel, file, fileIndex);
+                }
+
                 UpdateExpandCollapseToggleState();
             };
 
@@ -632,6 +624,22 @@ namespace ClaudeCodeVS
             container.Children.Add(diffPanel);
 
             return container;
+        }
+
+        private void PopulateDiffPanel(ListBox diffPanel, ChangedFile file, int fileIndex)
+        {
+            var wrappedLines = new List<DiffLineWrapper>();
+            for (int i = 0; i < file.DiffLines.Count; i++)
+            {
+                wrappedLines.Add(new DiffLineWrapper
+                {
+                    Line = file.DiffLines[i],
+                    FileIndex = fileIndex,
+                    LineIndex = i
+                });
+            }
+            diffPanel.ItemsSource = wrappedLines;
+            diffPanel.ItemTemplate = CreateDiffLineDataTemplate();
         }
 
         private void UpdateExpandCollapseToggleState()
@@ -1251,11 +1259,18 @@ namespace ClaudeCodeVS
             _autoScrollEnabled = false;
             _autoScrollUserDisabled = true;
 
+            // Clear previous highlight before resetting indices
+            int prevFileIndex = _highlightedFileIndex;
+            int prevLineIndex = _highlightedLineIndex;
+
             _currentSearchText = searchText;
             _searchMatches.Clear();
             _currentMatchIndex = -1;
             _highlightedFileIndex = -1;
             _highlightedLineIndex = -1;
+
+            // Update the previously highlighted line to remove highlight
+            UpdateHighlightForLine(prevFileIndex, prevLineIndex);
 
             if (string.IsNullOrWhiteSpace(searchText))
             {
@@ -1322,19 +1337,45 @@ namespace ClaudeCodeVS
             ThreadHelper.ThrowIfNotOnUIThread();
             if (_currentMatchIndex < 0 || _currentMatchIndex >= _searchMatches.Count) return;
 
+            // Remember old highlight to clear it
+            int oldFileIndex = _highlightedFileIndex;
+            int oldLineIndex = _highlightedLineIndex;
+
             var match = _searchMatches[_currentMatchIndex];
 
             // Set the highlighted indices
             _highlightedFileIndex = match.FileIndex;
             _highlightedLineIndex = match.LineIndex;
 
-            // Refresh to update highlighting
-            RefreshUI();
+            // Update only the affected lines instead of full UI rebuild
+            UpdateHighlightForLine(oldFileIndex, oldLineIndex);
+            UpdateHighlightForLine(_highlightedFileIndex, _highlightedLineIndex);
 
             UpdateSearchResultsTextInternal();
 
             // Scroll to the match
             ScrollToMatchInternal(match);
+        }
+
+        private void UpdateHighlightForLine(int fileIndex, int lineIndex)
+        {
+            if (fileIndex < 0 || lineIndex < 0 || fileIndex >= FileListPanel.Children.Count) return;
+
+            var fileContainer = FileListPanel.Children[fileIndex] as StackPanel;
+            if (fileContainer == null || fileContainer.Children.Count < 2) return;
+
+            var diffPanel = fileContainer.Children[1] as ListBox;
+            if (diffPanel == null) return;
+
+            var container = diffPanel.ItemContainerGenerator.ContainerFromIndex(lineIndex) as ListBoxItem;
+            if (container != null)
+            {
+                var border = FindVisualChild<Border>(container);
+                if (border?.Child is Grid grid && border.DataContext is DiffLineWrapper wrapper)
+                {
+                    UpdateDiffLineGrid(grid, wrapper);
+                }
+            }
         }
 
         private void ScrollToMatchInternal(SearchMatch match)

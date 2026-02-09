@@ -162,6 +162,14 @@ Click the update button and the extension will handle the update process. Agents
 
 ## Version History
 
+### Version 6.1
+- **Major Diff View Performance Fix**: Resolved severe Visual Studio slowdowns when the diff view is open with many code changes
+  - Moved diff computation to a background thread, eliminating UI freezes during diff processing
+  - Made the git status poll timer non-blocking so the UI thread stays responsive during polling cycles
+  - Fixed broken change detection that was causing unnecessary full UI rebuilds every 3 seconds
+  - Search navigation (Next/Previous match) now updates only the affected lines instead of rebuilding the entire UI
+  - Diff panels for collapsed files are now lazily populated, reducing initial render time and memory usage
+
 ### Version 6.0
 - **Cursor Agent Native Windows Support**: Added native Windows support for Cursor Agent CLI
   - New "Cursor Agent" option in the provider menu for native Windows installation

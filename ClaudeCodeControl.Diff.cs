@@ -97,6 +97,11 @@ namespace ClaudeCodeVS
         private DispatcherTimer _gitStatusPollTimer;
 
         /// <summary>
+        /// Guard to prevent re-entrant poll timer ticks
+        /// </summary>
+        private bool _isPolling;
+
+        /// <summary>
         /// Poll interval for git status checks in milliseconds (used instead of FileSystemWatcher for git repos)
         /// </summary>
         private const int GitStatusPollIntervalMs = 3000;
@@ -200,9 +205,14 @@ namespace ClaudeCodeVS
                 if (_fileChangeTracker == null)
                     return;
 
-                // Run heavy file operations on background thread
+                // Run heavy file operations and diff computation on background thread
                 var tracker = _fileChangeTracker;
-                var changedFiles = await System.Threading.Tasks.Task.Run(() => tracker.GetChangedFiles());
+                var changedFiles = await System.Threading.Tasks.Task.Run(() =>
+                {
+                    var files = tracker.GetChangedFiles();
+                    DiffComputer.ComputeDiffs(files);
+                    return files;
+                });
 
                 // Switch to UI thread for the rest
                 await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
@@ -342,10 +352,12 @@ namespace ClaudeCodeVS
 
         private void OnGitStatusPollTimerTick(object sender, EventArgs e)
         {
-            if (_isAutoResetting || !_isDiffTrackingActive)
+            if (_isAutoResetting || !_isDiffTrackingActive || _isPolling)
                 return;
 
-            ThreadHelper.JoinableTaskFactory.Run(async () =>
+            _isPolling = true;
+#pragma warning disable VSSDK007, VSTHRD110 // Intentionally fire-and-forget; reentrancy guarded by _isPolling
+            ThreadHelper.JoinableTaskFactory.RunAsync(async () =>
             {
                 try
                 {
@@ -369,7 +381,12 @@ namespace ClaudeCodeVS
                 {
                     Debug.WriteLine($"Error in git status poll: {ex.Message}");
                 }
+                finally
+                {
+                    _isPolling = false;
+                }
             });
+#pragma warning restore VSSDK007, VSTHRD110
         }
 
         /// <summary>
