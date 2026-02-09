@@ -60,12 +60,17 @@ namespace ClaudeCodeVS
                 bool useClaudeCodeWSL = _settings?.SelectedProvider == AiProvider.ClaudeCodeWSL;
                 bool useCodex = _settings?.SelectedProvider == AiProvider.Codex;
                 bool useCursorAgent = _settings?.SelectedProvider == AiProvider.CursorAgent;
+                bool useCursorAgentNative = _settings?.SelectedProvider == AiProvider.CursorAgentNative;
                 bool useQwenCode = _settings?.SelectedProvider == AiProvider.QwenCode;
                 bool useOpenCode = _settings?.SelectedProvider == AiProvider.OpenCode;
                 bool providerAvailable = false;
 
 
-                if (useCursorAgent)
+                if (useCursorAgentNative)
+                {
+                    providerAvailable = await IsCursorAgentNativeAvailableAsync();
+                }
+                else if (useCursorAgent)
                 {
                     bool wslInstalled = await IsWslInstalledAsync();
                     if (wslInstalled)
@@ -131,7 +136,23 @@ namespace ClaudeCodeVS
 
 
                 // Start the selected provider if available, otherwise show message and use regular CMD
-                if (useCursorAgent)
+                if (useCursorAgentNative)
+                {
+                    if (providerAvailable)
+                    {
+                        await StartEmbeddedTerminalAsync(AiProvider.CursorAgentNative);
+                    }
+                    else
+                    {
+                        if (!_cursorAgentNativeNotificationShown)
+                        {
+                            _cursorAgentNativeNotificationShown = true;
+                            ShowCursorAgentNativeInstallationInstructions();
+                        }
+                        await StartEmbeddedTerminalAsync(null); // Regular CMD
+                    }
+                }
+                else if (useCursorAgent)
                 {
                     if (providerAvailable)
                     {
@@ -306,6 +327,11 @@ namespace ClaudeCodeVS
                 string terminalCommand;
                 switch (provider)
                 {
+                    case AiProvider.CursorAgentNative:
+                        string cursorAgentCommand = GetCursorAgentCommand();
+                        terminalCommand = $"/k cd /d \"{workspaceDir}\" && ping localhost -n 3 >nul && cls && {cursorAgentCommand}";
+                        break;
+
                     case AiProvider.CursorAgent:
                         string wslPathCursor = ConvertToWslPath(workspaceDir);
                         terminalCommand = $"/k cls && wsl bash -ic \"cd {wslPathCursor} && cursor-agent\"";
@@ -349,6 +375,14 @@ namespace ClaudeCodeVS
                     WindowStyle = ProcessWindowStyle.Minimized,
                     WorkingDirectory = workspaceDir
                 };
+
+                // Refresh PATH from registry so the terminal has the latest user/system PATH
+                // Visual Studio may have a stale PATH missing entries added after VS was launched
+                string freshPath = GetFreshPathFromRegistry();
+                if (!string.IsNullOrEmpty(freshPath))
+                {
+                    startInfo.EnvironmentVariables["PATH"] = freshPath;
+                }
 
                 await Task.Run(() =>
                 {
@@ -404,6 +438,9 @@ namespace ClaudeCodeVS
                         string providerTitle;
                         switch (provider)
                         {
+                            case AiProvider.CursorAgentNative:
+                                providerTitle = "Cursor Agent";
+                                break;
                             case AiProvider.CursorAgent:
                                 providerTitle = "Cursor Agent";
                                 break;
@@ -569,6 +606,13 @@ namespace ClaudeCodeVS
                         SendCtrlC();
                         await Task.Delay(1000); // Reduced from 1500ms
                         await SendTextToTerminalAsync("wsl bash -ic \"npm install -g @openai/codex@latest\"");
+                        break;
+
+                    case AiProvider.CursorAgentNative:
+                        // CursorAgent Native: exit, wait, then update
+                        await SendTextToTerminalAsync("exit");
+                        await Task.Delay(1000);
+                        await SendTextToTerminalAsync("agent update");
                         break;
 
                     case AiProvider.CursorAgent:
@@ -741,6 +785,10 @@ namespace ClaudeCodeVS
                 // Check if the selected provider is available
                 switch (selectedProvider)
                 {
+                    case AiProvider.CursorAgentNative:
+                        providerAvailable = await IsCursorAgentNativeAvailableAsync();
+                        break;
+
                     case AiProvider.CursorAgent:
                         bool wslAvailable = await IsWslInstalledAsync();
                         if (wslAvailable)
@@ -854,6 +902,66 @@ namespace ClaudeCodeVS
 
             // Fall back to NPM installation
             return "claude.cmd";
+        }
+
+        /// <summary>
+        /// Reads the fresh system and user PATH from the Windows registry
+        /// This ensures the terminal has the latest PATH entries even if Visual Studio
+        /// was launched before the user modified their PATH
+        /// </summary>
+        /// <returns>Combined system + user PATH string</returns>
+        private static string GetFreshPathFromRegistry()
+        {
+            string systemPath = "";
+            string userPath = "";
+
+            try
+            {
+                using (var key = Microsoft.Win32.Registry.LocalMachine.OpenSubKey(@"SYSTEM\CurrentControlSet\Control\Session Manager\Environment"))
+                {
+                    systemPath = key?.GetValue("Path", "", Microsoft.Win32.RegistryValueOptions.DoNotExpandEnvironmentNames)?.ToString() ?? "";
+                    // Expand any %VARIABLE% references
+                    systemPath = Environment.ExpandEnvironmentVariables(systemPath);
+                }
+            }
+            catch { }
+
+            try
+            {
+                using (var key = Microsoft.Win32.Registry.CurrentUser.OpenSubKey(@"Environment"))
+                {
+                    userPath = key?.GetValue("Path", "", Microsoft.Win32.RegistryValueOptions.DoNotExpandEnvironmentNames)?.ToString() ?? "";
+                    userPath = Environment.ExpandEnvironmentVariables(userPath);
+                }
+            }
+            catch { }
+
+            if (!string.IsNullOrEmpty(systemPath) && !string.IsNullOrEmpty(userPath))
+            {
+                return systemPath.TrimEnd(';') + ";" + userPath.TrimEnd(';');
+            }
+
+            return !string.IsNullOrEmpty(systemPath) ? systemPath : userPath;
+        }
+
+        /// <summary>
+        /// Gets the appropriate Cursor Agent command to use (native Windows)
+        /// Prioritizes installation at %LOCALAPPDATA%\cursor-agent\agent.cmd, falls back to agent in PATH
+        /// </summary>
+        /// <returns>The agent command to execute</returns>
+        private string GetCursorAgentCommand()
+        {
+            // Check for installation at %LOCALAPPDATA%\cursor-agent\agent.cmd
+            string localAppData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
+            string nativeAgentPath = Path.Combine(localAppData, "cursor-agent", "agent.cmd");
+
+            if (File.Exists(nativeAgentPath))
+            {
+                return $"\"{nativeAgentPath}\"";
+            }
+
+            // Fall back to PATH installation (agent.cmd)
+            return "agent";
         }
 
         #endregion

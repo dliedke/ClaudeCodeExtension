@@ -40,9 +40,14 @@ namespace ClaudeCodeVS
         private static bool _codexNotificationShown = false;
 
         /// <summary>
-        /// Flag to show Cursor Agent installation notification only once per session
+        /// Flag to show Cursor Agent (WSL) installation notification only once per session
         /// </summary>
         private static bool _cursorAgentNotificationShown = false;
+
+        /// <summary>
+        /// Flag to show Cursor (native) installation notification only once per session
+        /// </summary>
+        private static bool _cursorAgentNativeNotificationShown = false;
 
         /// <summary>
         /// Flag to show Qwen Code installation notification only once per session
@@ -632,6 +637,82 @@ namespace ClaudeCodeVS
         }
 
         /// <summary>
+        /// Checks if Cursor Agent is available natively on Windows
+        /// Checks for agent.cmd at %LOCALAPPDATA%\cursor-agent\ first,
+        /// then falls back to checking 'where agent' in PATH
+        /// Uses caching to avoid repeated slow checks
+        /// </summary>
+        /// <param name="cancellationToken">Optional cancellation token</param>
+        /// <returns>True if cursor agent is available natively, false otherwise</returns>
+        private async Task<bool> IsCursorAgentNativeAvailableAsync(CancellationToken cancellationToken = default)
+        {
+            // Check cache first
+            lock (_cacheLock)
+            {
+                if (_providerCache.TryGetValue(AiProvider.CursorAgentNative, out var cached) && IsCacheValid(cached))
+                {
+                    return cached.IsAvailable;
+                }
+            }
+
+            try
+            {
+                // First, check for installation at %LOCALAPPDATA%\cursor-agent\agent.cmd
+                string localAppData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
+                string nativeAgentPath = Path.Combine(localAppData, "cursor-agent", "agent.cmd");
+
+                if (File.Exists(nativeAgentPath))
+                {
+                    CacheProviderResult(AiProvider.CursorAgentNative, true);
+                    return true;
+                }
+
+                cancellationToken.ThrowIfCancellationRequested();
+
+                // If native exe not found, check for agent in PATH (agent.cmd etc.)
+                var startInfo = new ProcessStartInfo
+                {
+                    FileName = "cmd.exe",
+                    Arguments = "/c where agent",
+                    UseShellExecute = false,
+                    RedirectStandardOutput = true,
+                    RedirectStandardError = true,
+                    CreateNoWindow = true
+                };
+
+                using (var process = Process.Start(startInfo))
+                {
+                    var completed = await WaitForProcessExitAsync(process, 3000, cancellationToken);
+
+                    if (!completed)
+                    {
+                        try { process.Kill(); } catch { }
+                        CacheProviderResult(AiProvider.CursorAgentNative, false);
+                        return false;
+                    }
+
+                    string output = await process.StandardOutput.ReadToEndAsync();
+                    string error = await process.StandardError.ReadToEndAsync();
+
+                    bool isAvailable = process.ExitCode == 0 && !string.IsNullOrWhiteSpace(output);
+
+                    CacheProviderResult(AiProvider.CursorAgentNative, isAvailable);
+                    return isAvailable;
+                }
+            }
+            catch (OperationCanceledException)
+            {
+                throw;
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"Error checking for Cursor Agent native: {ex.Message}");
+                CacheProviderResult(AiProvider.CursorAgentNative, false);
+                return false;
+            }
+        }
+
+        /// <summary>
         /// Checks if Qwen Code CLI is available (native or NPM installation)
         /// Prioritizes NPM installation (qwen in PATH) but also checks for other possible installations
         /// Uses caching to avoid repeated slow checks
@@ -904,6 +985,34 @@ cursor-agent";
         }
 
         /// <summary>
+        /// Shows installation instructions for Cursor Agent (native Windows)
+        /// </summary>
+        private void ShowCursorAgentNativeInstallationInstructions()
+        {
+            const string instructions = @"Cursor Agent is not installed. A regular CMD terminal will be used instead.
+
+(you may click CTRL+C to copy full instructions)
+
+INSTALLATION: Native Installation (Windows)
+
+Open PowerShell and run:
+
+irm 'https://cursor.com/install?win32=true' | iex
+
+Then add agent.cmd to the PATH environment variable:
+C:\Users\%username%\AppData\Local\cursor-agent
+
+Also install ripgrep (required dependency):
+
+winget install -e --id BurntSushi.ripgrep.MSVC
+
+For more details, visit: https://cursor.com";
+
+            MessageBox.Show(instructions, "Cursor Agent Installation",
+                          MessageBoxButton.OK, MessageBoxImage.Information);
+        }
+
+        /// <summary>
         /// Shows installation instructions for Qwen Code CLI
         /// </summary>
         private void ShowQwenCodeInstallationInstructions()
@@ -1145,6 +1254,35 @@ For more details, visit: https://opencode.ai";
         }
 
         /// <summary>
+        /// Handles Cursor Agent (native) menu item click - switches to Cursor Agent native provider
+        /// </summary>
+        private void CursorAgentNativeMenuItem_Click(object sender, RoutedEventArgs e)
+        {
+            if (_settings == null) return;
+
+            ThreadHelper.JoinableTaskFactory.Run(async delegate
+            {
+                bool cursorAgentNativeAvailable = await IsCursorAgentNativeAvailableAsync();
+                await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
+
+                // Always update the selection regardless of availability
+                _settings.SelectedProvider = AiProvider.CursorAgentNative;
+                UpdateProviderSelection();
+                SaveSettings();
+
+                if (!cursorAgentNativeAvailable)
+                {
+                    ShowCursorAgentNativeInstallationInstructions();
+                    await StartEmbeddedTerminalAsync(null); // Regular CMD
+                }
+                else
+                {
+                    await StartEmbeddedTerminalAsync(AiProvider.CursorAgentNative);
+                }
+            });
+        }
+
+        /// <summary>
         /// Updates UI to reflect the currently selected provider
         /// </summary>
         private void UpdateProviderSelection()
@@ -1157,6 +1295,7 @@ For more details, visit: https://opencode.ai";
             ClaudeCodeMenuItem.IsChecked = _settings.SelectedProvider == AiProvider.ClaudeCode;
             ClaudeCodeWSLMenuItem.IsChecked = _settings.SelectedProvider == AiProvider.ClaudeCodeWSL;
             CodexMenuItem.IsChecked = _settings.SelectedProvider == AiProvider.Codex;
+            CursorAgentNativeMenuItem.IsChecked = _settings.SelectedProvider == AiProvider.CursorAgentNative;
             CursorAgentMenuItem.IsChecked = _settings.SelectedProvider == AiProvider.CursorAgent;
             QwenCodeMenuItem.IsChecked = _settings.SelectedProvider == AiProvider.QwenCode;
             OpenCodeMenuItem.IsChecked = _settings.SelectedProvider == AiProvider.OpenCode;
@@ -1165,6 +1304,8 @@ For more details, visit: https://opencode.ai";
             string providerName = _settings.SelectedProvider == AiProvider.ClaudeCode ? "Claude Code" :
                                   _settings.SelectedProvider == AiProvider.ClaudeCodeWSL ? "Claude Code" :
                                   _settings.SelectedProvider == AiProvider.Codex ? "Codex" :
+                                  _settings.SelectedProvider == AiProvider.CursorAgentNative ? "Cursor Agent" :
+                                  _settings.SelectedProvider == AiProvider.CursorAgent ? "Cursor Agent" :
                                   _settings.SelectedProvider == AiProvider.QwenCode ? "Qwen Code" :
                                   _settings.SelectedProvider == AiProvider.OpenCode ? "Open Code" :
                                   "Cursor Agent";

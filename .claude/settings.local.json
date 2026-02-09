@@ -24,7 +24,11 @@
       "WebFetch(domain:github.com)",
       "Bash(\"C:\\\\Program Files\\\\Microsoft Visual Studio\\\\2022\\\\Professional\\\\MSBuild\\\\Current\\\\Bin\\\\MSBuild.exe\" ClaudeCodeExtension.csproj -t:Build -p:Configuration=Debug -verbosity:minimal)",
       "Bash(git checkout:*)",
-      "Bash(gh issue view:*)"
+      "Bash(gh issue view:*)",
+      "Bash(where:*)",
+      "Bash(cmd /c \"dir \"\"C:\\\\Program Files\\\\Microsoft Visual Studio\\\\2022\"\" /b 2>&1\")",
+      "Bash(\"C:/Program Files/Microsoft Visual Studio/18/Enterprise/MSBuild/Current/Bin/MSBuild.exe\" \"C:\\\\GitLab\\\\ClaudeCodeExtension\\\\ClaudeCodeExtension.csproj\" /t:Build /p:Configuration=Release /v:q /nologo)",
+      "Bash(\"C:\\\\Program Files\\\\Microsoft Visual Studio\\\\18\\\\Enterprise\\\\MSBuild\\\\Current\\\\Bin\\\\MSBuild.exe\" ClaudeCodeExtension.csproj -t:Build -p:Configuration=Release -v:minimal -nologo)"
     ],
     "deny": [],
     "ask": []
