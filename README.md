@@ -23,7 +23,7 @@ A Visual Studio extension that provides seamless integration with Claude Code, O
 - **Open Code**: Support for Open Code AI assistant (requires Node.js 14+)
 - **Provider Switching**: Easy dropdown menu to switch between providers
 - **Smart Detection**: Automatic detection and installation instructions for each AI tool
-- **Claude Model Selection**: Quick model switching for Claude Code (Opus, Sonnet, Haiku) with dropdown menu
+- **Claude Model Selection**: Quick model switching for Claude Code (Opus, Sonnet, Haiku) with dropdown menu. For Opus also possible to select low, medium, high thinking modes
 
 ### ⌨️ **Smart Send Controls**
 - **Send with Enter**: Toggle between Enter-to-send and manual send modes
@@ -162,6 +162,13 @@ Click the update button and the extension will handle the update process. Agents
 
 ## Version History
 
+### Version 6.3
+- **Improved Opus Model Selection**: Selecting Opus now automatically opens the thinking mode selector
+  - Sends `/model opus` followed by `/model` to present low, medium, and high thinking effort options
+  
+### Version 6.2
+- **Fixed File Attachment for Any File Type**: Resolved issue where non-standard file types (e.g., .FIT, .gpx, and other binary/custom formats) were not being included in the AI prompt when attached via "Add File"
+  
 ### Version 6.1
 - **Major Diff View Performance Fix**: Resolved severe Visual Studio slowdowns when the diff view is open with many code changes
   - Moved diff computation to a background thread, eliminating UI freezes during diff processing

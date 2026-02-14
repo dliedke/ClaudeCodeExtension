@@ -54,7 +54,10 @@ namespace ClaudeCodeVS
             try
             {
                 string prompt = PromptTextBox.Text.Trim();
-                if (string.IsNullOrEmpty(prompt))
+                bool hasFiles = attachedImagePaths.Any();
+
+                // Allow sending if there's text OR attached files
+                if (string.IsNullOrEmpty(prompt) && !hasFiles)
                 {
                     MessageBox.Show("Please enter a prompt.", "No Prompt", MessageBoxButton.OK, MessageBoxImage.Information);
                     return;
@@ -62,46 +65,81 @@ namespace ClaudeCodeVS
 
                 StringBuilder fullPrompt = new StringBuilder();
 
-                // If files are attached, copy them to a unique directory and include paths
-                if (attachedImagePaths.Any())
+                // If files are attached, include their paths in the prompt
+                if (hasFiles)
                 {
-                    // Create a unique ClaudeCodeVS directory for this prompt with files
-                    string promptDirectory = Path.Combine(Path.GetTempPath(), "ClaudeCodeVS", Guid.NewGuid().ToString());
-                    Directory.CreateDirectory(promptDirectory);
-
                     // Check if CURRENTLY RUNNING provider is WSL-based
                     bool isWSLProvider = _currentRunningProvider == AiProvider.Codex ||
                                          _currentRunningProvider == AiProvider.ClaudeCodeWSL ||
                                          _currentRunningProvider == AiProvider.CursorAgent;
 
+                    // Create a unique ClaudeCodeVS directory for this prompt with files
+                    string promptDirectory = null;
+                    try
+                    {
+                        promptDirectory = Path.Combine(Path.GetTempPath(), "ClaudeCodeVS", Guid.NewGuid().ToString());
+                        Directory.CreateDirectory(promptDirectory);
+                    }
+                    catch (Exception ex)
+                    {
+                        Debug.WriteLine($"Error creating temp directory: {ex.Message}");
+                        promptDirectory = null;
+                    }
+
                     fullPrompt.AppendLine("Files attached:");
-                    foreach (string imagePath in attachedImagePaths)
+                    foreach (string filePath in attachedImagePaths)
                     {
                         try
                         {
-                            string fileName = Path.GetFileName(imagePath);
-                            string tempPath = Path.Combine(promptDirectory, fileName);
+                            string displayPath;
 
-                            File.Copy(imagePath, tempPath, true);
+                            // Try to copy file to temp directory for persistence
+                            if (promptDirectory != null && File.Exists(filePath))
+                            {
+                                string fileName = Path.GetFileName(filePath);
+                                string tempPath = Path.Combine(promptDirectory, fileName);
+                                File.Copy(filePath, tempPath, true);
+                                displayPath = isWSLProvider ? ConvertToWslPath(tempPath) : tempPath;
+                            }
+                            else
+                            {
+                                // Use original path if copy fails or file doesn't exist
+                                displayPath = isWSLProvider ? ConvertToWslPath(filePath) : filePath;
+                            }
 
-                            // Convert to WSL path format if using WSL provider
-                            string displayPath = isWSLProvider ? ConvertToWslPath(tempPath) : tempPath;
                             fullPrompt.AppendLine($"  - {displayPath}");
+                            Debug.WriteLine($"File attached to prompt: {filePath}");
                         }
                         catch (Exception ex)
                         {
-                            Debug.WriteLine($"Error copying image {imagePath}: {ex.Message}");
-                            string displayPath = isWSLProvider ? ConvertToWslPath(imagePath) : imagePath;
-                            fullPrompt.AppendLine($"  - {displayPath}");
+                            // Always include the file path even if copy fails
+                            Debug.WriteLine($"Error processing file {filePath}: {ex.Message}");
+                            try
+                            {
+                                string displayPath = isWSLProvider ? ConvertToWslPath(filePath) : filePath;
+                                fullPrompt.AppendLine($"  - {displayPath}");
+                            }
+                            catch
+                            {
+                                // Last resort: use the raw path
+                                fullPrompt.AppendLine($"  - {filePath}");
+                            }
                         }
                     }
                     fullPrompt.AppendLine();
                 }
 
-                fullPrompt.AppendLine(prompt);
+                // Add user's prompt text (if any)
+                if (!string.IsNullOrEmpty(prompt))
+                {
+                    fullPrompt.AppendLine(prompt);
+                }
 
-                // Add to prompt history (before clearing)
-                AddToPromptHistory(prompt);
+                // Add to prompt history (before clearing) - only if there's text
+                if (!string.IsNullOrEmpty(prompt))
+                {
+                    AddToPromptHistory(prompt);
+                }
 
                 // Ensure tracking is active and reset baseline before sending prompt
                 await EnsureDiffTrackingStartedAsync(false);
@@ -113,7 +151,9 @@ namespace ClaudeCodeVS
                 }
 
                 // Send to terminal
-                await SendTextToTerminalAsync(fullPrompt.ToString());
+                string finalPrompt = fullPrompt.ToString();
+                Debug.WriteLine($"Sending prompt to terminal ({finalPrompt.Length} chars): {finalPrompt.Substring(0, Math.Min(200, finalPrompt.Length))}...");
+                await SendTextToTerminalAsync(finalPrompt);
 
                 // Clear prompt and images
                 PromptTextBox.Clear();

@@ -1392,7 +1392,7 @@ For more details, visit: https://opencode.ai";
         }
 
         /// <summary>
-        /// Handles Opus menu item click - switches to Opus model
+        /// Handles Opus menu item click - switches to Opus model then opens thinking mode selection
         /// </summary>
         private void OpusMenuItem_Click(object sender, RoutedEventArgs e)
         {
@@ -1406,11 +1406,13 @@ For more details, visit: https://opencode.ai";
                 UpdateModelSelection();
                 SaveSettings();
 
-                // Send /model command directly without restarting terminal
+                // Send /model opus first, wait, then send /model to show thinking mode selection
                 if (_currentRunningProvider == AiProvider.ClaudeCode ||
                     _currentRunningProvider == AiProvider.ClaudeCodeWSL)
                 {
                     await SendTextToTerminalAsync("/model opus");
+                    await Task.Delay(1500);
+                    await SendTextToTerminalAsync("/model");
                 }
             });
         }
