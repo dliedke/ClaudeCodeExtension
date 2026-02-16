@@ -32,7 +32,9 @@
       "Bash(\"C:\\\\Program Files\\\\Microsoft Visual Studio\\\\2022\\\\Professional\\\\MSBuild\\\\Current\\\\Bin\\\\MSBuild.exe\" ClaudeCodeExtension.csproj /p:Configuration=Release /v:minimal)",
       "Bash(cmd /c \"dir /s /b \"\"C:\\\\Program Files\\\\Microsoft Visual Studio\\\\*MSBuild.exe\"\" 2>NUL\")",
       "Bash(wc:*)",
-      "Bash(\"/c/Program Files/Microsoft Visual Studio/2022/Professional/MSBuild/Current/Bin/MSBuild.exe\" ClaudeCodeExtension.sln /p:Configuration=Release)"
+      "Bash(\"/c/Program Files/Microsoft Visual Studio/2022/Professional/MSBuild/Current/Bin/MSBuild.exe\" ClaudeCodeExtension.sln /p:Configuration=Release)",
+      "Bash(cmd.exe /c \"where msbuild\")",
+      "Bash(cmd.exe /c \"dir /s /b \"\"C:\\\\Program Files\\\\Microsoft Visual Studio\\\\2022\\\\*MSBuild.exe\"\"\")"
     ],
     "deny": [],
     "ask": []

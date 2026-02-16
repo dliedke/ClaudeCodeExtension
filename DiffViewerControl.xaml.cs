@@ -671,12 +671,33 @@ namespace ClaudeCodeVS
             var borderFactory = new FrameworkElementFactory(typeof(Border));
             borderFactory.SetValue(Border.HeightProperty, 20.0); // Fixed height for virtualization
             borderFactory.AddHandler(FrameworkElement.LoadedEvent, new RoutedEventHandler(OnDiffLineLoaded));
+            borderFactory.AddHandler(Border.MouseLeftButtonDownEvent, new MouseButtonEventHandler(OnDiffLineDoubleClick));
 
             template.VisualTree = borderFactory;
             template.Seal();
 
             _diffLineTemplate = template;
             return _diffLineTemplate;
+        }
+
+        private void OnDiffLineDoubleClick(object sender, MouseButtonEventArgs e)
+        {
+            if (e.ClickCount == 2 && sender is Border border && border.DataContext is DiffLineWrapper wrapper)
+            {
+                ThreadHelper.ThrowIfNotOnUIThread();
+
+                if (wrapper.FileIndex >= 0 && wrapper.FileIndex < _changedFiles.Count)
+                {
+                    var file = _changedFiles[wrapper.FileIndex];
+
+                    // Determine the target line number: prefer new line number, fall back to old
+                    int lineNumber = wrapper.Line.NewLineNumber ?? wrapper.Line.OldLineNumber ?? 0;
+
+                    OpenFileInEditor(file.FilePath, lineNumber);
+                }
+
+                e.Handled = true;
+            }
         }
 
         private void OnDiffLineLoaded(object sender, RoutedEventArgs e)
@@ -926,7 +947,7 @@ namespace ClaudeCodeVS
             }
         }
 
-        private void OpenFileInEditor(string filePath)
+        private void OpenFileInEditor(string filePath, int lineNumber = 0)
         {
             try
             {
@@ -936,6 +957,15 @@ namespace ClaudeCodeVS
                 if (dte != null && System.IO.File.Exists(filePath))
                 {
                     dte.ItemOperations.OpenFile(filePath);
+
+                    if (lineNumber > 0 && dte.ActiveDocument != null)
+                    {
+                        var selection = dte.ActiveDocument.Selection as EnvDTE.TextSelection;
+                        if (selection != null)
+                        {
+                            selection.GotoLine(lineNumber, false);
+                        }
+                    }
                 }
             }
             catch (Exception ex)

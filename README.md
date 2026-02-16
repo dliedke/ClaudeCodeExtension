@@ -110,7 +110,7 @@ Open Windows Settings, search for "Terminal settings", and set the Terminal opti
 4. **Attach Files**: Paste images/text with Ctrl+V or use the "Add File" button to attach up to five files
 5. **Send Messages**: Press Enter (if enabled) or click the Send button
 6. **Review Responses**: Read responses in the embedded terminal and interact with it directly as needed
-7. **Review Code Changes**: (Only projects in Git) Use the integrated diff tool to compare code changes in a new tab while the AI is working
+7. **Review Code Changes**: (Only projects in Git) Use the integrated diff tool to compare code changes in a new tab while the AI is working.Option to search, auto-scroll, double click in filename to open, double click in code line to navigate to file
 
 ### Working with Prompt History
 
@@ -161,6 +161,9 @@ The extension includes an Update Agent button (🔄️) that updates your select
 Click the update button and the extension will handle the update process. Agents use the appropriate exit methods before updating (exit command for most, double CTRL+C for Codex, /quit command for Qwen Code).
 
 ## Version History
+
+### Version 6.4
+- **Double-Click Diff Line to Navigate**: Double-clicking a diff code line in the Changes view now opens the file in the Visual Studio editor and navigates to that specific line number
 
 ### Version 6.3
 - **Improved Opus Model Selection**: Selecting Opus now automatically opens the thinking mode selector
