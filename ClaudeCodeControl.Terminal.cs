@@ -11,6 +11,7 @@
  * *******************************************************************************************************************/
 
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Diagnostics;
 using System.Runtime.InteropServices;
@@ -366,11 +367,16 @@ namespace ClaudeCodeVS
                         break;
                 }
 
-                // Configure and start the process
+                // Configure and start the process.
+                // Use conhost.exe explicitly to bypass Windows Terminal delegation.
+                // When Windows Terminal (or "Let Windows Decide") is the default terminal,
+                // launching cmd.exe directly causes WT to intercept and host it in a WT window,
+                // which cannot be re-parented via SetParent. Launching conhost.exe directly bypasses
+                // delegation and always creates a traditional re-parentable Win32 console window.
                 var startInfo = new ProcessStartInfo
                 {
-                    FileName = "cmd.exe",
-                    Arguments = terminalCommand,
+                    FileName = "conhost.exe",
+                    Arguments = "-- cmd.exe " + terminalCommand,
                     UseShellExecute = false,
                     CreateNoWindow = false,
                     WindowStyle = ProcessWindowStyle.Minimized,
@@ -404,8 +410,10 @@ namespace ClaudeCodeVS
                     throw new InvalidOperationException("Failed to create terminal process");
                 }
 
-                // Find and embed the terminal window (using async version with reduced timeout)
-                var hwnd = await FindMainWindowHandleByPidAsync(cmdProcess.Id, timeoutMs: 5000, pollIntervalMs: 50);
+                // Find and embed the terminal window.
+                // Use the conhost-aware finder because GetWindowThreadProcessId returns the console
+                // application's PID (cmd.exe), not conhost's PID, due to Windows backward compatibility.
+                var hwnd = await FindMainWindowHandleByConhostAsync(cmdProcess.Id, timeoutMs: 5000, pollIntervalMs: 50);
                 terminalHandle = hwnd;
 
                 await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
@@ -574,6 +582,68 @@ namespace ClaudeCodeVS
                     return found;
 
                 Thread.Sleep(pollIntervalMs);
+            }
+            return IntPtr.Zero;
+        }
+
+        /// <summary>
+        /// Finds the console window handle for a conhost.exe process started with "-- cmd.exe ...".
+        /// Searches by both the conhost PID and its cmd.exe child PID, because
+        /// GetWindowThreadProcessId returns the console application's PID (cmd.exe) rather than
+        /// conhost's PID due to Windows backward compatibility behavior.
+        /// </summary>
+        private static async Task<IntPtr> FindMainWindowHandleByConhostAsync(
+            int conhostPid, int timeoutMs = 5000, int pollIntervalMs = 50,
+            CancellationToken cancellationToken = default)
+        {
+            var sw = Stopwatch.StartNew();
+            var targetPids = new HashSet<uint> { (uint)conhostPid };
+            bool childrenExpanded = false;
+
+            while (sw.ElapsedMilliseconds < timeoutMs)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+
+                // After 200ms, do a one-time WMI query to include cmd.exe child PID.
+                // GetWindowThreadProcessId returns cmd.exe's PID for console windows (backward compat),
+                // so we need cmd.exe's PID to find the window when it returns the child PID.
+                if (!childrenExpanded && sw.ElapsedMilliseconds >= 200)
+                {
+                    childrenExpanded = true;
+                    try
+                    {
+                        using (var searcher = new System.Management.ManagementObjectSearcher(
+                            $"SELECT ProcessId FROM Win32_Process WHERE ParentProcessId={conhostPid}"))
+                        {
+                            foreach (System.Management.ManagementObject proc in searcher.Get())
+                            {
+                                targetPids.Add((uint)Convert.ToInt32(proc["ProcessId"]));
+                            }
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        Debug.WriteLine($"WMI child process search error: {ex.Message}");
+                    }
+                }
+
+                IntPtr found = IntPtr.Zero;
+                EnumWindows((hWnd, lParam) =>
+                {
+                    GetWindowThreadProcessId(hWnd, out uint pid);
+                    if (targetPids.Contains(pid))
+                    {
+                        found = hWnd;
+                        ShowWindow(hWnd, SW_HIDE);
+                        return false;
+                    }
+                    return true;
+                }, IntPtr.Zero);
+
+                if (found != IntPtr.Zero)
+                    return found;
+
+                await Task.Delay(pollIntervalMs, cancellationToken);
             }
             return IntPtr.Zero;
         }

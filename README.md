@@ -164,6 +164,11 @@ Click the update button and the extension will handle the update process. Agents
 
 ## Version History
 
+### Version 6.6
+- **Fixed Terminal Embedding Without Requiring Windows Console Host**: The extension now launches `conhost.exe` explicitly (with `-- cmd.exe ...`), bypassing the Windows Terminal delegation mechanism
+- Users no longer need to set "Windows Console Host" as their default terminal — Windows Terminal remains the default for all other applications including debug sessions
+- Added `FindMainWindowHandleByConhostAsync` which searches both the conhost PID and its cmd.exe child PID via WMI to reliably find the embedded window handle regardless of Windows backward-compatibility behavior
+
 ### Version 6.5
 - **Claude Permissions Toggle Added**: Added `Claude Code: Skip Permissions` option to the Code Agent Selection menu (⚙)
   - Starts Claude Code (Windows and WSL) with `--dangerously-skip-permissions` when enabled
