@@ -192,6 +192,10 @@ namespace ClaudeCodeVS
                             }
                             break;
 
+                        case AiProvider.CursorAgentNative:
+                            providerAvailable = await IsCursorAgentNativeAvailableAsync();
+                            break;
+
                         case AiProvider.Codex:
                             providerAvailable = await IsCodexCmdAvailableAsync();
                             break;
@@ -202,6 +206,14 @@ namespace ClaudeCodeVS
 
                         case AiProvider.ClaudeCode:
                             providerAvailable = await IsClaudeCmdAvailableAsync();
+                            break;
+
+                        case AiProvider.QwenCode:
+                            providerAvailable = await IsQwenCodeAvailableAsync();
+                            break;
+
+                        case AiProvider.OpenCode:
+                            providerAvailable = await IsOpenCodeAvailableAsync();
                             break;
                     }
 
@@ -226,6 +238,13 @@ namespace ClaudeCodeVS
                                     ShowCursorAgentInstallationInstructions();
                                 }
                                 break;
+                            case AiProvider.CursorAgentNative:
+                                if (!_cursorAgentNativeNotificationShown)
+                                {
+                                    _cursorAgentNativeNotificationShown = true;
+                                    ShowCursorAgentNativeInstallationInstructions();
+                                }
+                                break;
                             case AiProvider.Codex:
                                 if (!_codexNotificationShown)
                                 {
@@ -245,6 +264,20 @@ namespace ClaudeCodeVS
                                 {
                                     _claudeNotificationShown = true;
                                     ShowClaudeInstallationInstructions();
+                                }
+                                break;
+                            case AiProvider.QwenCode:
+                                if (!_qwenCodeNotificationShown)
+                                {
+                                    _qwenCodeNotificationShown = true;
+                                    ShowQwenCodeInstallationInstructions();
+                                }
+                                break;
+                            case AiProvider.OpenCode:
+                                if (!_openCodeNotificationShown)
+                                {
+                                    _openCodeNotificationShown = true;
+                                    ShowOpenCodeInstallationInstructions();
                                 }
                                 break;
                         }
