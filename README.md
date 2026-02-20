@@ -55,6 +55,7 @@ A Visual Studio extension that provides seamless integration with Claude Code, O
 - **Splitter Position**: Maintains your preferred layout between sessions
 - **AI Provider Selection**: Remembers your preferred AI assistant
 - **Claude Model Selection**: Remembers your last selected Claude model (Opus, Sonnet, or Haiku)
+- **Claude Skip Permissions State**: Remembers whether Claude Code starts with `--dangerously-skip-permissions`
 
 ### 🎨 **Visual Studio Integration**
 - **Dark/Light Theme**: Consistent with Visual Studio's dark/light theme
@@ -130,6 +131,7 @@ Open Windows Settings, search for "Terminal settings", and set the Terminal opti
 - **Open Code**: Switch to Open Code AI assistant (Windows)
 - **Qwen Code**: Switch to Qwen Code AI assistant (requires Node.js 20+)
 - **Auto-open Changes on Send**: (Git projects only) Automatically opens the Changes view, expands all files, and enables auto-scroll when you send a prompt - perfect for watching the AI work in real-time
+- **Claude Code: Skip Permissions**: (Claude providers only) Starts Claude Code with `--dangerously-skip-permissions`, saves the preference, and reloads Claude Code immediately when changed
 - **About**: View extension version and information
 
 ### Claude Model Selection Menu
@@ -161,6 +163,12 @@ The extension includes an Update Agent button (🔄️) that updates your select
 Click the update button and the extension will handle the update process. Agents use the appropriate exit methods before updating (exit command for most, double CTRL+C for Codex, /quit command for Qwen Code).
 
 ## Version History
+
+### Version 6.5
+- **Claude Permissions Toggle Added**: Added `Claude Code: Skip Permissions` option to the Code Agent Selection menu (⚙)
+  - Starts Claude Code (Windows and WSL) with `--dangerously-skip-permissions` when enabled
+  - Setting is persisted in local JSON settings and restored in the next session
+  - Changing this option now reloads Claude Code automatically so the new startup flag applies immediately
 
 ### Version 6.4
 - **Double-Click Diff Line to Navigate**: Double-clicking a diff code line in the Changes view now opens the file in the Visual Studio editor and navigates to that specific line number

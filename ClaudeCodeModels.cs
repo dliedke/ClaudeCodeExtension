@@ -72,5 +72,11 @@ namespace ClaudeCodeVS
         /// Only applies when the project is in a git repository
         /// </summary>
         public bool AutoOpenChangesOnPrompt { get; set; } = false;
+
+        /// <summary>
+        /// If true, starts Claude Code with the --dangerously-skip-permissions parameter
+        /// Applies to Claude Code (Windows) and Claude Code (WSL)
+        /// </summary>
+        public bool ClaudeDangerouslySkipPermissions { get; set; } = false;
     }
 }

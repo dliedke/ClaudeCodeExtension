@@ -344,7 +344,8 @@ namespace ClaudeCodeVS
 
                     case AiProvider.ClaudeCodeWSL:
                         string wslPathClaude = ConvertToWslPath(workspaceDir);
-                        terminalCommand = $"/k cls && wsl bash -ic \"cd {wslPathClaude} && claude\"";
+                        string claudeWslCommand = GetClaudeCommand(isWsl: true);
+                        terminalCommand = $"/k cls && wsl bash -ic \"cd {wslPathClaude} && {claudeWslCommand}\"";
                         break;
 
                     case AiProvider.ClaudeCode:
@@ -770,6 +771,56 @@ namespace ClaudeCodeVS
         }
 
         /// <summary>
+        /// Restarts the terminal using the currently selected provider from settings.
+        /// Falls back to regular CMD if the provider is unavailable.
+        /// </summary>
+        private async Task RestartTerminalWithSelectedProviderAsync()
+        {
+            // Get the selected provider from settings
+            AiProvider? selectedProvider = _settings?.SelectedProvider;
+            bool providerAvailable = false;
+
+            // Check if the selected provider is available
+            switch (selectedProvider)
+            {
+                case AiProvider.CursorAgentNative:
+                    providerAvailable = await IsCursorAgentNativeAvailableAsync();
+                    break;
+
+                case AiProvider.CursorAgent:
+                    bool wslAvailable = await IsWslInstalledAsync();
+                    if (wslAvailable)
+                    {
+                        providerAvailable = await IsCursorAgentInstalledInWslAsync();
+                    }
+                    break;
+
+                case AiProvider.Codex:
+                    providerAvailable = await IsCodexCmdAvailableAsync();
+                    break;
+
+                case AiProvider.ClaudeCodeWSL:
+                    providerAvailable = await IsClaudeCodeWSLAvailableAsync();
+                    break;
+
+                case AiProvider.ClaudeCode:
+                    providerAvailable = await IsClaudeCmdAvailableAsync();
+                    break;
+
+                case AiProvider.QwenCode:
+                    providerAvailable = await IsQwenCodeAvailableAsync();
+                    break;
+
+                case AiProvider.OpenCode:
+                    providerAvailable = await IsOpenCodeAvailableAsync();
+                    break;
+            }
+
+            // Start the terminal with the selected provider if available, otherwise regular CMD
+            await StartEmbeddedTerminalAsync(providerAvailable ? selectedProvider : null);
+        }
+
+        /// <summary>
         /// Handles the restart terminal button click event
         /// </summary>
 #pragma warning disable VSTHRD100 // Avoid async void methods
@@ -778,48 +829,7 @@ namespace ClaudeCodeVS
         {
             try
             {
-                // Get the selected provider from settings
-                AiProvider? selectedProvider = _settings?.SelectedProvider;
-                bool providerAvailable = false;
-
-                // Check if the selected provider is available
-                switch (selectedProvider)
-                {
-                    case AiProvider.CursorAgentNative:
-                        providerAvailable = await IsCursorAgentNativeAvailableAsync();
-                        break;
-
-                    case AiProvider.CursorAgent:
-                        bool wslAvailable = await IsWslInstalledAsync();
-                        if (wslAvailable)
-                        {
-                            providerAvailable = await IsCursorAgentInstalledInWslAsync();
-                        }
-                        break;
-
-                    case AiProvider.Codex:
-                        providerAvailable = await IsCodexCmdAvailableAsync();
-                        break;
-
-                    case AiProvider.ClaudeCodeWSL:
-                        providerAvailable = await IsClaudeCodeWSLAvailableAsync();
-                        break;
-
-                    case AiProvider.ClaudeCode:
-                        providerAvailable = await IsClaudeCmdAvailableAsync();
-                        break;
-
-                    case AiProvider.QwenCode:
-                        providerAvailable = await IsQwenCodeAvailableAsync();
-                        break;
-
-                    case AiProvider.OpenCode:
-                        providerAvailable = await IsOpenCodeAvailableAsync();
-                        break;
-                }
-
-                // Start the terminal with the selected provider if available, otherwise regular CMD
-                await StartEmbeddedTerminalAsync(providerAvailable ? selectedProvider : null);
+                await RestartTerminalWithSelectedProviderAsync();
             }
             catch (Exception ex)
             {
@@ -885,23 +895,41 @@ namespace ClaudeCodeVS
         }
 
         /// <summary>
-        /// Gets the appropriate Claude Code command to use
-        /// Prioritizes native installation (%USERPROFILE%\.local\bin\claude.exe) over NPM installation (claude.cmd)
+        /// Gets the appropriate Claude Code command to use for Windows or WSL
+        /// Prioritizes native Windows installation (%USERPROFILE%\.local\bin\claude.exe) over NPM installation (claude.cmd)
         /// </summary>
         /// <returns>The claude command to execute</returns>
-        private string GetClaudeCommand()
+        private string GetClaudeCommand(bool isWsl = false)
         {
-            // Check for native installation first
-            string userProfile = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
-            string nativeClaudePath = Path.Combine(userProfile, ".local", "bin", "claude.exe");
+            string baseCommand;
 
-            if (File.Exists(nativeClaudePath))
+            if (isWsl)
             {
-                return $"\"{nativeClaudePath}\"";
+                baseCommand = "claude";
+            }
+            else
+            {
+                // Check for native installation first
+                string userProfile = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+                string nativeClaudePath = Path.Combine(userProfile, ".local", "bin", "claude.exe");
+
+                if (File.Exists(nativeClaudePath))
+                {
+                    baseCommand = $"\"{nativeClaudePath}\"";
+                }
+                else
+                {
+                    // Fall back to NPM installation
+                    baseCommand = "claude.cmd";
+                }
             }
 
-            // Fall back to NPM installation
-            return "claude.cmd";
+            if (_settings?.ClaudeDangerouslySkipPermissions == true)
+            {
+                return $"{baseCommand} --dangerously-skip-permissions";
+            }
+
+            return baseCommand;
         }
 
         /// <summary>

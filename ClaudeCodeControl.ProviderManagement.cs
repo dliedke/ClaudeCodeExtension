@@ -1502,14 +1502,20 @@ For more details, visit: https://opencode.ai";
                 isInGitRepo = false;
             }
 
-            // Show/hide the auto-open changes option based on git status
-            AutoOpenChangesSeparator.Visibility = isInGitRepo ? Visibility.Visible : Visibility.Collapsed;
+            // Show/hide menu options based on context
+            bool isClaudeProvider = _settings != null &&
+                                   (_settings.SelectedProvider == AiProvider.ClaudeCode ||
+                                    _settings.SelectedProvider == AiProvider.ClaudeCodeWSL);
+
+            AutoOpenChangesSeparator.Visibility = (isInGitRepo || isClaudeProvider) ? Visibility.Visible : Visibility.Collapsed;
             AutoOpenChangesMenuItem.Visibility = isInGitRepo ? Visibility.Visible : Visibility.Collapsed;
+            ClaudeDangerouslySkipPermissionsMenuItem.Visibility = isClaudeProvider ? Visibility.Visible : Visibility.Collapsed;
 
             // Update checkbox state from settings
             if (_settings != null)
             {
                 AutoOpenChangesMenuItem.IsChecked = _settings.AutoOpenChangesOnPrompt;
+                ClaudeDangerouslySkipPermissionsMenuItem.IsChecked = _settings.ClaudeDangerouslySkipPermissions;
             }
         }
 
@@ -1524,6 +1530,38 @@ For more details, visit: https://opencode.ai";
 
             _settings.AutoOpenChangesOnPrompt = AutoOpenChangesMenuItem.IsChecked;
             SaveSettings();
+        }
+
+        /// <summary>
+        /// Handles Claude dangerous skip permissions menu item click
+        /// </summary>
+        private void ClaudeDangerouslySkipPermissionsMenuItem_Click(object sender, RoutedEventArgs e)
+        {
+            ThreadHelper.ThrowIfNotOnUIThread();
+
+            if (_settings == null) return;
+
+            _settings.ClaudeDangerouslySkipPermissions = ClaudeDangerouslySkipPermissionsMenuItem.IsChecked;
+            SaveSettings();
+
+            // Reload Claude terminal immediately so the new startup flag is applied.
+            if (_settings.SelectedProvider == AiProvider.ClaudeCode ||
+                _settings.SelectedProvider == AiProvider.ClaudeCodeWSL)
+            {
+                ThreadHelper.JoinableTaskFactory.Run(async delegate
+                {
+                    try
+                    {
+                        await RestartTerminalWithSelectedProviderAsync();
+                    }
+                    catch (Exception ex)
+                    {
+                        Debug.WriteLine($"Error reloading Claude Code after skip permissions change: {ex.Message}");
+                        await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
+                        MessageBox.Show($"Failed to reload Claude Code: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                    }
+                });
+            }
         }
 
         #endregion
