@@ -11,6 +11,7 @@
  * *******************************************************************************************************************/
 
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Diagnostics;
 using System.Runtime.InteropServices;
@@ -366,11 +367,16 @@ namespace ClaudeCodeVS
                         break;
                 }
 
-                // Configure and start the process
+                // Configure and start the process.
+                // Use conhost.exe explicitly to bypass Windows Terminal delegation.
+                // When Windows Terminal (or "Let Windows Decide") is the default terminal,
+                // launching cmd.exe directly causes WT to intercept and host it in a WT window,
+                // which cannot be re-parented via SetParent. Launching conhost.exe directly bypasses
+                // delegation and always creates a traditional re-parentable Win32 console window.
                 var startInfo = new ProcessStartInfo
                 {
-                    FileName = "cmd.exe",
-                    Arguments = terminalCommand,
+                    FileName = "conhost.exe",
+                    Arguments = "-- cmd.exe " + terminalCommand,
                     UseShellExecute = false,
                     CreateNoWindow = false,
                     WindowStyle = ProcessWindowStyle.Minimized,
@@ -404,8 +410,10 @@ namespace ClaudeCodeVS
                     throw new InvalidOperationException("Failed to create terminal process");
                 }
 
-                // Find and embed the terminal window (using async version with reduced timeout)
-                var hwnd = await FindMainWindowHandleByPidAsync(cmdProcess.Id, timeoutMs: 5000, pollIntervalMs: 50);
+                // Find and embed the terminal window.
+                // Use the conhost-aware finder because GetWindowThreadProcessId returns the console
+                // application's PID (cmd.exe), not conhost's PID, due to Windows backward compatibility.
+                var hwnd = await FindMainWindowHandleByConhostAsync(cmdProcess.Id, timeoutMs: 5000, pollIntervalMs: 50);
                 terminalHandle = hwnd;
 
                 await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
@@ -576,6 +584,82 @@ namespace ClaudeCodeVS
                 Thread.Sleep(pollIntervalMs);
             }
             return IntPtr.Zero;
+        }
+
+        /// <summary>
+        /// Finds the console window handle for a conhost.exe process started with "-- cmd.exe ...".
+        /// Searches by both the conhost PID and its cmd.exe child PIDs discovered via ToolHelp32 snapshot,
+        /// because GetWindowThreadProcessId returns the console application's PID (cmd.exe) rather than
+        /// conhost's PID due to Windows backward compatibility behavior.
+        /// ToolHelp32 is a kernel snapshot API (sub-millisecond, no WMI dependency) and is safe to call
+        /// on every poll iteration, ensuring child PIDs are found even on slow/busy VS launch paths.
+        /// </summary>
+        private static async Task<IntPtr> FindMainWindowHandleByConhostAsync(
+            int conhostPid, int timeoutMs = 5000, int pollIntervalMs = 50,
+            CancellationToken cancellationToken = default)
+        {
+            var sw = Stopwatch.StartNew();
+            var targetPids = new HashSet<uint> { (uint)conhostPid };
+
+            while (sw.ElapsedMilliseconds < timeoutMs)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+
+                // Refresh child PIDs each iteration using ToolHelp32 snapshot (sub-ms, no WMI).
+                // GetWindowThreadProcessId returns the console client's PID (cmd.exe), not conhost's
+                // PID, due to Windows backward compatibility — so we need the cmd.exe child PID.
+                foreach (uint childPid in GetChildProcessIds((uint)conhostPid))
+                    targetPids.Add(childPid);
+
+                IntPtr found = IntPtr.Zero;
+                EnumWindows((hWnd, lParam) =>
+                {
+                    GetWindowThreadProcessId(hWnd, out uint pid);
+                    if (targetPids.Contains(pid))
+                    {
+                        found = hWnd;
+                        ShowWindow(hWnd, SW_HIDE);
+                        return false;
+                    }
+                    return true;
+                }, IntPtr.Zero);
+
+                if (found != IntPtr.Zero)
+                    return found;
+
+                await Task.Delay(pollIntervalMs, cancellationToken);
+            }
+            return IntPtr.Zero;
+        }
+
+        /// <summary>
+        /// Returns the set of direct child process IDs for the given parent PID using a ToolHelp32 snapshot.
+        /// This is a kernel-level snapshot API that is sub-millisecond and has no dependency on the WMI service.
+        /// </summary>
+        private static HashSet<uint> GetChildProcessIds(uint parentPid)
+        {
+            var result = new HashSet<uint>();
+            IntPtr snap = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
+            if (snap == new IntPtr(-1))
+                return result;
+            try
+            {
+                var entry = new PROCESSENTRY32 { dwSize = (uint)Marshal.SizeOf(typeof(PROCESSENTRY32)) };
+                if (Process32First(snap, ref entry))
+                {
+                    do
+                    {
+                        if (entry.th32ParentProcessID == parentPid)
+                            result.Add(entry.th32ProcessID);
+                    }
+                    while (Process32Next(snap, ref entry));
+                }
+            }
+            finally
+            {
+                CloseHandle(snap);
+            }
+            return result;
         }
 
         /// <summary>

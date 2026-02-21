@@ -164,6 +164,15 @@ Click the update button and the extension will handle the update process. Agents
 
 ## Version History
 
+### Version 6.6
+- **Fixed Terminal Embedding Without Requiring Windows Console Host**: The extension now launches `conhost.exe` explicitly (with `-- cmd.exe ...`), bypassing the Windows Terminal delegation mechanism
+- Users no longer need to set "Windows Console Host" as their default terminal — Windows Terminal remains the default for all other applications including debug sessions
+- Added `FindMainWindowHandleByConhostAsync` which searches both the conhost PID and its cmd.exe child PID via WMI to reliably find the embedded window handle regardless of Windows backward-compatibility behavior
+- **Fixed Terminal Embedding on Fresh VS Launch / Solution Change**: Replaced WMI-based child process lookup with ToolHelp32 kernel snapshot API (`CreateToolhelp32Snapshot`) for finding the cmd.exe child PID under conhost.exe
+- The WMI one-shot query at T+200ms was too early on busy systems, causing `FindMainWindowHandleByConhostAsync` to return `IntPtr.Zero` and the terminal to open as a floating external window instead of being embedded
+- ToolHelp32 is sub-millisecond and retried on every poll iteration, reliably finding the child PID regardless of system load
+- **Fixed Workspace Change for All Providers**: `OnWorkspaceDirectoryChangedAsync` now correctly handles `CursorAgentNative`, `QwenCode`, and `OpenCode` provider availability checks and install instructions on solution open/change
+
 ### Version 6.5
 - **Claude Permissions Toggle Added**: Added `Claude Code: Skip Permissions` option to the Code Agent Selection menu (⚙)
   - Starts Claude Code (Windows and WSL) with `--dangerously-skip-permissions` when enabled

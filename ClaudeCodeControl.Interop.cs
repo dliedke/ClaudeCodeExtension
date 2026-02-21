@@ -237,5 +237,58 @@ namespace ClaudeCodeVS
         private static extern bool DeleteObject(IntPtr hObject);
 
         #endregion
+
+        #region Win32 Structures - Process Snapshot
+
+        /// <summary>
+        /// Describes an entry from a list of processes in the system address space when taking a snapshot
+        /// </summary>
+        [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Auto)]
+        private struct PROCESSENTRY32
+        {
+            public uint dwSize;
+            public uint cntUsage;
+            public uint th32ProcessID;
+            public IntPtr th32DefaultHeapID;
+            public uint th32ModuleID;
+            public uint cntThreads;
+            public uint th32ParentProcessID;
+            public int pcPriClassBase;
+            public uint dwFlags;
+            [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 260)]
+            public string szExeFile;
+        }
+
+        #endregion
+
+        #region Win32 API Declarations - Process Snapshot
+
+        private const uint TH32CS_SNAPPROCESS = 0x00000002;
+
+        /// <summary>
+        /// Takes a snapshot of the specified processes, as well as the heaps, modules, and threads used by these processes
+        /// </summary>
+        [DllImport("kernel32.dll")]
+        private static extern IntPtr CreateToolhelp32Snapshot(uint dwFlags, uint th32ProcessID);
+
+        /// <summary>
+        /// Retrieves information about the first process encountered in a system snapshot
+        /// </summary>
+        [DllImport("kernel32.dll")]
+        private static extern bool Process32First(IntPtr hSnapshot, ref PROCESSENTRY32 lppe);
+
+        /// <summary>
+        /// Retrieves information about the next process recorded in a system snapshot
+        /// </summary>
+        [DllImport("kernel32.dll")]
+        private static extern bool Process32Next(IntPtr hSnapshot, ref PROCESSENTRY32 lppe);
+
+        /// <summary>
+        /// Closes an open object handle
+        /// </summary>
+        [DllImport("kernel32.dll")]
+        private static extern bool CloseHandle(IntPtr hObject);
+
+        #endregion
     }
 }
