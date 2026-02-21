@@ -6,6 +6,10 @@ A Visual Studio extension that provides seamless integration with Claude Code, O
 <img src="https://i.ibb.co/mFcsh3nt/BFB9-B830-8122-4091-9-C8-B-869959-B1-B391.png" alt="Claude Code Extension Screenshot" width=350 height=450 />
 </center>
 
+In case you enjoy this work and want to support it, you can buy me a coffee here: [https://buymeacoffee.com/dliedke](https://www.buymeacoffee.com/dliedke) - every cup helps fuel development and keep the extension free for everyone!
+
+Any feedback, suggestions, or contributions are also very welcome - feel free to post review here, open issues or submit pull requests in the GitHub repository.
+
 ## Features
 
 ### 🎯 **Integrated Terminal**
@@ -164,7 +168,10 @@ Click the update button and the extension will handle the update process. Agents
 
 ## Version History
 
-### Version 6.6
+### Version 6.7 - updated documentation
+
+### Version 6.6 - by fooberichu150 contribution
+
 - **Fixed Terminal Embedding Without Requiring Windows Console Host**: The extension now launches `conhost.exe` explicitly (with `-- cmd.exe ...`), bypassing the Windows Terminal delegation mechanism
 - Users no longer need to set "Windows Console Host" as their default terminal — Windows Terminal remains the default for all other applications including debug sessions
 - Added `FindMainWindowHandleByConhostAsync` which searches both the conhost PID and its cmd.exe child PID via WMI to reliably find the embedded window handle regardless of Windows backward-compatibility behavior

@@ -682,9 +682,10 @@ namespace ClaudeCodeVS
 
         private void OnDiffLineDoubleClick(object sender, MouseButtonEventArgs e)
         {
+            ThreadHelper.ThrowIfNotOnUIThread();
+
             if (e.ClickCount == 2 && sender is Border border && border.DataContext is DiffLineWrapper wrapper)
             {
-                ThreadHelper.ThrowIfNotOnUIThread();
 
                 if (wrapper.FileIndex >= 0 && wrapper.FileIndex < _changedFiles.Count)
                 {
