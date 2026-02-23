@@ -335,18 +335,18 @@ namespace ClaudeCodeVS
 
                     case AiProvider.CursorAgent:
                         string wslPathCursor = ConvertToWslPath(workspaceDir);
-                        terminalCommand = $"/k cls && wsl bash -ic \"cd {wslPathCursor} && cursor-agent\"";
+                        terminalCommand = $"/k cls && wsl bash -ic \"cd '{wslPathCursor}' && cursor-agent\"";
                         break;
 
                     case AiProvider.Codex:
                         string wslPathCodex = ConvertToWslPath(workspaceDir);
-                        terminalCommand = $"/k cls && wsl bash -ic \"cd {wslPathCodex} && codex\"";
+                        terminalCommand = $"/k cls && wsl bash -ic \"cd '{wslPathCodex}' && codex\"";
                         break;
 
                     case AiProvider.ClaudeCodeWSL:
                         string wslPathClaude = ConvertToWslPath(workspaceDir);
                         string claudeWslCommand = GetClaudeCommand(isWsl: true);
-                        terminalCommand = $"/k cls && wsl bash -ic \"cd {wslPathClaude} && {claudeWslCommand}\"";
+                        terminalCommand = $"/k cls && wsl bash -ic \"cd '{wslPathClaude}' && {claudeWslCommand}\"";
                         break;
 
                     case AiProvider.ClaudeCode:
