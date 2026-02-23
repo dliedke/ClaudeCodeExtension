@@ -168,6 +168,9 @@ Click the update button and the extension will handle the update process. Agents
 
 ## Version History
 
+### Version 6.8
+- **Fixed 'too many arguments' error when workspace path contains spaces (Issue #11)**: WSL-based providers (Codex, Claude Code WSL, Cursor Agent WSL) now properly quote the workspace path in `cd` commands, preventing bash errors when the solution directory contains spaces
+
 ### Version 6.7 - updated documentation
 
 ### Version 6.6 - by fooberichu150 contribution
