@@ -196,6 +196,10 @@ namespace ClaudeCodeVS
                             providerAvailable = await IsCursorAgentNativeAvailableAsync();
                             break;
 
+                        case AiProvider.CodexNative:
+                            providerAvailable = await IsCodexNativeAvailableAsync();
+                            break;
+
                         case AiProvider.Codex:
                             providerAvailable = await IsCodexCmdAvailableAsync();
                             break;
@@ -243,6 +247,13 @@ namespace ClaudeCodeVS
                                 {
                                     _cursorAgentNativeNotificationShown = true;
                                     ShowCursorAgentNativeInstallationInstructions();
+                                }
+                                break;
+                            case AiProvider.CodexNative:
+                                if (!_codexNativeNotificationShown)
+                                {
+                                    _codexNativeNotificationShown = true;
+                                    ShowCodexNativeInstallationInstructions();
                                 }
                                 break;
                             case AiProvider.Codex:

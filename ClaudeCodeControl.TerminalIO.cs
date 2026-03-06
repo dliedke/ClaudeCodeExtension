@@ -380,9 +380,11 @@ namespace ClaudeCodeVS
                 // Check CURRENTLY RUNNING provider (not the next one being set)
                 bool isClaudeCodeWSL = _currentRunningProvider == AiProvider.ClaudeCodeWSL;
 
-                // Check if we're using other WSL-based providers (Codex, CursorAgent)
+                // Check if we're using other WSL-based providers (Codex WSL, CursorAgent)
                 bool isOtherWSLProvider = _currentRunningProvider == AiProvider.Codex ||
                                          _currentRunningProvider == AiProvider.CursorAgent;
+
+                bool isCodexNative = _currentRunningProvider == AiProvider.CodexNative;
 
                 bool isQwenCode = _currentRunningProvider == AiProvider.QwenCode;
                 bool isOpenCode = _currentRunningProvider == AiProvider.OpenCode;
@@ -391,6 +393,11 @@ namespace ClaudeCodeVS
                 {
                     // For Claude Code (WSL), send Enter using WM_CHAR
                     PostMessage(terminalHandle, WM_CHAR, new IntPtr(VK_RETURN), IntPtr.Zero);
+                }
+                else if (isCodexNative)
+                {
+                    // For Codex (Windows native), use KEYDOWN/KEYUP approach (Codex requires double Enter)
+                    SendEnterKeyDownUp();
                 }
                 else if (isOtherWSLProvider)
                 {

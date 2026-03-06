@@ -60,6 +60,7 @@ namespace ClaudeCodeVS
                 // Determine which provider to use based on settings
                 bool useClaudeCodeWSL = _settings?.SelectedProvider == AiProvider.ClaudeCodeWSL;
                 bool useCodex = _settings?.SelectedProvider == AiProvider.Codex;
+                bool useCodexNative = _settings?.SelectedProvider == AiProvider.CodexNative;
                 bool useCursorAgent = _settings?.SelectedProvider == AiProvider.CursorAgent;
                 bool useCursorAgentNative = _settings?.SelectedProvider == AiProvider.CursorAgentNative;
                 bool useQwenCode = _settings?.SelectedProvider == AiProvider.QwenCode;
@@ -78,6 +79,10 @@ namespace ClaudeCodeVS
                     {
                         providerAvailable = await IsCursorAgentInstalledInWslAsync();
                     }
+                }
+                else if (useCodexNative)
+                {
+                    providerAvailable = await IsCodexNativeAvailableAsync();
                 }
                 else if (useCodex)
                 {
@@ -165,6 +170,22 @@ namespace ClaudeCodeVS
                         {
                             _cursorAgentNotificationShown = true;
                             ShowCursorAgentInstallationInstructions();
+                        }
+                        await StartEmbeddedTerminalAsync(null); // Regular CMD
+                    }
+                }
+                else if (useCodexNative)
+                {
+                    if (providerAvailable)
+                    {
+                        await StartEmbeddedTerminalAsync(AiProvider.CodexNative);
+                    }
+                    else
+                    {
+                        if (!_codexNativeNotificationShown)
+                        {
+                            _codexNativeNotificationShown = true;
+                            ShowCodexNativeInstallationInstructions();
                         }
                         await StartEmbeddedTerminalAsync(null); // Regular CMD
                     }
@@ -285,7 +306,7 @@ namespace ClaudeCodeVS
                             // Check if CURRENTLY RUNNING provider is Codex (requires CTRL+C instead of exit)
                             bool isCodex = _currentRunningProvider == AiProvider.Codex;
 
-                            if (isCodex)
+                            if (isCodex || _currentRunningProvider == AiProvider.CodexNative)
                             {
                                 // For Codex, send CTRL+C twice to exit
                                 SendCtrlC();
@@ -336,6 +357,10 @@ namespace ClaudeCodeVS
                     case AiProvider.CursorAgent:
                         string wslPathCursor = ConvertToWslPath(workspaceDir);
                         terminalCommand = $"/k cls && wsl bash -ic \"cd '{wslPathCursor}' && cursor-agent\"";
+                        break;
+
+                    case AiProvider.CodexNative:
+                        terminalCommand = $"/k cd /d \"{workspaceDir}\" && ping localhost -n 3 >nul && cls && codex";
                         break;
 
                     case AiProvider.Codex:
@@ -452,6 +477,9 @@ namespace ClaudeCodeVS
                                 break;
                             case AiProvider.CursorAgent:
                                 providerTitle = "Cursor Agent";
+                                break;
+                            case AiProvider.CodexNative:
+                                providerTitle = "Codex";
                                 break;
                             case AiProvider.Codex:
                                 providerTitle = "Codex";
@@ -684,8 +712,17 @@ namespace ClaudeCodeVS
                 // Send exit, wait, then update command based on provider
                 switch (_currentRunningProvider)
                 {
+                    case AiProvider.CodexNative:
+                        // Codex Native requires CTRL+C to exit
+                        SendCtrlC();
+                        await Task.Delay(400);
+                        SendCtrlC();
+                        await Task.Delay(1000);
+                        await SendTextToTerminalAsync("npm install -g @openai/codex@latest");
+                        break;
+
                     case AiProvider.Codex:
-                        // Codex requires CTRL+C to exit
+                        // Codex WSL requires CTRL+C to exit
                         SendCtrlC();
                         await Task.Delay(400); // Reduced from 500ms
                         SendCtrlC();
@@ -877,6 +914,10 @@ namespace ClaudeCodeVS
                     {
                         providerAvailable = await IsCursorAgentInstalledInWslAsync();
                     }
+                    break;
+
+                case AiProvider.CodexNative:
+                    providerAvailable = await IsCodexNativeAvailableAsync();
                     break;
 
                 case AiProvider.Codex:

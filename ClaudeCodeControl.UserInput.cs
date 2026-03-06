@@ -68,7 +68,7 @@ namespace ClaudeCodeVS
                 // If files are attached, include their paths in the prompt
                 if (hasFiles)
                 {
-                    // Check if CURRENTLY RUNNING provider is WSL-based
+                    // Check if CURRENTLY RUNNING provider is WSL-based (not CodexNative, CursorAgentNative)
                     bool isWSLProvider = _currentRunningProvider == AiProvider.Codex ||
                                          _currentRunningProvider == AiProvider.ClaudeCodeWSL ||
                                          _currentRunningProvider == AiProvider.CursorAgent;

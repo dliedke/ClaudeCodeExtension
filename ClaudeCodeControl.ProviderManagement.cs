@@ -35,9 +35,14 @@ namespace ClaudeCodeVS
         private static bool _claudeCodeWSLNotificationShown = false;
 
         /// <summary>
-        /// Flag to show Codex installation notification only once per session
+        /// Flag to show Codex (WSL) installation notification only once per session
         /// </summary>
         private static bool _codexNotificationShown = false;
+
+        /// <summary>
+        /// Flag to show Codex (native) installation notification only once per session
+        /// </summary>
+        private static bool _codexNativeNotificationShown = false;
 
         /// <summary>
         /// Flag to show Cursor Agent (WSL) installation notification only once per session
@@ -457,6 +462,68 @@ namespace ClaudeCodeVS
             {
                 Debug.WriteLine($"Error checking for codex in WSL: {ex.Message}");
                 CacheProviderResult(AiProvider.Codex, false);
+                return false;
+            }
+        }
+
+        /// <summary>
+        /// Checks if Codex CLI is available natively on Windows
+        /// Uses 'where codex' to check if codex is in PATH
+        /// Uses caching to avoid repeated slow checks
+        /// </summary>
+        /// <param name="cancellationToken">Optional cancellation token</param>
+        /// <returns>True if codex is available natively, false otherwise</returns>
+        private async Task<bool> IsCodexNativeAvailableAsync(CancellationToken cancellationToken = default)
+        {
+            // Check cache first
+            lock (_cacheLock)
+            {
+                if (_providerCache.TryGetValue(AiProvider.CodexNative, out var cached) && IsCacheValid(cached))
+                {
+                    return cached.IsAvailable;
+                }
+            }
+
+            try
+            {
+                var startInfo = new ProcessStartInfo
+                {
+                    FileName = "cmd.exe",
+                    Arguments = "/c where codex",
+                    UseShellExecute = false,
+                    RedirectStandardOutput = true,
+                    RedirectStandardError = true,
+                    CreateNoWindow = true
+                };
+
+                using (var process = Process.Start(startInfo))
+                {
+                    var completed = await WaitForProcessExitAsync(process, 3000, cancellationToken);
+
+                    if (!completed)
+                    {
+                        try { process.Kill(); } catch { }
+                        CacheProviderResult(AiProvider.CodexNative, false);
+                        return false;
+                    }
+
+                    string output = await process.StandardOutput.ReadToEndAsync();
+                    string error = await process.StandardError.ReadToEndAsync();
+
+                    bool isAvailable = process.ExitCode == 0 && !string.IsNullOrWhiteSpace(output);
+
+                    CacheProviderResult(AiProvider.CodexNative, isAvailable);
+                    return isAvailable;
+                }
+            }
+            catch (OperationCanceledException)
+            {
+                throw;
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"Error checking for Codex native: {ex.Message}");
+                CacheProviderResult(AiProvider.CodexNative, false);
                 return false;
             }
         }
@@ -942,6 +1009,31 @@ nvm install 22
 npm i -g @openai/codex
 codex";
 
+            MessageBox.Show(instructions, "Codex (WSL) Installation",
+                          MessageBoxButton.OK, MessageBoxImage.Information);
+        }
+
+        /// <summary>
+        /// Shows installation instructions for Codex CLI (native Windows)
+        /// </summary>
+        private void ShowCodexNativeInstallationInstructions()
+        {
+            const string instructions = @"Codex is not installed. A regular CMD terminal will be used instead.
+
+(you may click CTRL+C to copy full instructions)
+
+INSTALLATION: NPM Installation
+
+Open cmd and run:
+
+npm install -g @openai/codex
+
+Requirements:
+- Node.js installed
+- Chat GPT Plus or better paid subscription
+
+For more details, visit: https://github.com/openai/codex";
+
             MessageBox.Show(instructions, "Codex Installation",
                           MessageBoxButton.OK, MessageBoxImage.Information);
         }
@@ -1188,7 +1280,7 @@ For more details, visit: https://opencode.ai";
         }
 
         /// <summary>
-        /// Handles Codex menu item click - switches to Codex provider
+        /// Handles Codex (WSL) menu item click - switches to Codex (WSL) provider
         /// </summary>
         private void CodexMenuItem_Click(object sender, RoutedEventArgs e)
         {
@@ -1213,6 +1305,35 @@ For more details, visit: https://opencode.ai";
                 else
                 {
                     await StartEmbeddedTerminalAsync(AiProvider.Codex);
+                }
+            });
+        }
+
+        /// <summary>
+        /// Handles Codex (native) menu item click - switches to Codex native provider
+        /// </summary>
+        private void CodexNativeMenuItem_Click(object sender, RoutedEventArgs e)
+        {
+            if (_settings == null) return;
+
+            ThreadHelper.JoinableTaskFactory.Run(async delegate
+            {
+                bool codexNativeAvailable = await IsCodexNativeAvailableAsync();
+                await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
+
+                // Always update the selection regardless of availability
+                _settings.SelectedProvider = AiProvider.CodexNative;
+                UpdateProviderSelection();
+                SaveSettings();
+
+                if (!codexNativeAvailable)
+                {
+                    ShowCodexNativeInstallationInstructions();
+                    await StartEmbeddedTerminalAsync(null); // Regular CMD
+                }
+                else
+                {
+                    await StartEmbeddedTerminalAsync(AiProvider.CodexNative);
                 }
             });
         }
@@ -1294,6 +1415,7 @@ For more details, visit: https://opencode.ai";
             // Update menu item checkmarks
             ClaudeCodeMenuItem.IsChecked = _settings.SelectedProvider == AiProvider.ClaudeCode;
             ClaudeCodeWSLMenuItem.IsChecked = _settings.SelectedProvider == AiProvider.ClaudeCodeWSL;
+            CodexNativeMenuItem.IsChecked = _settings.SelectedProvider == AiProvider.CodexNative;
             CodexMenuItem.IsChecked = _settings.SelectedProvider == AiProvider.Codex;
             CursorAgentNativeMenuItem.IsChecked = _settings.SelectedProvider == AiProvider.CursorAgentNative;
             CursorAgentMenuItem.IsChecked = _settings.SelectedProvider == AiProvider.CursorAgent;
@@ -1303,6 +1425,7 @@ For more details, visit: https://opencode.ai";
             // Update GroupBox header to show selected provider (not necessarily running yet)
             string providerName = _settings.SelectedProvider == AiProvider.ClaudeCode ? "Claude Code" :
                                   _settings.SelectedProvider == AiProvider.ClaudeCodeWSL ? "Claude Code" :
+                                  _settings.SelectedProvider == AiProvider.CodexNative ? "Codex" :
                                   _settings.SelectedProvider == AiProvider.Codex ? "Codex" :
                                   _settings.SelectedProvider == AiProvider.CursorAgentNative ? "Cursor Agent" :
                                   _settings.SelectedProvider == AiProvider.CursorAgent ? "Cursor Agent" :

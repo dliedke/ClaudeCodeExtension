@@ -20,7 +20,8 @@ Any feedback, suggestions, or contributions are also very welcome - feel free to
 ### 🤖 **Multiple AI Provider Support**
 - **Claude Code**: Full support for Claude Code CLI integration (Windows native)
 - **Claude Code (WSL)**: Support for Claude Code running inside WSL (Windows Subsystem for Linux)
-- **OpenAI Codex**: Support for Codex AI assistant running inside WSL
+- **OpenAI Codex**: Support for Codex AI assistant (Windows native)
+- **OpenAI Codex (WSL)**: Support for Codex AI assistant running inside WSL
 - **Cursor Agent**: Support for Cursor Agent CLI integration (Windows native)
 - **Cursor Agent (WSL)**: Support for Cursor Agent running inside WSL
 - **Qwen Code**: Support for Qwen Code AI assistant (requires Node.js 20+)
@@ -75,7 +76,9 @@ Any feedback, suggestions, or contributions are also very welcome - feel free to
   Refer to https://docs.claude.com/en/docs/claude-code/setup for Claude Code installation
 - **For Claude Code (WSL)**: Claude Pro or better paid subscription + Windows Subsystem for Linux (WSL) + Claude Code CLI installed inside WSL
   Installation instructions are provided automatically if not installed
-- **For OpenAI Codex**: Chat GPT Plus or better paid subscription + Windows Subsystem for Linux (WSL) + Codex AI assistant installed inside WSL
+- **For OpenAI Codex (Windows)**: Chat GPT Plus or better paid subscription + Codex CLI installed and accessible via `codex` in path.
+  Installation instructions are provided automatically if not installed
+- **For OpenAI Codex (WSL)**: Chat GPT Plus or better paid subscription + Windows Subsystem for Linux (WSL) + Codex AI assistant installed inside WSL
   Installation instructions are provided automatically if not installed
 - **For Cursor Agent (Windows)**: Cursor Agent CLI installed and accessible via `agent` in path.
   Installation instructions are provided automatically if not installed
@@ -167,6 +170,9 @@ The extension includes an Update Agent button (🔄️) that updates your select
 Click the update button and the extension will handle the update process. Agents use the appropriate exit methods before updating (exit command for most, double CTRL+C for Codex, /quit command for Qwen Code).
 
 ## Version History
+
+### Version 7.0
+- **Added Codex Windows native support**: Added Codex as a Windows native provider (running directly on Windows via npm), renamed previous WSL-only Codex to "Codex (WSL)" in the menu
 
 ### Version 6.8
 - **Fixed 'too many arguments' error when workspace path contains spaces (Issue #11)**: WSL-based providers (Codex, Claude Code WSL, Cursor Agent WSL) now properly quote the workspace path in `cd` commands, preventing bash errors when the solution directory contains spaces
