@@ -7,7 +7,7 @@ This is a **Visual Studio Extension (VSIX)** for Visual Studio 2022/2026 that pr
 - **Author**: Daniel Carvalho Liedke (dliedke@gmail.com)
 - **License**: MIT
 - **Repository**: https://github.com/dliedke/ClaudeCodeExtension
-- **Current Version**: 6.3
+- **Current Version**: 7.0
 - **Target Framework**: .NET Framework 4.7.2
 
 ---
@@ -17,9 +17,9 @@ This is a **Visual Studio Extension (VSIX)** for Visual Studio 2022/2026 that pr
 **IMPORTANT: Every development session that modifies code MUST include the following updates before finishing:**
 
 1. **Bump Assembly Version** in `Properties/AssemblyInfo.cs`:
-   - Update both `AssemblyVersion` and `AssemblyFileVersion` (e.g., `6.3.0.0` -> `6.4.0.0`)
+   - Update both `AssemblyVersion` and `AssemblyFileVersion` (e.g., `7.0.0.0` -> `7.1.0.0`)
 2. **Bump Manifest Version** in `source.extension.vsixmanifest`:
-   - Update the `Version` attribute in the `<Identity>` tag (e.g., `6.3` -> `6.4`)
+   - Update the `Version` attribute in the `<Identity>` tag (e.g., `7.0` -> `7.1`)
 3. **Update README.md**:
    - Add a new version entry at the top of the `## Version History` section describing what changed
    - Follow the existing format: `### Version X.Y` with bullet points describing changes
@@ -168,7 +168,7 @@ WSL providers:  cmd.exe /k cls && wsl bash -ic "cd {wslPath} && {command}"
 
 #### ClaudeCodeControl.ProviderManagement.cs — Provider Detection
 
-Detects and validates availability of all 7 AI providers.
+Detects and validates availability of all 8 AI providers.
 
 - **Caching**: `_providerCache` Dictionary with 5-minute TTL (`ProviderCacheExpiry = 300000ms`)
 - **Detection methods**: All use `cmd.exe /c where {command}` (Windows) or `wsl bash -ic "which {command}"` (WSL)
@@ -189,7 +189,8 @@ Sends text and keystrokes to the embedded terminal.
 - **`SendEnterKey()`**: Provider-specific behavior:
   - Claude/QwenCode/OpenCode: Single `WM_CHAR` with `VK_RETURN`
   - WSL providers: `KEYDOWN`/`KEYUP` approach
-  - Codex: Enter sent twice (required by Codex CLI)
+  - Codex (WSL): Enter sent twice via `KEYDOWN`/`KEYUP` (required by Codex CLI)
+  - Codex (Windows native): `KEYDOWN`/`KEYUP` approach, Enter sent twice
 - **`SendCtrlC()`**: Uses multiple approaches — `keybd_event`, `SendInput`, and `PostMessage`
 - **`ClipboardTimeoutMs`** = 2000ms
 
@@ -304,7 +305,7 @@ Integrates with Visual Studio dark/light theme.
 ### Data Models (ClaudeCodeModels.cs)
 
 ```csharp
-enum AiProvider { ClaudeCode, ClaudeCodeWSL, Codex, CursorAgent, CursorAgentNative, QwenCode, OpenCode }
+enum AiProvider { ClaudeCode, ClaudeCodeWSL, Codex, CodexNative, CursorAgent, CursorAgentNative, QwenCode, OpenCode }
 enum ClaudeModel { Opus, Sonnet, Haiku }
 
 class ClaudeCodeSettings {
@@ -314,6 +315,7 @@ class ClaudeCodeSettings {
     ClaudeModel SelectedClaudeModel = Sonnet;
     List<string> PromptHistory;            // max 50 items
     bool AutoOpenChangesOnPrompt = false;
+    bool ClaudeDangerouslySkipPermissions = false;  // --dangerously-skip-permissions flag
 }
 ```
 
@@ -434,9 +436,10 @@ await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
 |----------|-----------|----------|-----------|-------------|
 | Claude Code | `ClaudeCode` | Windows native | `claude` in PATH | `exit` |
 | Claude Code (WSL) | `ClaudeCodeWSL` | WSL | `claude` inside WSL | `exit` |
-| OpenAI Codex | `Codex` | WSL | `codex` inside WSL | Double CTRL+C |
-| Cursor Agent | `CursorAgent` | WSL | `cursor-agent` inside WSL | `exit` |
-| Cursor Agent (Win) | `CursorAgentNative` | Windows native | `agent.exe` at `%USERPROFILE%\.local\bin\` or `agent.cmd` in PATH | `exit` |
+| Codex | `CodexNative` | Windows native | `codex` in PATH (via npm) | Double CTRL+C |
+| Codex (WSL) | `Codex` | WSL | `codex` inside WSL | Double CTRL+C |
+| Cursor Agent | `CursorAgentNative` | Windows native | `agent.exe` at `%USERPROFILE%\.local\bin\` or `agent.cmd` in PATH | `exit` |
+| Cursor Agent (WSL) | `CursorAgent` | WSL | `cursor-agent` inside WSL | `exit` |
 | Qwen Code | `QwenCode` | Windows native | `qwen` in PATH (Node.js 20+) | `/quit` |
 | Open Code | `OpenCode` | Windows native | `opencode` in PATH (Node.js 14+) | `exit` |
 
@@ -453,6 +456,7 @@ await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
 - Claude model selection (Opus, Sonnet, Haiku) with thinking mode for Opus
 - Dark/light theme integration (event-driven, not polling)
 - Auto-open changes on send
+- Optional `--dangerously-skip-permissions` mode for Claude Code
 - One-click agent updates
 - Clipboard preservation during terminal I/O
 - Provider availability caching (5-minute TTL)
