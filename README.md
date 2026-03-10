@@ -61,6 +61,7 @@ Any feedback, suggestions, or contributions are also very welcome - feel free to
 - **AI Provider Selection**: Remembers your preferred AI assistant
 - **Claude Model Selection**: Remembers your last selected Claude model (Opus, Sonnet, or Haiku)
 - **Claude Skip Permissions State**: Remembers whether Claude Code starts with `--dangerously-skip-permissions`
+- **Codex Full Auto State**: Remembers whether Codex starts with `--full-auto`
 
 ### 🎨 **Visual Studio Integration**
 - **Dark/Light Theme**: Consistent with Visual Studio's dark/light theme
@@ -78,8 +79,10 @@ Any feedback, suggestions, or contributions are also very welcome - feel free to
   Installation instructions are provided automatically if not installed
 - **For OpenAI Codex (Windows)**: Chat GPT Plus or better paid subscription + Codex CLI installed and accessible via `codex` in path.
   Installation instructions are provided automatically if not installed
+  Optional: Use `--full-auto` flag for automated approval mode via the extension settings menu
 - **For OpenAI Codex (WSL)**: Chat GPT Plus or better paid subscription + Windows Subsystem for Linux (WSL) + Codex AI assistant installed inside WSL
   Installation instructions are provided automatically if not installed
+  Optional: Use `--full-auto` flag for automated approval mode via the extension settings menu
 - **For Cursor Agent (Windows)**: Cursor Agent CLI installed and accessible via `agent` in path.
   Installation instructions are provided automatically if not installed
 - **For Cursor Agent (WSL)**: Windows Subsystem for Linux (WSL) + Cursor Agent installed inside WSL
@@ -139,6 +142,7 @@ Open Windows Settings, search for "Terminal settings", and set the Terminal opti
 - **Qwen Code**: Switch to Qwen Code AI assistant (requires Node.js 20+)
 - **Auto-open Changes on Send**: (Git projects only) Automatically opens the Changes view, expands all files, and enables auto-scroll when you send a prompt - perfect for watching the AI work in real-time
 - **Claude Code: Skip Permissions**: (Claude providers only) Starts Claude Code with `--dangerously-skip-permissions`, saves the preference, and reloads Claude Code immediately when changed
+- **Codex: Full Auto**: (Codex providers only) Starts Codex with `--full-auto`, saves the preference, and reloads Codex immediately when changed
 - **About**: View extension version and information
 
 ### Claude Model Selection Menu
@@ -170,6 +174,12 @@ The extension includes an Update Agent button (🔄️) that updates your select
 Click the update button and the extension will handle the update process. Agents use the appropriate exit methods before updating (exit command for most, double CTRL+C for Codex, /quit command for Qwen Code).
 
 ## Version History
+
+### Version 7.1
+- **Added Codex Full Auto Toggle**: Added `Codex: Full Auto` option to the Code Agent Selection menu (⚙)
+  - Starts Codex (Windows and WSL) with `--full-auto` when enabled
+  - Setting is persisted in local JSON settings and restored in the next session
+  - Changing this option now reloads Codex automatically so the new startup flag applies immediately
 
 ### Version 7.0
 - **Added Codex Windows native support**: Added Codex as a Windows native provider (running directly on Windows via npm), renamed previous WSL-only Codex to "Codex (WSL)" in the menu

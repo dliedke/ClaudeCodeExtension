@@ -1629,16 +1629,21 @@ For more details, visit: https://opencode.ai";
             bool isClaudeProvider = _settings != null &&
                                    (_settings.SelectedProvider == AiProvider.ClaudeCode ||
                                     _settings.SelectedProvider == AiProvider.ClaudeCodeWSL);
+            bool isCodexProvider = _settings != null &&
+                                   (_settings.SelectedProvider == AiProvider.Codex ||
+                                    _settings.SelectedProvider == AiProvider.CodexNative);
 
             AutoOpenChangesSeparator.Visibility = (isInGitRepo || isClaudeProvider) ? Visibility.Visible : Visibility.Collapsed;
             AutoOpenChangesMenuItem.Visibility = isInGitRepo ? Visibility.Visible : Visibility.Collapsed;
             ClaudeDangerouslySkipPermissionsMenuItem.Visibility = isClaudeProvider ? Visibility.Visible : Visibility.Collapsed;
+            CodexFullAutoMenuItem.Visibility = isCodexProvider ? Visibility.Visible : Visibility.Collapsed;
 
             // Update checkbox state from settings
             if (_settings != null)
             {
                 AutoOpenChangesMenuItem.IsChecked = _settings.AutoOpenChangesOnPrompt;
                 ClaudeDangerouslySkipPermissionsMenuItem.IsChecked = _settings.ClaudeDangerouslySkipPermissions;
+                CodexFullAutoMenuItem.IsChecked = _settings.CodexFullAuto;
             }
         }
 
@@ -1682,6 +1687,38 @@ For more details, visit: https://opencode.ai";
                         Debug.WriteLine($"Error reloading Claude Code after skip permissions change: {ex.Message}");
                         await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
                         MessageBox.Show($"Failed to reload Claude Code: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                    }
+                });
+            }
+        }
+
+        /// <summary>
+        /// Handles Codex full auto menu item click
+        /// </summary>
+        private void CodexFullAutoMenuItem_Click(object sender, RoutedEventArgs e)
+        {
+            ThreadHelper.ThrowIfNotOnUIThread();
+
+            if (_settings == null) return;
+
+            _settings.CodexFullAuto = CodexFullAutoMenuItem.IsChecked;
+            SaveSettings();
+
+            // Reload Codex terminal immediately so the new startup flag is applied.
+            if (_settings.SelectedProvider == AiProvider.Codex ||
+                _settings.SelectedProvider == AiProvider.CodexNative)
+            {
+                ThreadHelper.JoinableTaskFactory.Run(async delegate
+                {
+                    try
+                    {
+                        await RestartTerminalWithSelectedProviderAsync();
+                    }
+                    catch (Exception ex)
+                    {
+                        Debug.WriteLine($"Error reloading Codex after full auto change: {ex.Message}");
+                        await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
+                        MessageBox.Show($"Failed to reload Codex: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
                     }
                 });
             }

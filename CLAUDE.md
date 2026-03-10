@@ -316,6 +316,7 @@ class ClaudeCodeSettings {
     List<string> PromptHistory;            // max 50 items
     bool AutoOpenChangesOnPrompt = false;
     bool ClaudeDangerouslySkipPermissions = false;  // --dangerously-skip-permissions flag
+    bool CodexFullAuto = false;            // --full-auto flag for Codex
 }
 ```
 
@@ -457,6 +458,7 @@ await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
 - Dark/light theme integration (event-driven, not polling)
 - Auto-open changes on send
 - Optional `--dangerously-skip-permissions` mode for Claude Code
+- Optional `--full-auto` mode for Codex
 - One-click agent updates
 - Clipboard preservation during terminal I/O
 - Provider availability caching (5-minute TTL)

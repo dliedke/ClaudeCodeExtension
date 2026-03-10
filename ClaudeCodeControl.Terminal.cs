@@ -360,12 +360,14 @@ namespace ClaudeCodeVS
                         break;
 
                     case AiProvider.CodexNative:
-                        terminalCommand = $"/k cd /d \"{workspaceDir}\" && ping localhost -n 3 >nul && cls && codex";
+                        string codexCommand = GetCodexCommand();
+                        terminalCommand = $"/k cd /d \"{workspaceDir}\" && ping localhost -n 3 >nul && cls && {codexCommand}";
                         break;
 
                     case AiProvider.Codex:
                         string wslPathCodex = ConvertToWslPath(workspaceDir);
-                        terminalCommand = $"/k cls && wsl bash -ic \"cd '{wslPathCodex}' && codex\"";
+                        string codexWslCommand = GetCodexCommand(isWsl: true);
+                        terminalCommand = $"/k cls && wsl bash -ic \"cd '{wslPathCodex}' && {codexWslCommand}\"";
                         break;
 
                     case AiProvider.ClaudeCodeWSL:
@@ -1052,6 +1054,23 @@ namespace ClaudeCodeVS
             if (_settings?.ClaudeDangerouslySkipPermissions == true)
             {
                 return $"{baseCommand} --dangerously-skip-permissions";
+            }
+
+            return baseCommand;
+        }
+
+        /// <summary>
+        /// Gets the appropriate Codex command to use for Windows or WSL
+        /// Adds --full-auto flag if enabled in settings
+        /// </summary>
+        /// <returns>The codex command to execute</returns>
+        private string GetCodexCommand(bool isWsl = false)
+        {
+            string baseCommand = "codex";
+
+            if (_settings?.CodexFullAuto == true)
+            {
+                return $"{baseCommand} --full-auto";
             }
 
             return baseCommand;
