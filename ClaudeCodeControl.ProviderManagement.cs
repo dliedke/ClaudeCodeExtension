@@ -1775,8 +1775,11 @@ For more details, visit: https://opencode.ai";
 
             string currentValue = _settings.CustomWorkingDirectory ?? "";
 
+            // Resolve base workspace directory for relative path validation in the dialog
+            string baseDir = ThreadHelper.JoinableTaskFactory.Run(async () => await GetBaseWorkspaceDirectoryAsync());
+
             // Show input dialog; returns null on Cancel, or the entered string on OK
-            string input = ShowWorkingDirectoryInputDialog(currentValue);
+            string input = ShowWorkingDirectoryInputDialog(currentValue, baseDir);
             if (input == null)
             {
                 // User cancelled - no change
@@ -1807,11 +1810,13 @@ For more details, visit: https://opencode.ai";
         }
 
         /// <summary>
-        /// Shows a WPF input dialog for the custom working directory setting
+        /// Shows a WPF input dialog for the custom working directory setting.
+        /// Validates the path in real-time, coloring the text red when the directory does not exist.
         /// </summary>
         /// <param name="currentValue">The current value to pre-populate</param>
+        /// <param name="baseDir">The base workspace directory used to resolve relative paths</param>
         /// <returns>The entered string on OK, or null if the user cancelled</returns>
-        private string ShowWorkingDirectoryInputDialog(string currentValue)
+        private string ShowWorkingDirectoryInputDialog(string currentValue, string baseDir)
         {
             // Build dialog window programmatically
             var dialog = new Window
@@ -1855,6 +1860,9 @@ For more details, visit: https://opencode.ai";
             System.Windows.Controls.Grid.SetRow(label, 0);
             grid.Children.Add(label);
 
+            // Default foreground for restoring after validation
+            var defaultForeground = System.Windows.SystemColors.WindowTextBrush;
+
             // TextBox
             var textBox = new System.Windows.Controls.TextBox
             {
@@ -1864,6 +1872,38 @@ For more details, visit: https://opencode.ai";
             textBox.SelectAll();
             System.Windows.Controls.Grid.SetRow(textBox, 1);
             grid.Children.Add(textBox);
+
+            // Real-time path validation on text change
+            textBox.TextChanged += (s, args) =>
+            {
+                string path = textBox.Text.Trim();
+                if (string.IsNullOrEmpty(path))
+                {
+                    // Empty means default directory - always valid
+                    textBox.Foreground = defaultForeground;
+                    return;
+                }
+
+                bool exists = false;
+                try
+                {
+                    if (Path.IsPathRooted(path))
+                    {
+                        exists = Directory.Exists(path);
+                    }
+                    else
+                    {
+                        string resolved = Path.GetFullPath(Path.Combine(baseDir, path));
+                        exists = Directory.Exists(resolved);
+                    }
+                }
+                catch
+                {
+                    exists = false;
+                }
+
+                textBox.Foreground = exists ? defaultForeground : System.Windows.Media.Brushes.Red;
+            };
 
             // Button panel
             var buttonPanel = new System.Windows.Controls.StackPanel
@@ -1896,7 +1936,7 @@ For more details, visit: https://opencode.ai";
             grid.Children.Add(buttonPanel);
             dialog.Content = grid;
 
-            // Focus the text box when loaded
+            // Focus the text box and trigger initial validation when loaded
             dialog.Loaded += (s, args) => { textBox.Focus(); };
 
             if (dialog.ShowDialog() == true)
