@@ -73,10 +73,61 @@ namespace ClaudeCodeVS
         #region Workspace Directory Management
 
         /// <summary>
-        /// Gets the current workspace directory (solution or project directory)
+        /// Gets the current workspace directory (solution or project directory),
+        /// applying the custom working directory setting if configured
         /// </summary>
         /// <returns>The workspace directory path, or My Documents as fallback</returns>
         private async Task<string> GetWorkspaceDirectoryAsync()
+        {
+            string baseDir = await GetBaseWorkspaceDirectoryAsync();
+
+            // Apply custom working directory if configured
+            if (_settings != null && !string.IsNullOrWhiteSpace(_settings.CustomWorkingDirectory))
+            {
+                try
+                {
+                    string customDir = _settings.CustomWorkingDirectory.Trim();
+
+                    if (Path.IsPathRooted(customDir))
+                    {
+                        // Absolute path: use as-is if it exists
+                        if (Directory.Exists(customDir))
+                        {
+                            return customDir;
+                        }
+                        else
+                        {
+                            Debug.WriteLine($"Custom working directory does not exist: {customDir}");
+                        }
+                    }
+                    else
+                    {
+                        // Relative path: resolve against the base workspace directory
+                        string resolved = Path.GetFullPath(Path.Combine(baseDir, customDir));
+                        if (Directory.Exists(resolved))
+                        {
+                            return resolved;
+                        }
+                        else
+                        {
+                            Debug.WriteLine($"Custom working directory (resolved) does not exist: {resolved}");
+                        }
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Debug.WriteLine($"Error resolving custom working directory: {ex.Message}");
+                }
+            }
+
+            return baseDir;
+        }
+
+        /// <summary>
+        /// Gets the base workspace directory from the solution or project, before applying custom directory overrides
+        /// </summary>
+        /// <returns>The base workspace directory path, or My Documents as fallback</returns>
+        private async Task<string> GetBaseWorkspaceDirectoryAsync()
         {
             try
             {

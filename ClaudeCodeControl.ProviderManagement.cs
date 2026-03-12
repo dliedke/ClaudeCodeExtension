@@ -1644,6 +1644,46 @@ For more details, visit: https://opencode.ai";
                 AutoOpenChangesMenuItem.IsChecked = _settings.AutoOpenChangesOnPrompt;
                 ClaudeDangerouslySkipPermissionsMenuItem.IsChecked = _settings.ClaudeDangerouslySkipPermissions;
                 CodexFullAutoMenuItem.IsChecked = _settings.CodexFullAuto;
+
+                // Update working directory menu item to show current value, with red text if path doesn't exist
+                if (!string.IsNullOrWhiteSpace(_settings.CustomWorkingDirectory))
+                {
+                    string customDir = _settings.CustomWorkingDirectory.Trim();
+                    bool directoryExists = false;
+                    try
+                    {
+                        if (Path.IsPathRooted(customDir))
+                        {
+                            directoryExists = Directory.Exists(customDir);
+                        }
+                        else
+                        {
+                            // Resolve relative path against base workspace directory
+                            string baseDir = ThreadHelper.JoinableTaskFactory.Run(async () => await GetBaseWorkspaceDirectoryAsync());
+                            string resolved = Path.GetFullPath(Path.Combine(baseDir, customDir));
+                            directoryExists = Directory.Exists(resolved);
+                        }
+                    }
+                    catch
+                    {
+                        directoryExists = false;
+                    }
+
+                    var headerBlock = new System.Windows.Controls.TextBlock();
+                    headerBlock.Inlines.Add("Set Working Directory (");
+                    var pathRun = new System.Windows.Documents.Run(customDir);
+                    if (!directoryExists)
+                    {
+                        pathRun.Foreground = System.Windows.Media.Brushes.Red;
+                    }
+                    headerBlock.Inlines.Add(pathRun);
+                    headerBlock.Inlines.Add(")");
+                    SetWorkingDirectoryMenuItem.Header = headerBlock;
+                }
+                else
+                {
+                    SetWorkingDirectoryMenuItem.Header = "Set Working Directory...";
+                }
             }
         }
 
@@ -1722,6 +1762,189 @@ For more details, visit: https://opencode.ai";
                     }
                 });
             }
+        }
+
+        /// <summary>
+        /// Handles set working directory menu item click - prompts user for a custom working directory
+        /// </summary>
+        private void SetWorkingDirectoryMenuItem_Click(object sender, RoutedEventArgs e)
+        {
+            ThreadHelper.ThrowIfNotOnUIThread();
+
+            if (_settings == null) return;
+
+            string currentValue = _settings.CustomWorkingDirectory ?? "";
+
+            // Resolve base workspace directory for relative path validation in the dialog
+            string baseDir = ThreadHelper.JoinableTaskFactory.Run(async () => await GetBaseWorkspaceDirectoryAsync());
+
+            // Show input dialog; returns null on Cancel, or the entered string on OK
+            string input = ShowWorkingDirectoryInputDialog(currentValue, baseDir);
+            if (input == null)
+            {
+                // User cancelled - no change
+                return;
+            }
+
+            string trimmed = input.Trim();
+            if (trimmed != currentValue)
+            {
+                _settings.CustomWorkingDirectory = trimmed;
+                SaveSettings();
+
+                // Restart terminal to apply the new working directory
+                ThreadHelper.JoinableTaskFactory.Run(async delegate
+                {
+                    try
+                    {
+                        await RestartTerminalWithSelectedProviderAsync();
+                    }
+                    catch (Exception ex)
+                    {
+                        Debug.WriteLine($"Error restarting terminal after working directory change: {ex.Message}");
+                        await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
+                        MessageBox.Show($"Failed to restart terminal: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                    }
+                });
+            }
+        }
+
+        /// <summary>
+        /// Shows a WPF input dialog for the custom working directory setting.
+        /// Validates the path in real-time, coloring the text red when the directory does not exist.
+        /// </summary>
+        /// <param name="currentValue">The current value to pre-populate</param>
+        /// <param name="baseDir">The base workspace directory used to resolve relative paths</param>
+        /// <returns>The entered string on OK, or null if the user cancelled</returns>
+        private string ShowWorkingDirectoryInputDialog(string currentValue, string baseDir)
+        {
+            // Build dialog window programmatically
+            var dialog = new Window
+            {
+                Title = "Set Working Directory",
+                Width = 500,
+                Height = 200,
+                WindowStartupLocation = WindowStartupLocation.CenterOwner,
+                ResizeMode = ResizeMode.NoResize,
+                Background = System.Windows.SystemColors.WindowBrush,
+                ShowInTaskbar = false
+            };
+
+            // Try to set owner to VS main window
+            try
+            {
+                dialog.Owner = Application.Current?.MainWindow;
+            }
+            catch
+            {
+                // Ignore if owner cannot be set
+            }
+
+            var grid = new System.Windows.Controls.Grid();
+            grid.Margin = new Thickness(12);
+            grid.RowDefinitions.Add(new System.Windows.Controls.RowDefinition { Height = GridLength.Auto });
+            grid.RowDefinitions.Add(new System.Windows.Controls.RowDefinition { Height = GridLength.Auto });
+            grid.RowDefinitions.Add(new System.Windows.Controls.RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
+            grid.RowDefinitions.Add(new System.Windows.Controls.RowDefinition { Height = GridLength.Auto });
+
+            // Label
+            var label = new System.Windows.Controls.TextBlock
+            {
+                Text = "Enter a custom working directory for the terminal:\n" +
+                       "  - Absolute path (e.g. C:\\Projects\\MyRepo)\n" +
+                       "  - Relative path to solution directory (e.g. ..\\OtherRepo)\n" +
+                       "  - Leave empty to use the default solution directory",
+                TextWrapping = TextWrapping.Wrap,
+                Margin = new Thickness(0, 0, 0, 8)
+            };
+            System.Windows.Controls.Grid.SetRow(label, 0);
+            grid.Children.Add(label);
+
+            // Default foreground for restoring after validation
+            var defaultForeground = System.Windows.SystemColors.WindowTextBrush;
+
+            // TextBox
+            var textBox = new System.Windows.Controls.TextBox
+            {
+                Text = currentValue,
+                Margin = new Thickness(0, 0, 0, 12)
+            };
+            textBox.SelectAll();
+            System.Windows.Controls.Grid.SetRow(textBox, 1);
+            grid.Children.Add(textBox);
+
+            // Real-time path validation on text change
+            textBox.TextChanged += (s, args) =>
+            {
+                string path = textBox.Text.Trim();
+                if (string.IsNullOrEmpty(path))
+                {
+                    // Empty means default directory - always valid
+                    textBox.Foreground = defaultForeground;
+                    return;
+                }
+
+                bool exists = false;
+                try
+                {
+                    if (Path.IsPathRooted(path))
+                    {
+                        exists = Directory.Exists(path);
+                    }
+                    else
+                    {
+                        string resolved = Path.GetFullPath(Path.Combine(baseDir, path));
+                        exists = Directory.Exists(resolved);
+                    }
+                }
+                catch
+                {
+                    exists = false;
+                }
+
+                textBox.Foreground = exists ? defaultForeground : System.Windows.Media.Brushes.Red;
+            };
+
+            // Button panel
+            var buttonPanel = new System.Windows.Controls.StackPanel
+            {
+                Orientation = System.Windows.Controls.Orientation.Horizontal,
+                HorizontalAlignment = HorizontalAlignment.Right
+            };
+            System.Windows.Controls.Grid.SetRow(buttonPanel, 3);
+
+            var okButton = new System.Windows.Controls.Button
+            {
+                Content = "OK",
+                Width = 75,
+                Height = 25,
+                Margin = new Thickness(0, 0, 8, 0),
+                IsDefault = true
+            };
+            okButton.Click += (s, args) => { dialog.DialogResult = true; };
+            buttonPanel.Children.Add(okButton);
+
+            var cancelButton = new System.Windows.Controls.Button
+            {
+                Content = "Cancel",
+                Width = 75,
+                Height = 25,
+                IsCancel = true
+            };
+            buttonPanel.Children.Add(cancelButton);
+
+            grid.Children.Add(buttonPanel);
+            dialog.Content = grid;
+
+            // Focus the text box and trigger initial validation when loaded
+            dialog.Loaded += (s, args) => { textBox.Focus(); };
+
+            if (dialog.ShowDialog() == true)
+            {
+                return textBox.Text;
+            }
+
+            return null;
         }
 
         #endregion

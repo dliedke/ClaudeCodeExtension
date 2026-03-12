@@ -85,5 +85,12 @@ namespace ClaudeCodeVS
         /// Applies to Codex (Windows native) and Codex (WSL)
         /// </summary>
         public bool CodexFullAuto { get; set; } = false;
+
+        /// <summary>
+        /// Custom working directory for the terminal.
+        /// Can be an absolute path or a path relative to the solution directory.
+        /// When empty or null, the default solution/project directory is used.
+        /// </summary>
+        public string CustomWorkingDirectory { get; set; } = "";
     }
 }
