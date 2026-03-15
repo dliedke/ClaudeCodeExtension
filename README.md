@@ -175,6 +175,11 @@ Click the update button and the extension will handle the update process. Agents
 
 ## Version History
 
+### Version 7.2
+- **Added Effort Level Selection**: Added effort level options (Auto, Low, Medium, High, Max) to the Model Selection menu, sends `/effort <level>` to Claude Code, setting is persisted across sessions
+- **Added Show Usage**: Sends `/config` and navigates to usage display via automated keystrokes
+- **Added Set Language**: Sends `/config` and navigates to language selection via automated keystrokes
+
 ### Version 7.1
 - **Added Codex Full Auto Toggle**: Added `Codex: Full Auto` option to the Code Agent Selection menu (⚙)
   - Starts Codex (Windows and WSL) with `--full-auto` when enabled

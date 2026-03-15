@@ -280,7 +280,7 @@ SW_SHOW=5, SW_HIDE=0
 GWL_STYLE=-16
 WS_CAPTION=0x00C00000, WS_THICKFRAME=0x00040000, WS_SYSMENU=0x00080000
 WM_KEYDOWN=0x0100, WM_KEYUP=0x0101, WM_CHAR=0x0102
-VK_RETURN=0x0D, VK_SHIFT=0x10, VK_CONTROL=0x11, VK_C=0x43
+VK_RETURN=0x0D, VK_SHIFT=0x10, VK_CONTROL=0x11, VK_SPACE=0x20, VK_RIGHT=0x27, VK_DOWN=0x28, VK_C=0x43
 INPUT_KEYBOARD=1, KEYEVENTF_KEYUP=0x0002
 ```
 
@@ -307,6 +307,7 @@ Integrates with Visual Studio dark/light theme.
 ```csharp
 enum AiProvider { ClaudeCode, ClaudeCodeWSL, Codex, CodexNative, CursorAgent, CursorAgentNative, QwenCode, OpenCode }
 enum ClaudeModel { Opus, Sonnet, Haiku }
+enum EffortLevel { Auto, Low, Medium, High, Max }
 
 class ClaudeCodeSettings {
     bool SendWithEnter = true;
@@ -317,6 +318,7 @@ class ClaudeCodeSettings {
     bool AutoOpenChangesOnPrompt = false;
     bool ClaudeDangerouslySkipPermissions = false;  // --dangerously-skip-permissions flag
     bool CodexFullAuto = false;            // --full-auto flag for Codex
+    EffortLevel SelectedEffortLevel = Auto; // Claude Code effort level
 }
 ```
 
@@ -454,7 +456,9 @@ await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
 - Image paste from clipboard (Ctrl+V) with Excel-cell-as-text handling
 - Prompt history (last 50 prompts, Ctrl+Up/Down navigation)
 - Integrated diff viewer with git-based change tracking (3-second polling)
-- Claude model selection (Opus, Sonnet, Haiku) with thinking mode for Opus
+- Claude model selection (Opus, Sonnet, Haiku)
+- Effort level selection (Auto, Low, Medium, High, Max) via `/effort` command
+- Show Usage and Set Language shortcuts in model menu (via `/config` interaction)
 - Dark/light theme integration (event-driven, not polling)
 - Auto-open changes on send
 - Optional `--dangerously-skip-permissions` mode for Claude Code

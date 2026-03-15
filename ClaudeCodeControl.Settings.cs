@@ -254,6 +254,9 @@ namespace ClaudeCodeVS
 
             // Update model selection
             UpdateModelSelection();
+
+            // Update effort selection
+            UpdateEffortSelection();
         }
 
         #endregion

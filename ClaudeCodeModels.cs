@@ -38,6 +38,18 @@ namespace ClaudeCodeVS
     }
 
     /// <summary>
+    /// Effort levels for Claude Code reasoning
+    /// </summary>
+    public enum EffortLevel
+    {
+        Auto,
+        Low,
+        Medium,
+        High,
+        Max
+    }
+
+    /// <summary>
     /// Settings configuration for Claude Code extension
     /// </summary>
     public class ClaudeCodeSettings
@@ -85,5 +97,10 @@ namespace ClaudeCodeVS
         /// Applies to Codex (Windows native) and Codex (WSL)
         /// </summary>
         public bool CodexFullAuto { get; set; } = false;
+
+        /// <summary>
+        /// Currently selected effort level for Claude Code
+        /// </summary>
+        public EffortLevel SelectedEffortLevel { get; set; } = EffortLevel.Auto;
     }
 }
