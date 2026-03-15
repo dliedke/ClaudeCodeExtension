@@ -175,6 +175,9 @@ Click the update button and the extension will handle the update process. Agents
 
 ## Version History
 
+### Version 7.4
+- **Prompt history now saves file attachments**: When a prompt is sent with attached files, the file paths are stored in the history entry. Navigating history with Ctrl+Up/Down automatically restores files that still exist on disk
+
 ### Version 7.3
 - **Fixed special characters not rendering properly (Issue #17)**: Added `chcp 65001` (UTF-8), `VIRTUAL_TERMINAL_LEVEL=1` environment variable, and automatic console font change to "Cascadia Mono" (via `SetCurrentConsoleFontEx` Win32 API) for full Unicode glyph support including block elements and box-drawing characters used by AI providers
 - **Fixed extension not working properly with some prompts (Issue #20)**: The Virtual Terminal Processing, UTF-8 encoding, and font fixes resolve display corruption and unexpected output that occurred when AI providers used ANSI styling codes and Unicode characters

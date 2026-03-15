@@ -273,6 +273,31 @@ namespace ClaudeCodeVS
         }
 
         /// <summary>
+        /// Restores file attachments from a history entry, adding only files that still exist on disk
+        /// </summary>
+        /// <param name="filePaths">The file paths to restore</param>
+        private void RestoreFilesFromHistory(List<string> filePaths)
+        {
+            attachedImagePaths.Clear();
+
+            if (filePaths != null)
+            {
+                foreach (string path in filePaths)
+                {
+                    if (attachedImagePaths.Count >= 5)
+                        break;
+
+                    if (!string.IsNullOrEmpty(path) && File.Exists(path))
+                    {
+                        attachedImagePaths.Add(path);
+                    }
+                }
+            }
+
+            UpdateImageDropDisplay();
+        }
+
+        /// <summary>
         /// Checks if a file path represents an image file
         /// </summary>
         /// <param name="filePath">The file path to check</param>
