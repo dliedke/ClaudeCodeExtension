@@ -345,52 +345,53 @@ namespace ClaudeCodeVS
                 terminalHandle = IntPtr.Zero;
 
                 // Build the terminal command based on provider
+                // Use chcp 65001 to enable UTF-8 for proper Unicode/special character rendering
                 // Use cls to clear initial Windows banner for clean appearance
                 string terminalCommand;
                 switch (provider)
                 {
                     case AiProvider.CursorAgentNative:
                         string cursorAgentCommand = GetCursorAgentCommand();
-                        terminalCommand = $"/k cd /d \"{workspaceDir}\" && ping localhost -n 3 >nul && cls && {cursorAgentCommand}";
+                        terminalCommand = $"/k chcp 65001 >nul && cd /d \"{workspaceDir}\" && ping localhost -n 3 >nul && cls && {cursorAgentCommand}";
                         break;
 
                     case AiProvider.CursorAgent:
                         string wslPathCursor = ConvertToWslPath(workspaceDir);
-                        terminalCommand = $"/k cls && wsl bash -ic \"cd '{wslPathCursor}' && cursor-agent\"";
+                        terminalCommand = $"/k chcp 65001 >nul && cls && wsl bash -ic \"cd '{wslPathCursor}' && cursor-agent\"";
                         break;
 
                     case AiProvider.CodexNative:
                         string codexCommand = GetCodexCommand();
-                        terminalCommand = $"/k cd /d \"{workspaceDir}\" && ping localhost -n 3 >nul && cls && {codexCommand}";
+                        terminalCommand = $"/k chcp 65001 >nul && cd /d \"{workspaceDir}\" && ping localhost -n 3 >nul && cls && {codexCommand}";
                         break;
 
                     case AiProvider.Codex:
                         string wslPathCodex = ConvertToWslPath(workspaceDir);
                         string codexWslCommand = GetCodexCommand(isWsl: true);
-                        terminalCommand = $"/k cls && wsl bash -ic \"cd '{wslPathCodex}' && {codexWslCommand}\"";
+                        terminalCommand = $"/k chcp 65001 >nul && cls && wsl bash -ic \"cd '{wslPathCodex}' && {codexWslCommand}\"";
                         break;
 
                     case AiProvider.ClaudeCodeWSL:
                         string wslPathClaude = ConvertToWslPath(workspaceDir);
                         string claudeWslCommand = GetClaudeCommand(isWsl: true);
-                        terminalCommand = $"/k cls && wsl bash -ic \"cd '{wslPathClaude}' && {claudeWslCommand}\"";
+                        terminalCommand = $"/k chcp 65001 >nul && cls && wsl bash -ic \"cd '{wslPathClaude}' && {claudeWslCommand}\"";
                         break;
 
                     case AiProvider.ClaudeCode:
                         string claudeCommand = GetClaudeCommand();
-                        terminalCommand = $"/k cd /d \"{workspaceDir}\" && ping localhost -n 3 >nul && cls && {claudeCommand}";
+                        terminalCommand = $"/k chcp 65001 >nul && cd /d \"{workspaceDir}\" && ping localhost -n 3 >nul && cls && {claudeCommand}";
                         break;
 
                     case AiProvider.QwenCode:
-                        terminalCommand = $"/k cd /d \"{workspaceDir}\" && ping localhost -n 3 >nul && cls && qwen";
+                        terminalCommand = $"/k chcp 65001 >nul && cd /d \"{workspaceDir}\" && ping localhost -n 3 >nul && cls && qwen";
                         break;
 
                     case AiProvider.OpenCode:
-                        terminalCommand = $"/k cd /d \"{workspaceDir}\" && ping localhost -n 3 >nul && cls && opencode";
+                        terminalCommand = $"/k chcp 65001 >nul && cd /d \"{workspaceDir}\" && ping localhost -n 3 >nul && cls && opencode";
                         break;
 
                     default: // null or any other value = regular CMD
-                        terminalCommand = $"/k cd /d \"{workspaceDir}\"";
+                        terminalCommand = $"/k chcp 65001 >nul && cd /d \"{workspaceDir}\"";
                         break;
                 }
 
@@ -418,6 +419,15 @@ namespace ClaudeCodeVS
                     startInfo.EnvironmentVariables["PATH"] = freshPath;
                 }
 
+                // Enable Virtual Terminal Processing for ANSI/VT escape sequence support
+                // This allows conhost to properly render colors, Unicode box-drawing chars, and styling
+                startInfo.EnvironmentVariables["VIRTUAL_TERMINAL_LEVEL"] = "1";
+
+                // Temporarily set console font to Cascadia Mono in the registry.
+                // Conhost reads HKCU\Console at creation time, so we set the font before
+                // starting the process and restore the original value after conhost has started.
+                SaveAndSetConsoleFontRegistry();
+
                 await Task.Run(() =>
                 {
                     try
@@ -441,6 +451,10 @@ namespace ClaudeCodeVS
                 // Use the conhost-aware finder because GetWindowThreadProcessId returns the console
                 // application's PID (cmd.exe), not conhost's PID, due to Windows backward compatibility.
                 var hwnd = await FindMainWindowHandleByConhostAsync(cmdProcess.Id, timeoutMs: 5000, pollIntervalMs: 50);
+
+                // Restore original console font in registry now that conhost has read its settings
+                RestoreConsoleFontRegistry();
+
                 terminalHandle = hwnd;
 
                 await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
@@ -521,6 +535,82 @@ namespace ClaudeCodeVS
                 await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
                 MessageBox.Show($"Failed to start embedded terminal: {ex.Message}",
                                 "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+        }
+
+        /// <summary>
+        /// Saved original console FaceName from registry, for restoration after conhost starts
+        /// </summary>
+        private string _savedConsoleFaceName;
+
+        /// <summary>
+        /// Saved original console FontFamily from registry, for restoration after conhost starts
+        /// </summary>
+        private object _savedConsoleFontFamily;
+
+        /// <summary>
+        /// Whether we have saved console font values that need restoration
+        /// </summary>
+        private bool _consoleFontSaved;
+
+        /// <summary>
+        /// Temporarily sets the console default font in the registry to "Cascadia Mono".
+        /// Conhost reads HKCU\Console when creating a new console window, so setting
+        /// the font before starting conhost ensures the correct font is used.
+        /// The original values are saved for restoration after conhost has started.
+        /// </summary>
+        private void SaveAndSetConsoleFontRegistry()
+        {
+            try
+            {
+                using (var key = Microsoft.Win32.Registry.CurrentUser.OpenSubKey("Console", writable: true))
+                {
+                    if (key == null) return;
+
+                    _savedConsoleFaceName = key.GetValue("FaceName") as string;
+                    _savedConsoleFontFamily = key.GetValue("FontFamily");
+                    _consoleFontSaved = true;
+
+                    key.SetValue("FaceName", "Cascadia Mono", Microsoft.Win32.RegistryValueKind.String);
+                    key.SetValue("FontFamily", 54, Microsoft.Win32.RegistryValueKind.DWord);
+                }
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"SaveAndSetConsoleFontRegistry: {ex.Message}");
+            }
+        }
+
+        /// <summary>
+        /// Restores the original console font registry values saved by SaveAndSetConsoleFontRegistry.
+        /// Called after conhost has started and read its font settings from the registry.
+        /// </summary>
+        private void RestoreConsoleFontRegistry()
+        {
+            if (!_consoleFontSaved) return;
+
+            try
+            {
+                using (var key = Microsoft.Win32.Registry.CurrentUser.OpenSubKey("Console", writable: true))
+                {
+                    if (key == null) return;
+
+                    if (_savedConsoleFaceName != null)
+                        key.SetValue("FaceName", _savedConsoleFaceName, Microsoft.Win32.RegistryValueKind.String);
+                    else
+                        key.DeleteValue("FaceName", throwOnMissingValue: false);
+
+                    if (_savedConsoleFontFamily != null)
+                        key.SetValue("FontFamily", _savedConsoleFontFamily, Microsoft.Win32.RegistryValueKind.DWord);
+                    else
+                        key.DeleteValue("FontFamily", throwOnMissingValue: false);
+                }
+
+                _consoleFontSaved = false;
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"RestoreConsoleFontRegistry: {ex.Message}");
             }
         }
 
