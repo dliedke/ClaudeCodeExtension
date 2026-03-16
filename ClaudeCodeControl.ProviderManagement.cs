@@ -1515,7 +1515,7 @@ For more details, visit: https://opencode.ai";
         }
 
         /// <summary>
-        /// Handles Opus menu item click - switches to Opus model then opens thinking mode selection
+        /// Handles Opus menu item click - switches to Opus model
         /// </summary>
         private void OpusMenuItem_Click(object sender, RoutedEventArgs e)
         {
@@ -1529,13 +1529,11 @@ For more details, visit: https://opencode.ai";
                 UpdateModelSelection();
                 SaveSettings();
 
-                // Send /model opus first, wait, then send /model to show thinking mode selection
+                // Send /model command directly without restarting terminal
                 if (_currentRunningProvider == AiProvider.ClaudeCode ||
                     _currentRunningProvider == AiProvider.ClaudeCodeWSL)
                 {
                     await SendTextToTerminalAsync("/model opus");
-                    await Task.Delay(1500);
-                    await SendTextToTerminalAsync("/model");
                 }
             });
         }
@@ -1601,7 +1599,156 @@ For more details, visit: https://opencode.ai";
             OpusMenuItem.IsChecked = _settings.SelectedClaudeModel == ClaudeModel.Opus;
             SonnetMenuItem.IsChecked = _settings.SelectedClaudeModel == ClaudeModel.Sonnet;
             HaikuMenuItem.IsChecked = _settings.SelectedClaudeModel == ClaudeModel.Haiku;
+
+            // Update effort selection checkmarks
+            UpdateEffortSelection();
         }
+
+        #endregion
+
+        #region Effort Level Selection
+
+        /// <summary>
+        /// Handles effort level menu item click - sends /effort command to terminal
+        /// </summary>
+        private void SetEffortLevel(EffortLevel level)
+        {
+            if (_settings == null) return;
+
+            ThreadHelper.JoinableTaskFactory.Run(async delegate
+            {
+                await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
+
+                _settings.SelectedEffortLevel = level;
+                UpdateEffortSelection();
+                SaveSettings();
+
+                // Send /effort command to Claude Code terminal
+                if (_currentRunningProvider == AiProvider.ClaudeCode ||
+                    _currentRunningProvider == AiProvider.ClaudeCodeWSL)
+                {
+                    await SendTextToTerminalAsync($"/effort {level.ToString().ToLower()}");
+                }
+            });
+        }
+
+        private void EffortAutoMenuItem_Click(object sender, RoutedEventArgs e)
+        {
+            ThreadHelper.ThrowIfNotOnUIThread();
+            SetEffortLevel(EffortLevel.Auto);
+        }
+
+        private void EffortLowMenuItem_Click(object sender, RoutedEventArgs e)
+        {
+            ThreadHelper.ThrowIfNotOnUIThread();
+            SetEffortLevel(EffortLevel.Low);
+        }
+
+        private void EffortMediumMenuItem_Click(object sender, RoutedEventArgs e)
+        {
+            ThreadHelper.ThrowIfNotOnUIThread();
+            SetEffortLevel(EffortLevel.Medium);
+        }
+
+        private void EffortHighMenuItem_Click(object sender, RoutedEventArgs e)
+        {
+            ThreadHelper.ThrowIfNotOnUIThread();
+            SetEffortLevel(EffortLevel.High);
+        }
+
+        private void EffortMaxMenuItem_Click(object sender, RoutedEventArgs e)
+        {
+            ThreadHelper.ThrowIfNotOnUIThread();
+            SetEffortLevel(EffortLevel.Max);
+        }
+
+        /// <summary>
+        /// Updates the effort selection UI checkmarks
+        /// </summary>
+        private void UpdateEffortSelection()
+        {
+            ThreadHelper.ThrowIfNotOnUIThread();
+
+            if (_settings == null) return;
+
+            EffortAutoMenuItem.IsChecked = _settings.SelectedEffortLevel == EffortLevel.Auto;
+            EffortLowMenuItem.IsChecked = _settings.SelectedEffortLevel == EffortLevel.Low;
+            EffortMediumMenuItem.IsChecked = _settings.SelectedEffortLevel == EffortLevel.Medium;
+            EffortHighMenuItem.IsChecked = _settings.SelectedEffortLevel == EffortLevel.High;
+            EffortMaxMenuItem.IsChecked = _settings.SelectedEffortLevel == EffortLevel.Max;
+        }
+
+        #endregion
+
+        #region Config Menu Handlers
+
+        /// <summary>
+        /// Handles Show Usage menu item click - sends /config and selects usage option
+        /// </summary>
+        private void ShowUsageMenuItem_Click(object sender, RoutedEventArgs e)
+        {
+            ThreadHelper.ThrowIfNotOnUIThread();
+
+            ThreadHelper.JoinableTaskFactory.Run(async delegate
+            {
+                await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
+
+                if (_currentRunningProvider == AiProvider.ClaudeCode ||
+                    _currentRunningProvider == AiProvider.ClaudeCodeWSL)
+                {
+                    await SendTextToTerminalAsync("/config");
+                    await Task.Delay(1500);
+
+                    // Press Enter to select the first option (usage)
+                    SendEnterKey();
+                    await Task.Delay(500);
+
+                    // Press Right arrow to navigate
+                    PostMessage(terminalHandle, WM_KEYDOWN, new IntPtr(VK_RIGHT), IntPtr.Zero);
+                    PostMessage(terminalHandle, WM_KEYUP, new IntPtr(VK_RIGHT), IntPtr.Zero);
+                }
+            });
+        }
+
+        /// <summary>
+        /// Handles Set Language menu item click - sends /config, types language, navigates and selects
+        /// </summary>
+        private void SetLanguageMenuItem_Click(object sender, RoutedEventArgs e)
+        {
+            ThreadHelper.ThrowIfNotOnUIThread();
+
+            ThreadHelper.JoinableTaskFactory.Run(async delegate
+            {
+                await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
+
+                if (_currentRunningProvider == AiProvider.ClaudeCode ||
+                    _currentRunningProvider == AiProvider.ClaudeCodeWSL)
+                {
+                    await SendTextToTerminalAsync("/config");
+                    await Task.Delay(1500);
+
+                    // Type "language" to filter
+                    foreach (char c in "language")
+                    {
+                        PostMessage(terminalHandle, WM_CHAR, new IntPtr(c), IntPtr.Zero);
+                        await Task.Delay(50);
+                    }
+                    await Task.Delay(500);
+
+                    // Press Down arrow to highlight
+                    PostMessage(terminalHandle, WM_KEYDOWN, new IntPtr(VK_DOWN), IntPtr.Zero);
+                    PostMessage(terminalHandle, WM_KEYUP, new IntPtr(VK_DOWN), IntPtr.Zero);
+                    await Task.Delay(200);
+
+                    // Press Space to select
+                    PostMessage(terminalHandle, WM_CHAR, new IntPtr(VK_SPACE), IntPtr.Zero);
+                }
+            });
+        }
+
+        #endregion
+
+        #region Provider Context Menu
 
         /// <summary>
         /// Handles the provider context menu opening - shows/hides git-specific options

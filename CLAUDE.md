@@ -147,14 +147,16 @@ Manages the embedded cmd.exe/wsl.exe terminal via Win32 interop.
   - Kills existing process gracefully (exit command or CTRL+C depending on provider)
   - Builds provider-specific command strings
   - Uses `GetFreshPathFromRegistry()` to refresh PATH for detecting newly installed tools
+  - Sets `VIRTUAL_TERMINAL_LEVEL=1` env var to enable ANSI/VT escape sequence rendering in conhost
+  - Sets console font to "Cascadia Mono" via registry (`HKCU\Console\FaceName`) before starting conhost, restores original after
   - Hides window immediately via `SW_HIDE` to prevent blinking
   - Embeds into panel using `SetParent()`, strips window decorations (`WS_CAPTION`, `WS_THICKFRAME`, etc.)
   - Updates `_currentRunningProvider` tracking
 
 **Terminal command patterns**:
 ```
-Windows native: cmd.exe /k cd /d "{dir}" && ping localhost -n 3 >nul && cls && {command}
-WSL providers:  cmd.exe /k cls && wsl bash -ic "cd {wslPath} && {command}"
+Windows native: cmd.exe /k chcp 65001 >nul && cd /d "{dir}" && ping localhost -n 3 >nul && cls && {command}
+WSL providers:  cmd.exe /k chcp 65001 >nul && cls && wsl bash -ic "cd {wslPath} && {command}"
 ```
 
 **Path conversion** (`ConvertToWslPath()`):
@@ -186,13 +188,15 @@ Sends text and keystrokes to the embedded terminal.
   3. Right-clicks terminal center to paste (Shift+right-click for OpenCode)
   4. Sends Enter key via `WM_CHAR` or `KEYDOWN`/`KEYUP`
   5. Restores original clipboard content
+  - All clipboard operations use retry helpers to handle `CLIPBRD_E_CANT_OPEN` contention
+- **Clipboard retry helpers**: `ClipboardRetryAsync()`, `ClipboardRetryAsync<T>()`, `ClipboardRetrySync<T>()` — retry up to `ClipboardMaxRetries` (10) times with `ClipboardRetryDelayMs` (100ms) delay, catching only `COMException` 0x800401D0
 - **`SendEnterKey()`**: Provider-specific behavior:
   - Claude/QwenCode/OpenCode: Single `WM_CHAR` with `VK_RETURN`
   - WSL providers: `KEYDOWN`/`KEYUP` approach
   - Codex (WSL): Enter sent twice via `KEYDOWN`/`KEYUP` (required by Codex CLI)
   - Codex (Windows native): `KEYDOWN`/`KEYUP` approach, Enter sent twice
 - **`SendCtrlC()`**: Uses multiple approaches — `keybd_event`, `SendInput`, and `PostMessage`
-- **`ClipboardTimeoutMs`** = 2000ms
+- **`ClipboardTimeoutMs`** = 2000ms, **`ClipboardMaxRetries`** = 10, **`ClipboardRetryDelayMs`** = 100ms
 
 #### ClaudeCodeControl.Diff.cs — Diff Integration
 
@@ -280,7 +284,7 @@ SW_SHOW=5, SW_HIDE=0
 GWL_STYLE=-16
 WS_CAPTION=0x00C00000, WS_THICKFRAME=0x00040000, WS_SYSMENU=0x00080000
 WM_KEYDOWN=0x0100, WM_KEYUP=0x0101, WM_CHAR=0x0102
-VK_RETURN=0x0D, VK_SHIFT=0x10, VK_CONTROL=0x11, VK_C=0x43
+VK_RETURN=0x0D, VK_SHIFT=0x10, VK_CONTROL=0x11, VK_SPACE=0x20, VK_RIGHT=0x27, VK_DOWN=0x28, VK_C=0x43
 INPUT_KEYBOARD=1, KEYEVENTF_KEYUP=0x0002
 ```
 
@@ -290,8 +294,9 @@ INPUT_KEYBOARD=1, KEYEVENTF_KEYUP=0x0002
 - Input: `SetFocus`, `SetForegroundWindow`, `SendInput`, `PostMessage`, `keybd_event`
 - Mouse: `SetCursorPos`, `mouse_event`
 - GDI: `DeleteObject` (for HBITMAP cleanup)
+- Console: `AttachConsole`, `FreeConsole`, `GetStdHandle`, `SetCurrentConsoleFontEx`, `GetCurrentConsoleFontEx` (available for console font operations)
 
-**Structures**: `RECT`, `INPUT`/`INPUTUNION`/`KEYBDINPUT` (for `SendInput` API)
+**Structures**: `RECT`, `INPUT`/`INPUTUNION`/`KEYBDINPUT` (for `SendInput` API), `COORD`/`CONSOLE_FONT_INFOEX` (for console font)
 
 #### ClaudeCodeControl.Theme.cs — Theme Support
 
@@ -307,6 +312,7 @@ Integrates with Visual Studio dark/light theme.
 ```csharp
 enum AiProvider { ClaudeCode, ClaudeCodeWSL, Codex, CodexNative, CursorAgent, CursorAgentNative, QwenCode, OpenCode }
 enum ClaudeModel { Opus, Sonnet, Haiku }
+enum EffortLevel { Auto, Low, Medium, High, Max }
 
 class ClaudeCodeSettings {
     bool SendWithEnter = true;
@@ -317,6 +323,7 @@ class ClaudeCodeSettings {
     bool AutoOpenChangesOnPrompt = false;
     bool ClaudeDangerouslySkipPermissions = false;  // --dangerously-skip-permissions flag
     bool CodexFullAuto = false;            // --full-auto flag for Codex
+    EffortLevel SelectedEffortLevel = Auto; // Claude Code effort level
 }
 ```
 
@@ -382,6 +389,8 @@ Three-row grid: prompt area (`*`), splitter (4px), terminal area (`2*`). Key ele
 | 5 seconds | Diff.cs | Git clean check throttle |
 | 3000 ms | DiffViewerControl.xaml.cs (`AutoScrollDisableDelayMs`) | Auto-scroll inactivity timeout |
 | 2000 ms | TerminalIO.cs (`ClipboardTimeoutMs`) | Clipboard operation timeout |
+| 10 retries | TerminalIO.cs (`ClipboardMaxRetries`) | Max clipboard retry attempts |
+| 100 ms | TerminalIO.cs (`ClipboardRetryDelayMs`) | Delay between clipboard retries |
 | 2000 ms | Terminal.cs | Panel initialization wait |
 | 5000 ms | Terminal.cs | Window handle find timeout |
 | 500 ms | SolutionEventsHandler.cs | Delay after solution open |
@@ -454,13 +463,16 @@ await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
 - Image paste from clipboard (Ctrl+V) with Excel-cell-as-text handling
 - Prompt history (last 50 prompts, Ctrl+Up/Down navigation)
 - Integrated diff viewer with git-based change tracking (3-second polling)
-- Claude model selection (Opus, Sonnet, Haiku) with thinking mode for Opus
+- Claude model selection (Opus, Sonnet, Haiku)
+- Effort level selection (Auto, Low, Medium, High, Max) via `/effort` command
+- Show Usage and Set Language shortcuts in model menu (via `/config` interaction)
 - Dark/light theme integration (event-driven, not polling)
 - Auto-open changes on send
 - Optional `--dangerously-skip-permissions` mode for Claude Code
 - Optional `--full-auto` mode for Codex
 - One-click agent updates
-- Clipboard preservation during terminal I/O
+- UTF-8 encoding (`chcp 65001`) and Virtual Terminal Processing (`VIRTUAL_TERMINAL_LEVEL=1`) for proper Unicode and ANSI rendering
+- Clipboard preservation during terminal I/O with automatic retry on contention
 - Provider availability caching (5-minute TTL)
 - WSL path conversion for cross-platform support
 - Virtualized diff rendering for large repositories

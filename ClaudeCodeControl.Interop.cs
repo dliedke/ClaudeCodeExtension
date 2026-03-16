@@ -48,6 +48,9 @@ namespace ClaudeCodeVS
         private const int VK_RETURN = 0x0D;
         private const int VK_SHIFT = 0x10;
         private const int VK_CONTROL = 0x11;
+        private const int VK_SPACE = 0x20;
+        private const int VK_RIGHT = 0x27;
+        private const int VK_DOWN = 0x28;
         private const int VK_C = 0x43;
 
         // Input type constants
@@ -235,6 +238,77 @@ namespace ClaudeCodeVS
         /// </summary>
         [DllImport("gdi32.dll")]
         private static extern bool DeleteObject(IntPtr hObject);
+
+        #endregion
+
+        #region Win32 Constants - Console
+
+        private const int STD_OUTPUT_HANDLE = -11;
+        private const uint TMPF_TRUETYPE = 4;
+        private const int FW_NORMAL = 400;
+
+        #endregion
+
+        #region Win32 Structures - Console Font
+
+        /// <summary>
+        /// Coordinate structure for console buffer
+        /// </summary>
+        [StructLayout(LayoutKind.Sequential)]
+        private struct COORD
+        {
+            public short X;
+            public short Y;
+        }
+
+        /// <summary>
+        /// Extended console font information
+        /// </summary>
+        [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
+        private struct CONSOLE_FONT_INFOEX
+        {
+            public uint cbSize;
+            public uint nFont;
+            public COORD dwFontSize;
+            public uint FontFamily;
+            public uint FontWeight;
+            [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 32)]
+            public string FaceName;
+        }
+
+        #endregion
+
+        #region Win32 API Declarations - Console
+
+        /// <summary>
+        /// Attaches the calling process to the console of the specified process
+        /// </summary>
+        [DllImport("kernel32.dll", SetLastError = true)]
+        private static extern bool AttachConsole(uint dwProcessId);
+
+        /// <summary>
+        /// Detaches the calling process from its console
+        /// </summary>
+        [DllImport("kernel32.dll", SetLastError = true)]
+        private static extern bool FreeConsole();
+
+        /// <summary>
+        /// Retrieves a handle to the specified standard device
+        /// </summary>
+        [DllImport("kernel32.dll", SetLastError = true)]
+        private static extern IntPtr GetStdHandle(int nStdHandle);
+
+        /// <summary>
+        /// Sets extended information about the current console font
+        /// </summary>
+        [DllImport("kernel32.dll", SetLastError = true, CharSet = CharSet.Unicode)]
+        private static extern bool SetCurrentConsoleFontEx(IntPtr hConsoleOutput, bool bMaximumWindow, ref CONSOLE_FONT_INFOEX lpConsoleCurrentFontEx);
+
+        /// <summary>
+        /// Retrieves extended information about the current console font
+        /// </summary>
+        [DllImport("kernel32.dll", SetLastError = true, CharSet = CharSet.Unicode)]
+        private static extern bool GetCurrentConsoleFontEx(IntPtr hConsoleOutput, bool bMaximumWindow, ref CONSOLE_FONT_INFOEX lpConsoleCurrentFontEx);
 
         #endregion
 

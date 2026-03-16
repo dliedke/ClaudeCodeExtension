@@ -38,6 +38,34 @@ namespace ClaudeCodeVS
     }
 
     /// <summary>
+    /// Effort levels for Claude Code reasoning
+    /// </summary>
+    public enum EffortLevel
+    {
+        Auto,
+        Low,
+        Medium,
+        High,
+        Max
+    }
+
+    /// <summary>
+    /// Represents a single prompt history entry with optional file attachments
+    /// </summary>
+    public class PromptHistoryEntry
+    {
+        /// <summary>
+        /// The prompt text
+        /// </summary>
+        public string Text { get; set; } = string.Empty;
+
+        /// <summary>
+        /// File paths that were attached when the prompt was sent
+        /// </summary>
+        public System.Collections.Generic.List<string> FilePaths { get; set; } = new System.Collections.Generic.List<string>();
+    }
+
+    /// <summary>
     /// Settings configuration for Claude Code extension
     /// </summary>
     public class ClaudeCodeSettings
@@ -64,9 +92,9 @@ namespace ClaudeCodeVS
         public ClaudeModel SelectedClaudeModel { get; set; } = ClaudeModel.Sonnet;
 
         /// <summary>
-        /// List of previously sent prompts (most recent last)
+        /// List of previously sent prompts with optional file attachments (most recent last)
         /// </summary>
-        public System.Collections.Generic.List<string> PromptHistory { get; set; } = new System.Collections.Generic.List<string>();
+        public System.Collections.Generic.List<PromptHistoryEntry> PromptHistory { get; set; } = new System.Collections.Generic.List<PromptHistoryEntry>();
 
         /// <summary>
         /// If true, automatically opens the Changes view, expands files, and enables auto-scroll when a prompt is sent
@@ -85,6 +113,11 @@ namespace ClaudeCodeVS
         /// Applies to Codex (Windows native) and Codex (WSL)
         /// </summary>
         public bool CodexFullAuto { get; set; } = false;
+
+        /// <summary>
+        /// Currently selected effort level for Claude Code
+        /// </summary>
+        public EffortLevel SelectedEffortLevel { get; set; } = EffortLevel.Auto;
 
         /// <summary>
         /// Custom working directory for the terminal.

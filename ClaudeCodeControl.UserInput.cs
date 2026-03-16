@@ -16,6 +16,7 @@ using System.Linq;
 using System.Text;
 using System.Diagnostics;
 using System.Threading.Tasks;
+using System.Collections.Generic;
 using System.Windows;
 using System.Windows.Input;
 
@@ -34,6 +35,11 @@ namespace ClaudeCodeVS
         /// Temporary storage for current text when navigating history
         /// </summary>
         private string _tempCurrentText = string.Empty;
+
+        /// <summary>
+        /// Temporary storage for current attached file paths when navigating history
+        /// </summary>
+        private List<string> _tempCurrentFiles = new List<string>();
 
         /// <summary>
         /// Maximum number of prompts to keep in history
@@ -138,7 +144,7 @@ namespace ClaudeCodeVS
                 // Add to prompt history (before clearing) - only if there's text
                 if (!string.IsNullOrEmpty(prompt))
                 {
-                    AddToPromptHistory(prompt);
+                    AddToPromptHistory(prompt, attachedImagePaths.ToList());
                 }
 
                 // Ensure tracking is active and reset baseline before sending prompt
@@ -307,7 +313,8 @@ namespace ClaudeCodeVS
         /// Adds a prompt to the history and saves settings
         /// </summary>
         /// <param name="prompt">The prompt text to add</param>
-        private void AddToPromptHistory(string prompt)
+        /// <param name="filePaths">The file paths attached to this prompt</param>
+        private void AddToPromptHistory(string prompt, List<string> filePaths)
         {
             if (string.IsNullOrWhiteSpace(prompt))
                 return;
@@ -316,13 +323,17 @@ namespace ClaudeCodeVS
             if (_settings == null)
                 _settings = new ClaudeCodeSettings();
             if (_settings.PromptHistory == null)
-                _settings.PromptHistory = new System.Collections.Generic.List<string>();
+                _settings.PromptHistory = new System.Collections.Generic.List<PromptHistoryEntry>();
 
-            // Remove duplicate if it exists
-            _settings.PromptHistory.Remove(prompt);
+            // Remove duplicate if it exists (same text)
+            _settings.PromptHistory.RemoveAll(e => e.Text == prompt);
 
             // Add to end (most recent)
-            _settings.PromptHistory.Add(prompt);
+            _settings.PromptHistory.Add(new PromptHistoryEntry
+            {
+                Text = prompt,
+                FilePaths = filePaths != null ? new List<string>(filePaths) : new List<string>()
+            });
 
             // Keep only the last MaxHistorySize items
             if (_settings.PromptHistory.Count > MaxHistorySize)
@@ -342,10 +353,11 @@ namespace ClaudeCodeVS
             if (_settings?.PromptHistory == null || _settings.PromptHistory.Count == 0)
                 return;
 
-            // First time navigating? Save current text
+            // First time navigating? Save current text and files
             if (_historyIndex == -1)
             {
                 _tempCurrentText = PromptTextBox.Text;
+                _tempCurrentFiles = attachedImagePaths.ToList();
                 _historyIndex = _settings.PromptHistory.Count;
             }
 
@@ -353,8 +365,10 @@ namespace ClaudeCodeVS
             if (_historyIndex > 0)
             {
                 _historyIndex--;
-                PromptTextBox.Text = _settings.PromptHistory[_historyIndex];
+                var entry = _settings.PromptHistory[_historyIndex];
+                PromptTextBox.Text = entry.Text;
                 PromptTextBox.SelectionStart = PromptTextBox.Text.Length;
+                RestoreFilesFromHistory(entry.FilePaths);
             }
         }
 
@@ -369,16 +383,20 @@ namespace ClaudeCodeVS
             // Move to next item
             _historyIndex++;
 
-            // If we've gone past the end, restore the temp text
+            // If we've gone past the end, restore the temp text and files
             if (_historyIndex >= _settings.PromptHistory.Count)
             {
                 PromptTextBox.Text = _tempCurrentText;
+                RestoreFilesFromHistory(_tempCurrentFiles);
                 _historyIndex = -1;
                 _tempCurrentText = string.Empty;
+                _tempCurrentFiles = new List<string>();
             }
             else
             {
-                PromptTextBox.Text = _settings.PromptHistory[_historyIndex];
+                var entry = _settings.PromptHistory[_historyIndex];
+                PromptTextBox.Text = entry.Text;
+                RestoreFilesFromHistory(entry.FilePaths);
             }
 
             PromptTextBox.SelectionStart = PromptTextBox.Text.Length;
@@ -395,6 +413,7 @@ namespace ClaudeCodeVS
             _settings.PromptHistory?.Clear();
             _historyIndex = -1;
             _tempCurrentText = string.Empty;
+            _tempCurrentFiles = new List<string>();
 
             SaveSettings();
 

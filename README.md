@@ -175,6 +175,21 @@ Click the update button and the extension will handle the update process. Agents
 
 ## Version History
 
+### Version 7.4
+- **Prompt history now saves file attachments**: When a prompt is sent with attached files, the file paths are stored in the history entry. Navigating history with Ctrl+Up/Down automatically restores files that still exist on disk
+
+### Version 7.3
+- **Fixed special characters not rendering properly (Issue #17)**: Added `chcp 65001` (UTF-8), `VIRTUAL_TERMINAL_LEVEL=1` environment variable, and automatic console font change to "Cascadia Mono" (via `SetCurrentConsoleFontEx` Win32 API) for full Unicode glyph support including block elements and box-drawing characters used by AI providers
+- **Fixed extension not working properly with some prompts (Issue #20)**: The Virtual Terminal Processing, UTF-8 encoding, and font fixes resolve display corruption and unexpected output that occurred when AI providers used ANSI styling codes and Unicode characters
+- **Fixed diff viewer not detecting git changes**: Fixed bug where the diff viewer showed "No changes detected" when `git` command failed (not in PATH, timeout, etc.) — previously treated identically to "no changes". Now git failures preserve existing tracker state instead of clearing it
+- **Added VS bundled git fallback**: The diff viewer now automatically finds Visual Studio's bundled git when `git` is not in the system PATH, using VS installation paths and `vswhere.exe`
+- **Fixed clipboard contention error**: Added automatic retry logic (up to 10 attempts with 100ms delay) for all clipboard operations to handle `CLIPBRD_E_CANT_OPEN` errors that occur when another application holds the clipboard open
+
+### Version 7.2
+- **Added Effort Level Selection**: Added effort level options (Auto, Low, Medium, High, Max) to the Model Selection menu, sends `/effort <level>` to Claude Code, setting is persisted across sessions
+- **Added Show Usage**: Sends `/config` and navigates to usage display via automated keystrokes
+- **Added Set Language**: Sends `/config` and navigates to language selection via automated keystrokes
+
 ### Version 7.1
 - **Added Codex Full Auto Toggle**: Added `Codex: Full Auto` option to the Code Agent Selection menu (⚙)
   - Starts Codex (Windows and WSL) with `--full-auto` when enabled

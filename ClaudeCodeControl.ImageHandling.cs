@@ -51,7 +51,7 @@ namespace ClaudeCodeVS
             {
                 // Check if clipboard contains text first - if so, let normal text paste happen
                 // This prevents Excel cells (which have both text and image formats) from pasting as images
-                if (Clipboard.ContainsText())
+                if (ClipboardRetrySync(() => Clipboard.ContainsText()))
                 {
                     return false;
                 }
@@ -66,13 +66,13 @@ namespace ClaudeCodeVS
                 BitmapSource image = null;
 
                 // Try different clipboard formats for images
-                if (Clipboard.ContainsImage())
+                if (ClipboardRetrySync(() => Clipboard.ContainsImage()))
                 {
-                    image = Clipboard.GetImage();
+                    image = ClipboardRetrySync(() => Clipboard.GetImage());
                 }
-                else if (Clipboard.ContainsData(DataFormats.Bitmap))
+                else if (ClipboardRetrySync(() => Clipboard.ContainsData(DataFormats.Bitmap)))
                 {
-                    var bitmapData = Clipboard.GetData(DataFormats.Bitmap);
+                    var bitmapData = ClipboardRetrySync(() => Clipboard.GetData(DataFormats.Bitmap));
                     if (bitmapData is System.Drawing.Bitmap bitmap)
                     {
                         var handle = bitmap.GetHbitmap();
@@ -88,9 +88,9 @@ namespace ClaudeCodeVS
                         }
                     }
                 }
-                else if (Clipboard.ContainsData("PNG"))
+                else if (ClipboardRetrySync(() => Clipboard.ContainsData("PNG")))
                 {
-                    var pngData = Clipboard.GetData("PNG") as MemoryStream;
+                    var pngData = ClipboardRetrySync(() => Clipboard.GetData("PNG")) as MemoryStream;
                     if (pngData != null)
                     {
                         image = BitmapFrame.Create(pngData);
@@ -269,6 +269,31 @@ namespace ClaudeCodeVS
         private void ClearAttachedImages()
         {
             attachedImagePaths.Clear();
+            UpdateImageDropDisplay();
+        }
+
+        /// <summary>
+        /// Restores file attachments from a history entry, adding only files that still exist on disk
+        /// </summary>
+        /// <param name="filePaths">The file paths to restore</param>
+        private void RestoreFilesFromHistory(List<string> filePaths)
+        {
+            attachedImagePaths.Clear();
+
+            if (filePaths != null)
+            {
+                foreach (string path in filePaths)
+                {
+                    if (attachedImagePaths.Count >= 5)
+                        break;
+
+                    if (!string.IsNullOrEmpty(path) && File.Exists(path))
+                    {
+                        attachedImagePaths.Add(path);
+                    }
+                }
+            }
+
             UpdateImageDropDisplay();
         }
 

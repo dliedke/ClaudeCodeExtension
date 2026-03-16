@@ -28,6 +28,16 @@ namespace ClaudeCodeVS
         private const int ClipboardTimeoutMs = 2000;
 
         /// <summary>
+        /// Maximum number of retry attempts for clipboard operations
+        /// </summary>
+        private const int ClipboardMaxRetries = 10;
+
+        /// <summary>
+        /// Delay between clipboard retry attempts in milliseconds
+        /// </summary>
+        private const int ClipboardRetryDelayMs = 100;
+
+        /// <summary>
         /// Sends text to the embedded terminal by copying to clipboard and simulating paste
         /// Preserves the original clipboard content and restores it after sending
         /// This is the synchronous wrapper for backward compatibility
@@ -60,14 +70,14 @@ namespace ClaudeCodeVS
                     await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
 
                     // Save the current clipboard content before modifying it
-                    originalClipboardData = SaveClipboardContent();
+                    originalClipboardData = await ClipboardRetryAsync(() => SaveClipboardContent());
 
                     // Clear clipboard before copying new text to prevent stale content
-                    Clipboard.Clear();
+                    await ClipboardRetryAsync(() => Clipboard.Clear());
                     await Task.Delay(50);
 
                     // Copy text to clipboard
-                    Clipboard.SetText(text);
+                    await ClipboardRetryAsync(() => Clipboard.SetText(text));
 
                     // Set focus to terminal window
                     SetForegroundWindow(terminalHandle);
@@ -111,13 +121,92 @@ namespace ClaudeCodeVS
                 {
                     await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
                     await Task.Delay(100); // Small delay to ensure paste completed
-                    RestoreClipboardContent(originalClipboardData);
+                    await ClipboardRetryAsync(() => RestoreClipboardContent(originalClipboardData));
                 }
                 catch (Exception ex)
                 {
                     System.Diagnostics.Debug.WriteLine($"Error restoring clipboard: {ex.Message}");
                 }
             }
+        }
+
+        /// <summary>
+        /// Executes a clipboard operation with automatic retry logic
+        /// Handles CLIPBRD_E_CANT_OPEN (0x800401D0) errors that occur when another application holds the clipboard
+        /// </summary>
+        /// <param name="action">The clipboard action to execute</param>
+        /// <param name="maxRetries">Maximum number of retry attempts</param>
+        /// <param name="retryDelayMs">Delay between retries in milliseconds</param>
+        private async Task ClipboardRetryAsync(Action action, int maxRetries = ClipboardMaxRetries, int retryDelayMs = ClipboardRetryDelayMs)
+        {
+            for (int attempt = 0; attempt <= maxRetries; attempt++)
+            {
+                try
+                {
+                    action();
+                    return;
+                }
+                catch (System.Runtime.InteropServices.COMException ex) when (ex.ErrorCode == unchecked((int)0x800401D0))
+                {
+                    if (attempt == maxRetries)
+                        throw;
+                    await Task.Delay(retryDelayMs);
+                }
+            }
+        }
+
+        /// <summary>
+        /// Executes a clipboard operation with automatic retry logic, returning a value
+        /// Handles CLIPBRD_E_CANT_OPEN (0x800401D0) errors that occur when another application holds the clipboard
+        /// </summary>
+        /// <typeparam name="T">The return type</typeparam>
+        /// <param name="func">The clipboard function to execute</param>
+        /// <param name="maxRetries">Maximum number of retry attempts</param>
+        /// <param name="retryDelayMs">Delay between retries in milliseconds</param>
+        /// <returns>The result of the clipboard operation</returns>
+        private async Task<T> ClipboardRetryAsync<T>(Func<T> func, int maxRetries = ClipboardMaxRetries, int retryDelayMs = ClipboardRetryDelayMs)
+        {
+            for (int attempt = 0; attempt <= maxRetries; attempt++)
+            {
+                try
+                {
+                    return func();
+                }
+                catch (System.Runtime.InteropServices.COMException ex) when (ex.ErrorCode == unchecked((int)0x800401D0))
+                {
+                    if (attempt == maxRetries)
+                        throw;
+                    await Task.Delay(retryDelayMs);
+                }
+            }
+            return default; // Should never reach here
+        }
+
+        /// <summary>
+        /// Executes a clipboard operation with synchronous retry logic
+        /// Handles CLIPBRD_E_CANT_OPEN (0x800401D0) errors that occur when another application holds the clipboard
+        /// </summary>
+        /// <typeparam name="T">The return type</typeparam>
+        /// <param name="func">The clipboard function to execute</param>
+        /// <param name="maxRetries">Maximum number of retry attempts</param>
+        /// <param name="retryDelayMs">Delay between retries in milliseconds</param>
+        /// <returns>The result of the clipboard operation</returns>
+        private T ClipboardRetrySync<T>(Func<T> func, int maxRetries = ClipboardMaxRetries, int retryDelayMs = ClipboardRetryDelayMs)
+        {
+            for (int attempt = 0; attempt <= maxRetries; attempt++)
+            {
+                try
+                {
+                    return func();
+                }
+                catch (System.Runtime.InteropServices.COMException ex) when (ex.ErrorCode == unchecked((int)0x800401D0))
+                {
+                    if (attempt == maxRetries)
+                        throw;
+                    Thread.Sleep(retryDelayMs);
+                }
+            }
+            return default; // Should never reach here
         }
 
         /// <summary>

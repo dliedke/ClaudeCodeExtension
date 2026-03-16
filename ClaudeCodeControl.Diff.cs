@@ -667,9 +667,13 @@ namespace ClaudeCodeVS
             bool isClean = false;
             try
             {
+                string gitPath = ResolveGitPath();
+                if (string.IsNullOrEmpty(gitPath))
+                    return false;
+
                 var processStart = new ProcessStartInfo
                 {
-                    FileName = "git",
+                    FileName = gitPath,
                     Arguments = "status --porcelain",
                     WorkingDirectory = repoRoot,
                     RedirectStandardOutput = true,
@@ -726,9 +730,17 @@ namespace ClaudeCodeVS
                     return false;
 
                 string statusOutput = RunGitCommand(repoRoot, "status --porcelain=v1 -z", GitStatusTimeoutMs);
-                if (string.IsNullOrEmpty(statusOutput))
+                if (statusOutput == null)
                 {
-                    // No changes - clear the tracker to show empty state
+                    // Git command failed (not found in PATH, timeout, non-zero exit code)
+                    // Don't clear the tracker - preserve any existing state
+                    Debug.WriteLine("TryApplyGitBaseline: git status command failed");
+                    return false;
+                }
+
+                if (statusOutput.Length == 0)
+                {
+                    // Git succeeded but no changes - clear the tracker to show empty state
                     _fileChangeTracker.Clear();
                     return true;
                 }
@@ -836,13 +848,22 @@ namespace ClaudeCodeVS
             }
         }
 
+        /// <summary>
+        /// Cached path to the git executable (null = not resolved yet, empty = not found)
+        /// </summary>
+        private string _resolvedGitPath;
+
         private string RunGitCommand(string workingDirectory, string arguments, int timeoutMs)
         {
+            string gitPath = ResolveGitPath();
+            if (string.IsNullOrEmpty(gitPath))
+                return null;
+
             try
             {
                 var processStart = new ProcessStartInfo
                 {
-                    FileName = "git",
+                    FileName = gitPath,
                     Arguments = arguments,
                     WorkingDirectory = workingDirectory,
                     RedirectStandardOutput = true,
@@ -883,6 +904,124 @@ namespace ClaudeCodeVS
                 Debug.WriteLine($"Error running git command: {ex.Message}");
                 return null;
             }
+        }
+
+        /// <summary>
+        /// Resolves the path to the git executable.
+        /// First tries "git" from the system PATH, then falls back to VS's bundled git.
+        /// Result is cached for the lifetime of the control.
+        /// </summary>
+        private string ResolveGitPath()
+        {
+            if (_resolvedGitPath != null)
+                return _resolvedGitPath.Length > 0 ? _resolvedGitPath : null;
+
+            // Try system PATH first
+            try
+            {
+                var testStart = new ProcessStartInfo
+                {
+                    FileName = "git",
+                    Arguments = "--version",
+                    RedirectStandardOutput = true,
+                    RedirectStandardError = true,
+                    UseShellExecute = false,
+                    CreateNoWindow = true
+                };
+
+                using (var process = Process.Start(testStart))
+                {
+                    if (process != null)
+                    {
+                        process.StandardOutput.ReadToEnd();
+                        process.WaitForExit(3000);
+                        if (process.ExitCode == 0)
+                        {
+                            _resolvedGitPath = "git";
+                            return _resolvedGitPath;
+                        }
+                    }
+                }
+            }
+            catch
+            {
+                // git not in PATH, try VS bundled locations
+            }
+
+            // Try VS bundled git locations
+            string[] vsEditions = { "Enterprise", "Professional", "Community", "Preview" };
+            string programFiles = Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles);
+
+            // Check VS 2022/2026 locations
+            foreach (string edition in vsEditions)
+            {
+                // Try multiple VS version folder patterns
+                string[] vsRoots =
+                {
+                    Path.Combine(programFiles, "Microsoft Visual Studio", "2022", edition),
+                    Path.Combine(programFiles, "Microsoft Visual Studio", "18", edition),
+                };
+
+                foreach (string vsRoot in vsRoots)
+                {
+                    string bundledGit = Path.Combine(vsRoot, "Common7", "IDE", "CommonExtensions",
+                        "Microsoft", "TeamFoundation", "Team Explorer", "Git", "cmd", "git.exe");
+                    if (File.Exists(bundledGit))
+                    {
+                        _resolvedGitPath = bundledGit;
+                        Debug.WriteLine($"ResolveGitPath: Using VS bundled git at {bundledGit}");
+                        return _resolvedGitPath;
+                    }
+                }
+            }
+
+            // Try vswhere to find VS installation
+            try
+            {
+                string vswhere = Path.Combine(
+                    Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86),
+                    "Microsoft Visual Studio", "Installer", "vswhere.exe");
+
+                if (File.Exists(vswhere))
+                {
+                    var vswhereStart = new ProcessStartInfo
+                    {
+                        FileName = vswhere,
+                        Arguments = "-latest -property installationPath",
+                        RedirectStandardOutput = true,
+                        UseShellExecute = false,
+                        CreateNoWindow = true
+                    };
+
+                    using (var process = Process.Start(vswhereStart))
+                    {
+                        if (process != null)
+                        {
+                            string vsPath = process.StandardOutput.ReadToEnd().Trim();
+                            process.WaitForExit(3000);
+                            if (!string.IsNullOrEmpty(vsPath))
+                            {
+                                string gitExe = Path.Combine(vsPath, "Common7", "IDE", "CommonExtensions",
+                                    "Microsoft", "TeamFoundation", "Team Explorer", "Git", "cmd", "git.exe");
+                                if (File.Exists(gitExe))
+                                {
+                                    _resolvedGitPath = gitExe;
+                                    Debug.WriteLine($"ResolveGitPath: Using VS bundled git (via vswhere) at {gitExe}");
+                                    return _resolvedGitPath;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"ResolveGitPath: vswhere fallback failed: {ex.Message}");
+            }
+
+            Debug.WriteLine("ResolveGitPath: git not found in PATH or VS bundled locations");
+            _resolvedGitPath = string.Empty; // Cache negative result
+            return null;
         }
 
         private string ReadGitFile(string repoRoot, string relativePath)

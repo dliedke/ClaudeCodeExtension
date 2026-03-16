@@ -247,9 +247,20 @@
                             Margin="0,0,6,0">
 						<Button.ContextMenu>
 							<ContextMenu x:Name="ModelContextMenu">
+								<MenuItem Header="Show Usage" x:Name="ShowUsageMenuItem" Click="ShowUsageMenuItem_Click"/>
+								<Separator/>
 								<MenuItem Header="Opus - Complex tasks" x:Name="OpusMenuItem" Click="OpusMenuItem_Click" IsCheckable="True"/>
 								<MenuItem Header="Sonnet - Everyday tasks" x:Name="SonnetMenuItem" Click="SonnetMenuItem_Click" IsCheckable="True" IsChecked="True"/>
 								<MenuItem Header="Haiku - Easy tasks" x:Name="HaikuMenuItem" Click="HaikuMenuItem_Click" IsCheckable="True"/>
+								<Separator/>
+								<MenuItem Header="Effort:" IsEnabled="False" FontWeight="SemiBold"/>
+								<MenuItem Header="Auto" x:Name="EffortAutoMenuItem" Click="EffortAutoMenuItem_Click" IsCheckable="True" IsChecked="True"/>
+								<MenuItem Header="Low" x:Name="EffortLowMenuItem" Click="EffortLowMenuItem_Click" IsCheckable="True"/>
+								<MenuItem Header="Medium" x:Name="EffortMediumMenuItem" Click="EffortMediumMenuItem_Click" IsCheckable="True"/>
+								<MenuItem Header="High" x:Name="EffortHighMenuItem" Click="EffortHighMenuItem_Click" IsCheckable="True"/>
+								<MenuItem Header="Max" x:Name="EffortMaxMenuItem" Click="EffortMaxMenuItem_Click" IsCheckable="True"/>
+								<Separator/>
+								<MenuItem Header="Set Language" x:Name="SetLanguageMenuItem" Click="SetLanguageMenuItem_Click"/>
 							</ContextMenu>
 						</Button.ContextMenu>
 					</Button>
