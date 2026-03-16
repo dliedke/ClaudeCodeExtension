@@ -118,5 +118,12 @@ namespace ClaudeCodeVS
         /// Currently selected effort level for Claude Code
         /// </summary>
         public EffortLevel SelectedEffortLevel { get; set; } = EffortLevel.Auto;
+
+        /// <summary>
+        /// Custom working directory for the terminal.
+        /// Can be an absolute path or a path relative to the solution directory.
+        /// When empty or null, the default solution/project directory is used.
+        /// </summary>
+        public string CustomWorkingDirectory { get; set; } = "";
     }
 }
