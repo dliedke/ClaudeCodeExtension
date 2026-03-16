@@ -34,7 +34,9 @@
       "Bash(wc:*)",
       "Bash(\"/c/Program Files/Microsoft Visual Studio/2022/Professional/MSBuild/Current/Bin/MSBuild.exe\" ClaudeCodeExtension.sln /p:Configuration=Release)",
       "Bash(cmd.exe /c \"where msbuild\")",
-      "Bash(cmd.exe /c \"dir /s /b \"\"C:\\\\Program Files\\\\Microsoft Visual Studio\\\\2022\\\\*MSBuild.exe\"\"\")"
+      "Bash(cmd.exe /c \"dir /s /b \"\"C:\\\\Program Files\\\\Microsoft Visual Studio\\\\2022\\\\*MSBuild.exe\"\"\")",
+      "Bash(cmd.exe /c \"msbuild ClaudeCodeExtension.sln /p:Configuration=Release /t:Build /v:minimal 2>&1\" 2>&1 | tail -20)",
+      "Bash(powershell.exe -Command \"& 'C:/Program Files/Microsoft Visual Studio/2022/Professional/MSBuild/Current/Bin/MSBuild.exe' ClaudeCodeExtension.sln /p:Configuration=Release /t:Build /v:minimal 2>&1 | Select-Object -Last 20\")"
     ],
     "deny": [],
     "ask": []

@@ -7,7 +7,7 @@ This is a **Visual Studio Extension (VSIX)** for Visual Studio 2022/2026 that pr
 - **Author**: Daniel Carvalho Liedke (dliedke@gmail.com)
 - **License**: MIT
 - **Repository**: https://github.com/dliedke/ClaudeCodeExtension
-- **Current Version**: 7.0
+- **Current Version**: 7.5
 - **Target Framework**: .NET Framework 4.7.2
 
 ---
@@ -165,8 +165,10 @@ WSL providers:  cmd.exe /k chcp 65001 >nul && cls && wsl bash -ic "cd {wslPath} 
 - `C:\Users\...` → `/mnt/c/Users/...`
 
 **Provider executable detection**:
-- `GetClaudeCommand()`: Prioritizes native .exe over NPM installation
+- `GetClaudeCommand()`: Prioritizes native .exe over NPM installation; appends `--dangerously-skip-permissions` if `_settings.ClaudeDangerouslySkipPermissions == true`
+- `GetCodexCommand()`: Returns `codex`; appends `--full-auto` if `_settings.CodexFullAuto == true`
 - `GetCursorAgentCommand()`: Checks `%LOCALAPPDATA%\cursor-agent\` first, then PATH
+- **Flag persistence**: Both `GetClaudeCommand()` and `GetCodexCommand()` are called in every restart path (workspace change, manual restart, provider switch, VS startup), so the flags are always applied when settings are saved
 
 #### ClaudeCodeControl.ProviderManagement.cs — Provider Detection
 
@@ -177,6 +179,7 @@ Detects and validates availability of all 8 AI providers.
 - **WSL retry logic**: `IsClaudeCodeWSLAvailableAsync()` retries 2 times with 3s/5s timeouts for cold WSL boot
 - **Notification flags**: Static booleans (`_claudeNotificationShown`, etc.) ensure install instructions show only once per VS session
 - **`ClearProviderCache()`**: Should be called when user actions might change availability (e.g., after update)
+- **`ShowWorkingDirectoryInputDialog()`**: WPF dialog built programmatically; reads VS theme colors via `VsBrushes` (background, foreground, textbox, buttons) and applies them so the dialog matches the current dark/light VS theme; falls back to `SystemColors` if theme read fails; validates path in real-time (red text when directory doesn't exist)
 
 #### ClaudeCodeControl.TerminalIO.cs — Terminal I/O
 

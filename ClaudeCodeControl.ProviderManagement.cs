@@ -1965,6 +1965,20 @@ For more details, visit: https://opencode.ai";
         /// <returns>The entered string on OK, or null if the user cancelled</returns>
         private string ShowWorkingDirectoryInputDialog(string currentValue, string baseDir)
         {
+            // Resolve VS theme colors for the dialog (same keys used in ClaudeCodeControl.Theme.cs)
+            System.Windows.Media.Brush themeBg;
+            System.Windows.Media.Brush themeFg;
+            try
+            {
+                themeBg = (System.Windows.Media.SolidColorBrush)FindResource(VsBrushes.WindowKey);
+                themeFg = (System.Windows.Media.SolidColorBrush)FindResource(VsBrushes.WindowTextKey);
+            }
+            catch
+            {
+                themeBg = System.Windows.SystemColors.WindowBrush;
+                themeFg = System.Windows.SystemColors.WindowTextBrush;
+            }
+
             // Build dialog window programmatically
             var dialog = new Window
             {
@@ -1973,7 +1987,8 @@ For more details, visit: https://opencode.ai";
                 Height = 200,
                 WindowStartupLocation = WindowStartupLocation.CenterOwner,
                 ResizeMode = ResizeMode.NoResize,
-                Background = System.Windows.SystemColors.WindowBrush,
+                Background = themeBg,
+                Foreground = themeFg,
                 ShowInTaskbar = false
             };
 
@@ -2008,13 +2023,19 @@ For more details, visit: https://opencode.ai";
             grid.Children.Add(label);
 
             // Default foreground for restoring after validation
-            var defaultForeground = System.Windows.SystemColors.WindowTextBrush;
+            var defaultForeground = themeFg;
+
+            // Label theme
+            label.Foreground = themeFg;
 
             // TextBox
             var textBox = new System.Windows.Controls.TextBox
             {
                 Text = currentValue,
-                Margin = new Thickness(0, 0, 0, 12)
+                Margin = new Thickness(0, 0, 0, 12),
+                Background = themeBg,
+                Foreground = themeFg,
+                BorderBrush = themeFg
             };
             textBox.SelectAll();
             System.Windows.Controls.Grid.SetRow(textBox, 1);
@@ -2066,7 +2087,9 @@ For more details, visit: https://opencode.ai";
                 Width = 75,
                 Height = 25,
                 Margin = new Thickness(0, 0, 8, 0),
-                IsDefault = true
+                IsDefault = true,
+                Background = themeBg,
+                Foreground = themeFg
             };
             okButton.Click += (s, args) => { dialog.DialogResult = true; };
             buttonPanel.Children.Add(okButton);
@@ -2076,7 +2099,9 @@ For more details, visit: https://opencode.ai";
                 Content = "Cancel",
                 Width = 75,
                 Height = 25,
-                IsCancel = true
+                IsCancel = true,
+                Background = themeBg,
+                Foreground = themeFg
             };
             buttonPanel.Children.Add(cancelButton);
 

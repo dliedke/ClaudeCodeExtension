@@ -175,6 +175,9 @@ Click the update button and the extension will handle the update process. Agents
 
 ## Version History
 
+### Version 7.5 - by adrian-schmidt contribution
+- **Set Working Directory dialog now follows VS theme**: The dialog background, text, input fields, and buttons now adapt to Visual Studio's dark or light theme instead of using system defaults
+
 ### Version 7.4
 - **Prompt history now saves file attachments**: When a prompt is sent with attached files, the file paths are stored in the history entry. Navigating history with Ctrl+Up/Down automatically restores files that still exist on disk
 
