@@ -7,7 +7,7 @@ This is a **Visual Studio Extension (VSIX)** for Visual Studio 2022/2026 that pr
 - **Author**: Daniel Carvalho Liedke (dliedke@gmail.com)
 - **License**: MIT
 - **Repository**: https://github.com/dliedke/ClaudeCodeExtension
-- **Current Version**: 7.5
+- **Current Version**: 7.6
 - **Target Framework**: .NET Framework 4.7.2
 
 ---
@@ -287,7 +287,7 @@ SW_SHOW=5, SW_HIDE=0
 GWL_STYLE=-16
 WS_CAPTION=0x00C00000, WS_THICKFRAME=0x00040000, WS_SYSMENU=0x00080000
 WM_KEYDOWN=0x0100, WM_KEYUP=0x0101, WM_CHAR=0x0102
-VK_RETURN=0x0D, VK_SHIFT=0x10, VK_CONTROL=0x11, VK_SPACE=0x20, VK_RIGHT=0x27, VK_DOWN=0x28, VK_C=0x43
+VK_RETURN=0x0D, VK_SHIFT=0x10, VK_CONTROL=0x11, VK_SPACE=0x20, VK_UP=0x26, VK_RIGHT=0x27, VK_DOWN=0x28, VK_C=0x43
 INPUT_KEYBOARD=1, KEYEVENTF_KEYUP=0x0002
 ```
 

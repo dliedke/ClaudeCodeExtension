@@ -275,8 +275,8 @@ namespace ClaudeCodeVS
 
                 cancellationToken.ThrowIfCancellationRequested();
 
-                // Reduced retry logic - only retry once with shorter timeouts
-                int[] timeouts = { 3000, 5000 }; // Reduced timeouts: 3s, 5s
+                // Retry logic with timeouts to handle WSL cold boot
+                int[] timeouts = { 5000, 12000 }; // 5s, 12s
                 int maxRetries = 2;
 
                 for (int attempt = 1; attempt <= maxRetries; attempt++)
@@ -385,8 +385,8 @@ namespace ClaudeCodeVS
 
                 cancellationToken.ThrowIfCancellationRequested();
 
-                // Reduced retry logic - only retry once with shorter timeouts
-                int[] timeouts = { 3000, 5000 }; // Reduced timeouts: 3s, 5s
+                // Retry logic with timeouts to handle WSL cold boot
+                int[] timeouts = { 5000, 12000 }; // 5s, 12s
                 int maxRetries = 2;
 
                 for (int attempt = 1; attempt <= maxRetries; attempt++)
@@ -625,8 +625,8 @@ namespace ClaudeCodeVS
 
             try
             {
-                // Reduced retry logic - only retry once with shorter timeouts
-                int[] timeouts = { 3000, 5000 }; // Reduced timeouts: 3s, 5s
+                // Retry logic with timeouts to handle WSL cold boot
+                int[] timeouts = { 5000, 12000 }; // 5s, 12s
                 int maxRetries = 2;
 
                 for (int attempt = 1; attempt <= maxRetries; attempt++)
@@ -1699,13 +1699,21 @@ For more details, visit: https://opencode.ai";
                     await SendTextToTerminalAsync("/config");
                     await Task.Delay(1500);
 
-                    // Press Enter to select the first option (usage)
-                    SendEnterKey();
-                    await Task.Delay(500);
+                    // Focus terminal and use keybd_event (PostMessage doesn't work for Tab in conhost)
+                    SetForegroundWindow(terminalHandle);
+                    SetFocus(terminalHandle);
+                    await Task.Delay(100);
 
-                    // Press Right arrow to navigate
-                    PostMessage(terminalHandle, WM_KEYDOWN, new IntPtr(VK_RIGHT), IntPtr.Zero);
-                    PostMessage(terminalHandle, WM_KEYUP, new IntPtr(VK_RIGHT), IntPtr.Zero);
+                    // /config opens on the Config tab, press Up arrow to navigate to tab selection
+                    keybd_event((byte)VK_UP, 0, 0, UIntPtr.Zero);
+                    await Task.Delay(50);
+                    keybd_event((byte)VK_UP, 0, KEYEVENTF_KEYUP, UIntPtr.Zero);
+                    await Task.Delay(300);
+
+                    // Press Tab to navigate from Config to Usage tab
+                    keybd_event((byte)VK_TAB, 0, 0, UIntPtr.Zero);
+                    await Task.Delay(50);
+                    keybd_event((byte)VK_TAB, 0, KEYEVENTF_KEYUP, UIntPtr.Zero);
                 }
             });
         }
