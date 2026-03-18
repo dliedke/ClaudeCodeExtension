@@ -114,6 +114,12 @@ namespace ClaudeCodeVS
                 // Unsubscribe from theme change events
                 CleanupThemeEvents();
 
+                // Unsubscribe from terminal mouse wheel events
+                if (TerminalHost != null)
+                {
+                    TerminalHost.PreviewMouseWheel -= TerminalHost_PreviewMouseWheel;
+                }
+
                 // Kill child processes (like claude.exe) before killing the main cmd process
                 if (cmdProcess != null && !cmdProcess.HasExited)
                 {

@@ -175,6 +175,16 @@ Click the update button and the extension will handle the update process. Agents
 
 ## Version History
 
+### Version 7.8
+- **Fixed Show Usage for Windows Terminal**: Simplified Show Usage to use `/usage` command directly instead of navigating `/config` menu with keyboard simulation
+- **Adjusted Windows Terminal zoom level**: Reduced initial zoom out from 4 to 3 steps for better readability
+
+### Version 7.7
+- **Added Windows Terminal support**: Added configurable terminal type selection (Command Prompt vs Windows Terminal) via new "Set Terminal Type..." menu option
+- **Windows Terminal integration**: Seamlessly embeds Windows Terminal window into the extension panel using `SetParent` Win32 interop, with DPI-aware tab bar positioning
+- **Better emoji and Unicode rendering**: Windows Terminal offers superior rendering of emojis, box-drawing characters, and Unicode symbols compared to Command Prompt
+- **Automatic Windows Terminal detection**: Extension detects Windows Terminal availability and provides installation links if not found (Microsoft Store or GitHub)
+
 ### Version 7.6
 - **Fixed Show Usage menu shortcut**: Updated navigation to use Up arrow then tab for selecting the usage option in `/config`, matching the current Claude Code CLI menu layout
 

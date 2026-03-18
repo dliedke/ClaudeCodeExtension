@@ -43,6 +43,7 @@ namespace ClaudeCodeVS
         private const uint WM_KEYDOWN = 0x0100;
         private const uint WM_KEYUP = 0x0101;
         private const uint WM_CHAR = 0x0102;
+        private const uint WM_MOUSEWHEEL = 0x020A;
 
         // Virtual key codes
         private const int VK_TAB = 0x09;
@@ -57,6 +58,7 @@ namespace ClaudeCodeVS
 
         // Input type constants
         private const uint INPUT_KEYBOARD = 1;
+        private const uint KEYEVENTF_EXTENDEDKEY = 0x0001;
         private const uint KEYEVENTF_KEYUP = 0x0002;
 
         #endregion
@@ -143,6 +145,18 @@ namespace ClaudeCodeVS
         private static extern bool IsWindowVisible(IntPtr hWnd);
 
         /// <summary>
+        /// Retrieves the dots per inch (DPI) of a window
+        /// </summary>
+        [DllImport("user32.dll")]
+        private static extern uint GetDpiForWindow(IntPtr hwnd);
+
+        /// <summary>
+        /// Retrieves the name of the class to which the specified window belongs
+        /// </summary>
+        [DllImport("user32.dll", SetLastError = true, CharSet = CharSet.Auto)]
+        private static extern int GetClassName(IntPtr hWnd, System.Text.StringBuilder lpClassName, int nMaxCount);
+
+        /// <summary>
         /// Changes an attribute of the specified window
         /// </summary>
         [DllImport("user32.dll")]
@@ -208,6 +222,12 @@ namespace ClaudeCodeVS
         /// </summary>
         [DllImport("user32.dll")]
         private static extern bool PostMessage(IntPtr hWnd, uint Msg, IntPtr wParam, IntPtr lParam);
+
+        /// <summary>
+        /// Sends a message to a window and waits for it to be processed
+        /// </summary>
+        [DllImport("user32.dll")]
+        private static extern IntPtr SendMessage(IntPtr hWnd, uint Msg, IntPtr wParam, IntPtr lParam);
 
         /// <summary>
         /// Synthesizes a keystroke

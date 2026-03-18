@@ -905,6 +905,62 @@ namespace ClaudeCodeVS
             }
         }
 
+        /// <summary>
+        /// Checks if Windows Terminal is installed and available
+        /// Checks the PATH (refreshed from registry) for wt.exe executable
+        /// </summary>
+        /// <param name="cancellationToken">Optional cancellation token</param>
+        /// <returns>True if Windows Terminal is available, false otherwise</returns>
+        public async Task<bool> IsWindowsTerminalAvailableAsync(CancellationToken cancellationToken = default)
+        {
+            try
+            {
+                var startInfo = new ProcessStartInfo
+                {
+                    FileName = "cmd.exe",
+                    Arguments = "/c where wt.exe",
+                    UseShellExecute = false,
+                    RedirectStandardOutput = true,
+                    RedirectStandardError = true,
+                    CreateNoWindow = true
+                };
+
+                // Use fresh PATH from registry to detect newly installed WT without VS restart
+                string freshPath = GetFreshPathFromRegistry();
+                if (!string.IsNullOrEmpty(freshPath))
+                {
+                    startInfo.EnvironmentVariables["PATH"] = freshPath;
+                }
+
+                using (var process = Process.Start(startInfo))
+                {
+                    var completed = await WaitForProcessExitAsync(process, 3000, cancellationToken);
+
+                    if (!completed)
+                    {
+                        try { process.Kill(); } catch { }
+                        return false;
+                    }
+
+                    string output = await process.StandardOutput.ReadToEndAsync();
+                    bool found = process.ExitCode == 0 && !string.IsNullOrWhiteSpace(output);
+
+                    if (found)
+                    {
+                        // Store the full resolved path so we can use it to launch wt.exe reliably
+                        _wtExePath = output.Trim().Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries)[0];
+                    }
+
+                    return found;
+                }
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"Error checking for Windows Terminal: {ex.Message}");
+                return false;
+            }
+        }
+
         #endregion
 
         #region Installation Instructions
@@ -1468,6 +1524,184 @@ For more details, visit: https://opencode.ai";
         #region Menu Handlers
 
         /// <summary>
+        /// Handles set terminal type menu item click - shows dialog to select Command Prompt or Windows Terminal
+        /// </summary>
+        private void SetTerminalTypeMenuItem_Click(object sender, RoutedEventArgs e)
+        {
+            ThreadHelper.ThrowIfNotOnUIThread();
+
+            if (_settings == null) return;
+
+            TerminalType currentType = _settings.SelectedTerminalType;
+
+            // Resolve VS theme colors for the dialog
+            System.Windows.Media.Brush themeBg;
+            System.Windows.Media.Brush themeFg;
+            try
+            {
+                themeBg = (System.Windows.Media.SolidColorBrush)FindResource(VsBrushes.WindowKey);
+                themeFg = (System.Windows.Media.SolidColorBrush)FindResource(VsBrushes.WindowTextKey);
+            }
+            catch
+            {
+                themeBg = System.Windows.SystemColors.WindowBrush;
+                themeFg = System.Windows.SystemColors.WindowTextBrush;
+            }
+
+            // Show a simple dialog with radio button options
+            var window = new System.Windows.Window
+            {
+                Title = "Select Terminal Type",
+                Width = 400,
+                Height = 240,
+                WindowStartupLocation = System.Windows.WindowStartupLocation.CenterScreen,
+                ResizeMode = System.Windows.ResizeMode.NoResize,
+                Background = themeBg,
+                Foreground = themeFg,
+                ShowInTaskbar = false
+            };
+
+            // Try to set owner to VS main window
+            try
+            {
+                window.Owner = System.Windows.Application.Current?.MainWindow;
+            }
+            catch
+            {
+                // Ignore if owner cannot be set
+            }
+
+            var grid = new System.Windows.Controls.Grid();
+            grid.Margin = new System.Windows.Thickness(15);
+            grid.RowDefinitions.Add(new System.Windows.Controls.RowDefinition { Height = new System.Windows.GridLength(1, System.Windows.GridUnitType.Star) });
+            grid.RowDefinitions.Add(new System.Windows.Controls.RowDefinition { Height = System.Windows.GridLength.Auto });
+
+            var stackPanel = new System.Windows.Controls.StackPanel
+            {
+                Orientation = System.Windows.Controls.Orientation.Vertical
+            };
+
+            // Command Prompt option
+            var cmdRadio = new System.Windows.Controls.RadioButton
+            {
+                Content = "Command Prompt (default)",
+                Margin = new System.Windows.Thickness(0, 10, 0, 15),
+                IsChecked = currentType == TerminalType.CommandPrompt,
+                Foreground = themeFg
+            };
+            stackPanel.Children.Add(cmdRadio);
+
+            // Windows Terminal option
+            var wtRadio = new System.Windows.Controls.RadioButton
+            {
+                Content = "Windows Terminal (better emoji/unicode support)",
+                Margin = new System.Windows.Thickness(0, 0, 0, 15),
+                IsChecked = currentType == TerminalType.WindowsTerminal,
+                Foreground = themeFg
+            };
+            stackPanel.Children.Add(wtRadio);
+
+            // Note label
+            var noteLabel = new System.Windows.Controls.TextBlock
+            {
+                Text = "Note: Windows Terminal requires installation. If not found, it will show installation instructions.",
+                FontSize = 11,
+                Foreground = themeFg,
+                TextWrapping = System.Windows.TextWrapping.Wrap,
+                Margin = new System.Windows.Thickness(0, 10, 0, 0),
+                Opacity = 0.8
+            };
+            stackPanel.Children.Add(noteLabel);
+
+            System.Windows.Controls.Grid.SetRow(stackPanel, 0);
+            grid.Children.Add(stackPanel);
+
+            // Button panel
+            var buttonPanel = new System.Windows.Controls.StackPanel
+            {
+                Orientation = System.Windows.Controls.Orientation.Horizontal,
+                HorizontalAlignment = System.Windows.HorizontalAlignment.Right
+            };
+            System.Windows.Controls.Grid.SetRow(buttonPanel, 1);
+
+            var okButton = new System.Windows.Controls.Button
+            {
+                Content = "OK",
+                Width = 75,
+                Height = 25,
+                Margin = new System.Windows.Thickness(0, 0, 8, 0),
+                IsDefault = true,
+                Background = themeBg,
+                Foreground = themeFg
+            };
+            okButton.Click += (s, okArgs) => window.DialogResult = true;
+            buttonPanel.Children.Add(okButton);
+
+            var cancelButton = new System.Windows.Controls.Button
+            {
+                Content = "Cancel",
+                Width = 75,
+                Height = 25,
+                IsCancel = true,
+                Background = themeBg,
+                Foreground = themeFg
+            };
+            cancelButton.Click += (s, cancelArgs) => window.DialogResult = false;
+            buttonPanel.Children.Add(cancelButton);
+
+            grid.Children.Add(buttonPanel);
+            window.Content = grid;
+
+            if (window.ShowDialog() == true)
+            {
+                TerminalType selectedType = wtRadio.IsChecked == true ? TerminalType.WindowsTerminal : TerminalType.CommandPrompt;
+
+                // If Windows Terminal selected, check if it's available
+                if (selectedType == TerminalType.WindowsTerminal)
+                {
+                    bool wtAvailable = ThreadHelper.JoinableTaskFactory.Run(async () => await IsWindowsTerminalAvailableAsync());
+                    if (!wtAvailable)
+                    {
+                        MessageBox.Show(
+                            "Windows Terminal (wt.exe) was not found in PATH.\n\n" +
+                            "You can install it from:\n" +
+                            "• Microsoft Store: https://aka.ms/terminal\n" +
+                            "• GitHub: https://github.com/microsoft/terminal/releases\n\n" +
+                            "If installing from GitHub, add the installation folder\n" +
+                            "containing wt.exe to your system PATH environment variable.\n\n" +
+                            "After installing, restart Visual Studio and try again.\n\n" +
+                            "(Press Ctrl+C to copy this message)",
+                            "Windows Terminal Not Found",
+                            MessageBoxButton.OK,
+                            MessageBoxImage.Information);
+                        return;
+                    }
+                }
+
+                if (selectedType != currentType)
+                {
+                    _settings.SelectedTerminalType = selectedType;
+                    SaveSettings();
+
+                    // Restart terminal to apply new terminal type
+                    ThreadHelper.JoinableTaskFactory.Run(async delegate
+                    {
+                        try
+                        {
+                            await RestartTerminalWithSelectedProviderAsync();
+                        }
+                        catch (Exception ex)
+                        {
+                            Debug.WriteLine($"Error restarting terminal after terminal type change: {ex.Message}");
+                            await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
+                            MessageBox.Show($"Failed to restart terminal: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                        }
+                    });
+                }
+            }
+        }
+
+        /// <summary>
         /// Handles About menu item click - displays extension information
         /// </summary>
         private void AboutMenuItem_Click(object sender, RoutedEventArgs e)
@@ -1683,7 +1917,7 @@ For more details, visit: https://opencode.ai";
         #region Config Menu Handlers
 
         /// <summary>
-        /// Handles Show Usage menu item click - sends /config and selects usage option
+        /// Handles Show Usage menu item click - sends /usage command directly
         /// </summary>
         private void ShowUsageMenuItem_Click(object sender, RoutedEventArgs e)
         {
@@ -1696,24 +1930,7 @@ For more details, visit: https://opencode.ai";
                 if (_currentRunningProvider == AiProvider.ClaudeCode ||
                     _currentRunningProvider == AiProvider.ClaudeCodeWSL)
                 {
-                    await SendTextToTerminalAsync("/config");
-                    await Task.Delay(1500);
-
-                    // Focus terminal and use keybd_event (PostMessage doesn't work for Tab in conhost)
-                    SetForegroundWindow(terminalHandle);
-                    SetFocus(terminalHandle);
-                    await Task.Delay(100);
-
-                    // /config opens on the Config tab, press Up arrow to navigate to tab selection
-                    keybd_event((byte)VK_UP, 0, 0, UIntPtr.Zero);
-                    await Task.Delay(50);
-                    keybd_event((byte)VK_UP, 0, KEYEVENTF_KEYUP, UIntPtr.Zero);
-                    await Task.Delay(300);
-
-                    // Press Tab to navigate from Config to Usage tab
-                    keybd_event((byte)VK_TAB, 0, 0, UIntPtr.Zero);
-                    await Task.Delay(50);
-                    keybd_event((byte)VK_TAB, 0, KEYEVENTF_KEYUP, UIntPtr.Zero);
+                    await SendTextToTerminalAsync("/usage");
                 }
             });
         }
@@ -1839,6 +2056,10 @@ For more details, visit: https://opencode.ai";
                 {
                     SetWorkingDirectoryMenuItem.Header = "Set Working Directory...";
                 }
+
+                // Update terminal type menu item to show current selection
+                string terminalTypeName = _settings.SelectedTerminalType == TerminalType.WindowsTerminal ? "Windows Terminal" : "Command Prompt";
+                SetTerminalTypeMenuItem.Header = $"Set Terminal Type... ({terminalTypeName})";
             }
         }
 

@@ -50,6 +50,22 @@ namespace ClaudeCodeVS
     }
 
     /// <summary>
+    /// Terminal emulator type for the embedded terminal
+    /// </summary>
+    public enum TerminalType
+    {
+        /// <summary>
+        /// Windows built-in Command Prompt (conhost.exe)
+        /// </summary>
+        CommandPrompt,
+
+        /// <summary>
+        /// Windows Terminal (modern terminal with better emoji/unicode support)
+        /// </summary>
+        WindowsTerminal
+    }
+
+    /// <summary>
     /// Represents a single prompt history entry with optional file attachments
     /// </summary>
     public class PromptHistoryEntry
@@ -70,6 +86,13 @@ namespace ClaudeCodeVS
     /// </summary>
     public class ClaudeCodeSettings
     {
+        /// <summary>
+        /// Captures any unknown JSON properties so that older DLL versions
+        /// do not silently discard settings added by newer versions.
+        /// </summary>
+        [Newtonsoft.Json.JsonExtensionData]
+        public System.Collections.Generic.IDictionary<string, Newtonsoft.Json.Linq.JToken> AdditionalData { get; set; }
+
         /// <summary>
         /// If true, Enter key sends the prompt (Shift+Enter for newline)
         /// If false, Enter key creates newline (button click sends prompt)
@@ -125,5 +148,11 @@ namespace ClaudeCodeVS
         /// When empty or null, the default solution/project directory is used.
         /// </summary>
         public string CustomWorkingDirectory { get; set; } = "";
+
+        /// <summary>
+        /// Terminal emulator to use (Command Prompt or Windows Terminal)
+        /// Defaults to Command Prompt for compatibility
+        /// </summary>
+        public TerminalType SelectedTerminalType { get; set; } = TerminalType.CommandPrompt;
     }
 }

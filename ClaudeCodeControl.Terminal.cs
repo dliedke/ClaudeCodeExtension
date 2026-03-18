@@ -18,6 +18,7 @@ using System.Runtime.InteropServices;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
+using System.Windows.Input;
 using Microsoft.VisualStudio.Shell;
 
 namespace ClaudeCodeVS
@@ -45,6 +46,16 @@ namespace ClaudeCodeVS
         /// Tracks the currently running AI provider (before any new selection)
         /// </summary>
         private AiProvider? _currentRunningProvider = null;
+
+        /// <summary>
+        /// Height of the Windows Terminal tab bar in pixels (0 for Command Prompt mode)
+        /// </summary>
+        private int _wtTabBarHeight = 0;
+
+        /// <summary>
+        /// Full resolved path to wt.exe (set by IsWindowsTerminalAvailableAsync)
+        /// </summary>
+        private string _wtExePath = null;
 
         #endregion
 
@@ -130,6 +141,9 @@ namespace ClaudeCodeVS
                 }
 
                 terminalPanel.Resize += (s, e) => ResizeEmbeddedTerminal();
+
+                // Forward Ctrl+Scroll to the embedded terminal for zoom in/out
+                TerminalHost.PreviewMouseWheel += TerminalHost_PreviewMouseWheel;
 
                 // Wait for panel to be properly sized (not just created) - reduced timeout
                 int maxWaitMs = 2000; // Reduced from 5 seconds to 2 seconds
@@ -343,191 +357,342 @@ namespace ClaudeCodeVS
 
                 // Reset terminal handle when restarting
                 terminalHandle = IntPtr.Zero;
+                _wtTabBarHeight = 0;
 
-                // Build the terminal command based on provider
-                // Use chcp 65001 to enable UTF-8 for proper Unicode/special character rendering
-                // Use cls to clear initial Windows banner for clean appearance
-                string terminalCommand;
-                switch (provider)
+                // Check if we should use Windows Terminal instead of Command Prompt
+                bool useWindowsTerminal = _settings?.SelectedTerminalType == TerminalType.WindowsTerminal;
+
+                if (useWindowsTerminal)
                 {
-                    case AiProvider.CursorAgentNative:
-                        string cursorAgentCommand = GetCursorAgentCommand();
-                        terminalCommand = $"/k chcp 65001 >nul && cd /d \"{workspaceDir}\" && ping localhost -n 3 >nul && cls && {cursorAgentCommand}";
-                        break;
-
-                    case AiProvider.CursorAgent:
-                        string wslPathCursor = ConvertToWslPath(workspaceDir);
-                        terminalCommand = $"/k chcp 65001 >nul && cls && wsl bash -ic \"cd '{wslPathCursor}' && cursor-agent\"";
-                        break;
-
-                    case AiProvider.CodexNative:
-                        string codexCommand = GetCodexCommand();
-                        terminalCommand = $"/k chcp 65001 >nul && cd /d \"{workspaceDir}\" && ping localhost -n 3 >nul && cls && {codexCommand}";
-                        break;
-
-                    case AiProvider.Codex:
-                        string wslPathCodex = ConvertToWslPath(workspaceDir);
-                        string codexWslCommand = GetCodexCommand(isWsl: true);
-                        terminalCommand = $"/k chcp 65001 >nul && cls && wsl bash -ic \"cd '{wslPathCodex}' && {codexWslCommand}\"";
-                        break;
-
-                    case AiProvider.ClaudeCodeWSL:
-                        string wslPathClaude = ConvertToWslPath(workspaceDir);
-                        string claudeWslCommand = GetClaudeCommand(isWsl: true);
-                        terminalCommand = $"/k chcp 65001 >nul && cls && wsl bash -ic \"cd '{wslPathClaude}' && {claudeWslCommand}\"";
-                        break;
-
-                    case AiProvider.ClaudeCode:
-                        string claudeCommand = GetClaudeCommand();
-                        terminalCommand = $"/k chcp 65001 >nul && cd /d \"{workspaceDir}\" && ping localhost -n 3 >nul && cls && {claudeCommand}";
-                        break;
-
-                    case AiProvider.QwenCode:
-                        terminalCommand = $"/k chcp 65001 >nul && cd /d \"{workspaceDir}\" && ping localhost -n 3 >nul && cls && qwen";
-                        break;
-
-                    case AiProvider.OpenCode:
-                        terminalCommand = $"/k chcp 65001 >nul && cd /d \"{workspaceDir}\" && ping localhost -n 3 >nul && cls && opencode";
-                        break;
-
-                    default: // null or any other value = regular CMD
-                        terminalCommand = $"/k chcp 65001 >nul && cd /d \"{workspaceDir}\"";
-                        break;
-                }
-
-                // Configure and start the process.
-                // Use conhost.exe explicitly to bypass Windows Terminal delegation.
-                // When Windows Terminal (or "Let Windows Decide") is the default terminal,
-                // launching cmd.exe directly causes WT to intercept and host it in a WT window,
-                // which cannot be re-parented via SetParent. Launching conhost.exe directly bypasses
-                // delegation and always creates a traditional re-parentable Win32 console window.
-                var startInfo = new ProcessStartInfo
-                {
-                    FileName = "conhost.exe",
-                    Arguments = "-- cmd.exe " + terminalCommand,
-                    UseShellExecute = false,
-                    CreateNoWindow = false,
-                    WindowStyle = ProcessWindowStyle.Minimized,
-                    WorkingDirectory = workspaceDir
-                };
-
-                // Refresh PATH from registry so the terminal has the latest user/system PATH
-                // Visual Studio may have a stale PATH missing entries added after VS was launched
-                string freshPath = GetFreshPathFromRegistry();
-                if (!string.IsNullOrEmpty(freshPath))
-                {
-                    startInfo.EnvironmentVariables["PATH"] = freshPath;
-                }
-
-                // Enable Virtual Terminal Processing for ANSI/VT escape sequence support
-                // This allows conhost to properly render colors, Unicode box-drawing chars, and styling
-                startInfo.EnvironmentVariables["VIRTUAL_TERMINAL_LEVEL"] = "1";
-
-                // Temporarily set console font to Cascadia Mono in the registry.
-                // Conhost reads HKCU\Console at creation time, so we set the font before
-                // starting the process and restore the original value after conhost has started.
-                SaveAndSetConsoleFontRegistry();
-
-                await Task.Run(() =>
-                {
-                    try
+                    // Windows Terminal mode: launch wt.exe with embedded cmd.exe
+                    // Build the command for cmd.exe that will run inside WT
+                    string cmdCommand;
+                    switch (provider)
                     {
-                        cmdProcess = new Process { StartInfo = startInfo };
-                        cmdProcess.Start();
-                    }
-                    catch (Exception ex)
-                    {
-                        Debug.WriteLine($"Error starting process: {ex.Message}");
-                        throw;
-                    }
-                });
+                        case AiProvider.CursorAgentNative:
+                            string cursorAgentCommand = GetCursorAgentCommand();
+                            cmdCommand = $"/k chcp 65001 >nul && cd /d \"{workspaceDir}\" && ping localhost -n 3 >nul && cls && {cursorAgentCommand}";
+                            break;
 
-                if (cmdProcess == null)
-                {
-                    throw new InvalidOperationException("Failed to create terminal process");
-                }
+                        case AiProvider.CursorAgent:
+                            string wslPathCursor = ConvertToWslPath(workspaceDir);
+                            cmdCommand = $"/k chcp 65001 >nul && cls && wsl bash -ic \"cd '{wslPathCursor}' && cursor-agent\"";
+                            break;
 
-                // Find and embed the terminal window.
-                // Use the conhost-aware finder because GetWindowThreadProcessId returns the console
-                // application's PID (cmd.exe), not conhost's PID, due to Windows backward compatibility.
-                var hwnd = await FindMainWindowHandleByConhostAsync(cmdProcess.Id, timeoutMs: 5000, pollIntervalMs: 50);
+                        case AiProvider.CodexNative:
+                            string codexCommand = GetCodexCommand();
+                            cmdCommand = $"/k chcp 65001 >nul && cd /d \"{workspaceDir}\" && ping localhost -n 3 >nul && cls && {codexCommand}";
+                            break;
 
-                // Restore original console font in registry now that conhost has read its settings
-                RestoreConsoleFontRegistry();
+                        case AiProvider.Codex:
+                            string wslPathCodex = ConvertToWslPath(workspaceDir);
+                            string codexWslCommand = GetCodexCommand(isWsl: true);
+                            cmdCommand = $"/k chcp 65001 >nul && cls && wsl bash -ic \"cd '{wslPathCodex}' && {codexWslCommand}\"";
+                            break;
 
-                terminalHandle = hwnd;
+                        case AiProvider.ClaudeCodeWSL:
+                            string wslPathClaude = ConvertToWslPath(workspaceDir);
+                            string claudeWslCommand = GetClaudeCommand(isWsl: true);
+                            cmdCommand = $"/k chcp 65001 >nul && cls && wsl bash -ic \"cd '{wslPathClaude}' && {claudeWslCommand}\"";
+                            break;
 
-                await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
+                        case AiProvider.ClaudeCode:
+                            string claudeCommand = GetClaudeCommand();
+                            cmdCommand = $"/k chcp 65001 >nul && cd /d \"{workspaceDir}\" && ping localhost -n 3 >nul && cls && {claudeCommand}";
+                            break;
 
-                if (terminalHandle != IntPtr.Zero && IsWindow(terminalHandle))
-                {
-                    if (terminalPanel?.Handle == null || terminalPanel.Handle == IntPtr.Zero)
-                    {
-                        return;
+                        case AiProvider.QwenCode:
+                            cmdCommand = $"/k chcp 65001 >nul && cd /d \"{workspaceDir}\" && ping localhost -n 3 >nul && cls && qwen";
+                            break;
+
+                        case AiProvider.OpenCode:
+                            cmdCommand = $"/k chcp 65001 >nul && cd /d \"{workspaceDir}\" && ping localhost -n 3 >nul && cls && opencode";
+                            break;
+
+                        default: // null or any other value = regular CMD
+                            cmdCommand = $"/k chcp 65001 >nul && cd /d \"{workspaceDir}\"";
+                            break;
                     }
 
-                    try
+                    // Snapshot existing WT windows before launching a new one
+                    var existingWtWindows = SnapshotExistingWtWindows();
+
+                    // Resolve wt.exe path if not already cached
+                    if (string.IsNullOrEmpty(_wtExePath))
                     {
-                        // Hide the window immediately to prevent blinking
-                        ShowWindow(terminalHandle, SW_HIDE);
+                        await IsWindowsTerminalAvailableAsync();
+                    }
+                    string wtFileName = !string.IsNullOrEmpty(_wtExePath) ? _wtExePath : "wt.exe";
 
-                        // Embed the window
-                        SetParent(terminalHandle, terminalPanel.Handle);
+                    // Start Windows Terminal with embedded cmd.exe
+                    var wtStartInfo = new ProcessStartInfo
+                    {
+                        FileName = wtFileName,
+                        Arguments = $"--window new -- cmd.exe {cmdCommand}",
+                        UseShellExecute = false,
+                        CreateNoWindow = false,
+                        WindowStyle = ProcessWindowStyle.Hidden,
+                        WorkingDirectory = workspaceDir
+                    };
 
-                        // Remove window decorations
-                        SetWindowLong(terminalHandle, GWL_STYLE,
-                            GetWindowLong(terminalHandle, GWL_STYLE) & ~(WS_CAPTION | WS_THICKFRAME | WS_MINIMIZE | WS_MAXIMIZE | WS_SYSMENU));
+                    // Refresh PATH from registry
+                    string freshPath = GetFreshPathFromRegistry();
+                    if (!string.IsNullOrEmpty(freshPath))
+                    {
+                        wtStartInfo.EnvironmentVariables["PATH"] = freshPath;
+                    }
 
-                        // Now show it in the embedded context
-                        ShowWindow(terminalHandle, SW_SHOW);
-                        ResizeEmbeddedTerminal();
-
-                        // Track the currently running provider
-                        _currentRunningProvider = provider;
-
-                        string providerTitle;
-                        switch (provider)
+                    await Task.Run(() =>
+                    {
+                        try
                         {
-                            case AiProvider.CursorAgentNative:
-                                providerTitle = "Cursor Agent";
-                                break;
-                            case AiProvider.CursorAgent:
-                                providerTitle = "Cursor Agent";
-                                break;
-                            case AiProvider.CodexNative:
-                                providerTitle = "Codex";
-                                break;
-                            case AiProvider.Codex:
-                                providerTitle = "Codex";
-                                break;
-                            case AiProvider.ClaudeCodeWSL:
-                                providerTitle = "Claude Code";
-                                break;
-                            case AiProvider.ClaudeCode:
-                                providerTitle = "Claude Code";
-                                break;
-                            case AiProvider.QwenCode:
-                                providerTitle = "Qwen Code";
-                                break;
-                            case AiProvider.OpenCode:
-                                providerTitle = "Open Code";
-                                break;
-                            default:
-                                providerTitle = "CMD";
-                                break;
+                            cmdProcess = new Process { StartInfo = wtStartInfo };
+                            cmdProcess.Start();
+                        }
+                        catch (Exception ex)
+                        {
+                            Debug.WriteLine($"Error starting Windows Terminal process: {ex.Message}");
+                            throw;
+                        }
+                    });
+
+                    if (cmdProcess == null)
+                    {
+                        throw new InvalidOperationException("Failed to create Windows Terminal process");
+                    }
+
+                    // Find the new WT window (not in the existing snapshot)
+                    var hwnd = await FindNewWtWindowAsync(existingWtWindows, timeoutMs: 15000);
+                    terminalHandle = hwnd;
+
+                    await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
+
+                    if (terminalHandle != IntPtr.Zero && IsWindow(terminalHandle))
+                    {
+                        if (terminalPanel?.Handle == null || terminalPanel.Handle == IntPtr.Zero)
+                        {
+                            return;
                         }
 
-                        UpdateToolWindowTitle(providerTitle);
+                        try
+                        {
+                            // Hide the window immediately to prevent blinking
+                            ShowWindow(terminalHandle, SW_HIDE);
+
+                            // Embed the window
+                            SetParent(terminalHandle, terminalPanel.Handle);
+
+                            // Remove window decorations (WT windows have minimal decorations by default)
+                            SetWindowLong(terminalHandle, GWL_STYLE,
+                                GetWindowLong(terminalHandle, GWL_STYLE) & ~(WS_CAPTION | WS_THICKFRAME | WS_MINIMIZE | WS_MAXIMIZE | WS_SYSMENU));
+
+                            // Calculate tab bar height
+                            _wtTabBarHeight = GetWtTabBarHeight();
+
+                            // Show and resize
+                            ShowWindow(terminalHandle, SW_SHOW);
+                            ResizeEmbeddedTerminal();
+
+                            // Retry resize after a short delay to ensure it takes effect
+                            await Task.Delay(500);
+                            ResizeEmbeddedTerminal();
+
+                            // Apply zoom out for Windows Terminal for better visibility
+                            await Task.Delay(300);
+                            await ApplyWindowsTerminalZoomOutAsync();
+
+                            // Track the currently running provider
+                            _currentRunningProvider = provider;
+                        }
+                        catch (Exception ex)
+                        {
+                            Debug.WriteLine($"Error embedding Windows Terminal: {ex.Message}");
+                            throw;
+                        }
                     }
-                    catch (Exception ex)
+                    else
                     {
-                        Debug.WriteLine($"Error embedding terminal window: {ex.Message}");
-                        throw;
+                        throw new InvalidOperationException("Failed to find Windows Terminal window");
                     }
                 }
                 else
                 {
-                    Debug.WriteLine("Could not find CMD window to embed. Terminal may not be available.");
+                    // Command Prompt mode (original code path)
+                    _wtTabBarHeight = 0;
+
+                    // Build the terminal command based on provider
+                    string terminalCommand;
+                    switch (provider)
+                    {
+                        case AiProvider.CursorAgentNative:
+                            string cursorAgentCommand = GetCursorAgentCommand();
+                            terminalCommand = $"/k chcp 65001 >nul && cd /d \"{workspaceDir}\" && ping localhost -n 3 >nul && cls && {cursorAgentCommand}";
+                            break;
+
+                        case AiProvider.CursorAgent:
+                            string wslPathCursor = ConvertToWslPath(workspaceDir);
+                            terminalCommand = $"/k chcp 65001 >nul && cls && wsl bash -ic \"cd '{wslPathCursor}' && cursor-agent\"";
+                            break;
+
+                        case AiProvider.CodexNative:
+                            string codexCommand = GetCodexCommand();
+                            terminalCommand = $"/k chcp 65001 >nul && cd /d \"{workspaceDir}\" && ping localhost -n 3 >nul && cls && {codexCommand}";
+                            break;
+
+                        case AiProvider.Codex:
+                            string wslPathCodex = ConvertToWslPath(workspaceDir);
+                            string codexWslCommand = GetCodexCommand(isWsl: true);
+                            terminalCommand = $"/k chcp 65001 >nul && cls && wsl bash -ic \"cd '{wslPathCodex}' && {codexWslCommand}\"";
+                            break;
+
+                        case AiProvider.ClaudeCodeWSL:
+                            string wslPathClaude = ConvertToWslPath(workspaceDir);
+                            string claudeWslCommand = GetClaudeCommand(isWsl: true);
+                            terminalCommand = $"/k chcp 65001 >nul && cls && wsl bash -ic \"cd '{wslPathClaude}' && {claudeWslCommand}\"";
+                            break;
+
+                        case AiProvider.ClaudeCode:
+                            string claudeCommand = GetClaudeCommand();
+                            terminalCommand = $"/k chcp 65001 >nul && cd /d \"{workspaceDir}\" && ping localhost -n 3 >nul && cls && {claudeCommand}";
+                            break;
+
+                        case AiProvider.QwenCode:
+                            terminalCommand = $"/k chcp 65001 >nul && cd /d \"{workspaceDir}\" && ping localhost -n 3 >nul && cls && qwen";
+                            break;
+
+                        case AiProvider.OpenCode:
+                            terminalCommand = $"/k chcp 65001 >nul && cd /d \"{workspaceDir}\" && ping localhost -n 3 >nul && cls && opencode";
+                            break;
+
+                        default: // null or any other value = regular CMD
+                            terminalCommand = $"/k chcp 65001 >nul && cd /d \"{workspaceDir}\"";
+                            break;
+                    }
+
+                    // Configure and start the process.
+                    // Use conhost.exe explicitly to bypass Windows Terminal delegation.
+                    var startInfo = new ProcessStartInfo
+                    {
+                        FileName = "conhost.exe",
+                        Arguments = "-- cmd.exe " + terminalCommand,
+                        UseShellExecute = false,
+                        CreateNoWindow = false,
+                        WindowStyle = ProcessWindowStyle.Minimized,
+                        WorkingDirectory = workspaceDir
+                    };
+
+                    // Refresh PATH from registry
+                    string freshPath = GetFreshPathFromRegistry();
+                    if (!string.IsNullOrEmpty(freshPath))
+                    {
+                        startInfo.EnvironmentVariables["PATH"] = freshPath;
+                    }
+
+                    // Enable Virtual Terminal Processing
+                    startInfo.EnvironmentVariables["VIRTUAL_TERMINAL_LEVEL"] = "1";
+
+                    // Temporarily set console font
+                    SaveAndSetConsoleFontRegistry();
+
+                    await Task.Run(() =>
+                    {
+                        try
+                        {
+                            cmdProcess = new Process { StartInfo = startInfo };
+                            cmdProcess.Start();
+                        }
+                        catch (Exception ex)
+                        {
+                            Debug.WriteLine($"Error starting process: {ex.Message}");
+                            throw;
+                        }
+                    });
+
+                    if (cmdProcess == null)
+                    {
+                        throw new InvalidOperationException("Failed to create terminal process");
+                    }
+
+                    // Find and embed the terminal window
+                    var hwnd = await FindMainWindowHandleByConhostAsync(cmdProcess.Id, timeoutMs: 5000, pollIntervalMs: 50);
+
+                    // Restore original console font
+                    RestoreConsoleFontRegistry();
+
+                    terminalHandle = hwnd;
+
+                    await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
+
+                    if (terminalHandle != IntPtr.Zero && IsWindow(terminalHandle))
+                    {
+                        if (terminalPanel?.Handle == null || terminalPanel.Handle == IntPtr.Zero)
+                        {
+                            return;
+                        }
+
+                        try
+                        {
+                            // Hide the window immediately to prevent blinking
+                            ShowWindow(terminalHandle, SW_HIDE);
+
+                            // Embed the window
+                            SetParent(terminalHandle, terminalPanel.Handle);
+
+                            // Remove window decorations
+                            SetWindowLong(terminalHandle, GWL_STYLE,
+                                GetWindowLong(terminalHandle, GWL_STYLE) & ~(WS_CAPTION | WS_THICKFRAME | WS_MINIMIZE | WS_MAXIMIZE | WS_SYSMENU));
+
+                            // Now show it in the embedded context
+                            ShowWindow(terminalHandle, SW_SHOW);
+                            ResizeEmbeddedTerminal();
+
+                            // Track the currently running provider
+                            _currentRunningProvider = provider;
+
+                            string providerTitle;
+                            switch (provider)
+                            {
+                                case AiProvider.CursorAgentNative:
+                                    providerTitle = "Cursor Agent";
+                                    break;
+                                case AiProvider.CursorAgent:
+                                    providerTitle = "Cursor Agent";
+                                    break;
+                                case AiProvider.CodexNative:
+                                    providerTitle = "Codex";
+                                    break;
+                                case AiProvider.Codex:
+                                    providerTitle = "Codex";
+                                    break;
+                                case AiProvider.ClaudeCodeWSL:
+                                    providerTitle = "Claude Code";
+                                    break;
+                                case AiProvider.ClaudeCode:
+                                    providerTitle = "Claude Code";
+                                    break;
+                                case AiProvider.QwenCode:
+                                    providerTitle = "Qwen Code";
+                                    break;
+                                case AiProvider.OpenCode:
+                                    providerTitle = "Open Code";
+                                    break;
+                                default:
+                                    providerTitle = "CMD";
+                                    break;
+                            }
+
+                            UpdateToolWindowTitle(providerTitle);
+                        }
+                        catch (Exception ex)
+                        {
+                            Debug.WriteLine($"Error embedding terminal window: {ex.Message}");
+                            throw;
+                        }
+                    }
+                    else
+                    {
+                        Debug.WriteLine("Could not find CMD window to embed. Terminal may not be available.");
+                    }
                 }
             }
             catch (Exception ex)
@@ -619,15 +784,170 @@ namespace ClaudeCodeVS
         #region Terminal Window Management
 
         /// <summary>
+        /// Takes a snapshot of all existing Windows Terminal windows before launching a new one
+        /// </summary>
+        /// <returns>A set of window handles that exist at snapshot time</returns>
+        private System.Collections.Generic.HashSet<IntPtr> SnapshotExistingWtWindows()
+        {
+            var existing = new System.Collections.Generic.HashSet<IntPtr>();
+
+            EnumWindows((hWnd, lParam) =>
+            {
+                // Look for Windows Terminal window class: "CASCADIA_HOSTING_WINDOW_CLASS"
+                System.Text.StringBuilder className = new System.Text.StringBuilder(256);
+                GetClassName(hWnd, className, className.Capacity);
+
+                if (className.ToString() == "CASCADIA_HOSTING_WINDOW_CLASS" && IsWindowVisible(hWnd))
+                {
+                    existing.Add(hWnd);
+                }
+
+                return true;
+            }, IntPtr.Zero);
+
+            return existing;
+        }
+
+        /// <summary>
+        /// Finds a new Windows Terminal window that wasn't in the existing set (with timeout)
+        /// </summary>
+        private async Task<IntPtr> FindNewWtWindowAsync(System.Collections.Generic.HashSet<IntPtr> existingWindows, int timeoutMs)
+        {
+            var sw = Stopwatch.StartNew();
+            while (sw.ElapsedMilliseconds < timeoutMs)
+            {
+                IntPtr found = IntPtr.Zero;
+
+                EnumWindows((hWnd, lParam) =>
+                {
+                    if (existingWindows.Contains(hWnd))
+                    {
+                        return true;
+                    }
+
+                    System.Text.StringBuilder className = new System.Text.StringBuilder(256);
+                    GetClassName(hWnd, className, className.Capacity);
+
+                    if (className.ToString() == "CASCADIA_HOSTING_WINDOW_CLASS" && IsWindowVisible(hWnd))
+                    {
+                        found = hWnd;
+                        return false; // Stop enumeration
+                    }
+
+                    return true;
+                }, IntPtr.Zero);
+
+                if (found != IntPtr.Zero)
+                {
+                    return found;
+                }
+
+                await Task.Delay(50);
+            }
+
+            return IntPtr.Zero;
+        }
+
+        /// <summary>
+        /// Applies zoom out to Windows Terminal for better visibility
+        /// Sends Ctrl+Minus multiple times to zoom out significantly
+        /// </summary>
+        private async Task ApplyWindowsTerminalZoomOutAsync()
+        {
+            if (_wtTabBarHeight > 0 && terminalHandle != IntPtr.Zero && IsWindow(terminalHandle))
+            {
+                try
+                {
+                    // Set focus to terminal
+                    SetForegroundWindow(terminalHandle);
+                    SetFocus(terminalHandle);
+                    await Task.Delay(100);
+
+                    // Send Ctrl+Minus 3 times to zoom out for better visibility
+                    for (int i = 0; i < 3; i++)
+                    {
+                        // Send Ctrl+Minus
+                        keybd_event(VK_CONTROL, 0, 0, UIntPtr.Zero);
+                        await Task.Delay(50);
+                        keybd_event(0xBD, 0, 0, UIntPtr.Zero); // VK_MINUS (0xBD)
+                        await Task.Delay(50);
+                        keybd_event(0xBD, 0, KEYEVENTF_KEYUP, UIntPtr.Zero);
+                        await Task.Delay(50);
+                        keybd_event(VK_CONTROL, 0, KEYEVENTF_KEYUP, UIntPtr.Zero);
+                        await Task.Delay(100);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    System.Diagnostics.Debug.WriteLine($"Error applying zoom to Windows Terminal: {ex.Message}");
+                }
+            }
+        }
+
+        /// <summary>
+        /// Calculates the Windows Terminal tab bar height scaled by DPI
+        /// </summary>
+        private int GetWtTabBarHeight()
+        {
+            if (terminalHandle == IntPtr.Zero)
+            {
+                return 0;
+            }
+
+            uint dpi = GetDpiForWindow(terminalHandle);
+            if (dpi == 0)
+            {
+                dpi = 96;
+            }
+
+            // Tab bar is approximately 48 pixels at 96 DPI, scale by actual DPI
+            return (int)(48 * dpi / 96.0);
+        }
+
+        /// <summary>
+        /// Forwards Ctrl+MouseWheel to the embedded terminal for zoom in/out
+        /// </summary>
+        private void TerminalHost_PreviewMouseWheel(object sender, MouseWheelEventArgs e)
+        {
+            if (Keyboard.Modifiers == ModifierKeys.Control &&
+                terminalHandle != IntPtr.Zero && IsWindow(terminalHandle))
+            {
+                // Build WM_MOUSEWHEEL wParam: HIWORD = wheel delta, LOWORD = MK_CONTROL (0x0008)
+                int wParam = (e.Delta << 16) | 0x0008;
+
+                // Build lParam: screen coordinates of the cursor
+                var position = e.GetPosition(TerminalHost);
+                var screenPoint = TerminalHost.PointToScreen(position);
+                int lParam = ((int)screenPoint.Y << 16) | ((int)screenPoint.X & 0xFFFF);
+
+                SendMessage(terminalHandle, WM_MOUSEWHEEL, (IntPtr)wParam, (IntPtr)lParam);
+                e.Handled = true;
+            }
+        }
+
+        /// <summary>
         /// Resizes the embedded terminal window to match the panel size
+        /// For Windows Terminal, hides the tab bar by positioning it off-screen
         /// </summary>
         private void ResizeEmbeddedTerminal()
         {
             if (terminalHandle != IntPtr.Zero && IsWindow(terminalHandle) && terminalPanel != null)
             {
-                SetWindowPos(terminalHandle, IntPtr.Zero, 0, 0,
-                            terminalPanel.Width, terminalPanel.Height,
-                            SWP_NOZORDER | SWP_NOACTIVATE);
+                if (_wtTabBarHeight > 0)
+                {
+                    // Windows Terminal: hide tab bar by positioning it above the visible area
+                    // Set height to panel height + tab bar (so tab bar goes off-screen above)
+                    SetWindowPos(terminalHandle, IntPtr.Zero,
+                                0, -_wtTabBarHeight, terminalPanel.Width, terminalPanel.Height + _wtTabBarHeight,
+                                SWP_NOZORDER | SWP_NOACTIVATE);
+                }
+                else
+                {
+                    // Command Prompt: use panel dimensions directly
+                    SetWindowPos(terminalHandle, IntPtr.Zero, 0, 0,
+                                terminalPanel.Width, terminalPanel.Height,
+                                SWP_NOZORDER | SWP_NOACTIVATE);
+                }
             }
         }
 

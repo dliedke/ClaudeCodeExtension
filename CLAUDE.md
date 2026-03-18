@@ -7,7 +7,7 @@ This is a **Visual Studio Extension (VSIX)** for Visual Studio 2022/2026 that pr
 - **Author**: Daniel Carvalho Liedke (dliedke@gmail.com)
 - **License**: MIT
 - **Repository**: https://github.com/dliedke/ClaudeCodeExtension
-- **Current Version**: 7.6
+- **Current Version**: 7.8
 - **Target Framework**: .NET Framework 4.7.2
 
 ---
@@ -142,16 +142,19 @@ The main UI control is split across 12 partial class files. All share the same `
 
 Manages the embedded cmd.exe/wsl.exe terminal via Win32 interop.
 
-- **Key fields**: `terminalPanel` (WinForms Panel host), `cmdProcess` (Process), `terminalHandle` (IntPtr), `_currentRunningProvider`
+- **Key fields**: `terminalPanel` (WinForms Panel host), `cmdProcess` (Process), `terminalHandle` (IntPtr), `_currentRunningProvider`, `_wtExePath` (resolved full path to wt.exe), `_wtTabBarHeight` (WT tab bar pixel height, 0 for CMD)
 - **`StartEmbeddedTerminalAsync()`**: Core startup method
   - Kills existing process gracefully (exit command or CTRL+C depending on provider)
   - Builds provider-specific command strings
+  - Supports two terminal modes: **Command Prompt** (conhost.exe) and **Windows Terminal** (wt.exe), selected via `_settings.SelectedTerminalType`
+  - For Windows Terminal: resolves `_wtExePath` via `IsWindowsTerminalAvailableAsync()`, launches `wt.exe --window new`, finds the new `CASCADIA_HOSTING_WINDOW_CLASS` window, embeds it, calculates tab bar height for positioning, applies zoom out (Ctrl+Minus × 3)
   - Uses `GetFreshPathFromRegistry()` to refresh PATH for detecting newly installed tools
   - Sets `VIRTUAL_TERMINAL_LEVEL=1` env var to enable ANSI/VT escape sequence rendering in conhost
   - Sets console font to "Cascadia Mono" via registry (`HKCU\Console\FaceName`) before starting conhost, restores original after
   - Hides window immediately via `SW_HIDE` to prevent blinking
   - Embeds into panel using `SetParent()`, strips window decorations (`WS_CAPTION`, `WS_THICKFRAME`, etc.)
   - Updates `_currentRunningProvider` tracking
+- **`ApplyWindowsTerminalZoomOutAsync()`**: Sends Ctrl+Minus 3 times via `keybd_event` after WT embed for better visibility
 
 **Terminal command patterns**:
 ```
@@ -176,9 +179,13 @@ Detects and validates availability of all 8 AI providers.
 
 - **Caching**: `_providerCache` Dictionary with 5-minute TTL (`ProviderCacheExpiry = 300000ms`)
 - **Detection methods**: All use `cmd.exe /c where {command}` (Windows) or `wsl bash -ic "which {command}"` (WSL)
+- **Windows Terminal detection**: `IsWindowsTerminalAvailableAsync()` uses `where wt.exe` with fresh PATH from registry; stores resolved full path in `_wtExePath` for reliable launch
 - **WSL retry logic**: `IsClaudeCodeWSLAvailableAsync()` retries 2 times with 3s/5s timeouts for cold WSL boot
 - **Notification flags**: Static booleans (`_claudeNotificationShown`, etc.) ensure install instructions show only once per VS session
 - **`ClearProviderCache()`**: Should be called when user actions might change availability (e.g., after update)
+- **`ShowUsageMenuItem_Click()`**: Sends `/usage` command directly to Claude Code terminal
+- **`SetLanguageMenuItem_Click()`**: Sends `/config` then navigates TUI via `PostMessage` (type "language", Down, Space)
+- **`SetTerminalTypeMenuItem_Click()`**: WPF dialog for selecting Command Prompt vs Windows Terminal; checks WT availability; restarts terminal on change
 - **`ShowWorkingDirectoryInputDialog()`**: WPF dialog built programmatically; reads VS theme colors via `VsBrushes` (background, foreground, textbox, buttons) and applies them so the dialog matches the current dark/light VS theme; falls back to `SystemColors` if theme read fails; validates path in real-time (red text when directory doesn't exist)
 
 #### ClaudeCodeControl.TerminalIO.cs — Terminal I/O
@@ -242,6 +249,7 @@ JSON-based settings at `%LocalAppData%\ClaudeCodeExtension\claudecode-settings.j
 - **`_isInitializing`**: Prevents `SaveSettings()` during `LoadSettings()` to avoid overwriting with defaults
 - **`LoadSettings()`** → **`ApplyLoadedSettings()`**: Deserialize and apply to UI
 - **`SaveSettings()`**: Serialize with formatting; always guarded by `!_isInitializing`
+- **`[JsonExtensionData]`**: `ClaudeCodeSettings.AdditionalData` preserves unknown JSON properties, preventing older DLL versions from discarding settings added by newer versions
 - **Splitter position**: Stored in pixels, converted to/from `GridLength`
 
 #### ClaudeCodeControl.ImageHandling.cs — File Attachments
@@ -287,8 +295,8 @@ SW_SHOW=5, SW_HIDE=0
 GWL_STYLE=-16
 WS_CAPTION=0x00C00000, WS_THICKFRAME=0x00040000, WS_SYSMENU=0x00080000
 WM_KEYDOWN=0x0100, WM_KEYUP=0x0101, WM_CHAR=0x0102
-VK_RETURN=0x0D, VK_SHIFT=0x10, VK_CONTROL=0x11, VK_SPACE=0x20, VK_UP=0x26, VK_RIGHT=0x27, VK_DOWN=0x28, VK_C=0x43
-INPUT_KEYBOARD=1, KEYEVENTF_KEYUP=0x0002
+VK_TAB=0x09, VK_RETURN=0x0D, VK_SHIFT=0x10, VK_CONTROL=0x11, VK_SPACE=0x20, VK_UP=0x26, VK_RIGHT=0x27, VK_DOWN=0x28, VK_C=0x43
+INPUT_KEYBOARD=1, KEYEVENTF_EXTENDEDKEY=0x0001, KEYEVENTF_KEYUP=0x0002
 ```
 
 **P/Invoke functions by category**:
@@ -316,17 +324,21 @@ Integrates with Visual Studio dark/light theme.
 enum AiProvider { ClaudeCode, ClaudeCodeWSL, Codex, CodexNative, CursorAgent, CursorAgentNative, QwenCode, OpenCode }
 enum ClaudeModel { Opus, Sonnet, Haiku }
 enum EffortLevel { Auto, Low, Medium, High, Max }
+enum TerminalType { CommandPrompt, WindowsTerminal }
 
 class ClaudeCodeSettings {
+    [JsonExtensionData] IDictionary<string, JToken> AdditionalData;  // preserves unknown props across DLL versions
     bool SendWithEnter = true;
     double SplitterPosition = 236.0;       // pixels
     AiProvider SelectedProvider = ClaudeCode;
     ClaudeModel SelectedClaudeModel = Sonnet;
-    List<string> PromptHistory;            // max 50 items
+    List<PromptHistoryEntry> PromptHistory; // max 50 items
     bool AutoOpenChangesOnPrompt = false;
     bool ClaudeDangerouslySkipPermissions = false;  // --dangerously-skip-permissions flag
     bool CodexFullAuto = false;            // --full-auto flag for Codex
     EffortLevel SelectedEffortLevel = Auto; // Claude Code effort level
+    string CustomWorkingDirectory = "";    // absolute or relative to solution dir
+    TerminalType SelectedTerminalType = CommandPrompt; // terminal emulator selection
 }
 ```
 
@@ -401,6 +413,8 @@ Three-row grid: prompt area (`*`), splitter (4px), terminal area (`2*`). Key ele
 | 236.0 px | ClaudeCodeModels.cs | Default splitter position |
 | 0.5–3.0 | DiffViewerControl.xaml.cs | Zoom range (step 0.1) |
 | 3 context lines | DiffComputer.cs (`ContextLines`) | Lines shown around diff changes |
+| 3 times | Terminal.cs (`ApplyWindowsTerminalZoomOutAsync`) | Ctrl+Minus zoom out steps for WT |
+| 15000 ms | Terminal.cs (`FindNewWtWindowAsync`) | Timeout finding new WT window |
 
 ---
 
@@ -468,7 +482,8 @@ await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
 - Integrated diff viewer with git-based change tracking (3-second polling)
 - Claude model selection (Opus, Sonnet, Haiku)
 - Effort level selection (Auto, Low, Medium, High, Max) via `/effort` command
-- Show Usage and Set Language shortcuts in model menu (via `/config` interaction)
+- Show Usage shortcut in model menu (via `/usage` command)
+- Set Language shortcut in model menu (via `/config` TUI navigation)
 - Dark/light theme integration (event-driven, not polling)
 - Auto-open changes on send
 - Optional `--dangerously-skip-permissions` mode for Claude Code
@@ -479,6 +494,8 @@ await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
 - Provider availability caching (5-minute TTL)
 - WSL path conversion for cross-platform support
 - Virtualized diff rendering for large repositories
+- Configurable terminal emulator: Command Prompt (default) or Windows Terminal (better emoji/unicode rendering)
+- Windows Terminal integration with auto-zoom, tab bar hiding, and DPI-aware positioning
 
 ---
 

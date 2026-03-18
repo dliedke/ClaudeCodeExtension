@@ -290,6 +290,7 @@
 								<MenuItem Header="Codex: Full Auto" x:Name="CodexFullAutoMenuItem" Click="CodexFullAutoMenuItem_Click" IsCheckable="True" ToolTip="When enabled, Codex starts with --full-auto"/>
 								<Separator/>
 								<MenuItem Header="Set Working Directory..." x:Name="SetWorkingDirectoryMenuItem" Click="SetWorkingDirectoryMenuItem_Click" ToolTip="Set a custom working directory (absolute or relative to solution). Leave empty for default behavior."/>
+								<MenuItem Header="Set Terminal Type..." x:Name="SetTerminalTypeMenuItem" Click="SetTerminalTypeMenuItem_Click" ToolTip="Choose between Command Prompt (default) or Windows Terminal (better emoji/unicode support)"/>
 								<Separator/>
 								<MenuItem Header="About" x:Name="AboutMenuItem" Click="AboutMenuItem_Click"/>
 							</ContextMenu>

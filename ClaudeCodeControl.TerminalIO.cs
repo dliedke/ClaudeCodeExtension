@@ -96,7 +96,15 @@ namespace ClaudeCodeVS
                         await RightClickTerminalCenterAsync();
                     }
 
-                    await Task.Delay(800); // Reduced from 1000ms
+                    // Wait longer for Windows Terminal to be ready to accept input
+                    if (_wtTabBarHeight > 0)
+                    {
+                        await Task.Delay(1000);
+                    }
+                    else
+                    {
+                        await Task.Delay(800);
+                    }
 
                     // Send Enter key to execute the command
                     SendEnterKey();
@@ -370,6 +378,7 @@ namespace ClaudeCodeVS
 
         /// <summary>
         /// Right-clicks on the center of the terminal window (async version)
+        /// For Windows Terminal, adjusts Y coordinate to account for hidden tab bar
         /// </summary>
         private async Task RightClickTerminalCenterAsync()
         {
@@ -378,12 +387,21 @@ namespace ClaudeCodeVS
                 GetWindowRect(terminalHandle, out RECT rect);
                 int centerX = rect.Left + (rect.Right - rect.Left) / 2;
                 int centerY = rect.Top + (rect.Bottom - rect.Top) / 2;
+
+                // For Windows Terminal with hidden tab bar, adjust Y coordinate
+                // The window is positioned at Y = -_wtTabBarHeight, so add it back to get visible center
+                if (_wtTabBarHeight > 0)
+                {
+                    centerY += _wtTabBarHeight;
+                }
+
                 await SendRightClickAsync(centerX, centerY);
             }
         }
 
         /// <summary>
         /// Right-clicks on the center of the terminal window (sync version for backward compat)
+        /// For Windows Terminal, adjusts Y coordinate to account for hidden tab bar
         /// </summary>
         private void RightClickTerminalCenter()
         {
@@ -392,6 +410,13 @@ namespace ClaudeCodeVS
                 GetWindowRect(terminalHandle, out RECT rect);
                 int centerX = rect.Left + (rect.Right - rect.Left) / 2;
                 int centerY = rect.Top + (rect.Bottom - rect.Top) / 2;
+
+                // For Windows Terminal with hidden tab bar, adjust Y coordinate
+                if (_wtTabBarHeight > 0)
+                {
+                    centerY += _wtTabBarHeight;
+                }
+
                 SendRightClick(centerX, centerY);
             }
         }
@@ -399,6 +424,7 @@ namespace ClaudeCodeVS
         /// <summary>
         /// Performs SHIFT+Right-click on the center of the terminal window (async version)
         /// Required for Open Code to paste text properly
+        /// For Windows Terminal, adjusts Y coordinate to account for hidden tab bar
         /// </summary>
         private async Task ShiftRightClickTerminalCenterAsync()
         {
@@ -407,6 +433,12 @@ namespace ClaudeCodeVS
                 GetWindowRect(terminalHandle, out RECT rect);
                 int centerX = rect.Left + (rect.Right - rect.Left) / 2;
                 int centerY = rect.Top + (rect.Bottom - rect.Top) / 2;
+
+                // For Windows Terminal with hidden tab bar, adjust Y coordinate
+                if (_wtTabBarHeight > 0)
+                {
+                    centerY += _wtTabBarHeight;
+                }
 
                 // Move cursor to center
                 SetCursorPos(centerX, centerY);
@@ -430,6 +462,7 @@ namespace ClaudeCodeVS
         /// <summary>
         /// Performs SHIFT+Right-click on the center of the terminal window (sync version)
         /// Required for Open Code to paste text properly
+        /// For Windows Terminal, adjusts Y coordinate to account for hidden tab bar
         /// </summary>
         private void ShiftRightClickTerminalCenter()
         {
@@ -438,6 +471,12 @@ namespace ClaudeCodeVS
                 GetWindowRect(terminalHandle, out RECT rect);
                 int centerX = rect.Left + (rect.Right - rect.Left) / 2;
                 int centerY = rect.Top + (rect.Bottom - rect.Top) / 2;
+
+                // For Windows Terminal with hidden tab bar, adjust Y coordinate
+                if (_wtTabBarHeight > 0)
+                {
+                    centerY += _wtTabBarHeight;
+                }
 
                 // Move cursor to center
                 SetCursorPos(centerX, centerY);
@@ -478,7 +517,15 @@ namespace ClaudeCodeVS
                 bool isQwenCode = _currentRunningProvider == AiProvider.QwenCode;
                 bool isOpenCode = _currentRunningProvider == AiProvider.OpenCode;
 
-                if (isClaudeCodeWSL)
+                // Check if Windows Terminal is active (tab bar height > 0)
+                bool isWindowsTerminal = _wtTabBarHeight > 0;
+
+                if (isWindowsTerminal)
+                {
+                    // For Windows Terminal, use KEYDOWN/KEYUP approach (works better with embedded window)
+                    SendEnterKeyDownUp();
+                }
+                else if (isClaudeCodeWSL)
                 {
                     // For Claude Code (WSL), send Enter using WM_CHAR
                     PostMessage(terminalHandle, WM_CHAR, new IntPtr(VK_RETURN), IntPtr.Zero);
@@ -512,23 +559,42 @@ namespace ClaudeCodeVS
         }
 
         /// <summary>
-        /// Sends Enter key using KEYDOWN/KEYUP messages (required for Codex)
+        /// Sends Enter key using KEYDOWN/KEYUP messages (required for Codex and Windows Terminal)
+        /// For Windows Terminal, uses keybd_event for better compatibility with embedded windows
         /// Sends the key twice to ensure submission
         /// </summary>
         private void SendEnterKeyDownUp()
         {
             if (terminalHandle != IntPtr.Zero && IsWindow(terminalHandle))
             {
-                // First Enter attempt
-                PostMessage(terminalHandle, WM_KEYDOWN, new IntPtr(VK_RETURN), IntPtr.Zero);
-                System.Threading.Thread.Sleep(50);
-                PostMessage(terminalHandle, WM_KEYUP, new IntPtr(VK_RETURN), IntPtr.Zero);
-                System.Threading.Thread.Sleep(100);
+                // For Windows Terminal, use keybd_event (works better with embedded windows)
+                if (_wtTabBarHeight > 0)
+                {
+                    // First Enter attempt
+                    keybd_event(VK_RETURN, 0, 0, UIntPtr.Zero);
+                    System.Threading.Thread.Sleep(50);
+                    keybd_event(VK_RETURN, 0, KEYEVENTF_KEYUP, UIntPtr.Zero);
+                    System.Threading.Thread.Sleep(100);
 
-                // Second Enter attempt to ensure submission
-                PostMessage(terminalHandle, WM_KEYDOWN, new IntPtr(VK_RETURN), IntPtr.Zero);
-                System.Threading.Thread.Sleep(50);
-                PostMessage(terminalHandle, WM_KEYUP, new IntPtr(VK_RETURN), IntPtr.Zero);
+                    // Second Enter attempt to ensure submission
+                    keybd_event(VK_RETURN, 0, 0, UIntPtr.Zero);
+                    System.Threading.Thread.Sleep(50);
+                    keybd_event(VK_RETURN, 0, KEYEVENTF_KEYUP, UIntPtr.Zero);
+                }
+                else
+                {
+                    // For other providers (Codex, etc), use PostMessage
+                    // First Enter attempt
+                    PostMessage(terminalHandle, WM_KEYDOWN, new IntPtr(VK_RETURN), IntPtr.Zero);
+                    System.Threading.Thread.Sleep(50);
+                    PostMessage(terminalHandle, WM_KEYUP, new IntPtr(VK_RETURN), IntPtr.Zero);
+                    System.Threading.Thread.Sleep(100);
+
+                    // Second Enter attempt to ensure submission
+                    PostMessage(terminalHandle, WM_KEYDOWN, new IntPtr(VK_RETURN), IntPtr.Zero);
+                    System.Threading.Thread.Sleep(50);
+                    PostMessage(terminalHandle, WM_KEYUP, new IntPtr(VK_RETURN), IntPtr.Zero);
+                }
             }
         }
 
