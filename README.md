@@ -63,6 +63,17 @@ Any feedback, suggestions, or contributions are also very welcome - feel free to
 - **Claude Skip Permissions State**: Remembers whether Claude Code starts with `--dangerously-skip-permissions`
 - **Codex Full Auto State**: Remembers whether Codex starts with `--full-auto`
 
+### 🔍 **Zoom Support**
+- **Prompt Zoom**: Ctrl+Scroll on the prompt text box to increase/decrease font size (range 8–24pt), persisted across sessions
+- **Terminal Zoom**: Ctrl+Scroll on the terminal area to zoom in/out, zoom level persisted and replayed on restart (works for both Command Prompt and Windows Terminal)
+
+### 🪟 **Detach / Attach Terminal**
+- **Detach**: Click the detach button to pop the terminal out into a separate Visual Studio tool window tab
+- **Attach**: Close the detached tab or click the attach button to bring the terminal back to the main panel
+- **Expanded Prompt**: When detached, the prompt area automatically grows for more comfortable editing
+- **Persistent State**: Detached/attached state is saved and restored across Visual Studio sessions
+- **Seamless Operation**: Terminal restart, provider switching, and theme changes work while detached
+
 ### 🎨 **Visual Studio Integration**
 - **Dark/Light Theme**: Consistent with Visual Studio's dark/light theme
 - **Resizable Layout**: Adjustable splitter between prompt and terminal areas
@@ -174,6 +185,15 @@ The extension includes an Update Agent button (🔄️) that updates your select
 Click the update button and the extension will handle the update process. Agents use the appropriate exit methods before updating (exit command for most, double CTRL+C for Codex, /quit command for Qwen Code).
 
 ## Version History
+
+### Version 8.6
+- **Fix Windows Terminal commands**: Menu commands (model switch, effort level, usage, set language) now work correctly with Windows Terminal — converted synchronous blocking handlers to async void so focus transfers properly before keyboard simulation
+- **Fix Windows Terminal language setting**: Keyboard input for the `/config` TUI (typing "language", arrow keys, space) now uses `keybd_event` instead of `PostMessage` when running in Windows Terminal
+- **Terminal lifecycle serialization**: Added semaphore to prevent overlapping terminal start/stop transitions when rapidly switching providers or restarting
+- **Improved terminal cleanup**: Uses `WM_CLOSE` + recursive process tree termination instead of simple `Kill`, with safeguards against terminating the VS process itself
+- **Non-blocking startup**: Control construction no longer blocks the UI thread for temp directory cleanup or solution events registration
+- **Terminal layout stabilization**: Delayed resize/repaint passes after startup and manual Ctrl+Scroll zoom to eliminate stale black regions
+- **Codex flag update**: Updated Codex automation flag from `--full-auto` to `--ask-for-approval never` to match current Codex CLI syntax
 
 ### Version 8.5
 - **Fix terminal zoom tracking**: Replaced WPF PreviewMouseWheel (which never fired for embedded Win32 windows) with a low-level mouse hook that reliably detects Ctrl+Scroll over the terminal, so TerminalZoomDelta is now correctly tracked and replayed on restart

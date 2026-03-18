@@ -97,6 +97,27 @@ namespace ClaudeCodeVS
         /// </summary>
         private POINT _windowsTerminalSelectionStartPoint;
 
+        /// <summary>
+        /// Serializes terminal stop/start transitions so provider or host switches cannot overlap.
+        /// </summary>
+        private readonly SemaphoreSlim _terminalLifecycleSemaphore = new SemaphoreSlim(1, 1);
+
+        /// <summary>
+        /// Monotonic session identifier used to discard deferred startup work from stale terminal instances.
+        /// </summary>
+        private int _terminalStartupSessionId = 0;
+
+        /// <summary>
+        /// Monotonic request identifier used to debounce repaint passes after manual Ctrl+Scroll zoom.
+        /// </summary>
+        private int _manualZoomRefreshRequestId = 0;
+
+        /// <summary>
+        /// Enables automatic terminal zoom behavior after startup has settled.
+        /// Manual Ctrl+Scroll zoom remains available regardless of this setting.
+        /// </summary>
+        private static readonly bool EnableStartupTerminalAutoZoom = true;
+
         #endregion
 
         #region Terminal Initialization
@@ -336,13 +357,292 @@ namespace ClaudeCodeVS
         }
 
         /// <summary>
+        /// Stops the currently embedded terminal, including stale window owners left behind by wt.exe delegation.
+        /// </summary>
+        private async Task StopExistingTerminalAsync()
+        {
+            IntPtr existingTerminalHandle = terminalHandle;
+            Process existingProcess = cmdProcess;
+            int existingTerminalWindowProcessId = 0;
+
+            if (existingTerminalHandle != IntPtr.Zero && IsWindow(existingTerminalHandle))
+            {
+                GetWindowThreadProcessId(existingTerminalHandle, out uint existingTerminalWindowPid);
+                existingTerminalWindowProcessId = (int)existingTerminalWindowPid;
+            }
+
+            if (existingTerminalHandle != IntPtr.Zero && IsWindow(existingTerminalHandle))
+            {
+                PostMessage(existingTerminalHandle, WM_CLOSE, IntPtr.Zero, IntPtr.Zero);
+                await Task.Delay(250);
+            }
+
+            var terminatedProcessIds = new HashSet<int>();
+
+            if (existingTerminalWindowProcessId > 0 &&
+                existingTerminalWindowProcessId != Process.GetCurrentProcess().Id)
+            {
+                TryTerminateProcessTree(existingTerminalWindowProcessId, terminatedProcessIds);
+            }
+
+            if (existingProcess != null)
+            {
+                try
+                {
+                    TryTerminateProcessTree(existingProcess.Id, terminatedProcessIds);
+                }
+                catch (Exception ex)
+                {
+                    Debug.WriteLine($"Error terminating previous terminal launcher: {ex.Message}");
+                }
+                finally
+                {
+                    existingProcess.Dispose();
+                }
+            }
+
+            cmdProcess = null;
+            ResetWindowsTerminalSelectionTracking();
+            terminalHandle = IntPtr.Zero;
+            _wtTabBarHeight = 0;
+            _currentRunningProvider = null;
+        }
+
+        /// <summary>
+        /// Kills a process tree once, ignoring already-terminated processes.
+        /// </summary>
+        /// <param name="processId">Root process ID to terminate</param>
+        /// <param name="terminatedProcessIds">Process IDs already handled in the current shutdown pass</param>
+        private void TryTerminateProcessTree(int processId, HashSet<int> terminatedProcessIds)
+        {
+            if (processId <= 0 ||
+                processId == Process.GetCurrentProcess().Id ||
+                terminatedProcessIds.Contains(processId))
+            {
+                return;
+            }
+
+            try
+            {
+                terminatedProcessIds.Add(processId);
+                KillProcessAndChildren(processId);
+
+                using (var process = Process.GetProcessById(processId))
+                {
+                    if (!process.HasExited)
+                    {
+                        process.Kill();
+                    }
+                }
+            }
+            catch (ArgumentException)
+            {
+                // Process already exited.
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"Error terminating process tree {processId}: {ex.Message}");
+            }
+        }
+
+        /// <summary>
+        /// Applies the window styles required for the embedded terminal host.
+        /// </summary>
+        /// <param name="forceChildWindowStyle">
+        /// True for hosts that behave well as WS_CHILD windows.
+        /// False for classic conhost/cmd.exe, which loses input/focus when forced into child style.
+        /// </param>
+        private void ApplyEmbeddedTerminalWindowStyle(bool forceChildWindowStyle)
+        {
+            if (terminalHandle == IntPtr.Zero || !IsWindow(terminalHandle))
+            {
+                return;
+            }
+
+            int style = GetWindowLong(terminalHandle, GWL_STYLE);
+            style &= ~(WS_CAPTION | WS_THICKFRAME | WS_MINIMIZE | WS_MAXIMIZE | WS_SYSMENU);
+
+            if (forceChildWindowStyle)
+            {
+                style &= ~WS_POPUP;
+                style |= WS_CHILD;
+            }
+
+            SetWindowLong(terminalHandle, GWL_STYLE, style);
+        }
+
+        /// <summary>
+        /// Forces the embedded terminal and its host panel to repaint after layout changes.
+        /// </summary>
+        private void RefreshEmbeddedTerminalWindow()
+        {
+            if (terminalHandle == IntPtr.Zero || !IsWindow(terminalHandle))
+            {
+                return;
+            }
+
+            var panel = ActiveTerminalPanel;
+            panel?.Invalidate();
+            panel?.Update();
+
+            InvalidateRect(terminalHandle, IntPtr.Zero, true);
+            RedrawWindow(terminalHandle, IntPtr.Zero, IntPtr.Zero,
+                RDW_INVALIDATE | RDW_ERASE | RDW_FRAME | RDW_ALLCHILDREN | RDW_UPDATENOW);
+            UpdateWindow(terminalHandle);
+        }
+
+        /// <summary>
+        /// Returns true when the current embedded terminal still matches the deferred startup operation.
+        /// </summary>
+        private bool IsCurrentTerminalSession(int expectedSessionId, IntPtr expectedHandle)
+        {
+            return expectedSessionId == _terminalStartupSessionId &&
+                   expectedHandle != IntPtr.Zero &&
+                   terminalHandle == expectedHandle &&
+                   IsWindow(expectedHandle);
+        }
+
+        /// <summary>
+        /// Runs a few delayed resize passes so the embedded terminal catches up after startup or zoom changes.
+        /// </summary>
+        private async Task StabilizeEmbeddedTerminalLayoutAsync(int expectedSessionId, IntPtr expectedHandle)
+        {
+            int[] delays = { 120, 250, 500 };
+
+            foreach (int delayMs in delays)
+            {
+                await Task.Delay(delayMs);
+                await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
+
+                if (!IsCurrentTerminalSession(expectedSessionId, expectedHandle))
+                {
+                    return;
+                }
+
+                ResizeEmbeddedTerminal();
+            }
+        }
+
+        /// <summary>
+        /// Schedules a few delayed repaint/layout passes after manual Ctrl+Scroll zoom.
+        /// Conhost and Windows Terminal both apply font zoom asynchronously, so an immediate resize
+        /// is often too early and leaves stale black regions until another user action occurs.
+        /// </summary>
+        private void ScheduleManualZoomRefresh()
+        {
+            int requestId = Interlocked.Increment(ref _manualZoomRefreshRequestId);
+
+#pragma warning disable VSSDK007 // fire-and-forget is intentional to keep wheel handling responsive
+            _ = ThreadHelper.JoinableTaskFactory.RunAsync(async delegate
+            {
+                int[] delays = { 80, 180, 360 };
+
+                try
+                {
+                    foreach (int delayMs in delays)
+                    {
+                        await Task.Delay(delayMs);
+                        await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
+
+                        if (requestId != _manualZoomRefreshRequestId ||
+                            terminalHandle == IntPtr.Zero ||
+                            !IsWindow(terminalHandle))
+                        {
+                            return;
+                        }
+
+                        ResizeEmbeddedTerminal();
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Debug.WriteLine($"Error refreshing terminal after manual zoom: {ex.Message}");
+                }
+            });
+#pragma warning restore VSSDK007
+        }
+
+        /// <summary>
+        /// Schedules startup-only terminal adjustments after the terminal host has fully settled.
+        /// This keeps initial tool window load responsive while still restoring the expected zoom.
+        /// </summary>
+        private void SchedulePostStartupTerminalAdjustments()
+        {
+            int expectedSessionId = Interlocked.Increment(ref _terminalStartupSessionId);
+            IntPtr expectedHandle = terminalHandle;
+
+#pragma warning disable VSSDK007 // fire-and-forget is intentional to keep terminal startup responsive
+            _ = ThreadHelper.JoinableTaskFactory.RunAsync(async delegate
+            {
+                try
+                {
+                    await StabilizeEmbeddedTerminalLayoutAsync(expectedSessionId, expectedHandle);
+
+                    if (!EnableStartupTerminalAutoZoom)
+                    {
+                        return;
+                    }
+
+                    await Task.Delay(1200);
+                    await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
+
+                    if (!IsCurrentTerminalSession(expectedSessionId, expectedHandle))
+                    {
+                        return;
+                    }
+
+                    if (_wtTabBarHeight > 0)
+                    {
+                        await ApplyWindowsTerminalZoomOutAsync();
+                    }
+
+                    if (!IsCurrentTerminalSession(expectedSessionId, expectedHandle))
+                    {
+                        return;
+                    }
+
+                    if (_settings?.TerminalZoomDelta != 0)
+                    {
+                        await ApplyTerminalZoomDeltaAsync(_settings.TerminalZoomDelta, initialDelayMs: 0);
+                    }
+
+                    if (!IsCurrentTerminalSession(expectedSessionId, expectedHandle))
+                    {
+                        return;
+                    }
+
+                    ResizeEmbeddedTerminal();
+                    await Task.Delay(250);
+                    await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
+
+                    if (!IsCurrentTerminalSession(expectedSessionId, expectedHandle))
+                    {
+                        return;
+                    }
+
+                    ResizeEmbeddedTerminal();
+                }
+                catch (Exception ex)
+                {
+                    Debug.WriteLine($"Error applying deferred startup terminal adjustments: {ex.Message}");
+                }
+            });
+#pragma warning restore VSSDK007
+        }
+
+        /// <summary>
         /// Starts and embeds the terminal process (Claude Code, Claude Code WSL, Codex, Cursor Agent, or regular CMD)
         /// </summary>
         /// <param name="provider">The AI provider to start (null for regular CMD)</param>
         private async Task StartEmbeddedTerminalAsync(AiProvider? provider)
         {
+            bool terminalLifecycleLockHeld = false;
+
             try
             {
+                await _terminalLifecycleSemaphore.WaitAsync();
+                terminalLifecycleLockHeld = true;
+
                 string workspaceDir = await GetWorkspaceDirectoryAsync();
                 if (string.IsNullOrEmpty(workspaceDir))
                 {
@@ -351,55 +651,7 @@ namespace ClaudeCodeVS
 
                 _lastWorkspaceDirectory = workspaceDir;
 
-                // Kill existing process if running
-                if (cmdProcess != null && !cmdProcess.HasExited)
-                {
-                    try
-                    {
-                        if (terminalHandle != IntPtr.Zero && IsWindow(terminalHandle))
-                        {
-                            // Check if CURRENTLY RUNNING provider is Codex (requires CTRL+C instead of exit)
-                            bool isCodex = _currentRunningProvider == AiProvider.Codex;
-
-                            if (isCodex || _currentRunningProvider == AiProvider.CodexNative)
-                            {
-                                // For Codex, send CTRL+C twice to exit
-                                SendCtrlC();
-                                await Task.Delay(400); // Reduced from 500ms
-                                SendCtrlC();
-                            }
-                            else
-                            {
-                                // For other agents including QwenCode, send appropriate exit command
-                                if (_currentRunningProvider == AiProvider.QwenCode)
-                                {
-                                    await SendTextToTerminalAsync("/quit");
-                                }
-                                else
-                                {
-                                    await SendTextToTerminalAsync("exit");
-                                }
-                            }
-
-                            // Give it time to exit - reduced delay
-                            await Task.Delay(1000);
-                        }
-
-                        // Force kill
-                        cmdProcess.Kill();
-                        cmdProcess.Dispose();
-                    }
-                    catch (Exception ex)
-                    {
-                        Debug.WriteLine($"Error disposing previous process: {ex.Message}");
-                    }
-                    cmdProcess = null;
-                }
-
-                // Reset terminal handle when restarting
-                ResetWindowsTerminalSelectionTracking();
-                terminalHandle = IntPtr.Zero;
-                _wtTabBarHeight = 0;
+                await StopExistingTerminalAsync();
 
                 // Check if we should use Windows Terminal instead of Command Prompt
                 bool useWindowsTerminal = _settings?.SelectedTerminalType == TerminalType.WindowsTerminal;
@@ -521,12 +773,10 @@ namespace ClaudeCodeVS
                             // Hide the window immediately to prevent blinking
                             ShowWindow(terminalHandle, SW_HIDE);
 
+                            ApplyEmbeddedTerminalWindowStyle(forceChildWindowStyle: true);
+
                             // Embed the window
                             SetParent(terminalHandle, terminalPanel.Handle);
-
-                            // Remove window decorations (WT windows have minimal decorations by default)
-                            SetWindowLong(terminalHandle, GWL_STYLE,
-                                GetWindowLong(terminalHandle, GWL_STYLE) & ~(WS_CAPTION | WS_THICKFRAME | WS_MINIMIZE | WS_MAXIMIZE | WS_SYSMENU));
 
                             // Calculate tab bar height
                             _wtTabBarHeight = GetWtTabBarHeight();
@@ -534,14 +784,6 @@ namespace ClaudeCodeVS
                             // Show and resize
                             ShowWindow(terminalHandle, SW_SHOW);
                             ResizeEmbeddedTerminal();
-
-                            // Retry resize after a short delay to ensure it takes effect
-                            await Task.Delay(500);
-                            ResizeEmbeddedTerminal();
-
-                            // Apply zoom out for Windows Terminal for better visibility
-                            await Task.Delay(300);
-                            await ApplyWindowsTerminalZoomOutAsync();
 
                             // Track the currently running provider
                             _currentRunningProvider = provider;
@@ -556,12 +798,7 @@ namespace ClaudeCodeVS
                                 _detachedTerminalWindow?.UpdateCaption(wtProviderName);
                             }
 
-                            // Replay saved user zoom delta AFTER all re-parenting is done
-                            // (SetParent can reset zoom state)
-                            if (_settings?.TerminalZoomDelta != 0)
-                            {
-                                await ApplyTerminalZoomDeltaAsync(_settings.TerminalZoomDelta);
-                            }
+                            SchedulePostStartupTerminalAdjustments();
                         }
                         catch (Exception ex)
                         {
@@ -694,12 +931,10 @@ namespace ClaudeCodeVS
                             // Hide the window immediately to prevent blinking
                             ShowWindow(terminalHandle, SW_HIDE);
 
+                            ApplyEmbeddedTerminalWindowStyle(forceChildWindowStyle: false);
+
                             // Embed the window
                             SetParent(terminalHandle, terminalPanel.Handle);
-
-                            // Remove window decorations
-                            SetWindowLong(terminalHandle, GWL_STYLE,
-                                GetWindowLong(terminalHandle, GWL_STYLE) & ~(WS_CAPTION | WS_THICKFRAME | WS_MINIMIZE | WS_MAXIMIZE | WS_SYSMENU));
 
                             // Now show it in the embedded context
                             ShowWindow(terminalHandle, SW_SHOW);
@@ -751,12 +986,7 @@ namespace ClaudeCodeVS
                                 _detachedTerminalWindow?.UpdateCaption(providerTitle);
                             }
 
-                            // Replay saved user zoom delta AFTER all re-parenting is done
-                            // (SetParent can reset zoom state)
-                            if (_settings?.TerminalZoomDelta != 0)
-                            {
-                                await ApplyTerminalZoomDeltaAsync(_settings.TerminalZoomDelta);
-                            }
+                            SchedulePostStartupTerminalAdjustments();
                         }
                         catch (Exception ex)
                         {
@@ -775,6 +1005,13 @@ namespace ClaudeCodeVS
                 await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
                 MessageBox.Show($"Failed to start embedded terminal: {ex.Message}",
                                 "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+            finally
+            {
+                if (terminalLifecycleLockHeld)
+                {
+                    _terminalLifecycleSemaphore.Release();
+                }
             }
         }
 
@@ -964,16 +1201,18 @@ namespace ClaudeCodeVS
         /// Windows Terminal: uses keybd_event (Ctrl+= / Ctrl+-) — same proven approach as ApplyWindowsTerminalZoomOutAsync.
         /// Command Prompt: uses PostMessage WM_MOUSEWHEEL+MK_CONTROL — same mechanism as Ctrl+Scroll forwarding.
         /// </summary>
-        private async Task ApplyTerminalZoomDeltaAsync(int delta)
+        private async Task ApplyTerminalZoomDeltaAsync(int delta, int initialDelayMs = 1500)
         {
             if (delta == 0 || terminalHandle == IntPtr.Zero || !IsWindow(terminalHandle))
                 return;
 
             try
             {
-                // Give the terminal extra time to finish initializing before replaying zoom
-                // Must wait long enough for the terminal shell to be fully loaded
-                await Task.Delay(1500);
+                if (initialDelayMs > 0)
+                {
+                    // Give the terminal extra time to finish initializing before replaying zoom.
+                    await Task.Delay(initialDelayMs);
+                }
 
                 if (!IsWindow(terminalHandle)) return;
 
@@ -1022,6 +1261,9 @@ namespace ClaudeCodeVS
                         await Task.Delay(80);
                     }
                 }
+
+                await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
+                ResizeEmbeddedTerminal();
             }
             catch (Exception ex)
             {
@@ -1190,6 +1432,7 @@ namespace ClaudeCodeVS
                         _settings.TerminalZoomDelta += wheelDelta > 0 ? 1 : -1;
                         _zoomSaveTimer?.Stop();
                         _zoomSaveTimer?.Start();
+                        ScheduleManualZoomRefresh();
                     }
                 }
                 else if (message == WM_LBUTTONDOWN)
@@ -1218,21 +1461,32 @@ namespace ClaudeCodeVS
             var panel = ActiveTerminalPanel;
             if (terminalHandle != IntPtr.Zero && IsWindow(terminalHandle) && panel != null)
             {
+                if (panel.Width <= 0 || panel.Height <= 0)
+                {
+                    return;
+                }
+
+                uint windowPosFlags = SWP_NOZORDER | SWP_NOACTIVATE;
+
                 if (_wtTabBarHeight > 0)
                 {
+                    windowPosFlags |= SWP_FRAMECHANGED;
+
                     // Windows Terminal: hide tab bar by positioning it above the visible area
                     // Set height to panel height + tab bar (so tab bar goes off-screen above)
                     SetWindowPos(terminalHandle, IntPtr.Zero,
                                 0, -_wtTabBarHeight, panel.Width, panel.Height + _wtTabBarHeight,
-                                SWP_NOZORDER | SWP_NOACTIVATE);
+                                windowPosFlags);
                 }
                 else
                 {
                     // Command Prompt: use panel dimensions directly
                     SetWindowPos(terminalHandle, IntPtr.Zero, 0, 0,
                                 panel.Width, panel.Height,
-                                SWP_NOZORDER | SWP_NOACTIVATE);
+                                windowPosFlags);
                 }
+
+                RefreshEmbeddedTerminalWindow();
             }
         }
 
@@ -1755,8 +2009,8 @@ namespace ClaudeCodeVS
         }
 
         /// <summary>
-        /// Gets the appropriate Codex command to use for Windows or WSL
-        /// Adds --full-auto flag if enabled in settings
+        /// Gets the appropriate Codex command to use for Windows or WSL.
+        /// Uses --ask-for-approval never when the compatibility toggle is enabled.
         /// </summary>
         /// <returns>The codex command to execute</returns>
         private string GetCodexCommand(bool isWsl = false)
@@ -1765,7 +2019,7 @@ namespace ClaudeCodeVS
 
             if (_settings?.CodexFullAuto == true)
             {
-                return $"{baseCommand} --full-auto";
+                return $"{baseCommand} --ask-for-approval never";
             }
 
             return baseCommand;

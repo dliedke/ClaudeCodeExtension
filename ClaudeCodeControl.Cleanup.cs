@@ -40,12 +40,12 @@ namespace ClaudeCodeVS
         {
             try
             {
-                // Clear any existing ClaudeCodeVS temp directories
-                CleanupClaudeCodeVSTempDirectories();
-
-                // Create a session-level temp directory for storing pasted images before sending
-                tempImageDirectory = Path.Combine(Path.GetTempPath(), "ClaudeCodeVS_Session", Guid.NewGuid().ToString());
+                string sessionRootPath = Path.Combine(Path.GetTempPath(), "ClaudeCodeVS_Session");
+                tempImageDirectory = Path.Combine(sessionRootPath, Guid.NewGuid().ToString());
                 Directory.CreateDirectory(tempImageDirectory);
+
+                // Cleanup old temp folders in the background so control construction does not stall the UI thread.
+                _ = System.Threading.Tasks.Task.Run(() => CleanupClaudeCodeVSTempDirectories(tempImageDirectory));
             }
             catch (Exception ex)
             {
@@ -59,11 +59,15 @@ namespace ClaudeCodeVS
         /// <summary>
         /// Cleans up all ClaudeCodeVS temporary directories from previous sessions
         /// </summary>
-        private void CleanupClaudeCodeVSTempDirectories()
+        /// <param name="currentSessionDirectory">Current live session directory to preserve</param>
+        private void CleanupClaudeCodeVSTempDirectories(string currentSessionDirectory = null)
         {
             try
             {
                 string tempPath = Path.GetTempPath();
+                string currentSessionFullPath = string.IsNullOrEmpty(currentSessionDirectory)
+                    ? null
+                    : Path.GetFullPath(currentSessionDirectory).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
 
                 // Clean up old ClaudeCodeVS directories
                 string claudeCodeVSPath = Path.Combine(tempPath, "ClaudeCodeVS");
@@ -76,7 +80,23 @@ namespace ClaudeCodeVS
                 string sessionPath = Path.Combine(tempPath, "ClaudeCodeVS_Session");
                 if (Directory.Exists(sessionPath))
                 {
-                    Directory.Delete(sessionPath, true);
+                    foreach (string sessionDirectory in Directory.GetDirectories(sessionPath))
+                    {
+                        string fullSessionPath = Path.GetFullPath(sessionDirectory)
+                            .TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+
+                        if (string.Equals(fullSessionPath, currentSessionFullPath, StringComparison.OrdinalIgnoreCase))
+                        {
+                            continue;
+                        }
+
+                        Directory.Delete(sessionDirectory, true);
+                    }
+
+                    foreach (string sessionFile in Directory.GetFiles(sessionPath))
+                    {
+                        File.Delete(sessionFile);
+                    }
                 }
             }
             catch (Exception ex)
@@ -164,32 +184,37 @@ namespace ClaudeCodeVS
                     }
                 }
 
-                // Kill child processes (like claude.exe) before killing the main cmd process
-                if (cmdProcess != null && !cmdProcess.HasExited)
+                int terminalWindowProcessId = 0;
+                if (terminalHandle != IntPtr.Zero && IsWindow(terminalHandle))
+                {
+                    GetWindowThreadProcessId(terminalHandle, out uint terminalWindowPid);
+                    terminalWindowProcessId = (int)terminalWindowPid;
+                    PostMessage(terminalHandle, WM_CLOSE, IntPtr.Zero, IntPtr.Zero);
+                }
+
+                var terminatedProcessIds = new System.Collections.Generic.HashSet<int>();
+
+                if (cmdProcess != null)
                 {
                     try
                     {
-                        KillProcessAndChildren(cmdProcess.Id);
+                        TryTerminateProcessTree(cmdProcess.Id, terminatedProcessIds);
                     }
                     catch (Exception ex)
                     {
-                        Debug.WriteLine($"Error killing child processes: {ex.Message}");
+                        Debug.WriteLine($"Error disposing terminal launcher process: {ex.Message}");
+                    }
+                    finally
+                    {
+                        cmdProcess.Dispose();
+                        cmdProcess = null;
                     }
                 }
 
-                // Kill and dispose terminal process
-                if (cmdProcess != null && !cmdProcess.HasExited)
+                if (terminalWindowProcessId > 0 &&
+                    terminalWindowProcessId != Process.GetCurrentProcess().Id)
                 {
-                    try
-                    {
-                        cmdProcess.Kill();
-                        cmdProcess.Dispose();
-                    }
-                    catch (Exception ex)
-                    {
-                        Debug.WriteLine($"Error disposing cmd process: {ex.Message}");
-                    }
-                    cmdProcess = null;
+                    TryTerminateProcessTree(terminalWindowProcessId, terminatedProcessIds);
                 }
 
                 // Clean up temporary directory

@@ -22,6 +22,7 @@ namespace ClaudeCodeVS
         // SetWindowPos flags
         private const uint SWP_NOZORDER = 0x0004;
         private const uint SWP_NOACTIVATE = 0x0010;
+        private const uint SWP_FRAMECHANGED = 0x0020;
 
         // ShowWindow commands
         private const int SW_SHOW = 5;
@@ -29,10 +30,12 @@ namespace ClaudeCodeVS
 
         // Window styles
         private const int GWL_STYLE = -16;
+        private const int WS_CHILD = 0x40000000;
         private const int WS_CAPTION = 0x00C00000;
         private const int WS_THICKFRAME = 0x00040000;
         private const int WS_MINIMIZE = 0x20000000;
         private const int WS_MAXIMIZE = 0x01000000;
+        private const int WS_POPUP = unchecked((int)0x80000000);
         private const int WS_SYSMENU = 0x00080000;
 
         // Mouse event flags
@@ -40,6 +43,7 @@ namespace ClaudeCodeVS
         private const uint MOUSEEVENTF_RIGHTUP = 0x0010;
 
         // Window messages
+        private const uint WM_CLOSE = 0x0010;
         private const uint WM_KEYDOWN = 0x0100;
         private const uint WM_KEYUP = 0x0101;
         private const uint WM_CHAR = 0x0102;
@@ -47,6 +51,13 @@ namespace ClaudeCodeVS
         private const uint WM_LBUTTONDOWN = 0x0201;
         private const uint WM_LBUTTONUP = 0x0202;
         private const uint WM_MOUSEWHEEL = 0x020A;
+
+        // RedrawWindow flags
+        private const uint RDW_INVALIDATE = 0x0001;
+        private const uint RDW_ERASE = 0x0004;
+        private const uint RDW_ALLCHILDREN = 0x0080;
+        private const uint RDW_UPDATENOW = 0x0100;
+        private const uint RDW_FRAME = 0x0400;
 
         // Virtual key codes
         private const int VK_TAB = 0x09;
@@ -176,6 +187,24 @@ namespace ClaudeCodeVS
         /// </summary>
         [DllImport("user32.dll")]
         private static extern bool GetWindowRect(IntPtr hWnd, out RECT lpRect);
+
+        /// <summary>
+        /// Invalidates the client area of a window
+        /// </summary>
+        [DllImport("user32.dll", SetLastError = true)]
+        private static extern bool InvalidateRect(IntPtr hWnd, IntPtr lpRect, bool bErase);
+
+        /// <summary>
+        /// Updates the client area of a window by sending a paint message if needed
+        /// </summary>
+        [DllImport("user32.dll", SetLastError = true)]
+        private static extern bool UpdateWindow(IntPtr hWnd);
+
+        /// <summary>
+        /// Invalidates or validates the specified portions of a window
+        /// </summary>
+        [DllImport("user32.dll", SetLastError = true)]
+        private static extern bool RedrawWindow(IntPtr hWnd, IntPtr lprcUpdate, IntPtr hrgnUpdate, uint flags);
 
         #endregion
 

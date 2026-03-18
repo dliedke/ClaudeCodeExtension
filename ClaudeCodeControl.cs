@@ -12,6 +12,8 @@
  * *******************************************************************************************************************/
 
 using System;
+using System.Diagnostics;
+using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
 using Microsoft.VisualStudio.Shell;
@@ -49,6 +51,11 @@ namespace ClaudeCodeVS
         /// Flag to track if the control has been initialized (prevents multiple initializations)
         /// </summary>
         private bool _hasInitialized = false;
+
+        /// <summary>
+        /// Prevents overlapping fire-and-forget startup initialization passes.
+        /// </summary>
+        private bool _startupInitializationScheduled = false;
 
         #endregion
 
@@ -95,51 +102,75 @@ namespace ClaudeCodeVS
         /// </summary>
         private void ClaudeCodeControl_Loaded(object sender, RoutedEventArgs e)
         {
-            // Load settings after UI is fully loaded
-            LoadSettings();
-
-            // Apply settings to UI every time we load (in case settings changed)
-            ThreadHelper.JoinableTaskFactory.Run(async delegate
+            try
             {
-                await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
+                ThreadHelper.ThrowIfNotOnUIThread();
+
+                // Loaded runs on the UI thread, so apply settings directly.
+                LoadSettings();
                 ApplyLoadedSettings();
-            });
 
-            // Only initialize terminal once - prevent re-initialization on tab switches
-            if (_hasInitialized)
-            {
-                // Mark initialization as complete to allow settings saving
+                // Only initialize terminal once - prevent re-initialization on tab switches
+                if (_hasInitialized)
+                {
+                    _isInitializing = false;
+                    return;
+                }
+
+                _hasInitialized = true;
                 _isInitializing = false;
-                return;
-            }
-
-            // Set the flag to prevent multiple calls
-            _hasInitialized = true;
-
-            // Check if a solution is already open (e.g., VS restarted with solution)
-            // If so, initialize terminal immediately as OnAfterOpenSolution won't fire
-            ThreadHelper.JoinableTaskFactory.Run(async delegate
-            {
-                await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
 
                 var dte = Package.GetGlobalService(typeof(EnvDTE.DTE)) as EnvDTE.DTE;
                 bool solutionAlreadyOpen = dte?.Solution?.FullName != null && !string.IsNullOrEmpty(dte.Solution.FullName);
+                ScheduleStartupInitialization(solutionAlreadyOpen);
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"Error during control load: {ex.Message}");
+            }
+        }
 
-                if (solutionAlreadyOpen)
+        /// <summary>
+        /// Schedules the first workspace/terminal initialization after the tool window has finished painting.
+        /// </summary>
+        /// <param name="solutionAlreadyOpen">Whether Visual Studio already has a solution open</param>
+        private void ScheduleStartupInitialization(bool solutionAlreadyOpen)
+        {
+            if (_startupInitializationScheduled)
+            {
+                return;
+            }
+
+            _startupInitializationScheduled = true;
+
+#pragma warning disable VSSDK007 // fire-and-forget is intentional to keep tool window startup responsive
+            _ = ThreadHelper.JoinableTaskFactory.RunAsync(async delegate
+            {
+                try
                 {
-                    // DetachTerminalAsync is called inside OnWorkspaceDirectoryChangedAsync
-                    // after InitializeTerminalAsync when IsTerminalDetached == true
-                    await OnWorkspaceDirectoryChangedAsync(true);
+                    await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
+                    await Task.Delay(350);
+
+                    if (solutionAlreadyOpen)
+                    {
+                        // First load should avoid the heavier forced diff reset path.
+                        await OnWorkspaceDirectoryChangedAsync(false);
+                    }
+                    else
+                    {
+                        await UpdateViewChangesButtonVisibilityAsync();
+                    }
                 }
-                else
+                catch (Exception ex)
                 {
-                    // Update button visibility even when no solution is open
-                    await UpdateViewChangesButtonVisibilityAsync();
+                    Debug.WriteLine($"Error during scheduled startup initialization: {ex.Message}");
+                }
+                finally
+                {
+                    _startupInitializationScheduled = false;
                 }
             });
-
-            // Mark initialization as complete to allow settings saving
-            _isInitializing = false;
+#pragma warning restore VSSDK007
         }
 
         #endregion

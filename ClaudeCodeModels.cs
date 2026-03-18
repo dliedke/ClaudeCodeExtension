@@ -132,8 +132,9 @@ namespace ClaudeCodeVS
         public bool ClaudeDangerouslySkipPermissions { get; set; } = false;
 
         /// <summary>
-        /// If true, starts Codex with the --full-auto parameter
-        /// Applies to Codex (Windows native) and Codex (WSL)
+        /// Legacy compatibility toggle for Codex startup automation.
+        /// If true, starts Codex with --ask-for-approval never.
+        /// Applies to Codex (Windows native) and Codex (WSL).
         /// </summary>
         public bool CodexFullAuto { get; set; } = false;
 

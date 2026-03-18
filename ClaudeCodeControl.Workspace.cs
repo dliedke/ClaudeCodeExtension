@@ -50,7 +50,8 @@ namespace ClaudeCodeVS
         {
             try
             {
-                ThreadHelper.JoinableTaskFactory.Run(async delegate
+#pragma warning disable VSSDK007 // fire-and-forget is intentional during control construction
+                _ = ThreadHelper.JoinableTaskFactory.RunAsync(async delegate
                 {
                     await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
 
@@ -61,6 +62,7 @@ namespace ClaudeCodeVS
                         solution.AdviseSolutionEvents(solutionEvents, out solutionEventsCookie);
                     }
                 });
+#pragma warning restore VSSDK007
             }
             catch (Exception ex)
             {

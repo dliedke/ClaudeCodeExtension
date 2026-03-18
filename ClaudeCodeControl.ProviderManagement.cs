@@ -1752,73 +1752,70 @@ For more details, visit: https://opencode.ai";
         /// <summary>
         /// Handles Opus menu item click - switches to Opus model
         /// </summary>
-        private void OpusMenuItem_Click(object sender, RoutedEventArgs e)
+#pragma warning disable VSTHRD100 // Avoid async void methods
+        private async void OpusMenuItem_Click(object sender, RoutedEventArgs e)
+#pragma warning restore VSTHRD100
         {
             if (_settings == null) return;
 
-            ThreadHelper.JoinableTaskFactory.Run(async delegate
+            await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
+
+            _settings.SelectedClaudeModel = ClaudeModel.Opus;
+            UpdateModelSelection();
+            SaveSettings();
+
+            // Send /model command directly without restarting terminal
+            if (_currentRunningProvider == AiProvider.ClaudeCode ||
+                _currentRunningProvider == AiProvider.ClaudeCodeWSL)
             {
-                await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
-
-                _settings.SelectedClaudeModel = ClaudeModel.Opus;
-                UpdateModelSelection();
-                SaveSettings();
-
-                // Send /model command directly without restarting terminal
-                if (_currentRunningProvider == AiProvider.ClaudeCode ||
-                    _currentRunningProvider == AiProvider.ClaudeCodeWSL)
-                {
-                    await SendTextToTerminalAsync("/model opus");
-                }
-            });
+                await SendTextToTerminalAsync("/model opus");
+            }
         }
 
         /// <summary>
         /// Handles Sonnet menu item click - switches to Sonnet model
         /// </summary>
-        private void SonnetMenuItem_Click(object sender, RoutedEventArgs e)
+#pragma warning disable VSTHRD100 // Avoid async void methods
+        private async void SonnetMenuItem_Click(object sender, RoutedEventArgs e)
+#pragma warning restore VSTHRD100
         {
             if (_settings == null) return;
 
-            ThreadHelper.JoinableTaskFactory.Run(async delegate
+            await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
+
+            _settings.SelectedClaudeModel = ClaudeModel.Sonnet;
+            UpdateModelSelection();
+            SaveSettings();
+
+            // Send /model command directly without restarting terminal
+            if (_currentRunningProvider == AiProvider.ClaudeCode ||
+                _currentRunningProvider == AiProvider.ClaudeCodeWSL)
             {
-                await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
-
-                _settings.SelectedClaudeModel = ClaudeModel.Sonnet;
-                UpdateModelSelection();
-                SaveSettings();
-
-                // Send /model command directly without restarting terminal
-                if (_currentRunningProvider == AiProvider.ClaudeCode ||
-                    _currentRunningProvider == AiProvider.ClaudeCodeWSL)
-                {
-                    await SendTextToTerminalAsync("/model sonnet");
-                }
-            });
+                await SendTextToTerminalAsync("/model sonnet");
+            }
         }
 
         /// <summary>
         /// Handles Haiku menu item click - switches to Haiku model
         /// </summary>
-        private void HaikuMenuItem_Click(object sender, RoutedEventArgs e)
+#pragma warning disable VSTHRD100 // Avoid async void methods
+        private async void HaikuMenuItem_Click(object sender, RoutedEventArgs e)
+#pragma warning restore VSTHRD100
         {
             if (_settings == null) return;
 
-            ThreadHelper.JoinableTaskFactory.Run(async delegate
+            await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
+
+            _settings.SelectedClaudeModel = ClaudeModel.Haiku;
+            UpdateModelSelection();
+            SaveSettings();
+
+            // Send /model command directly without restarting terminal
+            if (_currentRunningProvider == AiProvider.ClaudeCode ||
+                _currentRunningProvider == AiProvider.ClaudeCodeWSL)
             {
-                await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
-
-                _settings.SelectedClaudeModel = ClaudeModel.Haiku;
-                UpdateModelSelection();
-                SaveSettings();
-
-                // Send /model command directly without restarting terminal
-                if (_currentRunningProvider == AiProvider.ClaudeCode ||
-                    _currentRunningProvider == AiProvider.ClaudeCodeWSL)
-                {
-                    await SendTextToTerminalAsync("/model haiku");
-                }
-            });
+                await SendTextToTerminalAsync("/model haiku");
+            }
         }
 
         /// <summary>
@@ -1846,56 +1843,50 @@ For more details, visit: https://opencode.ai";
         /// <summary>
         /// Handles effort level menu item click - sends /effort command to terminal
         /// </summary>
-        private void SetEffortLevel(EffortLevel level)
+        private async Task SetEffortLevelAsync(EffortLevel level)
         {
             if (_settings == null) return;
 
-            ThreadHelper.JoinableTaskFactory.Run(async delegate
+            await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
+
+            _settings.SelectedEffortLevel = level;
+            UpdateEffortSelection();
+            SaveSettings();
+
+            // Send /effort command to Claude Code terminal
+            if (_currentRunningProvider == AiProvider.ClaudeCode ||
+                _currentRunningProvider == AiProvider.ClaudeCodeWSL)
             {
-                await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
-
-                _settings.SelectedEffortLevel = level;
-                UpdateEffortSelection();
-                SaveSettings();
-
-                // Send /effort command to Claude Code terminal
-                if (_currentRunningProvider == AiProvider.ClaudeCode ||
-                    _currentRunningProvider == AiProvider.ClaudeCodeWSL)
-                {
-                    await SendTextToTerminalAsync($"/effort {level.ToString().ToLower()}");
-                }
-            });
+                await SendTextToTerminalAsync($"/effort {level.ToString().ToLower()}");
+            }
         }
 
-        private void EffortAutoMenuItem_Click(object sender, RoutedEventArgs e)
+#pragma warning disable VSTHRD100 // Avoid async void methods
+        private async void EffortAutoMenuItem_Click(object sender, RoutedEventArgs e)
         {
-            ThreadHelper.ThrowIfNotOnUIThread();
-            SetEffortLevel(EffortLevel.Auto);
+            await SetEffortLevelAsync(EffortLevel.Auto);
         }
 
-        private void EffortLowMenuItem_Click(object sender, RoutedEventArgs e)
+        private async void EffortLowMenuItem_Click(object sender, RoutedEventArgs e)
         {
-            ThreadHelper.ThrowIfNotOnUIThread();
-            SetEffortLevel(EffortLevel.Low);
+            await SetEffortLevelAsync(EffortLevel.Low);
         }
 
-        private void EffortMediumMenuItem_Click(object sender, RoutedEventArgs e)
+        private async void EffortMediumMenuItem_Click(object sender, RoutedEventArgs e)
         {
-            ThreadHelper.ThrowIfNotOnUIThread();
-            SetEffortLevel(EffortLevel.Medium);
+            await SetEffortLevelAsync(EffortLevel.Medium);
         }
 
-        private void EffortHighMenuItem_Click(object sender, RoutedEventArgs e)
+        private async void EffortHighMenuItem_Click(object sender, RoutedEventArgs e)
         {
-            ThreadHelper.ThrowIfNotOnUIThread();
-            SetEffortLevel(EffortLevel.High);
+            await SetEffortLevelAsync(EffortLevel.High);
         }
 
-        private void EffortMaxMenuItem_Click(object sender, RoutedEventArgs e)
+        private async void EffortMaxMenuItem_Click(object sender, RoutedEventArgs e)
         {
-            ThreadHelper.ThrowIfNotOnUIThread();
-            SetEffortLevel(EffortLevel.Max);
+            await SetEffortLevelAsync(EffortLevel.Max);
         }
+#pragma warning restore VSTHRD100
 
         /// <summary>
         /// Updates the effort selection UI checkmarks
@@ -1920,56 +1911,81 @@ For more details, visit: https://opencode.ai";
         /// <summary>
         /// Handles Show Usage menu item click - sends /usage command directly
         /// </summary>
-        private void ShowUsageMenuItem_Click(object sender, RoutedEventArgs e)
+#pragma warning disable VSTHRD100 // Avoid async void methods
+        private async void ShowUsageMenuItem_Click(object sender, RoutedEventArgs e)
+#pragma warning restore VSTHRD100
         {
-            ThreadHelper.ThrowIfNotOnUIThread();
+            await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
 
-            ThreadHelper.JoinableTaskFactory.Run(async delegate
+            if (_currentRunningProvider == AiProvider.ClaudeCode ||
+                _currentRunningProvider == AiProvider.ClaudeCodeWSL)
             {
-                await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
-
-                if (_currentRunningProvider == AiProvider.ClaudeCode ||
-                    _currentRunningProvider == AiProvider.ClaudeCodeWSL)
-                {
-                    await SendTextToTerminalAsync("/usage");
-                }
-            });
+                await SendTextToTerminalAsync("/usage");
+            }
         }
 
         /// <summary>
         /// Handles Set Language menu item click - sends /config, types language, navigates and selects
         /// </summary>
-        private void SetLanguageMenuItem_Click(object sender, RoutedEventArgs e)
+#pragma warning disable VSTHRD100 // Avoid async void methods
+        private async void SetLanguageMenuItem_Click(object sender, RoutedEventArgs e)
+#pragma warning restore VSTHRD100
         {
-            ThreadHelper.ThrowIfNotOnUIThread();
+            await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
 
-            ThreadHelper.JoinableTaskFactory.Run(async delegate
+            if (_currentRunningProvider == AiProvider.ClaudeCode ||
+                _currentRunningProvider == AiProvider.ClaudeCodeWSL)
             {
-                await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
+                await SendTextToTerminalAsync("/config");
+                await Task.Delay(1500);
 
-                if (_currentRunningProvider == AiProvider.ClaudeCode ||
-                    _currentRunningProvider == AiProvider.ClaudeCodeWSL)
+                bool isWindowsTerminal = _wtTabBarHeight > 0;
+
+                // Type "language" to filter
+                foreach (char c in "language")
                 {
-                    await SendTextToTerminalAsync("/config");
-                    await Task.Delay(1500);
-
-                    // Type "language" to filter
-                    foreach (char c in "language")
+                    if (isWindowsTerminal)
+                    {
+                        // For Windows Terminal, use keybd_event (PostMessage WM_CHAR doesn't work)
+                        short vk = (short)(c >= 'a' && c <= 'z' ? c - 32 : c); // to uppercase VK
+                        keybd_event((byte)vk, 0, 0, UIntPtr.Zero);
+                        await Task.Delay(30);
+                        keybd_event((byte)vk, 0, KEYEVENTF_KEYUP, UIntPtr.Zero);
+                    }
+                    else
                     {
                         PostMessage(terminalHandle, WM_CHAR, new IntPtr(c), IntPtr.Zero);
-                        await Task.Delay(50);
                     }
-                    await Task.Delay(500);
+                    await Task.Delay(50);
+                }
+                await Task.Delay(500);
 
-                    // Press Down arrow to highlight
+                // Press Down arrow to highlight
+                if (isWindowsTerminal)
+                {
+                    keybd_event(VK_DOWN, 0, 0, UIntPtr.Zero);
+                    await Task.Delay(30);
+                    keybd_event(VK_DOWN, 0, KEYEVENTF_KEYUP, UIntPtr.Zero);
+                }
+                else
+                {
                     PostMessage(terminalHandle, WM_KEYDOWN, new IntPtr(VK_DOWN), IntPtr.Zero);
                     PostMessage(terminalHandle, WM_KEYUP, new IntPtr(VK_DOWN), IntPtr.Zero);
-                    await Task.Delay(200);
+                }
+                await Task.Delay(200);
 
-                    // Press Space to select
+                // Press Space to select
+                if (isWindowsTerminal)
+                {
+                    keybd_event(VK_SPACE, 0, 0, UIntPtr.Zero);
+                    await Task.Delay(30);
+                    keybd_event(VK_SPACE, 0, KEYEVENTF_KEYUP, UIntPtr.Zero);
+                }
+                else
+                {
                     PostMessage(terminalHandle, WM_CHAR, new IntPtr(VK_SPACE), IntPtr.Zero);
                 }
-            });
+            }
         }
 
         #endregion
