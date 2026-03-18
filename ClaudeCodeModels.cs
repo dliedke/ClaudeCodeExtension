@@ -154,5 +154,22 @@ namespace ClaudeCodeVS
         /// Defaults to Command Prompt for compatibility
         /// </summary>
         public TerminalType SelectedTerminalType { get; set; } = TerminalType.CommandPrompt;
+
+        /// <summary>
+        /// Whether the terminal is currently detached into a separate tool window tab
+        /// </summary>
+        public bool IsTerminalDetached { get; set; } = false;
+
+        /// <summary>
+        /// Font size for the prompt text box (in WPF device-independent units, range 8–24).
+        /// 0 means "use VS default" (not yet changed by user).
+        /// </summary>
+        public double PromptFontSize { get; set; } = 0.0;
+
+        /// <summary>
+        /// Net zoom delta applied by the user to the embedded terminal via Ctrl+Scroll.
+        /// Positive = zoomed in, negative = zoomed out. Replayed on each terminal restart.
+        /// </summary>
+        public int TerminalZoomDelta { get; set; } = 0;
     }
 }

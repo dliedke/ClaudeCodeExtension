@@ -281,6 +281,29 @@ namespace ClaudeCodeVS
 
         #endregion
 
+        #region Prompt Font Zoom
+
+        /// <summary>
+        /// Handles Ctrl+Scroll on the prompt textbox to increase/decrease font size
+        /// </summary>
+        private void PromptTextBox_PreviewMouseWheel(object sender, MouseWheelEventArgs e)
+        {
+            if (Keyboard.Modifiers == ModifierKeys.Control)
+            {
+                double newSize = PromptTextBox.FontSize + (e.Delta > 0 ? 1 : -1);
+                newSize = Math.Max(8, Math.Min(24, newSize));
+                PromptTextBox.FontSize = newSize;
+                if (_settings != null)
+                {
+                    _settings.PromptFontSize = newSize;
+                    SaveSettings();
+                }
+                e.Handled = true;
+            }
+        }
+
+        #endregion
+
         #region Send-with-Enter Toggle
 
         /// <summary>

@@ -160,7 +160,8 @@
                          BorderBrush="Transparent"
                          BorderThickness="0"
                          KeyDown="PromptTextBox_KeyDown"
-                         PreviewKeyDown="PromptTextBox_PreviewKeyDown">
+                         PreviewKeyDown="PromptTextBox_PreviewKeyDown"
+                         PreviewMouseWheel="PromptTextBox_PreviewMouseWheel">
 					<TextBox.ContextMenu>
 						<ContextMenu>
 							<MenuItem Header="Clear Prompt History" Click="ClearPromptHistoryMenuItem_Click"/>
@@ -303,7 +304,24 @@
 						Style="{StaticResource AdaptiveButtonStyle}"
 						Click="UpdateAgentButton_Click"
 						ToolTip="Update Code Agent"
-						Margin="0"/>
+						Margin="0,0,6,0"/>
+					<Button x:Name="DetachTerminalButton"
+						Width="30" Height="30"
+						Style="{StaticResource GrayGearButtonStyle}"
+						Click="DetachTerminalButton_Click"
+						ToolTip="Detach Terminal to Separate Tab"
+						Margin="0">
+						<Viewbox x:Name="DetachButtonIcon" Width="16" Height="14" Stretch="Uniform">
+							<Canvas Width="16" Height="14">
+								<!-- Box -->
+								<Rectangle Canvas.Left="5" Canvas.Top="1" Width="10" Height="12"
+										   Stroke="Gray" StrokeThickness="1.5" Fill="Transparent"/>
+								<!-- Arrow pointing left (detach) -->
+								<Line X1="8" Y1="7" X2="1" Y2="7" Stroke="Gray" StrokeThickness="1.5"/>
+								<Polyline Points="4,4 1,7 4,10" Stroke="Gray" StrokeThickness="1.5" Fill="Transparent"/>
+							</Canvas>
+						</Viewbox>
+					</Button>
 				</StackPanel>
 			</Grid>
 

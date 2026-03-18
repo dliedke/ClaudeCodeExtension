@@ -43,6 +43,9 @@ namespace ClaudeCodeVS
         private const uint WM_KEYDOWN = 0x0100;
         private const uint WM_KEYUP = 0x0101;
         private const uint WM_CHAR = 0x0102;
+        private const uint WM_MOUSEMOVE = 0x0200;
+        private const uint WM_LBUTTONDOWN = 0x0201;
+        private const uint WM_LBUTTONUP = 0x0202;
         private const uint WM_MOUSEWHEEL = 0x020A;
 
         // Virtual key codes
@@ -331,6 +334,73 @@ namespace ClaudeCodeVS
         /// </summary>
         [DllImport("kernel32.dll", SetLastError = true, CharSet = CharSet.Unicode)]
         private static extern bool GetCurrentConsoleFontEx(IntPtr hConsoleOutput, bool bMaximumWindow, ref CONSOLE_FONT_INFOEX lpConsoleCurrentFontEx);
+
+        #endregion
+
+        #region Win32 API Declarations - Mouse Hook
+
+        /// <summary>
+        /// Low-level mouse hook identifier
+        /// </summary>
+        private const int WH_MOUSE_LL = 14;
+
+        /// <summary>
+        /// Point structure for low-level mouse hook
+        /// </summary>
+        [StructLayout(LayoutKind.Sequential)]
+        private struct POINT
+        {
+            public int x;
+            public int y;
+        }
+
+        /// <summary>
+        /// Low-level mouse hook data structure
+        /// </summary>
+        [StructLayout(LayoutKind.Sequential)]
+        private struct MSLLHOOKSTRUCT
+        {
+            public POINT pt;
+            public uint mouseData;
+            public uint flags;
+            public uint time;
+            public IntPtr dwExtraInfo;
+        }
+
+        /// <summary>
+        /// Delegate for low-level mouse hook callback
+        /// </summary>
+        private delegate IntPtr LowLevelMouseProc(int nCode, IntPtr wParam, IntPtr lParam);
+
+        /// <summary>
+        /// Installs an application-defined hook procedure into a hook chain
+        /// </summary>
+        [DllImport("user32.dll", SetLastError = true)]
+        private static extern IntPtr SetWindowsHookEx(int idHook, LowLevelMouseProc lpfn, IntPtr hMod, uint dwThreadId);
+
+        /// <summary>
+        /// Removes a hook procedure installed in a hook chain
+        /// </summary>
+        [DllImport("user32.dll", SetLastError = true)]
+        private static extern bool UnhookWindowsHookEx(IntPtr hhk);
+
+        /// <summary>
+        /// Passes the hook information to the next hook procedure in the current hook chain
+        /// </summary>
+        [DllImport("user32.dll")]
+        private static extern IntPtr CallNextHookEx(IntPtr hhk, int nCode, IntPtr wParam, IntPtr lParam);
+
+        /// <summary>
+        /// Retrieves a module handle for the specified module
+        /// </summary>
+        [DllImport("kernel32.dll", CharSet = CharSet.Auto)]
+        private static extern IntPtr GetModuleHandle(string lpModuleName);
+
+        /// <summary>
+        /// Determines whether a key is up or down at the time the function is called
+        /// </summary>
+        [DllImport("user32.dll")]
+        private static extern short GetAsyncKeyState(int vKey);
 
         #endregion
 

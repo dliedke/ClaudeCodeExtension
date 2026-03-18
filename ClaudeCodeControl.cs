@@ -127,6 +127,8 @@ namespace ClaudeCodeVS
 
                 if (solutionAlreadyOpen)
                 {
+                    // DetachTerminalAsync is called inside OnWorkspaceDirectoryChangedAsync
+                    // after InitializeTerminalAsync when IsTerminalDetached == true
                     await OnWorkspaceDirectoryChangedAsync(true);
                 }
                 else

@@ -75,6 +75,22 @@ namespace ClaudeCodeVS
                 if (_settings.SplitterPosition > 0)
                 {
                     SetSplitterPosition(_settings.SplitterPosition);
+
+                    // Re-apply after first layout pass completes — during Loaded the
+                    // control may not have its final size yet, so the pixel value can
+                    // be overridden by WPF layout recalculation
+                    double savedPos = _settings.SplitterPosition;
+#pragma warning disable VSTHRD001, VSTHRD110
+                    _ = Dispatcher.BeginInvoke(
+                        System.Windows.Threading.DispatcherPriority.Loaded,
+                        new Action(() => SetSplitterPosition(savedPos)));
+#pragma warning restore VSTHRD001, VSTHRD110
+                }
+
+                // Only apply if user has explicitly set a font size (0 = use VS default)
+                if (_settings.PromptFontSize >= 8)
+                {
+                    PromptTextBox.FontSize = _settings.PromptFontSize;
                 }
             }
             catch (Exception ex)
@@ -126,13 +142,15 @@ namespace ClaudeCodeVS
                 _settings.SendWithEnter = SendWithEnterCheckBox.IsChecked == true;
 
                 // Only update splitter position if we can get a valid value (not 0.0)
-                var splitterPosition = FindSplitterPosition();
-                if (splitterPosition.HasValue && splitterPosition.Value > 0)
+                // Skip when terminal is detached because the grid layout is collapsed
+                // and FindSplitterPosition would return the full control height
+                if (!_isTerminalDetached)
                 {
-                    _settings.SplitterPosition = splitterPosition.Value;
-                }
-                else
-                {
+                    var splitterPosition = FindSplitterPosition();
+                    if (splitterPosition.HasValue && splitterPosition.Value > 0)
+                    {
+                        _settings.SplitterPosition = splitterPosition.Value;
+                    }
                 }
 
                 // Save to file
@@ -166,23 +184,9 @@ namespace ClaudeCodeVS
                 var grid = MainGrid;
                 if (grid?.RowDefinitions?.Count >= 3 && this.ActualHeight > 0)
                 {
-                    var topRow = grid.RowDefinitions[0];
-                    var splitterRow = grid.RowDefinitions[1];
-                    var bottomRow = grid.RowDefinitions[2];
-
-                    // Calculate the actual height of the top row
-                    double topHeight = 0;
-                    if (topRow.Height.IsStar)
-                    {
-                        double totalStars = topRow.Height.Value + bottomRow.Height.Value;
-                        topHeight = (topRow.Height.Value / totalStars) * (this.ActualHeight - splitterRow.Height.Value);
-                    }
-                    else if (topRow.Height.IsAbsolute)
-                    {
-                        topHeight = topRow.Height.Value;
-                    }
-
-                    // Return the actual pixel height for saving
+                    // ActualHeight is always the real rendered pixel height,
+                    // regardless of whether the row uses Star or Pixel GridLength
+                    double topHeight = grid.RowDefinitions[0].ActualHeight;
                     if (topHeight > 0)
                     {
                         return topHeight;
@@ -221,11 +225,41 @@ namespace ClaudeCodeVS
         }
 
         /// <summary>
+        /// Saves the splitter position after WPF has applied the final layout.
+        /// This is required because GridSplitter uses a preview adorner while dragging,
+        /// so the row ActualHeight can still be stale inside DragCompleted.
+        /// </summary>
+        private void SaveSplitterPositionAfterLayout()
+        {
+#pragma warning disable VSTHRD001, VSTHRD110
+            _ = Dispatcher.BeginInvoke(
+                System.Windows.Threading.DispatcherPriority.Loaded,
+                new Action(() =>
+                {
+                    MainGrid?.UpdateLayout();
+
+                    var splitterPosition = FindSplitterPosition();
+                    if (splitterPosition.HasValue && splitterPosition.Value > 0)
+                    {
+                        if (_settings == null)
+                        {
+                            _settings = new ClaudeCodeSettings();
+                        }
+
+                        _settings.SplitterPosition = splitterPosition.Value;
+                    }
+
+                    SaveSettings();
+                }));
+#pragma warning restore VSTHRD001, VSTHRD110
+        }
+
+        /// <summary>
         /// Handles splitter drag completed event to save the new position
         /// </summary>
         private void MainGridSplitter_DragCompleted(object sender, System.Windows.Controls.Primitives.DragCompletedEventArgs e)
         {
-            SaveSettings();
+            SaveSplitterPositionAfterLayout();
         }
 
         #endregion

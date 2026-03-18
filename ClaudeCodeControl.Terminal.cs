@@ -57,6 +57,46 @@ namespace ClaudeCodeVS
         /// </summary>
         private string _wtExePath = null;
 
+        /// <summary>
+        /// Handle to the low-level mouse hook used for tracking Ctrl+Scroll zoom on the embedded terminal
+        /// </summary>
+        private IntPtr _mouseHookHandle = IntPtr.Zero;
+
+        /// <summary>
+        /// Prevent GC from collecting the hook callback delegate
+        /// </summary>
+        private LowLevelMouseProc _mouseHookProc;
+
+        /// <summary>
+        /// Debounce timer for saving zoom delta to settings after Ctrl+Scroll
+        /// </summary>
+        private System.Windows.Threading.DispatcherTimer _zoomSaveTimer;
+
+        /// <summary>
+        /// Mouse drag distance in pixels before Windows Terminal selection assist kicks in
+        /// </summary>
+        private const int WindowsTerminalSelectionDragThreshold = 4;
+
+        /// <summary>
+        /// Tracks a pending left-drag inside Windows Terminal
+        /// </summary>
+        private bool _windowsTerminalSelectionPending;
+
+        /// <summary>
+        /// Tracks when selection assist is active for the current drag
+        /// </summary>
+        private bool _windowsTerminalSelectionActive;
+
+        /// <summary>
+        /// True when this control injected SHIFT to force text selection in Windows Terminal
+        /// </summary>
+        private bool _windowsTerminalSelectionModifierInjected;
+
+        /// <summary>
+        /// Drag start point for Windows Terminal selection assist
+        /// </summary>
+        private POINT _windowsTerminalSelectionStartPoint;
+
         #endregion
 
         #region Terminal Initialization
@@ -142,8 +182,9 @@ namespace ClaudeCodeVS
 
                 terminalPanel.Resize += (s, e) => ResizeEmbeddedTerminal();
 
-                // Forward Ctrl+Scroll to the embedded terminal for zoom in/out
-                TerminalHost.PreviewMouseWheel += TerminalHost_PreviewMouseWheel;
+                // Install low-level mouse hook to track Ctrl+Scroll zoom on the embedded terminal
+                // (WPF PreviewMouseWheel doesn't fire for embedded Win32 windows from other processes)
+                InstallMouseHook();
 
                 // Wait for panel to be properly sized (not just created) - reduced timeout
                 int maxWaitMs = 2000; // Reduced from 5 seconds to 2 seconds
@@ -356,6 +397,7 @@ namespace ClaudeCodeVS
                 }
 
                 // Reset terminal handle when restarting
+                ResetWindowsTerminalSelectionTracking();
                 terminalHandle = IntPtr.Zero;
                 _wtTabBarHeight = 0;
 
@@ -503,6 +545,23 @@ namespace ClaudeCodeVS
 
                             // Track the currently running provider
                             _currentRunningProvider = provider;
+
+                            // If terminal should be detached, re-parent to detached panel
+                            if (_isTerminalDetached && _detachedTerminalPanel != null)
+                            {
+                                SetParent(terminalHandle, _detachedTerminalPanel.Handle);
+                                ShowWindow(terminalHandle, SW_SHOW);
+                                ResizeEmbeddedTerminal();
+                                string wtProviderName = GetCurrentProviderName();
+                                _detachedTerminalWindow?.UpdateCaption(wtProviderName);
+                            }
+
+                            // Replay saved user zoom delta AFTER all re-parenting is done
+                            // (SetParent can reset zoom state)
+                            if (_settings?.TerminalZoomDelta != 0)
+                            {
+                                await ApplyTerminalZoomDeltaAsync(_settings.TerminalZoomDelta);
+                            }
                         }
                         catch (Exception ex)
                         {
@@ -682,6 +741,22 @@ namespace ClaudeCodeVS
                             }
 
                             UpdateToolWindowTitle(providerTitle);
+
+                            // If terminal should be detached, re-parent to detached panel
+                            if (_isTerminalDetached && _detachedTerminalPanel != null)
+                            {
+                                SetParent(terminalHandle, _detachedTerminalPanel.Handle);
+                                ShowWindow(terminalHandle, SW_SHOW);
+                                ResizeEmbeddedTerminal();
+                                _detachedTerminalWindow?.UpdateCaption(providerTitle);
+                            }
+
+                            // Replay saved user zoom delta AFTER all re-parenting is done
+                            // (SetParent can reset zoom state)
+                            if (_settings?.TerminalZoomDelta != 0)
+                            {
+                                await ApplyTerminalZoomDeltaAsync(_settings.TerminalZoomDelta);
+                            }
                         }
                         catch (Exception ex)
                         {
@@ -885,6 +960,76 @@ namespace ClaudeCodeVS
         }
 
         /// <summary>
+        /// Replays the saved terminal zoom delta.
+        /// Windows Terminal: uses keybd_event (Ctrl+= / Ctrl+-) — same proven approach as ApplyWindowsTerminalZoomOutAsync.
+        /// Command Prompt: uses PostMessage WM_MOUSEWHEEL+MK_CONTROL — same mechanism as Ctrl+Scroll forwarding.
+        /// </summary>
+        private async Task ApplyTerminalZoomDeltaAsync(int delta)
+        {
+            if (delta == 0 || terminalHandle == IntPtr.Zero || !IsWindow(terminalHandle))
+                return;
+
+            try
+            {
+                // Give the terminal extra time to finish initializing before replaying zoom
+                // Must wait long enough for the terminal shell to be fully loaded
+                await Task.Delay(1500);
+
+                if (!IsWindow(terminalHandle)) return;
+
+                int steps = Math.Abs(delta);
+
+                if (_wtTabBarHeight > 0)
+                {
+                    // Windows Terminal: use keyboard approach (matches ApplyWindowsTerminalZoomOutAsync)
+                    SetForegroundWindow(terminalHandle);
+                    SetFocus(terminalHandle);
+                    await Task.Delay(100);
+
+                    // 0xBB = VK_OEM_PLUS (zoom in), 0xBD = VK_OEM_MINUS (zoom out)
+                    int key = delta > 0 ? 0xBB : 0xBD;
+
+                    for (int i = 0; i < steps; i++)
+                    {
+                        keybd_event(VK_CONTROL, 0, 0, UIntPtr.Zero);
+                        await Task.Delay(50);
+                        keybd_event(key, 0, 0, UIntPtr.Zero);
+                        await Task.Delay(50);
+                        keybd_event(key, 0, KEYEVENTF_KEYUP, UIntPtr.Zero);
+                        await Task.Delay(50);
+                        keybd_event(VK_CONTROL, 0, KEYEVENTF_KEYUP, UIntPtr.Zero);
+                        await Task.Delay(100);
+                    }
+                }
+                else
+                {
+                    // Command Prompt: use PostMessage WM_MOUSEWHEEL+MK_CONTROL
+                    // (same mechanism as native Ctrl+Scroll zoom)
+                    var panel = ActiveTerminalPanel;
+                    if (panel == null) return;
+
+                    var screenPt = panel.PointToScreen(
+                        new System.Drawing.Point(panel.Width / 2, panel.Height / 2));
+                    int lParam = (screenPt.Y << 16) | (screenPt.X & 0xFFFF);
+
+                    // WHEEL_DELTA = 120 per notch
+                    int notch = delta > 0 ? 120 : -120;
+
+                    for (int i = 0; i < steps; i++)
+                    {
+                        int wParam = (notch << 16) | 0x0008; // HIWORD=delta, LOWORD=MK_CONTROL
+                        PostMessage(terminalHandle, WM_MOUSEWHEEL, (IntPtr)wParam, (IntPtr)lParam);
+                        await Task.Delay(80);
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"Error applying terminal zoom delta: {ex.Message}");
+            }
+        }
+
+        /// <summary>
         /// Calculates the Windows Terminal tab bar height scaled by DPI
         /// </summary>
         private int GetWtTabBarHeight()
@@ -905,24 +1050,163 @@ namespace ClaudeCodeVS
         }
 
         /// <summary>
-        /// Forwards Ctrl+MouseWheel to the embedded terminal for zoom in/out
+        /// Installs a low-level mouse hook to detect Ctrl+Scroll zoom over the terminal.
+        /// WPF PreviewMouseWheel doesn't fire for Win32 windows embedded via SetParent
+        /// from other processes, so a system-wide hook is needed.
         /// </summary>
-        private void TerminalHost_PreviewMouseWheel(object sender, MouseWheelEventArgs e)
+        private void InstallMouseHook()
         {
-            if (Keyboard.Modifiers == ModifierKeys.Control &&
-                terminalHandle != IntPtr.Zero && IsWindow(terminalHandle))
+            if (_mouseHookHandle != IntPtr.Zero) return;
+
+            _mouseHookProc = LowLevelMouseHookCallback;
+            using (var curProcess = Process.GetCurrentProcess())
+            using (var curModule = curProcess.MainModule)
             {
-                // Build WM_MOUSEWHEEL wParam: HIWORD = wheel delta, LOWORD = MK_CONTROL (0x0008)
-                int wParam = (e.Delta << 16) | 0x0008;
-
-                // Build lParam: screen coordinates of the cursor
-                var position = e.GetPosition(TerminalHost);
-                var screenPoint = TerminalHost.PointToScreen(position);
-                int lParam = ((int)screenPoint.Y << 16) | ((int)screenPoint.X & 0xFFFF);
-
-                SendMessage(terminalHandle, WM_MOUSEWHEEL, (IntPtr)wParam, (IntPtr)lParam);
-                e.Handled = true;
+                _mouseHookHandle = SetWindowsHookEx(WH_MOUSE_LL, _mouseHookProc,
+                    GetModuleHandle(curModule.ModuleName), 0);
             }
+
+            // Debounce timer: saves settings 500ms after last scroll tick
+            _zoomSaveTimer = new System.Windows.Threading.DispatcherTimer
+            {
+                Interval = TimeSpan.FromMilliseconds(500)
+            };
+            _zoomSaveTimer.Tick += (s, e) =>
+            {
+                _zoomSaveTimer.Stop();
+                SaveSettings();
+            };
+        }
+
+        /// <summary>
+        /// Uninstalls the low-level mouse hook
+        /// </summary>
+        private void UninstallMouseHook()
+        {
+            ResetWindowsTerminalSelectionTracking();
+
+            if (_mouseHookHandle != IntPtr.Zero)
+            {
+                UnhookWindowsHookEx(_mouseHookHandle);
+                _mouseHookHandle = IntPtr.Zero;
+            }
+            _mouseHookProc = null;
+            _zoomSaveTimer?.Stop();
+            _zoomSaveTimer = null;
+        }
+
+        /// <summary>
+        /// Returns true when the supplied screen point is inside the active terminal panel.
+        /// </summary>
+        private bool IsScreenPointInsideActiveTerminalPanel(POINT screenPoint)
+        {
+            var panel = ActiveTerminalPanel;
+            if (panel == null || panel.IsDisposed || terminalHandle == IntPtr.Zero || !IsWindow(terminalHandle))
+            {
+                return false;
+            }
+
+            var screenBounds = panel.RectangleToScreen(panel.ClientRectangle);
+            return screenBounds.Contains(screenPoint.x, screenPoint.y);
+        }
+
+        /// <summary>
+        /// Starts tracking a possible Windows Terminal text-selection drag.
+        /// </summary>
+        private void BeginWindowsTerminalSelectionTracking(POINT screenPoint)
+        {
+            if (_wtTabBarHeight <= 0 || !IsScreenPointInsideActiveTerminalPanel(screenPoint))
+            {
+                return;
+            }
+
+            _windowsTerminalSelectionPending = true;
+            _windowsTerminalSelectionActive = false;
+            _windowsTerminalSelectionStartPoint = screenPoint;
+        }
+
+        /// <summary>
+        /// Converts a plain left-drag into SHIFT+drag so Windows Terminal enters selection mode
+        /// even when the running TUI has mouse reporting enabled.
+        /// </summary>
+        private void UpdateWindowsTerminalSelectionTracking(POINT screenPoint)
+        {
+            if (_wtTabBarHeight <= 0 || !_windowsTerminalSelectionPending || _windowsTerminalSelectionActive)
+            {
+                return;
+            }
+
+            int deltaX = Math.Abs(screenPoint.x - _windowsTerminalSelectionStartPoint.x);
+            int deltaY = Math.Abs(screenPoint.y - _windowsTerminalSelectionStartPoint.y);
+            if (deltaX < WindowsTerminalSelectionDragThreshold &&
+                deltaY < WindowsTerminalSelectionDragThreshold)
+            {
+                return;
+            }
+
+            _windowsTerminalSelectionActive = true;
+
+            if ((GetAsyncKeyState(VK_SHIFT) & 0x8000) == 0)
+            {
+                keybd_event(VK_SHIFT, 0, 0, UIntPtr.Zero);
+                _windowsTerminalSelectionModifierInjected = true;
+            }
+        }
+
+        /// <summary>
+        /// Clears the temporary Windows Terminal selection tracking state.
+        /// </summary>
+        private void ResetWindowsTerminalSelectionTracking()
+        {
+            if (_windowsTerminalSelectionModifierInjected)
+            {
+                keybd_event(VK_SHIFT, 0, KEYEVENTF_KEYUP, UIntPtr.Zero);
+            }
+
+            _windowsTerminalSelectionPending = false;
+            _windowsTerminalSelectionActive = false;
+            _windowsTerminalSelectionModifierInjected = false;
+        }
+
+        /// <summary>
+        /// Low-level mouse hook callback. Tracks Ctrl+Scroll over the terminal panel
+        /// to persist the zoom delta for replay on terminal restart and enables SHIFT+drag
+        /// selection assistance for embedded Windows Terminal.
+        /// </summary>
+        private IntPtr LowLevelMouseHookCallback(int nCode, IntPtr wParam, IntPtr lParam)
+        {
+            if (nCode >= 0)
+            {
+                var info = (MSLLHOOKSTRUCT)Marshal.PtrToStructure(lParam, typeof(MSLLHOOKSTRUCT));
+                uint message = unchecked((uint)wParam.ToInt64());
+
+                if (message == WM_MOUSEWHEEL)
+                {
+                    if ((GetAsyncKeyState(VK_CONTROL) & 0x8000) != 0 &&
+                        IsScreenPointInsideActiveTerminalPanel(info.pt) &&
+                        _settings != null)
+                    {
+                        int wheelDelta = (short)((info.mouseData >> 16) & 0xFFFF);
+                        _settings.TerminalZoomDelta += wheelDelta > 0 ? 1 : -1;
+                        _zoomSaveTimer?.Stop();
+                        _zoomSaveTimer?.Start();
+                    }
+                }
+                else if (message == WM_LBUTTONDOWN)
+                {
+                    BeginWindowsTerminalSelectionTracking(info.pt);
+                }
+                else if (message == WM_MOUSEMOVE)
+                {
+                    UpdateWindowsTerminalSelectionTracking(info.pt);
+                }
+                else if (message == WM_LBUTTONUP)
+                {
+                    ResetWindowsTerminalSelectionTracking();
+                }
+            }
+
+            return CallNextHookEx(_mouseHookHandle, nCode, wParam, lParam);
         }
 
         /// <summary>
@@ -931,21 +1215,22 @@ namespace ClaudeCodeVS
         /// </summary>
         private void ResizeEmbeddedTerminal()
         {
-            if (terminalHandle != IntPtr.Zero && IsWindow(terminalHandle) && terminalPanel != null)
+            var panel = ActiveTerminalPanel;
+            if (terminalHandle != IntPtr.Zero && IsWindow(terminalHandle) && panel != null)
             {
                 if (_wtTabBarHeight > 0)
                 {
                     // Windows Terminal: hide tab bar by positioning it above the visible area
                     // Set height to panel height + tab bar (so tab bar goes off-screen above)
                     SetWindowPos(terminalHandle, IntPtr.Zero,
-                                0, -_wtTabBarHeight, terminalPanel.Width, terminalPanel.Height + _wtTabBarHeight,
+                                0, -_wtTabBarHeight, panel.Width, panel.Height + _wtTabBarHeight,
                                 SWP_NOZORDER | SWP_NOACTIVATE);
                 }
                 else
                 {
                     // Command Prompt: use panel dimensions directly
                     SetWindowPos(terminalHandle, IntPtr.Zero, 0, 0,
-                                terminalPanel.Width, terminalPanel.Height,
+                                panel.Width, panel.Height,
                                 SWP_NOZORDER | SWP_NOACTIVATE);
                 }
             }

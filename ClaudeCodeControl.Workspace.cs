@@ -204,6 +204,13 @@ namespace ClaudeCodeVS
                 {
                     _lastWorkspaceDirectory = newWorkspaceDir;
                     await InitializeTerminalAsync();
+
+                    // Auto-restore detached state from previous session
+                    if (_settings?.IsTerminalDetached == true && !_isTerminalDetached)
+                    {
+                        await DetachTerminalAsync();
+                    }
+
                     if (resetDiff)
                     {
                         bool refreshView = _diffViewerWindow != null;

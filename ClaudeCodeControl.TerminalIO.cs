@@ -79,30 +79,37 @@ namespace ClaudeCodeVS
                     // Copy text to clipboard
                     await ClipboardRetryAsync(() => Clipboard.SetText(text));
 
+                    // If terminal is detached, ensure the detached window tab is visible
+                    // (auto-open changes may have activated the diff viewer tab instead)
+                    if (_isTerminalDetached && _detachedTerminalWindow?.Frame is Microsoft.VisualStudio.Shell.Interop.IVsWindowFrame detachedFrame)
+                    {
+                        detachedFrame.Show();
+                        await Task.Delay(200);
+                    }
+
                     // Set focus to terminal window
                     SetForegroundWindow(terminalHandle);
                     SetFocus(terminalHandle);
 
                     await Task.Delay(500); // Reduced from 700ms
 
-                    // Right-click to paste in CMD window
-                    // For OpenCode, use SHIFT+Right-click instead
-                    if (_currentRunningProvider == AiProvider.OpenCode)
+                    // Paste text into the terminal
+                    // Windows Terminal: use Ctrl+Shift+V (right-click opens context menu instead of pasting)
+                    // OpenCode: use Shift+Right-click
+                    // Others (Command Prompt): use right-click
+                    if (_wtTabBarHeight > 0)
+                    {
+                        await PasteViaCtrlShiftVAsync();
+                        await Task.Delay(500);
+                    }
+                    else if (_currentRunningProvider == AiProvider.OpenCode)
                     {
                         await ShiftRightClickTerminalCenterAsync();
+                        await Task.Delay(800);
                     }
                     else
                     {
                         await RightClickTerminalCenterAsync();
-                    }
-
-                    // Wait longer for Windows Terminal to be ready to accept input
-                    if (_wtTabBarHeight > 0)
-                    {
-                        await Task.Delay(1000);
-                    }
-                    else
-                    {
                         await Task.Delay(800);
                     }
 
@@ -348,6 +355,30 @@ namespace ClaudeCodeVS
             {
                 // Silently fail if we can't restore clipboard
             }
+        }
+
+        /// <summary>
+        /// Pastes text using Ctrl+Shift+V keyboard shortcut (for Windows Terminal).
+        /// Windows Terminal right-click opens a context menu instead of pasting directly,
+        /// so we use the keyboard shortcut which always pastes reliably.
+        /// </summary>
+        private async Task PasteViaCtrlShiftVAsync()
+        {
+            if (terminalHandle == IntPtr.Zero || !IsWindow(terminalHandle)) return;
+
+            SetForegroundWindow(terminalHandle);
+            SetFocus(terminalHandle);
+            await Task.Delay(100);
+
+            // Ctrl+Shift+V
+            keybd_event(VK_CONTROL, 0, 0, UIntPtr.Zero);
+            keybd_event(VK_SHIFT, 0, 0, UIntPtr.Zero);
+            await Task.Delay(30);
+            keybd_event(0x56, 0, 0, UIntPtr.Zero); // VK_V = 0x56
+            await Task.Delay(30);
+            keybd_event(0x56, 0, KEYEVENTF_KEYUP, UIntPtr.Zero);
+            keybd_event(VK_SHIFT, 0, KEYEVENTF_KEYUP, UIntPtr.Zero);
+            keybd_event(VK_CONTROL, 0, KEYEVENTF_KEYUP, UIntPtr.Zero);
         }
 
         /// <summary>

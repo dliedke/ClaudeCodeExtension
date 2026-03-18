@@ -1511,6 +1511,7 @@ For more details, visit: https://opencode.ai";
                 {
                     await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
                     _toolWindow?.UpdateTitle(providerName);
+                    _detachedTerminalWindow?.UpdateCaption(providerName);
                 });
             }
             catch (Exception ex)

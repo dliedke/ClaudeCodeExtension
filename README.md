@@ -175,6 +175,37 @@ Click the update button and the extension will handle the update process. Agents
 
 ## Version History
 
+### Version 8.5
+- **Fix terminal zoom tracking**: Replaced WPF PreviewMouseWheel (which never fired for embedded Win32 windows) with a low-level mouse hook that reliably detects Ctrl+Scroll over the terminal, so TerminalZoomDelta is now correctly tracked and replayed on restart
+- **Fix Windows Terminal paste**: Changed paste mechanism from right-click (which opens a context menu in WT, causing random text selection) to Ctrl+Shift+V keyboard shortcut, which always pastes reliably
+- **Fix Windows Terminal text selection**: Right-click is no longer used for paste in WT, freeing it for the user's normal copy/paste/selection operations
+
+### Version 8.4
+- **Detach Terminal - Auto-expand prompt**: On detach, the prompt area automatically grows 80px for more comfortable editing; restores to original size on re-attach
+- **Terminal zoom persistence**: Ctrl+Scroll zoom on the terminal is tracked as a delta and replayed via WM_MOUSEWHEEL on every restart, preserving the preferred zoom level across sessions (works for both Command Prompt and Windows Terminal)
+- **Prompt font size persistence**: Ctrl+Scroll on the prompt text box adjusts font size and persists across sessions; uses VS default when not explicitly set
+- **Detached state persistence fix**: Auto-restore of detached terminal now works when opening any solution, not just when VS starts with a solution already open
+
+### Version 8.3
+- **Detach Terminal - Splitter resize**: When terminal is detached, the GridSplitter stays visible so the prompt area can be resized freely
+- **Prompt font zoom**: Ctrl+Scroll on the prompt text box increases or decreases the font size (range 8–24pt, persisted across sessions)
+- **Detach Terminal fix**: Fixed SplitterPosition being corrupted when SaveSettings was called while the grid was in collapsed state during detach
+
+### Version 8.2
+- **Detach Terminal fix**: Terminal now properly fills the entire detached tab (show window first, then re-parent with delayed resize retries)
+- **Detach Terminal fix**: Re-attach layout fully restored (layout restored before re-parent so panel has dimensions; delayed resize retries)
+- **Detach Terminal fix**: Fixed double re-attach when closing detached tab (Closed event fired twice; added guard + single event source)
+- **Detach Terminal fix**: Fixed prompt not being sent when diff changes view is open and terminal is detached
+- **Detach Terminal fix**: Prompt area now properly expands to fill all available space when terminal is detached
+
+### Version 8.0
+- **Detach Terminal**: New ability to detach the embedded terminal into a separate VS tool window tab via a detach button below the Update button
+- When detached, the prompt area expands to fill the available space
+- Closing the detached tab automatically re-attaches the terminal to the main panel
+- Detached/attached state persists across Visual Studio sessions
+- Terminal restart and provider switching work seamlessly while detached
+- Theme changes are reflected in the detached terminal window
+
 ### Version 7.8
 - **Fixed Show Usage for Windows Terminal**: Simplified Show Usage to use `/usage` command directly instead of navigating `/config` menu with keyboard simulation
 - **Adjusted Windows Terminal zoom level**: Reduced initial zoom out from 4 to 3 steps for better readability

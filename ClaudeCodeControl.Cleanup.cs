@@ -15,6 +15,7 @@ using System.IO;
 using System.Diagnostics;
 using System.Windows;
 using Microsoft.VisualStudio.Shell;
+using Microsoft.VisualStudio.Shell.Interop;
 
 namespace ClaudeCodeVS
 {
@@ -108,16 +109,59 @@ namespace ClaudeCodeVS
 
             try
             {
+                // Persist the latest UI state before tearing down the control.
+                SaveSettings();
+
                 // Cleanup diff tracking
                 CleanupDiffTracking();
 
                 // Unsubscribe from theme change events
                 CleanupThemeEvents();
 
-                // Unsubscribe from terminal mouse wheel events
-                if (TerminalHost != null)
+                // Uninstall the low-level mouse hook used for zoom tracking
+                UninstallMouseHook();
+
+                // Cleanup detached terminal window
+                if (_isTerminalDetached && _detachedTerminalWindow != null)
                 {
-                    TerminalHost.PreviewMouseWheel -= TerminalHost_PreviewMouseWheel;
+                    try
+                    {
+                        // Re-parent terminal back to main panel before killing
+                        if (terminalHandle != IntPtr.Zero && IsWindow(terminalHandle) && terminalPanel != null)
+                        {
+                            SetParent(terminalHandle, terminalPanel.Handle);
+                        }
+
+                        // Unwire events
+                        if (_detachedClosedSubscribed)
+                        {
+                            _detachedTerminalWindow.Closed -= OnDetachedWindowClosed;
+                            _detachedClosedSubscribed = false;
+                        }
+                        if (_detachedVisibilitySubscribed)
+                        {
+                            _detachedTerminalWindow.VisibilityChanged -= OnDetachedVisibilityChanged;
+                            _detachedVisibilitySubscribed = false;
+                        }
+                        if (_detachedTerminalPanel != null)
+                        {
+                            _detachedTerminalPanel.Resize -= DetachedPanel_Resize;
+                        }
+
+                        // Close the detached window frame
+                        if (_detachedTerminalWindow.Frame is IVsWindowFrame windowFrame)
+                        {
+                            windowFrame.CloseFrame((uint)__FRAMECLOSE.FRAMECLOSE_NoSave);
+                        }
+
+                        _detachedTerminalPanel = null;
+                        _detachedTerminalWindow = null;
+                        _isTerminalDetached = false;
+                    }
+                    catch (Exception ex)
+                    {
+                        Debug.WriteLine($"Error cleaning up detached terminal: {ex.Message}");
+                    }
                 }
 
                 // Kill child processes (like claude.exe) before killing the main cmd process

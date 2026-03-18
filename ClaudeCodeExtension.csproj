@@ -47,6 +47,7 @@
   <ItemGroup>
     <Compile Include="ClaudeCodeControl.cs" />
     <Compile Include="ClaudeCodeControl.Cleanup.cs" />
+    <Compile Include="ClaudeCodeControl.Detach.cs" />
     <Compile Include="ClaudeCodeControl.Diff.cs" />
     <Compile Include="ClaudeCodeControl.ImageHandling.cs" />
     <Compile Include="ClaudeCodeControl.Interop.cs" />
@@ -59,6 +60,7 @@
     <Compile Include="ClaudeCodeControl.Workspace.cs" />
     <Compile Include="ClaudeCodeModels.cs" />
     <Compile Include="ClaudeCodeToolWindow.cs" />
+    <Compile Include="DetachedTerminalToolWindow.cs" />
     <Compile Include="DiffViewerToolWindow.cs" />
     <Compile Include="DiffViewerControl.xaml.cs">
       <DependentUpon>DiffViewerControl.xaml</DependentUpon>

@@ -88,7 +88,8 @@ namespace ClaudeCodeVS
                 UpdateTerminalTheme();
 
                 // Ensure terminal window is visible and properly sized when tab is switched back
-                if (terminalHandle != IntPtr.Zero && IsWindow(terminalHandle))
+                // Skip if terminal is detached (it's in its own window)
+                if (!_isTerminalDetached && terminalHandle != IntPtr.Zero && IsWindow(terminalHandle))
                 {
                     ShowWindow(terminalHandle, SW_SHOW);
                     ResizeEmbeddedTerminal();
@@ -130,6 +131,12 @@ namespace ClaudeCodeVS
                 {
                     terminalPanel.BackColor = newColor;
                     _lastTerminalColor = newColor;
+                }
+
+                // Also update detached panel if terminal is detached
+                if (_isTerminalDetached && _detachedTerminalWindow != null)
+                {
+                    _detachedTerminalWindow.UpdateTheme(newColor);
                 }
             }
         }
