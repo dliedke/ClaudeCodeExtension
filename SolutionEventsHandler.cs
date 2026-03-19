@@ -57,12 +57,14 @@ namespace ClaudeCodeVS
         /// <returns>S_OK if successful</returns>
         public int OnAfterOpenSolution(object pUnkReserved, int fNewSolution)
         {
-            ThreadHelper.JoinableTaskFactory.Run(async delegate
+#pragma warning disable VSSDK007, VSTHRD110 // Fire-and-forget to avoid blocking the UI thread during solution load
+            _ = ThreadHelper.JoinableTaskFactory.RunAsync(async delegate
             {
                 // Add small delay to ensure solution is fully loaded
                 await Task.Delay(500);
                 await _control.OnWorkspaceDirectoryChangedAsync(true);
             });
+#pragma warning restore VSSDK007, VSTHRD110
             return VSConstants.S_OK;
         }
 
@@ -74,12 +76,14 @@ namespace ClaudeCodeVS
         /// <returns>S_OK if successful</returns>
         public int OnAfterOpenProject(IVsHierarchy pHierarchy, int fAdded)
         {
-            ThreadHelper.JoinableTaskFactory.Run(async delegate
+#pragma warning disable VSSDK007, VSTHRD110 // Fire-and-forget to avoid blocking the UI thread during project load
+            _ = ThreadHelper.JoinableTaskFactory.RunAsync(async delegate
             {
                 // Add small delay to ensure project is fully loaded
                 await Task.Delay(300);
                 await _control.OnWorkspaceDirectoryChangedAsync(true);
             });
+#pragma warning restore VSSDK007, VSTHRD110
             return VSConstants.S_OK;
         }
 

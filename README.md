@@ -186,6 +186,15 @@ Click the update button and the extension will handle the update process. Agents
 
 ## Version History
 
+### Version 8.7
+- **Performance: Non-blocking solution/project open**: Changed `SolutionEventsHandler` from synchronous `JoinableTaskFactory.Run` to fire-and-forget `RunAsync`, eliminating VS hangs when opening solutions/projects (provider detection + terminal startup no longer block the UI thread)
+- **Performance: Fast process tree termination**: Replaced WMI-based `KillProcessAndChildren` (1-5 seconds per query) with ToolHelp32 kernel snapshots (sub-millisecond), dramatically speeding up terminal shutdown and VS exit
+- **Performance: Background process cleanup on shutdown**: `CleanupResources` now offloads process tree termination and temp directory deletion to a background thread, keeping the UI responsive during VS shutdown
+- **Performance: Non-blocking provider menu switching**: All 8 provider menu click handlers converted from blocking `JoinableTaskFactory.Run` to `async void`, preventing UI freezes when switching AI providers
+- **Performance: Non-blocking settings menu handlers**: Terminal type, working directory, skip permissions, and Codex full-auto toggle handlers no longer block the UI thread during terminal restart
+- **Performance: Non-blocking context menu open**: Provider context menu now uses cached workspace directory instead of synchronous `GetWorkspaceDirectoryAsync` call, eliminating brief hangs on menu open
+- **Removed System.Management dependency**: No longer needed after WMI replacement with ToolHelp32
+
 ### Version 8.6
 - **Fix Windows Terminal commands**: Menu commands (model switch, effort level, usage, set language) now work correctly with Windows Terminal — converted synchronous blocking handlers to async void so focus transfers properly before keyboard simulation
 - **Fix Windows Terminal language setting**: Keyboard input for the `/config` TUI (typing "language", arrow keys, space) now uses `keybd_event` instead of `PostMessage` when running in Windows Terminal

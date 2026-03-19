@@ -121,7 +121,10 @@ namespace ClaudeCodeVS
         }
 
         /// <summary>
-        /// Cleans up all resources including processes and temporary files
+        /// Cleans up all resources including processes and temporary files.
+        /// UI-bound work (event unsubscription, window closing) runs on the UI thread.
+        /// Heavy work (process tree termination, temp directory deletion) is offloaded
+        /// to a background thread to avoid blocking VS during shutdown.
         /// </summary>
         private void CleanupResources()
         {
@@ -184,6 +187,7 @@ namespace ClaudeCodeVS
                     }
                 }
 
+                // Capture process info while still on UI thread (Win32 calls require it)
                 int terminalWindowProcessId = 0;
                 if (terminalHandle != IntPtr.Zero && IsWindow(terminalHandle))
                 {
@@ -192,55 +196,90 @@ namespace ClaudeCodeVS
                     PostMessage(terminalHandle, WM_CLOSE, IntPtr.Zero, IntPtr.Zero);
                 }
 
-                var terminatedProcessIds = new System.Collections.Generic.HashSet<int>();
-
-                if (cmdProcess != null)
+                int cmdProcessId = 0;
+                Process cmdProcessRef = cmdProcess;
+                if (cmdProcessRef != null)
                 {
                     try
                     {
-                        TryTerminateProcessTree(cmdProcess.Id, terminatedProcessIds);
+                        cmdProcessId = cmdProcessRef.Id;
                     }
-                    catch (Exception ex)
+                    catch (InvalidOperationException)
                     {
-                        Debug.WriteLine($"Error disposing terminal launcher process: {ex.Message}");
-                    }
-                    finally
-                    {
-                        cmdProcess.Dispose();
-                        cmdProcess = null;
+                        // Process already exited
                     }
                 }
+                cmdProcess = null;
 
-                if (terminalWindowProcessId > 0 &&
-                    terminalWindowProcessId != Process.GetCurrentProcess().Id)
-                {
-                    TryTerminateProcessTree(terminalWindowProcessId, terminatedProcessIds);
-                }
-
-                // Clean up temporary directory
-                if (Directory.Exists(tempImageDirectory))
-                {
-                    try
-                    {
-                        Directory.Delete(tempImageDirectory, true);
-                    }
-                    catch (Exception ex)
-                    {
-                        Debug.WriteLine($"Error cleaning temp directory: {ex.Message}");
-                        // Try to at least delete files if directory deletion fails
-                        try
-                        {
-                            foreach (string file in Directory.GetFiles(tempImageDirectory))
-                            {
-                                File.Delete(file);
-                            }
-                        }
-                        catch { }
-                    }
-                }
+                string tempDir = tempImageDirectory;
 
                 // Clear attached images list
                 attachedImagePaths?.Clear();
+
+                // Offload heavy process termination and temp directory cleanup to background thread
+                int currentVsProcessId = Process.GetCurrentProcess().Id;
+                _ = System.Threading.Tasks.Task.Run(() =>
+                {
+                    try
+                    {
+                        var terminatedProcessIds = new System.Collections.Generic.HashSet<int>();
+
+                        if (cmdProcessId > 0)
+                        {
+                            try
+                            {
+                                TryTerminateProcessTree(cmdProcessId, terminatedProcessIds);
+                            }
+                            catch (Exception ex)
+                            {
+                                Debug.WriteLine($"Error terminating terminal launcher process tree: {ex.Message}");
+                            }
+                        }
+
+                        if (cmdProcessRef != null)
+                        {
+                            try
+                            {
+                                cmdProcessRef.Dispose();
+                            }
+                            catch (Exception ex)
+                            {
+                                Debug.WriteLine($"Error disposing terminal launcher process: {ex.Message}");
+                            }
+                        }
+
+                        if (terminalWindowProcessId > 0 &&
+                            terminalWindowProcessId != currentVsProcessId)
+                        {
+                            TryTerminateProcessTree(terminalWindowProcessId, terminatedProcessIds);
+                        }
+
+                        // Clean up temporary directory
+                        if (!string.IsNullOrEmpty(tempDir) && Directory.Exists(tempDir))
+                        {
+                            try
+                            {
+                                Directory.Delete(tempDir, true);
+                            }
+                            catch (Exception ex)
+                            {
+                                Debug.WriteLine($"Error cleaning temp directory: {ex.Message}");
+                                try
+                                {
+                                    foreach (string file in Directory.GetFiles(tempDir))
+                                    {
+                                        File.Delete(file);
+                                    }
+                                }
+                                catch { }
+                            }
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        Debug.WriteLine($"Error during background cleanup: {ex.Message}");
+                    }
+                });
             }
             catch (Exception ex)
             {
@@ -249,38 +288,40 @@ namespace ClaudeCodeVS
         }
 
         /// <summary>
-        /// Kills a process and all its child processes
+        /// Kills a process and all its child processes using ToolHelp32 snapshots.
+        /// ToolHelp32 is a kernel-level snapshot API (sub-millisecond) and avoids the
+        /// significant overhead of WMI queries (which can take 1-5 seconds each).
         /// </summary>
         /// <param name="processId">The process ID to kill</param>
         private void KillProcessAndChildren(int processId)
         {
             try
             {
-                // Use WMI to find and kill child processes
-                using (var searcher = new System.Management.ManagementObjectSearcher(
-                    $"SELECT ProcessId FROM Win32_Process WHERE ParentProcessId={processId}"))
+                // Use ToolHelp32 snapshot to find child processes (sub-ms, no WMI dependency)
+                var childPids = GetChildProcessIds((uint)processId);
+                foreach (uint childPid in childPids)
                 {
-                    foreach (var obj in searcher.Get())
+                    try
                     {
-                        try
+                        // Recursively kill children of this child
+                        KillProcessAndChildren((int)childPid);
+
+                        // Kill the child process
+                        using (var childProcess = Process.GetProcessById((int)childPid))
                         {
-                            int childProcessId = Convert.ToInt32(obj["ProcessId"]);
-
-                            // Recursively kill children of this child
-                            KillProcessAndChildren(childProcessId);
-
-                            // Kill the child process
-                            var childProcess = Process.GetProcessById(childProcessId);
                             if (!childProcess.HasExited)
                             {
                                 childProcess.Kill();
-                                childProcess.Dispose();
                             }
                         }
-                        catch (Exception ex)
-                        {
-                            Debug.WriteLine($"Error killing child process: {ex.Message}");
-                        }
+                    }
+                    catch (ArgumentException)
+                    {
+                        // Process already exited
+                    }
+                    catch (Exception ex)
+                    {
+                        Debug.WriteLine($"Error killing child process {childPid}: {ex.Message}");
                     }
                 }
             }

@@ -1222,241 +1222,232 @@ For more details, visit: https://opencode.ai";
         /// <summary>
         /// Handles Qwen Code menu item click - switches to Qwen Code provider
         /// </summary>
-        private void QwenCodeMenuItem_Click(object sender, RoutedEventArgs e)
+#pragma warning disable VSTHRD100 // async void is acceptable for event handlers
+        private async void QwenCodeMenuItem_Click(object sender, RoutedEventArgs e)
+#pragma warning restore VSTHRD100
         {
             if (_settings == null) return;
 
-            ThreadHelper.JoinableTaskFactory.Run(async delegate
+            bool qwenCodeAvailable = await IsQwenCodeAvailableAsync();
+            await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
+
+            // Always update the selection regardless of availability
+            _settings.SelectedProvider = AiProvider.QwenCode;
+            UpdateProviderSelection();
+            SaveSettings();
+
+            if (!qwenCodeAvailable)
             {
-                bool qwenCodeAvailable = await IsQwenCodeAvailableAsync();
-                await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
-
-                // Always update the selection regardless of availability
-                _settings.SelectedProvider = AiProvider.QwenCode;
-                UpdateProviderSelection();
-                SaveSettings();
-
-                if (!qwenCodeAvailable)
-                {
-                    ShowQwenCodeInstallationInstructions();
-                    await StartEmbeddedTerminalAsync(null); // Regular CMD
-                }
-                else
-                {
-                    await StartEmbeddedTerminalAsync(AiProvider.QwenCode);
-                }
-            });
+                ShowQwenCodeInstallationInstructions();
+                await StartEmbeddedTerminalAsync(null); // Regular CMD
+            }
+            else
+            {
+                await StartEmbeddedTerminalAsync(AiProvider.QwenCode);
+            }
         }
 
         /// <summary>
         /// Handles Open Code menu item click - switches to Open Code provider
         /// </summary>
-        private void OpenCodeMenuItem_Click(object sender, RoutedEventArgs e)
+#pragma warning disable VSTHRD100 // async void is acceptable for event handlers
+        private async void OpenCodeMenuItem_Click(object sender, RoutedEventArgs e)
+#pragma warning restore VSTHRD100
         {
             if (_settings == null) return;
 
-            ThreadHelper.JoinableTaskFactory.Run(async delegate
+            bool openCodeAvailable = await IsOpenCodeAvailableAsync();
+            await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
+
+            // Always update the selection regardless of availability
+            _settings.SelectedProvider = AiProvider.OpenCode;
+            UpdateProviderSelection();
+            SaveSettings();
+
+            if (!openCodeAvailable)
             {
-                bool openCodeAvailable = await IsOpenCodeAvailableAsync();
-                await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
-
-                // Always update the selection regardless of availability
-                _settings.SelectedProvider = AiProvider.OpenCode;
-                UpdateProviderSelection();
-                SaveSettings();
-
-                if (!openCodeAvailable)
-                {
-                    ShowOpenCodeInstallationInstructions();
-                    await StartEmbeddedTerminalAsync(null); // Regular CMD
-                }
-                else
-                {
-                    await StartEmbeddedTerminalAsync(AiProvider.OpenCode);
-                }
-            });
+                ShowOpenCodeInstallationInstructions();
+                await StartEmbeddedTerminalAsync(null); // Regular CMD
+            }
+            else
+            {
+                await StartEmbeddedTerminalAsync(AiProvider.OpenCode);
+            }
         }
 
         /// <summary>
         /// Handles Claude Code menu item click - switches to Claude Code provider
         /// </summary>
-        private void ClaudeCodeMenuItem_Click(object sender, RoutedEventArgs e)
+#pragma warning disable VSTHRD100 // async void is acceptable for event handlers
+        private async void ClaudeCodeMenuItem_Click(object sender, RoutedEventArgs e)
+#pragma warning restore VSTHRD100
         {
             if (_settings == null) return;
 
-            ThreadHelper.JoinableTaskFactory.Run(async delegate
+            bool claudeAvailable = await IsClaudeCmdAvailableAsync();
+            await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
+
+            // Always update the selection regardless of availability
+            _settings.SelectedProvider = AiProvider.ClaudeCode;
+            UpdateProviderSelection();
+            SaveSettings();
+
+            if (!claudeAvailable)
             {
-                bool claudeAvailable = await IsClaudeCmdAvailableAsync();
-                await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
-
-                // Always update the selection regardless of availability
-                _settings.SelectedProvider = AiProvider.ClaudeCode;
-                UpdateProviderSelection();
-                SaveSettings();
-
-                if (!claudeAvailable)
-                {
-                    ShowClaudeInstallationInstructions();
-                    await StartEmbeddedTerminalAsync(null); // Regular CMD
-                }
-                else
-                {
-                    await StartEmbeddedTerminalAsync(AiProvider.ClaudeCode);
-                }
-            });
+                ShowClaudeInstallationInstructions();
+                await StartEmbeddedTerminalAsync(null); // Regular CMD
+            }
+            else
+            {
+                await StartEmbeddedTerminalAsync(AiProvider.ClaudeCode);
+            }
         }
 
         /// <summary>
         /// Handles Claude Code (WSL) menu item click - switches to Claude Code (WSL) provider
         /// </summary>
-        private void ClaudeCodeWSLMenuItem_Click(object sender, RoutedEventArgs e)
+#pragma warning disable VSTHRD100 // async void is acceptable for event handlers
+        private async void ClaudeCodeWSLMenuItem_Click(object sender, RoutedEventArgs e)
+#pragma warning restore VSTHRD100
         {
             if (_settings == null) return;
 
-            ThreadHelper.JoinableTaskFactory.Run(async delegate
+            bool claudeWSLAvailable = await IsClaudeCodeWSLAvailableAsync();
+            await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
+
+            // Always update the selection regardless of availability
+            _settings.SelectedProvider = AiProvider.ClaudeCodeWSL;
+            UpdateProviderSelection();
+            SaveSettings();
+
+            if (!claudeWSLAvailable)
             {
-                bool claudeWSLAvailable = await IsClaudeCodeWSLAvailableAsync();
-                await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
-
-                // Always update the selection regardless of availability
-                _settings.SelectedProvider = AiProvider.ClaudeCodeWSL;
-                UpdateProviderSelection();
-                SaveSettings();
-
-                if (!claudeWSLAvailable)
-                {
-                    ShowClaudeCodeWSLInstallationInstructions();
-                    await StartEmbeddedTerminalAsync(null); // Regular CMD
-                }
-                else
-                {
-                    await StartEmbeddedTerminalAsync(AiProvider.ClaudeCodeWSL);
-                }
-            });
+                ShowClaudeCodeWSLInstallationInstructions();
+                await StartEmbeddedTerminalAsync(null); // Regular CMD
+            }
+            else
+            {
+                await StartEmbeddedTerminalAsync(AiProvider.ClaudeCodeWSL);
+            }
         }
 
         /// <summary>
         /// Handles Codex (WSL) menu item click - switches to Codex (WSL) provider
         /// </summary>
-        private void CodexMenuItem_Click(object sender, RoutedEventArgs e)
+#pragma warning disable VSTHRD100 // async void is acceptable for event handlers
+        private async void CodexMenuItem_Click(object sender, RoutedEventArgs e)
+#pragma warning restore VSTHRD100
         {
             if (_settings == null) return;
 
-            ThreadHelper.JoinableTaskFactory.Run(async delegate
+            bool codexAvailable = await IsCodexCmdAvailableAsync();
+            await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
+
+            // Always update the selection regardless of availability
+            _settings.SelectedProvider = AiProvider.Codex;
+            UpdateProviderSelection();
+            SaveSettings();
+
+            if (!codexAvailable)
             {
-                bool codexAvailable = await IsCodexCmdAvailableAsync();
-
-                await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
-
-                // Always update the selection regardless of availability
-                _settings.SelectedProvider = AiProvider.Codex;
-                UpdateProviderSelection();
-                SaveSettings();
-
-                if (!codexAvailable)
-                {
-                    ShowCodexInstallationInstructions();
-                    await StartEmbeddedTerminalAsync(null); // Regular CMD
-                }
-                else
-                {
-                    await StartEmbeddedTerminalAsync(AiProvider.Codex);
-                }
-            });
+                ShowCodexInstallationInstructions();
+                await StartEmbeddedTerminalAsync(null); // Regular CMD
+            }
+            else
+            {
+                await StartEmbeddedTerminalAsync(AiProvider.Codex);
+            }
         }
 
         /// <summary>
         /// Handles Codex (native) menu item click - switches to Codex native provider
         /// </summary>
-        private void CodexNativeMenuItem_Click(object sender, RoutedEventArgs e)
+#pragma warning disable VSTHRD100 // async void is acceptable for event handlers
+        private async void CodexNativeMenuItem_Click(object sender, RoutedEventArgs e)
+#pragma warning restore VSTHRD100
         {
             if (_settings == null) return;
 
-            ThreadHelper.JoinableTaskFactory.Run(async delegate
+            bool codexNativeAvailable = await IsCodexNativeAvailableAsync();
+            await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
+
+            // Always update the selection regardless of availability
+            _settings.SelectedProvider = AiProvider.CodexNative;
+            UpdateProviderSelection();
+            SaveSettings();
+
+            if (!codexNativeAvailable)
             {
-                bool codexNativeAvailable = await IsCodexNativeAvailableAsync();
-                await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
-
-                // Always update the selection regardless of availability
-                _settings.SelectedProvider = AiProvider.CodexNative;
-                UpdateProviderSelection();
-                SaveSettings();
-
-                if (!codexNativeAvailable)
-                {
-                    ShowCodexNativeInstallationInstructions();
-                    await StartEmbeddedTerminalAsync(null); // Regular CMD
-                }
-                else
-                {
-                    await StartEmbeddedTerminalAsync(AiProvider.CodexNative);
-                }
-            });
+                ShowCodexNativeInstallationInstructions();
+                await StartEmbeddedTerminalAsync(null); // Regular CMD
+            }
+            else
+            {
+                await StartEmbeddedTerminalAsync(AiProvider.CodexNative);
+            }
         }
 
         /// <summary>
         /// Handles Cursor Agent menu item click - switches to Cursor Agent provider
         /// </summary>
-        private void CursorAgentMenuItem_Click(object sender, RoutedEventArgs e)
+#pragma warning disable VSTHRD100 // async void is acceptable for event handlers
+        private async void CursorAgentMenuItem_Click(object sender, RoutedEventArgs e)
+#pragma warning restore VSTHRD100
         {
             if (_settings == null) return;
 
-            ThreadHelper.JoinableTaskFactory.Run(async delegate
+            bool wslInstalled = await IsWslInstalledAsync();
+            bool cursorAgentInstalled = false;
+
+            if (wslInstalled)
             {
-                bool wslInstalled = await IsWslInstalledAsync();
-                bool cursorAgentInstalled = false;
+                cursorAgentInstalled = await IsCursorAgentInstalledInWslAsync();
+            }
 
-                if (wslInstalled)
-                {
-                    cursorAgentInstalled = await IsCursorAgentInstalledInWslAsync();
-                }
+            await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
 
-                await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
+            // Always update the selection regardless of availability
+            _settings.SelectedProvider = AiProvider.CursorAgent;
+            UpdateProviderSelection();
+            SaveSettings();
 
-                // Always update the selection regardless of availability
-                _settings.SelectedProvider = AiProvider.CursorAgent;
-                UpdateProviderSelection();
-                SaveSettings();
-
-                if (!wslInstalled || !cursorAgentInstalled)
-                {
-                    ShowCursorAgentInstallationInstructions();
-                    await StartEmbeddedTerminalAsync(null); // Regular CMD
-                }
-                else
-                {
-                    await StartEmbeddedTerminalAsync(AiProvider.CursorAgent);
-                }
-            });
+            if (!wslInstalled || !cursorAgentInstalled)
+            {
+                ShowCursorAgentInstallationInstructions();
+                await StartEmbeddedTerminalAsync(null); // Regular CMD
+            }
+            else
+            {
+                await StartEmbeddedTerminalAsync(AiProvider.CursorAgent);
+            }
         }
 
         /// <summary>
         /// Handles Cursor Agent (native) menu item click - switches to Cursor Agent native provider
         /// </summary>
-        private void CursorAgentNativeMenuItem_Click(object sender, RoutedEventArgs e)
+#pragma warning disable VSTHRD100 // async void is acceptable for event handlers
+        private async void CursorAgentNativeMenuItem_Click(object sender, RoutedEventArgs e)
+#pragma warning restore VSTHRD100
         {
             if (_settings == null) return;
 
-            ThreadHelper.JoinableTaskFactory.Run(async delegate
+            bool cursorAgentNativeAvailable = await IsCursorAgentNativeAvailableAsync();
+            await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
+
+            // Always update the selection regardless of availability
+            _settings.SelectedProvider = AiProvider.CursorAgentNative;
+            UpdateProviderSelection();
+            SaveSettings();
+
+            if (!cursorAgentNativeAvailable)
             {
-                bool cursorAgentNativeAvailable = await IsCursorAgentNativeAvailableAsync();
-                await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
-
-                // Always update the selection regardless of availability
-                _settings.SelectedProvider = AiProvider.CursorAgentNative;
-                UpdateProviderSelection();
-                SaveSettings();
-
-                if (!cursorAgentNativeAvailable)
-                {
-                    ShowCursorAgentNativeInstallationInstructions();
-                    await StartEmbeddedTerminalAsync(null); // Regular CMD
-                }
-                else
-                {
-                    await StartEmbeddedTerminalAsync(AiProvider.CursorAgentNative);
-                }
-            });
+                ShowCursorAgentNativeInstallationInstructions();
+                await StartEmbeddedTerminalAsync(null); // Regular CMD
+            }
+            else
+            {
+                await StartEmbeddedTerminalAsync(AiProvider.CursorAgentNative);
+            }
         }
 
         /// <summary>
@@ -1507,12 +1498,14 @@ For more details, visit: https://opencode.ai";
         {
             try
             {
-                ThreadHelper.JoinableTaskFactory.Run(async delegate
+#pragma warning disable VSSDK007, VSTHRD110 // Fire-and-forget to avoid blocking the caller
+                _ = ThreadHelper.JoinableTaskFactory.RunAsync(async delegate
                 {
                     await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
                     _toolWindow?.UpdateTitle(providerName);
                     _detachedTerminalWindow?.UpdateCaption(providerName);
                 });
+#pragma warning restore VSSDK007, VSTHRD110
             }
             catch (Exception ex)
             {
@@ -1527,9 +1520,11 @@ For more details, visit: https://opencode.ai";
         /// <summary>
         /// Handles set terminal type menu item click - shows dialog to select Command Prompt or Windows Terminal
         /// </summary>
-        private void SetTerminalTypeMenuItem_Click(object sender, RoutedEventArgs e)
+#pragma warning disable VSTHRD100 // async void is acceptable for event handlers
+        private async void SetTerminalTypeMenuItem_Click(object sender, RoutedEventArgs e)
+#pragma warning restore VSTHRD100
         {
-            ThreadHelper.ThrowIfNotOnUIThread();
+            await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
 
             if (_settings == null) return;
 
@@ -1660,7 +1655,7 @@ For more details, visit: https://opencode.ai";
                 // If Windows Terminal selected, check if it's available
                 if (selectedType == TerminalType.WindowsTerminal)
                 {
-                    bool wtAvailable = ThreadHelper.JoinableTaskFactory.Run(async () => await IsWindowsTerminalAvailableAsync());
+                    bool wtAvailable = await IsWindowsTerminalAvailableAsync();
                     if (!wtAvailable)
                     {
                         MessageBox.Show(
@@ -1685,19 +1680,16 @@ For more details, visit: https://opencode.ai";
                     SaveSettings();
 
                     // Restart terminal to apply new terminal type
-                    ThreadHelper.JoinableTaskFactory.Run(async delegate
+                    try
                     {
-                        try
-                        {
-                            await RestartTerminalWithSelectedProviderAsync();
-                        }
-                        catch (Exception ex)
-                        {
-                            Debug.WriteLine($"Error restarting terminal after terminal type change: {ex.Message}");
-                            await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
-                            MessageBox.Show($"Failed to restart terminal: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
-                        }
-                    });
+                        await RestartTerminalWithSelectedProviderAsync();
+                    }
+                    catch (Exception ex)
+                    {
+                        Debug.WriteLine($"Error restarting terminal after terminal type change: {ex.Message}");
+                        await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
+                        MessageBox.Show($"Failed to restart terminal: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                    }
                 }
             }
         }
@@ -1999,11 +1991,12 @@ For more details, visit: https://opencode.ai";
         {
             ThreadHelper.ThrowIfNotOnUIThread();
 
-            // Check if project is in a git repository
+            // Check if project is in a git repository using cached workspace directory
+            // to avoid blocking the UI thread with async calls during menu open
             bool isInGitRepo = false;
             try
             {
-                string workspaceDir = ThreadHelper.JoinableTaskFactory.Run(async () => await GetWorkspaceDirectoryAsync());
+                string workspaceDir = _lastWorkspaceDirectory;
                 if (!string.IsNullOrEmpty(workspaceDir))
                 {
                     isInGitRepo = !string.IsNullOrEmpty(FindGitRepositoryRoot(workspaceDir));
@@ -2047,8 +2040,9 @@ For more details, visit: https://opencode.ai";
                         }
                         else
                         {
-                            // Resolve relative path against base workspace directory
-                            string baseDir = ThreadHelper.JoinableTaskFactory.Run(async () => await GetBaseWorkspaceDirectoryAsync());
+                            // Resolve relative path against cached workspace directory
+                            // to avoid blocking the UI thread during menu open
+                            string baseDir = _lastWorkspaceDirectory ?? Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments);
                             string resolved = Path.GetFullPath(Path.Combine(baseDir, customDir));
                             directoryExists = Directory.Exists(resolved);
                         }
@@ -2096,9 +2090,11 @@ For more details, visit: https://opencode.ai";
         /// <summary>
         /// Handles Claude dangerous skip permissions menu item click
         /// </summary>
-        private void ClaudeDangerouslySkipPermissionsMenuItem_Click(object sender, RoutedEventArgs e)
+#pragma warning disable VSTHRD100 // async void is acceptable for event handlers
+        private async void ClaudeDangerouslySkipPermissionsMenuItem_Click(object sender, RoutedEventArgs e)
+#pragma warning restore VSTHRD100
         {
-            ThreadHelper.ThrowIfNotOnUIThread();
+            await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
 
             if (_settings == null) return;
 
@@ -2109,28 +2105,27 @@ For more details, visit: https://opencode.ai";
             if (_settings.SelectedProvider == AiProvider.ClaudeCode ||
                 _settings.SelectedProvider == AiProvider.ClaudeCodeWSL)
             {
-                ThreadHelper.JoinableTaskFactory.Run(async delegate
+                try
                 {
-                    try
-                    {
-                        await RestartTerminalWithSelectedProviderAsync();
-                    }
-                    catch (Exception ex)
-                    {
-                        Debug.WriteLine($"Error reloading Claude Code after skip permissions change: {ex.Message}");
-                        await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
-                        MessageBox.Show($"Failed to reload Claude Code: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
-                    }
-                });
+                    await RestartTerminalWithSelectedProviderAsync();
+                }
+                catch (Exception ex)
+                {
+                    Debug.WriteLine($"Error reloading Claude Code after skip permissions change: {ex.Message}");
+                    await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
+                    MessageBox.Show($"Failed to reload Claude Code: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                }
             }
         }
 
         /// <summary>
         /// Handles Codex full auto menu item click
         /// </summary>
-        private void CodexFullAutoMenuItem_Click(object sender, RoutedEventArgs e)
+#pragma warning disable VSTHRD100 // async void is acceptable for event handlers
+        private async void CodexFullAutoMenuItem_Click(object sender, RoutedEventArgs e)
+#pragma warning restore VSTHRD100
         {
-            ThreadHelper.ThrowIfNotOnUIThread();
+            await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
 
             if (_settings == null) return;
 
@@ -2141,35 +2136,34 @@ For more details, visit: https://opencode.ai";
             if (_settings.SelectedProvider == AiProvider.Codex ||
                 _settings.SelectedProvider == AiProvider.CodexNative)
             {
-                ThreadHelper.JoinableTaskFactory.Run(async delegate
+                try
                 {
-                    try
-                    {
-                        await RestartTerminalWithSelectedProviderAsync();
-                    }
-                    catch (Exception ex)
-                    {
-                        Debug.WriteLine($"Error reloading Codex after full auto change: {ex.Message}");
-                        await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
-                        MessageBox.Show($"Failed to reload Codex: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
-                    }
-                });
+                    await RestartTerminalWithSelectedProviderAsync();
+                }
+                catch (Exception ex)
+                {
+                    Debug.WriteLine($"Error reloading Codex after full auto change: {ex.Message}");
+                    await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
+                    MessageBox.Show($"Failed to reload Codex: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                }
             }
         }
 
         /// <summary>
         /// Handles set working directory menu item click - prompts user for a custom working directory
         /// </summary>
-        private void SetWorkingDirectoryMenuItem_Click(object sender, RoutedEventArgs e)
+#pragma warning disable VSTHRD100 // async void is acceptable for event handlers
+        private async void SetWorkingDirectoryMenuItem_Click(object sender, RoutedEventArgs e)
+#pragma warning restore VSTHRD100
         {
-            ThreadHelper.ThrowIfNotOnUIThread();
+            await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
 
             if (_settings == null) return;
 
             string currentValue = _settings.CustomWorkingDirectory ?? "";
 
             // Resolve base workspace directory for relative path validation in the dialog
-            string baseDir = ThreadHelper.JoinableTaskFactory.Run(async () => await GetBaseWorkspaceDirectoryAsync());
+            string baseDir = await GetBaseWorkspaceDirectoryAsync();
 
             // Show input dialog; returns null on Cancel, or the entered string on OK
             string input = ShowWorkingDirectoryInputDialog(currentValue, baseDir);
@@ -2186,19 +2180,16 @@ For more details, visit: https://opencode.ai";
                 SaveSettings();
 
                 // Restart terminal to apply the new working directory
-                ThreadHelper.JoinableTaskFactory.Run(async delegate
+                try
                 {
-                    try
-                    {
-                        await RestartTerminalWithSelectedProviderAsync();
-                    }
-                    catch (Exception ex)
-                    {
-                        Debug.WriteLine($"Error restarting terminal after working directory change: {ex.Message}");
-                        await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
-                        MessageBox.Show($"Failed to restart terminal: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
-                    }
-                });
+                    await RestartTerminalWithSelectedProviderAsync();
+                }
+                catch (Exception ex)
+                {
+                    Debug.WriteLine($"Error restarting terminal after working directory change: {ex.Message}");
+                    await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
+                    MessageBox.Show($"Failed to restart terminal: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                }
             }
         }
 
