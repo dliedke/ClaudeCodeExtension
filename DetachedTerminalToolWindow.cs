@@ -11,6 +11,7 @@
  * *******************************************************************************************************************/
 
 using Microsoft.VisualStudio;
+using Microsoft.VisualStudio.Imaging;
 using Microsoft.VisualStudio.Shell;
 using Microsoft.VisualStudio.Shell.Interop;
 using System;
@@ -60,6 +61,7 @@ namespace ClaudeCodeVS
         public DetachedTerminalToolWindow() : base(null)
         {
             this.Caption = "Claude Code";
+            this.BitmapImageMoniker = KnownMonikers.Console;
 
             _terminalPanel = new System.Windows.Forms.Panel
             {

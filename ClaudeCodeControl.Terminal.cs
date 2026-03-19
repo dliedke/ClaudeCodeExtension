@@ -68,6 +68,16 @@ namespace ClaudeCodeVS
         private LowLevelMouseProc _mouseHookProc;
 
         /// <summary>
+        /// Handle to the low-level keyboard hook used for intercepting F5/Ctrl+F5 on the embedded terminal
+        /// </summary>
+        private IntPtr _keyboardHookHandle = IntPtr.Zero;
+
+        /// <summary>
+        /// Prevent GC from collecting the keyboard hook callback delegate
+        /// </summary>
+        private LowLevelKeyboardProc _keyboardHookProc;
+
+        /// <summary>
         /// Debounce timer for saving zoom delta to settings after Ctrl+Scroll
         /// </summary>
         private System.Windows.Threading.DispatcherTimer _zoomSaveTimer;
@@ -206,6 +216,10 @@ namespace ClaudeCodeVS
                 // Install low-level mouse hook to track Ctrl+Scroll zoom on the embedded terminal
                 // (WPF PreviewMouseWheel doesn't fire for embedded Win32 windows from other processes)
                 InstallMouseHook();
+
+                // Install low-level keyboard hook to intercept F5/Ctrl+F5 on the embedded terminal
+                // and forward them as VS debug commands (Start Debugging / Start Without Debugging)
+                InstallKeyboardHook();
 
                 // Wait for panel to be properly sized (not just created) - reduced timeout
                 int maxWaitMs = 2000; // Reduced from 5 seconds to 2 seconds
@@ -364,23 +378,32 @@ namespace ClaudeCodeVS
             IntPtr existingTerminalHandle = terminalHandle;
             Process existingProcess = cmdProcess;
             int existingTerminalWindowProcessId = 0;
+            bool isWindowsTerminal = false;
 
             if (existingTerminalHandle != IntPtr.Zero && IsWindow(existingTerminalHandle))
             {
                 GetWindowThreadProcessId(existingTerminalHandle, out uint existingTerminalWindowPid);
                 existingTerminalWindowProcessId = (int)existingTerminalWindowPid;
+                isWindowsTerminal = IsWindowsTerminalProcess(existingTerminalWindowProcessId);
             }
 
             if (existingTerminalHandle != IntPtr.Zero && IsWindow(existingTerminalHandle))
             {
                 PostMessage(existingTerminalHandle, WM_CLOSE, IntPtr.Zero, IntPtr.Zero);
-                await Task.Delay(250);
+
+                // Windows Terminal needs more time to close the window and clean up
+                // its child processes (cmd.exe, claude, etc.) via CTRL_CLOSE_EVENT
+                await Task.Delay(isWindowsTerminal ? 500 : 250);
             }
 
             var terminatedProcessIds = new HashSet<int>();
 
+            // Skip killing the WindowsTerminal.exe process tree — it is a shared host
+            // for ALL WT windows (across VS instances). WM_CLOSE above closes only our
+            // specific window and lets WT terminate its child console processes.
             if (existingTerminalWindowProcessId > 0 &&
-                existingTerminalWindowProcessId != Process.GetCurrentProcess().Id)
+                existingTerminalWindowProcessId != Process.GetCurrentProcess().Id &&
+                !isWindowsTerminal)
             {
                 TryTerminateProcessTree(existingTerminalWindowProcessId, terminatedProcessIds);
             }
@@ -406,6 +429,26 @@ namespace ClaudeCodeVS
             terminalHandle = IntPtr.Zero;
             _wtTabBarHeight = 0;
             _currentRunningProvider = null;
+        }
+
+        /// <summary>
+        /// Checks whether a given process ID belongs to the Windows Terminal host (WindowsTerminal.exe).
+        /// The WT host is a shared, single-instance process — killing it would destroy ALL WT windows
+        /// system-wide, including those embedded by other VS instances.
+        /// </summary>
+        private static bool IsWindowsTerminalProcess(int processId)
+        {
+            try
+            {
+                using (var process = Process.GetProcessById(processId))
+                {
+                    return string.Equals(process.ProcessName, "WindowsTerminal", StringComparison.OrdinalIgnoreCase);
+                }
+            }
+            catch
+            {
+                return false;
+            }
         }
 
         /// <summary>
@@ -1335,6 +1378,122 @@ namespace ClaudeCodeVS
             _mouseHookProc = null;
             _zoomSaveTimer?.Stop();
             _zoomSaveTimer = null;
+        }
+
+        /// <summary>
+        /// Installs the low-level keyboard hook to intercept F5/Ctrl+F5 when the terminal has focus
+        /// </summary>
+        private void InstallKeyboardHook()
+        {
+            if (_keyboardHookHandle != IntPtr.Zero) return;
+
+            _keyboardHookProc = LowLevelKeyboardHookCallback;
+            using (var curProcess = Process.GetCurrentProcess())
+            using (var curModule = curProcess.MainModule)
+            {
+                _keyboardHookHandle = SetWindowsHookEx(WH_KEYBOARD_LL, _keyboardHookProc,
+                    GetModuleHandle(curModule.ModuleName), 0);
+            }
+        }
+
+        /// <summary>
+        /// Uninstalls the low-level keyboard hook
+        /// </summary>
+        private void UninstallKeyboardHook()
+        {
+            if (_keyboardHookHandle != IntPtr.Zero)
+            {
+                UnhookWindowsHookEx(_keyboardHookHandle);
+                _keyboardHookHandle = IntPtr.Zero;
+            }
+            _keyboardHookProc = null;
+        }
+
+        /// <summary>
+        /// Checks if the embedded terminal currently has keyboard focus using GetGUIThreadInfo.
+        /// Returns true when the focused window is the terminal handle or a child/descendant of it.
+        /// </summary>
+        private bool IsTerminalFocused()
+        {
+            if (terminalHandle == IntPtr.Zero || !IsWindow(terminalHandle))
+            {
+                return false;
+            }
+
+            var guiInfo = new GUITHREADINFO();
+            guiInfo.cbSize = (uint)Marshal.SizeOf(guiInfo);
+
+            // Passing 0 retrieves info for the foreground thread
+            if (!GetGUIThreadInfo(0, ref guiInfo))
+            {
+                return false;
+            }
+
+            IntPtr focusedHwnd = guiInfo.hwndFocus;
+            if (focusedHwnd == IntPtr.Zero)
+            {
+                return false;
+            }
+
+            return focusedHwnd == terminalHandle || IsChild(terminalHandle, focusedHwnd);
+        }
+
+        /// <summary>
+        /// Low-level keyboard hook callback. Intercepts F5 and Ctrl+F5 when the embedded terminal
+        /// has focus and forwards them as Visual Studio debug commands (Debug.Start / Debug.StartWithoutDebugging).
+        /// </summary>
+        private IntPtr LowLevelKeyboardHookCallback(int nCode, IntPtr wParam, IntPtr lParam)
+        {
+            if (nCode >= 0 && (uint)wParam.ToInt64() == WM_KEYDOWN)
+            {
+                var info = (KBDLLHOOKSTRUCT)Marshal.PtrToStructure(lParam, typeof(KBDLLHOOKSTRUCT));
+
+                if (info.vkCode == VK_F5 && IsTerminalFocused())
+                {
+                    bool ctrlHeld = (GetAsyncKeyState(VK_CONTROL) & 0x8000) != 0;
+                    bool shiftHeld = (GetAsyncKeyState(VK_SHIFT) & 0x8000) != 0;
+
+                    // F5 = Debug.Start, Ctrl+F5 = Debug.StartWithoutDebugging, Shift+F5 = Debug.StopDebugging
+                    string command = null;
+                    if (!ctrlHeld && !shiftHeld)
+                    {
+                        command = "Debug.Start";
+                    }
+                    else if (ctrlHeld && !shiftHeld)
+                    {
+                        command = "Debug.StartWithoutDebugging";
+                    }
+                    else if (shiftHeld && !ctrlHeld)
+                    {
+                        command = "Debug.StopDebugging";
+                    }
+
+                    if (command != null)
+                    {
+                        string vsCommand = command;
+#pragma warning disable VSSDK007, VSTHRD110
+                        _ = ThreadHelper.JoinableTaskFactory.RunAsync(async () =>
+                        {
+                            await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
+                            try
+                            {
+                                var dte = Package.GetGlobalService(typeof(EnvDTE.DTE)) as EnvDTE.DTE;
+                                dte?.ExecuteCommand(vsCommand);
+                            }
+                            catch (Exception ex)
+                            {
+                                Debug.WriteLine($"Error executing VS command '{vsCommand}': {ex.Message}");
+                            }
+                        });
+#pragma warning restore VSSDK007, VSTHRD110
+
+                        // Consume the keystroke so it doesn't reach the terminal
+                        return new IntPtr(1);
+                    }
+                }
+            }
+
+            return CallNextHookEx(_keyboardHookHandle, nCode, wParam, lParam);
         }
 
         /// <summary>

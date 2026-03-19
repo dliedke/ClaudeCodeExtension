@@ -69,6 +69,7 @@ namespace ClaudeCodeVS
         private const int VK_RIGHT = 0x27;
         private const int VK_DOWN = 0x28;
         private const int VK_C = 0x43;
+        private const int VK_F5 = 0x74;
 
         // Input type constants
         private const uint INPUT_KEYBOARD = 1;
@@ -366,7 +367,12 @@ namespace ClaudeCodeVS
 
         #endregion
 
-        #region Win32 API Declarations - Mouse Hook
+        #region Win32 API Declarations - Hooks
+
+        /// <summary>
+        /// Low-level keyboard hook identifier
+        /// </summary>
+        private const int WH_KEYBOARD_LL = 13;
 
         /// <summary>
         /// Low-level mouse hook identifier
@@ -397,12 +403,53 @@ namespace ClaudeCodeVS
         }
 
         /// <summary>
+        /// Low-level keyboard hook data structure
+        /// </summary>
+        [StructLayout(LayoutKind.Sequential)]
+        private struct KBDLLHOOKSTRUCT
+        {
+            public int vkCode;
+            public int scanCode;
+            public int flags;
+            public int time;
+            public IntPtr dwExtraInfo;
+        }
+
+        /// <summary>
+        /// GUI thread information structure for detecting which window has keyboard focus
+        /// </summary>
+        [StructLayout(LayoutKind.Sequential)]
+        private struct GUITHREADINFO
+        {
+            public uint cbSize;
+            public uint flags;
+            public IntPtr hwndActive;
+            public IntPtr hwndFocus;
+            public IntPtr hwndCapture;
+            public IntPtr hwndMenuOwner;
+            public IntPtr hwndMoveSize;
+            public IntPtr hwndCaret;
+            public RECT rcCaret;
+        }
+
+        /// <summary>
+        /// Delegate for low-level keyboard hook callback
+        /// </summary>
+        private delegate IntPtr LowLevelKeyboardProc(int nCode, IntPtr wParam, IntPtr lParam);
+
+        /// <summary>
         /// Delegate for low-level mouse hook callback
         /// </summary>
         private delegate IntPtr LowLevelMouseProc(int nCode, IntPtr wParam, IntPtr lParam);
 
         /// <summary>
-        /// Installs an application-defined hook procedure into a hook chain
+        /// Installs an application-defined hook procedure into a hook chain (keyboard)
+        /// </summary>
+        [DllImport("user32.dll", SetLastError = true)]
+        private static extern IntPtr SetWindowsHookEx(int idHook, LowLevelKeyboardProc lpfn, IntPtr hMod, uint dwThreadId);
+
+        /// <summary>
+        /// Installs an application-defined hook procedure into a hook chain (mouse)
         /// </summary>
         [DllImport("user32.dll", SetLastError = true)]
         private static extern IntPtr SetWindowsHookEx(int idHook, LowLevelMouseProc lpfn, IntPtr hMod, uint dwThreadId);
@@ -430,6 +477,18 @@ namespace ClaudeCodeVS
         /// </summary>
         [DllImport("user32.dll")]
         private static extern short GetAsyncKeyState(int vKey);
+
+        /// <summary>
+        /// Retrieves information about the active window or a specified GUI thread
+        /// </summary>
+        [DllImport("user32.dll")]
+        private static extern bool GetGUIThreadInfo(uint idThread, ref GUITHREADINFO lpgui);
+
+        /// <summary>
+        /// Determines whether a window is a child of a specified parent window
+        /// </summary>
+        [DllImport("user32.dll")]
+        private static extern bool IsChild(IntPtr hWndParent, IntPtr hWnd);
 
         #endregion
 

@@ -95,6 +95,7 @@ namespace ClaudeCodeVS
         public void SetToolWindow(ClaudeCodeToolWindow toolWindow)
         {
             _toolWindow = toolWindow;
+            _toolWindow.FrameShow += OnToolWindowFrameShow;
         }
 
         /// <summary>

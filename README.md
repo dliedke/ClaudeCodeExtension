@@ -186,6 +186,15 @@ Click the update button and the extension will handle the update process. Agents
 
 ## Version History
 
+### Version 9.0
+- **F5/Ctrl+F5/Shift+F5 forwarding from terminal to VS**: When the embedded terminal has keyboard focus, F5 (Start Debugging), Ctrl+F5 (Start Without Debugging), and Shift+F5 (Stop Debugging) are now intercepted and forwarded to Visual Studio as debug commands instead of being consumed by the terminal. Works with both attached and detached terminal windows.
+
+### Version 8.9
+- **Extension icon on tool window tabs**: The extension icon (app.ico) is now displayed on all tool window tabs (main window and detached terminal) for easier identification
+
+### Version 8.8
+- **Auto-focus detached terminal on extension focus**: When the terminal is detached to a separate tab and the main extension panel regains focus, the detached terminal tab is automatically activated so the user can see the AI output alongside the prompt area
+
 ### Version 8.7
 - **Performance: Non-blocking solution/project open**: Changed `SolutionEventsHandler` from synchronous `JoinableTaskFactory.Run` to fire-and-forget `RunAsync`, eliminating VS hangs when opening solutions/projects (provider detection + terminal startup no longer block the UI thread)
 - **Performance: Fast process tree termination**: Replaced WMI-based `KillProcessAndChildren` (1-5 seconds per query) with ToolHelp32 kernel snapshots (sub-millisecond), dramatically speeding up terminal shutdown and VS exit

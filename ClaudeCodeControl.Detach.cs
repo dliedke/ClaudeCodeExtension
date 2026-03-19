@@ -302,6 +302,37 @@ namespace ClaudeCodeVS
         #region Event Handlers
 
         /// <summary>
+        /// Handles the main tool window frame show notifications (tab activated, shown, etc.).
+        /// This is more reliable than WPF IsVisibleChanged because it fires on every VS
+        /// tab activation, even when WPF considers the control already visible.
+        /// </summary>
+        private void OnToolWindowFrameShow(object sender, int fShow)
+        {
+            ThreadHelper.ThrowIfNotOnUIThread();
+
+            var frameShow = (__FRAMESHOW)fShow;
+
+            bool activated = frameShow == __FRAMESHOW.FRAMESHOW_WinShown ||
+                             frameShow == __FRAMESHOW.FRAMESHOW_WinRestored ||
+                             frameShow == __FRAMESHOW.FRAMESHOW_WinMaximized ||
+                             frameShow == __FRAMESHOW.FRAMESHOW_TabActivated;
+
+            if (activated && _isTerminalDetached)
+            {
+                if (_detachedTerminalWindow?.Frame is IVsWindowFrame detachedFrame)
+                {
+                    detachedFrame.Show();
+                }
+
+                if (terminalHandle != IntPtr.Zero && IsWindow(terminalHandle))
+                {
+                    ShowWindow(terminalHandle, SW_SHOW);
+                    ResizeEmbeddedTerminal();
+                }
+            }
+        }
+
+        /// <summary>
         /// Handles the detached window being closed by the user - re-attaches the terminal
         /// </summary>
         private void OnDetachedWindowClosed(object sender, EventArgs e)

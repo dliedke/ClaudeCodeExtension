@@ -16,6 +16,7 @@ using System.Windows;
 using System.Windows.Media;
 using Microsoft.VisualStudio.PlatformUI;
 using Microsoft.VisualStudio.Shell;
+using Microsoft.VisualStudio.Shell.Interop;
 
 namespace ClaudeCodeVS
 {
@@ -82,15 +83,35 @@ namespace ClaudeCodeVS
         /// </summary>
         private void OnVisibilityChanged(object sender, DependencyPropertyChangedEventArgs e)
         {
+            ThreadHelper.ThrowIfNotOnUIThread();
+
             if (this.IsVisible)
             {
                 // Only update theme when visible - initialization is handled by Loaded event
                 UpdateTerminalTheme();
 
-                // Ensure terminal window is visible and properly sized when tab is switched back
-                // Skip if terminal is detached (it's in its own window)
-                if (!_isTerminalDetached && terminalHandle != IntPtr.Zero && IsWindow(terminalHandle))
+                if (_isTerminalDetached)
                 {
+                    // When terminal is detached, auto-focus the detached terminal tab
+                    // so the user sees the AI output alongside the prompt area
+                    if (_detachedTerminalWindow?.Frame is IVsWindowFrame detachedFrame)
+                    {
+                        detachedFrame.Show();
+                    }
+
+                    // Always ensure the terminal handle is visible and properly sized
+                    // in the detached panel. The VisibilityChanged event on the detached
+                    // window may not fire if it was already considered visible (e.g.,
+                    // TabDeactivated was not received), so we must refresh directly.
+                    if (terminalHandle != IntPtr.Zero && IsWindow(terminalHandle))
+                    {
+                        ShowWindow(terminalHandle, SW_SHOW);
+                        ResizeEmbeddedTerminal();
+                    }
+                }
+                else if (terminalHandle != IntPtr.Zero && IsWindow(terminalHandle))
+                {
+                    // Ensure terminal window is visible and properly sized when tab is switched back
                     ShowWindow(terminalHandle, SW_SHOW);
                     ResizeEmbeddedTerminal();
                 }

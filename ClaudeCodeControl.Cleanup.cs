@@ -141,8 +141,17 @@ namespace ClaudeCodeVS
                 // Unsubscribe from theme change events
                 CleanupThemeEvents();
 
+                // Unsubscribe from tool window frame notifications
+                if (_toolWindow != null)
+                {
+                    _toolWindow.FrameShow -= OnToolWindowFrameShow;
+                }
+
                 // Uninstall the low-level mouse hook used for zoom tracking
                 UninstallMouseHook();
+
+                // Uninstall the low-level keyboard hook used for F5/Ctrl+F5 interception
+                UninstallKeyboardHook();
 
                 // Cleanup detached terminal window
                 if (_isTerminalDetached && _detachedTerminalWindow != null)
@@ -189,10 +198,12 @@ namespace ClaudeCodeVS
 
                 // Capture process info while still on UI thread (Win32 calls require it)
                 int terminalWindowProcessId = 0;
+                bool isWindowsTerminal = false;
                 if (terminalHandle != IntPtr.Zero && IsWindow(terminalHandle))
                 {
                     GetWindowThreadProcessId(terminalHandle, out uint terminalWindowPid);
                     terminalWindowProcessId = (int)terminalWindowPid;
+                    isWindowsTerminal = IsWindowsTerminalProcess(terminalWindowProcessId);
                     PostMessage(terminalHandle, WM_CLOSE, IntPtr.Zero, IntPtr.Zero);
                 }
 
@@ -248,8 +259,11 @@ namespace ClaudeCodeVS
                             }
                         }
 
+                        // Skip killing the WindowsTerminal.exe process tree — it is a shared
+                        // host for ALL WT windows. WM_CLOSE (sent above) closes only our window.
                         if (terminalWindowProcessId > 0 &&
-                            terminalWindowProcessId != currentVsProcessId)
+                            terminalWindowProcessId != currentVsProcessId &&
+                            !isWindowsTerminal)
                         {
                             TryTerminateProcessTree(terminalWindowProcessId, terminatedProcessIds);
                         }

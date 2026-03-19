@@ -28,8 +28,9 @@ This is a **Visual Studio Extension (VSIX)** for Visual Studio 2022/2026 that pr
 
 ## Build & Test
 
-- **Build (Release)**: `msbuild ClaudeCodeExtension.sln /p:Configuration=Release`
-- **Build (Debug)**: `msbuild ClaudeCodeExtension.sln /p:Configuration=Debug`
+- **MSBuild Path**: `'/c/Program Files/Microsoft Visual Studio/18/Enterprise/MSBuild/Current/Bin/MSBuild.exe'`
+- **Build (Release)**: `'/c/Program Files/Microsoft Visual Studio/18/Enterprise/MSBuild/Current/Bin/MSBuild.exe' ClaudeCodeExtension.sln -p:Configuration=Release -v:minimal`
+- **Build (Debug)**: `'/c/Program Files/Microsoft Visual Studio/18/Enterprise/MSBuild/Current/Bin/MSBuild.exe' ClaudeCodeExtension.sln -p:Configuration=Debug -v:minimal`
 - **Debug**: Press F5 in Visual Studio to launch experimental instance with `/rootsuffix Exp`
 - **No automated tests**: Testing is done via F5 debugging in VS 2022/2026 experimental instance
 - **Output**: VSIX package for distribution
