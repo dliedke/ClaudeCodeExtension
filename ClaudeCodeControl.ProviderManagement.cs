@@ -1660,11 +1660,11 @@ For more details, visit: https://opencode.ai";
                     {
                         MessageBox.Show(
                             "Windows Terminal (wt.exe) was not found in PATH.\n\n" +
-                            "You can install it from:\n" +
+                            "To install, open Command Prompt as Administrator and run:\n\n" +
+                            "    winget install --id Microsoft.WindowsTerminal -e\n\n" +
+                            "Or install from:\n" +
                             "• Microsoft Store: https://aka.ms/terminal\n" +
                             "• GitHub: https://github.com/microsoft/terminal/releases\n\n" +
-                            "If installing from GitHub, add the installation folder\n" +
-                            "containing wt.exe to your system PATH environment variable.\n\n" +
                             "After installing, restart Visual Studio and try again.\n\n" +
                             "(Press Ctrl+C to copy this message)",
                             "Windows Terminal Not Found",

@@ -103,6 +103,18 @@ Any feedback, suggestions, or contributions are also very welcome - feel free to
 - **For Open Code**: Node.js version 14 or higher + Open Code CLI installed and accessible via `opencode` in path.
   Installation instructions are provided automatically if not installed
 
+## Installing Windows Terminal (Optional)
+
+Windows Terminal provides better emoji, Unicode, and ANSI rendering compared to Command Prompt.
+
+To install, open **Command Prompt as Administrator** and run:
+
+```
+winget install --id Microsoft.WindowsTerminal -e
+```
+
+After installing, restart Visual Studio. Then select Windows Terminal via the ⚙ menu → **Set Terminal Type...**.
+
 ## Installation
 
 1. Download the latest VSIX package
@@ -185,6 +197,9 @@ The extension includes an Update Agent button (🔄️) that updates your select
 Click the update button and the extension will handle the update process. Agents use the appropriate exit methods before updating (exit command for most, double CTRL+C for Codex, /quit command for Qwen Code).
 
 ## Version History
+
+### Version 9.1
+- **Windows Terminal installation instructions**: Added `winget install --id Microsoft.WindowsTerminal -e` command to the "Windows Terminal Not Found" dialog and to the README installation section.
 
 ### Version 9.0
 - **F5/Ctrl+F5/Shift+F5 forwarding from terminal to VS**: When the embedded terminal has keyboard focus, F5 (Start Debugging), Ctrl+F5 (Start Without Debugging), and Shift+F5 (Stop Debugging) are now intercepted and forwarded to Visual Studio as debug commands instead of being consumed by the terminal. Works with both attached and detached terminal windows.
