@@ -7,7 +7,7 @@ This is a **Visual Studio Extension (VSIX)** for Visual Studio 2022/2026 that pr
 - **Author**: Daniel Carvalho Liedke (dliedke@gmail.com)
 - **License**: MIT
 - **Repository**: https://github.com/dliedke/ClaudeCodeExtension
-- **Current Version**: 8.6
+- **Current Version**: 9.1
 - **Target Framework**: .NET Framework 4.7.2
 
 ---
@@ -62,7 +62,7 @@ ClaudeCodeExtension/
 │
 ├── Core Control (partial classes of ClaudeCodeControl):
 │   ├── ClaudeCodeControl.cs             # Core initialization & orchestration
-│   ├── ClaudeCodeControl.Terminal.cs    # Terminal embedding (cmd.exe/wsl.exe), process init
+│   ├── ClaudeCodeControl.Terminal.cs    # Terminal embedding (cmd.exe/wsl.exe), process init, F5 forwarding
 │   ├── ClaudeCodeControl.ProviderManagement.cs  # AI provider detection & switching
 │   ├── ClaudeCodeControl.TerminalIO.cs  # Terminal I/O, command execution
 │   ├── ClaudeCodeControl.Diff.cs        # Diff view integration, git polling
@@ -72,14 +72,16 @@ ClaudeCodeExtension/
 │   ├── ClaudeCodeControl.Settings.cs    # Settings persistence (JSON)
 │   ├── ClaudeCodeControl.Cleanup.cs     # Resource cleanup, temp dir management
 │   ├── ClaudeCodeControl.Interop.cs     # Win32 API declarations (P/Invoke)
-│   └── ClaudeCodeControl.Theme.cs       # Dark/light theme support
+│   ├── ClaudeCodeControl.Theme.cs       # Dark/light theme support
+│   └── ClaudeCodeControl.Detach.cs      # Terminal detach/attach to separate VS tab
 │
 ├── UI:
 │   ├── ClaudeCodeControl.xaml           # Main extension UI layout
 │   ├── DiffViewerControl.xaml           # Diff viewer UI
 │   ├── DiffViewerControl.xaml.cs        # Diff viewer logic (tree, search, zoom)
 │   ├── ClaudeCodeToolWindow.cs          # Main tool window wrapper
-│   └── DiffViewerToolWindow.cs          # Diff viewer tool window wrapper
+│   ├── DiffViewerToolWindow.cs          # Diff viewer tool window wrapper
+│   └── DetachedTerminalToolWindow.cs    # Detached terminal tool window wrapper
 │
 ├── Diff Engine:
 │   ├── Diff/DiffComputer.cs             # Diff computation using DiffPlex library
@@ -99,7 +101,7 @@ ClaudeCodeExtension/
 - **Language**: C# targeting .NET Framework 4.7.2
 - **File Headers**: Every `.cs` file must include copyright header with author (Daniel Liedke), copyright year (2026), and proprietary usage notice
 - **Namespaces**: `ClaudeCodeVS` for main controls and models, `ClaudeCodeExtension` for package class
-- **Partial Classes**: Main control is split into 12 specialized partial class files (all `partial class ClaudeCodeControl`)
+- **Partial Classes**: Main control is split into 13 specialized partial class files (all `partial class ClaudeCodeControl`)
 - **Naming**: PascalCase for public members, `_camelCase` with underscore for private fields, camelCase for locals
 - **Error Handling**: try-catch with `Debug.WriteLine` for logging; `MessageBox` for user-facing errors
 - **Thread Safety**: Use `ThreadHelper.ThrowIfNotOnUIThread()` and `JoinableTaskFactory.SwitchToMainThreadAsync()`
@@ -129,7 +131,7 @@ ClaudeCodeExtension/
 
 ### Core Control (ClaudeCodeControl - Partial Class)
 
-The main UI control is split across 12 partial class files. All share the same `ClaudeCodeControl : UserControl, IDisposable` class in the `ClaudeCodeVS` namespace.
+The main UI control is split across 13 partial class files. All share the same `ClaudeCodeControl : UserControl, IDisposable` class in the `ClaudeCodeVS` namespace.
 
 #### ClaudeCodeControl.cs — Core Initialization
 
@@ -143,7 +145,7 @@ The main UI control is split across 12 partial class files. All share the same `
 
 Manages the embedded cmd.exe/wsl.exe terminal via Win32 interop.
 
-- **Key fields**: `terminalPanel` (WinForms Panel host), `cmdProcess` (Process), `terminalHandle` (IntPtr), `_currentRunningProvider`, `_wtExePath` (resolved full path to wt.exe), `_wtTabBarHeight` (WT tab bar pixel height, 0 for CMD), `_terminalLifecycleSemaphore` (serializes start/stop transitions), `_terminalStartupSessionId` (monotonic ID to discard stale startup work)
+- **Key fields**: `terminalPanel` (WinForms Panel host), `cmdProcess` (Process), `terminalHandle` (IntPtr), `_currentRunningProvider`, `_wtExePath` (resolved full path to wt.exe), `_wtTabBarHeight` (WT tab bar pixel height, 0 for CMD), `_terminalLifecycleSemaphore` (serializes start/stop transitions), `_terminalStartupSessionId` (monotonic ID to discard stale startup work), `_keyboardHookHandle` / `_mouseHookHandle` (low-level hook handles), `_windowsTerminalSelectionPending` / `_windowsTerminalSelectionActive` (WT selection tracking state)
 - **`StartEmbeddedTerminalAsync()`**: Core startup method
   - Acquires `_terminalLifecycleSemaphore` to prevent overlapping start/stop transitions
   - Calls `StopExistingTerminalAsync()` to cleanly shut down any running terminal (WM_CLOSE + recursive process tree kill)
@@ -163,6 +165,14 @@ Manages the embedded cmd.exe/wsl.exe terminal via Win32 interop.
 - **`ScheduleManualZoomRefresh()`**: Debounced repaint passes after manual Ctrl+Scroll zoom to eliminate stale black regions
 - **`RefreshEmbeddedTerminalWindow()`**: Forces repaint of both the WinForms panel and the embedded terminal via `InvalidateRect`/`RedrawWindow`/`UpdateWindow`
 - **`ApplyWindowsTerminalZoomOutAsync()`**: Sends Ctrl+Minus 3 times via `keybd_event` after WT embed for better visibility
+- **F5 Key Forwarding**: Low-level keyboard hook (`WH_KEYBOARD_LL`) intercepts F5/Ctrl+F5/Shift+F5 when the terminal has focus and forwards them as VS debug commands (`Debug.Start`, `Debug.StartWithoutDebugging`, `Debug.StopDebugging`) via DTE
+  - `InstallLowLevelKeyboardHook()`: Installs the hook using `SetWindowsHookEx`
+  - `LowLevelKeyboardHookCallback()`: Checks `IsTerminalFocused()` via `GetGUIThreadInfo`, consumes the keystroke by returning `1`
+  - `IsTerminalFocused()`: Uses `GUITHREADINFO` + `IsChild()` to detect if the focused window belongs to the terminal
+- **Low-level mouse hook** (`WH_MOUSE_LL`): Tracks Ctrl+Scroll over the terminal panel to persist zoom delta and enables SHIFT+drag selection for Windows Terminal
+  - `LowLevelMouseHookCallback()`: Handles `WM_MOUSEWHEEL` (zoom tracking), `WM_LBUTTONDOWN`/`WM_MOUSEMOVE`/`WM_LBUTTONUP` (selection tracking)
+  - `BeginWindowsTerminalSelectionTracking()` / `UpdateWindowsTerminalSelectionTracking()` / `ResetWindowsTerminalSelectionTracking()`: Converts plain left-drag into SHIFT+drag so WT enters selection mode even when the TUI has mouse reporting enabled
+- **ToolHelp32 process discovery**: `GetChildProcessIds()` uses `CreateToolhelp32Snapshot` (kernel-level, sub-ms) to find child PIDs for conhost window handle lookup, avoiding WMI dependency
 
 **Terminal command patterns**:
 ```
@@ -304,21 +314,38 @@ SW_SHOW=5, SW_HIDE=0
 GWL_STYLE=-16
 WS_CHILD=0x40000000, WS_POPUP=0x80000000, WS_CAPTION=0x00C00000, WS_THICKFRAME=0x00040000, WS_SYSMENU=0x00080000
 WM_CLOSE=0x0010, WM_KEYDOWN=0x0100, WM_KEYUP=0x0101, WM_CHAR=0x0102
+WM_MOUSEMOVE=0x0200, WM_LBUTTONDOWN=0x0201, WM_LBUTTONUP=0x0202, WM_MOUSEWHEEL=0x020A
 RDW_INVALIDATE=0x0001, RDW_ERASE=0x0004, RDW_ALLCHILDREN=0x0080, RDW_UPDATENOW=0x0100, RDW_FRAME=0x0400
-VK_TAB=0x09, VK_RETURN=0x0D, VK_SHIFT=0x10, VK_CONTROL=0x11, VK_SPACE=0x20, VK_UP=0x26, VK_RIGHT=0x27, VK_DOWN=0x28, VK_C=0x43
+VK_TAB=0x09, VK_RETURN=0x0D, VK_SHIFT=0x10, VK_CONTROL=0x11, VK_SPACE=0x20, VK_UP=0x26, VK_RIGHT=0x27, VK_DOWN=0x28, VK_C=0x43, VK_F5=0x74
 INPUT_KEYBOARD=1, KEYEVENTF_EXTENDEDKEY=0x0001, KEYEVENTF_KEYUP=0x0002
+WH_KEYBOARD_LL=13, WH_MOUSE_LL=14, TH32CS_SNAPPROCESS=0x00000002
 ```
 
 **P/Invoke functions by category**:
-- Window management: `SetParent`, `SetWindowPos`, `ShowWindow`, `SetWindowLong`, `GetWindowLong`, `GetWindowRect`, `IsWindow`, `IsWindowVisible`
+- Window management: `SetParent`, `SetWindowPos`, `ShowWindow`, `SetWindowLong`, `GetWindowLong`, `GetWindowRect`, `IsWindow`, `IsWindowVisible`, `GetDpiForWindow`, `GetClassName`
 - Window enumeration: `EnumWindows`, `GetWindowThreadProcessId`
-- Input: `SetFocus`, `SetForegroundWindow`, `SendInput`, `PostMessage`, `keybd_event`
+- Input: `SetFocus`, `SetForegroundWindow`, `SendInput`, `PostMessage`, `SendMessage`, `keybd_event`
 - Mouse: `SetCursorPos`, `mouse_event`
 - GDI: `DeleteObject` (for HBITMAP cleanup)
 - Painting: `InvalidateRect`, `UpdateWindow`, `RedrawWindow` (for terminal repaint after layout/zoom changes)
 - Console: `AttachConsole`, `FreeConsole`, `GetStdHandle`, `SetCurrentConsoleFontEx`, `GetCurrentConsoleFontEx` (available for console font operations)
+- Hooks: `SetWindowsHookEx` (keyboard + mouse overloads), `UnhookWindowsHookEx`, `CallNextHookEx`, `GetModuleHandle`, `GetAsyncKeyState`, `GetGUIThreadInfo`, `IsChild`
+- Process snapshot: `CreateToolhelp32Snapshot`, `Process32First`, `Process32Next`, `CloseHandle`
 
-**Structures**: `RECT`, `INPUT`/`INPUTUNION`/`KEYBDINPUT` (for `SendInput` API), `COORD`/`CONSOLE_FONT_INFOEX` (for console font)
+**Structures**: `RECT`, `INPUT`/`INPUTUNION`/`KEYBDINPUT` (for `SendInput` API), `COORD`/`CONSOLE_FONT_INFOEX` (for console font), `POINT`, `MSLLHOOKSTRUCT` (mouse hook), `KBDLLHOOKSTRUCT` (keyboard hook), `GUITHREADINFO` (focus detection), `PROCESSENTRY32` (process snapshot)
+
+#### ClaudeCodeControl.Detach.cs — Terminal Detach/Attach
+
+Allows detaching the terminal to a separate VS tool window tab and re-attaching it back.
+
+- **Key fields**: `_detachedTerminalWindow` (DetachedTerminalToolWindow ref), `_detachedTerminalPanel` (WinForms Panel in detached window), `_isTerminalDetached` (current state), `_detachedClosedSubscribed` / `_detachedVisibilitySubscribed` (guard flags for event subscriptions)
+- **`ActiveTerminalPanel`**: Property that returns the correct panel (detached or main) based on `_isTerminalDetached`
+- **`DetachTerminalAsync()`**: Creates/finds `DetachedTerminalToolWindow`, re-parents terminal handle via `SetParent()`, hides main terminal area, expands prompt area by 80px, saves state to settings
+- **`AttachTerminalAsync()`**: Re-parents terminal back to main panel, restores splitter position, closes detached window frame, unwires events
+- **`ToggleDetachAsync()`**: Toggles between detached/attached states
+- **`OnToolWindowFrameShow()`**: When main tool window is activated while terminal is detached, shows the detached window and resizes terminal
+- **`OnDetachedWindowClosed()`**: Handles user closing the detached tab — re-attaches terminal automatically
+- **`UpdateDetachButtonIcon()`**: Updates the detach button with arrow-in-box (attach) or arrow-out-of-box (detach) icon via WPF Canvas/Polyline
 
 #### ClaudeCodeControl.Theme.cs — Theme Support
 
@@ -350,6 +377,9 @@ class ClaudeCodeSettings {
     EffortLevel SelectedEffortLevel = Auto; // Claude Code effort level
     string CustomWorkingDirectory = "";    // absolute or relative to solution dir
     TerminalType SelectedTerminalType = CommandPrompt; // terminal emulator selection
+    bool IsTerminalDetached = false;       // terminal detached to separate tool window tab
+    double PromptFontSize = 0.0;           // prompt text box font size (8–24pt, 0 = VS default)
+    int TerminalZoomDelta = 0;             // net zoom delta for terminal (replayed on restart)
 }
 ```
 
@@ -358,6 +388,18 @@ class ClaudeCodeSettings {
 - **DiffComputer.cs**: Uses DiffPlex `InlineDiffBuilder`; 3 context lines around changes; two-pass algorithm (identify changes → build output with `...` separators)
 - **FileChangeTracker.cs**: Thread-safe via `ConcurrentDictionary`; tracks 48 file extensions; ignores `bin`, `obj`, `node_modules`, `.git`, `.vs`, `packages`, `dist`, `build`, `__pycache__`; max file size 4MB; sorts by last-modified time
 - **ChangedFile.cs**: Implements `INotifyPropertyChanged`; enums `ChangeType` (Created/Modified/Deleted/Renamed) and `DiffLineType` (Context/Added/Removed)
+
+### DetachedTerminalToolWindow.cs
+
+Tool window for hosting the detached terminal in a separate VS tab. Implements `IVsWindowFrameNotify` and `IVsWindowFrameNotify2` for frame event tracking.
+
+- **GUID**: `B2C3D4E5-F6A7-8901-BCDE-FA2345678901`
+- **`TerminalPanel`**: WinForms Panel (Dock=Fill, black background) that hosts the re-parented terminal handle
+- **`VisibilityChanged`** event: Fires on `__FRAMESHOW` transitions (shown/hidden/tab activated/deactivated)
+- **`Closed`** event: Fires from `IVsWindowFrameNotify2.OnClose()` to trigger re-attach
+- **`UpdateCaption()`**: Updates the tool window title with the current provider name
+- **`UpdateTheme()`**: Syncs panel background color with VS theme
+- **Frame notifications**: Subscribes via `IVsWindowFrame2.Advise()` in `OnToolWindowCreated()`
 
 ### DiffViewerControl.xaml.cs
 
@@ -374,6 +416,7 @@ class ClaudeCodeSettings {
 [ProvideAutoLoad(VSConstants.UICONTEXT.SolutionExists_string, PackageAutoLoadFlags.BackgroundLoad)]
 [ProvideToolWindow(typeof(ClaudeCodeToolWindow))]
 [ProvideToolWindow(typeof(DiffViewerToolWindow), Transient = true)]
+[ProvideToolWindow(typeof(DetachedTerminalToolWindow), Transient = true)]
 [ProvideMenuResource("Menus.ctmenu", 1)]
 ```
 
@@ -386,6 +429,7 @@ Three-row grid: prompt area (`*`), splitter (4px), terminal area (`2*`). Key ele
 - `ModelDropdownButton` (30x30): Model context menu
 - `MenuDropdownButton` (30x30): Provider/settings context menu
 - `UpdateAgentButton` (30px): One-click update
+- `DetachTerminalButton`: Toggle detach/attach terminal to separate tab
 - `TerminalHost`: WindowsFormsHost embedding the terminal panel
 
 ---
@@ -398,6 +442,7 @@ Three-row grid: prompt area (`*`), splitter (4px), terminal area (`2*`). Key ele
 | VSIX Identity | `87de5d13-743e-46b3-b05e-24e1cbeca0c3` | Extension marketplace ID |
 | Command Set | `11111111-2222-3333-4444-555555555555` | Menu command group |
 | Project GUID | `75253A84-A760-4061-9885-42A4DAF4B995` | .csproj project ID |
+| Detached Terminal Window | `B2C3D4E5-F6A7-8901-BCDE-FA2345678901` | DetachedTerminalToolWindow |
 | Tool Window Command ID | `0x0100` | ClaudeCodeToolWindow |
 
 ---
@@ -500,9 +545,11 @@ await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
 - Optional `--dangerously-skip-permissions` mode for Claude Code
 - Optional `--ask-for-approval never` mode for Codex
 - One-click agent updates
-- Detach/attach terminal into a separate VS tool window tab (state persisted across sessions)
+- Detach/attach terminal into a separate VS tool window tab (state persisted across sessions; auto-focus on extension activation)
+- F5/Ctrl+F5/Shift+F5 forwarding from terminal to VS debug commands via low-level keyboard hook
 - Prompt font zoom (Ctrl+Scroll, range 8–24pt, persisted)
-- Terminal zoom (Ctrl+Scroll, zoom delta persisted and replayed on restart)
+- Terminal zoom (Ctrl+Scroll, zoom delta persisted and replayed on restart via low-level mouse hook)
+- Windows Terminal text selection assistance (SHIFT+drag injection for TUI mouse reporting bypass)
 - Terminal lifecycle serialization via semaphore to prevent overlapping start/stop transitions
 - UTF-8 encoding (`chcp 65001`) and Virtual Terminal Processing (`VIRTUAL_TERMINAL_LEVEL=1`) for proper Unicode and ANSI rendering
 - Clipboard preservation during terminal I/O with automatic retry on contention
