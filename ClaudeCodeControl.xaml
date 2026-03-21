@@ -261,6 +261,7 @@
 								<MenuItem Header="High" x:Name="EffortHighMenuItem" Click="EffortHighMenuItem_Click" IsCheckable="True"/>
 								<MenuItem Header="Max" x:Name="EffortMaxMenuItem" Click="EffortMaxMenuItem_Click" IsCheckable="True"/>
 								<Separator/>
+								<MenuItem Header="Change Account" x:Name="ChangeAccountMenuItem" Click="ChangeAccountMenuItem_Click"/>
 								<MenuItem Header="Set Language" x:Name="SetLanguageMenuItem" Click="SetLanguageMenuItem_Click"/>
 							</ContextMenu>
 						</Button.ContextMenu>

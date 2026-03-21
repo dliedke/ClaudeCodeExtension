@@ -1917,6 +1917,58 @@ For more details, visit: https://opencode.ai";
         }
 
         /// <summary>
+        /// Handles Change Account menu item click - sends /logout, prompts user, then resumes claude
+        /// </summary>
+#pragma warning disable VSTHRD100 // Avoid async void methods
+        private async void ChangeAccountMenuItem_Click(object sender, RoutedEventArgs e)
+#pragma warning restore VSTHRD100
+        {
+            await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
+
+            if (_currentRunningProvider == AiProvider.ClaudeCode ||
+                _currentRunningProvider == AiProvider.ClaudeCodeWSL)
+            {
+                // Send /logout command
+                await SendTextToTerminalAsync("/logout");
+
+                // Wait for logout to complete
+                await Task.Delay(3000);
+
+                // Prompt user to switch accounts in the browser
+                MessageBox.Show(
+                    "Please switch to the desired account in your browser, then click OK to resume Claude Code.",
+                    "Change Account",
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Information);
+
+                // Build resume command with --dangerously-skip-permissions if needed
+                bool isWsl = _currentRunningProvider == AiProvider.ClaudeCodeWSL;
+                string baseCmd = "claude --resume";
+                if (_settings?.ClaudeDangerouslySkipPermissions == true)
+                {
+                    baseCmd += " --dangerously-skip-permissions";
+                }
+
+                string resumeCommand;
+                if (isWsl)
+                {
+                    resumeCommand = $"wsl bash -ic \"{baseCmd}\"";
+                }
+                else
+                {
+                    string claudeCmd = GetClaudeCommand(isWsl: false).Replace(" --dangerously-skip-permissions", "");
+                    resumeCommand = $"{claudeCmd} --resume";
+                    if (_settings?.ClaudeDangerouslySkipPermissions == true)
+                    {
+                        resumeCommand += " --dangerously-skip-permissions";
+                    }
+                }
+
+                await SendTextToTerminalAsync(resumeCommand);
+            }
+        }
+
+        /// <summary>
         /// Handles Set Language menu item click - sends /config, types language, navigates and selects
         /// </summary>
 #pragma warning disable VSTHRD100 // Avoid async void methods

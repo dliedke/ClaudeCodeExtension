@@ -198,6 +198,9 @@ Click the update button and the extension will handle the update process. Agents
 
 ## Version History
 
+### Version 9.3
+- **Change Account**: Added "Change Account" option in the Claude model menu. Sends `/logout`, prompts the user to switch accounts in the browser, then resumes Claude Code with `claude --resume` (respects `--dangerously-skip-permissions` setting).
+
 ### Version 9.2
 - **Terminal hidden from taskbar**: The embedded terminal window (Command Prompt or Windows Terminal) no longer appears as a separate entry in the Windows taskbar, keeping the taskbar clean.
 - **Terminal layout refresh on solution load**: When opening or closing a solution, the embedded terminal now receives deferred resize/repaint passes to fix visual corruption caused by VS re-layout during solution transitions. Works with both Command Prompt and Windows Terminal.
