@@ -375,6 +375,14 @@ namespace ClaudeCodeVS
                         await RefreshDiffViewAsync();
                     }
                 }
+
+                // Refresh terminal layout after solution/project changes to fix
+                // visual corruption caused by VS re-layout during solution load
+                if (forceDiffReset && terminalHandle != IntPtr.Zero)
+                {
+                    await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
+                    SchedulePostSolutionLoadTerminalRefresh();
+                }
             }
             catch (Exception ex)
             {

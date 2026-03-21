@@ -7,7 +7,7 @@ This is a **Visual Studio Extension (VSIX)** for Visual Studio 2022/2026 that pr
 - **Author**: Daniel Carvalho Liedke (dliedke@gmail.com)
 - **License**: MIT
 - **Repository**: https://github.com/dliedke/ClaudeCodeExtension
-- **Current Version**: 9.1
+- **Current Version**: 9.2
 - **Target Framework**: .NET Framework 4.7.2
 
 ---
@@ -138,7 +138,7 @@ The main UI control is split across 13 partial class files. All share the same `
 - **Constructor**: Initializes XAML, temp directories, solution events, theme events, and lifecycle event handlers
 - **Key fields**: `_toolWindow` (parent tool window ref), `_hasInitialized` (prevents re-init on tab switches)
 - **`ClaudeCodeControl_Loaded()`**: Loads settings, applies them to UI, initializes terminal (only once)
-- **`OnWorkspaceDirectoryChangedAsync()`**: Called when solution/project changes; restarts terminal with new working directory
+- **`OnWorkspaceDirectoryChangedAsync()`**: Called when solution/project changes; restarts terminal with new working directory; schedules deferred terminal layout refresh on solution load events
 - **Initialization guard**: The `_hasInitialized` flag prevents multiple initializations when switching tabs in VS
 
 #### ClaudeCodeControl.Terminal.cs — Terminal Embedding
@@ -160,8 +160,9 @@ Manages the embedded cmd.exe/wsl.exe terminal via Win32 interop.
   - Calls `SchedulePostStartupTerminalAdjustments()` for deferred zoom replay and layout stabilization
   - Updates `_currentRunningProvider` tracking
 - **`StopExistingTerminalAsync()`**: Sends `WM_CLOSE` to the terminal window, then recursively terminates the process tree using `TryTerminateProcessTree()` with safeguards against terminating the VS process
-- **`ApplyEmbeddedTerminalWindowStyle()`**: Centralized window style application; uses `WS_CHILD` for Windows Terminal (better embedding), classic style for conhost (preserves input/focus)
+- **`ApplyEmbeddedTerminalWindowStyle()`**: Centralized window style application; uses `WS_CHILD` for Windows Terminal (better embedding), classic style for conhost (preserves input/focus); also sets `WS_EX_TOOLWINDOW` and clears `WS_EX_APPWINDOW` on extended style to hide the terminal from the Windows taskbar
 - **`SchedulePostStartupTerminalAdjustments()`**: Fire-and-forget deferred startup — runs `StabilizeEmbeddedTerminalLayoutAsync()` for delayed resize passes, then replays saved zoom delta and WT zoom-out
+- **`SchedulePostSolutionLoadTerminalRefresh()`**: Deferred resize/repaint passes (200ms, 500ms, 1000ms) after solution load/close events to fix visual corruption caused by VS re-layout during solution transitions
 - **`ScheduleManualZoomRefresh()`**: Debounced repaint passes after manual Ctrl+Scroll zoom to eliminate stale black regions
 - **`RefreshEmbeddedTerminalWindow()`**: Forces repaint of both the WinForms panel and the embedded terminal via `InvalidateRect`/`RedrawWindow`/`UpdateWindow`
 - **`ApplyWindowsTerminalZoomOutAsync()`**: Sends Ctrl+Minus 3 times via `keybd_event` after WT embed for better visibility
@@ -291,7 +292,7 @@ Multi-step directory resolution for terminal working directory.
   3. IVsSolution directory
   4. Current directory containing `.sln`/`.csproj`
   5. Fallback to My Documents
-- **`OnWorkspaceDirectoryChangedAsync()`**: Restarts terminal only if directory actually changed; resets diff baseline
+- **`OnWorkspaceDirectoryChangedAsync()`**: Restarts terminal only if directory actually changed; resets diff baseline; schedules deferred terminal layout refresh (`SchedulePostSolutionLoadTerminalRefresh`) on solution load events to fix visual corruption
 - **Solution events**: Registered via `SolutionEventsHandler` (IVsSolutionEvents)
 
 #### ClaudeCodeControl.Cleanup.cs — Resource Management
@@ -311,8 +312,9 @@ Complete P/Invoke declarations for terminal embedding.
 ```
 SWP_NOZORDER=0x0004, SWP_NOACTIVATE=0x0010, SWP_FRAMECHANGED=0x0020
 SW_SHOW=5, SW_HIDE=0
-GWL_STYLE=-16
+GWL_STYLE=-16, GWL_EXSTYLE=-20
 WS_CHILD=0x40000000, WS_POPUP=0x80000000, WS_CAPTION=0x00C00000, WS_THICKFRAME=0x00040000, WS_SYSMENU=0x00080000
+WS_EX_APPWINDOW=0x00040000, WS_EX_TOOLWINDOW=0x00000080
 WM_CLOSE=0x0010, WM_KEYDOWN=0x0100, WM_KEYUP=0x0101, WM_CHAR=0x0102
 WM_MOUSEMOVE=0x0200, WM_LBUTTONDOWN=0x0201, WM_LBUTTONUP=0x0202, WM_MOUSEWHEEL=0x020A
 RDW_INVALIDATE=0x0001, RDW_ERASE=0x0004, RDW_ALLCHILDREN=0x0080, RDW_UPDATENOW=0x0100, RDW_FRAME=0x0400
@@ -471,6 +473,7 @@ Three-row grid: prompt area (`*`), splitter (4px), terminal area (`2*`). Key ele
 | 3 context lines | DiffComputer.cs (`ContextLines`) | Lines shown around diff changes |
 | 3 times | Terminal.cs (`ApplyWindowsTerminalZoomOutAsync`) | Ctrl+Minus zoom out steps for WT |
 | 15000 ms | Terminal.cs (`FindNewWtWindowAsync`) | Timeout finding new WT window |
+| 200/500/1000 ms | Terminal.cs (`SchedulePostSolutionLoadTerminalRefresh`) | Deferred resize passes after solution load |
 
 ---
 
@@ -558,6 +561,8 @@ await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
 - Virtualized diff rendering for large repositories
 - Configurable terminal emulator: Command Prompt (default) or Windows Terminal (better emoji/unicode rendering)
 - Windows Terminal integration with auto-zoom, tab bar hiding, and DPI-aware positioning
+- Embedded terminal hidden from Windows taskbar (via `WS_EX_TOOLWINDOW` extended style)
+- Deferred terminal layout refresh on solution load/close to prevent visual corruption
 
 ---
 

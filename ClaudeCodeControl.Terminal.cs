@@ -512,6 +512,12 @@ namespace ClaudeCodeVS
             }
 
             SetWindowLong(terminalHandle, GWL_STYLE, style);
+
+            // Remove from taskbar: clear WS_EX_APPWINDOW and add WS_EX_TOOLWINDOW
+            int exStyle = GetWindowLong(terminalHandle, GWL_EXSTYLE);
+            exStyle &= ~WS_EX_APPWINDOW;
+            exStyle |= WS_EX_TOOLWINDOW;
+            SetWindowLong(terminalHandle, GWL_EXSTYLE, exStyle);
         }
 
         /// <summary>
@@ -564,6 +570,45 @@ namespace ClaudeCodeVS
 
                 ResizeEmbeddedTerminal();
             }
+        }
+
+        /// <summary>
+        /// Schedules delayed resize/repaint passes after a solution load or close event.
+        /// VS re-layouts tool windows during solution transitions, which can leave the
+        /// embedded terminal visually corrupted or incorrectly sized.
+        /// </summary>
+        private void SchedulePostSolutionLoadTerminalRefresh()
+        {
+            IntPtr expectedHandle = terminalHandle;
+
+#pragma warning disable VSSDK007 // fire-and-forget is intentional
+            _ = ThreadHelper.JoinableTaskFactory.RunAsync(async delegate
+            {
+                int[] delays = { 200, 500, 1000 };
+
+                try
+                {
+                    foreach (int delayMs in delays)
+                    {
+                        await Task.Delay(delayMs);
+                        await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
+
+                        if (expectedHandle != terminalHandle ||
+                            terminalHandle == IntPtr.Zero ||
+                            !IsWindow(terminalHandle))
+                        {
+                            return;
+                        }
+
+                        ResizeEmbeddedTerminal();
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Debug.WriteLine($"Error refreshing terminal after solution load: {ex.Message}");
+                }
+            });
+#pragma warning restore VSSDK007
         }
 
         /// <summary>
