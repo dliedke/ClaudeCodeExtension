@@ -198,6 +198,9 @@ Click the update button and the extension will handle the update process. Agents
 
 ## Version History
 
+### Version 9.4
+- **Fix text selection blocking prompt**: When a user has selected text in the Command Prompt terminal, the prompt paste would fail. Now sends an extra right-click before pasting to clear any active text selection.
+
 ### Version 9.3
 - **Change Account**: Added "Change Account" option in the Claude model menu. Sends `/logout`, prompts the user to switch accounts in the browser, then resumes Claude Code with `claude --resume` (respects `--dangerously-skip-permissions` setting).
 

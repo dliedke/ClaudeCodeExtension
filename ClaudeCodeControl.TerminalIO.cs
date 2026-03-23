@@ -72,12 +72,9 @@ namespace ClaudeCodeVS
                     // Save the current clipboard content before modifying it
                     originalClipboardData = await ClipboardRetryAsync(() => SaveClipboardContent());
 
-                    // Clear clipboard before copying new text to prevent stale content
+                    // Clear clipboard immediately so the deselect right-click below won't paste old content
                     await ClipboardRetryAsync(() => Clipboard.Clear());
                     await Task.Delay(50);
-
-                    // Copy text to clipboard
-                    await ClipboardRetryAsync(() => Clipboard.SetText(text));
 
                     // If terminal is detached, ensure the detached window tab is visible
                     // (auto-open changes may have activated the diff viewer tab instead)
@@ -92,6 +89,28 @@ namespace ClaudeCodeVS
                     SetFocus(terminalHandle);
 
                     await Task.Delay(500); // Reduced from 700ms
+
+                    // For Command Prompt (conhost): right-click first to cancel any active text selection.
+                    // If text is selected, right-click copies it to clipboard and deselects.
+                    // If no text is selected, right-click pastes from clipboard (which is empty, so harmless).
+                    bool isCommandPrompt = _wtTabBarHeight == 0
+                                           && _currentRunningProvider != AiProvider.OpenCode;
+                    if (isCommandPrompt)
+                    {
+                        await RightClickTerminalCenterAsync();
+                        await Task.Delay(300);
+                    }
+
+                    // Now set the clipboard to the prompt text (after deselect right-click which may overwrite clipboard)
+                    await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
+                    await ClipboardRetryAsync(() => Clipboard.Clear());
+                    await Task.Delay(50);
+                    await ClipboardRetryAsync(() => Clipboard.SetText(text));
+
+                    // Re-focus terminal after clipboard operations
+                    SetForegroundWindow(terminalHandle);
+                    SetFocus(terminalHandle);
+                    await Task.Delay(100);
 
                     // Paste text into the terminal
                     // Windows Terminal: use Ctrl+Shift+V (right-click opens context menu instead of pasting)
@@ -109,6 +128,7 @@ namespace ClaudeCodeVS
                     }
                     else
                     {
+                        // Right-click to paste the clipboard content
                         await RightClickTerminalCenterAsync();
                         await Task.Delay(800);
                     }
