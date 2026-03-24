@@ -69,7 +69,7 @@ namespace ClaudeCodeVS
                     ? null
                     : Path.GetFullPath(currentSessionDirectory).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
 
-                // Clean up old ClaudeCodeVS directories
+                // Clean up any legacy ClaudeCodeVS directories (pre-7.6, now consolidated into ClaudeCodeVS_Session)
                 string claudeCodeVSPath = Path.Combine(tempPath, "ClaudeCodeVS");
                 if (Directory.Exists(claudeCodeVSPath))
                 {

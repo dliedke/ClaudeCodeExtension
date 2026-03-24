@@ -198,6 +198,9 @@ Click the update button and the extension will handle the update process. Agents
 
 ## Version History
 
+### Version 9.5
+- **Fix image/file not found by AI**: Consolidated temp file storage into a single `ClaudeCodeVS_Session` folder. Previously, pasted images and per-prompt file copies used separate root folders (`ClaudeCodeVS_Session` and `ClaudeCodeVS`), which caused the AI to sometimes fail to locate attached files.
+
 ### Version 9.4
 - **Fix text selection blocking prompt**: When a user has selected text in the Command Prompt terminal, the prompt paste would fail. Now sends an extra right-click before pasting to clear any active text selection.
 

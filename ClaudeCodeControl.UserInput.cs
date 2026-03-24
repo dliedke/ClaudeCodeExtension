@@ -79,11 +79,11 @@ namespace ClaudeCodeVS
                                          _currentRunningProvider == AiProvider.ClaudeCodeWSL ||
                                          _currentRunningProvider == AiProvider.CursorAgent;
 
-                    // Create a unique ClaudeCodeVS directory for this prompt with files
+                    // Create a unique directory under ClaudeCodeVS_Session for this prompt with files
                     string promptDirectory = null;
                     try
                     {
-                        promptDirectory = Path.Combine(Path.GetTempPath(), "ClaudeCodeVS", Guid.NewGuid().ToString());
+                        promptDirectory = Path.Combine(Path.GetTempPath(), "ClaudeCodeVS_Session", Guid.NewGuid().ToString());
                         Directory.CreateDirectory(promptDirectory);
                     }
                     catch (Exception ex)
