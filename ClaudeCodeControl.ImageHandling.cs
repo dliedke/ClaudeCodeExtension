@@ -56,13 +56,6 @@ namespace ClaudeCodeVS
                     return false;
                 }
 
-                // Check file limit
-                if (attachedImagePaths.Count >= 5)
-                {
-                    MessageBox.Show("Maximum of 5 files can be attached.", "File Limit", MessageBoxButton.OK, MessageBoxImage.Information);
-                    return false;
-                }
-
                 BitmapSource image = null;
 
                 // Try different clipboard formats for images
@@ -139,13 +132,6 @@ namespace ClaudeCodeVS
         {
             try
             {
-                // Check file limit
-                if (attachedImagePaths.Count >= 5)
-                {
-                    MessageBox.Show("Maximum of 5 files can be attached.", "File Limit", MessageBoxButton.OK, MessageBoxImage.Information);
-                    return;
-                }
-
                 // Open file dialog for file selection with common data formats
                 OpenFileDialog openFileDialog = new OpenFileDialog
                 {
@@ -160,18 +146,9 @@ namespace ClaudeCodeVS
 
                 if (openFileDialog.ShowDialog() == true)
                 {
-                    int remainingSlots = 5 - attachedImagePaths.Count;
-                    int filesAdded = 0;
-
                     foreach (string filename in openFileDialog.FileNames)
                     {
-                        if (attachedImagePaths.Count >= 5)
-                        {
-                            MessageBox.Show($"Maximum of 5 files can be attached. Only the first {remainingSlots} selected file(s) were added.", "File Limit", MessageBoxButton.OK, MessageBoxImage.Information);
-                            break;
-                        }
                         attachedImagePaths.Add(filename);
-                        filesAdded++;
                     }
                     UpdateImageDropDisplay();
                 }
@@ -284,9 +261,6 @@ namespace ClaudeCodeVS
             {
                 foreach (string path in filePaths)
                 {
-                    if (attachedImagePaths.Count >= 5)
-                        break;
-
                     if (!string.IsNullOrEmpty(path) && File.Exists(path))
                     {
                         attachedImagePaths.Add(path);

@@ -249,7 +249,7 @@ Keyboard and button event handlers.
 
 - **Prompt history**: `_historyIndex` (-1 = not navigating), `MaxHistorySize` = 50
 - **`SendButton_Click()`**: Main submission flow
-  1. Builds prompt with file attachments (up to 5 files)
+  1. Builds prompt with file attachments
   2. Creates temp directory with GUID for file persistence
   3. Converts paths to WSL format if needed
   4. Ensures diff tracking started
@@ -275,7 +275,7 @@ JSON-based settings at `%LocalAppData%\ClaudeCodeExtension\claudecode-settings.j
 
 Handles clipboard paste and file picker for attachments.
 
-- **Limits**: Max 5 files (`attachedImagePaths` list), sequential naming for pasted images
+- **No file limit**: `attachedImagePaths` list (no cap), sequential naming for pasted images
 - **`TryPasteImage()`**: Checks text first (prevents Excel cells becoming images), supports Image/Bitmap/PNG formats
 - **File picker filter**: All files, Images, Documents (PDF/Word/txt), Spreadsheets (Excel/CSV), Data (JSON/XML/YAML), Code
 - **UI**: Creates "chip" elements with filename and X remove button; chips are clickable to open the file
@@ -453,7 +453,6 @@ Three-row grid: prompt area (`*`), splitter (4px), terminal area (`2*`). Key ele
 
 | Value | Location | Purpose |
 |-------|----------|---------|
-| 5 files max | ImageHandling.cs | File attachment limit |
 | 50 prompts max | UserInput.cs (`MaxHistorySize`) | Prompt history limit |
 | 4 MB | Diff.cs (`MaxGitFileBytes`) / FileChangeTracker | Max file size for diff |
 | 8000 ms | Diff.cs (`GitStatusTimeoutMs`) | Git command timeout |
@@ -535,7 +534,7 @@ await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
 
 - Embedded terminal within Visual Studio (via Win32 `SetParent` interop)
 - Multi-line prompts (Shift+Enter / Ctrl+Enter for newlines)
-- File attachments (up to 5 files: images, PDFs, documents, code, etc.)
+- File attachments (unlimited: images, PDFs, documents, code, etc.)
 - Image paste from clipboard (Ctrl+V) with Excel-cell-as-text handling
 - Prompt history (last 50 prompts, Ctrl+Up/Down navigation)
 - Integrated diff viewer with git-based change tracking (3-second polling)

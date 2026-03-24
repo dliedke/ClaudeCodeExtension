@@ -170,7 +170,7 @@
 				</TextBox>
 			</GroupBox>
 
-			<!-- Controls row: [Send + Add Image] | [Chips] | [Restart (right-aligned)] -->
+			<!-- Controls row: [Send + Add Image] | [Restart (right-aligned)] -->
 			<Grid Grid.Row="1" Margin="0,4,0,0" VerticalAlignment="Top">
 				<Grid.ColumnDefinitions>
 					<ColumnDefinition Width="Auto"/>
@@ -201,14 +201,6 @@
                             ToolTip="Add Files to Prompt (Images, PDFs, Documents, etc.)"
                             PreviewMouseLeftButtonUp="ImageDropBorder_Click"/>
 				</StackPanel>
-
-				<!-- Chips in their own stretch area so they don't affect button sizing -->
-				<ScrollViewer Grid.Column="1"
-                              VerticalScrollBarVisibility="Disabled"
-                              HorizontalScrollBarVisibility="Auto"
-                              Margin="8,0,12,0">
-					<WrapPanel x:Name="AttachedImagesPanel" />
-				</ScrollViewer>
 
                 <!-- Right-aligned buttons (Restart + Model + Settings + Update) -->
 				<StackPanel Grid.Column="2"
@@ -326,16 +318,32 @@
 				</StackPanel>
 			</Grid>
 
-			<!-- Send with Enter toggle -->
-			<CheckBox Grid.Row="2"
-                      x:Name="SendWithEnterCheckBox"
-                      Content="Send with Enter"
-                      IsChecked="True"
-                      Foreground="{DynamicResource {x:Static vsshell:VsBrushes.ToolWindowTextKey}}"
-                      Margin="0,6,0,6"
-                      ToolTip="Automatically send prompt to code agent with enter key. Use Shift+Enter for new lines"
-                      Checked="SendWithEnterCheckBox_Checked"
-                      Unchecked="SendWithEnterCheckBox_Unchecked"/>
+			<!-- Send with Enter + file chips row -->
+			<Grid Grid.Row="2" Margin="0,4,0,2">
+				<Grid.ColumnDefinitions>
+					<ColumnDefinition Width="Auto"/>
+					<ColumnDefinition Width="*"/>
+				</Grid.ColumnDefinitions>
+
+				<CheckBox Grid.Column="0"
+                          x:Name="SendWithEnterCheckBox"
+                          Content="Send with Enter"
+                          IsChecked="True"
+                          Foreground="{DynamicResource {x:Static vsshell:VsBrushes.ToolWindowTextKey}}"
+                          VerticalAlignment="Center"
+                          Margin="0,0,8,0"
+                          ToolTip="Automatically send prompt to code agent with enter key. Use Shift+Enter for new lines"
+                          Checked="SendWithEnterCheckBox_Checked"
+                          Unchecked="SendWithEnterCheckBox_Unchecked"/>
+
+				<!-- Chips next to Send with Enter -->
+				<ScrollViewer Grid.Column="1"
+                              VerticalScrollBarVisibility="Disabled"
+                              HorizontalScrollBarVisibility="Auto"
+                              VerticalAlignment="Center">
+					<WrapPanel x:Name="AttachedImagesPanel" />
+				</ScrollViewer>
+			</Grid>
 		</Grid>
 
 		<!-- Resizable Splitter -->

@@ -37,7 +37,7 @@ Any feedback, suggestions, or contributions are also very welcome - feel free to
 
 ### 🖼️ **File Attachment Support**
 - **Clipboard Paste**: Use Ctrl+V to paste images from clipboard in the prompt area (text content like Excel cells will paste as text)
-- **File Browser**: Click "Add File" to select up to 5 files from file system
+- **File Browser**: Click "Add File" to select files from file system (no limit)
 - **Supported File Types**: Images, PDFs, documents (Word, text), spreadsheets (Excel, CSV), data files (JSON, XML, YAML), code files, and more
 - **File Chips**: Visual representation of attached files with remove functionality
 - **Clickable Chips**: Click on file chips to open and view files
@@ -197,6 +197,10 @@ The extension includes an Update Agent button (🔄️) that updates your select
 Click the update button and the extension will handle the update process. Agents use the appropriate exit methods before updating (exit command for most, double CTRL+C for Codex, /quit command for Qwen Code).
 
 ## Version History
+
+### Version 9.6
+- **UI improvement**: Moved file attachment chips to the "Send with Enter" row, freeing up space in the button toolbar and reducing clutter.
+- **Removed file attachment limit**: Previously capped at 5 files; now unlimited files can be attached to a prompt.
 
 ### Version 9.5
 - **Fix image/file not found by AI**: Consolidated temp file storage into a single `ClaudeCodeVS_Session` folder. Previously, pasted images and per-prompt file copies used separate root folders (`ClaudeCodeVS_Session` and `ClaudeCodeVS`), which caused the AI to sometimes fail to locate attached files.
@@ -450,7 +454,7 @@ in Git repositories will no longer show change button the diff tab. Not the most
 
 ### Version 4.1
 - **Enhanced File Support**: "Add Image" button renamed to "Add File" with support for multiple file types
-- **Increased File Limit**: Now supports up to 5 file attachments (previously 3 images)
+- **Increased File Limit**: Added support for multiple file attachments (previously 3 images)
 - **Common File Formats**: Added support for documents (PDF, Word, text), spreadsheets (Excel, CSV), data files (JSON, XML, YAML), code files, and more
 - **Flexible File Selection**: File browser now accepts all file types (*.*) plus convenient filters for common formats
 
