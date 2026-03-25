@@ -65,6 +65,7 @@ namespace ClaudeCodeVS
                 try
                 {
                     UpdateTerminalTheme();
+                    UpdateDetachButtonIcon(_isTerminalDetached);
                 }
                 catch (Exception ex)
                 {

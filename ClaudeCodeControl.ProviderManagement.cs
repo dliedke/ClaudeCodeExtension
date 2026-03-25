@@ -1479,7 +1479,7 @@ For more details, visit: https://opencode.ai";
                                   _settings.SelectedProvider == AiProvider.QwenCode ? "Qwen Code" :
                                   _settings.SelectedProvider == AiProvider.OpenCode ? "Open Code" :
                                   "Cursor Agent";
-            TerminalGroupBox.Header = providerName;
+            TerminalGroupBox.Header = new System.Windows.Controls.TextBlock { Text = providerName, Opacity = 0.93 };
 
             // Show/hide model selection button based on provider
             bool isClaudeProvider = _settings.SelectedProvider == AiProvider.ClaudeCode ||

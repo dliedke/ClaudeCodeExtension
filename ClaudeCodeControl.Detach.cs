@@ -393,12 +393,13 @@ namespace ClaudeCodeVS
             try
             {
                 var canvas = new Canvas { Width = 16, Height = 14 };
+                var iconBrush = (Brush)FindResource(VsBrushes.ToolWindowTextKey);
 
                 var rect = new Rectangle
                 {
                     Width = 10,
                     Height = 12,
-                    Stroke = Brushes.Gray,
+                    Stroke = iconBrush,
                     StrokeThickness = 1.5,
                     Fill = Brushes.Transparent
                 };
@@ -410,13 +411,13 @@ namespace ClaudeCodeVS
                     Canvas.SetTop(rect, 1);
                     canvas.Children.Add(rect);
 
-                    var line = new Line { X1 = 8, Y1 = 7, X2 = 15, Y2 = 7, Stroke = Brushes.Gray, StrokeThickness = 1.5 };
+                    var line = new Line { X1 = 8, Y1 = 7, X2 = 15, Y2 = 7, Stroke = iconBrush, StrokeThickness = 1.5 };
                     canvas.Children.Add(line);
 
                     var arrow = new Polyline
                     {
                         Points = new PointCollection { new Point(12, 4), new Point(15, 7), new Point(12, 10) },
-                        Stroke = Brushes.Gray,
+                        Stroke = iconBrush,
                         StrokeThickness = 1.5,
                         Fill = Brushes.Transparent
                     };
@@ -429,13 +430,13 @@ namespace ClaudeCodeVS
                     Canvas.SetTop(rect, 1);
                     canvas.Children.Add(rect);
 
-                    var line = new Line { X1 = 8, Y1 = 7, X2 = 1, Y2 = 7, Stroke = Brushes.Gray, StrokeThickness = 1.5 };
+                    var line = new Line { X1 = 8, Y1 = 7, X2 = 1, Y2 = 7, Stroke = iconBrush, StrokeThickness = 1.5 };
                     canvas.Children.Add(line);
 
                     var arrow = new Polyline
                     {
                         Points = new PointCollection { new Point(4, 4), new Point(1, 7), new Point(4, 10) },
-                        Stroke = Brushes.Gray,
+                        Stroke = iconBrush,
                         StrokeThickness = 1.5,
                         Fill = Brushes.Transparent
                     };

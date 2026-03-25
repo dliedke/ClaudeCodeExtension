@@ -120,9 +120,9 @@
 			<Setter Property="MinWidth" Value="80"/>
 		</Style>
 
-		<!-- Gray gear button style -->
-		<Style x:Key="GrayGearButtonStyle" TargetType="Button" BasedOn="{StaticResource AdaptiveButtonStyle}">
-			<Setter Property="Foreground" Value="Gray"/>
+		<!-- Icon button style (slightly dimmed for icon-only buttons) -->
+		<Style x:Key="IconButtonStyle" TargetType="Button" BasedOn="{StaticResource AdaptiveButtonStyle}">
+			<Setter Property="Opacity" Value="0.93"/>
 		</Style>
 	</UserControl.Resources>
 
@@ -143,13 +143,15 @@
 
 			<!-- Prompt Input Area -->
 			<GroupBox Grid.Row="0"
-                      Header="Prompt / Paste Image"
                       Foreground="{DynamicResource {x:Static vsshell:VsBrushes.WindowTextKey}}"
                       Background="{DynamicResource {x:Static vsshell:VsBrushes.ToolWindowBackgroundKey}}"
                       BorderBrush="{DynamicResource {x:Static vsshell:VsBrushes.WindowTextKey}}"
                       BorderThickness="1"
                       Margin="0,0,0,2"
                       Style="{StaticResource SingleBorderGroupBoxStyle}">
+				<GroupBox.Header>
+					<TextBlock Text="Prompt / Paste Image" Opacity="0.93"/>
+				</GroupBox.Header>
 				<TextBox x:Name="PromptTextBox"
                          TextWrapping="Wrap"
                          AcceptsReturn="True"
@@ -182,21 +184,22 @@
 				<StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Top">
 					<!-- Send button (visible only when Send-with-Enter is off) -->
 					<Button x:Name="SendPromptButton"
-                            Content="Send"
-							Width="50"
-                            MinWidth="50"
-                            Style="{StaticResource AdaptiveButtonStyle}"
+                            Content="▶"
+							Width="30"
+                            MinWidth="30"
+                            FontSize="14"
+                            Style="{StaticResource IconButtonStyle}"
                             Click="SendButton_Click"
                             Visibility="Collapsed"
                             ToolTip="Send Prompt to Code Agent"
-                            Margin="0,0,8,0"/>
+                            Margin="0,0,6,0"/>
 
-					<!-- Fixed-width Add File so it never expands with chips -->
 					<Button x:Name="AddImageButton"
-                            Content="Add File"
-                            Style="{StaticResource AdaptiveButtonStyle}"
-                            Width="80"
-                            MinWidth="80"
+                            Content="📎"
+                            Style="{StaticResource IconButtonStyle}"
+                            Width="30"
+                            MinWidth="30"
+                            FontSize="14"
                             HorizontalAlignment="Left"
                             ToolTip="Add Files to Prompt (Images, PDFs, Documents, etc.)"
                             PreviewMouseLeftButtonUp="ImageDropBorder_Click"/>
@@ -211,19 +214,21 @@
 
 
 					<Button x:Name="ViewChangesButton"
-                            Content="Changes"
-                            Width="65"
-                            MinWidth="65"
-                            Style="{StaticResource AdaptiveButtonStyle}"
+                            Content="🔀"
+                            Width="30"
+                            MinWidth="30"
+                            FontSize="14"
+                            Style="{StaticResource IconButtonStyle}"
                             Click="ViewChangesButton_Click"
                             ToolTip="View Code Changes"
                             Margin="0,0,6,0"/>
 
 					<Button x:Name="RestartTerminalButton"
-                            Content="Restart"
-                            Width="60"
-                            MinWidth="60"
-                            Style="{StaticResource AdaptiveButtonStyle}"
+                            Content="⟳"
+                            Width="30"
+                            MinWidth="30"
+                            FontSize="16"
+                            Style="{StaticResource IconButtonStyle}"
                             Click="RestartTerminalButton_Click"
                             ToolTip="Restart Code Agent"
                             Margin="0,0,6,0"/>
@@ -233,7 +238,7 @@
                             Width="30"
                             Height="30"
                             FontSize="14"
-                            Style="{StaticResource GrayGearButtonStyle}"
+                            Style="{StaticResource IconButtonStyle}"
                             FontFamily="Consolas"
                             ToolTip="Claude Model Selection"
                             Click="ModelDropdownButton_Click"
@@ -263,7 +268,7 @@
                             Width="30"
                             Height="30"
                             FontSize="14"
-                            Style="{StaticResource GrayGearButtonStyle}"
+                            Style="{StaticResource IconButtonStyle}"
                             FontFamily="Consolas"
                             ToolTip="Code Agent Selection"
                             Click="MenuDropdownButton_Click"
@@ -300,7 +305,7 @@
 						Margin="0,0,6,0"/>
 					<Button x:Name="DetachTerminalButton"
 						Width="30" Height="30"
-						Style="{StaticResource GrayGearButtonStyle}"
+						Style="{StaticResource IconButtonStyle}"
 						Click="DetachTerminalButton_Click"
 						ToolTip="Detach Terminal to Separate Tab"
 						Margin="0">
@@ -308,10 +313,10 @@
 							<Canvas Width="16" Height="14">
 								<!-- Box -->
 								<Rectangle Canvas.Left="5" Canvas.Top="1" Width="10" Height="12"
-										   Stroke="Gray" StrokeThickness="1.5" Fill="Transparent"/>
+										   Stroke="{DynamicResource {x:Static vsshell:VsBrushes.ToolWindowTextKey}}" StrokeThickness="1.5" Fill="Transparent"/>
 								<!-- Arrow pointing left (detach) -->
-								<Line X1="8" Y1="7" X2="1" Y2="7" Stroke="Gray" StrokeThickness="1.5"/>
-								<Polyline Points="4,4 1,7 4,10" Stroke="Gray" StrokeThickness="1.5" Fill="Transparent"/>
+								<Line X1="8" Y1="7" X2="1" Y2="7" Stroke="{DynamicResource {x:Static vsshell:VsBrushes.ToolWindowTextKey}}" StrokeThickness="1.5"/>
+								<Polyline Points="4,4 1,7 4,10" Stroke="{DynamicResource {x:Static vsshell:VsBrushes.ToolWindowTextKey}}" StrokeThickness="1.5" Fill="Transparent"/>
 							</Canvas>
 						</Viewbox>
 					</Button>
@@ -330,6 +335,7 @@
                           Content="Send with Enter"
                           IsChecked="True"
                           Foreground="{DynamicResource {x:Static vsshell:VsBrushes.ToolWindowTextKey}}"
+                          Opacity="0.93"
                           VerticalAlignment="Center"
                           Margin="0,0,8,0"
                           ToolTip="Automatically send prompt to code agent with enter key. Use Shift+Enter for new lines"
@@ -361,7 +367,6 @@
 
 		<!-- Embedded Terminal -->
 		<GroupBox Grid.Row="2"
-                  Header="Claude Code"
                   Margin="6"
                   Foreground="{DynamicResource {x:Static vsshell:VsBrushes.WindowTextKey}}"
                   Background="{DynamicResource {x:Static vsshell:VsBrushes.ToolWindowBackgroundKey}}"
@@ -369,6 +374,9 @@
                   BorderThickness="1"
                   Style="{StaticResource SingleBorderGroupBoxStyle}"
                   x:Name="TerminalGroupBox">
+			<GroupBox.Header>
+				<TextBlock Text="Claude Code" Opacity="0.93"/>
+			</GroupBox.Header>
 			<wf:WindowsFormsHost x:Name="TerminalHost"/>
 		</GroupBox>
 	</Grid>

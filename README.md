@@ -198,6 +198,14 @@ Click the update button and the extension will handle the update process. Agents
 
 ## Version History
 
+### Version 10.0
+- **Icon-based toolbar**: Replaced text buttons (Send, Add File, Changes, Restart) with compact emoji icons (▶, 📎, 🔀, ⟳) for a cleaner, more uniform toolbar. All buttons now use consistent icon styling with tooltips.
+- **Softer UI text**: Labels ("Prompt / Paste Image", "Send with Enter", terminal header) and icon buttons use slightly reduced opacity for a softer, less harsh appearance in dark theme.
+- **Fix detach icon on theme switch**: The detach/attach button icon now correctly updates its color when switching between dark and light VS themes.
+
+### Version 9.7
+- **Fix button color consistency**: All toolbar buttons now use the same theme-aware text color. Previously, icon buttons (model selector, settings gear, detach) used hardcoded gray text instead of matching the VS theme color like the other buttons.
+
 ### Version 9.6
 - **UI improvement**: Moved file attachment chips to the "Send with Enter" row, freeing up space in the button toolbar and reducing clutter.
 - **Removed file attachment limit**: Previously capped at 5 files; now unlimited files can be attached to a prompt.

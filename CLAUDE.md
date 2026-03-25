@@ -7,7 +7,7 @@ This is a **Visual Studio Extension (VSIX)** for Visual Studio 2022/2026 that pr
 - **Author**: Daniel Carvalho Liedke (dliedke@gmail.com)
 - **License**: MIT
 - **Repository**: https://github.com/dliedke/ClaudeCodeExtension
-- **Current Version**: 9.2
+- **Current Version**: 10.0
 - **Target Framework**: .NET Framework 4.7.2
 
 ---
