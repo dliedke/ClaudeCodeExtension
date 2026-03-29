@@ -203,6 +203,17 @@
                             HorizontalAlignment="Left"
                             ToolTip="Add Files to Prompt (Images, PDFs, Documents, etc.)"
                             PreviewMouseLeftButtonUp="ImageDropBorder_Click"/>
+
+						<Button x:Name="GrabSelectionButton"
+                            Content="📋"
+                            Style="{StaticResource IconButtonStyle}"
+                            Width="30"
+                            MinWidth="30"
+                            FontSize="14"
+                            HorizontalAlignment="Left"
+                            ToolTip="Insert Editor Selection into Prompt"
+                            Click="GrabSelectionButton_Click"
+                            Margin="6,0,0,0"/>
 				</StackPanel>
 
                 <!-- Right-aligned buttons (Restart + Model + Settings + Update) -->

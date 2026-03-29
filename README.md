@@ -35,6 +35,13 @@ Any feedback, suggestions, or contributions are also very welcome - feel free to
 - **Shift+Enter** or **Ctrl+Enter**: Create new lines when Send with Enter is enabled
 - **Manual Send Button**: Appears when Send with Enter is disabled
 
+### 📋 **Editor Selection to Prompt**
+- **Toolbar Button**: Click the 📋 button to grab the currently selected code from the active editor and insert it into the prompt
+- **Editor Context Menu**: Right-click on selected code in the editor and choose "Send Selection to Claude Code"
+- **Formatted Snippet**: Code is inserted with file path, line numbers, and syntax-highlighted code fence (e.g., ```csharp)
+- **Non-Destructive**: Code is inserted into the prompt without sending — type your question or instruction first, then send
+- **Relative Paths**: File paths are automatically made relative to the current workspace/solution directory
+
 ### 🖼️ **File Attachment Support**
 - **Clipboard Paste**: Use Ctrl+V to paste images from clipboard in the prompt area (text content like Excel cells will paste as text)
 - **File Browser**: Click "Add File" to select files from file system (no limit)
@@ -197,6 +204,9 @@ The extension includes an Update Agent button (🔄️) that updates your select
 Click the update button and the extension will handle the update process. Agents use the appropriate exit methods before updating (exit command for most, double CTRL+C for Codex, /quit command for Qwen Code).
 
 ## Version History
+
+### Version 10.1
+- **Send editor selection to prompt**: New toolbar button (📋) grabs the currently selected code from the active editor and inserts it as a formatted snippet (with file path, line numbers, and syntax-highlighted code fence) into the prompt text box. Also available via right-click context menu "Send Selection to Claude Code" in the editor.
 
 ### Version 10.0
 - **Icon-based toolbar**: Replaced text buttons (Send, Add File, Changes, Restart) with compact emoji icons (▶, 📎, 🔀, ⟳) for a cleaner, more uniform toolbar. All buttons now use consistent icon styling with tooltips.

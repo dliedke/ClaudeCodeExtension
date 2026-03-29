@@ -5,12 +5,26 @@
   <Extern href="vsshlids.h"/>
 
   <Commands package="guidClaudeCodeExtensionPackage">
+    <Groups>
+      <Group guid="guidClaudeCodeExtensionPackageCmdSet" id="EditorContextMenuGroup" priority="0x0600">
+        <Parent guid="guidSHLMainMenu" id="IDM_VS_CTXT_CODEWIN"/>
+      </Group>
+    </Groups>
+
     <Buttons>
       <Button guid="guidClaudeCodeExtensionPackageCmdSet" id="ClaudeCodeToolWindowCommandId" priority="0x0100" type="Button">
         <Parent guid="guidSHLMainMenu" id="IDG_VS_WNDO_OTRWNDWS1"/>
         <Icon guid="guidImages" id="bmpIcon" />
         <Strings>
           <ButtonText>Claude Code Extension</ButtonText>
+        </Strings>
+      </Button>
+
+      <Button guid="guidClaudeCodeExtensionPackageCmdSet" id="EditorSendSelectionCommandId" priority="0x0100" type="Button">
+        <Parent guid="guidClaudeCodeExtensionPackageCmdSet" id="EditorContextMenuGroup"/>
+        <CommandFlag>DynamicVisibility</CommandFlag>
+        <Strings>
+          <ButtonText>Send Selection to Claude Code</ButtonText>
         </Strings>
       </Button>
     </Buttons>
@@ -25,6 +39,8 @@
 
     <GuidSymbol name="guidClaudeCodeExtensionPackageCmdSet" value="{11111111-2222-3333-4444-555555555555}">
       <IDSymbol name="ClaudeCodeToolWindowCommandId" value="0x0100" />
+      <IDSymbol name="EditorContextMenuGroup" value="0x1020" />
+      <IDSymbol name="EditorSendSelectionCommandId" value="0x0201" />
     </GuidSymbol>
 
     <GuidSymbol name="guidImages" value="{aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee}">

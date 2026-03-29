@@ -19,6 +19,7 @@ using System.Threading.Tasks;
 using System.Collections.Generic;
 using System.Windows;
 using System.Windows.Input;
+using Microsoft.VisualStudio.Shell;
 
 namespace ClaudeCodeVS
 {
@@ -449,6 +450,154 @@ namespace ClaudeCodeVS
         private void ClearPromptHistoryMenuItem_Click(object sender, RoutedEventArgs e)
         {
             ClearPromptHistory();
+        }
+
+        #endregion
+
+        #region Editor Selection Integration
+
+        /// <summary>
+        /// Language identifier mapping from file extensions to markdown code fence language IDs
+        /// </summary>
+        private static readonly Dictionary<string, string> _languageMap = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+        {
+            { ".cs", "csharp" }, { ".vb", "vb" }, { ".fs", "fsharp" },
+            { ".py", "python" }, { ".js", "javascript" }, { ".ts", "typescript" },
+            { ".jsx", "jsx" }, { ".tsx", "tsx" },
+            { ".java", "java" }, { ".kt", "kotlin" }, { ".scala", "scala" },
+            { ".cpp", "cpp" }, { ".cc", "cpp" }, { ".cxx", "cpp" },
+            { ".c", "c" }, { ".h", "c" }, { ".hpp", "cpp" },
+            { ".go", "go" }, { ".rs", "rust" }, { ".swift", "swift" },
+            { ".rb", "ruby" }, { ".php", "php" }, { ".lua", "lua" },
+            { ".r", "r" }, { ".m", "objectivec" }, { ".mm", "objectivec" },
+            { ".html", "html" }, { ".htm", "html" }, { ".css", "css" },
+            { ".scss", "scss" }, { ".less", "less" }, { ".sass", "sass" },
+            { ".xml", "xml" }, { ".xaml", "xml" }, { ".json", "json" },
+            { ".yaml", "yaml" }, { ".yml", "yaml" }, { ".toml", "toml" },
+            { ".sql", "sql" }, { ".sh", "bash" }, { ".bash", "bash" },
+            { ".ps1", "powershell" }, { ".psm1", "powershell" },
+            { ".bat", "batch" }, { ".cmd", "batch" },
+            { ".md", "markdown" }, { ".rst", "rst" },
+            { ".dart", "dart" }, { ".ex", "elixir" }, { ".exs", "elixir" },
+            { ".zig", "zig" }, { ".nim", "nim" }, { ".v", "v" },
+        };
+
+        /// <summary>
+        /// Gets the markdown language identifier for a file extension
+        /// </summary>
+        private static string GetLanguageIdFromExtension(string extension)
+        {
+            if (string.IsNullOrEmpty(extension))
+                return string.Empty;
+
+            return _languageMap.TryGetValue(extension, out string langId) ? langId : string.Empty;
+        }
+
+        /// <summary>
+        /// Handles the grab selection toolbar button click.
+        /// Gets the current editor selection and inserts it into the prompt.
+        /// </summary>
+        private void GrabSelectionButton_Click(object sender, RoutedEventArgs e)
+        {
+            try
+            {
+                ThreadHelper.ThrowIfNotOnUIThread();
+                var dte = Package.GetGlobalService(typeof(EnvDTE.DTE)) as EnvDTE.DTE;
+
+                if (dte?.ActiveDocument == null)
+                {
+                    MessageBox.Show("No active document open in the editor.",
+                        "No Document", MessageBoxButton.OK, MessageBoxImage.Information);
+                    return;
+                }
+
+                var selection = dte.ActiveDocument.Selection as EnvDTE.TextSelection;
+                if (selection == null || string.IsNullOrEmpty(selection.Text))
+                {
+                    MessageBox.Show("No text selected in the active editor.\nPlease select some code first.",
+                        "No Selection", MessageBoxButton.OK, MessageBoxImage.Information);
+                    return;
+                }
+
+                string code = selection.Text;
+                string filePath = dte.ActiveDocument.FullName;
+                int startLine = selection.TopLine;
+                int endLine = selection.BottomLine;
+
+                InsertCodeSnippetIntoPrompt(code, filePath, startLine, endLine);
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"Error grabbing editor selection: {ex.Message}");
+            }
+        }
+
+        /// <summary>
+        /// Inserts a formatted code snippet into the prompt text box without sending.
+        /// Called from the toolbar button and the editor context menu command.
+        /// </summary>
+        public void InsertCodeSnippetIntoPrompt(string code, string filePath, int startLine, int endLine)
+        {
+            try
+            {
+                // Make path relative to workspace if possible
+                string displayPath = filePath;
+                if (!string.IsNullOrEmpty(_lastWorkspaceDirectory) &&
+                    filePath.StartsWith(_lastWorkspaceDirectory, StringComparison.OrdinalIgnoreCase))
+                {
+                    displayPath = filePath.Substring(_lastWorkspaceDirectory.Length).TrimStart('\\', '/');
+                }
+
+                // Get language identifier from file extension
+                string extension = Path.GetExtension(filePath);
+                string langId = GetLanguageIdFromExtension(extension);
+
+                // Build the formatted snippet
+                var snippet = new StringBuilder();
+
+                // Add separator if prompt already has text
+                string currentText = PromptTextBox.Text;
+                if (!string.IsNullOrEmpty(currentText) && !currentText.EndsWith("\n") && !currentText.EndsWith("\r"))
+                {
+                    snippet.AppendLine();
+                }
+
+                // File header with line info
+                if (startLine == endLine)
+                {
+                    snippet.AppendLine($"File: {displayPath} (line {startLine})");
+                }
+                else
+                {
+                    snippet.AppendLine($"File: {displayPath} (lines {startLine}-{endLine})");
+                }
+
+                // Code fence with language
+                snippet.AppendLine($"```{langId}");
+                snippet.AppendLine(code.TrimEnd('\r', '\n'));
+                snippet.AppendLine("```");
+                snippet.AppendLine();
+
+                // Insert at current cursor position or append
+                int caretIndex = PromptTextBox.CaretIndex;
+                if (caretIndex >= 0 && caretIndex < currentText.Length && !string.IsNullOrEmpty(currentText))
+                {
+                    PromptTextBox.Text = currentText.Insert(caretIndex, snippet.ToString());
+                    PromptTextBox.CaretIndex = caretIndex + snippet.Length;
+                }
+                else
+                {
+                    PromptTextBox.Text = currentText + snippet.ToString();
+                    PromptTextBox.CaretIndex = PromptTextBox.Text.Length;
+                }
+
+                // Focus the prompt for the user to type their question
+                PromptTextBox.Focus();
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"Error inserting code snippet: {ex.Message}");
+            }
         }
 
         #endregion

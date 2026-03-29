@@ -57,6 +57,7 @@ namespace ClaudeCodeExtension
         /// </summary>
         public static readonly Guid CommandSet = new Guid("11111111-2222-3333-4444-555555555555");
         public const int ClaudeCodeToolWindowCommandId = 0x0100;
+        public const int EditorSendSelectionCommandId = 0x0201;
 
         #region Package Members
 
@@ -80,6 +81,71 @@ namespace ClaudeCodeExtension
                 var menuCommandID = new CommandID(CommandSet, ClaudeCodeToolWindowCommandId);
                 var menuItem = new MenuCommand(this.ShowToolWindow, menuCommandID);
                 commandService.AddCommand(menuItem);
+
+                // Add command handler for "Send Selection to Claude Code" editor context menu
+                var editorCmdId = new CommandID(CommandSet, EditorSendSelectionCommandId);
+                var editorMenuItem = new OleMenuCommand(this.OnEditorSendSelection, editorCmdId);
+                editorMenuItem.BeforeQueryStatus += OnEditorSendSelectionQueryStatus;
+                commandService.AddCommand(editorMenuItem);
+            }
+        }
+
+        /// <summary>
+        /// Checks if there is a text selection in the active editor to enable/disable the context menu item.
+        /// </summary>
+        private void OnEditorSendSelectionQueryStatus(object sender, EventArgs e)
+        {
+            ThreadHelper.ThrowIfNotOnUIThread();
+            var cmd = (OleMenuCommand)sender;
+            try
+            {
+                var dte = GetGlobalService(typeof(EnvDTE.DTE)) as EnvDTE.DTE;
+                var sel = dte?.ActiveDocument?.Selection as EnvDTE.TextSelection;
+                bool hasSelection = sel != null && !string.IsNullOrEmpty(sel.Text);
+                cmd.Visible = true;
+                cmd.Enabled = hasSelection;
+            }
+            catch
+            {
+                cmd.Visible = true;
+                cmd.Enabled = false;
+            }
+        }
+
+        /// <summary>
+        /// Handles the "Send Selection to Claude Code" editor context menu command.
+        /// Extracts the selected text, file path, and line numbers, then inserts into the prompt.
+        /// </summary>
+        private void OnEditorSendSelection(object sender, EventArgs e)
+        {
+            ThreadHelper.ThrowIfNotOnUIThread();
+            try
+            {
+                var dte = GetGlobalService(typeof(EnvDTE.DTE)) as EnvDTE.DTE;
+                var sel = dte?.ActiveDocument?.Selection as EnvDTE.TextSelection;
+                if (sel == null || string.IsNullOrEmpty(sel.Text))
+                    return;
+
+                string code = sel.Text;
+                string filePath = dte.ActiveDocument.FullName;
+                int startLine = sel.TopLine;
+                int endLine = sel.BottomLine;
+
+                // Ensure tool window is visible
+                ToolWindowPane window = FindToolWindow(typeof(ClaudeCodeVS.ClaudeCodeToolWindow), 0, true);
+                if (window?.Frame == null)
+                    return;
+
+                IVsWindowFrame windowFrame = (IVsWindowFrame)window.Frame;
+                Microsoft.VisualStudio.ErrorHandler.ThrowOnFailure(windowFrame.Show());
+
+                // Insert snippet into the prompt
+                var toolWindow = window as ClaudeCodeVS.ClaudeCodeToolWindow;
+                toolWindow?.InsertCodeSnippet(code, filePath, startLine, endLine);
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Error sending selection to Claude Code: {ex.Message}");
             }
         }
 

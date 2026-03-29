@@ -72,6 +72,11 @@ namespace ClaudeCodeVS
             this.Caption = $"{providerName}";
         }
 
+        public void InsertCodeSnippet(string code, string filePath, int startLine, int endLine)
+        {
+            claudeCodeControl?.InsertCodeSnippetIntoPrompt(code, filePath, startLine, endLine);
+        }
+
         #region IVsWindowFrameNotify Implementation
 
         public int OnShow(int fShow)
