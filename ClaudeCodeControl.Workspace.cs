@@ -139,7 +139,17 @@ namespace ClaudeCodeVS
                 var dte = Package.GetGlobalService(typeof(EnvDTE.DTE)) as EnvDTE.DTE;
                 if (dte?.Solution?.FullName != null && !string.IsNullOrEmpty(dte.Solution.FullName))
                 {
-                    string solutionDir = Path.GetDirectoryName(dte.Solution.FullName);
+                    string solutionFullName = dte.Solution.FullName;
+
+                    // For "Open Folder" mode (e.g. CMake projects), FullName may be a directory path
+                    // rather than a .sln file. In that case, use it directly instead of calling
+                    // GetDirectoryName which would incorrectly return the parent directory.
+                    if (Directory.Exists(solutionFullName) && !File.Exists(solutionFullName))
+                    {
+                        return solutionFullName;
+                    }
+
+                    string solutionDir = Path.GetDirectoryName(solutionFullName);
                     if (Directory.Exists(solutionDir))
                     {
                         return solutionDir;
@@ -172,7 +182,8 @@ namespace ClaudeCodeVS
                 if (Directory.Exists(currentDir) &&
                     (Directory.GetFiles(currentDir, "*.sln").Length > 0 ||
                      Directory.GetFiles(currentDir, "*.csproj").Length > 0 ||
-                     Directory.GetFiles(currentDir, "*.vbproj").Length > 0))
+                     Directory.GetFiles(currentDir, "*.vbproj").Length > 0 ||
+                     File.Exists(Path.Combine(currentDir, "CMakeLists.txt"))))
                 {
                     return currentDir;
                 }

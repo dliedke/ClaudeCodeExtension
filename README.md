@@ -207,6 +207,10 @@ Click the update button and the extension will handle the update process. Agents
 
 ## Version History
 
+### Version 10.2
+- **Fix CMake project directory detection**: Fixed workspace directory detection for CMake and "Open Folder" projects that don't use `.sln` files. Previously the terminal would launch in the parent directory; now it correctly detects folder-based projects.
+- **Added Awesome Codex CLI badge**: Added "Mentioned in Awesome Codex CLI" badge to README.
+
 ### Version 10.1
 - **Send editor selection to prompt**: New toolbar button (📋) grabs the currently selected code from the active editor and inserts it as a formatted snippet (with file path, line numbers, and syntax-highlighted code fence) into the prompt text box. Also available via right-click context menu "Send Selection to Claude Code" in the editor.
 
