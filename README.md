@@ -10,6 +10,8 @@ In case you enjoy this work and want to support it, you can buy me a coffee here
 
 Any feedback, suggestions, or contributions are also very welcome - feel free to post review here, open issues or submit pull requests in the GitHub repository.
 
+[![Mentioned in Awesome Codex CLI](https://awesome.re/mentioned-badge.svg)](https://github.com/RoggeOhta/awesome-codex-cli)
+
 ## Features
 
 ### 🎯 **Integrated Terminal**
