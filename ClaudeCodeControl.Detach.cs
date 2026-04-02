@@ -473,6 +473,8 @@ namespace ClaudeCodeVS
                     return "Qwen Code";
                 case AiProvider.OpenCode:
                     return "Open Code";
+                case AiProvider.Windsurf:
+                    return "Windsurf";
                 default:
                     return "Claude Code";
             }

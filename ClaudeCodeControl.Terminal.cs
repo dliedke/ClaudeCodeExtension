@@ -147,6 +147,7 @@ namespace ClaudeCodeVS
                 bool useCursorAgentNative = _settings?.SelectedProvider == AiProvider.CursorAgentNative;
                 bool useQwenCode = _settings?.SelectedProvider == AiProvider.QwenCode;
                 bool useOpenCode = _settings?.SelectedProvider == AiProvider.OpenCode;
+                bool useWindsurf = _settings?.SelectedProvider == AiProvider.Windsurf;
                 bool providerAvailable = false;
 
 
@@ -181,6 +182,14 @@ namespace ClaudeCodeVS
                 else if (useOpenCode)
                 {
                     providerAvailable = await IsOpenCodeAvailableAsync();
+                }
+                else if (useWindsurf)
+                {
+                    bool wslInstalled = await IsWslInstalledAsync();
+                    if (wslInstalled)
+                    {
+                        providerAvailable = await IsWindsurfAvailableAsync();
+                    }
                 }
                 else
                 {
@@ -340,6 +349,22 @@ namespace ClaudeCodeVS
                         {
                             _openCodeNotificationShown = true;
                             ShowOpenCodeInstallationInstructions();
+                        }
+                        await StartEmbeddedTerminalAsync(null); // Regular CMD
+                    }
+                }
+                else if (useWindsurf)
+                {
+                    if (providerAvailable)
+                    {
+                        await StartEmbeddedTerminalAsync(AiProvider.Windsurf);
+                    }
+                    else
+                    {
+                        if (!_windsurfNotificationShown)
+                        {
+                            _windsurfNotificationShown = true;
+                            ShowWindsurfInstallationInstructions();
                         }
                         await StartEmbeddedTerminalAsync(null); // Regular CMD
                     }
@@ -791,6 +816,12 @@ namespace ClaudeCodeVS
                             cmdCommand = $"/k chcp 65001 >nul && cd /d \"{workspaceDir}\" && ping localhost -n 3 >nul && cls && opencode";
                             break;
 
+                        case AiProvider.Windsurf:
+                            string wslPathWindsurf = ConvertToWslPath(workspaceDir);
+                            string windsurfWslCommand = GetWindsurfCommand();
+                            cmdCommand = $"/k chcp 65001 >nul && cls && wsl bash -ic \"cd '{wslPathWindsurf}' && {windsurfWslCommand}\"";
+                            break;
+
                         default: // null or any other value = regular CMD
                             cmdCommand = $"/k chcp 65001 >nul && cd /d \"{workspaceDir}\"";
                             break;
@@ -948,6 +979,12 @@ namespace ClaudeCodeVS
                             terminalCommand = $"/k chcp 65001 >nul && cd /d \"{workspaceDir}\" && ping localhost -n 3 >nul && cls && opencode";
                             break;
 
+                        case AiProvider.Windsurf:
+                            string wslPathWindsurf = ConvertToWslPath(workspaceDir);
+                            string windsurfCmdCommand = GetWindsurfCommand();
+                            terminalCommand = $"/k chcp 65001 >nul && cls && wsl bash -ic \"cd '{wslPathWindsurf}' && {windsurfCmdCommand}\"";
+                            break;
+
                         default: // null or any other value = regular CMD
                             terminalCommand = $"/k chcp 65001 >nul && cd /d \"{workspaceDir}\"";
                             break;
@@ -1057,6 +1094,9 @@ namespace ClaudeCodeVS
                                     break;
                                 case AiProvider.OpenCode:
                                     providerTitle = "Open Code";
+                                    break;
+                                case AiProvider.Windsurf:
+                                    providerTitle = "Windsurf";
                                     break;
                                 default:
                                     providerTitle = "CMD";
@@ -1927,6 +1967,13 @@ namespace ClaudeCodeVS
                         await SendTextToTerminalAsync("npm i -g opencode-ai");
                         break;
 
+                    case AiProvider.Windsurf:
+                        // Windsurf: exit, wait, then update
+                        await SendTextToTerminalAsync("exit");
+                        await Task.Delay(1000);
+                        await SendTextToTerminalAsync("wsl bash -ic \"devin update\"");
+                        break;
+
                     default:
                         // Regular CMD - just try to update Claude if available
                         await SendTextToTerminalAsync("claude update");
@@ -2094,6 +2141,14 @@ namespace ClaudeCodeVS
                 case AiProvider.OpenCode:
                     providerAvailable = await IsOpenCodeAvailableAsync();
                     break;
+
+                case AiProvider.Windsurf:
+                    bool wslInstalledForWindsurf = await IsWslInstalledAsync();
+                    if (wslInstalledForWindsurf)
+                    {
+                        providerAvailable = await IsWindsurfAvailableAsync();
+                    }
+                    break;
             }
 
             // Start the terminal with the selected provider if available, otherwise regular CMD
@@ -2224,6 +2279,23 @@ namespace ClaudeCodeVS
             if (_settings?.CodexFullAuto == true)
             {
                 return $"{baseCommand} --ask-for-approval never";
+            }
+
+            return baseCommand;
+        }
+
+        /// <summary>
+        /// Gets the appropriate Windsurf (devin) command.
+        /// Uses --permission-mode dangerous when the setting is enabled.
+        /// </summary>
+        /// <returns>The devin command to execute</returns>
+        private string GetWindsurfCommand()
+        {
+            string baseCommand = "devin";
+
+            if (_settings?.WindsurfDangerousMode == true)
+            {
+                return $"{baseCommand} --permission-mode dangerous";
             }
 
             return baseCommand;

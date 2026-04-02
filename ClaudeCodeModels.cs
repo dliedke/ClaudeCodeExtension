@@ -24,7 +24,8 @@ namespace ClaudeCodeVS
         CursorAgent,
         CursorAgentNative,
         QwenCode,
-        OpenCode
+        OpenCode,
+        Windsurf
     }
 
     /// <summary>
@@ -137,6 +138,12 @@ namespace ClaudeCodeVS
         /// Applies to Codex (Windows native) and Codex (WSL).
         /// </summary>
         public bool CodexFullAuto { get; set; } = false;
+
+        /// <summary>
+        /// If true, starts Windsurf with --permission-mode dangerous.
+        /// Applies to Windsurf (WSL).
+        /// </summary>
+        public bool WindsurfDangerousMode { get; set; } = false;
 
         /// <summary>
         /// Currently selected effort level for Claude Code

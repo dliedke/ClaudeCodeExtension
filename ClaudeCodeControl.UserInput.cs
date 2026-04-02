@@ -78,7 +78,8 @@ namespace ClaudeCodeVS
                     // Check if CURRENTLY RUNNING provider is WSL-based (not CodexNative, CursorAgentNative)
                     bool isWSLProvider = _currentRunningProvider == AiProvider.Codex ||
                                          _currentRunningProvider == AiProvider.ClaudeCodeWSL ||
-                                         _currentRunningProvider == AiProvider.CursorAgent;
+                                         _currentRunningProvider == AiProvider.CursorAgent ||
+                                         _currentRunningProvider == AiProvider.Windsurf;
 
                     // Create a unique directory under ClaudeCodeVS_Session for this prompt with files
                     string promptDirectory = null;

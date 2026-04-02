@@ -559,9 +559,10 @@ namespace ClaudeCodeVS
                 // Check CURRENTLY RUNNING provider (not the next one being set)
                 bool isClaudeCodeWSL = _currentRunningProvider == AiProvider.ClaudeCodeWSL;
 
-                // Check if we're using other WSL-based providers (Codex WSL, CursorAgent)
+                // Check if we're using other WSL-based providers (Codex WSL, CursorAgent, Windsurf)
                 bool isOtherWSLProvider = _currentRunningProvider == AiProvider.Codex ||
-                                         _currentRunningProvider == AiProvider.CursorAgent;
+                                         _currentRunningProvider == AiProvider.CursorAgent ||
+                                         _currentRunningProvider == AiProvider.Windsurf;
 
                 bool isCodexNative = _currentRunningProvider == AiProvider.CodexNative;
 

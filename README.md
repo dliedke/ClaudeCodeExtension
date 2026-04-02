@@ -1,6 +1,6 @@
 # Claude Code Extension for Visual Studio
 
-A Visual Studio extension that provides seamless integration with Claude Code, OpenAI Codex, Cursor Agent, Qwen Code or Open Code directly within the Visual Studio IDE.
+A Visual Studio extension that provides seamless integration with Claude Code, OpenAI Codex, Cursor Agent, Qwen Code, Open Code or Windsurf directly within the Visual Studio IDE.
 
 <center>
 <img src="https://i.ibb.co/mFcsh3nt/BFB9-B830-8122-4091-9-C8-B-869959-B1-B391.png" alt="Claude Code Extension Screenshot" width=350 height=450 />
@@ -10,7 +10,7 @@ In case you enjoy this work and want to support it, you can buy me a coffee here
 
 Any feedback, suggestions, or contributions are also very welcome - feel free to post review here, open issues or submit pull requests in the GitHub repository.
 
-[![Mentioned in Awesome Codex CLI](https://awesome.re/mentioned-badge.svg)](https://github.com/RoggeOhta/awesome-codex-cli)
+[Mentioned in Awesome Codex CLI](https://github.com/RoggeOhta/awesome-codex-cli)
 
 ## Features
 
@@ -28,6 +28,7 @@ Any feedback, suggestions, or contributions are also very welcome - feel free to
 - **Cursor Agent (WSL)**: Support for Cursor Agent running inside WSL
 - **Qwen Code**: Support for Qwen Code AI assistant (requires Node.js 20+)
 - **Open Code**: Support for Open Code AI assistant (requires Node.js 14+)
+- **Windsurf (WSL)**: Support for Windsurf (devin) running inside WSL
 - **Provider Switching**: Easy dropdown menu to switch between providers
 - **Smart Detection**: Automatic detection and installation instructions for each AI tool
 - **Claude Model Selection**: Quick model switching for Claude Code (Opus, Sonnet, Haiku) with dropdown menu. For Opus also possible to select low, medium, high thinking modes
@@ -71,6 +72,7 @@ Any feedback, suggestions, or contributions are also very welcome - feel free to
 - **Claude Model Selection**: Remembers your last selected Claude model (Opus, Sonnet, or Haiku)
 - **Claude Skip Permissions State**: Remembers whether Claude Code starts with `--dangerously-skip-permissions`
 - **Codex Full Auto State**: Remembers whether Codex starts with `--full-auto`
+- **Windsurf Dangerous Mode State**: Remembers whether Windsurf starts with `--permission-mode dangerous`
 
 ### 🔍 **Zoom Support**
 - **Prompt Zoom**: Ctrl+Scroll on the prompt text box to increase/decrease font size (range 8–24pt), persisted across sessions
@@ -111,6 +113,10 @@ Any feedback, suggestions, or contributions are also very welcome - feel free to
   Installation instructions are provided automatically if not installed
 - **For Open Code**: Node.js version 14 or higher + Open Code CLI installed and accessible via `opencode` in path.
   Installation instructions are provided automatically if not installed
+- **For Windsurf (WSL)**: Windows Subsystem for Linux (WSL) + Windsurf (devin) CLI installed inside WSL
+  Install via `curl -fsSL https://cli.devin.ai/install.sh | bash`
+  Installation instructions are provided automatically if not installed
+  Optional: Use `--permission-mode dangerous` flag via the extension settings menu
 
 ## Installing Windows Terminal (Optional)
 
@@ -136,9 +142,9 @@ Open Windows Settings, search for "Terminal settings", and set the Terminal opti
 
 ## Quick Start
 
-- **First-Time Setup**: Verify that your preferred AI provider (Claude Code, Claude Code WSL, OpenAI Codex, Cursor Agent, Cursor Agent WSL, or Qwen Code) is installed and accessible
+- **First-Time Setup**: Verify that your preferred AI provider (Claude Code, Claude Code WSL, OpenAI Codex, Cursor Agent, Cursor Agent WSL, Qwen Code, Open Code, or Windsurf) is installed and accessible
 - **Open the Tool Window**: View → Other Windows → Claude Code Extension
-- **Select an AI Provider**: Click the ⚙ (gear) button and choose among Claude Code, Claude Code (WSL), Codex, Cursor Agent, Cursor Agent (WSL), Qwen Code, or Open Code
+- **Select an AI Provider**: Click the ⚙ (gear) button and choose among Claude Code, Claude Code (WSL), Codex, Cursor Agent, Cursor Agent (WSL), Qwen Code, Open Code, or Windsurf (WSL)
 - **Connect to Provider**: If you use Open Code, press **Ctrl+P**, search for "connect providers", and complete the authentication flow
 - **Select a Claude Model**: Click the 🤖 (robot) button to choose Opus, Sonnet, or Haiku (available only when Claude Code is selected)
 - **Start a Session**: Enter your prompt and press Enter
@@ -172,9 +178,11 @@ Open Windows Settings, search for "Terminal settings", and set the Terminal opti
 - **Cursor Agent (WSL)**: Switch to Cursor Agent (runs inside WSL)
 - **Open Code**: Switch to Open Code AI assistant (Windows)
 - **Qwen Code**: Switch to Qwen Code AI assistant (requires Node.js 20+)
+- **Windsurf (WSL)**: Switch to Windsurf (devin) running inside WSL
 - **Auto-open Changes on Send**: (Git projects only) Automatically opens the Changes view, expands all files, and enables auto-scroll when you send a prompt - perfect for watching the AI work in real-time
 - **Claude Code: Skip Permissions**: (Claude providers only) Starts Claude Code with `--dangerously-skip-permissions`, saves the preference, and reloads Claude Code immediately when changed
 - **Codex: Full Auto**: (Codex providers only) Starts Codex with `--full-auto`, saves the preference, and reloads Codex immediately when changed
+- **Windsurf: Dangerous Mode**: (Windsurf provider only) Starts Windsurf with `--permission-mode dangerous`, saves the preference, and reloads Windsurf immediately when changed
 - **About**: View extension version and information
 
 ### Claude Model Selection Menu
@@ -202,10 +210,14 @@ The extension includes an Update Agent button (🔄️) that updates your select
 - **Cursor Agent (WSL)**: Exits the agent and runs `cursor-agent update` inside WSL
 - **Open Code**: Exits the agent and runs `npm i -g opencode-ai`
 - **Qwen Code**: Exits the agent (using /quit command) and runs `npm install -g @qwen-code/qwen-code@latest` to update
+- **Windsurf (WSL)**: Exits the agent and runs `devin update` inside WSL
 
 Click the update button and the extension will handle the update process. Agents use the appropriate exit methods before updating (exit command for most, double CTRL+C for Codex, /quit command for Qwen Code).
 
 ## Version History
+
+### Version 10.3
+- **Added Windsurf (WSL) provider**: Full support for Windsurf (devin CLI) running inside WSL with automatic detection, installation instructions, one-click update (`devin update`), and optional `--permission-mode dangerous` flag.
 
 ### Version 10.2
 - **Fix CMake project directory detection**: Fixed workspace directory detection for CMake and "Open Folder" projects that don't use `.sln` files. Previously the terminal would launch in the parent directory; now it correctly detects folder-based projects.

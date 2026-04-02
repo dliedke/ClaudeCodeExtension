@@ -64,6 +64,11 @@ namespace ClaudeCodeVS
         /// </summary>
         private static bool _openCodeNotificationShown = false;
 
+        /// <summary>
+        /// Flag to show Windsurf installation notification only once per session
+        /// </summary>
+        private static bool _windsurfNotificationShown = false;
+
         #endregion
 
         #region Provider Availability Cache
@@ -704,6 +709,109 @@ namespace ClaudeCodeVS
         }
 
         /// <summary>
+        /// Checks if Windsurf (devin) is available inside WSL
+        /// Uses 'which devin' command to verify installation
+        /// Uses caching to avoid repeated slow checks
+        /// </summary>
+        /// <param name="cancellationToken">Optional cancellation token</param>
+        /// <returns>True if devin is available in WSL, false otherwise</returns>
+        private async Task<bool> IsWindsurfAvailableAsync(CancellationToken cancellationToken = default)
+        {
+            // Check cache first
+            lock (_cacheLock)
+            {
+                if (_providerCache.TryGetValue(AiProvider.Windsurf, out var cached) && IsCacheValid(cached))
+                {
+                    return cached.IsAvailable;
+                }
+            }
+
+            try
+            {
+                // Check if WSL is installed first
+                bool wslInstalled = await IsWslInstalledAsync(cancellationToken);
+                if (!wslInstalled)
+                {
+                    CacheProviderResult(AiProvider.Windsurf, false);
+                    return false;
+                }
+
+                // Retry logic with timeouts to handle WSL cold boot
+                int[] timeouts = { 5000, 12000 }; // 5s, 12s
+                int maxRetries = 2;
+
+                for (int attempt = 1; attempt <= maxRetries; attempt++)
+                {
+                    cancellationToken.ThrowIfCancellationRequested();
+
+                    var startInfo = new ProcessStartInfo
+                    {
+                        FileName = "cmd.exe",
+                        Arguments = "/c wsl bash -ic \"which devin\"",
+                        UseShellExecute = false,
+                        RedirectStandardOutput = true,
+                        RedirectStandardError = true,
+                        CreateNoWindow = true
+                    };
+
+                    using (var process = Process.Start(startInfo))
+                    {
+                        var completed = await WaitForProcessExitAsync(process, timeouts[attempt - 1], cancellationToken);
+
+                        if (!completed)
+                        {
+                            try { process.Kill(); } catch { }
+
+                            if (attempt < maxRetries)
+                            {
+                                await Task.Delay(1000, cancellationToken);
+                                continue;
+                            }
+                            CacheProviderResult(AiProvider.Windsurf, false);
+                            return false;
+                        }
+
+                        string output = await process.StandardOutput.ReadToEndAsync();
+
+                        bool isAvailable = process.ExitCode == 0 && !string.IsNullOrWhiteSpace(output) && output.Contains("devin");
+
+                        if (isAvailable)
+                        {
+                            CacheProviderResult(AiProvider.Windsurf, true);
+                            return true;
+                        }
+
+                        // If we got a definitive response, no need to retry
+                        if (process.ExitCode == 0 || !string.IsNullOrEmpty(output))
+                        {
+                            CacheProviderResult(AiProvider.Windsurf, false);
+                            return false;
+                        }
+
+                        // WSL didn't respond properly, retry if we have attempts left
+                        if (attempt < maxRetries)
+                        {
+                            await Task.Delay(1000, cancellationToken);
+                        }
+                    }
+                }
+
+                CacheProviderResult(AiProvider.Windsurf, false);
+                return false;
+            }
+            catch (OperationCanceledException)
+            {
+                throw;
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"Error checking for devin in WSL: {ex.Message}");
+                CacheProviderResult(AiProvider.Windsurf, false);
+                return false;
+            }
+        }
+
+        /// <summary>
         /// Checks if Cursor Agent is available natively on Windows
         /// Checks for agent.cmd at %LOCALAPPDATA%\cursor-agent\ first,
         /// then falls back to checking 'where agent' in PATH
@@ -1215,6 +1323,39 @@ For more details, visit: https://opencode.ai";
                           MessageBoxButton.OK, MessageBoxImage.Information);
         }
 
+        /// <summary>
+        /// Shows installation instructions for Windsurf (devin CLI) in WSL
+        /// </summary>
+        private void ShowWindsurfInstallationInstructions()
+        {
+            const string instructions = @"To use Windsurf, you need to install WSL and Windsurf (devin) inside WSL.
+
+(you may click CTRL+C to copy full instructions)
+
+Make sure virtualization is enabled in BIOS.
+
+Open PowerShell as Administrator and run:
+
+dism.exe /online /enable-feature /featurename:Microsoft-Windows-Subsystem-Linux /all /norestart
+
+dism.exe /online /enable-feature /featurename:VirtualMachinePlatform /all /norestart
+
+wsl --install
+
+Install Windsurf (devin) inside WSL:
+
+wsl
+
+curl -fsSL https://cli.devin.ai/install.sh | bash
+
+Start devin to login:
+
+devin";
+
+            MessageBox.Show(instructions, "Windsurf Installation",
+                          MessageBoxButton.OK, MessageBoxImage.Information);
+        }
+
         #endregion
 
         #region Provider Switching
@@ -1272,6 +1413,41 @@ For more details, visit: https://opencode.ai";
             else
             {
                 await StartEmbeddedTerminalAsync(AiProvider.OpenCode);
+            }
+        }
+
+        /// <summary>
+        /// Handles Windsurf (WSL) menu item click - switches to Windsurf provider
+        /// </summary>
+#pragma warning disable VSTHRD100 // async void is acceptable for event handlers
+        private async void WindsurfMenuItem_Click(object sender, RoutedEventArgs e)
+#pragma warning restore VSTHRD100
+        {
+            if (_settings == null) return;
+
+            bool wslInstalled = await IsWslInstalledAsync();
+            bool windsurfAvailable = false;
+
+            if (wslInstalled)
+            {
+                windsurfAvailable = await IsWindsurfAvailableAsync();
+            }
+
+            await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
+
+            // Always update the selection regardless of availability
+            _settings.SelectedProvider = AiProvider.Windsurf;
+            UpdateProviderSelection();
+            SaveSettings();
+
+            if (!wslInstalled || !windsurfAvailable)
+            {
+                ShowWindsurfInstallationInstructions();
+                await StartEmbeddedTerminalAsync(null); // Regular CMD
+            }
+            else
+            {
+                await StartEmbeddedTerminalAsync(AiProvider.Windsurf);
             }
         }
 
@@ -1468,6 +1644,7 @@ For more details, visit: https://opencode.ai";
             CursorAgentMenuItem.IsChecked = _settings.SelectedProvider == AiProvider.CursorAgent;
             QwenCodeMenuItem.IsChecked = _settings.SelectedProvider == AiProvider.QwenCode;
             OpenCodeMenuItem.IsChecked = _settings.SelectedProvider == AiProvider.OpenCode;
+            WindsurfMenuItem.IsChecked = _settings.SelectedProvider == AiProvider.Windsurf;
 
             // Update GroupBox header to show selected provider (not necessarily running yet)
             string providerName = _settings.SelectedProvider == AiProvider.ClaudeCode ? "Claude Code" :
@@ -1478,7 +1655,8 @@ For more details, visit: https://opencode.ai";
                                   _settings.SelectedProvider == AiProvider.CursorAgent ? "Cursor Agent" :
                                   _settings.SelectedProvider == AiProvider.QwenCode ? "Qwen Code" :
                                   _settings.SelectedProvider == AiProvider.OpenCode ? "Open Code" :
-                                  "Cursor Agent";
+                                  _settings.SelectedProvider == AiProvider.Windsurf ? "Windsurf" :
+                                  "Claude Code";
             TerminalGroupBox.Header = new System.Windows.Controls.TextBlock { Text = providerName, Opacity = 0.93 };
 
             // Show/hide model selection button based on provider
@@ -2066,11 +2244,14 @@ For more details, visit: https://opencode.ai";
             bool isCodexProvider = _settings != null &&
                                    (_settings.SelectedProvider == AiProvider.Codex ||
                                     _settings.SelectedProvider == AiProvider.CodexNative);
+            bool isWindsurfProvider = _settings != null &&
+                                     _settings.SelectedProvider == AiProvider.Windsurf;
 
-            AutoOpenChangesSeparator.Visibility = (isInGitRepo || isClaudeProvider) ? Visibility.Visible : Visibility.Collapsed;
+            AutoOpenChangesSeparator.Visibility = (isInGitRepo || isClaudeProvider || isWindsurfProvider) ? Visibility.Visible : Visibility.Collapsed;
             AutoOpenChangesMenuItem.Visibility = isInGitRepo ? Visibility.Visible : Visibility.Collapsed;
             ClaudeDangerouslySkipPermissionsMenuItem.Visibility = isClaudeProvider ? Visibility.Visible : Visibility.Collapsed;
             CodexFullAutoMenuItem.Visibility = isCodexProvider ? Visibility.Visible : Visibility.Collapsed;
+            WindsurfDangerousModeMenuItem.Visibility = isWindsurfProvider ? Visibility.Visible : Visibility.Collapsed;
 
             // Update checkbox state from settings
             if (_settings != null)
@@ -2078,6 +2259,7 @@ For more details, visit: https://opencode.ai";
                 AutoOpenChangesMenuItem.IsChecked = _settings.AutoOpenChangesOnPrompt;
                 ClaudeDangerouslySkipPermissionsMenuItem.IsChecked = _settings.ClaudeDangerouslySkipPermissions;
                 CodexFullAutoMenuItem.IsChecked = _settings.CodexFullAuto;
+                WindsurfDangerousModeMenuItem.IsChecked = _settings.WindsurfDangerousMode;
 
                 // Update working directory menu item to show current value, with red text if path doesn't exist
                 if (!string.IsNullOrWhiteSpace(_settings.CustomWorkingDirectory))
@@ -2197,6 +2379,36 @@ For more details, visit: https://opencode.ai";
                     Debug.WriteLine($"Error reloading Codex after full auto change: {ex.Message}");
                     await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
                     MessageBox.Show($"Failed to reload Codex: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                }
+            }
+        }
+
+        /// <summary>
+        /// Handles Windsurf dangerous mode menu item click
+        /// </summary>
+#pragma warning disable VSTHRD100 // async void is acceptable for event handlers
+        private async void WindsurfDangerousModeMenuItem_Click(object sender, RoutedEventArgs e)
+#pragma warning restore VSTHRD100
+        {
+            await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
+
+            if (_settings == null) return;
+
+            _settings.WindsurfDangerousMode = WindsurfDangerousModeMenuItem.IsChecked;
+            SaveSettings();
+
+            // Reload Windsurf terminal immediately so the new startup flag is applied.
+            if (_settings.SelectedProvider == AiProvider.Windsurf)
+            {
+                try
+                {
+                    await RestartTerminalWithSelectedProviderAsync();
+                }
+                catch (Exception ex)
+                {
+                    Debug.WriteLine($"Error reloading Windsurf after dangerous mode change: {ex.Message}");
+                    await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
+                    MessageBox.Show($"Failed to reload Windsurf: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
                 }
             }
         }

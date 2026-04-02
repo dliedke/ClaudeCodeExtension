@@ -294,10 +294,12 @@
 								<MenuItem Header="Cursor Agent (WSL)" x:Name="CursorAgentMenuItem" Click="CursorAgentMenuItem_Click" IsCheckable="True"/>
 								<MenuItem Header="Open Code" x:Name="OpenCodeMenuItem" Click="OpenCodeMenuItem_Click" IsCheckable="True"/>
 								<MenuItem Header="Qwen Code" x:Name="QwenCodeMenuItem" Click="QwenCodeMenuItem_Click" IsCheckable="True"/>
+								<MenuItem Header="Windsurf (WSL)" x:Name="WindsurfMenuItem" Click="WindsurfMenuItem_Click" IsCheckable="True"/>
 								<Separator x:Name="AutoOpenChangesSeparator"/>
 								<MenuItem Header="Auto-open Changes on Send" x:Name="AutoOpenChangesMenuItem" Click="AutoOpenChangesMenuItem_Click" IsCheckable="True" ToolTip="Automatically open Changes view, expand files, and enable auto-scroll when a prompt is sent"/>
 								<MenuItem Header="Claude Code: Skip Permissions" x:Name="ClaudeDangerouslySkipPermissionsMenuItem" Click="ClaudeDangerouslySkipPermissionsMenuItem_Click" IsCheckable="True" ToolTip="When enabled, Claude Code starts with --dangerously-skip-permissions"/>
 								<MenuItem Header="Codex: Approval Never" x:Name="CodexFullAutoMenuItem" Click="CodexFullAutoMenuItem_Click" IsCheckable="True" ToolTip="When enabled, Codex starts with --ask-for-approval never"/>
+								<MenuItem Header="Windsurf: Dangerous Mode" x:Name="WindsurfDangerousModeMenuItem" Click="WindsurfDangerousModeMenuItem_Click" IsCheckable="True" ToolTip="When enabled, Windsurf starts with --permission-mode dangerous"/>
 								<Separator/>
 								<MenuItem Header="Set Working Directory..." x:Name="SetWorkingDirectoryMenuItem" Click="SetWorkingDirectoryMenuItem_Click" ToolTip="Set a custom working directory (absolute or relative to solution). Leave empty for default behavior."/>
 								<MenuItem Header="Set Terminal Type..." x:Name="SetTerminalTypeMenuItem" Click="SetTerminalTypeMenuItem_Click" ToolTip="Choose between Command Prompt (default) or Windows Terminal (better emoji/unicode support)"/>

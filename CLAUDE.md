@@ -2,12 +2,12 @@
 
 ## Project Overview
 
-This is a **Visual Studio Extension (VSIX)** for Visual Studio 2022/2026 that provides seamless integration with multiple AI code assistants (Claude Code, OpenAI Codex, Cursor Agent, Qwen Code, Open Code) directly within the IDE. It embeds a terminal via Win32 interop and provides features like multi-line prompts, file attachments, prompt history, integrated diff viewer, and theme support.
+This is a **Visual Studio Extension (VSIX)** for Visual Studio 2022/2026 that provides seamless integration with multiple AI code assistants (Claude Code, OpenAI Codex, Cursor Agent, Qwen Code, Open Code, Windsurf) directly within the IDE. It embeds a terminal via Win32 interop and provides features like multi-line prompts, file attachments, prompt history, integrated diff viewer, and theme support.
 
 - **Author**: Daniel Carvalho Liedke (dliedke@gmail.com)
 - **License**: MIT
 - **Repository**: https://github.com/dliedke/ClaudeCodeExtension
-- **Current Version**: 10.0
+- **Current Version**: 10.3
 - **Target Framework**: .NET Framework 4.7.2
 
 ---
@@ -190,11 +190,12 @@ WSL providers:  cmd.exe /k chcp 65001 >nul && cls && wsl bash -ic "cd {wslPath} 
 - `GetClaudeCommand()`: Prioritizes native .exe over NPM installation; appends `--dangerously-skip-permissions` if `_settings.ClaudeDangerouslySkipPermissions == true`
 - `GetCodexCommand()`: Returns `codex`; appends `--ask-for-approval never` if `_settings.CodexFullAuto == true`
 - `GetCursorAgentCommand()`: Checks `%LOCALAPPDATA%\cursor-agent\` first, then PATH
-- **Flag persistence**: Both `GetClaudeCommand()` and `GetCodexCommand()` are called in every restart path (workspace change, manual restart, provider switch, VS startup), so the flags are always applied when settings are saved
+- `GetWindsurfCommand()`: Returns `devin`; appends `--permission-mode dangerous` if `_settings.WindsurfDangerousMode == true`
+- **Flag persistence**: `GetClaudeCommand()`, `GetCodexCommand()`, and `GetWindsurfCommand()` are called in every restart path (workspace change, manual restart, provider switch, VS startup), so the flags are always applied when settings are saved
 
 #### ClaudeCodeControl.ProviderManagement.cs — Provider Detection
 
-Detects and validates availability of all 8 AI providers.
+Detects and validates availability of all 9 AI providers.
 
 - **Caching**: `_providerCache` Dictionary with 5-minute TTL (`ProviderCacheExpiry = 300000ms`)
 - **Detection methods**: All use `cmd.exe /c where {command}` (Windows) or `wsl bash -ic "which {command}"` (WSL)
@@ -361,7 +362,7 @@ Integrates with Visual Studio dark/light theme.
 ### Data Models (ClaudeCodeModels.cs)
 
 ```csharp
-enum AiProvider { ClaudeCode, ClaudeCodeWSL, Codex, CodexNative, CursorAgent, CursorAgentNative, QwenCode, OpenCode }
+enum AiProvider { ClaudeCode, ClaudeCodeWSL, Codex, CodexNative, CursorAgent, CursorAgentNative, QwenCode, OpenCode, Windsurf }
 enum ClaudeModel { Opus, Sonnet, Haiku }
 enum EffortLevel { Auto, Low, Medium, High, Max }
 enum TerminalType { CommandPrompt, WindowsTerminal }
@@ -376,6 +377,7 @@ class ClaudeCodeSettings {
     bool AutoOpenChangesOnPrompt = false;
     bool ClaudeDangerouslySkipPermissions = false;  // --dangerously-skip-permissions flag
     bool CodexFullAuto = false;            // --ask-for-approval never flag for Codex (legacy name)
+    bool WindsurfDangerousMode = false;    // --permission-mode dangerous flag for Windsurf
     EffortLevel SelectedEffortLevel = Auto; // Claude Code effort level
     string CustomWorkingDirectory = "";    // absolute or relative to solution dir
     TerminalType SelectedTerminalType = CommandPrompt; // terminal emulator selection
@@ -527,6 +529,7 @@ await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
 | Cursor Agent (WSL) | `CursorAgent` | WSL | `cursor-agent` inside WSL | `exit` |
 | Qwen Code | `QwenCode` | Windows native | `qwen` in PATH (Node.js 20+) | `/quit` |
 | Open Code | `OpenCode` | Windows native | `opencode` in PATH (Node.js 14+) | `exit` |
+| Windsurf (WSL) | `Windsurf` | WSL | `devin` inside WSL (`~/.local/bin/devin`) | `exit` |
 
 ---
 
@@ -546,6 +549,7 @@ await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
 - Auto-open changes on send
 - Optional `--dangerously-skip-permissions` mode for Claude Code
 - Optional `--ask-for-approval never` mode for Codex
+- Optional `--permission-mode dangerous` mode for Windsurf
 - One-click agent updates
 - Detach/attach terminal into a separate VS tool window tab (state persisted across sessions; auto-focus on extension activation)
 - F5/Ctrl+F5/Shift+F5 forwarding from terminal to VS debug commands via low-level keyboard hook
@@ -569,10 +573,11 @@ await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
 
 When adding a new AI provider, update these locations:
 
-1. **`ClaudeCodeModels.cs`**: Add value to `AiProvider` enum
-2. **`ClaudeCodeControl.ProviderManagement.cs`**: Add `Is{Provider}AvailableAsync()` detection method; add to cache logic; add install instructions
-3. **`ClaudeCodeControl.Terminal.cs`**: Add command building in `StartEmbeddedTerminalAsync()`; add to `GetProviderDisplayName()`
-4. **`ClaudeCodeControl.TerminalIO.cs`**: Add Enter key behavior in `SendEnterKey()`; add exit method if non-standard
-5. **`ClaudeCodeControl.UserInput.cs`**: Add update command in update agent handler; add to provider menu items
-6. **`ClaudeCodeControl.xaml`**: Add context menu item for the provider
-7. **`README.md`**: Document the new provider in Features and System Requirements sections
+1. **`ClaudeCodeModels.cs`**: Add value to `AiProvider` enum; add settings property if provider has flags (e.g., `WindsurfDangerousMode`)
+2. **`ClaudeCodeControl.ProviderManagement.cs`**: Add `Is{Provider}AvailableAsync()` detection method; add to cache logic; add install instructions; add notification flag; add menu click handler; add to `UpdateProviderSelection()` (checkmark + header name); add to `ProviderContextMenu_Opened()` for conditional menu visibility
+3. **`ClaudeCodeControl.Terminal.cs`**: Add command building in `StartEmbeddedTerminalAsync()` (both Windows Terminal and Command Prompt switch blocks); add to `providerTitle` switch in conhost embed section; add to `InitializeTerminalAsync()` (availability check + startup block); add to `RestartTerminalWithSelectedProviderAsync()`; add to `UpdateAgentButton_Click()` for update command; add `Get{Provider}Command()` if provider has flags
+4. **`ClaudeCodeControl.TerminalIO.cs`**: Add Enter key behavior in `SendEnterKey()`; add to `isOtherWSLProvider` if WSL-based
+5. **`ClaudeCodeControl.UserInput.cs`**: Add to `isWSLProvider` check for WSL path conversion
+6. **`ClaudeCodeControl.Detach.cs`**: Add to `GetCurrentProviderName()` switch
+7. **`ClaudeCodeControl.xaml`**: Add context menu item for the provider; add settings menu item if provider has flags
+8. **`README.md`**: Document the new provider in Features, System Requirements, AI Provider Menu, and Updating sections
