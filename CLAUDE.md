@@ -7,7 +7,7 @@ This is a **Visual Studio Extension (VSIX)** for Visual Studio 2022/2026 that pr
 - **Author**: Daniel Carvalho Liedke (dliedke@gmail.com)
 - **License**: MIT
 - **Repository**: https://github.com/dliedke/ClaudeCodeExtension
-- **Current Version**: 10.3
+- **Current Version**: 10.4
 - **Target Framework**: .NET Framework 4.7.2
 
 ---
@@ -89,7 +89,7 @@ ClaudeCodeExtension/
 │   └── Diff/ChangedFile.cs              # Data models (ChangeType, DiffLine, ChangedFile)
 │
 ├── Models & Package:
-│   ├── ClaudeCodeModels.cs              # Enums (AiProvider, ClaudeModel) & settings class
+│   ├── ClaudeCodeModels.cs              # Enums (AiProvider, ClaudeModel, WindsurfModel) & settings class
 │   ├── ClaudeCodeExtensionPackage.cs    # VS package registration & menu commands
 │   └── SolutionEventsHandler.cs         # Solution/project open events
 ```
@@ -203,7 +203,12 @@ Detects and validates availability of all 9 AI providers.
 - **WSL retry logic**: `IsClaudeCodeWSLAvailableAsync()` retries 2 times with 3s/5s timeouts for cold WSL boot
 - **Notification flags**: Static booleans (`_claudeNotificationShown`, etc.) ensure install instructions show only once per VS session
 - **`ClearProviderCache()`**: Should be called when user actions might change availability (e.g., after update)
+- **`UpdateProviderSelection()`**: Shows `ModelDropdownButton` for both Claude and Windsurf providers; hides it for all other providers
+- **`ModelContextMenu_Opened()`**: Dynamically shows/hides Claude-specific items (Opus/Sonnet/Haiku, effort levels, Change Account, Set Language) vs Windsurf-specific items (model list, Show Usage URL) depending on the active provider
 - **`ShowUsageMenuItem_Click()`**: Sends `/usage` command directly to Claude Code terminal
+- **`WindsurfShowUsageMenuItem_Click()`**: Opens `https://windsurf.com/subscription/usage` in the default browser via `Process.Start()`
+- **Windsurf model click handlers** (`WindsurfClaudeOpusMenuItem_Click`, `WindsurfClaudeSonnetMenuItem_Click`, `WindsurfCodexMenuItem_Click`, `WindsurfGeminiProMenuItem_Click`): Save `SelectedWindsurfModel` setting and send the corresponding `/model <name>` command to the terminal (`/model opus`, `/model sonnet`, `/model codex`, `/model gemini pro`)
+- **`UpdateModelSelection()`**: Updates checkmarks for both Claude models and Windsurf models
 - **`SetLanguageMenuItem_Click()`**: Sends `/config` then navigates TUI via `PostMessage` (conhost) or `keybd_event` (Windows Terminal) — types "language", Down, Space
 - **`SetTerminalTypeMenuItem_Click()`**: WPF dialog for selecting Command Prompt vs Windows Terminal; checks WT availability; restarts terminal on change
 - **`ShowWorkingDirectoryInputDialog()`**: WPF dialog built programmatically; reads VS theme colors via `VsBrushes` (background, foreground, textbox, buttons) and applies them so the dialog matches the current dark/light VS theme; falls back to `SystemColors` if theme read fails; validates path in real-time (red text when directory doesn't exist)
@@ -364,6 +369,7 @@ Integrates with Visual Studio dark/light theme.
 ```csharp
 enum AiProvider { ClaudeCode, ClaudeCodeWSL, Codex, CodexNative, CursorAgent, CursorAgentNative, QwenCode, OpenCode, Windsurf }
 enum ClaudeModel { Opus, Sonnet, Haiku }
+enum WindsurfModel { ClaudeOpus, ClaudeSonnet, Codex, GeminiPro }  // /model opus | /model sonnet | /model codex | /model gemini pro
 enum EffortLevel { Auto, Low, Medium, High, Max }
 enum TerminalType { CommandPrompt, WindowsTerminal }
 
@@ -373,6 +379,7 @@ class ClaudeCodeSettings {
     double SplitterPosition = 236.0;       // pixels
     AiProvider SelectedProvider = ClaudeCode;
     ClaudeModel SelectedClaudeModel = Sonnet;
+    WindsurfModel SelectedWindsurfModel = ClaudeSonnet; // persisted Windsurf model selection
     List<PromptHistoryEntry> PromptHistory; // max 50 items
     bool AutoOpenChangesOnPrompt = false;
     bool ClaudeDangerouslySkipPermissions = false;  // --dangerously-skip-permissions flag
@@ -430,7 +437,7 @@ Three-row grid: prompt area (`*`), splitter (4px), terminal area (`2*`). Key ele
 - `PromptTextBox`: Multi-line, Cascadia Mono font
 - `AttachedImagesPanel`: WrapPanel for file chips
 - `ViewChangesButton` (65px): Opens diff viewer (git repos only)
-- `ModelDropdownButton` (30x30): Model context menu
+- `ModelDropdownButton` (30x30): Model context menu (visible for Claude and Windsurf providers; items toggled by `ModelContextMenu_Opened`)
 - `MenuDropdownButton` (30x30): Provider/settings context menu
 - `UpdateAgentButton` (30px): One-click update
 - `DetachTerminalButton`: Toggle detach/attach terminal to separate tab
@@ -544,6 +551,8 @@ await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
 - Claude model selection (Opus, Sonnet, Haiku)
 - Effort level selection (Auto, Low, Medium, High, Max) via `/effort` command
 - Show Usage shortcut in model menu (via `/usage` command)
+- Windsurf model selection (Claude Opus, Claude Sonnet, Codex, Gemini Pro) via `/model` command
+- Windsurf Show Usage shortcut in model menu (opens https://windsurf.com/subscription/usage in browser)
 - Set Language shortcut in model menu (via `/config` TUI navigation)
 - Dark/light theme integration (event-driven, not polling)
 - Auto-open changes on send

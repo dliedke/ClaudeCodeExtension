@@ -1662,7 +1662,8 @@ devin";
             // Show/hide model selection button based on provider
             bool isClaudeProvider = _settings.SelectedProvider == AiProvider.ClaudeCode ||
                                    _settings.SelectedProvider == AiProvider.ClaudeCodeWSL;
-            ModelDropdownButton.Visibility = isClaudeProvider ? Visibility.Visible : Visibility.Collapsed;
+            bool isWindsurfProvider = _settings.SelectedProvider == AiProvider.Windsurf;
+            ModelDropdownButton.Visibility = (isClaudeProvider || isWindsurfProvider) ? Visibility.Visible : Visibility.Collapsed;
 
             // Note: Tool window title will be updated after the terminal actually starts
             // in StartEmbeddedTerminalAsync to reflect what's actually running
@@ -1905,7 +1906,7 @@ devin";
         }
 
         /// <summary>
-        /// Handles model dropdown button click - shows the Claude model selection menu
+        /// Handles model dropdown button click - shows the model selection menu
         /// </summary>
         private void ModelDropdownButton_Click(object sender, RoutedEventArgs e)
         {
@@ -1917,6 +1918,42 @@ devin";
                 button.ContextMenu.Placement = System.Windows.Controls.Primitives.PlacementMode.Bottom;
                 button.ContextMenu.IsOpen = true;
             }
+        }
+
+        /// <summary>
+        /// Shows Claude-specific or Windsurf-specific model items based on the current provider
+        /// </summary>
+        private void ModelContextMenu_Opened(object sender, RoutedEventArgs e)
+        {
+            ThreadHelper.ThrowIfNotOnUIThread();
+
+            bool isWindsurf = _settings?.SelectedProvider == AiProvider.Windsurf;
+            bool isClaude = !isWindsurf;
+
+            // Claude-specific items
+            ShowUsageMenuItem.Visibility = isClaude ? Visibility.Visible : Visibility.Collapsed;
+            ClaudeModelSeparator.Visibility = isClaude ? Visibility.Visible : Visibility.Collapsed;
+            OpusMenuItem.Visibility = isClaude ? Visibility.Visible : Visibility.Collapsed;
+            SonnetMenuItem.Visibility = isClaude ? Visibility.Visible : Visibility.Collapsed;
+            HaikuMenuItem.Visibility = isClaude ? Visibility.Visible : Visibility.Collapsed;
+            EffortSeparator.Visibility = isClaude ? Visibility.Visible : Visibility.Collapsed;
+            EffortLabelMenuItem.Visibility = isClaude ? Visibility.Visible : Visibility.Collapsed;
+            EffortAutoMenuItem.Visibility = isClaude ? Visibility.Visible : Visibility.Collapsed;
+            EffortLowMenuItem.Visibility = isClaude ? Visibility.Visible : Visibility.Collapsed;
+            EffortMediumMenuItem.Visibility = isClaude ? Visibility.Visible : Visibility.Collapsed;
+            EffortHighMenuItem.Visibility = isClaude ? Visibility.Visible : Visibility.Collapsed;
+            EffortMaxMenuItem.Visibility = isClaude ? Visibility.Visible : Visibility.Collapsed;
+            ClaudeAccountSeparator.Visibility = isClaude ? Visibility.Visible : Visibility.Collapsed;
+            ChangeAccountMenuItem.Visibility = isClaude ? Visibility.Visible : Visibility.Collapsed;
+            SetLanguageMenuItem.Visibility = isClaude ? Visibility.Visible : Visibility.Collapsed;
+
+            // Windsurf-specific items
+            WindsurfShowUsageMenuItem.Visibility = isWindsurf ? Visibility.Visible : Visibility.Collapsed;
+            WindsurfModelSeparator.Visibility = isWindsurf ? Visibility.Visible : Visibility.Collapsed;
+            WindsurfClaudeOpusMenuItem.Visibility = isWindsurf ? Visibility.Visible : Visibility.Collapsed;
+            WindsurfClaudeSonnetMenuItem.Visibility = isWindsurf ? Visibility.Visible : Visibility.Collapsed;
+            WindsurfCodexMenuItem.Visibility = isWindsurf ? Visibility.Visible : Visibility.Collapsed;
+            WindsurfGeminiProMenuItem.Visibility = isWindsurf ? Visibility.Visible : Visibility.Collapsed;
         }
 
         /// <summary>
@@ -1997,13 +2034,103 @@ devin";
 
             if (_settings == null) return;
 
-            // Update menu item checkmarks
+            // Update Claude menu item checkmarks
             OpusMenuItem.IsChecked = _settings.SelectedClaudeModel == ClaudeModel.Opus;
             SonnetMenuItem.IsChecked = _settings.SelectedClaudeModel == ClaudeModel.Sonnet;
             HaikuMenuItem.IsChecked = _settings.SelectedClaudeModel == ClaudeModel.Haiku;
 
+            // Update Windsurf menu item checkmarks
+            WindsurfClaudeOpusMenuItem.IsChecked = _settings.SelectedWindsurfModel == WindsurfModel.ClaudeOpus;
+            WindsurfClaudeSonnetMenuItem.IsChecked = _settings.SelectedWindsurfModel == WindsurfModel.ClaudeSonnet;
+            WindsurfCodexMenuItem.IsChecked = _settings.SelectedWindsurfModel == WindsurfModel.Codex;
+            WindsurfGeminiProMenuItem.IsChecked = _settings.SelectedWindsurfModel == WindsurfModel.GeminiPro;
+
             // Update effort selection checkmarks
             UpdateEffortSelection();
+        }
+
+        #endregion
+
+        #region Windsurf Model Selection
+
+        /// <summary>
+        /// Handles Windsurf Claude Opus menu item click - switches to Claude Opus model
+        /// </summary>
+#pragma warning disable VSTHRD100 // Avoid async void methods
+        private async void WindsurfClaudeOpusMenuItem_Click(object sender, RoutedEventArgs e)
+#pragma warning restore VSTHRD100
+        {
+            if (_settings == null) return;
+            await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
+            _settings.SelectedWindsurfModel = WindsurfModel.ClaudeOpus;
+            UpdateModelSelection();
+            SaveSettings();
+            if (_currentRunningProvider == AiProvider.Windsurf)
+            {
+                await SendTextToTerminalAsync("/model opus");
+            }
+        }
+
+        /// <summary>
+        /// Handles Windsurf Claude Sonnet menu item click - switches to Claude Sonnet model
+        /// </summary>
+#pragma warning disable VSTHRD100 // Avoid async void methods
+        private async void WindsurfClaudeSonnetMenuItem_Click(object sender, RoutedEventArgs e)
+#pragma warning restore VSTHRD100
+        {
+            if (_settings == null) return;
+            await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
+            _settings.SelectedWindsurfModel = WindsurfModel.ClaudeSonnet;
+            UpdateModelSelection();
+            SaveSettings();
+            if (_currentRunningProvider == AiProvider.Windsurf)
+            {
+                await SendTextToTerminalAsync("/model sonnet");
+            }
+        }
+
+        /// <summary>
+        /// Handles Windsurf Codex menu item click - switches to Codex model
+        /// </summary>
+#pragma warning disable VSTHRD100 // Avoid async void methods
+        private async void WindsurfCodexMenuItem_Click(object sender, RoutedEventArgs e)
+#pragma warning restore VSTHRD100
+        {
+            if (_settings == null) return;
+            await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
+            _settings.SelectedWindsurfModel = WindsurfModel.Codex;
+            UpdateModelSelection();
+            SaveSettings();
+            if (_currentRunningProvider == AiProvider.Windsurf)
+            {
+                await SendTextToTerminalAsync("/model codex");
+            }
+        }
+
+        /// <summary>
+        /// Handles Windsurf Gemini Pro menu item click - switches to Gemini Pro model
+        /// </summary>
+#pragma warning disable VSTHRD100 // Avoid async void methods
+        private async void WindsurfGeminiProMenuItem_Click(object sender, RoutedEventArgs e)
+#pragma warning restore VSTHRD100
+        {
+            if (_settings == null) return;
+            await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
+            _settings.SelectedWindsurfModel = WindsurfModel.GeminiPro;
+            UpdateModelSelection();
+            SaveSettings();
+            if (_currentRunningProvider == AiProvider.Windsurf)
+            {
+                await SendTextToTerminalAsync("/model gemini pro");
+            }
+        }
+
+        /// <summary>
+        /// Handles Windsurf Show Usage menu item click - opens the Windsurf usage page in the browser
+        /// </summary>
+        private void WindsurfShowUsageMenuItem_Click(object sender, RoutedEventArgs e)
+        {
+            System.Diagnostics.Process.Start("https://windsurf.com/subscription/usage");
         }
 
         #endregion

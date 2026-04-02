@@ -251,26 +251,34 @@
                             FontSize="14"
                             Style="{StaticResource IconButtonStyle}"
                             FontFamily="Consolas"
-                            ToolTip="Claude Model Selection"
+                            ToolTip="Model Selection"
                             Click="ModelDropdownButton_Click"
                             Margin="0,0,6,0">
 						<Button.ContextMenu>
-							<ContextMenu x:Name="ModelContextMenu">
+							<ContextMenu x:Name="ModelContextMenu" Opened="ModelContextMenu_Opened">
+								<!-- Claude-specific items -->
 								<MenuItem Header="Show Usage" x:Name="ShowUsageMenuItem" Click="ShowUsageMenuItem_Click"/>
-								<Separator/>
+								<Separator x:Name="ClaudeModelSeparator"/>
 								<MenuItem Header="Opus - Complex tasks" x:Name="OpusMenuItem" Click="OpusMenuItem_Click" IsCheckable="True"/>
 								<MenuItem Header="Sonnet - Everyday tasks" x:Name="SonnetMenuItem" Click="SonnetMenuItem_Click" IsCheckable="True" IsChecked="True"/>
 								<MenuItem Header="Haiku - Easy tasks" x:Name="HaikuMenuItem" Click="HaikuMenuItem_Click" IsCheckable="True"/>
-								<Separator/>
-								<MenuItem Header="Effort:" IsEnabled="False" FontWeight="SemiBold"/>
+								<Separator x:Name="EffortSeparator"/>
+								<MenuItem Header="Effort:" x:Name="EffortLabelMenuItem" IsEnabled="False" FontWeight="SemiBold"/>
 								<MenuItem Header="Auto" x:Name="EffortAutoMenuItem" Click="EffortAutoMenuItem_Click" IsCheckable="True" IsChecked="True"/>
 								<MenuItem Header="Low" x:Name="EffortLowMenuItem" Click="EffortLowMenuItem_Click" IsCheckable="True"/>
 								<MenuItem Header="Medium" x:Name="EffortMediumMenuItem" Click="EffortMediumMenuItem_Click" IsCheckable="True"/>
 								<MenuItem Header="High" x:Name="EffortHighMenuItem" Click="EffortHighMenuItem_Click" IsCheckable="True"/>
 								<MenuItem Header="Max" x:Name="EffortMaxMenuItem" Click="EffortMaxMenuItem_Click" IsCheckable="True"/>
-								<Separator/>
+								<Separator x:Name="ClaudeAccountSeparator"/>
 								<MenuItem Header="Change Account" x:Name="ChangeAccountMenuItem" Click="ChangeAccountMenuItem_Click"/>
 								<MenuItem Header="Set Language" x:Name="SetLanguageMenuItem" Click="SetLanguageMenuItem_Click"/>
+								<!-- Windsurf-specific items -->
+								<MenuItem Header="Show Usage" x:Name="WindsurfShowUsageMenuItem" Click="WindsurfShowUsageMenuItem_Click"/>
+								<Separator x:Name="WindsurfModelSeparator"/>
+								<MenuItem Header="Claude Opus" x:Name="WindsurfClaudeOpusMenuItem" Click="WindsurfClaudeOpusMenuItem_Click" IsCheckable="True"/>
+								<MenuItem Header="Claude Sonnet" x:Name="WindsurfClaudeSonnetMenuItem" Click="WindsurfClaudeSonnetMenuItem_Click" IsCheckable="True" IsChecked="True"/>
+								<MenuItem Header="Codex" x:Name="WindsurfCodexMenuItem" Click="WindsurfCodexMenuItem_Click" IsCheckable="True"/>
+								<MenuItem Header="Gemini Pro" x:Name="WindsurfGeminiProMenuItem" Click="WindsurfGeminiProMenuItem_Click" IsCheckable="True"/>
 							</ContextMenu>
 						</Button.ContextMenu>
 					</Button>

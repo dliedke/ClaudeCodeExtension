@@ -39,6 +39,17 @@ namespace ClaudeCodeVS
     }
 
     /// <summary>
+    /// Model types for the Windsurf provider
+    /// </summary>
+    public enum WindsurfModel
+    {
+        ClaudeOpus,
+        ClaudeSonnet,
+        Codex,
+        GeminiPro
+    }
+
+    /// <summary>
     /// Effort levels for Claude Code reasoning
     /// </summary>
     public enum EffortLevel
@@ -114,6 +125,11 @@ namespace ClaudeCodeVS
         /// Currently selected Claude model (for Claude Code and Claude Code WSL providers)
         /// </summary>
         public ClaudeModel SelectedClaudeModel { get; set; } = ClaudeModel.Sonnet;
+
+        /// <summary>
+        /// Currently selected Windsurf model
+        /// </summary>
+        public WindsurfModel SelectedWindsurfModel { get; set; } = WindsurfModel.ClaudeSonnet;
 
         /// <summary>
         /// List of previously sent prompts with optional file attachments (most recent last)

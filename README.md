@@ -113,7 +113,7 @@ Any feedback, suggestions, or contributions are also very welcome - feel free to
   Installation instructions are provided automatically if not installed
 - **For Open Code**: Node.js version 14 or higher + Open Code CLI installed and accessible via `opencode` in path.
   Installation instructions are provided automatically if not installed
-- **For Windsurf (WSL)**: Windows Subsystem for Linux (WSL) + Windsurf (devin) CLI installed inside WSL
+- **For Windsurf (WSL)**: Windows Subsystem for Linux (WSL) + Windsurf Paid Plan (devin) CLI installed inside WSL
   Install via `curl -fsSL https://cli.devin.ai/install.sh | bash`
   Installation instructions are provided automatically if not installed
   Optional: Use `--permission-mode dangerous` flag via the extension settings menu
@@ -215,6 +215,10 @@ The extension includes an Update Agent button (🔄️) that updates your select
 Click the update button and the extension will handle the update process. Agents use the appropriate exit methods before updating (exit command for most, double CTRL+C for Codex, /quit command for Qwen Code).
 
 ## Version History
+
+### Version 10.4
+- **Windsurf model selection**: Added model selection menu for Windsurf provider (Claude Opus, Claude Sonnet, Codex, Gemini Pro) with `/model` command sent directly to the terminal.
+- **Windsurf Show Usage**: Added "Show Usage" menu item for Windsurf that opens https://windsurf.com/subscription/usage in the browser.
 
 ### Version 10.3
 - **Added Windsurf (WSL) provider**: Full support for Windsurf (devin CLI) running inside WSL with automatic detection, installation instructions, one-click update (`devin update`), and optional `--permission-mode dangerous` flag.
