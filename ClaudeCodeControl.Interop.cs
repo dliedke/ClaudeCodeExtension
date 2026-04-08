@@ -135,7 +135,7 @@ namespace ClaudeCodeVS
         /// <summary>
         /// Sets the parent window for a child window
         /// </summary>
-        [DllImport("user32.dll")]
+        [DllImport("user32.dll", SetLastError = true)]
         private static extern IntPtr SetParent(IntPtr hWndChild, IntPtr hWndNewParent);
 
         /// <summary>

@@ -894,8 +894,20 @@ namespace ClaudeCodeVS
 
                             ApplyEmbeddedTerminalWindowStyle(forceChildWindowStyle: true);
 
-                            // Embed the window
-                            SetParent(terminalHandle, terminalPanel.Handle);
+                            // Embed the window with retry — SetParent can fail transiently
+                            // on busy systems or when the window is not yet ready
+                            IntPtr wtPrevParent = IntPtr.Zero;
+                            for (int spAttempt = 1; spAttempt <= 3; spAttempt++)
+                            {
+                                wtPrevParent = SetParent(terminalHandle, terminalPanel.Handle);
+                                if (wtPrevParent != IntPtr.Zero)
+                                    break;
+
+                                int err = Marshal.GetLastWin32Error();
+                                Debug.WriteLine($"SetParent failed for WT (attempt {spAttempt}/3, win32 error {err}) -- retrying after 200ms");
+                                await Task.Delay(200);
+                                ApplyEmbeddedTerminalWindowStyle(forceChildWindowStyle: true);
+                            }
 
                             // Calculate tab bar height
                             _wtTabBarHeight = GetWtTabBarHeight();
@@ -1034,8 +1046,18 @@ namespace ClaudeCodeVS
                         throw new InvalidOperationException("Failed to create terminal process");
                     }
 
-                    // Find and embed the terminal window
-                    var hwnd = await FindMainWindowHandleByConhostAsync(cmdProcess.Id, timeoutMs: 5000, pollIntervalMs: 50);
+                    // Find and embed the terminal window with retry -- on busy systems the first
+                    // attempt may time out before cmd.exe creates its window, leaving a floating
+                    // external window. Retry with a longer timeout before giving up.
+                    IntPtr hwnd = IntPtr.Zero;
+                    int[] findTimeouts = { 5000, 10000 }; // 5s, then 10s retry
+                    for (int findAttempt = 0; findAttempt < findTimeouts.Length; findAttempt++)
+                    {
+                        hwnd = await FindMainWindowHandleByConhostAsync(cmdProcess.Id, timeoutMs: findTimeouts[findAttempt], pollIntervalMs: 50);
+                        if (hwnd != IntPtr.Zero)
+                            break;
+                        Debug.WriteLine($"FindMainWindowHandleByConhostAsync attempt {findAttempt + 1} timed out after {findTimeouts[findAttempt]}ms, retrying...");
+                    }
 
                     // Restore original console font
                     RestoreConsoleFontRegistry();
@@ -1058,8 +1080,20 @@ namespace ClaudeCodeVS
 
                             ApplyEmbeddedTerminalWindowStyle(forceChildWindowStyle: false);
 
-                            // Embed the window
-                            SetParent(terminalHandle, terminalPanel.Handle);
+                            // Embed the window with retry — SetParent can fail transiently
+                            // on busy systems or when the window is not yet ready
+                            IntPtr prevParent = IntPtr.Zero;
+                            for (int spAttempt = 1; spAttempt <= 3; spAttempt++)
+                            {
+                                prevParent = SetParent(terminalHandle, terminalPanel.Handle);
+                                if (prevParent != IntPtr.Zero)
+                                    break;
+
+                                int err = Marshal.GetLastWin32Error();
+                                Debug.WriteLine($"SetParent failed (attempt {spAttempt}/3, win32 error {err}) -- retrying after 200ms");
+                                await Task.Delay(200);
+                                ApplyEmbeddedTerminalWindowStyle(forceChildWindowStyle: false);
+                            }
 
                             // Now show it in the embedded context
                             ShowWindow(terminalHandle, SW_SHOW);

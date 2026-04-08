@@ -216,6 +216,10 @@ Click the update button and the extension will handle the update process. Agents
 
 ## Version History
 
+### Version 10.5
+- **Fix WSL provider detection false negatives**: Fixed repeated "installation" pop-ups for WSL providers by switching to login shell (`bash -lc`), increasing detection timeouts (8s/20s), and fixing retry logic that was aborting on harmless shell warnings.
+- **Fix floating terminal window**: Added retry logic for terminal window discovery (5s + 10s) and `SetParent()` embedding (up to 3 attempts with Win32 error logging), preventing the terminal from appearing as a separate floating window on busy systems.
+
 ### Version 10.4
 - **Windsurf model selection**: Added model selection menu for Windsurf provider (Claude Opus, Claude Sonnet, Codex, Gemini Pro) with `/model` command sent directly to the terminal.
 - **Windsurf Show Usage**: Added "Show Usage" menu item for Windsurf that opens https://windsurf.com/subscription/usage in the browser.

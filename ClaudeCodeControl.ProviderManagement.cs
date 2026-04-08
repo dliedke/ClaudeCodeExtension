@@ -252,7 +252,8 @@ namespace ClaudeCodeVS
 
         /// <summary>
         /// Checks if Claude Code CLI is available in WSL
-        /// Uses retry logic to handle WSL initialization delays after boot
+        /// Uses retry logic with generous timeouts to handle WSL cold boot delays.
+        /// Uses non-interactive login shell (-lc) for faster, cleaner detection.
         /// Uses caching to avoid repeated slow checks
         /// </summary>
         /// <param name="cancellationToken">Optional cancellation token</param>
@@ -281,7 +282,7 @@ namespace ClaudeCodeVS
                 cancellationToken.ThrowIfCancellationRequested();
 
                 // Retry logic with timeouts to handle WSL cold boot
-                int[] timeouts = { 5000, 12000 }; // 5s, 12s
+                int[] timeouts = { 8000, 20000 }; // 8s, 20s — generous for cold WSL boot
                 int maxRetries = 2;
 
                 for (int attempt = 1; attempt <= maxRetries; attempt++)
@@ -292,7 +293,7 @@ namespace ClaudeCodeVS
                     var startInfo = new ProcessStartInfo
                     {
                         FileName = "cmd.exe",
-                        Arguments = "/c wsl bash -ic \"which claude\"",
+                        Arguments = "/c wsl bash -lc \"which claude\"",
                         UseShellExecute = false,
                         RedirectStandardOutput = true,
                         RedirectStandardError = true,
@@ -330,8 +331,10 @@ namespace ClaudeCodeVS
                             return true;
                         }
 
-                        // If we got a response but agent not found, no need to retry
-                        if (process.ExitCode == 0 || !string.IsNullOrEmpty(output) || !string.IsNullOrEmpty(error))
+                        // If we got a definitive response (stdout has content, meaning WSL
+                        // responded but claude was not found), no need to retry.
+                        // Ignore stderr-only output (shell warnings from .bashrc, etc.)
+                        if (!string.IsNullOrEmpty(output))
                         {
                             CacheProviderResult(AiProvider.ClaudeCodeWSL, false);
                             return false;
@@ -391,7 +394,7 @@ namespace ClaudeCodeVS
                 cancellationToken.ThrowIfCancellationRequested();
 
                 // Retry logic with timeouts to handle WSL cold boot
-                int[] timeouts = { 5000, 12000 }; // 5s, 12s
+                int[] timeouts = { 8000, 20000 }; // 8s, 20s — generous for cold WSL boot
                 int maxRetries = 2;
 
                 for (int attempt = 1; attempt <= maxRetries; attempt++)
@@ -403,7 +406,7 @@ namespace ClaudeCodeVS
                     var startInfo = new ProcessStartInfo
                     {
                         FileName = "cmd.exe",
-                        Arguments = "/c wsl bash -ic \"which codex\"",
+                        Arguments = "/c wsl bash -lc \"which codex\"",
                         UseShellExecute = false,
                         RedirectStandardOutput = true,
                         RedirectStandardError = true,
@@ -441,8 +444,10 @@ namespace ClaudeCodeVS
                             return true;
                         }
 
-                        // If we got a response but agent not found, no need to retry
-                        if (process.ExitCode == 0 || !string.IsNullOrEmpty(output) || !string.IsNullOrEmpty(error))
+                        // If we got a definitive response (stdout has content, meaning WSL
+                        // responded but codex was not found), no need to retry.
+                        // Ignore stderr-only output (shell warnings from .bashrc, etc.)
+                        if (!string.IsNullOrEmpty(output))
                         {
                             CacheProviderResult(AiProvider.Codex, false);
                             return false;
@@ -631,7 +636,7 @@ namespace ClaudeCodeVS
             try
             {
                 // Retry logic with timeouts to handle WSL cold boot
-                int[] timeouts = { 5000, 12000 }; // 5s, 12s
+                int[] timeouts = { 8000, 20000 }; // 8s, 20s — generous for cold WSL boot
                 int maxRetries = 2;
 
                 for (int attempt = 1; attempt <= maxRetries; attempt++)
@@ -641,7 +646,7 @@ namespace ClaudeCodeVS
                     var startInfo = new ProcessStartInfo
                     {
                         FileName = "cmd.exe",
-                        Arguments = "/c wsl bash -c \"test -L ~/.local/bin/cursor-agent && echo 'exists' || echo 'notfound'\"",
+                        Arguments = "/c wsl bash -lc \"test -L ~/.local/bin/cursor-agent && echo 'exists' || echo 'notfound'\"",
                         UseShellExecute = false,
                         RedirectStandardOutput = true,
                         RedirectStandardError = true,
@@ -737,7 +742,7 @@ namespace ClaudeCodeVS
                 }
 
                 // Retry logic with timeouts to handle WSL cold boot
-                int[] timeouts = { 5000, 12000 }; // 5s, 12s
+                int[] timeouts = { 8000, 20000 }; // 8s, 20s — generous for cold WSL boot
                 int maxRetries = 2;
 
                 for (int attempt = 1; attempt <= maxRetries; attempt++)
@@ -747,7 +752,7 @@ namespace ClaudeCodeVS
                     var startInfo = new ProcessStartInfo
                     {
                         FileName = "cmd.exe",
-                        Arguments = "/c wsl bash -ic \"which devin\"",
+                        Arguments = "/c wsl bash -lc \"which devin\"",
                         UseShellExecute = false,
                         RedirectStandardOutput = true,
                         RedirectStandardError = true,
@@ -781,8 +786,8 @@ namespace ClaudeCodeVS
                             return true;
                         }
 
-                        // If we got a definitive response, no need to retry
-                        if (process.ExitCode == 0 || !string.IsNullOrEmpty(output))
+                        // If stdout has content, WSL responded -- no need to retry
+                        if (!string.IsNullOrEmpty(output))
                         {
                             CacheProviderResult(AiProvider.Windsurf, false);
                             return false;
