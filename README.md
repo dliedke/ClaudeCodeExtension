@@ -68,6 +68,7 @@ Any feedback, suggestions, or contributions are also very welcome - feel free to
 - **JSON Configuration**: Settings stored in `%LocalAppData%\..\Local\ClaudeCodeExtension\claudecode-settings.json`
 - **Send with Enter State**: Remembers your preferred input mode
 - **Splitter Position**: Maintains your preferred layout between sessions
+- **Invert Layout**: Remembers your preferred panel arrangement (prompt on top or bottom)
 - **AI Provider Selection**: Remembers your preferred AI assistant
 - **Claude Model Selection**: Remembers your last selected Claude model (Opus, Sonnet, or Haiku)
 - **Claude Skip Permissions State**: Remembers whether Claude Code starts with `--dangerously-skip-permissions`
@@ -183,6 +184,7 @@ Open Windows Settings, search for "Terminal settings", and set the Terminal opti
 - **Claude Code: Skip Permissions**: (Claude providers only) Starts Claude Code with `--dangerously-skip-permissions`, saves the preference, and reloads Claude Code immediately when changed
 - **Codex: Full Auto**: (Codex providers only) Starts Codex with `--full-auto`, saves the preference, and reloads Codex immediately when changed
 - **Windsurf: Dangerous Mode**: (Windsurf provider only) Starts Windsurf with `--permission-mode dangerous`, saves the preference, and reloads Windsurf immediately when changed
+- **Invert Layout**: Swaps the prompt and terminal positions, placing the terminal on top and the prompt area on the bottom. Buttons stay in the middle between panels.
 - **About**: View extension version and information
 
 ### Claude Model Selection Menu
@@ -195,7 +197,7 @@ Open Windows Settings, search for "Terminal settings", and set the Terminal opti
 
 ### Customization
 - **Send with Enter**: Check/uncheck the checkbox to toggle sending behavior
-- **Layout**: Drag the splitter to adjust the prompt/terminal ratio
+- **Layout**: Drag the splitter to adjust the prompt/terminal ratio. Use "Invert Layout" in the ⚙ menu to swap prompt and terminal positions
 - **AI Provider**: Use the context menu to switch between available providers
 - **Settings Persist Automatically**: Preferences are saved between Visual Studio sessions
 
@@ -215,6 +217,9 @@ The extension includes an Update Agent button (🔄️) that updates your select
 Click the update button and the extension will handle the update process. Agents use the appropriate exit methods before updating (exit command for most, double CTRL+C for Codex, /quit command for Qwen Code).
 
 ## Version History
+
+### Version 10.6
+- **Invert Layout option**: Added option to swap the prompt and terminal positions, placing the terminal on top and the prompt area on the bottom. Toggle via the settings menu (gear icon) > "Invert Layout".
 
 ### Version 10.5
 - **Fix WSL provider detection false negatives**: Fixed repeated "installation" pop-ups for WSL providers by switching to login shell (`bash -lc`), increasing detection timeouts (8s/20s), and fixing retry logic that was aborting on harmless shell warnings.

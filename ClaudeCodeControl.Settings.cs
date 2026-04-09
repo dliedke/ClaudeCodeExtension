@@ -283,6 +283,9 @@ namespace ClaudeCodeVS
                 SendPromptButton.Visibility = Visibility.Visible;
             }
 
+            // Apply layout inversion if enabled
+            ApplyLayout();
+
             // Update provider selection and title
             UpdateProviderSelection();
 
@@ -291,6 +294,117 @@ namespace ClaudeCodeVS
 
             // Update effort selection
             UpdateEffortSelection();
+        }
+
+        #endregion
+
+        #region Layout Inversion
+
+        /// <summary>
+        /// Applies or reverts the inverted layout based on settings.
+        /// When inverted, the terminal is on top and the prompt area is on the bottom.
+        /// </summary>
+        private void ApplyLayout()
+        {
+            try
+            {
+                bool invert = _settings?.InvertLayout == true;
+
+                if (invert)
+                {
+                    // Terminal on top (row 0), prompt on bottom (row 2)
+                    System.Windows.Controls.Grid.SetRow(PromptSectionGrid, 2);
+                    System.Windows.Controls.Grid.SetRow(TerminalGroupBox, 0);
+
+                    // Swap MinHeights to match content
+                    MainGrid.RowDefinitions[0].MinHeight = 150;
+                    MainGrid.RowDefinitions[2].MinHeight = 80;
+
+                    // Margins: match the regular layout spacing (10px gap across splitter)
+                    TerminalGroupBox.Margin = new Thickness(6, 6, 6, 0);
+                    PromptSectionGrid.Margin = new Thickness(6, 6, 6, 6);
+
+                    // Hide terminal GroupBox header (redundant with tool window title)
+                    TerminalGroupBox.Header = null;
+
+                    // Reorder prompt section: buttons+checkbox on top (near splitter), prompt box below
+                    System.Windows.Controls.Grid.SetRow(CheckboxRow, 0);
+                    System.Windows.Controls.Grid.SetRow(ControlsRow, 1);
+                    System.Windows.Controls.Grid.SetRow(PromptGroupBox, 2);
+                    PromptSectionGrid.RowDefinitions[0].Height = new System.Windows.GridLength(0, System.Windows.GridUnitType.Auto);
+                    PromptSectionGrid.RowDefinitions[0].MinHeight = 0;
+                    PromptSectionGrid.RowDefinitions[2].Height = new System.Windows.GridLength(1, System.Windows.GridUnitType.Star);
+                    PromptSectionGrid.RowDefinitions[2].MinHeight = 80;
+
+                    // Adjust inner margins for inverted order
+                    CheckboxRow.Margin = new Thickness(0, 0, 0, 4);
+                    ControlsRow.Margin = new Thickness(0, 0, 0, 4);
+                    PromptGroupBox.Margin = new Thickness(0, 2, 0, 0);
+                }
+                else
+                {
+                    // Default: Prompt on top (row 0), terminal on bottom (row 2)
+                    System.Windows.Controls.Grid.SetRow(PromptSectionGrid, 0);
+                    System.Windows.Controls.Grid.SetRow(TerminalGroupBox, 2);
+
+                    // Restore MinHeights
+                    MainGrid.RowDefinitions[0].MinHeight = 80;
+                    MainGrid.RowDefinitions[2].MinHeight = 150;
+
+                    // Restore margins
+                    PromptSectionGrid.Margin = new Thickness(6, 6, 6, 0);
+                    TerminalGroupBox.Margin = new Thickness(6);
+
+                    // Restore terminal GroupBox header
+                    TerminalGroupBox.Header = new System.Windows.Controls.TextBlock
+                    {
+                        Text = GetCurrentProviderName(),
+                        Opacity = 0.93
+                    };
+
+                    // Restore prompt section order: prompt box on top, buttons+checkbox below
+                    System.Windows.Controls.Grid.SetRow(PromptGroupBox, 0);
+                    System.Windows.Controls.Grid.SetRow(ControlsRow, 1);
+                    System.Windows.Controls.Grid.SetRow(CheckboxRow, 2);
+                    PromptSectionGrid.RowDefinitions[0].Height = new System.Windows.GridLength(1, System.Windows.GridUnitType.Star);
+                    PromptSectionGrid.RowDefinitions[0].MinHeight = 80;
+                    PromptSectionGrid.RowDefinitions[2].Height = new System.Windows.GridLength(0, System.Windows.GridUnitType.Auto);
+                    PromptSectionGrid.RowDefinitions[2].MinHeight = 0;
+
+                    // Restore inner margins
+                    CheckboxRow.Margin = new Thickness(0, 4, 0, 2);
+                    ControlsRow.Margin = new Thickness(0, 4, 0, 0);
+                    PromptGroupBox.Margin = new Thickness(0, 0, 0, 2);
+                }
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"Error applying layout: {ex.Message}");
+            }
+        }
+
+        /// <summary>
+        /// Handles the Invert Layout menu item click
+        /// </summary>
+        private void InvertLayoutMenuItem_Click(object sender, RoutedEventArgs e)
+        {
+            if (_settings == null) return;
+
+            _settings.InvertLayout = InvertLayoutMenuItem.IsChecked;
+
+            // Reset splitter to proportional sizing so layout looks natural after swap
+            MainGrid.RowDefinitions[0].Height = new System.Windows.GridLength(1, System.Windows.GridUnitType.Star);
+            MainGrid.RowDefinitions[2].Height = new System.Windows.GridLength(2, System.Windows.GridUnitType.Star);
+
+            if (_settings.InvertLayout)
+            {
+                // When inverted, terminal (top) gets more space
+                MainGrid.RowDefinitions[0].Height = new System.Windows.GridLength(2, System.Windows.GridUnitType.Star);
+                MainGrid.RowDefinitions[2].Height = new System.Windows.GridLength(1, System.Windows.GridUnitType.Star);
+            }
+
+            ApplyLayout();
+            SaveSettings();
         }
 
         #endregion

@@ -133,8 +133,8 @@
 			<RowDefinition Height="2*" MinHeight="150"/>
 		</Grid.RowDefinitions>
 
-		<!-- Top Section Container -->
-		<Grid Grid.Row="0" Margin="6,6,6,0">
+		<!-- Top Section Container (Prompt area) -->
+		<Grid x:Name="PromptSectionGrid" Grid.Row="0" Margin="6,6,6,0">
 			<Grid.RowDefinitions>
 				<RowDefinition Height="*" MinHeight="80"/>
 				<RowDefinition Height="Auto"/>
@@ -142,7 +142,7 @@
 			</Grid.RowDefinitions>
 
 			<!-- Prompt Input Area -->
-			<GroupBox Grid.Row="0"
+			<GroupBox x:Name="PromptGroupBox" Grid.Row="0"
                       Foreground="{DynamicResource {x:Static vsshell:VsBrushes.WindowTextKey}}"
                       Background="{DynamicResource {x:Static vsshell:VsBrushes.ToolWindowBackgroundKey}}"
                       BorderBrush="{DynamicResource {x:Static vsshell:VsBrushes.WindowTextKey}}"
@@ -173,7 +173,7 @@
 			</GroupBox>
 
 			<!-- Controls row: [Send + Add Image] | [Restart (right-aligned)] -->
-			<Grid Grid.Row="1" Margin="0,4,0,0" VerticalAlignment="Top">
+			<Grid x:Name="ControlsRow" Grid.Row="1" Margin="0,4,0,0" VerticalAlignment="Top">
 				<Grid.ColumnDefinitions>
 					<ColumnDefinition Width="Auto"/>
 					<ColumnDefinition Width="*"/>
@@ -309,6 +309,8 @@
 								<MenuItem Header="Codex: Approval Never" x:Name="CodexFullAutoMenuItem" Click="CodexFullAutoMenuItem_Click" IsCheckable="True" ToolTip="When enabled, Codex starts with --ask-for-approval never"/>
 								<MenuItem Header="Windsurf: Dangerous Mode" x:Name="WindsurfDangerousModeMenuItem" Click="WindsurfDangerousModeMenuItem_Click" IsCheckable="True" ToolTip="When enabled, Windsurf starts with --permission-mode dangerous"/>
 								<Separator/>
+								<MenuItem Header="Invert Layout" x:Name="InvertLayoutMenuItem" Click="InvertLayoutMenuItem_Click" IsCheckable="True" ToolTip="Swap prompt and terminal positions (terminal on top, prompt on bottom)"/>
+								<Separator/>
 								<MenuItem Header="Set Working Directory..." x:Name="SetWorkingDirectoryMenuItem" Click="SetWorkingDirectoryMenuItem_Click" ToolTip="Set a custom working directory (absolute or relative to solution). Leave empty for default behavior."/>
 								<MenuItem Header="Set Terminal Type..." x:Name="SetTerminalTypeMenuItem" Click="SetTerminalTypeMenuItem_Click" ToolTip="Choose between Command Prompt (default) or Windows Terminal (better emoji/unicode support)"/>
 								<Separator/>
@@ -345,7 +347,7 @@
 			</Grid>
 
 			<!-- Send with Enter + file chips row -->
-			<Grid Grid.Row="2" Margin="0,4,0,2">
+			<Grid x:Name="CheckboxRow" Grid.Row="2" Margin="0,4,0,2">
 				<Grid.ColumnDefinitions>
 					<ColumnDefinition Width="Auto"/>
 					<ColumnDefinition Width="*"/>

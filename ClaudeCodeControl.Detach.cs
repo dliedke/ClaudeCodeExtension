@@ -167,7 +167,8 @@ namespace ClaudeCodeVS
                 // Hide terminal area (terminal moved to separate tab)
                 // Keep splitter visible so user can resize the prompt area freely
                 TerminalGroupBox.Visibility = Visibility.Collapsed;
-                MainGrid.RowDefinitions[2].MinHeight = 0;
+                int terminalRow = (_settings?.InvertLayout == true) ? 0 : 2;
+                MainGrid.RowDefinitions[terminalRow].MinHeight = 0;
                 MainGrid.UpdateLayout();
 
                 // Update button icon and tooltip to show "attach" (arrow pointing right into box)
@@ -208,7 +209,8 @@ namespace ClaudeCodeVS
 
                 // Restore main terminal area
                 TerminalGroupBox.Visibility = Visibility.Visible;
-                MainGrid.RowDefinitions[2].MinHeight = 150;
+                int terminalRow = (_settings?.InvertLayout == true) ? 0 : 2;
+                MainGrid.RowDefinitions[terminalRow].MinHeight = 150;
 
                 // Restore splitter to pre-detach position
                 if (_settings != null && _settings.SplitterPosition > 0)

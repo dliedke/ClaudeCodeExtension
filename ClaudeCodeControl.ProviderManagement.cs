@@ -1662,7 +1662,15 @@ devin";
                                   _settings.SelectedProvider == AiProvider.OpenCode ? "Open Code" :
                                   _settings.SelectedProvider == AiProvider.Windsurf ? "Windsurf" :
                                   "Claude Code";
-            TerminalGroupBox.Header = new System.Windows.Controls.TextBlock { Text = providerName, Opacity = 0.93 };
+            // Only show header when layout is not inverted (inverted hides it to avoid redundancy with tool window title)
+            if (_settings?.InvertLayout == true)
+            {
+                TerminalGroupBox.Header = null;
+            }
+            else
+            {
+                TerminalGroupBox.Header = new System.Windows.Controls.TextBlock { Text = providerName, Opacity = 0.93 };
+            }
 
             // Show/hide model selection button based on provider
             bool isClaudeProvider = _settings.SelectedProvider == AiProvider.ClaudeCode ||
@@ -2437,6 +2445,9 @@ devin";
                 // Update terminal type menu item to show current selection
                 string terminalTypeName = _settings.SelectedTerminalType == TerminalType.WindowsTerminal ? "Windows Terminal" : "Command Prompt";
                 SetTerminalTypeMenuItem.Header = $"Set Terminal Type... ({terminalTypeName})";
+
+                // Update invert layout checkbox
+                InvertLayoutMenuItem.IsChecked = _settings.InvertLayout;
             }
         }
 

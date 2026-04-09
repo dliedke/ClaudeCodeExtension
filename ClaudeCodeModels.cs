@@ -195,5 +195,11 @@ namespace ClaudeCodeVS
         /// Positive = zoomed in, negative = zoomed out. Replayed on each terminal restart.
         /// </summary>
         public int TerminalZoomDelta { get; set; } = 0;
+
+        /// <summary>
+        /// If true, the layout is inverted: terminal on top, prompt on bottom.
+        /// Default is false (prompt on top, terminal on bottom).
+        /// </summary>
+        public bool InvertLayout { get; set; } = false;
     }
 }
