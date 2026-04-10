@@ -783,7 +783,7 @@ namespace ClaudeCodeVS
 
                         case AiProvider.CursorAgent:
                             string wslPathCursor = ConvertToWslPath(workspaceDir);
-                            cmdCommand = $"/k chcp 65001 >nul && cls && wsl bash -ic \"cd '{wslPathCursor}' && cursor-agent\"";
+                            cmdCommand = $"/k chcp 65001 >nul && cls && wsl bash -lic \"cd '{wslPathCursor}' && cursor-agent\"";
                             break;
 
                         case AiProvider.CodexNative:
@@ -794,13 +794,13 @@ namespace ClaudeCodeVS
                         case AiProvider.Codex:
                             string wslPathCodex = ConvertToWslPath(workspaceDir);
                             string codexWslCommand = GetCodexCommand(isWsl: true);
-                            cmdCommand = $"/k chcp 65001 >nul && cls && wsl bash -ic \"cd '{wslPathCodex}' && {codexWslCommand}\"";
+                            cmdCommand = $"/k chcp 65001 >nul && cls && wsl bash -lic \"cd '{wslPathCodex}' && {codexWslCommand}\"";
                             break;
 
                         case AiProvider.ClaudeCodeWSL:
                             string wslPathClaude = ConvertToWslPath(workspaceDir);
                             string claudeWslCommand = GetClaudeCommand(isWsl: true);
-                            cmdCommand = $"/k chcp 65001 >nul && cls && wsl bash -ic \"cd '{wslPathClaude}' && {claudeWslCommand}\"";
+                            cmdCommand = $"/k chcp 65001 >nul && cls && wsl bash -lic \"cd '{wslPathClaude}' && {claudeWslCommand}\"";
                             break;
 
                         case AiProvider.ClaudeCode:
@@ -819,7 +819,7 @@ namespace ClaudeCodeVS
                         case AiProvider.Windsurf:
                             string wslPathWindsurf = ConvertToWslPath(workspaceDir);
                             string windsurfWslCommand = GetWindsurfCommand();
-                            cmdCommand = $"/k chcp 65001 >nul && cls && wsl bash -ic \"cd '{wslPathWindsurf}' && {windsurfWslCommand}\"";
+                            cmdCommand = $"/k chcp 65001 >nul && cls && wsl bash -lic \"cd '{wslPathWindsurf}' && {windsurfWslCommand}\"";
                             break;
 
                         default: // null or any other value = regular CMD
@@ -958,7 +958,7 @@ namespace ClaudeCodeVS
 
                         case AiProvider.CursorAgent:
                             string wslPathCursor = ConvertToWslPath(workspaceDir);
-                            terminalCommand = $"/k chcp 65001 >nul && cls && wsl bash -ic \"cd '{wslPathCursor}' && cursor-agent\"";
+                            terminalCommand = $"/k chcp 65001 >nul && cls && wsl bash -lic \"cd '{wslPathCursor}' && cursor-agent\"";
                             break;
 
                         case AiProvider.CodexNative:
@@ -969,13 +969,13 @@ namespace ClaudeCodeVS
                         case AiProvider.Codex:
                             string wslPathCodex = ConvertToWslPath(workspaceDir);
                             string codexWslCommand = GetCodexCommand(isWsl: true);
-                            terminalCommand = $"/k chcp 65001 >nul && cls && wsl bash -ic \"cd '{wslPathCodex}' && {codexWslCommand}\"";
+                            terminalCommand = $"/k chcp 65001 >nul && cls && wsl bash -lic \"cd '{wslPathCodex}' && {codexWslCommand}\"";
                             break;
 
                         case AiProvider.ClaudeCodeWSL:
                             string wslPathClaude = ConvertToWslPath(workspaceDir);
                             string claudeWslCommand = GetClaudeCommand(isWsl: true);
-                            terminalCommand = $"/k chcp 65001 >nul && cls && wsl bash -ic \"cd '{wslPathClaude}' && {claudeWslCommand}\"";
+                            terminalCommand = $"/k chcp 65001 >nul && cls && wsl bash -lic \"cd '{wslPathClaude}' && {claudeWslCommand}\"";
                             break;
 
                         case AiProvider.ClaudeCode:
@@ -994,7 +994,7 @@ namespace ClaudeCodeVS
                         case AiProvider.Windsurf:
                             string wslPathWindsurf = ConvertToWslPath(workspaceDir);
                             string windsurfCmdCommand = GetWindsurfCommand();
-                            terminalCommand = $"/k chcp 65001 >nul && cls && wsl bash -ic \"cd '{wslPathWindsurf}' && {windsurfCmdCommand}\"";
+                            terminalCommand = $"/k chcp 65001 >nul && cls && wsl bash -lic \"cd '{wslPathWindsurf}' && {windsurfCmdCommand}\"";
                             break;
 
                         default: // null or any other value = regular CMD
@@ -1956,7 +1956,7 @@ namespace ClaudeCodeVS
                         await Task.Delay(400); // Reduced from 500ms
                         SendCtrlC();
                         await Task.Delay(1000); // Reduced from 1500ms
-                        await SendTextToTerminalAsync("wsl bash -ic \"npm install -g @openai/codex@latest\"");
+                        await SendTextToTerminalAsync("wsl bash -lic \"npm install -g @openai/codex@latest\"");
                         break;
 
                     case AiProvider.CursorAgentNative:
@@ -1970,14 +1970,14 @@ namespace ClaudeCodeVS
                         // CursorAgent: exit, wait, then update
                         await SendTextToTerminalAsync("exit");
                         await Task.Delay(1000); // Reduced from 1500ms
-                        await SendTextToTerminalAsync("wsl bash -ic \"cursor-agent update\"");
+                        await SendTextToTerminalAsync("wsl bash -lic \"cursor-agent update\"");
                         break;
 
                     case AiProvider.ClaudeCodeWSL:
                         // Claude Code WSL: exit, wait, then update
                         await SendTextToTerminalAsync("exit");
                         await Task.Delay(1000); // Reduced from 1500ms
-                        await SendTextToTerminalAsync("wsl bash -ic \"claude update\"");
+                        await SendTextToTerminalAsync("wsl bash -lic \"claude update\"");
                         break;
 
                     case AiProvider.ClaudeCode:
@@ -2005,7 +2005,7 @@ namespace ClaudeCodeVS
                         // Windsurf: exit, wait, then update
                         await SendTextToTerminalAsync("exit");
                         await Task.Delay(1000);
-                        await SendTextToTerminalAsync("wsl bash -ic \"devin update\"");
+                        await SendTextToTerminalAsync("wsl bash -lic \"devin update\"");
                         break;
 
                     default:
@@ -2264,8 +2264,10 @@ namespace ClaudeCodeVS
         }
 
         /// <summary>
-        /// Gets the appropriate Claude Code command to use for Windows or WSL
-        /// Prioritizes native Windows installation (%USERPROFILE%\.local\bin\claude.exe) over NPM installation (claude.cmd)
+        /// Gets the appropriate Claude Code command to use for Windows or WSL.
+        /// Prioritizes native Windows installation (%USERPROFILE%\.local\bin\claude.exe);
+        /// otherwise falls back to plain "claude" so cmd.exe resolves it via PATHEXT
+        /// (claude.exe from winget, claude.cmd from NPM, etc.).
         /// </summary>
         /// <returns>The claude command to execute</returns>
         private string GetClaudeCommand(bool isWsl = false)
@@ -2288,8 +2290,9 @@ namespace ClaudeCodeVS
                 }
                 else
                 {
-                    // Fall back to NPM installation
-                    baseCommand = "claude.cmd";
+                    // Fall back to whatever claude executable is on PATH — cmd.exe will
+                    // resolve claude.exe (winget), claude.cmd (NPM), etc. via PATHEXT.
+                    baseCommand = "claude";
                 }
             }
 

@@ -218,6 +218,10 @@ Click the update button and the extension will handle the update process. Agents
 
 ## Version History
 
+### Version 10.7
+- **Detect winget-installed Claude Code**: Provider detection and command launch now use `where claude` (PATHEXT-aware) instead of only `claude.cmd`, so `claude.exe` installed via winget (or any other installer) is recognized without showing the installation pop-up. Fixes [#30](https://github.com/dliedke/ClaudeCodeExtension/issues/30).
+- **Fix `claude: command not found` in WSL terminal**: WSL terminal launches now use `bash -lic` (login + interactive) instead of `bash -ic`, so `.profile`/`.bash_profile` PATH entries are loaded. Applies to Claude Code (WSL), Codex (WSL), Cursor Agent (WSL) and Windsurf (WSL). Fixes the follow-up issue on [#27](https://github.com/dliedke/ClaudeCodeExtension/issues/27).
+
 ### Version 10.6
 - **Invert Layout option**: Added option to swap the prompt and terminal positions, placing the terminal on top and the prompt area on the bottom. Toggle via the settings menu (gear icon) > "Invert Layout".
 

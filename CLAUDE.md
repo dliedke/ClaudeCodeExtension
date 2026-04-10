@@ -105,7 +105,7 @@ ClaudeCodeExtension/
 **Command patterns**:
 ```
 Windows: cmd.exe /k chcp 65001 >nul && cd /d "{dir}" && ping localhost -n 3 >nul && cls && {command}
-WSL:     cmd.exe /k chcp 65001 >nul && cls && wsl bash -ic "cd {wslPath} && {command}"
+WSL:     cmd.exe /k chcp 65001 >nul && cls && wsl bash -lic "cd {wslPath} && {command}"
 ```
 
 **WSL path conversion** (`ConvertToWslPath()`): `\\wsl.localhost\distro\path` → `/path`, `C:\...` → `/mnt/c/...`

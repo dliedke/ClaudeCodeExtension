@@ -128,10 +128,11 @@ namespace ClaudeCodeVS
         #region Provider Detection
 
         /// <summary>
-        /// Checks if Claude Code CLI is available (native or NPM installation)
-        /// Prioritizes native installation at %USERPROFILE%\.local\bin\claude.exe
-        /// Falls back to NPM installation (claude.cmd in PATH)
-        /// Uses caching to avoid repeated slow checks
+        /// Checks if Claude Code CLI is available on Windows.
+        /// Prioritizes native installation at %USERPROFILE%\.local\bin\claude.exe,
+        /// then falls back to any claude executable in PATH (claude.exe from winget,
+        /// claude.cmd from NPM, etc.) via `where claude` which honors PATHEXT.
+        /// Uses caching to avoid repeated slow checks.
         /// </summary>
         /// <param name="cancellationToken">Optional cancellation token</param>
         /// <returns>True if claude is available, false otherwise</returns>
@@ -162,11 +163,12 @@ namespace ClaudeCodeVS
 
                 cancellationToken.ThrowIfCancellationRequested();
 
-                // If native not found, check for NPM installation (claude.cmd in PATH)
+                // Fall back to any claude executable in PATH — `where claude` (no extension)
+                // lets cmd.exe search PATHEXT so it matches claude.exe (winget), claude.cmd (NPM), etc.
                 var startInfo = new ProcessStartInfo
                 {
                     FileName = "cmd.exe",
-                    Arguments = "/c where claude.cmd",
+                    Arguments = "/c where claude",
                     UseShellExecute = false,
                     RedirectStandardOutput = true,
                     RedirectStandardError = true,
@@ -2270,7 +2272,7 @@ devin";
                 string resumeCommand;
                 if (isWsl)
                 {
-                    resumeCommand = $"wsl bash -ic \"{baseCmd}\"";
+                    resumeCommand = $"wsl bash -lic \"{baseCmd}\"";
                 }
                 else
                 {
