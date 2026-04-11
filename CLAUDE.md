@@ -33,6 +33,10 @@
 - **Debug**: F5 in Visual Studio → experimental instance with `/rootsuffix Exp`
 - **No automated tests** — manual testing via F5 in VS 2022/2026
 
+### Publishing
+
+When the user asks to **publish the app** (or any equivalent phrasing like "publish the extension", "publish to marketplace", "ship it"), run `publish.cmd` from the repo root. Do not invoke MSBuild or marketplace APIs manually — `publish.cmd` is the authoritative deployment automation.
+
 ---
 
 ## Project Structure
