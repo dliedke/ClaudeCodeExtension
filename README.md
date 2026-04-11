@@ -218,6 +218,9 @@ Click the update button and the extension will handle the update process. Agents
 
 ## Version History
 
+### Version 10.8
+- **Test deployment automation**: Internal release used to validate the new automated marketplace publishing script (`publish.cmd` + `publishManifest.json`), which performs a clean Release rebuild and pushes the VSIX to the Visual Studio Marketplace via `VsixPublisher.exe`. No user-facing changes.
+
 ### Version 10.7
 - **Detect winget-installed Claude Code**: Provider detection and command launch now use `where claude` (PATHEXT-aware) instead of only `claude.cmd`, so `claude.exe` installed via winget (or any other installer) is recognized without showing the installation pop-up. Fixes [#30](https://github.com/dliedke/ClaudeCodeExtension/issues/30).
 - **Fix `claude: command not found` in WSL terminal**: WSL terminal launches now use `bash -lic` (login + interactive) instead of `bash -ic`, so `.profile`/`.bash_profile` PATH entries are loaded. Applies to Claude Code (WSL), Codex (WSL), Cursor Agent (WSL) and Windsurf (WSL). Fixes the follow-up issue on [#27](https://github.com/dliedke/ClaudeCodeExtension/issues/27).

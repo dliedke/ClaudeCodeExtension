@@ -361,3 +361,6 @@ MigrationBackup/
 
 # Fody - auto-generated XML schema
 FodyWeavers.xsd
+
+# Marketplace publish script (contains Azure DevOps PAT)
+publish.cmd
