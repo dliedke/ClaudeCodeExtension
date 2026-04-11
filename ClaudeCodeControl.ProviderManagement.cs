@@ -1961,6 +1961,7 @@ devin";
             ClaudeAccountSeparator.Visibility = isClaude ? Visibility.Visible : Visibility.Collapsed;
             ChangeAccountMenuItem.Visibility = isClaude ? Visibility.Visible : Visibility.Collapsed;
             SetLanguageMenuItem.Visibility = isClaude ? Visibility.Visible : Visibility.Collapsed;
+            InstallCavemanMenuItem.Visibility = isClaude ? Visibility.Visible : Visibility.Collapsed;
 
             // Windsurf-specific items
             WindsurfShowUsageMenuItem.Visibility = isWindsurf ? Visibility.Visible : Visibility.Collapsed;
@@ -2350,6 +2351,61 @@ devin";
                     PostMessage(terminalHandle, WM_CHAR, new IntPtr(VK_SPACE), IntPtr.Zero);
                 }
             }
+        }
+
+        /// <summary>
+        /// Handles Install Caveman menu item click - installs the Caveman plugin (JuliusBrussee/caveman)
+        /// inside the running Claude Code session via /plugin slash commands
+        /// </summary>
+#pragma warning disable VSTHRD100 // Avoid async void methods
+        private async void InstallCavemanMenuItem_Click(object sender, RoutedEventArgs e)
+#pragma warning restore VSTHRD100
+        {
+            await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
+
+            if (_currentRunningProvider != AiProvider.ClaudeCode &&
+                _currentRunningProvider != AiProvider.ClaudeCodeWSL)
+            {
+                return;
+            }
+
+            var confirm = MessageBox.Show(
+                "This will install the Caveman plugin (JuliusBrussee/caveman) into the current Claude Code session.\n\n" +
+                "The following slash commands will be sent:\n" +
+                "  /plugin marketplace add JuliusBrussee/caveman\n" +
+                "  /plugin install caveman@caveman --scope user\n" +
+                "  /reload-plugins\n" +
+                "  /caveman\n" +
+                "  hi\n\n" +
+                "Claude Code may prompt you to confirm trust for the marketplace and plugin — please respond inside the terminal if asked.\n\n" +
+                "Please be patient while the marketplace and plugin are downloaded and installed — do not type anything in the terminal until all commands have completed.\n\n" +
+                "Continue?",
+                "Install Caveman",
+                MessageBoxButton.OKCancel,
+                MessageBoxImage.Question);
+
+            if (confirm != MessageBoxResult.OK)
+            {
+                return;
+            }
+
+            await SendTextToTerminalAsync("/plugin marketplace add JuliusBrussee/caveman");
+            await Task.Delay(7000);
+
+            await SendTextToTerminalAsync("/plugin install caveman@caveman --scope user");
+            await Task.Delay(4000);
+
+            // Send Enter to confirm any prompt that Claude Code may show after the install command
+            SendEnterKey();
+            await Task.Delay(1500);
+
+            await SendTextToTerminalAsync("/reload-plugins");
+            await Task.Delay(3000);
+
+            await SendTextToTerminalAsync("/caveman");
+            await Task.Delay(2000);
+
+            await SendTextToTerminalAsync("yes");
         }
 
         #endregion

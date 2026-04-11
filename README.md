@@ -218,6 +218,9 @@ Click the update button and the extension will handle the update process. Agents
 
 ## Version History
 
+### Version 10.10
+- **Install Caveman menu option**: Added "Install Caveman" entry in the model menu (after "Set Language") for Claude Code and Claude Code (WSL). Triggers `/plugin marketplace add JuliusBrussee/caveman`, `/plugin install caveman@caveman`, `/reload-plugins`, and `/caveman` inside the running Claude session to install the [Caveman](https://github.com/JuliusBrussee/caveman) ultra-compressed communication plugin.
+
 ### Version 10.8
 - **Test deployment automation**: Internal release used to validate the new automated marketplace publishing script (`publish.cmd` + `publishManifest.json`), which performs a clean Release rebuild and pushes the VSIX to the Visual Studio Marketplace via `VsixPublisher.exe`. No user-facing changes.
 
