@@ -6,7 +6,7 @@
 
 - **Author**: Daniel Carvalho Liedke (dliedke@gmail.com) | **License**: MIT
 - **Repository**: https://github.com/dliedke/ClaudeCodeExtension
-- **Current Version**: 10.5 | **Target Framework**: .NET Framework 4.7.2
+- **Current Version**: 10.10 | **Target Framework**: .NET Framework 4.7.2
 
 ---
 
@@ -37,6 +37,10 @@
 
 When the user asks to **publish the app** (or any equivalent phrasing like "publish the extension", "publish to marketplace", "ship it"), run `publish.cmd` from the repo root. Do not invoke MSBuild or marketplace APIs manually — `publish.cmd` is the authoritative deployment automation.
 
+**`publish.cmd`** performs: Clean → Rebuild Release → publish VSIX via `VsixPublisher.exe` with `publishManifest.json`. Falls back from VS 2026 to VS 2022 tool paths automatically. Uses `VsixPub0038` log marker to detect success (works around VsixPublisher telemetry crash in VS 18).
+
+**`publishManifest.json`**: Marketplace metadata — publisher `dliedke`, category `coding`, free, Q&A enabled, README.md as overview.
+
 ---
 
 ## Project Structure
@@ -46,13 +50,13 @@ ClaudeCodeExtension/
 ├── Core Control (partial classes of ClaudeCodeControl):
 │   ├── ClaudeCodeControl.cs             # Core initialization & orchestration
 │   ├── ClaudeCodeControl.Terminal.cs    # Terminal embedding, process init, F5 forwarding
-│   ├── ClaudeCodeControl.ProviderManagement.cs  # AI provider detection & switching
+│   ├── ClaudeCodeControl.ProviderManagement.cs  # AI provider detection & switching, Caveman plugin install
 │   ├── ClaudeCodeControl.TerminalIO.cs  # Terminal I/O, command execution
 │   ├── ClaudeCodeControl.Diff.cs        # Diff view integration, git polling
 │   ├── ClaudeCodeControl.UserInput.cs   # Keyboard input, button handlers
 │   ├── ClaudeCodeControl.Workspace.cs   # Solution/workspace directory detection
 │   ├── ClaudeCodeControl.ImageHandling.cs # Image paste & file attachments
-│   ├── ClaudeCodeControl.Settings.cs    # Settings persistence (JSON)
+│   ├── ClaudeCodeControl.Settings.cs    # Settings persistence (JSON), layout inversion
 │   ├── ClaudeCodeControl.Cleanup.cs     # Resource cleanup, temp dir management
 │   ├── ClaudeCodeControl.Interop.cs     # Win32 API declarations (P/Invoke)
 │   ├── ClaudeCodeControl.Theme.cs       # Dark/light theme support
@@ -66,6 +70,9 @@ ClaudeCodeExtension/
 │   ├── ClaudeCodeModels.cs              # Enums & settings class
 │   ├── ClaudeCodeExtensionPackage.cs    # VS package registration
 │   └── SolutionEventsHandler.cs         # Solution/project open events
+├── Publishing:
+│   ├── publish.cmd                      # Automated marketplace deployment script
+│   └── publishManifest.json             # VS Marketplace metadata
 ```
 
 ---
@@ -98,6 +105,7 @@ ClaudeCodeExtension/
 
 - **Two terminal modes**: Command Prompt (conhost) and Windows Terminal (wt.exe), via `_settings.SelectedTerminalType`
 - **Lifecycle serialization**: `_terminalLifecycleSemaphore` prevents overlapping start/stop transitions
+- **Session ID tracking**: `_terminalStartupSessionId` discards stale startup work when a new terminal start is triggered before the old one finishes
 - **`SetParent()` retry**: Up to 3 attempts with 200ms delay and Win32 error logging (`Marshal.GetLastWin32Error()`), re-applies window styles between retries
 - **Conhost handle discovery**: `FindMainWindowHandleByConhostAsync()` retries with 5s then 10s timeouts; uses ToolHelp32 (`CreateToolhelp32Snapshot`) for child PID lookup
 - **WT embedding**: Finds `CASCADIA_HOSTING_WINDOW_CLASS`, embeds with `WS_CHILD`, calculates tab bar height offset
@@ -105,6 +113,7 @@ ClaudeCodeExtension/
 - **F5 forwarding**: Low-level keyboard hook (`WH_KEYBOARD_LL`) intercepts F5/Ctrl+F5/Shift+F5 → VS debug commands via DTE
 - **Mouse hook** (`WH_MOUSE_LL`): Tracks Ctrl+Scroll zoom delta (persisted); converts plain left-drag to SHIFT+drag for WT text selection
 - **Post-startup**: `SchedulePostStartupTerminalAdjustments()` runs deferred resize + zoom replay; `SchedulePostSolutionLoadTerminalRefresh()` does 200/500/1000ms repaint passes after solution load
+- **Fresh PATH from registry**: `GetFreshPathFromRegistry()` reads PATH from `HKLM` and `HKCU` registry keys to detect newly installed tools (e.g. Windows Terminal) without requiring VS restart
 
 **Command patterns**:
 ```
@@ -114,13 +123,30 @@ WSL:     cmd.exe /k chcp 65001 >nul && cls && wsl bash -lic "cd {wslPath} && {co
 
 **WSL path conversion** (`ConvertToWslPath()`): `\\wsl.localhost\distro\path` → `/path`, `C:\...` → `/mnt/c/...`
 
+**WSL shell mode**: Uses `bash -lic` (login + interactive) to load `.profile`/`.bash_profile` PATH entries — applies to all WSL providers (Claude Code WSL, Codex WSL, Cursor Agent WSL, Windsurf)
+
 ### Provider Detection (ProviderManagement.cs)
 
-- **Caching**: `_providerCache` with 5-min TTL
-- **WSL detection**: `bash -lc` (login shell) for `which` commands — avoids `.bashrc` noise; retries 2× with 8s/20s timeouts for cold boot
+- **Caching**: `_providerCache` with 5-min TTL, separate `_wslCache` for WSL installation status
+- **Thread-safe cache**: `_cacheLock` object for synchronized access; `IsCacheValid()` checks timestamp expiry
+- **Claude Code detection**: Two-tier — first checks native path (`%USERPROFILE%\.local\bin\claude.exe`), then falls back to `where claude` (PATHEXT-aware, finds both `claude.exe` from winget and `claude.cmd` from NPM)
+- **WSL detection**: `bash -lc` (login shell) for `which` commands — avoids `.bashrc` noise; retries 2x with 8s/20s timeouts for cold boot
 - **Early-exit logic**: Only stops retrying when stdout has content (ignores stderr-only shell warnings)
-- **Notification flags**: Static booleans ensure install pop-ups show only once per VS session
+- **Notification flags**: Static booleans (one per provider) ensure install pop-ups show only once per VS session
 - **Model menus**: `ModelContextMenu_Opened()` toggles Claude items vs Windsurf items based on active provider
+
+### Caveman Plugin (ProviderManagement.cs)
+
+- **Not a standalone provider** — a Claude Code plugin (JuliusBrussee/caveman) for ultra-compressed communication
+- **Menu item**: "Install Caveman" in the model context menu, visible only when Claude Code or Claude Code (WSL) is running
+- **Installation flow**: Sends sequential `/plugin` slash commands into the active Claude Code session with timed delays:
+  1. `/plugin marketplace add JuliusBrussee/caveman` (7s wait)
+  2. `/plugin install caveman@caveman --scope user` (4s wait)
+  3. Enter key to confirm trust prompts (1.5s wait)
+  4. `/reload-plugins` (3s wait)
+  5. `/caveman` (2s wait)
+  6. `yes` to confirm activation
+- **Confirmation dialog**: Shows all commands that will be sent before execution
 
 ### Terminal I/O (TerminalIO.cs)
 
@@ -132,6 +158,7 @@ WSL:     cmd.exe /k chcp 65001 >nul && cls && wsl bash -lic "cd {wslPath} && {co
 
 - **`_isInitializing` guard**: Prevents `SaveSettings()` during `LoadSettings()`
 - **`[JsonExtensionData]`**: Preserves unknown JSON properties across DLL versions
+- **Layout inversion**: `ApplyLayout()` swaps prompt and terminal grid rows, adjusts MinHeights (Terminal 150px, Prompt 80px), hides/shows terminal GroupBox header, reorders prompt section controls
 
 ### Workspace (Workspace.cs)
 
@@ -153,7 +180,7 @@ enum EffortLevel { Auto, Low, Medium, High, Max }
 enum TerminalType { CommandPrompt, WindowsTerminal }
 ```
 
-Key settings: `SendWithEnter`, `SplitterPosition` (236px default), `SelectedProvider`, `SelectedClaudeModel`, `SelectedWindsurfModel`, `PromptHistory` (max 50), `AutoOpenChangesOnPrompt`, `ClaudeDangerouslySkipPermissions`, `CodexFullAuto`, `WindsurfDangerousMode`, `SelectedEffortLevel`, `CustomWorkingDirectory`, `SelectedTerminalType`, `IsTerminalDetached`, `PromptFontSize` (8–24pt), `TerminalZoomDelta`
+Key settings: `SendWithEnter`, `SplitterPosition` (236px default), `SelectedProvider`, `SelectedClaudeModel`, `SelectedWindsurfModel`, `PromptHistory` (max 50), `AutoOpenChangesOnPrompt`, `ClaudeDangerouslySkipPermissions`, `CodexFullAuto`, `WindsurfDangerousMode`, `SelectedEffortLevel`, `CustomWorkingDirectory`, `SelectedTerminalType`, `IsTerminalDetached`, `PromptFontSize` (8–24pt), `TerminalZoomDelta`, `InvertLayout`
 
 ---
 
@@ -170,6 +197,8 @@ Key settings: `SendWithEnter`, `SplitterPosition` (236px default), `SelectedProv
 | Qwen Code | `QwenCode` | Windows | `qwen` | `/quit` |
 | Open Code | `OpenCode` | Windows | `opencode` | `exit` |
 | Windsurf (WSL) | `Windsurf` | WSL | `devin` | `exit` |
+
+**Plugin**: Caveman (JuliusBrussee/caveman) — installable into Claude Code sessions via model menu
 
 ---
 
