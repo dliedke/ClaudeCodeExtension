@@ -566,7 +566,6 @@ namespace ClaudeCodeVS
 
                 bool isCodexNative = _currentRunningProvider == AiProvider.CodexNative;
 
-                bool isQwenCode = _currentRunningProvider == AiProvider.QwenCode;
                 bool isOpenCode = _currentRunningProvider == AiProvider.OpenCode;
 
                 // Check if Windows Terminal is active (tab bar height > 0)
@@ -591,11 +590,6 @@ namespace ClaudeCodeVS
                 {
                     // For other WSL-based providers (Codex, CursorAgent), use KEYDOWN/KEYUP approach
                     SendEnterKeyDownUp();
-                }
-                else if (isQwenCode)
-                {
-                    // For Qwen Code, use single WM_CHAR (similar to Claude Code)
-                    PostMessage(terminalHandle, WM_CHAR, new IntPtr(VK_RETURN), IntPtr.Zero);
                 }
                 else if (isOpenCode)
                 {

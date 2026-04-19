@@ -1,6 +1,6 @@
 # Claude Code Extension for Visual Studio
 
-A Visual Studio extension that provides seamless integration with Claude Code, OpenAI Codex, Cursor Agent, Qwen Code, Open Code or Windsurf directly within the Visual Studio IDE.
+A Visual Studio extension that provides seamless integration with Claude Code, OpenAI Codex, Cursor Agent, Open Code or Windsurf directly within the Visual Studio IDE.
 
 <center>
 <img src="https://i.ibb.co/mFcsh3nt/BFB9-B830-8122-4091-9-C8-B-869959-B1-B391.png" alt="Claude Code Extension Screenshot" width=350 height=450 />
@@ -26,7 +26,6 @@ Any feedback, suggestions, or contributions are also very welcome - feel free to
 - **OpenAI Codex (WSL)**: Support for Codex AI assistant running inside WSL
 - **Cursor Agent**: Support for Cursor Agent CLI integration (Windows native)
 - **Cursor Agent (WSL)**: Support for Cursor Agent running inside WSL
-- **Qwen Code**: Support for Qwen Code AI assistant (requires Node.js 20+)
 - **Open Code**: Support for Open Code AI assistant (requires Node.js 14+)
 - **Windsurf (WSL)**: Support for Windsurf (devin) running inside WSL
 - **Provider Switching**: Easy dropdown menu to switch between providers
@@ -110,8 +109,6 @@ Any feedback, suggestions, or contributions are also very welcome - feel free to
   Installation instructions are provided automatically if not installed
 - **For Cursor Agent (WSL)**: Windows Subsystem for Linux (WSL) + Cursor Agent installed inside WSL
   Installation instructions are provided automatically if not installed
-- **For Qwen Code**: Node.js version 20 or higher + Qwen Code CLI installed and accessible via `qwen` in path.
-  Installation instructions are provided automatically if not installed
 - **For Open Code**: Node.js version 14 or higher + Open Code CLI installed and accessible via `opencode` in path.
   Installation instructions are provided automatically if not installed
 - **For Windsurf (WSL)**: Windows Subsystem for Linux (WSL) + Windsurf Paid Plan (devin) CLI installed inside WSL
@@ -143,9 +140,9 @@ Open Windows Settings, search for "Terminal settings", and set the Terminal opti
 
 ## Quick Start
 
-- **First-Time Setup**: Verify that your preferred AI provider (Claude Code, Claude Code WSL, OpenAI Codex, Cursor Agent, Cursor Agent WSL, Qwen Code, Open Code, or Windsurf) is installed and accessible
+- **First-Time Setup**: Verify that your preferred AI provider (Claude Code, Claude Code WSL, OpenAI Codex, Cursor Agent, Cursor Agent WSL, Open Code, or Windsurf) is installed and accessible
 - **Open the Tool Window**: View → Other Windows → Claude Code Extension
-- **Select an AI Provider**: Click the ⚙ (gear) button and choose among Claude Code, Claude Code (WSL), Codex, Cursor Agent, Cursor Agent (WSL), Qwen Code, Open Code, or Windsurf (WSL)
+- **Select an AI Provider**: Click the ⚙ (gear) button and choose among Claude Code, Claude Code (WSL), Codex, Cursor Agent, Cursor Agent (WSL), Open Code, or Windsurf (WSL)
 - **Connect to Provider**: If you use Open Code, press **Ctrl+P**, search for "connect providers", and complete the authentication flow
 - **Select a Claude Model**: Click the 🤖 (robot) button to choose Opus, Sonnet, or Haiku (available only when Claude Code is selected)
 - **Start a Session**: Enter your prompt and press Enter
@@ -178,7 +175,6 @@ Open Windows Settings, search for "Terminal settings", and set the Terminal opti
 - **Cursor Agent**: Switch to Cursor Agent CLI integration (Windows native)
 - **Cursor Agent (WSL)**: Switch to Cursor Agent (runs inside WSL)
 - **Open Code**: Switch to Open Code AI assistant (Windows)
-- **Qwen Code**: Switch to Qwen Code AI assistant (requires Node.js 20+)
 - **Windsurf (WSL)**: Switch to Windsurf (devin) running inside WSL
 - **Auto-open Changes on Send**: (Git projects only) Automatically opens the Changes view, expands all files, and enables auto-scroll when you send a prompt - perfect for watching the AI work in real-time
 - **Claude Code: Skip Permissions**: (Claude providers only) Starts Claude Code with `--dangerously-skip-permissions`, saves the preference, and reloads Claude Code immediately when changed
@@ -211,12 +207,19 @@ The extension includes an Update Agent button (🔄️) that updates your select
 - **Cursor Agent (Windows)**: Exits the agent and runs `agent update`
 - **Cursor Agent (WSL)**: Exits the agent and runs `cursor-agent update` inside WSL
 - **Open Code**: Exits the agent and runs `npm i -g opencode-ai`
-- **Qwen Code**: Exits the agent (using /quit command) and runs `npm install -g @qwen-code/qwen-code@latest` to update
 - **Windsurf (WSL)**: Exits the agent and runs `devin update` inside WSL
 
-Click the update button and the extension will handle the update process. Agents use the appropriate exit methods before updating (exit command for most, double CTRL+C for Codex, /quit command for Qwen Code).
+Click the update button and the extension will handle the update process. Agents use the appropriate exit methods before updating (exit command for most, double CTRL+C for Codex).
 
 ## Version History
+
+### Version 10.12
+- **Qwen Code provider removed**: Qwen Code is no longer bundled as a provider option. The `AiProvider` enum now uses explicit ordinals and skips `6` (the retired `QwenCode` value) so existing user settings that still reference it fall back to `ClaudeCode` cleanly via a defensive `Enum.IsDefined` guard in `LoadSettings`. Menu entry, availability detection, install instructions, Enter-key branch, workspace-change handler, detach label, and update flow for Qwen Code have all been removed.
+- **Terminal row minimum reduced to 20px**: The MainGrid terminal row `MinHeight` dropped from 60px to 20px (both normal and inverted layouts), allowing the splitter to travel further down so the prompt area can grow larger.
+
+### Version 10.11
+- **Cursor Agent: Yolo Mode menu option**: Added "Cursor Agent: Yolo Mode" toggle in the model context menu. When enabled, Cursor Agent (Windows native) and Cursor Agent (WSL) start with `--yolo` to skip all approvals, mirroring the Claude Code skip-permissions and Codex approval-never toggles. Setting persists as `CursorAgentAutoRun` and triggers an immediate terminal restart so the flag takes effect.
+- **Splitter reach & boundary fix**: Prompt section now has a live `MaxHeight` cap tied to the control's rendered height minus the splitter and the bottom row's `MinHeight`. Previously, dragging the splitter down (or loading a large saved `SplitterPosition` into a smaller tool window) could push the splitter handle and terminal entirely out of view. Also lowered the terminal row `MinHeight` from 150px to 60px so the splitter can travel further down and the prompt area can grow larger.
 
 ### Version 10.10
 - **Install Caveman menu option**: Added "Install Caveman" entry in the model menu (after "Set Language") for Claude Code and Claude Code (WSL). Triggers `/plugin marketplace add JuliusBrussee/caveman`, `/plugin install caveman@caveman`, `/reload-plugins`, and `/caveman` inside the running Claude session to install the [Caveman](https://github.com/JuliusBrussee/caveman) ultra-compressed communication plugin.
@@ -734,7 +737,6 @@ This extension is provided free of charge under the MIT License.
   - [Anthropic/Claude Code](https://code.claude.com/docs/en/data-usage)
   - [OpenAI/Codex](https://platform.openai.com/docs/guides/your-data)
   - [Cursor](https://cursor.com/privacy)
-  - [Qwen Code](https://qwen.ai/privacypolicy)
   - [Open Code](https://opencode.ai/legal/privacy-policy)
 - **No Third-Party Access**: Data is only accessible to the configured model provider
 

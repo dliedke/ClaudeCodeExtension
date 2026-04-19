@@ -145,7 +145,6 @@ namespace ClaudeCodeVS
                 bool useCodexNative = _settings?.SelectedProvider == AiProvider.CodexNative;
                 bool useCursorAgent = _settings?.SelectedProvider == AiProvider.CursorAgent;
                 bool useCursorAgentNative = _settings?.SelectedProvider == AiProvider.CursorAgentNative;
-                bool useQwenCode = _settings?.SelectedProvider == AiProvider.QwenCode;
                 bool useOpenCode = _settings?.SelectedProvider == AiProvider.OpenCode;
                 bool useWindsurf = _settings?.SelectedProvider == AiProvider.Windsurf;
                 bool providerAvailable = false;
@@ -174,10 +173,6 @@ namespace ClaudeCodeVS
                 else if (useClaudeCodeWSL)
                 {
                     providerAvailable = await IsClaudeCodeWSLAvailableAsync();
-                }
-                else if (useQwenCode)
-                {
-                    providerAvailable = await IsQwenCodeAvailableAsync();
                 }
                 else if (useOpenCode)
                 {
@@ -317,22 +312,6 @@ namespace ClaudeCodeVS
                         {
                             _claudeCodeWSLNotificationShown = true;
                             ShowClaudeCodeWSLInstallationInstructions();
-                        }
-                        await StartEmbeddedTerminalAsync(null); // Regular CMD
-                    }
-                }
-                else if (useQwenCode)
-                {
-                    if (providerAvailable)
-                    {
-                        await StartEmbeddedTerminalAsync(AiProvider.QwenCode);
-                    }
-                    else
-                    {
-                        if (!_qwenCodeNotificationShown)
-                        {
-                            _qwenCodeNotificationShown = true;
-                            ShowQwenCodeInstallationInstructions();
                         }
                         await StartEmbeddedTerminalAsync(null); // Regular CMD
                     }
@@ -783,7 +762,8 @@ namespace ClaudeCodeVS
 
                         case AiProvider.CursorAgent:
                             string wslPathCursor = ConvertToWslPath(workspaceDir);
-                            cmdCommand = $"/k chcp 65001 >nul && cls && wsl bash -lic \"cd '{wslPathCursor}' && cursor-agent\"";
+                            string cursorAgentWslCommand = GetCursorAgentWslCommand();
+                            cmdCommand = $"/k chcp 65001 >nul && cls && wsl bash -lic \"cd '{wslPathCursor}' && {cursorAgentWslCommand}\"";
                             break;
 
                         case AiProvider.CodexNative:
@@ -806,10 +786,6 @@ namespace ClaudeCodeVS
                         case AiProvider.ClaudeCode:
                             string claudeCommand = GetClaudeCommand();
                             cmdCommand = $"/k chcp 65001 >nul && cd /d \"{workspaceDir}\" && ping localhost -n 3 >nul && cls && {claudeCommand}";
-                            break;
-
-                        case AiProvider.QwenCode:
-                            cmdCommand = $"/k chcp 65001 >nul && cd /d \"{workspaceDir}\" && ping localhost -n 3 >nul && cls && qwen";
                             break;
 
                         case AiProvider.OpenCode:
@@ -958,7 +934,8 @@ namespace ClaudeCodeVS
 
                         case AiProvider.CursorAgent:
                             string wslPathCursor = ConvertToWslPath(workspaceDir);
-                            terminalCommand = $"/k chcp 65001 >nul && cls && wsl bash -lic \"cd '{wslPathCursor}' && cursor-agent\"";
+                            string cursorAgentWslCommand = GetCursorAgentWslCommand();
+                            terminalCommand = $"/k chcp 65001 >nul && cls && wsl bash -lic \"cd '{wslPathCursor}' && {cursorAgentWslCommand}\"";
                             break;
 
                         case AiProvider.CodexNative:
@@ -981,10 +958,6 @@ namespace ClaudeCodeVS
                         case AiProvider.ClaudeCode:
                             string claudeCommand = GetClaudeCommand();
                             terminalCommand = $"/k chcp 65001 >nul && cd /d \"{workspaceDir}\" && ping localhost -n 3 >nul && cls && {claudeCommand}";
-                            break;
-
-                        case AiProvider.QwenCode:
-                            terminalCommand = $"/k chcp 65001 >nul && cd /d \"{workspaceDir}\" && ping localhost -n 3 >nul && cls && qwen";
                             break;
 
                         case AiProvider.OpenCode:
@@ -1122,9 +1095,6 @@ namespace ClaudeCodeVS
                                     break;
                                 case AiProvider.ClaudeCode:
                                     providerTitle = "Claude Code";
-                                    break;
-                                case AiProvider.QwenCode:
-                                    providerTitle = "Qwen Code";
                                     break;
                                 case AiProvider.OpenCode:
                                     providerTitle = "Open Code";
@@ -1987,13 +1957,6 @@ namespace ClaudeCodeVS
                         await SendTextToTerminalAsync("claude update");
                         break;
 
-                    case AiProvider.QwenCode:
-                        // Qwen Code: send /quit command to exit
-                        await SendTextToTerminalAsync("/quit");
-                        await Task.Delay(1000); // Reduced from 1500ms
-                        await SendTextToTerminalAsync("npm install -g @qwen-code/qwen-code@latest");
-                        break;
-
                     case AiProvider.OpenCode:
                         // Open Code: send exit command
                         await SendTextToTerminalAsync("exit");
@@ -2166,10 +2129,6 @@ namespace ClaudeCodeVS
 
                 case AiProvider.ClaudeCode:
                     providerAvailable = await IsClaudeCmdAvailableAsync();
-                    break;
-
-                case AiProvider.QwenCode:
-                    providerAvailable = await IsQwenCodeAvailableAsync();
                     break;
 
                 case AiProvider.OpenCode:
@@ -2380,7 +2339,8 @@ namespace ClaudeCodeVS
 
         /// <summary>
         /// Gets the appropriate Cursor Agent command to use (native Windows)
-        /// Prioritizes installation at %LOCALAPPDATA%\cursor-agent\agent.cmd, falls back to agent in PATH
+        /// Prioritizes installation at %LOCALAPPDATA%\cursor-agent\agent.cmd, falls back to agent in PATH.
+        /// Appends --yolo when the CursorAgentAutoRun setting is enabled.
         /// </summary>
         /// <returns>The agent command to execute</returns>
         private string GetCursorAgentCommand()
@@ -2389,14 +2349,31 @@ namespace ClaudeCodeVS
             string localAppData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
             string nativeAgentPath = Path.Combine(localAppData, "cursor-agent", "agent.cmd");
 
-            if (File.Exists(nativeAgentPath))
+            string baseCommand = File.Exists(nativeAgentPath) ? $"\"{nativeAgentPath}\"" : "agent";
+
+            if (_settings?.CursorAgentAutoRun == true)
             {
-                return $"\"{nativeAgentPath}\"";
+                return $"{baseCommand} --yolo";
             }
 
-            // Fall back to PATH installation (agent.cmd)
-            return "agent";
+            return baseCommand;
         }
+
+        /// <summary>
+        /// Gets the appropriate Cursor Agent command to use inside WSL.
+        /// Appends --yolo when the CursorAgentAutoRun setting is enabled.
+        /// </summary>
+        /// <returns>The cursor-agent command to execute in WSL</returns>
+        private string GetCursorAgentWslCommand()
+        {
+            if (_settings?.CursorAgentAutoRun == true)
+            {
+                return "cursor-agent --yolo";
+            }
+
+            return "cursor-agent";
+        }
+
 
         #endregion
     }

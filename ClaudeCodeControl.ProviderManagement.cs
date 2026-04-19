@@ -55,11 +55,6 @@ namespace ClaudeCodeVS
         private static bool _cursorAgentNativeNotificationShown = false;
 
         /// <summary>
-        /// Flag to show Qwen Code installation notification only once per session
-        /// </summary>
-        private static bool _qwenCodeNotificationShown = false;
-
-        /// <summary>
         /// Flag to show Open Code installation notification only once per session
         /// </summary>
         private static bool _openCodeNotificationShown = false;
@@ -895,69 +890,6 @@ namespace ClaudeCodeVS
         }
 
         /// <summary>
-        /// Checks if Qwen Code CLI is available (native or NPM installation)
-        /// Prioritizes NPM installation (qwen in PATH) but also checks for other possible installations
-        /// Uses caching to avoid repeated slow checks
-        /// </summary>
-        /// <param name="cancellationToken">Optional cancellation token</param>
-        /// <returns>True if qwen is available, false otherwise</returns>
-        private async Task<bool> IsQwenCodeAvailableAsync(CancellationToken cancellationToken = default)
-        {
-            // Check cache first
-            lock (_cacheLock)
-            {
-                if (_providerCache.TryGetValue(AiProvider.QwenCode, out var cached) && IsCacheValid(cached))
-                {
-                    return cached.IsAvailable;
-                }
-            }
-
-            try
-            {
-                var startInfo = new ProcessStartInfo
-                {
-                    FileName = "cmd.exe",
-                    Arguments = "/c where qwen",
-                    UseShellExecute = false,
-                    RedirectStandardOutput = true,
-                    RedirectStandardError = true,
-                    CreateNoWindow = true
-                };
-
-                using (var process = Process.Start(startInfo))
-                {
-                    var completed = await WaitForProcessExitAsync(process, 3000, cancellationToken);
-
-                    if (!completed)
-                    {
-                        try { process.Kill(); } catch { }
-                        CacheProviderResult(AiProvider.QwenCode, false);
-                        return false;
-                    }
-
-                    string output = await process.StandardOutput.ReadToEndAsync();
-                    string error = await process.StandardError.ReadToEndAsync();
-
-
-                    bool isAvailable = process.ExitCode == 0 && !string.IsNullOrWhiteSpace(output);
-
-                    CacheProviderResult(AiProvider.QwenCode, isAvailable);
-                    return isAvailable;
-                }
-            }
-            catch (OperationCanceledException)
-            {
-                throw;
-            }
-            catch (Exception ex)
-            {
-                Debug.WriteLine($"Error checking for Qwen Code: {ex.Message}");
-                CacheProviderResult(AiProvider.QwenCode, false);
-                return false;
-            }
-        }
-
-        /// <summary>
         /// Checks if Open Code CLI is available (NPM installation)
         /// Uses 'where opencode' to check if opencode is in PATH
         /// Uses caching to avoid repeated slow checks
@@ -1276,37 +1208,6 @@ For more details, visit: https://cursor.com";
         }
 
         /// <summary>
-        /// Shows installation instructions for Qwen Code CLI
-        /// </summary>
-        private void ShowQwenCodeInstallationInstructions()
-        {
-            const string instructions = @"Qwen Code is not installed. A regular CMD terminal will be used instead.
-
-(you may click CTRL+C to copy full instructions)
-
-INSTALLATION: NPM Installation (Recommended)
-
-Open cmd and run:
-
-npm install -g @qwen-code/qwen-code@latest
-
-Alternatively, you can install from source:
-
-git clone https://github.com/QwenLM/qwen-code.git
-cd qwen-code
-npm install
-npm install -g .
-
-Requirements:
-- Node.js version 20 or higher
-
-For more details, visit: https://github.com/QwenLM/qwen-code";
-
-            MessageBox.Show(instructions, "Qwen Code Installation",
-                          MessageBoxButton.OK, MessageBoxImage.Information);
-        }
-
-        /// <summary>
         /// Shows installation instructions for Open Code CLI
         /// </summary>
         private void ShowOpenCodeInstallationInstructions()
@@ -1366,34 +1267,6 @@ devin";
         #endregion
 
         #region Provider Switching
-
-        /// <summary>
-        /// Handles Qwen Code menu item click - switches to Qwen Code provider
-        /// </summary>
-#pragma warning disable VSTHRD100 // async void is acceptable for event handlers
-        private async void QwenCodeMenuItem_Click(object sender, RoutedEventArgs e)
-#pragma warning restore VSTHRD100
-        {
-            if (_settings == null) return;
-
-            bool qwenCodeAvailable = await IsQwenCodeAvailableAsync();
-            await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
-
-            // Always update the selection regardless of availability
-            _settings.SelectedProvider = AiProvider.QwenCode;
-            UpdateProviderSelection();
-            SaveSettings();
-
-            if (!qwenCodeAvailable)
-            {
-                ShowQwenCodeInstallationInstructions();
-                await StartEmbeddedTerminalAsync(null); // Regular CMD
-            }
-            else
-            {
-                await StartEmbeddedTerminalAsync(AiProvider.QwenCode);
-            }
-        }
 
         /// <summary>
         /// Handles Open Code menu item click - switches to Open Code provider
@@ -1649,7 +1522,6 @@ devin";
             CodexMenuItem.IsChecked = _settings.SelectedProvider == AiProvider.Codex;
             CursorAgentNativeMenuItem.IsChecked = _settings.SelectedProvider == AiProvider.CursorAgentNative;
             CursorAgentMenuItem.IsChecked = _settings.SelectedProvider == AiProvider.CursorAgent;
-            QwenCodeMenuItem.IsChecked = _settings.SelectedProvider == AiProvider.QwenCode;
             OpenCodeMenuItem.IsChecked = _settings.SelectedProvider == AiProvider.OpenCode;
             WindsurfMenuItem.IsChecked = _settings.SelectedProvider == AiProvider.Windsurf;
 
@@ -1660,7 +1532,6 @@ devin";
                                   _settings.SelectedProvider == AiProvider.Codex ? "Codex" :
                                   _settings.SelectedProvider == AiProvider.CursorAgentNative ? "Cursor Agent" :
                                   _settings.SelectedProvider == AiProvider.CursorAgent ? "Cursor Agent" :
-                                  _settings.SelectedProvider == AiProvider.QwenCode ? "Qwen Code" :
                                   _settings.SelectedProvider == AiProvider.OpenCode ? "Open Code" :
                                   _settings.SelectedProvider == AiProvider.Windsurf ? "Windsurf" :
                                   "Claude Code";
@@ -1899,7 +1770,7 @@ devin";
                                 $"Version: {version}\n" +
                                 $"Author: Daniel Carvalho Liedke\n" +
                                 $"Copyright © Daniel Carvalho Liedke 2026\n\n" +
-                                $"Provides seamless integration with Claude Code, Codex, Cursor Agent, Qwen Code and Open Code AI assistants directly within Visual Studio 2022/2026 IDE.";
+                                $"Provides seamless integration with Claude Code, Codex, Cursor Agent, and Open Code AI assistants directly within Visual Studio 2022/2026 IDE.";
 
             MessageBox.Show(aboutMessage, "About Claude Code Extension",
                           MessageBoxButton.OK, MessageBoxImage.Information);
@@ -2442,13 +2313,17 @@ devin";
             bool isCodexProvider = _settings != null &&
                                    (_settings.SelectedProvider == AiProvider.Codex ||
                                     _settings.SelectedProvider == AiProvider.CodexNative);
+            bool isCursorAgentProvider = _settings != null &&
+                                         (_settings.SelectedProvider == AiProvider.CursorAgent ||
+                                          _settings.SelectedProvider == AiProvider.CursorAgentNative);
             bool isWindsurfProvider = _settings != null &&
                                      _settings.SelectedProvider == AiProvider.Windsurf;
 
-            AutoOpenChangesSeparator.Visibility = (isInGitRepo || isClaudeProvider || isWindsurfProvider) ? Visibility.Visible : Visibility.Collapsed;
+            AutoOpenChangesSeparator.Visibility = (isInGitRepo || isClaudeProvider || isCodexProvider || isCursorAgentProvider || isWindsurfProvider) ? Visibility.Visible : Visibility.Collapsed;
             AutoOpenChangesMenuItem.Visibility = isInGitRepo ? Visibility.Visible : Visibility.Collapsed;
             ClaudeDangerouslySkipPermissionsMenuItem.Visibility = isClaudeProvider ? Visibility.Visible : Visibility.Collapsed;
             CodexFullAutoMenuItem.Visibility = isCodexProvider ? Visibility.Visible : Visibility.Collapsed;
+            CursorAgentAutoRunMenuItem.Visibility = isCursorAgentProvider ? Visibility.Visible : Visibility.Collapsed;
             WindsurfDangerousModeMenuItem.Visibility = isWindsurfProvider ? Visibility.Visible : Visibility.Collapsed;
 
             // Update checkbox state from settings
@@ -2457,6 +2332,7 @@ devin";
                 AutoOpenChangesMenuItem.IsChecked = _settings.AutoOpenChangesOnPrompt;
                 ClaudeDangerouslySkipPermissionsMenuItem.IsChecked = _settings.ClaudeDangerouslySkipPermissions;
                 CodexFullAutoMenuItem.IsChecked = _settings.CodexFullAuto;
+                CursorAgentAutoRunMenuItem.IsChecked = _settings.CursorAgentAutoRun;
                 WindsurfDangerousModeMenuItem.IsChecked = _settings.WindsurfDangerousMode;
 
                 // Update working directory menu item to show current value, with red text if path doesn't exist
@@ -2580,6 +2456,37 @@ devin";
                     Debug.WriteLine($"Error reloading Codex after full auto change: {ex.Message}");
                     await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
                     MessageBox.Show($"Failed to reload Codex: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                }
+            }
+        }
+
+        /// <summary>
+        /// Handles Cursor Agent auto-run menu item click
+        /// </summary>
+#pragma warning disable VSTHRD100 // async void is acceptable for event handlers
+        private async void CursorAgentAutoRunMenuItem_Click(object sender, RoutedEventArgs e)
+#pragma warning restore VSTHRD100
+        {
+            await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
+
+            if (_settings == null) return;
+
+            _settings.CursorAgentAutoRun = CursorAgentAutoRunMenuItem.IsChecked;
+            SaveSettings();
+
+            // Reload Cursor Agent terminal immediately so the new startup flag is applied.
+            if (_settings.SelectedProvider == AiProvider.CursorAgent ||
+                _settings.SelectedProvider == AiProvider.CursorAgentNative)
+            {
+                try
+                {
+                    await RestartTerminalWithSelectedProviderAsync();
+                }
+                catch (Exception ex)
+                {
+                    Debug.WriteLine($"Error reloading Cursor Agent after auto-run change: {ex.Message}");
+                    await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
+                    MessageBox.Show($"Failed to reload Cursor Agent: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
                 }
             }
         }

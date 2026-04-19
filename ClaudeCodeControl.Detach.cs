@@ -471,8 +471,6 @@ namespace ClaudeCodeVS
                 case AiProvider.CursorAgentNative:
                 case AiProvider.CursorAgent:
                     return "Cursor Agent";
-                case AiProvider.QwenCode:
-                    return "Qwen Code";
                 case AiProvider.OpenCode:
                     return "Open Code";
                 case AiProvider.Windsurf:

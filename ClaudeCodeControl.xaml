@@ -130,7 +130,7 @@
 		<Grid.RowDefinitions>
 			<RowDefinition Height="*" MinHeight="80"/>
 			<RowDefinition Height="4"/>
-			<RowDefinition Height="2*" MinHeight="150"/>
+			<RowDefinition Height="2*" MinHeight="20"/>
 		</Grid.RowDefinitions>
 
 		<!-- Top Section Container (Prompt area) -->
@@ -302,12 +302,12 @@
 								<MenuItem Header="Cursor Agent" x:Name="CursorAgentNativeMenuItem" Click="CursorAgentNativeMenuItem_Click" IsCheckable="True"/>
 								<MenuItem Header="Cursor Agent (WSL)" x:Name="CursorAgentMenuItem" Click="CursorAgentMenuItem_Click" IsCheckable="True"/>
 								<MenuItem Header="Open Code" x:Name="OpenCodeMenuItem" Click="OpenCodeMenuItem_Click" IsCheckable="True"/>
-								<MenuItem Header="Qwen Code" x:Name="QwenCodeMenuItem" Click="QwenCodeMenuItem_Click" IsCheckable="True"/>
 								<MenuItem Header="Windsurf (WSL)" x:Name="WindsurfMenuItem" Click="WindsurfMenuItem_Click" IsCheckable="True"/>
 								<Separator x:Name="AutoOpenChangesSeparator"/>
 								<MenuItem Header="Auto-open Changes on Send" x:Name="AutoOpenChangesMenuItem" Click="AutoOpenChangesMenuItem_Click" IsCheckable="True" ToolTip="Automatically open Changes view, expand files, and enable auto-scroll when a prompt is sent"/>
 								<MenuItem Header="Claude Code: Skip Permissions" x:Name="ClaudeDangerouslySkipPermissionsMenuItem" Click="ClaudeDangerouslySkipPermissionsMenuItem_Click" IsCheckable="True" ToolTip="When enabled, Claude Code starts with --dangerously-skip-permissions"/>
 								<MenuItem Header="Codex: Approval Never" x:Name="CodexFullAutoMenuItem" Click="CodexFullAutoMenuItem_Click" IsCheckable="True" ToolTip="When enabled, Codex starts with --ask-for-approval never"/>
+								<MenuItem Header="Cursor Agent: Yolo Mode" x:Name="CursorAgentAutoRunMenuItem" Click="CursorAgentAutoRunMenuItem_Click" IsCheckable="True" ToolTip="When enabled, Cursor Agent starts with --yolo to skip all approvals"/>
 								<MenuItem Header="Windsurf: Dangerous Mode" x:Name="WindsurfDangerousModeMenuItem" Click="WindsurfDangerousModeMenuItem_Click" IsCheckable="True" ToolTip="When enabled, Windsurf starts with --permission-mode dangerous"/>
 								<Separator/>
 								<MenuItem Header="Invert Layout" x:Name="InvertLayoutMenuItem" Click="InvertLayoutMenuItem_Click" IsCheckable="True" ToolTip="Swap prompt and terminal positions (terminal on top, prompt on bottom)"/>

@@ -283,10 +283,6 @@ namespace ClaudeCodeVS
                             providerAvailable = await IsClaudeCmdAvailableAsync();
                             break;
 
-                        case AiProvider.QwenCode:
-                            providerAvailable = await IsQwenCodeAvailableAsync();
-                            break;
-
                         case AiProvider.OpenCode:
                             providerAvailable = await IsOpenCodeAvailableAsync();
                             break;
@@ -346,13 +342,6 @@ namespace ClaudeCodeVS
                                 {
                                     _claudeNotificationShown = true;
                                     ShowClaudeInstallationInstructions();
-                                }
-                                break;
-                            case AiProvider.QwenCode:
-                                if (!_qwenCodeNotificationShown)
-                                {
-                                    _qwenCodeNotificationShown = true;
-                                    ShowQwenCodeInstallationInstructions();
                                 }
                                 break;
                             case AiProvider.OpenCode:

@@ -13,19 +13,21 @@
 namespace ClaudeCodeVS
 {
     /// <summary>
-    /// AI Provider types supported by the extension
+    /// AI Provider types supported by the extension.
+    /// Explicit ordinals preserve previously-serialized SelectedProvider values
+    /// in user settings across removals (ordinal 6 was QwenCode, now retired).
     /// </summary>
     public enum AiProvider
     {
-        ClaudeCode,
-        ClaudeCodeWSL,
-        Codex,
-        CodexNative,
-        CursorAgent,
-        CursorAgentNative,
-        QwenCode,
-        OpenCode,
-        Windsurf
+        ClaudeCode = 0,
+        ClaudeCodeWSL = 1,
+        Codex = 2,
+        CodexNative = 3,
+        CursorAgent = 4,
+        CursorAgentNative = 5,
+        // 6 = QwenCode (removed in v10.12)
+        OpenCode = 7,
+        Windsurf = 8
     }
 
     /// <summary>
@@ -160,6 +162,12 @@ namespace ClaudeCodeVS
         /// Applies to Windsurf (WSL).
         /// </summary>
         public bool WindsurfDangerousMode { get; set; } = false;
+
+        /// <summary>
+        /// If true, starts Cursor Agent with --yolo to skip all approvals.
+        /// Applies to Cursor Agent (Windows native) and Cursor Agent (WSL).
+        /// </summary>
+        public bool CursorAgentAutoRun { get; set; } = false;
 
         /// <summary>
         /// Currently selected effort level for Claude Code

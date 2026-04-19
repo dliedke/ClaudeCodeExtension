@@ -82,6 +82,7 @@ namespace ClaudeCodeVS
             // Wire up lifecycle events
             Loaded += ClaudeCodeControl_Loaded;
             Unloaded += ClaudeCodeControl_Unloaded;
+            SizeChanged += ClaudeCodeControl_SizeChanged;
         }
 
         #endregion

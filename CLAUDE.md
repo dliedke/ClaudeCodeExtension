@@ -2,11 +2,11 @@
 
 ## Project Overview
 
-**Visual Studio Extension (VSIX)** for VS 2022/2026 — integrates AI code assistants (Claude Code, OpenAI Codex, Cursor Agent, Qwen Code, Open Code, Windsurf) via embedded terminal (Win32 `SetParent` interop).
+**Visual Studio Extension (VSIX)** for VS 2022/2026 — integrates AI code assistants (Claude Code, OpenAI Codex, Cursor Agent, Open Code, Windsurf) via embedded terminal (Win32 `SetParent` interop).
 
 - **Author**: Daniel Carvalho Liedke (dliedke@gmail.com) | **License**: MIT
 - **Repository**: https://github.com/dliedke/ClaudeCodeExtension
-- **Current Version**: 10.10 | **Target Framework**: .NET Framework 4.7.2
+- **Current Version**: 10.12 | **Target Framework**: .NET Framework 4.7.2
 
 ---
 
@@ -152,13 +152,13 @@ WSL:     cmd.exe /k chcp 65001 >nul && cls && wsl bash -lic "cd {wslPath} && {co
 
 - **Paste mechanism**: Saves full clipboard state → sets text → right-clicks terminal center → sends Enter → restores clipboard
 - **Clipboard retry**: Up to 10 retries with 100ms delay for `CLIPBRD_E_CANT_OPEN`
-- **Enter key varies by provider**: `WM_CHAR` (Claude/Qwen/OpenCode), `KEYDOWN/KEYUP` (WSL), double-Enter (Codex)
+- **Enter key varies by provider**: `WM_CHAR` (Claude/OpenCode), `KEYDOWN/KEYUP` (WSL), double-Enter (Codex)
 
 ### Settings (Settings.cs)
 
 - **`_isInitializing` guard**: Prevents `SaveSettings()` during `LoadSettings()`
 - **`[JsonExtensionData]`**: Preserves unknown JSON properties across DLL versions
-- **Layout inversion**: `ApplyLayout()` swaps prompt and terminal grid rows, adjusts MinHeights (Terminal 150px, Prompt 80px), hides/shows terminal GroupBox header, reorders prompt section controls
+- **Layout inversion**: `ApplyLayout()` swaps prompt and terminal grid rows, adjusts MinHeights (Terminal 20px, Prompt 80px), hides/shows terminal GroupBox header, reorders prompt section controls
 
 ### Workspace (Workspace.cs)
 
@@ -173,14 +173,14 @@ Re-parents terminal to/from `DetachedTerminalToolWindow` via `SetParent()`. Auto
 ## Data Models (ClaudeCodeModels.cs)
 
 ```csharp
-enum AiProvider { ClaudeCode, ClaudeCodeWSL, Codex, CodexNative, CursorAgent, CursorAgentNative, QwenCode, OpenCode, Windsurf }
+enum AiProvider { ClaudeCode, ClaudeCodeWSL, Codex, CodexNative, CursorAgent, CursorAgentNative, OpenCode, Windsurf }
 enum ClaudeModel { Opus, Sonnet, Haiku }
 enum WindsurfModel { ClaudeOpus, ClaudeSonnet, Codex, GeminiPro }
 enum EffortLevel { Auto, Low, Medium, High, Max }
 enum TerminalType { CommandPrompt, WindowsTerminal }
 ```
 
-Key settings: `SendWithEnter`, `SplitterPosition` (236px default), `SelectedProvider`, `SelectedClaudeModel`, `SelectedWindsurfModel`, `PromptHistory` (max 50), `AutoOpenChangesOnPrompt`, `ClaudeDangerouslySkipPermissions`, `CodexFullAuto`, `WindsurfDangerousMode`, `SelectedEffortLevel`, `CustomWorkingDirectory`, `SelectedTerminalType`, `IsTerminalDetached`, `PromptFontSize` (8–24pt), `TerminalZoomDelta`, `InvertLayout`
+Key settings: `SendWithEnter`, `SplitterPosition` (236px default), `SelectedProvider`, `SelectedClaudeModel`, `SelectedWindsurfModel`, `PromptHistory` (max 50), `AutoOpenChangesOnPrompt`, `ClaudeDangerouslySkipPermissions`, `CodexFullAuto`, `CursorAgentAutoRun`, `WindsurfDangerousMode`, `SelectedEffortLevel`, `CustomWorkingDirectory`, `SelectedTerminalType`, `IsTerminalDetached`, `PromptFontSize` (8–24pt), `TerminalZoomDelta`, `InvertLayout`
 
 ---
 
@@ -194,7 +194,6 @@ Key settings: `SendWithEnter`, `SplitterPosition` (236px default), `SelectedProv
 | Codex (WSL) | `Codex` | WSL | `codex` | Double CTRL+C |
 | Cursor Agent | `CursorAgentNative` | Windows | `agent.exe` / `agent.cmd` | `exit` |
 | Cursor Agent (WSL) | `CursorAgent` | WSL | `cursor-agent` | `exit` |
-| Qwen Code | `QwenCode` | Windows | `qwen` | `/quit` |
 | Open Code | `OpenCode` | Windows | `opencode` | `exit` |
 | Windsurf (WSL) | `Windsurf` | WSL | `devin` | `exit` |
 
