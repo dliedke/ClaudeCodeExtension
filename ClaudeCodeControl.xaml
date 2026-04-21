@@ -166,6 +166,16 @@
                          PreviewMouseWheel="PromptTextBox_PreviewMouseWheel">
 					<TextBox.ContextMenu>
 						<ContextMenu>
+							<MenuItem Header="Cut" Command="ApplicationCommands.Cut" InputGestureText="Ctrl+X"
+							          CommandTarget="{Binding PlacementTarget, RelativeSource={RelativeSource AncestorType=ContextMenu}}"/>
+							<MenuItem Header="Copy" Command="ApplicationCommands.Copy" InputGestureText="Ctrl+C"
+							          CommandTarget="{Binding PlacementTarget, RelativeSource={RelativeSource AncestorType=ContextMenu}}"/>
+							<MenuItem Header="Paste" Command="ApplicationCommands.Paste" InputGestureText="Ctrl+V"
+							          CommandTarget="{Binding PlacementTarget, RelativeSource={RelativeSource AncestorType=ContextMenu}}"/>
+							<Separator/>
+							<MenuItem Header="Select All" Command="ApplicationCommands.SelectAll" InputGestureText="Ctrl+A"
+							          CommandTarget="{Binding PlacementTarget, RelativeSource={RelativeSource AncestorType=ContextMenu}}"/>
+							<Separator/>
 							<MenuItem Header="Clear Prompt History" Click="ClearPromptHistoryMenuItem_Click"/>
 						</ContextMenu>
 					</TextBox.ContextMenu>

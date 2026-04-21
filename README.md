@@ -213,6 +213,9 @@ Click the update button and the extension will handle the update process. Agents
 
 ## Version History
 
+### Version 10.13
+- **Cut/Copy/Select All added to prompt context menu** (#34): The prompt textbox's context menu previously only exposed "Clear Prompt History", which replaced WPF's default Cut/Copy/Paste entries. Standard Cut, Copy, Paste, and Select All items (bound to `ApplicationCommands`) now appear above the history action, so right-clicking the prompt works like any normal text box.
+
 ### Version 10.12
 - **Qwen Code provider removed**: Qwen Code is no longer bundled as a provider option. The `AiProvider` enum now uses explicit ordinals and skips `6` (the retired `QwenCode` value) so existing user settings that still reference it fall back to `ClaudeCode` cleanly via a defensive `Enum.IsDefined` guard in `LoadSettings`. Menu entry, availability detection, install instructions, Enter-key branch, workspace-change handler, detach label, and update flow for Qwen Code have all been removed.
 - **Terminal row minimum reduced to 20px**: The MainGrid terminal row `MinHeight` dropped from 60px to 20px (both normal and inverted layouts), allowing the splitter to travel further down so the prompt area can grow larger.
