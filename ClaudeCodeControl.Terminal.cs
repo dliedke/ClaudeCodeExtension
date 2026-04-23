@@ -416,7 +416,26 @@ namespace ClaudeCodeVS
             {
                 try
                 {
-                    TryTerminateProcessTree(existingProcess.Id, terminatedProcessIds);
+                    int existingProcessId = 0;
+                    try
+                    {
+                        existingProcessId = existingProcess.Id;
+                    }
+                    catch (InvalidOperationException)
+                    {
+                        // Process already exited
+                    }
+
+                    // Skip killing the launcher tree when it resolves to the shared
+                    // WindowsTerminal.exe host. On Windows 11, the wt.exe App Execution
+                    // Alias can activate the MSIX package such that the launched Process
+                    // maps directly to WindowsTerminal.exe, and tearing down that tree
+                    // would destroy unrelated WT windows (e.g. separate terminals the
+                    // user opened manually).
+                    if (existingProcessId > 0 && !IsWindowsTerminalProcess(existingProcessId))
+                    {
+                        TryTerminateProcessTree(existingProcessId, terminatedProcessIds);
+                    }
                 }
                 catch (Exception ex)
                 {

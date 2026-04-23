@@ -213,6 +213,9 @@ Click the update button and the extension will handle the update process. Agents
 
 ## Version History
 
+### Version 10.14
+- **Fixed: Closing Visual Studio no longer closes unrelated Windows Terminal windows** ([#37](https://github.com/dliedke/ClaudeCodeExtension/issues/37)): When the embedded terminal used Windows Terminal mode, the `wt.exe` App Execution Alias on Windows 11 could activate the MSIX package such that the launched `Process` handle mapped directly to the shared `WindowsTerminal.exe` host. On VS shutdown (or provider switch), the cleanup path unconditionally killed the launcher's process tree, which destroyed every WT window system-wide — including unrelated terminals the user had opened manually. `CleanupResources()` and `StopExistingTerminalAsync()` now detect when the tracked launcher process is `WindowsTerminal.exe` and skip the tree kill; `WM_CLOSE` on the embedded window handle is sufficient to close only our session while leaving other WT windows intact.
+
 ### Version 10.13
 - **Cut/Copy/Select All added to prompt context menu** (#34): The prompt textbox's context menu previously only exposed "Clear Prompt History", which replaced WPF's default Cut/Copy/Paste entries. Standard Cut, Copy, Paste, and Select All items (bound to `ApplicationCommands`) now appear above the history action, so right-clicking the prompt works like any normal text box.
 

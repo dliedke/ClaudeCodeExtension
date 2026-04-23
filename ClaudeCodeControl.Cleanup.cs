@@ -209,11 +209,17 @@ namespace ClaudeCodeVS
 
                 int cmdProcessId = 0;
                 Process cmdProcessRef = cmdProcess;
+                bool isCmdProcessWindowsTerminal = false;
                 if (cmdProcessRef != null)
                 {
                     try
                     {
                         cmdProcessId = cmdProcessRef.Id;
+                        // On Windows 11, the wt.exe App Execution Alias can activate the
+                        // MSIX package such that the launched Process maps directly to the
+                        // shared WindowsTerminal.exe host. Detect this so we do NOT kill
+                        // the tree, which would destroy unrelated WT windows.
+                        isCmdProcessWindowsTerminal = IsWindowsTerminalProcess(cmdProcessId);
                     }
                     catch (InvalidOperationException)
                     {
@@ -235,7 +241,10 @@ namespace ClaudeCodeVS
                     {
                         var terminatedProcessIds = new System.Collections.Generic.HashSet<int>();
 
-                        if (cmdProcessId > 0)
+                        // Skip killing the launcher tree when it resolves to the shared
+                        // WindowsTerminal.exe host — WM_CLOSE (sent above) closes only our
+                        // window and lets WT exit its own child console processes.
+                        if (cmdProcessId > 0 && !isCmdProcessWindowsTerminal)
                         {
                             try
                             {
