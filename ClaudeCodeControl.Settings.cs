@@ -77,9 +77,6 @@ namespace ClaudeCodeVS
                     SaveDefaultSettings();
                 }
 
-                // Apply loaded settings to UI
-                SendWithEnterCheckBox.IsChecked = _settings.SendWithEnter;
-
                 if (_settings.SplitterPosition > 0)
                 {
                     SetSplitterPosition(_settings.SplitterPosition);
@@ -145,9 +142,6 @@ namespace ClaudeCodeVS
 
                 if (_settings == null)
                     _settings = new ClaudeCodeSettings();
-
-                // Update settings from UI
-                _settings.SendWithEnter = SendWithEnterCheckBox.IsChecked == true;
 
                 // Only update splitter position if we can get a valid value (not 0.0)
                 // Skip when terminal is detached because the grid layout is collapsed
@@ -425,16 +419,6 @@ namespace ClaudeCodeVS
         private void ApplyLoadedSettings()
         {
             Microsoft.VisualStudio.Shell.ThreadHelper.ThrowIfNotOnUIThread();
-
-            // Ensure the send button visibility matches the checkbox state
-            if (SendWithEnterCheckBox.IsChecked == true)
-            {
-                SendPromptButton.Visibility = Visibility.Collapsed;
-            }
-            else
-            {
-                SendPromptButton.Visibility = Visibility.Visible;
-            }
 
             // Apply layout inversion if enabled
             ApplyLayout();

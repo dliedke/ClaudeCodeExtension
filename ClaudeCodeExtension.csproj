@@ -57,10 +57,13 @@
     <Compile Include="ClaudeCodeControl.Terminal.cs" />
     <Compile Include="ClaudeCodeControl.TerminalIO.cs" />
     <Compile Include="ClaudeCodeControl.Theme.cs" />
+    <Compile Include="ClaudeCodeControl.Usage.cs" />
     <Compile Include="ClaudeCodeControl.UserInput.cs" />
     <Compile Include="ClaudeCodeControl.Workspace.cs" />
     <Compile Include="ClaudeCodeModels.cs" />
     <Compile Include="ClaudeCodeToolWindow.cs" />
+    <Compile Include="ClaudeUsageControl.xaml.cs" />
+    <Compile Include="ClaudeUsageToolWindow.cs" />
     <Compile Include="DetachedTerminalToolWindow.cs" />
     <Compile Include="DiffViewerToolWindow.cs" />
     <Compile Include="DiffViewerControl.xaml.cs">
@@ -101,6 +104,7 @@
     <PackageReference Include="Microsoft.VSSDK.BuildTools" Version="17.14.2101" NoWarn="NU1604" />
     <PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
     <PackageReference Include="DiffPlex" Version="1.7.2" />
+    <PackageReference Include="Microsoft.Web.WebView2" Version="1.0.3124.44" />
   </ItemGroup>
   <ItemGroup>
     <VSCTCompile Include="ClaudeCodeExtensionPackage.vsct">
@@ -110,6 +114,10 @@
   <ItemGroup>
     <Page Include="ClaudeCodeControl.xaml">
       <Generator>MSBuild:Compile</Generator>
+    </Page>
+    <Page Include="ClaudeUsageControl.xaml">
+      <Generator>MSBuild:Compile</Generator>
+      <SubType>Designer</SubType>
     </Page>
     <Page Include="DiffViewerControl.xaml">
       <Generator>MSBuild:Compile</Generator>

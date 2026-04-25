@@ -70,6 +70,11 @@ namespace ClaudeCodeVS
         {
             ThreadHelper.ThrowIfNotOnUIThread();
             this.Caption = $"{providerName}";
+            if (Frame is IVsWindowFrame windowFrame)
+            {
+                ErrorHandler.ThrowOnFailure(
+                    windowFrame.SetProperty((int)__VSFPROPID.VSFPROPID_Caption, providerName));
+            }
         }
 
         public void InsertCodeSnippet(string code, string filePath, int startLine, int endLine)

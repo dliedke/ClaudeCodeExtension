@@ -138,6 +138,9 @@ namespace ClaudeCodeVS
                 // Cleanup diff tracking
                 CleanupDiffTracking();
 
+                // Dispose hidden usage scraper WebView2
+                DisposeUsageMonitoring();
+
                 // Unsubscribe from theme change events
                 CleanupThemeEvents();
 

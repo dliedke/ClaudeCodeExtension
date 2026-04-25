@@ -129,12 +129,6 @@ namespace ClaudeCodeVS
         public System.Collections.Generic.IDictionary<string, Newtonsoft.Json.Linq.JToken> AdditionalData { get; set; }
 
         /// <summary>
-        /// If true, Enter key sends the prompt (Shift+Enter for newline)
-        /// If false, Enter key creates newline (button click sends prompt)
-        /// </summary>
-        public bool SendWithEnter { get; set; } = true;
-
-        /// <summary>
         /// Saved position of the grid splitter (in pixels)
         /// </summary>
         public double SplitterPosition { get; set; } = 236.0; // Default pixel height for first row
@@ -236,5 +230,63 @@ namespace ClaudeCodeVS
         /// dropdown. Empty list hides the dropdown button entirely.
         /// </summary>
         public System.Collections.Generic.List<CustomCommand> CustomCommands { get; set; } = new System.Collections.Generic.List<CustomCommand>();
+
+        /// <summary>
+        /// Auto-refresh interval (seconds) for the Claude usage tool window's
+        /// embedded WebView2. 0 = manual refresh only.
+        /// </summary>
+        public int UsageAutoRefreshSeconds { get; set; } = 0;
+
+        /// <summary>
+        /// Persisted across sessions: true when the user had the Claude usage
+        /// tool window open at last shutdown. Used to auto-reopen it on the
+        /// next solution load.
+        /// </summary>
+        public bool UsageWindowOpened { get; set; } = false;
+
+        /// <summary>
+        /// If true, the inline mini usage bars are shown in the prompt panel
+        /// when usage data has been successfully scraped. Hidden silently
+        /// when scraping fails or the user is not signed in.
+        /// </summary>
+        public bool ShowInlineUsageBars { get; set; } = true;
+
+        /// <summary>
+        /// Last successfully scraped inline usage payload (JSON serialized
+        /// <see cref="UsageSnapshot"/>). Restored on startup so the bars
+        /// render immediately with stale data while a fresh fetch runs.
+        /// </summary>
+        public string LastUsageJson { get; set; } = "";
+
+        /// <summary>
+        /// Timestamp (UTC ISO 8601) of the last successful usage scrape.
+        /// </summary>
+        public string LastUsageTimestamp { get; set; } = "";
+    }
+
+    /// <summary>
+    /// Inline usage data scraped from claude.ai/settings/usage.
+    /// Labels and reset texts are kept verbatim from the page so the original
+    /// localization (Portuguese, English, etc.) is preserved in the UI.
+    /// </summary>
+    public class UsageSnapshot
+    {
+        /// <summary>"Sessão atual" / "Current session" — verbatim label from claude.ai.</summary>
+        public string SessionLabel { get; set; } = "";
+
+        /// <summary>"Reinicia em 2 h 36 min" / "Resets in ..." — verbatim text from claude.ai.</summary>
+        public string SessionReset { get; set; } = "";
+
+        /// <summary>Session usage percentage (0-100), parsed from aria-valuenow.</summary>
+        public int SessionPercent { get; set; }
+
+        /// <summary>"Todos os modelos" / "All models" — verbatim label from claude.ai.</summary>
+        public string WeeklyLabel { get; set; } = "";
+
+        /// <summary>"Reinicia ter., 20:00" / "Resets ..." — verbatim text from claude.ai.</summary>
+        public string WeeklyReset { get; set; } = "";
+
+        /// <summary>Weekly usage percentage (0-100), parsed from aria-valuenow.</summary>
+        public int WeeklyPercent { get; set; }
     }
 }

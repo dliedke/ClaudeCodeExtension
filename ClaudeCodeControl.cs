@@ -112,6 +112,9 @@ namespace ClaudeCodeVS
                 LoadSettings();
                 ApplyLoadedSettings();
 
+                // Restore cached usage snapshot and start background scrape
+                InitializeUsageMonitoring();
+
                 // Only initialize terminal once - prevent re-initialization on tab switches
                 if (_hasInitialized)
                 {

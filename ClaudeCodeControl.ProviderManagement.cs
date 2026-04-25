@@ -1526,15 +1526,7 @@ devin";
             WindsurfMenuItem.IsChecked = _settings.SelectedProvider == AiProvider.Windsurf;
 
             // Update GroupBox header to show selected provider (not necessarily running yet)
-            string providerName = _settings.SelectedProvider == AiProvider.ClaudeCode ? "Claude Code" :
-                                  _settings.SelectedProvider == AiProvider.ClaudeCodeWSL ? "Claude Code" :
-                                  _settings.SelectedProvider == AiProvider.CodexNative ? "Codex" :
-                                  _settings.SelectedProvider == AiProvider.Codex ? "Codex" :
-                                  _settings.SelectedProvider == AiProvider.CursorAgentNative ? "Cursor Agent" :
-                                  _settings.SelectedProvider == AiProvider.CursorAgent ? "Cursor Agent" :
-                                  _settings.SelectedProvider == AiProvider.OpenCode ? "Open Code" :
-                                  _settings.SelectedProvider == AiProvider.Windsurf ? "Windsurf" :
-                                  "Claude Code";
+            string providerName = GetProviderDisplayName(_settings.SelectedProvider);
             // Only show header when layout is not inverted (inverted hides it to avoid redundancy with tool window title)
             if (_settings?.InvertLayout == true)
             {
@@ -1551,15 +1543,19 @@ devin";
             bool isWindsurfProvider = _settings.SelectedProvider == AiProvider.Windsurf;
             ModelDropdownButton.Visibility = (isClaudeProvider || isWindsurfProvider) ? Visibility.Visible : Visibility.Collapsed;
 
-            // Note: Tool window title will be updated after the terminal actually starts
-            // in StartEmbeddedTerminalAsync to reflect what's actually running
+            // Show usage button only for Claude providers (claude.ai/settings/usage applies to Claude only)
+            ShowUsageButton.Visibility = isClaudeProvider ? Visibility.Visible : Visibility.Collapsed;
+            UpdateInlineUsagePanelVisibility();
+
+            // Reflect the selected provider/model immediately in the VS tool window title.
+            UpdateToolWindowTitle(GetExtensionTitle(_settings.SelectedProvider));
         }
 
         /// <summary>
-        /// Updates the tool window title to reflect the current provider
+        /// Updates the tool window title to reflect the current provider/model
         /// </summary>
-        /// <param name="providerName">Name of the current provider</param>
-        private void UpdateToolWindowTitle(string providerName)
+        /// <param name="title">Tool window title</param>
+        private void UpdateToolWindowTitle(string title)
         {
             try
             {
@@ -1567,14 +1563,89 @@ devin";
                 _ = ThreadHelper.JoinableTaskFactory.RunAsync(async delegate
                 {
                     await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
-                    _toolWindow?.UpdateTitle(providerName);
-                    _detachedTerminalWindow?.UpdateCaption(providerName);
+                    _toolWindow?.UpdateTitle(title);
+                    _detachedTerminalWindow?.UpdateCaption(title);
                 });
 #pragma warning restore VSSDK007, VSTHRD110
             }
             catch (Exception ex)
             {
                 Debug.WriteLine($"Error updating tool window title: {ex.Message}");
+            }
+        }
+
+        /// <summary>
+        /// Gets the provider name without model detail for compact labels inside the control.
+        /// </summary>
+        private static string GetProviderDisplayName(AiProvider? provider)
+        {
+            switch (provider)
+            {
+                case AiProvider.CursorAgentNative:
+                case AiProvider.CursorAgent:
+                    return "Cursor Agent";
+                case AiProvider.CodexNative:
+                case AiProvider.Codex:
+                    return "Codex";
+                case AiProvider.ClaudeCodeWSL:
+                case AiProvider.ClaudeCode:
+                    return "Claude Code";
+                case AiProvider.OpenCode:
+                    return "Open Code";
+                case AiProvider.Windsurf:
+                    return "Windsurf";
+                default:
+                    return "CMD";
+            }
+        }
+
+        /// <summary>
+        /// Gets the Visual Studio tool window title for the selected/running provider.
+        /// Includes model detail for providers where the model can be changed.
+        /// </summary>
+        private string GetExtensionTitle(AiProvider? provider)
+        {
+            string providerName = GetProviderDisplayName(provider);
+
+            switch (provider)
+            {
+                case AiProvider.ClaudeCode:
+                case AiProvider.ClaudeCodeWSL:
+                    return providerName + " - " + GetClaudeModelDisplayName();
+                case AiProvider.Windsurf:
+                    return providerName + " - " + GetWindsurfModelDisplayName();
+                default:
+                    return providerName;
+            }
+        }
+
+        private string GetClaudeModelDisplayName()
+        {
+            switch (_settings?.SelectedClaudeModel)
+            {
+                case ClaudeModel.Opus:
+                    return "Opus";
+                case ClaudeModel.Haiku:
+                    return "Haiku";
+                case ClaudeModel.Sonnet:
+                default:
+                    return "Sonnet";
+            }
+        }
+
+        private string GetWindsurfModelDisplayName()
+        {
+            switch (_settings?.SelectedWindsurfModel)
+            {
+                case WindsurfModel.ClaudeOpus:
+                    return "Claude Opus";
+                case WindsurfModel.Codex:
+                    return "Codex";
+                case WindsurfModel.GeminiPro:
+                    return "Gemini Pro";
+                case WindsurfModel.ClaudeSonnet:
+                default:
+                    return "Claude Sonnet";
             }
         }
 
@@ -1934,6 +2005,8 @@ devin";
 
             // Update effort selection checkmarks
             UpdateEffortSelection();
+
+            UpdateToolWindowTitle(GetExtensionTitle(_settings.SelectedProvider));
         }
 
         #endregion

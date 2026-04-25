@@ -85,7 +85,13 @@ namespace ClaudeCodeVS
         {
             try
             {
+                ThreadHelper.ThrowIfNotOnUIThread();
                 this.Caption = providerName;
+                if (Frame is IVsWindowFrame windowFrame)
+                {
+                    ErrorHandler.ThrowOnFailure(
+                        windowFrame.SetProperty((int)__VSFPROPID.VSFPROPID_Caption, providerName));
+                }
             }
             catch (Exception ex)
             {

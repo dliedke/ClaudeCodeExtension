@@ -1,0 +1,130 @@
+<UserControl x:Class="ClaudeCodeVS.ClaudeUsageControl"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:wv2="clr-namespace:Microsoft.Web.WebView2.Wpf;assembly=Microsoft.Web.WebView2.Wpf"
+             xmlns:vsshell="clr-namespace:Microsoft.VisualStudio.Shell;assembly=Microsoft.VisualStudio.Shell.15.0"
+             mc:Ignorable="d"
+             d:DesignHeight="500" d:DesignWidth="500"
+             Background="{DynamicResource {x:Static vsshell:VsBrushes.WindowKey}}"
+             Foreground="{DynamicResource {x:Static vsshell:VsBrushes.WindowTextKey}}">
+    <UserControl.Resources>
+        <Style x:Key="UsageButtonStyle" TargetType="Button">
+            <Setter Property="Background" Value="{DynamicResource {x:Static vsshell:VsBrushes.ToolWindowBackgroundKey}}"/>
+            <Setter Property="Foreground" Value="{DynamicResource {x:Static vsshell:VsBrushes.ToolWindowTextKey}}"/>
+            <Setter Property="BorderBrush" Value="{DynamicResource {x:Static vsshell:VsBrushes.ToolWindowBorderKey}}"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="Padding" Value="8,3"/>
+            <Setter Property="Height" Value="24"/>
+            <Setter Property="Margin" Value="0,0,4,0"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="3">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter Property="Background" Value="{DynamicResource {x:Static vsshell:VsBrushes.CommandBarHoverOverSelectedKey}}"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+    </UserControl.Resources>
+
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <!-- Toolbar -->
+        <Border Grid.Row="0"
+                Background="{DynamicResource {x:Static vsshell:VsBrushes.CommandBarGradientBeginKey}}"
+                BorderBrush="{DynamicResource {x:Static vsshell:VsBrushes.ToolWindowBorderKey}}"
+                BorderThickness="0,0,0,1"
+                Padding="6,4">
+            <StackPanel Orientation="Horizontal">
+                <Button x:Name="RefreshButton" Style="{StaticResource UsageButtonStyle}"
+                        ToolTip="Refresh now" Click="RefreshButton_Click">
+                    <TextBlock Text="↻ Refresh" FontSize="12"/>
+                </Button>
+
+                <TextBlock Text="Auto-refresh:" VerticalAlignment="Center" Margin="6,0,4,0"
+                           Foreground="{DynamicResource {x:Static vsshell:VsBrushes.ToolWindowTextKey}}"
+                           FontSize="11"/>
+                <ComboBox x:Name="AutoRefreshCombo" Width="80" Height="24"
+                          SelectionChanged="AutoRefreshCombo_SelectionChanged"
+                          VerticalContentAlignment="Center" FontSize="11" Margin="0,0,4,0">
+                    <ComboBoxItem Content="Off" Tag="0"/>
+                    <ComboBoxItem Content="30s" Tag="30"/>
+                    <ComboBoxItem Content="1m"  Tag="60"/>
+                    <ComboBoxItem Content="2m"  Tag="120"/>
+                    <ComboBoxItem Content="5m"  Tag="300"/>
+                </ComboBox>
+
+                <Button x:Name="OpenInBrowserButton" Style="{StaticResource UsageButtonStyle}"
+                        ToolTip="Open claude.ai/settings/usage in your default browser"
+                        Click="OpenInBrowserButton_Click">
+                    <TextBlock Text="🌐 Open in Browser" FontSize="12"/>
+                </Button>
+
+                <Button x:Name="SignOutButton" Style="{StaticResource UsageButtonStyle}"
+                        ToolTip="Clear cookies for claude.ai (sign out of the embedded view)"
+                        Click="SignOutButton_Click">
+                    <TextBlock Text="Sign out" FontSize="12"/>
+                </Button>
+            </StackPanel>
+        </Border>
+
+        <!-- WebView2 -->
+        <Grid Grid.Row="1">
+            <TextBlock x:Name="LoadingText"
+                       Text="Loading claude.ai..."
+                       HorizontalAlignment="Center" VerticalAlignment="Center"
+                       Foreground="{DynamicResource {x:Static vsshell:VsBrushes.ToolWindowTextKey}}"
+                       FontSize="13" Opacity="0.7"
+                       IsHitTestVisible="False"/>
+            <wv2:WebView2 x:Name="WebView"
+                          Focusable="True"
+                          HorizontalAlignment="Stretch"
+                          VerticalAlignment="Stretch" />
+            <StackPanel x:Name="ErrorPanel" Visibility="Collapsed"
+                        HorizontalAlignment="Center" VerticalAlignment="Center"
+                        MaxWidth="400">
+                <TextBlock x:Name="ErrorText"
+                           TextWrapping="Wrap"
+                           HorizontalAlignment="Center"
+                           TextAlignment="Center"
+                           Foreground="{DynamicResource {x:Static vsshell:VsBrushes.ToolWindowTextKey}}"
+                           FontSize="12"/>
+                <Button x:Name="InstallWebView2Button"
+                        Style="{StaticResource UsageButtonStyle}"
+                        Margin="0,12,0,0"
+                        HorizontalAlignment="Center"
+                        Click="InstallWebView2Button_Click">
+                    <TextBlock Text="Download WebView2 Runtime" FontSize="12"/>
+                </Button>
+            </StackPanel>
+        </Grid>
+
+        <!-- Status bar -->
+        <Border Grid.Row="2"
+                Background="{DynamicResource {x:Static vsshell:VsBrushes.CommandBarGradientBeginKey}}"
+                BorderBrush="{DynamicResource {x:Static vsshell:VsBrushes.ToolWindowBorderKey}}"
+                BorderThickness="0,1,0,0"
+                Padding="6,3">
+            <TextBlock x:Name="StatusText" Text=""
+                       FontSize="10" Opacity="0.75"
+                       Foreground="{DynamicResource {x:Static vsshell:VsBrushes.ToolWindowTextKey}}"/>
+        </Border>
+    </Grid>
+</UserControl>

@@ -459,25 +459,7 @@ namespace ClaudeCodeVS
         private string GetCurrentProviderName()
         {
             if (_settings == null) return "Claude Code";
-
-            switch (_settings.SelectedProvider)
-            {
-                case AiProvider.ClaudeCode:
-                case AiProvider.ClaudeCodeWSL:
-                    return "Claude Code";
-                case AiProvider.CodexNative:
-                case AiProvider.Codex:
-                    return "Codex";
-                case AiProvider.CursorAgentNative:
-                case AiProvider.CursorAgent:
-                    return "Cursor Agent";
-                case AiProvider.OpenCode:
-                    return "Open Code";
-                case AiProvider.Windsurf:
-                    return "Windsurf";
-                default:
-                    return "Claude Code";
-            }
+            return GetProviderDisplayName(_settings.SelectedProvider);
         }
 
         #endregion

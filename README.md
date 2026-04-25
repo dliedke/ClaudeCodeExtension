@@ -33,9 +33,8 @@ Any feedback, suggestions, or contributions are also very welcome - feel free to
 - **Claude Model Selection**: Quick model switching for Claude Code (Opus, Sonnet, Haiku) with dropdown menu. For Opus also possible to select low, medium, high thinking modes
 
 ### ⌨️ **Smart Send Controls**
-- **Send with Enter**: Toggle between Enter-to-send and manual send modes
-- **Shift+Enter** or **Ctrl+Enter**: Create new lines when Send with Enter is enabled
-- **Manual Send Button**: Appears when Send with Enter is disabled
+- **Enter to send**: Press Enter to send the prompt to the active code agent
+- **Shift+Enter** or **Ctrl+Enter**: Insert a new line in the prompt
 
 ### 📋 **Editor Selection to Prompt**
 - **Toolbar Button**: Click the 📋 button to grab the currently selected code from the active editor and insert it into the prompt
@@ -65,7 +64,6 @@ Any feedback, suggestions, or contributions are also very welcome - feel free to
 
 ### 💾 **Persistent Settings**
 - **JSON Configuration**: Settings stored in `%LocalAppData%\..\Local\ClaudeCodeExtension\claudecode-settings.json`
-- **Send with Enter State**: Remembers your preferred input mode
 - **Splitter Position**: Maintains your preferred layout between sessions
 - **Invert Layout**: Remembers your preferred panel arrangement (prompt on top or bottom)
 - **AI Provider Selection**: Remembers your preferred AI assistant
@@ -154,7 +152,7 @@ Open Windows Settings, search for "Terminal settings", and set the Terminal opti
 - **Select a Claude Model**: Click the 🤖 (robot) button to choose Opus, Sonnet, or Haiku (available only when Claude Code is selected)
 - **Start a Session**: Enter your prompt and press Enter
 - **Attach Files**: Use Ctrl+V to paste or click the "Add File" button
-- **Customize**: Toggle "Send with Enter" and adjust the layout as needed
+- **Customize**: Adjust the layout as needed and pick your preferred AI provider from the ⚙ menu
 
 ## Usage
 
@@ -199,7 +197,6 @@ Open Windows Settings, search for "Terminal settings", and set the Terminal opti
 - **Persistent Selection**: Your model choice is saved and restored between Visual Studio sessions
 
 ### Customization
-- **Send with Enter**: Check/uncheck the checkbox to toggle sending behavior
 - **Layout**: Drag the splitter to adjust the prompt/terminal ratio. Use "Invert Layout" in the ⚙ menu to swap prompt and terminal positions
 - **AI Provider**: Use the context menu to switch between available providers
 - **Settings Persist Automatically**: Preferences are saved between Visual Studio sessions
@@ -254,6 +251,13 @@ Claude will write the `SKILL.md` file with the proper frontmatter and instructio
 **Step 4 — Use it**. Click the new ⚡ button in the toolbar → **Codex Review**. Claude Code receives the `/codex-review` slash command, runs the skill, calls Codex against your uncommitted diff, and reports back the findings — without you ever leaving Visual Studio.
 
 ## Version History
+
+### Version 10.17
+- **Removed "Send with Enter" toggle**: The checkbox and its supporting plumbing have been removed. Enter now always sends the prompt to the active code agent, and Shift+Enter or Ctrl+Enter inserts a newline. The standalone Send button is also removed since it is no longer needed; the file attachment chips row remains in place. The `SendWithEnter` setting is no longer written to `claudecode-settings.json` (any existing value is silently ignored).
+- **Claude Usage tool window: progress bars now fill the full panel width**: On wide tool windows the embedded claude.ai/settings/usage view was rendering the **Sessão atual** / **Todos os modelos** / **Claude Design** progress bars at ~200–520px while the rest of the panel stayed blank, because the bar row was pinned by Tailwind’s `md:max-w-xl` / `max-w-7xl` caps and a 220px settings-nav grid column that was still being allocated even after the nav itself was hidden. Replaced the previous CSS-only patching strategy with a page-isolation pass: the injected script now finds the smallest content container that holds the bars (the `<div tabindex="-1" class="outline-none">` wrapper directly above `<div class="pb-8"><section>`), walks up to `<body>` marking every ancestor with `data-claude-usage-path` and every sibling along the way with `data-claude-usage-hide`, then a single CSS rule collapses each path element to a plain `display: block` at 100% width (clearing `grid-template-columns`, `flex`, `max-width`, padding, and margins) and hides the rest of the page outright. The result is identical to extracting just the usage container and rendering it standalone, but it preserves the live React tree so claude.ai’s reactive state still drives the bar updates. tick() re-applies the data attributes on every pass so React re-renders that mount new siblings get re-marked the next cycle.
+
+### Version 10.16
+- **Claude Usage Limits in Visual Studio** ([#38](https://github.com/dliedke/ClaudeCodeExtension/issues/38)): The extension now surfaces your claude.ai plan usage without leaving the IDE. A new **📊 Claude Usage** toolbar button (visible when a Claude provider is active) opens a dockable tool window that embeds `https://claude.ai/settings/usage` in a WebView2; the page is auto-trimmed to show only the limits section, and includes Refresh, Auto-refresh (Off / 30s / 1m / 2m / 5m, persisted across sessions), Open in Browser, and Sign out controls. Inline below the prompt, two compact progress bars mirror **Sessão atual / Current session** and **Todos os modelos / All models** (labels and reset times are kept verbatim from the page so localization is preserved). A hidden background WebView2 scrapes the same page on startup, after each prompt send, and on the configured cadence; results are cached in `claudecode-settings.json` so the bars render immediately on next launch with stale data while a fresh fetch runs in the background. If WebView2 is missing, you are not signed in, or the page structure changes, the inline bars hide silently rather than erroring. The tool window's open/closed state is persisted, so it auto-reopens with the next solution if it was open at shutdown. After signing in, claude.ai's post-auth landing pages (`/new`, `/chats`, root) are auto-redirected back to `/settings/usage` so the tool window always ends up on the right page.
 
 ### Version 10.15
 - **Custom Commands**: Added a "Configure Custom Commands..." entry to the Code Agent Selection menu. Opens a dialog for adding, editing, reordering, and removing user-defined commands. Each entry has a friendly name and a literal command string. When at least one custom command is configured, a new ⚡ button appears in the toolbar next to the agent menu; clicking it opens a dropdown of saved commands, and selecting one sends the configured text directly to the active code agent without modification. The list persists in the same `claudecode-settings.json` configuration file under the `CustomCommands` key, so it survives restarts and is shared across providers. Useful for slash commands (e.g. invoking a Claude Code skill like `/codex-review`) or canned prompts the user reuses frequently.

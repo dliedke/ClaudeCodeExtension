@@ -139,6 +139,7 @@
 				<RowDefinition Height="*" MinHeight="80"/>
 				<RowDefinition Height="Auto"/>
 				<RowDefinition Height="Auto"/>
+				<RowDefinition Height="Auto"/>
 			</Grid.RowDefinitions>
 
 			<!-- Prompt Input Area -->
@@ -192,18 +193,6 @@
 
 				<!-- Left cluster -->
 				<StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Top">
-					<!-- Send button (visible only when Send-with-Enter is off) -->
-					<Button x:Name="SendPromptButton"
-                            Content="▶"
-							Width="30"
-                            MinWidth="30"
-                            FontSize="14"
-                            Style="{StaticResource IconButtonStyle}"
-                            Click="SendButton_Click"
-                            Visibility="Collapsed"
-                            ToolTip="Send Prompt to Code Agent"
-                            Margin="0,0,6,0"/>
-
 					<Button x:Name="AddImageButton"
                             Content="📎"
                             Style="{StaticResource IconButtonStyle}"
@@ -233,6 +222,17 @@
                             VerticalAlignment="Top"
                             Margin="6,0,0,0">
 
+
+					<Button x:Name="ShowUsageButton"
+                            Content="📊"
+                            Width="30"
+                            MinWidth="30"
+                            FontSize="14"
+                            Style="{StaticResource IconButtonStyle}"
+                            Click="ShowUsageButton_Click"
+                            ToolTip="Claude Usage Limits"
+                            Visibility="Collapsed"
+                            Margin="0,0,6,0"/>
 
 					<Button x:Name="ViewChangesButton"
                             Content="🔀"
@@ -374,33 +374,73 @@
 				</StackPanel>
 			</Grid>
 
-			<!-- Send with Enter + file chips row -->
+			<!-- File chips row -->
 			<Grid x:Name="CheckboxRow" Grid.Row="2" Margin="0,4,0,2">
-				<Grid.ColumnDefinitions>
-					<ColumnDefinition Width="Auto"/>
-					<ColumnDefinition Width="*"/>
-				</Grid.ColumnDefinitions>
-
-				<CheckBox Grid.Column="0"
-                          x:Name="SendWithEnterCheckBox"
-                          Content="Send with Enter"
-                          IsChecked="True"
-                          Foreground="{DynamicResource {x:Static vsshell:VsBrushes.ToolWindowTextKey}}"
-                          Opacity="0.93"
-                          VerticalAlignment="Center"
-                          Margin="0,0,8,0"
-                          ToolTip="Automatically send prompt to code agent with enter key. Use Shift+Enter for new lines"
-                          Checked="SendWithEnterCheckBox_Checked"
-                          Unchecked="SendWithEnterCheckBox_Unchecked"/>
-
-				<!-- Chips next to Send with Enter -->
-				<ScrollViewer Grid.Column="1"
-                              VerticalScrollBarVisibility="Disabled"
+				<ScrollViewer VerticalScrollBarVisibility="Disabled"
                               HorizontalScrollBarVisibility="Auto"
                               VerticalAlignment="Center">
 					<WrapPanel x:Name="AttachedImagesPanel" />
 				</ScrollViewer>
 			</Grid>
+
+			<!-- Inline Claude usage mini-bars (session + weekly). Hidden until first
+			     successful scrape. Click any row to open the full usage tool window. -->
+			<Border x:Name="InlineUsagePanel" Grid.Row="3" Margin="0,4,0,2"
+			        Padding="6,5"
+			        BorderBrush="{DynamicResource {x:Static vsshell:VsBrushes.ToolWindowBorderKey}}"
+			        BorderThickness="1"
+			        CornerRadius="3"
+			        Background="{DynamicResource {x:Static vsshell:VsBrushes.ToolWindowBackgroundKey}}"
+			        Cursor="Hand"
+			        Visibility="Collapsed"
+			        ToolTip="Click to open the full Claude usage view"
+			        MouseLeftButtonUp="InlineUsagePanel_Click">
+				<Grid>
+					<Grid.RowDefinitions>
+						<RowDefinition Height="Auto"/>
+						<RowDefinition Height="Auto"/>
+					</Grid.RowDefinitions>
+					<Grid.ColumnDefinitions>
+						<ColumnDefinition Width="Auto" MinWidth="100"/>
+						<ColumnDefinition Width="*"/>
+						<ColumnDefinition Width="Auto"/>
+					</Grid.ColumnDefinitions>
+
+					<!-- Session row -->
+					<StackPanel Grid.Row="0" Grid.Column="0" Margin="0,0,8,0">
+						<TextBlock x:Name="InlineSessionLabel" Text="Sessão atual"
+						           FontSize="11" Opacity="0.95"
+						           Foreground="{DynamicResource {x:Static vsshell:VsBrushes.ToolWindowTextKey}}"/>
+						<TextBlock x:Name="InlineSessionReset" Text=""
+						           FontSize="10" Opacity="0.65"
+						           Foreground="{DynamicResource {x:Static vsshell:VsBrushes.ToolWindowTextKey}}"/>
+					</StackPanel>
+					<ProgressBar x:Name="InlineSessionBar" Grid.Row="0" Grid.Column="1"
+					             Height="8" Minimum="0" Maximum="100" Value="0"
+					             VerticalAlignment="Center"/>
+					<TextBlock x:Name="InlineSessionPct" Grid.Row="0" Grid.Column="2"
+					           Text="0%" FontSize="11" Margin="8,0,0,0"
+					           VerticalAlignment="Center" MinWidth="36" TextAlignment="Right"
+					           Foreground="{DynamicResource {x:Static vsshell:VsBrushes.ToolWindowTextKey}}"/>
+
+					<!-- Weekly row -->
+					<StackPanel Grid.Row="1" Grid.Column="0" Margin="0,4,8,0">
+						<TextBlock x:Name="InlineWeeklyLabel" Text="Todos os modelos"
+						           FontSize="11" Opacity="0.95"
+						           Foreground="{DynamicResource {x:Static vsshell:VsBrushes.ToolWindowTextKey}}"/>
+						<TextBlock x:Name="InlineWeeklyReset" Text=""
+						           FontSize="10" Opacity="0.65"
+						           Foreground="{DynamicResource {x:Static vsshell:VsBrushes.ToolWindowTextKey}}"/>
+					</StackPanel>
+					<ProgressBar x:Name="InlineWeeklyBar" Grid.Row="1" Grid.Column="1"
+					             Height="8" Minimum="0" Maximum="100" Value="0"
+					             Margin="0,4,0,0" VerticalAlignment="Center"/>
+					<TextBlock x:Name="InlineWeeklyPct" Grid.Row="1" Grid.Column="2"
+					           Text="0%" FontSize="11" Margin="8,4,0,0"
+					           VerticalAlignment="Center" MinWidth="36" TextAlignment="Right"
+					           Foreground="{DynamicResource {x:Static vsshell:VsBrushes.ToolWindowTextKey}}"/>
+				</Grid>
+			</Border>
 		</Grid>
 
 		<!-- Resizable Splitter -->

@@ -13,8 +13,11 @@
 using Microsoft.VisualStudio.Shell;
 using Microsoft.VisualStudio.Shell.Interop;
 using Microsoft.VisualStudio;
+using Newtonsoft.Json;
 using System;
 using System.ComponentModel.Design;
+using System.Diagnostics;
+using System.IO;
 using System.Runtime.InteropServices;
 using System.Threading;
 using Task = System.Threading.Tasks.Task;
@@ -43,6 +46,7 @@ namespace ClaudeCodeExtension
     [ProvideToolWindow(typeof(ClaudeCodeVS.ClaudeCodeToolWindow))]
     [ProvideToolWindow(typeof(ClaudeCodeVS.DiffViewerToolWindow), Transient = true)]
     [ProvideToolWindow(typeof(ClaudeCodeVS.DetachedTerminalToolWindow), Transient = true)]
+    [ProvideToolWindow(typeof(ClaudeCodeVS.ClaudeUsageToolWindow), Transient = true)]
     [ProvideMenuResource("Menus.ctmenu", 1)]
     [Guid(ClaudeCodeExtensionPackage.PackageGuidString)]
     public sealed class ClaudeCodeExtensionPackage : AsyncPackage
@@ -58,6 +62,14 @@ namespace ClaudeCodeExtension
         public static readonly Guid CommandSet = new Guid("11111111-2222-3333-4444-555555555555");
         public const int ClaudeCodeToolWindowCommandId = 0x0100;
         public const int EditorSendSelectionCommandId = 0x0201;
+
+        private const string ConfigurationFileName = "claudecode-settings.json";
+        private static readonly string ConfigurationPath = Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+            "ClaudeCodeExtension",
+            ConfigurationFileName);
+
+        private ClaudeCodeVS.ClaudeUsageToolWindow _autoReopenedUsageWindow;
 
         #region Package Members
 
@@ -87,6 +99,126 @@ namespace ClaudeCodeExtension
                 var editorMenuItem = new OleMenuCommand(this.OnEditorSendSelection, editorCmdId);
                 editorMenuItem.BeforeQueryStatus += OnEditorSendSelectionQueryStatus;
                 commandService.AddCommand(editorMenuItem);
+            }
+
+            ScheduleUsageWindowRestore(cancellationToken);
+        }
+
+        private void ScheduleUsageWindowRestore(CancellationToken cancellationToken)
+        {
+            var settings = LoadSettingsForStartup();
+            if (settings?.UsageWindowOpened != true)
+            {
+                return;
+            }
+
+#pragma warning disable VSSDK007 // Fire-and-forget is intentional; startup restore should not block package load
+            _ = JoinableTaskFactory.RunAsync(async delegate
+            {
+                try
+                {
+                    await Task.Delay(750, cancellationToken);
+                    await JoinableTaskFactory.SwitchToMainThreadAsync(cancellationToken);
+
+                    _autoReopenedUsageWindow = FindToolWindow(
+                        typeof(ClaudeCodeVS.ClaudeUsageToolWindow),
+                        0,
+                        true) as ClaudeCodeVS.ClaudeUsageToolWindow;
+
+                    if (_autoReopenedUsageWindow?.Frame == null)
+                    {
+                        return;
+                    }
+
+                    if (_autoReopenedUsageWindow.UsageControl != null)
+                    {
+                        _autoReopenedUsageWindow.UsageControl.ApplyAutoRefreshSeconds(settings.UsageAutoRefreshSeconds);
+                    }
+
+                    _autoReopenedUsageWindow.ClosedByUser -= OnAutoReopenedUsageWindowClosed;
+                    _autoReopenedUsageWindow.ClosedByUser += OnAutoReopenedUsageWindowClosed;
+
+                    var frame = (IVsWindowFrame)_autoReopenedUsageWindow.Frame;
+                    ErrorHandler.ThrowOnFailure(frame.Show());
+                }
+                catch (OperationCanceledException)
+                {
+                }
+                catch (Exception ex)
+                {
+                    Debug.WriteLine("Error restoring Claude usage window: " + ex);
+                }
+            });
+#pragma warning restore VSSDK007
+        }
+
+        private void OnAutoReopenedUsageWindowClosed(object sender, EventArgs e)
+        {
+            ThreadHelper.ThrowIfNotOnUIThread();
+
+            try
+            {
+                var settings = LoadSettingsForStartup();
+                if (settings == null || !settings.UsageWindowOpened)
+                {
+                    return;
+                }
+
+                settings.UsageWindowOpened = false;
+                SaveSettingsFromPackage(settings);
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine("Error saving Claude usage close state: " + ex);
+            }
+        }
+
+        private static ClaudeCodeVS.ClaudeCodeSettings LoadSettingsForStartup()
+        {
+            try
+            {
+                if (!File.Exists(ConfigurationPath))
+                {
+                    return null;
+                }
+
+                string json = File.ReadAllText(ConfigurationPath);
+                var settings = JsonConvert.DeserializeObject<ClaudeCodeVS.ClaudeCodeSettings>(json);
+                if (settings == null)
+                {
+                    return null;
+                }
+
+                if (!Enum.IsDefined(typeof(ClaudeCodeVS.AiProvider), settings.SelectedProvider))
+                {
+                    settings.SelectedProvider = ClaudeCodeVS.AiProvider.ClaudeCode;
+                }
+
+                return settings;
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine("Error loading Claude usage startup settings: " + ex);
+                return null;
+            }
+        }
+
+        private static void SaveSettingsFromPackage(ClaudeCodeVS.ClaudeCodeSettings settings)
+        {
+            try
+            {
+                string directory = Path.GetDirectoryName(ConfigurationPath);
+                if (!Directory.Exists(directory))
+                {
+                    Directory.CreateDirectory(directory);
+                }
+
+                string json = JsonConvert.SerializeObject(settings, Formatting.Indented);
+                File.WriteAllText(ConfigurationPath, json);
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine("Error saving Claude usage startup settings: " + ex);
             }
         }
 

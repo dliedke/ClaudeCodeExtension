@@ -173,6 +173,9 @@ namespace ClaudeCodeVS
                 // Reset history navigation
                 _historyIndex = -1;
                 _tempCurrentText = string.Empty;
+
+                // Refresh inline usage bars (throttled internally)
+                _ = RefreshInlineUsageAsync();
             }
             catch (Exception ex)
             {
@@ -185,38 +188,23 @@ namespace ClaudeCodeVS
         #region Keyboard Input Handling
 
         /// <summary>
-        /// Handles KeyDown event for the prompt textbox
-        /// Implements Send-with-Enter functionality
+        /// Handles KeyDown event for the prompt textbox.
+        /// Enter always sends the prompt; Shift+Enter or Ctrl+Enter inserts a newline.
         /// </summary>
         private void PromptTextBox_KeyDown(object sender, KeyEventArgs e)
         {
             if (e.Key == Key.Enter)
             {
-                bool sendWithEnter = SendWithEnterCheckBox.IsChecked == true;
-
-
-                if (sendWithEnter)
+                // Shift+Enter or Ctrl+Enter inserts a newline
+                if ((Keyboard.Modifiers & ModifierKeys.Shift) == ModifierKeys.Shift ||
+                    (Keyboard.Modifiers & ModifierKeys.Control) == ModifierKeys.Control)
                 {
-                    // When SendWithEnter is enabled:
-                    // - Enter sends the prompt
-                    // - Shift+Enter or Ctrl+Enter creates new line
-                    if ((Keyboard.Modifiers & ModifierKeys.Shift) == ModifierKeys.Shift ||
-                        (Keyboard.Modifiers & ModifierKeys.Control) == ModifierKeys.Control)
-                    {
-                        // Allow newline insertion with modifiers
-                        return;
-                    }
-                    else
-                    {
-                        // Plain Enter sends the prompt
-                        e.Handled = true; // Prevent default newline behavior
-                        SendButton_Click(sender, null);
-                    }
+                    return;
                 }
-                else
-                {
-                    // When SendWithEnter is disabled, let default behavior handle Enter (newlines)
-                }
+
+                // Plain Enter sends the prompt
+                e.Handled = true; // Prevent default newline behavior
+                SendButton_Click(sender, null);
             }
         }
 
@@ -243,32 +231,19 @@ namespace ClaudeCodeVS
                 }
             }
 
-            // Handle SendWithEnter functionality in PreviewKeyDown to catch it before TextBox handles it
+            // Enter sends the prompt; Shift+Enter or Ctrl+Enter inserts a newline.
+            // Handled in PreviewKeyDown to catch it before TextBox processes it.
             if (e.Key == Key.Enter)
             {
-                bool sendWithEnter = SendWithEnterCheckBox.IsChecked == true;
-
-
-                if (sendWithEnter)
+                if ((Keyboard.Modifiers & ModifierKeys.Shift) == ModifierKeys.Shift ||
+                    (Keyboard.Modifiers & ModifierKeys.Control) == ModifierKeys.Control)
                 {
-                    // When SendWithEnter is enabled:
-                    // - Enter sends the prompt
-                    // - Shift+Enter or Ctrl+Enter creates new line
-                    if ((Keyboard.Modifiers & ModifierKeys.Shift) == ModifierKeys.Shift ||
-                        (Keyboard.Modifiers & ModifierKeys.Control) == ModifierKeys.Control)
-                    {
-                        // Allow newline insertion with modifiers
-                        return;
-                    }
-                    else
-                    {
-                        // Plain Enter sends the prompt
-                        e.Handled = true; // Prevent default newline behavior
-                        SendButton_Click(sender, null);
-                        return;
-                    }
+                    return;
                 }
-                // When SendWithEnter is disabled, let default behavior handle Enter (newlines)
+
+                e.Handled = true; // Prevent default newline behavior
+                SendButton_Click(sender, null);
+                return;
             }
 
             // Preserve paste-image shortcut even with new behavior
@@ -302,32 +277,6 @@ namespace ClaudeCodeVS
                 }
                 e.Handled = true;
             }
-        }
-
-        #endregion
-
-        #region Send-with-Enter Toggle
-
-        /// <summary>
-        /// Handles SendWithEnter checkbox checked event
-        /// Hides the send button when enabled
-        /// </summary>
-        private void SendWithEnterCheckBox_Checked(object sender, RoutedEventArgs e)
-        {
-            SendPromptButton.Visibility = Visibility.Collapsed;
-            SendWithEnterCheckBox.ToolTip = "Automatically send prompt to code agent with enter key. Use Shift+Enter for new lines";
-            SaveSettings();
-        }
-
-        /// <summary>
-        /// Handles SendWithEnter checkbox unchecked event
-        /// Shows the send button when disabled
-        /// </summary>
-        private void SendWithEnterCheckBox_Unchecked(object sender, RoutedEventArgs e)
-        {
-            SendPromptButton.Visibility = Visibility.Visible;
-            SendWithEnterCheckBox.ToolTip = "Use Send button to send prompt to code agent";
-            SaveSettings();
         }
 
         #endregion

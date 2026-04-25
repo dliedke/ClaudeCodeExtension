@@ -914,14 +914,16 @@ namespace ClaudeCodeVS
                             // Track the currently running provider
                             _currentRunningProvider = provider;
 
+                            string wtProviderTitle = GetExtensionTitle(provider);
+                            UpdateToolWindowTitle(wtProviderTitle);
+
                             // If terminal should be detached, re-parent to detached panel
                             if (_isTerminalDetached && _detachedTerminalPanel != null)
                             {
                                 SetParent(terminalHandle, _detachedTerminalPanel.Handle);
                                 ShowWindow(terminalHandle, SW_SHOW);
                                 ResizeEmbeddedTerminal();
-                                string wtProviderName = GetCurrentProviderName();
-                                _detachedTerminalWindow?.UpdateCaption(wtProviderName);
+                                _detachedTerminalWindow?.UpdateCaption(wtProviderTitle);
                             }
 
                             SchedulePostStartupTerminalAdjustments();
@@ -1094,38 +1096,7 @@ namespace ClaudeCodeVS
                             // Track the currently running provider
                             _currentRunningProvider = provider;
 
-                            string providerTitle;
-                            switch (provider)
-                            {
-                                case AiProvider.CursorAgentNative:
-                                    providerTitle = "Cursor Agent";
-                                    break;
-                                case AiProvider.CursorAgent:
-                                    providerTitle = "Cursor Agent";
-                                    break;
-                                case AiProvider.CodexNative:
-                                    providerTitle = "Codex";
-                                    break;
-                                case AiProvider.Codex:
-                                    providerTitle = "Codex";
-                                    break;
-                                case AiProvider.ClaudeCodeWSL:
-                                    providerTitle = "Claude Code";
-                                    break;
-                                case AiProvider.ClaudeCode:
-                                    providerTitle = "Claude Code";
-                                    break;
-                                case AiProvider.OpenCode:
-                                    providerTitle = "Open Code";
-                                    break;
-                                case AiProvider.Windsurf:
-                                    providerTitle = "Windsurf";
-                                    break;
-                                default:
-                                    providerTitle = "CMD";
-                                    break;
-                            }
-
+                            string providerTitle = GetExtensionTitle(provider);
                             UpdateToolWindowTitle(providerTitle);
 
                             // If terminal should be detached, re-parent to detached panel
