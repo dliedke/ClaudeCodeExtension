@@ -80,6 +80,27 @@ namespace ClaudeCodeVS
     }
 
     /// <summary>
+    /// User-defined shortcut for a frequently sent prompt or slash command.
+    /// Surfaced in a dropdown next to the toolbar so the user can dispatch
+    /// canned prompts (e.g. "/codex-review", "explain this file") to the
+    /// active code agent without retyping them.
+    /// </summary>
+    public class CustomCommand
+    {
+        /// <summary>
+        /// Display label shown in the toolbar dropdown menu.
+        /// </summary>
+        public string Name { get; set; } = string.Empty;
+
+        /// <summary>
+        /// Literal text sent to the terminal when the menu item is clicked.
+        /// May be a slash command, a free-form prompt, or any string the
+        /// active agent understands.
+        /// </summary>
+        public string Command { get; set; } = string.Empty;
+    }
+
+    /// <summary>
     /// Represents a single prompt history entry with optional file attachments
     /// </summary>
     public class PromptHistoryEntry
@@ -209,5 +230,11 @@ namespace ClaudeCodeVS
         /// Default is false (prompt on top, terminal on bottom).
         /// </summary>
         public bool InvertLayout { get; set; } = false;
+
+        /// <summary>
+        /// User-defined custom commands surfaced in the toolbar custom-commands
+        /// dropdown. Empty list hides the dropdown button entirely.
+        /// </summary>
+        public System.Collections.Generic.List<CustomCommand> CustomCommands { get; set; } = new System.Collections.Generic.List<CustomCommand>();
     }
 }

@@ -447,6 +447,9 @@ namespace ClaudeCodeVS
 
             // Update effort selection
             UpdateEffortSelection();
+
+            // Show the custom-commands toolbar button when entries are configured
+            RefreshCustomCommandsButton();
         }
 
         #endregion

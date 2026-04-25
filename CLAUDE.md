@@ -6,7 +6,7 @@
 
 - **Author**: Daniel Carvalho Liedke (dliedke@gmail.com) | **License**: MIT
 - **Repository**: https://github.com/dliedke/ClaudeCodeExtension
-- **Current Version**: 10.12 | **Target Framework**: .NET Framework 4.7.2
+- **Current Version**: 10.15 | **Target Framework**: .NET Framework 4.7.2
 
 ---
 
@@ -58,6 +58,7 @@ ClaudeCodeExtension/
 │   ├── ClaudeCodeControl.ImageHandling.cs # Image paste & file attachments
 │   ├── ClaudeCodeControl.Settings.cs    # Settings persistence (JSON), layout inversion
 │   ├── ClaudeCodeControl.Cleanup.cs     # Resource cleanup, temp dir management
+│   ├── ClaudeCodeControl.CustomCommands.cs # User-defined custom commands: configure dialog, toolbar dropdown, dispatch
 │   ├── ClaudeCodeControl.Interop.cs     # Win32 API declarations (P/Invoke)
 │   ├── ClaudeCodeControl.Theme.cs       # Dark/light theme support
 │   └── ClaudeCodeControl.Detach.cs      # Terminal detach/attach to separate VS tab
@@ -148,6 +149,14 @@ WSL:     cmd.exe /k chcp 65001 >nul && cls && wsl bash -lic "cd {wslPath} && {co
   6. `yes` to confirm activation
 - **Confirmation dialog**: Shows all commands that will be sent before execution
 
+### Custom Commands (CustomCommands.cs)
+
+- **Configuration**: Stored as `List<CustomCommand>` (Name + Command) under `CustomCommands` in `claudecode-settings.json`
+- **Configure dialog**: Opened via "Configure Custom Commands..." entry in the provider context menu (⚙ button). Built programmatically in WPF (no separate XAML); supports Add / Edit / Remove / Move Up / Move Down with double-click-to-edit
+- **Toolbar button**: `CustomCommandsButton` (⚡ icon) — `Visibility="Collapsed"` by default, shown when `_settings.CustomCommands.Count > 0`. Populated by `RefreshCustomCommandsButton()`, called from `ApplyLoadedSettings()` and after the configure dialog closes
+- **Dispatch**: Each menu item's `Tag` holds its `CustomCommand`; click handler sends `cmd.Command` verbatim via `SendTextToTerminalAsync()` — works against any active provider
+- **Editor validation**: Empty command text rejected; if name is omitted, the command itself is shown as the dropdown label
+
 ### Terminal I/O (TerminalIO.cs)
 
 - **Paste mechanism**: Saves full clipboard state → sets text → right-clicks terminal center → sends Enter → restores clipboard
@@ -180,7 +189,7 @@ enum EffortLevel { Auto, Low, Medium, High, Max }
 enum TerminalType { CommandPrompt, WindowsTerminal }
 ```
 
-Key settings: `SendWithEnter`, `SplitterPosition` (236px default), `SelectedProvider`, `SelectedClaudeModel`, `SelectedWindsurfModel`, `PromptHistory` (max 50), `AutoOpenChangesOnPrompt`, `ClaudeDangerouslySkipPermissions`, `CodexFullAuto`, `CursorAgentAutoRun`, `WindsurfDangerousMode`, `SelectedEffortLevel`, `CustomWorkingDirectory`, `SelectedTerminalType`, `IsTerminalDetached`, `PromptFontSize` (8–24pt), `TerminalZoomDelta`, `InvertLayout`
+Key settings: `SendWithEnter`, `SplitterPosition` (236px default), `SelectedProvider`, `SelectedClaudeModel`, `SelectedWindsurfModel`, `PromptHistory` (max 50), `AutoOpenChangesOnPrompt`, `ClaudeDangerouslySkipPermissions`, `CodexFullAuto`, `CursorAgentAutoRun`, `WindsurfDangerousMode`, `SelectedEffortLevel`, `CustomWorkingDirectory`, `SelectedTerminalType`, `IsTerminalDetached`, `PromptFontSize` (8–24pt), `TerminalZoomDelta`, `InvertLayout`, `CustomCommands` (list of `{Name, Command}`)
 
 ---
 

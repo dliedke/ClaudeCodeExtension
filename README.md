@@ -74,6 +74,13 @@ Any feedback, suggestions, or contributions are also very welcome - feel free to
 - **Codex Full Auto State**: Remembers whether Codex starts with `--full-auto`
 - **Windsurf Dangerous Mode State**: Remembers whether Windsurf starts with `--permission-mode dangerous`
 
+### ⚡ **Custom Commands**
+- **User-Defined Shortcuts**: Add slash commands or canned prompts (e.g. `/codex-review`, "explain this file") and dispatch them to the active code agent with one click
+- **Configure Dialog**: "Configure Custom Commands..." entry in the Code Agent Selection (⚙) menu opens an Add/Edit/Remove/Reorder UI
+- **Toolbar Dropdown**: Once at least one custom command exists, a ⚡ button appears in the toolbar; clicking it shows a menu of saved commands
+- **Direct Send**: Selecting a command sends the configured text verbatim to the running agent — no editing in the prompt box first
+- **Persistent**: Saved alongside the rest of the extension settings in `claudecode-settings.json`
+
 ### 🔍 **Zoom Support**
 - **Prompt Zoom**: Ctrl+Scroll on the prompt text box to increase/decrease font size (range 8–24pt), persisted across sessions
 - **Terminal Zoom**: Ctrl+Scroll on the terminal area to zoom in/out, zoom level persisted and replayed on restart (works for both Command Prompt and Windows Terminal)
@@ -211,7 +218,45 @@ The extension includes an Update Agent button (🔄️) that updates your select
 
 Click the update button and the extension will handle the update process. Agents use the appropriate exit methods before updating (exit command for most, double CTRL+C for Codex).
 
+### Custom Commands
+
+User-defined shortcuts that dispatch a slash command or prompt directly to the active code agent.
+
+**Configure**:
+1. Click the ⚙ button → **Configure Custom Commands...**
+2. Click **Add...**, enter a friendly **Name** (shown in the dropdown) and the **Command** text (sent verbatim to the agent)
+3. Use **Edit / Remove / Move Up / Move Down** to manage existing entries, then **Close**
+4. Once at least one command is saved, the ⚡ button appears in the toolbar — click it to pick a command and send it instantly
+
+**Recipe — Have Codex review uncommitted code from inside Claude Code via a custom command**
+
+This walkthrough creates a Claude Code skill (`/codex-review`) that shells out to the OpenAI Codex CLI to audit pending changes for bugs, security issues, performance problems, and code quality. You then bind that slash command to a custom command in this extension so it is one click away.
+
+**Step 1 — Install the OpenAI Codex CLI** (if you haven't already):
+```bash
+npm install -g @openai/codex
+codex login
+```
+
+**Step 2 — Have Claude Code create the skill for you**. Open a Claude Code session and paste this prompt:
+
+> Create a Claude Code user skill called `codex-review` at `~/.claude/skills/codex-review/SKILL.md`. The skill runs `codex review --uncommitted` (OpenAI Codex CLI) against the current repo's uncommitted changes and surfaces the findings. Preconditions: verify git repo, verify there are uncommitted changes, skip when the diff is only non-meaningful (harness/IDE config, lockfile regens, build artifacts, whitespace), and verify `codex` is on PATH. The Codex prompt should ask for bugs, security issues (OWASP Top 10), performance problems, and code quality findings, each with file:line, severity, why it matters, and a concrete fix. Codex is the reviewer; Claude relays the output verbatim and does not auto-apply fixes. After creating the file, run `/reload-plugins` so the skill is registered.
+
+Claude will write the `SKILL.md` file with the proper frontmatter and instructions, then reload plugins so `/codex-review` becomes available immediately.
+
+**Step 3 — Bind it as a custom command in this extension**:
+1. Make sure the active provider is **Claude Code** (or **Claude Code (WSL)**)
+2. ⚙ → **Configure Custom Commands...** → **Add...**
+3. **Name**: `Codex Review`
+4. **Command**: `/codex-review`
+5. **OK** → **Close**
+
+**Step 4 — Use it**. Click the new ⚡ button in the toolbar → **Codex Review**. Claude Code receives the `/codex-review` slash command, runs the skill, calls Codex against your uncommitted diff, and reports back the findings — without you ever leaving Visual Studio.
+
 ## Version History
+
+### Version 10.15
+- **Custom Commands**: Added a "Configure Custom Commands..." entry to the Code Agent Selection menu. Opens a dialog for adding, editing, reordering, and removing user-defined commands. Each entry has a friendly name and a literal command string. When at least one custom command is configured, a new ⚡ button appears in the toolbar next to the agent menu; clicking it opens a dropdown of saved commands, and selecting one sends the configured text directly to the active code agent without modification. The list persists in the same `claudecode-settings.json` configuration file under the `CustomCommands` key, so it survives restarts and is shared across providers. Useful for slash commands (e.g. invoking a Claude Code skill like `/codex-review`) or canned prompts the user reuses frequently.
 
 ### Version 10.14
 - **Fixed: Closing Visual Studio no longer closes unrelated Windows Terminal windows** ([#37](https://github.com/dliedke/ClaudeCodeExtension/issues/37)): When the embedded terminal used Windows Terminal mode, the `wt.exe` App Execution Alias on Windows 11 could activate the MSIX package such that the launched `Process` handle mapped directly to the shared `WindowsTerminal.exe` host. On VS shutdown (or provider switch), the cleanup path unconditionally killed the launcher's process tree, which destroyed every WT window system-wide — including unrelated terminals the user had opened manually. `CleanupResources()` and `StopExistingTerminalAsync()` now detect when the tracked launcher process is `WindowsTerminal.exe` and skip the tree kill; `WM_CLOSE` on the embedded window handle is sufficient to close only our session while leaving other WT windows intact.

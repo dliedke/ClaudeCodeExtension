@@ -38,7 +38,9 @@
       "Bash(cmd.exe /c \"msbuild ClaudeCodeExtension.sln /p:Configuration=Release /t:Build /v:minimal 2>&1\" 2>&1 | tail -20)",
       "Bash(powershell.exe -Command \"& 'C:/Program Files/Microsoft Visual Studio/2022/Professional/MSBuild/Current/Bin/MSBuild.exe' ClaudeCodeExtension.sln /p:Configuration=Release /t:Build /v:minimal 2>&1 | Select-Object -Last 20\")",
       "Bash(dotnet --list-sdks)",
-      "Bash(./publish.cmd:*)"
+      "Bash(./publish.cmd:*)",
+      "Bash(mkdir -p /c/Users/Daniel/.claude/skills/codex-review)",
+      "Read(//c/Users/Daniel/.claude/**)"
     ],
     "deny": [],
     "ask": []

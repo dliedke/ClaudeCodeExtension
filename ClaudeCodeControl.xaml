@@ -254,6 +254,22 @@
                             ToolTip="Restart Code Agent"
                             Margin="0,0,6,0"/>
 
+					<Button x:Name="CustomCommandsButton"
+                            Content="⚡"
+                            Width="30"
+                            Height="30"
+                            FontSize="14"
+                            Style="{StaticResource IconButtonStyle}"
+                            FontFamily="Consolas"
+                            ToolTip="Custom Commands"
+                            Visibility="Collapsed"
+                            Click="CustomCommandsButton_Click"
+                            Margin="0,0,6,0">
+						<Button.ContextMenu>
+							<ContextMenu x:Name="CustomCommandsContextMenu"/>
+						</Button.ContextMenu>
+					</Button>
+
 					<Button x:Name="ModelDropdownButton"
                             Content="🤖"
                             Width="30"
@@ -324,6 +340,7 @@
 								<Separator/>
 								<MenuItem Header="Set Working Directory..." x:Name="SetWorkingDirectoryMenuItem" Click="SetWorkingDirectoryMenuItem_Click" ToolTip="Set a custom working directory (absolute or relative to solution). Leave empty for default behavior."/>
 								<MenuItem Header="Set Terminal Type..." x:Name="SetTerminalTypeMenuItem" Click="SetTerminalTypeMenuItem_Click" ToolTip="Choose between Command Prompt (default) or Windows Terminal (better emoji/unicode support)"/>
+								<MenuItem Header="Configure Custom Commands..." x:Name="ConfigureCustomCommandsMenuItem" Click="ConfigureCustomCommandsMenuItem_Click" ToolTip="Add, edit, or remove custom commands surfaced in the toolbar dropdown next to the agent menu."/>
 								<Separator/>
 								<MenuItem Header="About" x:Name="AboutMenuItem" Click="AboutMenuItem_Click"/>
 							</ContextMenu>
