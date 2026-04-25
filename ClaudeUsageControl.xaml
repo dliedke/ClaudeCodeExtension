@@ -13,11 +13,11 @@
         <Style x:Key="UsageButtonStyle" TargetType="Button">
             <Setter Property="Background" Value="{DynamicResource {x:Static vsshell:VsBrushes.ToolWindowBackgroundKey}}"/>
             <Setter Property="Foreground" Value="{DynamicResource {x:Static vsshell:VsBrushes.ToolWindowTextKey}}"/>
-            <Setter Property="BorderBrush" Value="{DynamicResource {x:Static vsshell:VsBrushes.ToolWindowBorderKey}}"/>
+            <Setter Property="BorderBrush" Value="{DynamicResource {x:Static vsshell:VsBrushes.CommandBarBorderKey}}"/>
             <Setter Property="BorderThickness" Value="1"/>
-            <Setter Property="Padding" Value="8,3"/>
-            <Setter Property="Height" Value="24"/>
-            <Setter Property="Margin" Value="0,0,4,0"/>
+            <Setter Property="Padding" Value="12,5"/>
+            <Setter Property="Height" Value="28"/>
+            <Setter Property="Margin" Value="0,0,8,0"/>
             <Setter Property="Cursor" Value="Hand"/>
             <Setter Property="Template">
                 <Setter.Value>
@@ -25,7 +25,8 @@
                         <Border Background="{TemplateBinding Background}"
                                 BorderBrush="{TemplateBinding BorderBrush}"
                                 BorderThickness="{TemplateBinding BorderThickness}"
-                                CornerRadius="3">
+                                CornerRadius="3"
+                                Padding="{TemplateBinding Padding}">
                             <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
                         </Border>
                         <ControlTemplate.Triggers>
@@ -51,8 +52,8 @@
                 Background="{DynamicResource {x:Static vsshell:VsBrushes.CommandBarGradientBeginKey}}"
                 BorderBrush="{DynamicResource {x:Static vsshell:VsBrushes.ToolWindowBorderKey}}"
                 BorderThickness="0,0,0,1"
-                Padding="6,4">
-            <StackPanel Orientation="Horizontal">
+                Padding="8,5">
+            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
                 <Button x:Name="RefreshButton" Style="{StaticResource UsageButtonStyle}"
                         ToolTip="Refresh now" Click="RefreshButton_Click">
                     <TextBlock Text="↻ Refresh" FontSize="12"/>
@@ -61,9 +62,9 @@
                 <TextBlock Text="Auto-refresh:" VerticalAlignment="Center" Margin="6,0,4,0"
                            Foreground="{DynamicResource {x:Static vsshell:VsBrushes.ToolWindowTextKey}}"
                            FontSize="11"/>
-                <ComboBox x:Name="AutoRefreshCombo" Width="80" Height="24"
+                <ComboBox x:Name="AutoRefreshCombo" Width="80" Height="28"
                           SelectionChanged="AutoRefreshCombo_SelectionChanged"
-                          VerticalContentAlignment="Center" FontSize="11" Margin="0,0,4,0">
+                          VerticalContentAlignment="Center" FontSize="11" Margin="0,0,8,0">
                     <ComboBoxItem Content="Off" Tag="0"/>
                     <ComboBoxItem Content="30s" Tag="30"/>
                     <ComboBoxItem Content="1m"  Tag="60"/>

@@ -79,7 +79,9 @@ namespace ClaudeCodeVS
                 VisibilityChanged?.Invoke(this, false);
             }
 
+#pragma warning disable VSTHRD010
             RaiseClosedByUserIfNeeded();
+#pragma warning restore VSTHRD010
             base.OnClose();
         }
 
@@ -126,7 +128,9 @@ namespace ClaudeCodeVS
                 _isVisible = false;
                 VisibilityChanged?.Invoke(this, false);
             }
+#pragma warning disable VSTHRD010
             RaiseClosedByUserIfNeeded();
+#pragma warning restore VSTHRD010
             return VSConstants.S_OK;
         }
 

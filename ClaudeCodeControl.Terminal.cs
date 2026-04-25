@@ -20,6 +20,7 @@ using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Input;
 using Microsoft.VisualStudio.Shell;
+using Microsoft.VisualStudio.Shell.Interop;
 
 namespace ClaudeCodeVS
 {
@@ -732,6 +733,9 @@ namespace ClaudeCodeVS
                     }
 
                     ResizeEmbeddedTerminal();
+
+                    // Return focus to the prompt input after all zoom adjustments are done
+                    PromptTextBox?.Focus();
                 }
                 catch (Exception ex)
                 {
@@ -1288,34 +1292,86 @@ namespace ClaudeCodeVS
         /// </summary>
         private async Task ApplyWindowsTerminalZoomOutAsync()
         {
-            if (_wtTabBarHeight > 0 && terminalHandle != IntPtr.Zero && IsWindow(terminalHandle))
+            if (_wtTabBarHeight <= 0 || terminalHandle == IntPtr.Zero || !IsWindow(terminalHandle))
+                return;
+            try
             {
-                try
-                {
-                    // Set focus to terminal
-                    SetForegroundWindow(terminalHandle);
-                    SetFocus(terminalHandle);
-                    await Task.Delay(100);
+                // Activate the tool window tab first so keybd_event keystrokes hit the terminal
+                await ActivateTerminalToolWindowAsync();
+                await Task.Delay(100);
 
-                    // Send Ctrl+Minus 3 times to zoom out for better visibility
-                    for (int i = 0; i < 3; i++)
-                    {
-                        // Send Ctrl+Minus
-                        keybd_event(VK_CONTROL, 0, 0, UIntPtr.Zero);
-                        await Task.Delay(50);
-                        keybd_event(0xBD, 0, 0, UIntPtr.Zero); // VK_MINUS (0xBD)
-                        await Task.Delay(50);
-                        keybd_event(0xBD, 0, KEYEVENTF_KEYUP, UIntPtr.Zero);
-                        await Task.Delay(50);
-                        keybd_event(VK_CONTROL, 0, KEYEVENTF_KEYUP, UIntPtr.Zero);
-                        await Task.Delay(100);
-                    }
-                }
-                catch (Exception ex)
+                await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
+                var panel = ActiveTerminalPanel;
+                if (panel == null) return;
+
+                FocusTerminalPanel(panel);
+                await Task.Delay(150);
+
+                // Re-assert focus in case VS restored it to another control during the delay
+                await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
+                SetFocus(terminalHandle);
+
+                for (int i = 0; i < 3; i++)
                 {
-                    System.Diagnostics.Debug.WriteLine($"Error applying zoom to Windows Terminal: {ex.Message}");
+                    keybd_event(VK_CONTROL, 0, 0, UIntPtr.Zero);
+                    await Task.Delay(50);
+                    keybd_event(0xBD, 0, 0, UIntPtr.Zero); // VK_OEM_MINUS
+                    await Task.Delay(50);
+                    keybd_event(0xBD, 0, KEYEVENTF_KEYUP, UIntPtr.Zero);
+                    await Task.Delay(50);
+                    keybd_event(VK_CONTROL, 0, KEYEVENTF_KEYUP, UIntPtr.Zero);
+                    await Task.Delay(100);
                 }
+
+                // Trigger a WM_MOUSEMOVE so Windows re-shows the cursor after keybd_event suppressed it
+                var curPos = System.Windows.Forms.Cursor.Position;
+                System.Windows.Forms.Cursor.Position = curPos;
             }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"Error applying zoom to Windows Terminal: {ex.Message}");
+            }
+        }
+
+        /// <summary>
+        /// Ensures the VS tool window tab that hosts the terminal is the active tab.
+        /// Uses the detached window frame when the terminal is detached, otherwise the main tool window frame.
+        /// Must be called before keybd_event zoom so the keystrokes go to the terminal, not whatever
+        /// VS tab the user was looking at.
+        /// </summary>
+        private async Task ActivateTerminalToolWindowAsync()
+        {
+            await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
+            try
+            {
+                IVsWindowFrame frame = null;
+                if (_isTerminalDetached && _detachedTerminalWindow != null)
+                {
+                    frame = _detachedTerminalWindow.Frame as IVsWindowFrame;
+                }
+                else if (_toolWindow != null)
+                {
+                    frame = _toolWindow.Frame as IVsWindowFrame;
+                }
+                frame?.Show();
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"ActivateTerminalToolWindowAsync: {ex.Message}");
+            }
+        }
+
+        /// <summary>
+        /// Focuses the WinForms terminal panel and the embedded terminal child window so that
+        /// keybd_event keystrokes land on the terminal rather than whatever VS tab is active.
+        /// SetForegroundWindow(terminalHandle) silently fails on child windows, so we go through
+        /// the panel's own focus APIs first.
+        /// </summary>
+        private void FocusTerminalPanel(System.Windows.Forms.Control panel)
+        {
+            panel.Select();
+            panel.Focus();
+            SetFocus(terminalHandle);
         }
 
         /// <summary>
@@ -1340,16 +1396,26 @@ namespace ClaudeCodeVS
 
                 int steps = Math.Abs(delta);
 
+                await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
+                var panel = ActiveTerminalPanel;
+                if (panel == null) return;
+
                 if (_wtTabBarHeight > 0)
                 {
-                    // Windows Terminal: use keyboard approach (matches ApplyWindowsTerminalZoomOutAsync)
-                    SetForegroundWindow(terminalHandle);
-                    SetFocus(terminalHandle);
+                    // Activate the VS tab hosting the terminal before sending keystrokes,
+                    // then re-acquire the main thread (Task.Delay inside may have left it).
+                    await ActivateTerminalToolWindowAsync();
                     await Task.Delay(100);
+                    await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
 
-                    // 0xBB = VK_OEM_PLUS (zoom in), 0xBD = VK_OEM_MINUS (zoom out)
-                    int key = delta > 0 ? 0xBB : 0xBD;
+                    FocusTerminalPanel(panel);
+                    await Task.Delay(150);
 
+                    // Re-assert focus in case VS restored it to another control during the delay
+                    await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
+                    SetFocus(terminalHandle);
+
+                    int key = delta > 0 ? 0xBB : 0xBD; // VK_OEM_PLUS / VK_OEM_MINUS
                     for (int i = 0; i < steps; i++)
                     {
                         keybd_event(VK_CONTROL, 0, 0, UIntPtr.Zero);
@@ -1361,19 +1427,18 @@ namespace ClaudeCodeVS
                         keybd_event(VK_CONTROL, 0, KEYEVENTF_KEYUP, UIntPtr.Zero);
                         await Task.Delay(100);
                     }
+
+                    // Trigger a WM_MOUSEMOVE so Windows re-shows the cursor after keybd_event suppressed it
+                    var curPos = System.Windows.Forms.Cursor.Position;
+                    System.Windows.Forms.Cursor.Position = curPos;
                 }
                 else
                 {
-                    // Command Prompt: use PostMessage WM_MOUSEWHEEL+MK_CONTROL
-                    // (same mechanism as native Ctrl+Scroll zoom)
-                    var panel = ActiveTerminalPanel;
-                    if (panel == null) return;
-
+                    // Command Prompt: PostMessage WM_MOUSEWHEEL+MK_CONTROL directly to
+                    // the terminal handle — no focus dependency needed.
                     var screenPt = panel.PointToScreen(
                         new System.Drawing.Point(panel.Width / 2, panel.Height / 2));
                     int lParam = (screenPt.Y << 16) | (screenPt.X & 0xFFFF);
-
-                    // WHEEL_DELTA = 120 per notch
                     int notch = delta > 0 ? 120 : -120;
 
                     for (int i = 0; i < steps; i++)

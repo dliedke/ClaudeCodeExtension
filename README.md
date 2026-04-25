@@ -252,65 +252,94 @@ Claude will write the `SKILL.md` file with the proper frontmatter and instructio
 
 ## Version History
 
+### Version 10.27
+- **Fix cursor disappearing after terminal zoom restore**: Mouse cursor reappears automatically after startup zoom replay instead of requiring the user to move the mouse.
+- **Fix zoom applied to wrong VS tab**: Terminal zoom on startup now activates the correct VS tool window tab (or detached terminal tab) before sending keystrokes, ensuring zoom always lands on the terminal.
+
+### Version 10.26
+- **Fix terminal zoom restore not applying on startup**: Zoom replay now correctly focuses the terminal panel before sending keystrokes, so the zoom lands on the terminal even when Claude Usage or another VS tab is active.
+
+### Version 10.25
+- **Fix terminal zoom restore landing on Claude Usage tab**: Ctrl+Scroll zoom replay on startup now posts messages directly to the terminal window handle instead of using simulated keystrokes, so it always targets the terminal regardless of which VS tab has focus.
+
+### Version 10.24
+- **Claude Usage tab scrolls to top on refresh**: Page returns to the top after every manual or auto-refresh.
+
+### Version 10.23
+- **Claude Usage tab: Ctrl+Scroll zoom with cursor fix**: Ctrl+Scroll zooms the usage page in/out; mouse cursor no longer disappears after zooming.
+
+### Version 10.22
+- **Fix Claude Usage tab cursor disappearing and unwanted zoom on scroll**: Scrolling the usage page no longer accidentally zooms the content or hides the mouse cursor.
+
+### Version 10.21
+- **Fix Claude Usage progress bars not showing fill**: Usage percentage bars now correctly display their colored fill (e.g. 18% used).
+
+### Version 10.20
+- **Claude Usage tab: shared login across VS instances**: Opening a second Visual Studio window automatically picks up the login session from the first — no need to sign in again.
+
+### Version 10.19
+- **Fix Claude Usage tab failing when multiple VS instances are open**: Each VS instance now uses its own isolated browser profile so they no longer conflict with each other.
+
+### Version 10.18
+- **Claude Usage tab UI polish**: Removed unwanted horizontal scrollbar; toolbar buttons now have visible borders and more spacing.
+
 ### Version 10.17
-- **Removed "Send with Enter" toggle**: The checkbox and its supporting plumbing have been removed. Enter now always sends the prompt to the active code agent, and Shift+Enter or Ctrl+Enter inserts a newline. The standalone Send button is also removed since it is no longer needed; the file attachment chips row remains in place. The `SendWithEnter` setting is no longer written to `claudecode-settings.json` (any existing value is silently ignored).
-- **Claude Usage tool window: progress bars now fill the full panel width**: On wide tool windows the embedded claude.ai/settings/usage view was rendering the **Sessão atual** / **Todos os modelos** / **Claude Design** progress bars at ~200–520px while the rest of the panel stayed blank, because the bar row was pinned by Tailwind’s `md:max-w-xl` / `max-w-7xl` caps and a 220px settings-nav grid column that was still being allocated even after the nav itself was hidden. Replaced the previous CSS-only patching strategy with a page-isolation pass: the injected script now finds the smallest content container that holds the bars (the `<div tabindex="-1" class="outline-none">` wrapper directly above `<div class="pb-8"><section>`), walks up to `<body>` marking every ancestor with `data-claude-usage-path` and every sibling along the way with `data-claude-usage-hide`, then a single CSS rule collapses each path element to a plain `display: block` at 100% width (clearing `grid-template-columns`, `flex`, `max-width`, padding, and margins) and hides the rest of the page outright. The result is identical to extracting just the usage container and rendering it standalone, but it preserves the live React tree so claude.ai’s reactive state still drives the bar updates. tick() re-applies the data attributes on every pass so React re-renders that mount new siblings get re-marked the next cycle.
+- **Enter always sends the prompt**: The "Send with Enter" toggle and standalone Send button have been removed. Enter always sends; Shift+Enter or Ctrl+Enter inserts a newline.
+- **Fix Claude Usage progress bars on wide panels**: Usage bars now expand to fill the full panel width instead of rendering at a fixed narrow size.
 
 ### Version 10.16
-- **Claude Usage Limits in Visual Studio** ([#38](https://github.com/dliedke/ClaudeCodeExtension/issues/38)): The extension now surfaces your claude.ai plan usage without leaving the IDE. A new **📊 Claude Usage** toolbar button (visible when a Claude provider is active) opens a dockable tool window that embeds `https://claude.ai/settings/usage` in a WebView2; the page is auto-trimmed to show only the limits section, and includes Refresh, Auto-refresh (Off / 30s / 1m / 2m / 5m, persisted across sessions), Open in Browser, and Sign out controls. Inline below the prompt, two compact progress bars mirror **Sessão atual / Current session** and **Todos os modelos / All models** (labels and reset times are kept verbatim from the page so localization is preserved). A hidden background WebView2 scrapes the same page on startup, after each prompt send, and on the configured cadence; results are cached in `claudecode-settings.json` so the bars render immediately on next launch with stale data while a fresh fetch runs in the background. If WebView2 is missing, you are not signed in, or the page structure changes, the inline bars hide silently rather than erroring. The tool window's open/closed state is persisted, so it auto-reopens with the next solution if it was open at shutdown. After signing in, claude.ai's post-auth landing pages (`/new`, `/chats`, root) are auto-redirected back to `/settings/usage` so the tool window always ends up on the right page.
+- **Claude Usage Limits in Visual Studio** ([#38](https://github.com/dliedke/ClaudeCodeExtension/issues/38)): New **📊 Claude Usage** toolbar button (visible when Claude is active) opens a dockable tool window showing your claude.ai plan usage directly inside VS. Includes Refresh, Auto-refresh (Off / 30s / 1m / 2m / 5m), Open in Browser, and Sign out. Compact inline progress bars below the prompt mirror session and weekly usage and update automatically.
 
 ### Version 10.15
-- **Custom Commands**: Added a "Configure Custom Commands..." entry to the Code Agent Selection menu. Opens a dialog for adding, editing, reordering, and removing user-defined commands. Each entry has a friendly name and a literal command string. When at least one custom command is configured, a new ⚡ button appears in the toolbar next to the agent menu; clicking it opens a dropdown of saved commands, and selecting one sends the configured text directly to the active code agent without modification. The list persists in the same `claudecode-settings.json` configuration file under the `CustomCommands` key, so it survives restarts and is shared across providers. Useful for slash commands (e.g. invoking a Claude Code skill like `/codex-review`) or canned prompts the user reuses frequently.
+- **Custom Commands**: Configure reusable commands via the agent menu > "Configure Custom Commands...". Each command has a name and text; a ⚡ toolbar button appears when commands are defined and sends the selected command directly to the active agent. Useful for frequently used slash commands or canned prompts.
 
 ### Version 10.14
-- **Fixed: Closing Visual Studio no longer closes unrelated Windows Terminal windows** ([#37](https://github.com/dliedke/ClaudeCodeExtension/issues/37)): When the embedded terminal used Windows Terminal mode, the `wt.exe` App Execution Alias on Windows 11 could activate the MSIX package such that the launched `Process` handle mapped directly to the shared `WindowsTerminal.exe` host. On VS shutdown (or provider switch), the cleanup path unconditionally killed the launcher's process tree, which destroyed every WT window system-wide — including unrelated terminals the user had opened manually. `CleanupResources()` and `StopExistingTerminalAsync()` now detect when the tracked launcher process is `WindowsTerminal.exe` and skip the tree kill; `WM_CLOSE` on the embedded window handle is sufficient to close only our session while leaving other WT windows intact.
+- **Fix: closing VS no longer closes unrelated Windows Terminal windows** ([#37](https://github.com/dliedke/ClaudeCodeExtension/issues/37)): Shutting down VS or switching providers now only closes the embedded terminal session, leaving any other Windows Terminal windows the user has open untouched.
 
 ### Version 10.13
-- **Cut/Copy/Select All added to prompt context menu** (#34): The prompt textbox's context menu previously only exposed "Clear Prompt History", which replaced WPF's default Cut/Copy/Paste entries. Standard Cut, Copy, Paste, and Select All items (bound to `ApplicationCommands`) now appear above the history action, so right-clicking the prompt works like any normal text box.
+- **Cut/Copy/Paste/Select All in prompt context menu** ([#34](https://github.com/dliedke/ClaudeCodeExtension/issues/34)): Right-clicking the prompt now shows standard text editing actions alongside the history option.
 
 ### Version 10.12
-- **Qwen Code provider removed**: Qwen Code is no longer bundled as a provider option. The `AiProvider` enum now uses explicit ordinals and skips `6` (the retired `QwenCode` value) so existing user settings that still reference it fall back to `ClaudeCode` cleanly via a defensive `Enum.IsDefined` guard in `LoadSettings`. Menu entry, availability detection, install instructions, Enter-key branch, workspace-change handler, detach label, and update flow for Qwen Code have all been removed.
-- **Terminal row minimum reduced to 20px**: The MainGrid terminal row `MinHeight` dropped from 60px to 20px (both normal and inverted layouts), allowing the splitter to travel further down so the prompt area can grow larger.
+- **Qwen Code provider removed**: Qwen Code has been dropped from the provider list. Existing settings that referenced it automatically fall back to Claude Code.
+- **More space for the prompt area**: The minimum terminal height has been reduced so the splitter can travel further down.
 
 ### Version 10.11
-- **Cursor Agent: Yolo Mode menu option**: Added "Cursor Agent: Yolo Mode" toggle in the model context menu. When enabled, Cursor Agent (Windows native) and Cursor Agent (WSL) start with `--yolo` to skip all approvals, mirroring the Claude Code skip-permissions and Codex approval-never toggles. Setting persists as `CursorAgentAutoRun` and triggers an immediate terminal restart so the flag takes effect.
-- **Splitter reach & boundary fix**: Prompt section now has a live `MaxHeight` cap tied to the control's rendered height minus the splitter and the bottom row's `MinHeight`. Previously, dragging the splitter down (or loading a large saved `SplitterPosition` into a smaller tool window) could push the splitter handle and terminal entirely out of view. Also lowered the terminal row `MinHeight` from 150px to 60px so the splitter can travel further down and the prompt area can grow larger.
+- **Cursor Agent: Yolo Mode**: New toggle in the model menu starts Cursor Agent with `--yolo` to skip all approval prompts, similar to Claude Code’s "Dangerous Skip Permissions" option.
+- **Splitter boundary fix**: Dragging the splitter to the bottom of the panel no longer pushes the terminal out of view.
 
 ### Version 10.10
-- **Install Caveman menu option**: Added "Install Caveman" entry in the model menu (after "Set Language") for Claude Code and Claude Code (WSL). Triggers `/plugin marketplace add JuliusBrussee/caveman`, `/plugin install caveman@caveman`, `/reload-plugins`, and `/caveman` inside the running Claude session to install the [Caveman](https://github.com/JuliusBrussee/caveman) ultra-compressed communication plugin.
+- **Install Caveman plugin from menu**: New "Install Caveman" entry in the model menu for Claude Code automatically installs the [Caveman](https://github.com/JuliusBrussee/caveman) ultra-compressed communication plugin into the active session.
 
 ### Version 10.8
-- **Test deployment automation**: Internal release used to validate the new automated marketplace publishing script (`publish.cmd` + `publishManifest.json`), which performs a clean Release rebuild and pushes the VSIX to the Visual Studio Marketplace via `VsixPublisher.exe`. No user-facing changes.
+- **Automated marketplace publishing**: Internal release to validate the new `publish.cmd` deployment script. No user-facing changes.
 
 ### Version 10.7
-- **Detect winget-installed Claude Code**: Provider detection and command launch now use `where claude` (PATHEXT-aware) instead of only `claude.cmd`, so `claude.exe` installed via winget (or any other installer) is recognized without showing the installation pop-up. Fixes [#30](https://github.com/dliedke/ClaudeCodeExtension/issues/30).
-- **Fix `claude: command not found` in WSL terminal**: WSL terminal launches now use `bash -lic` (login + interactive) instead of `bash -ic`, so `.profile`/`.bash_profile` PATH entries are loaded. Applies to Claude Code (WSL), Codex (WSL), Cursor Agent (WSL) and Windsurf (WSL). Fixes the follow-up issue on [#27](https://github.com/dliedke/ClaudeCodeExtension/issues/27).
+- **Detect winget-installed Claude Code**: Claude Code installed via winget (or any other installer) is now correctly recognized. Fixes [#30](https://github.com/dliedke/ClaudeCodeExtension/issues/30).
+- **Fix `claude: command not found` in WSL**: WSL providers now load the full login shell PATH so tools installed via `.profile` or `.bash_profile` are found correctly.
 
 ### Version 10.6
-- **Invert Layout option**: Added option to swap the prompt and terminal positions, placing the terminal on top and the prompt area on the bottom. Toggle via the settings menu (gear icon) > "Invert Layout".
+- **Invert Layout option**: Swap the prompt and terminal positions via the settings (gear) menu > "Invert Layout".
 
 ### Version 10.5
-- **Fix WSL provider detection false negatives**: Fixed repeated "installation" pop-ups for WSL providers by switching to login shell (`bash -lc`), increasing detection timeouts (8s/20s), and fixing retry logic that was aborting on harmless shell warnings.
-- **Fix floating terminal window**: Added retry logic for terminal window discovery (5s + 10s) and `SetParent()` embedding (up to 3 attempts with Win32 error logging), preventing the terminal from appearing as a separate floating window on busy systems.
+- **Fix repeated WSL install popups**: WSL provider detection now correctly distinguishes "not installed" from shell startup noise, eliminating false "please install" dialogs.
+- **Fix floating terminal window**: Terminal embedding is more reliable on slower machines and no longer sometimes appears as a separate floating window.
 
 ### Version 10.4
-- **Windsurf model selection**: Added model selection menu for Windsurf provider (Claude Opus, Claude Sonnet, Codex, Gemini Pro) with `/model` command sent directly to the terminal.
-- **Windsurf Show Usage**: Added "Show Usage" menu item for Windsurf that opens https://windsurf.com/subscription/usage in the browser.
+- **Windsurf model selection**: Choose between Claude Opus, Claude Sonnet, Codex, and Gemini Pro for the Windsurf provider.
+- **Windsurf Show Usage**: New menu item opens the Windsurf usage page in the browser.
 
 ### Version 10.3
-- **Added Windsurf (WSL) provider**: Full support for Windsurf (devin CLI) running inside WSL with automatic detection, installation instructions, one-click update (`devin update`), and optional `--permission-mode dangerous` flag.
+- **Windsurf (WSL) provider**: Full support for the Windsurf (devin) agent running inside WSL, including auto-detection, install instructions, one-click update, and dangerous mode toggle.
 
 ### Version 10.2
-- **Fix CMake project directory detection**: Fixed workspace directory detection for CMake and "Open Folder" projects that don't use `.sln` files. Previously the terminal would launch in the parent directory; now it correctly detects folder-based projects.
-- **Added Awesome Codex CLI badge**: Added "Mentioned in Awesome Codex CLI" badge to README.
+- **Fix CMake / Open Folder project directory**: The terminal now launches in the correct directory for CMake and folder-based projects that don’t use a `.sln` file.
 
 ### Version 10.1
-- **Send editor selection to prompt**: New toolbar button (📋) grabs the currently selected code from the active editor and inserts it as a formatted snippet (with file path, line numbers, and syntax-highlighted code fence) into the prompt text box. Also available via right-click context menu "Send Selection to Claude Code" in the editor.
+- **Send editor selection to prompt**: The 📋 toolbar button inserts the currently selected code from the editor into the prompt as a formatted snippet with file path and line numbers. Also available via right-click > "Send Selection to Claude Code".
 
 ### Version 10.0
-- **Icon-based toolbar**: Replaced text buttons (Send, Add File, Changes, Restart) with compact emoji icons (▶, 📎, 🔀, ⟳) for a cleaner, more uniform toolbar. All buttons now use consistent icon styling with tooltips.
-- **Softer UI text**: Labels ("Prompt / Paste Image", "Send with Enter", terminal header) and icon buttons use slightly reduced opacity for a softer, less harsh appearance in dark theme.
-- **Fix detach icon on theme switch**: The detach/attach button icon now correctly updates its color when switching between dark and light VS themes.
+- **Icon-based toolbar**: Toolbar actions replaced with compact emoji icons (▶ 📎 🔀 ⟳) and tooltips for a cleaner layout.
+- **Fix detach icon on theme switch**: The detach/attach button icon now correctly updates when switching between VS dark and light themes.
 
 ### Version 9.7
 - **Fix button color consistency**: All toolbar buttons now use the same theme-aware text color. Previously, icon buttons (model selector, settings gear, detach) used hardcoded gray text instead of matching the VS theme color like the other buttons.

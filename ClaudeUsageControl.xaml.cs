@@ -15,8 +15,10 @@
 using Microsoft.Web.WebView2.Core;
 using Newtonsoft.Json;
 using System;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
+using System.Linq;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
@@ -35,10 +37,15 @@ namespace ClaudeCodeVS
         public const string UsageUrl = "https://claude.ai/settings/usage";
         public const string WebView2DownloadUrl = "https://developer.microsoft.com/en-us/microsoft-edge/webview2/";
 
+        private static readonly string SharedCookiePath = Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+            "ClaudeCodeExtension", "shared_cookies.json");
+
         private DispatcherTimer _autoRefreshTimer;
         private bool _initialized;
         private bool _suppressComboEvent;
         private DateTime _lastRedirectAttemptUtc = DateTime.MinValue;
+        private DateTime _lastCookieSaveUtc = DateTime.MinValue;
 
         /// <summary>
         /// Fires when a usage snapshot is successfully scraped from the page.
@@ -71,13 +78,33 @@ namespace ClaudeCodeVS
         {
             try
             {
+                // WebView2 exclusively locks its user data folder — two VS processes sharing
+                // the same folder causes the second to throw during environment creation.
+                // Use a per-process folder so multiple VS instances coexist without conflict.
+                int pid = System.Diagnostics.Process.GetCurrentProcess().Id;
                 var userDataFolder = Path.Combine(
                     Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-                    "ClaudeCodeExtension", "WebView2");
+                    "ClaudeCodeExtension", "WebView2_" + pid);
                 Directory.CreateDirectory(userDataFolder);
+                CleanupStaleWebView2Folders();
 
                 var env = await ClaudeUsageWebViewEnvironment.GetOrCreateAsync(userDataFolder);
                 await WebView.EnsureCoreWebView2Async(env);
+
+                // Re-focus after Ctrl+Scroll zoom so WebView2 re-establishes cursor tracking.
+                // Without this the mouse cursor disappears until the user clicks again.
+                WebView.ZoomFactorChanged += (s, e) =>
+                {
+#pragma warning disable VSTHRD001, VSTHRD110
+                    _ = Dispatcher.BeginInvoke(new Action(() =>
+                    {
+                        try { WebView?.Focus(); } catch { }
+                    }), System.Windows.Threading.DispatcherPriority.Background);
+#pragma warning restore VSTHRD001, VSTHRD110
+                };
+
+                // Import cookies saved by another VS instance so the user stays logged in.
+                await LoadSharedCookiesAsync();
 
                 WebView.CoreWebView2.WebMessageReceived += OnWebMessageReceived;
                 WebView.CoreWebView2.NavigationCompleted += OnNavigationCompleted;
@@ -171,8 +198,8 @@ namespace ClaudeCodeVS
       // Padding lives on <body> rather than on the path elements because
       // the path rule below sets `padding: 0 !important` to neutralize
       // Tailwind's `px-4 md:px-8 lg:px-8` etc. on intermediate ancestors.
-      'html, body { max-width: none !important; width: 100% !important; min-width: 100% !important; margin: 0 !important; }' +
-      'body { overflow: auto !important; padding: 16px 20px !important; box-sizing: border-box !important; }' +
+      'html, body { max-width: none !important; width: 100% !important; min-width: 100% !important; margin: 0 !important; overflow-x: hidden !important; }' +
+      'body { overflow-y: auto !important; padding: 16px 20px !important; box-sizing: border-box !important; }' +
       // Force an explicit cursor on the page. WebView2 hosted in WPF only
       // renders its own mouse cursor while the page declares one — the
       // claude.ai body class set leaves cursor at auto, which the
@@ -275,6 +302,8 @@ namespace ClaudeCodeVS
     for (const d of divs) {
       if (!d.style) continue;
       if (d.getAttribute && d.getAttribute('role') === 'progressbar') continue;
+      // Skip children of progressbar containers — they hold the inline fill width (e.g. 18%).
+      if (d.closest && d.closest('[role=\""progressbar\""]')) continue;
       d.style.width = '';
       d.style.minWidth = '';
       d.style.maxWidth = '';
@@ -298,7 +327,7 @@ namespace ClaudeCodeVS
       isolatePath(target);
       clearStaleInlineWidths(target);
       if (!scrolledOnce) {
-        try { target.scrollIntoView({ block: 'start' }); } catch (e) {}
+        try { window.scrollTo({ top: 0, behavior: 'instant' }); } catch (e) {}
         scrolledOnce = true;
       }
     }
@@ -484,6 +513,8 @@ namespace ClaudeCodeVS
                 if (snap == null) return;
                 UsageDataReceived?.Invoke(this, snap);
                 UpdateStatus();
+                // Persist cookies so other VS instances can reuse this session (throttled).
+                _ = SaveSharedCookiesAsync();
             }
             catch (Exception ex)
             {
@@ -558,6 +589,7 @@ namespace ClaudeCodeVS
                 foreach (var c in cookies) cm.DeleteCookie(c);
                 cookies = await cm.GetCookiesAsync("https://anthropic.com");
                 foreach (var c in cookies) cm.DeleteCookie(c);
+                try { if (File.Exists(SharedCookiePath)) File.Delete(SharedCookiePath); } catch { }
                 Reload();
             }
             catch (Exception ex)
@@ -577,6 +609,101 @@ namespace ClaudeCodeVS
             if (ErrorPanel != null) ErrorPanel.Visibility = Visibility.Visible;
             if (ErrorText != null) ErrorText.Text = message;
             if (WebView != null) WebView.Visibility = Visibility.Collapsed;
+        }
+
+        private async Task LoadSharedCookiesAsync()
+        {
+            try
+            {
+                if (!File.Exists(SharedCookiePath)) return;
+                string json = File.ReadAllText(SharedCookiePath);
+                var dtos = JsonConvert.DeserializeObject<List<CookieDto>>(json);
+                if (dtos == null || dtos.Count == 0) return;
+                var cm = WebView?.CoreWebView2?.CookieManager;
+                if (cm == null) return;
+                foreach (var dto in dtos)
+                {
+                    try
+                    {
+                        if (dto.Expires != DateTime.MinValue && dto.Expires < DateTime.UtcNow) continue;
+                        var cookie = cm.CreateCookie(dto.Name, dto.Value, dto.Domain, dto.Path);
+                        cookie.Expires = dto.Expires;
+                        cookie.IsHttpOnly = dto.IsHttpOnly;
+                        cookie.IsSecure = dto.IsSecure;
+                        cookie.SameSite = (CoreWebView2CookieSameSiteKind)dto.SameSite;
+                        cm.AddOrUpdateCookie(cookie);
+                    }
+                    catch { }
+                }
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine("ClaudeUsageControl: LoadSharedCookiesAsync failed: " + ex);
+            }
+        }
+
+        private async Task SaveSharedCookiesAsync()
+        {
+            if ((DateTime.UtcNow - _lastCookieSaveUtc).TotalSeconds < 60) return;
+            _lastCookieSaveUtc = DateTime.UtcNow;
+            try
+            {
+                var cm = WebView?.CoreWebView2?.CookieManager;
+                if (cm == null) return;
+                var all = new List<CoreWebView2Cookie>();
+                foreach (var domain in new[] { "https://claude.ai", "https://anthropic.com" })
+                    all.AddRange(await cm.GetCookiesAsync(domain));
+                var dtos = all.Select(c => new CookieDto
+                {
+                    Name = c.Name,
+                    Value = c.Value,
+                    Domain = c.Domain,
+                    Path = c.Path,
+                    Expires = c.Expires,
+                    IsHttpOnly = c.IsHttpOnly,
+                    IsSecure = c.IsSecure,
+                    SameSite = (int)c.SameSite
+                }).ToList();
+                File.WriteAllText(SharedCookiePath, JsonConvert.SerializeObject(dtos));
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine("ClaudeUsageControl: SaveSharedCookiesAsync failed: " + ex);
+            }
+        }
+
+        private class CookieDto
+        {
+            public string Name { get; set; }
+            public string Value { get; set; }
+            public string Domain { get; set; }
+            public string Path { get; set; }
+            public DateTime Expires { get; set; }
+            public bool IsHttpOnly { get; set; }
+            public bool IsSecure { get; set; }
+            public int SameSite { get; set; }
+        }
+
+        private static void CleanupStaleWebView2Folders()
+        {
+            try
+            {
+                var baseDir = Path.Combine(
+                    Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+                    "ClaudeCodeExtension");
+                if (!Directory.Exists(baseDir)) return;
+                foreach (var dir in Directory.GetDirectories(baseDir, "WebView2_*"))
+                {
+                    var pidStr = Path.GetFileName(dir).Substring("WebView2_".Length);
+                    if (!int.TryParse(pidStr, out int pid)) continue;
+                    try { System.Diagnostics.Process.GetProcessById(pid); }
+                    catch (ArgumentException)
+                    {
+                        try { Directory.Delete(dir, recursive: true); } catch { }
+                    }
+                }
+            }
+            catch { }
         }
 
         public void Cleanup()
