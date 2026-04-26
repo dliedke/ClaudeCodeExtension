@@ -163,9 +163,11 @@ namespace ClaudeCodeVS
         }
 
         /// <summary>
-        /// Shows the tab briefly, waits for the WebView2 scraper to deliver actual usage data
-        /// (or times out), then hides the tab. Bars are updated by HandleScrapedSnapshot before
-        /// the tab disappears.  SetBackgroundInitMode prevents Focus() from being stolen.
+        /// Refreshes usage data for the inline bars without showing the tab.
+        /// When WebView2 is already initialized, reloads the hidden page directly —
+        /// CoreWebView2 processes navigation and JS messaging even when the frame is
+        /// hidden, so the tab never needs to become visible. Only falls back to a
+        /// show-hide cycle if WebView2 has not been initialized yet.
         /// </summary>
         private async Task ShowHideForScrapeAsync()
         {
@@ -175,8 +177,22 @@ namespace ClaudeCodeVS
                 if (_usageToolWindow?.Frame == null) return;
                 if (_usageToolWindow.IsWindowVisible) return; // already visible, scraper is live
 
-                var frame = (IVsWindowFrame)_usageToolWindow.Frame;
+                // WebView2 already initialized: reload the hidden control without activating
+                // the frame — avoids the tab blinking in the VS tab strip on every refresh.
+                if (_usageToolWindow.UsageControl?.IsWebViewInitialized == true)
+                {
+                    _backgroundScrapeCompletionTcs = new TaskCompletionSource<bool>();
+                    _usageToolWindow.UsageControl?.Reload();
+                    await Task.WhenAny(_backgroundScrapeCompletionTcs.Task, Task.Delay(10000));
+                    _backgroundScrapeCompletionTcs = null;
+                    // Mark so the rendering surface is rebuilt when the user explicitly opens the tab.
+                    _usageToolWindow.UsageControl?.MarkNeedsReloadOnShow();
+                    return;
+                }
 
+                // WebView2 not yet initialized — must show the frame so it can acquire a
+                // parent HWND. SetBackgroundInitMode prevents Focus() from stealing focus.
+                var frame = (IVsWindowFrame)_usageToolWindow.Frame;
                 _usageToolWindow.UsageControl?.SetBackgroundInitMode(true);
                 Microsoft.VisualStudio.ErrorHandler.ThrowOnFailure(frame.Show());
 

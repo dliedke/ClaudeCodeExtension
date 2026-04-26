@@ -252,6 +252,9 @@ Claude will write the `SKILL.md` file with the proper frontmatter and instructio
 
 ## Version History
 
+### Version 10.31
+- **Usage tab no longer blinks during background refresh**: Periodic inline-bar scrapes now reload the hidden WebView2 directly without activating the Claude Usage tab. The tab only becomes visible when the user explicitly opens it.
+
 ### Version 10.30
 - **Usage bars persist after closing tab**: When the Claude Usage tab is closed via X while inline bars are enabled, the state is saved. On next VS session, the usage window is created hidden in the background so the WebView2 scraper runs and bars stay up to date without the tab being visible.
 
