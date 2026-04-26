@@ -69,7 +69,6 @@
                     <ComboBoxItem Content="30s" Tag="30"/>
                     <ComboBoxItem Content="1m"  Tag="60"/>
                     <ComboBoxItem Content="2m"  Tag="120"/>
-                    <ComboBoxItem Content="5m"  Tag="300"/>
                 </ComboBox>
 
                 <Button x:Name="OpenInBrowserButton" Style="{StaticResource UsageButtonStyle}"

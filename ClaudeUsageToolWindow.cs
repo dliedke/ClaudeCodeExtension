@@ -30,12 +30,26 @@ namespace ClaudeCodeVS
         private bool _isVisible;
         private bool _closedByUserRaised;
         private uint _notifyCookie;
+        private bool _closeIsIntentional;
 
         public ClaudeUsageControl UsageControl => _control;
         public bool IsWindowVisible => _isVisible;
 
         public event EventHandler<bool> VisibilityChanged;
         public event EventHandler ClosedByUser;
+
+        /// <summary>
+        /// Destroys the tool window for real (WebView2 disposed, window removed).
+        /// Used by the toolbar toggle button. X-button closes are intercepted and
+        /// converted to <see cref="IVsWindowFrame.Hide"/> so the scraper keeps running.
+        /// </summary>
+        public void ForceClose()
+        {
+            ThreadHelper.ThrowIfNotOnUIThread();
+            _closeIsIntentional = true;
+            if (Frame is IVsWindowFrame frame)
+                frame.CloseFrame((uint)__FRAMECLOSE.FRAMECLOSE_NoSave);
+        }
 
         public ClaudeUsageToolWindow() : base(null)
         {
@@ -102,6 +116,7 @@ namespace ClaudeCodeVS
             if (nowVisible && !_isVisible)
             {
                 _isVisible = true;
+                _closedByUserRaised = false; // Allow ClosedByUser to fire again on the next close
                 VisibilityChanged?.Invoke(this, true);
             }
             else if (nowHidden && _isVisible)
@@ -123,15 +138,35 @@ namespace ClaudeCodeVS
 
         public int OnClose(ref uint pgrfSaveOptions)
         {
+#pragma warning disable VSTHRD010 // IVsWindowFrameNotify2.OnClose is called on the UI thread by VS
+            // Real close from ForceClose() or VS shutdown — let it proceed
+            if (_closeIsIntentional || IsVisualStudioShuttingDown())
+            {
+                _closeIsIntentional = false;
+                if (_isVisible)
+                {
+                    _isVisible = false;
+                    VisibilityChanged?.Invoke(this, false);
+                }
+                RaiseClosedByUserIfNeeded();
+                return VSConstants.S_OK;
+            }
+
+            // X-button close: hide instead of destroy so WebView2 scraper keeps running.
+            // Return E_ABORT to cancel the actual frame destruction.
             if (_isVisible)
             {
                 _isVisible = false;
                 VisibilityChanged?.Invoke(this, false);
             }
-#pragma warning disable VSTHRD010
+            _closedByUserRaised = false; // Allow re-firing on future closes
             RaiseClosedByUserIfNeeded();
+            if (Frame is IVsWindowFrame frame)
+            {
+                try { frame.Hide(); } catch { }
+            }
+            return VSConstants.E_ABORT;
 #pragma warning restore VSTHRD010
-            return VSConstants.S_OK;
         }
 
         #endregion

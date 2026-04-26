@@ -252,6 +252,14 @@ Claude will write the `SKILL.md` file with the proper frontmatter and instructio
 
 ## Version History
 
+### Version 10.29
+- **Usage bars update on load when enabled**: Inline usage bars now show cached data immediately on extension load without requiring the Claude Usage window to be open. When the usage window was previously open, it auto-reopens and triggers a reload so both the inline bars and the usage tab display fresh data.
+- **Usage tab X-close keeps bars updating**: Closing the Claude Usage tab with its X button now hides the frame instead of destroying it, so the embedded scraper keeps running and the inline bars continue to receive live data. The toolbar button still performs a real close (destroys the window and hides the bars).
+- **Toolbar button toggles bars with the tab**: Clicking the usage toolbar button to turn off the feature hides the inline bars too; clicking it again re-enables both the bars and the tab.
+
+### Version 10.28
+- **Shift+Enter and Ctrl+Enter insert newlines**: Both key combos now reliably insert a newline in the prompt textbox; previously Ctrl+Enter was silently ignored by WPF.
+
 ### Version 10.27
 - **Fix cursor disappearing after terminal zoom restore**: Mouse cursor reappears automatically after startup zoom replay instead of requiring the user to move the mouse.
 - **Fix zoom applied to wrong VS tab**: Terminal zoom on startup now activates the correct VS tool window tab (or detached terminal tab) before sending keystrokes, ensuring zoom always lands on the terminal.

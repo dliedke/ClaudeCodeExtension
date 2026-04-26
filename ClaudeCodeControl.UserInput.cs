@@ -195,15 +195,8 @@ namespace ClaudeCodeVS
         {
             if (e.Key == Key.Enter)
             {
-                // Shift+Enter or Ctrl+Enter inserts a newline
-                if ((Keyboard.Modifiers & ModifierKeys.Shift) == ModifierKeys.Shift ||
-                    (Keyboard.Modifiers & ModifierKeys.Control) == ModifierKeys.Control)
-                {
-                    return;
-                }
-
-                // Plain Enter sends the prompt
-                e.Handled = true; // Prevent default newline behavior
+                // Plain Enter sends the prompt (modifier cases handled in PreviewKeyDown)
+                e.Handled = true;
                 SendButton_Click(sender, null);
             }
         }
@@ -231,17 +224,23 @@ namespace ClaudeCodeVS
                 }
             }
 
-            // Enter sends the prompt; Shift+Enter or Ctrl+Enter inserts a newline.
-            // Handled in PreviewKeyDown to catch it before TextBox processes it.
             if (e.Key == Key.Enter)
             {
-                if ((Keyboard.Modifiers & ModifierKeys.Shift) == ModifierKeys.Shift ||
-                    (Keyboard.Modifiers & ModifierKeys.Control) == ModifierKeys.Control)
+                bool shift = (Keyboard.Modifiers & ModifierKeys.Shift) == ModifierKeys.Shift;
+                bool ctrl = (Keyboard.Modifiers & ModifierKeys.Control) == ModifierKeys.Control;
+
+                if (shift || ctrl)
                 {
+                    // Shift+Enter or Ctrl+Enter: insert newline at caret
+                    int caret = PromptTextBox.CaretIndex;
+                    PromptTextBox.SelectedText = "\n";
+                    PromptTextBox.CaretIndex = caret + 1;
+                    e.Handled = true;
                     return;
                 }
 
-                e.Handled = true; // Prevent default newline behavior
+                // Plain Enter: send prompt
+                e.Handled = true;
                 SendButton_Click(sender, null);
                 return;
             }

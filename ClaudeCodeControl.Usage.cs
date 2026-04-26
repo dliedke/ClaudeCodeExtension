@@ -53,14 +53,22 @@ namespace ClaudeCodeVS
 
                 UpdateInlineUsagePanelVisibility();
 
-                if (_settings.UsageWindowOpened)
+                bool wasWindowOpen = _settings.UsageWindowOpened;
+                // Also trigger when bars are enabled and Claude is active, so data refreshes on load
+                bool shouldRefresh = wasWindowOpen ||
+                    (_settings.ShowInlineUsageBars && IsClaudeProviderSelected());
+
+                if (shouldRefresh)
                 {
 #pragma warning disable VSSDK007 // Fire-and-forget is intentional here
                     ThreadHelper.JoinableTaskFactory.RunAsync(async delegate
                     {
                         await Task.Delay(2000);
                         await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
-                        await EnsureUsageToolWindowAsync(showWindow: true);
+                        await EnsureUsageToolWindowAsync(showWindow: wasWindowOpen, updateWindowState: wasWindowOpen);
+                        // Reload page if WebView2 was already initialized (VS session-restore scenario)
+                        // so both the tab and the inline bars receive fresh data
+                        _usageToolWindow?.UsageControl?.Reload();
                     }).FileAndForget("claudecode/usage/auto-reopen");
 #pragma warning restore VSSDK007
                 }
@@ -91,9 +99,10 @@ namespace ClaudeCodeVS
                 bool isClaude = IsClaudeProviderSelected();
                 bool enabled = _settings?.ShowInlineUsageBars != false;
                 bool hasData = !string.IsNullOrEmpty(_settings?.LastUsageJson);
-                bool windowOpened = _settings?.UsageWindowOpened == true;
 
-                InlineUsagePanel.Visibility = (isClaude && enabled && hasData && windowOpened)
+                // Show bars whenever enabled and data is available — no longer requires the
+                // usage window to be open so cached data from previous sessions renders immediately
+                InlineUsagePanel.Visibility = (isClaude && enabled && hasData)
                     ? Visibility.Visible
                     : Visibility.Collapsed;
             }
@@ -154,8 +163,11 @@ namespace ClaudeCodeVS
 
         /// <summary>
         /// Finds (and optionally creates) the Claude usage tool window and shows it.
+        /// <paramref name="updateWindowState"/> controls whether <see cref="ClaudeCodeSettings.UsageWindowOpened"/>
+        /// is persisted — pass false when auto-opening just to scrape data on startup so the user's
+        /// explicit close is not overwritten.
         /// </summary>
-        private async Task EnsureUsageToolWindowAsync(bool showWindow)
+        private async Task EnsureUsageToolWindowAsync(bool showWindow, bool updateWindowState = true)
         {
             await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
 
@@ -184,7 +196,7 @@ namespace ClaudeCodeVS
                     var frame = (IVsWindowFrame)_usageToolWindow.Frame;
                     Microsoft.VisualStudio.ErrorHandler.ThrowOnFailure(frame.Show());
 
-                    if (_settings != null && _settings.UsageWindowOpened != true)
+                    if (updateWindowState && _settings != null && _settings.UsageWindowOpened != true)
                     {
                         _settings.UsageWindowOpened = true;
                         SaveSettings();
@@ -243,10 +255,13 @@ namespace ClaudeCodeVS
         }
 
         /// <summary>
-        /// Toolbar button is a toggle: if the usage tool window is currently
-        /// visible, hide it (and the inline bars); otherwise open it. The
-        /// hidden tool window is kept in memory so re-opening is instant —
-        /// the WebView2 instance and its login cookies survive the toggle.
+        /// Toolbar button is a toggle:
+        /// - OFF path: <see cref="ClaudeUsageToolWindow.ForceClose"/> destroys the window
+        ///   (WebView2 disposed) and hides the inline bars via ShowInlineUsageBars = false.
+        /// - ON path: re-enables bars and opens the tab.
+        /// Closing the tab via its own X button is intercepted by the tool window and
+        /// converted to a <see cref="IVsWindowFrame.Hide"/> — the WebView2 stays alive and
+        /// keeps scraping so the inline bars continue to update while the tab is hidden.
         /// </summary>
         private async Task ToggleUsageToolWindowAsync()
         {
@@ -260,16 +275,23 @@ namespace ClaudeCodeVS
                 if (existing?.Frame is IVsWindowFrame frame &&
                     frame.IsVisible() == Microsoft.VisualStudio.VSConstants.S_OK)
                 {
-                    Microsoft.VisualStudio.ErrorHandler.ThrowOnFailure(frame.Hide());
-                    if (_settings != null && _settings.UsageWindowOpened)
+                    // Button-OFF: hide bars immediately then destroy the window for real
+                    if (_settings != null)
                     {
-                        _settings.UsageWindowOpened = false;
+                        _settings.ShowInlineUsageBars = false;
                         SaveSettings();
                     }
                     UpdateInlineUsagePanelVisibility();
+                    existing.ForceClose();
                     return;
                 }
 
+                // Button-ON: re-enable bars then open tab
+                if (_settings != null && !_settings.ShowInlineUsageBars)
+                {
+                    _settings.ShowInlineUsageBars = true;
+                    SaveSettings();
+                }
                 await EnsureUsageToolWindowAsync(showWindow: true);
             }
             catch (Exception ex)
