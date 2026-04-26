@@ -252,6 +252,9 @@ Claude will write the `SKILL.md` file with the proper frontmatter and instructio
 
 ## Version History
 
+### Version 10.30
+- **Usage bars persist after closing tab**: When the Claude Usage tab is closed via X while inline bars are enabled, the state is saved. On next VS session, the usage window is created hidden in the background so the WebView2 scraper runs and bars stay up to date without the tab being visible.
+
 ### Version 10.29
 - **Usage bars update on load when enabled**: Inline usage bars now show cached data immediately on extension load without requiring the Claude Usage window to be open. When the usage window was previously open, it auto-reopens and triggers a reload so both the inline bars and the usage tab display fresh data.
 - **Usage tab X-close keeps bars updating**: Closing the Claude Usage tab with its X button now hides the frame instead of destroying it, so the embedded scraper keeps running and the inline bars continue to receive live data. The toolbar button still performs a real close (destroys the window and hides the bars).

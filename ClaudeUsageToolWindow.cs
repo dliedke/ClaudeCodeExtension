@@ -117,6 +117,7 @@ namespace ClaudeCodeVS
             {
                 _isVisible = true;
                 _closedByUserRaised = false; // Allow ClosedByUser to fire again on the next close
+                _control?.OnWindowBecameVisible(); // Prime WebView2 cursor if created while hidden
                 VisibilityChanged?.Invoke(this, true);
             }
             else if (nowHidden && _isVisible)

@@ -399,9 +399,38 @@ namespace ClaudeCodeVS
         }
 
         private bool _firstNavigationCompleted;
+        private readonly TaskCompletionSource<bool> _firstNavTcs = new TaskCompletionSource<bool>();
+        private bool _needsReloadOnShow;
+        private bool _backgroundInitMode;
+
+        /// <summary>
+        /// True once OnLoaded has started WebView2 initialization.
+        /// Used by the host to avoid a redundant show-hide when the scraper is already running.
+        /// </summary>
+        public bool IsWebViewInitialized => _initialized;
+
+        /// <summary>
+        /// Returns a Task that completes when the first page navigation finishes (or timeoutMs elapses).
+        /// Used by the host to know when it is safe to hide the frame after a background-init show.
+        /// </summary>
+        public Task WaitForFirstNavigationAsync(int timeoutMs = 15000)
+            => Task.WhenAny(_firstNavTcs.Task, Task.Delay(timeoutMs));
+
+        /// <summary>
+        /// Set true before a background-init show so OnWindowBecameVisible skips Focus() and
+        /// does not steal keyboard focus from the active VS editor.
+        /// </summary>
+        public void SetBackgroundInitMode(bool value) => _backgroundInitMode = value;
+
+        /// <summary>
+        /// Marks that the next explicit show should trigger a Navigate to recover any
+        /// black-page rendering surface left by being hidden mid-initialization.
+        /// </summary>
+        public void MarkNeedsReloadOnShow() => _needsReloadOnShow = true;
 
         private void OnNavigationCompleted(object sender, CoreWebView2NavigationCompletedEventArgs e)
         {
+            _firstNavTcs.TrySetResult(true);
             if (LoadingText != null) LoadingText.Visibility = Visibility.Collapsed;
             UpdateStatus();
             TryRedirectToUsage();
@@ -416,7 +445,9 @@ namespace ClaudeCodeVS
             // immediately. Subsequent navigations (SPA route changes,
             // refreshes) do NOT call Focus() again — that would steal
             // keyboard focus from whatever the user is doing in VS.
-            if (!_firstNavigationCompleted)
+            // Only prime the cursor when actually visible — the window may have been
+            // created hidden (bars-only startup path) and we must not steal focus then.
+            if (!_firstNavigationCompleted && IsVisible)
             {
                 _firstNavigationCompleted = true;
                 try { WebView?.Focus(); }
@@ -557,6 +588,29 @@ namespace ClaudeCodeVS
         public void Reload()
         {
             try { WebView?.CoreWebView2?.Reload(); } catch { }
+        }
+
+        /// <summary>
+        /// Called by the host tool window each time it becomes visible.
+        /// - Skips everything during background-init show-hide (no focus theft).
+        /// - Re-navigates to recover a black WebView2 surface if marked during background init.
+        /// - Primes the cursor so it renders without requiring a click.
+        /// </summary>
+        public void OnWindowBecameVisible()
+        {
+            if (_backgroundInitMode) return; // startup show-hide — do not steal focus
+
+            _firstNavigationCompleted = true; // suppress duplicate Focus() from OnNavigationCompleted
+
+            if (_needsReloadOnShow)
+            {
+                _needsReloadOnShow = false;
+                // Navigate rather than Reload to guarantee the rendering surface is rebuilt
+                // after being hidden mid-initialization (which can leave a black WebView2).
+                try { WebView?.CoreWebView2?.Navigate(UsageUrl); } catch { }
+            }
+
+            try { WebView?.Focus(); } catch { }
         }
 
         private void RefreshButton_Click(object sender, RoutedEventArgs e) => Reload();

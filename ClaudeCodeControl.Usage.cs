@@ -9,7 +9,8 @@
  * Purpose: Wires the Claude usage tool window and the inline mini usage bars into the main control:
  *          - Toolbar/menu entry points open the embedded claude.ai/settings/usage tool window
  *          - Cached snapshot is restored on startup so bars render immediately with stale data
- *          - Inline bars refresh from the visible tool window's scraper (no background WebView2 to avoid focus contention)
+ *          - Startup show-hide initializes WebView2 and waits for actual scrape data before hiding
+ *          - Periodic background timer re-shows the tab briefly every N minutes so bars stay fresh
  *          - "Window was open last session" state is persisted and restored
  *
  * *******************************************************************************************************************/
@@ -22,6 +23,7 @@ using System.Diagnostics;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Input;
+using System.Windows.Threading;
 using Task = System.Threading.Tasks.Task;
 
 namespace ClaudeCodeVS
@@ -29,6 +31,14 @@ namespace ClaudeCodeVS
     public partial class ClaudeCodeControl
     {
         private ClaudeUsageToolWindow _usageToolWindow;
+
+        // Completes when HandleScrapedSnapshot runs during a background show-hide cycle,
+        // signalling that real data was received and the tab can be hidden safely.
+        private TaskCompletionSource<bool> _backgroundScrapeCompletionTcs;
+
+        // Periodically shows the tab briefly so the WebView2 scraper can deliver fresh data
+        // to the inline bars while the tab is kept hidden.
+        private DispatcherTimer _usageBackgroundRefreshTimer;
 
         /// <summary>
         /// Restores the cached usage snapshot (if any) so the inline bars
@@ -54,7 +64,6 @@ namespace ClaudeCodeVS
                 UpdateInlineUsagePanelVisibility();
 
                 bool wasWindowOpen = _settings.UsageWindowOpened;
-                // Also trigger when bars are enabled and Claude is active, so data refreshes on load
                 bool shouldRefresh = wasWindowOpen ||
                     (_settings.ShowInlineUsageBars && IsClaudeProviderSelected());
 
@@ -66,9 +75,6 @@ namespace ClaudeCodeVS
                         await Task.Delay(2000);
                         await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
                         await EnsureUsageToolWindowAsync(showWindow: wasWindowOpen, updateWindowState: wasWindowOpen);
-                        // Reload page if WebView2 was already initialized (VS session-restore scenario)
-                        // so both the tab and the inline bars receive fresh data
-                        _usageToolWindow?.UsageControl?.Reload();
                     }).FileAndForget("claudecode/usage/auto-reopen");
 #pragma warning restore VSSDK007
                 }
@@ -100,8 +106,6 @@ namespace ClaudeCodeVS
                 bool enabled = _settings?.ShowInlineUsageBars != false;
                 bool hasData = !string.IsNullOrEmpty(_settings?.LastUsageJson);
 
-                // Show bars whenever enabled and data is available — no longer requires the
-                // usage window to be open so cached data from previous sessions renders immediately
                 InlineUsagePanel.Visibility = (isClaude && enabled && hasData)
                     ? Visibility.Visible
                     : Visibility.Collapsed;
@@ -132,13 +136,6 @@ namespace ClaudeCodeVS
 
         private static int ClampPercent(int v) => v < 0 ? 0 : (v > 100 ? 100 : v);
 
-        /// <summary>
-        /// No-op kept for callers that previously kicked the hidden scraper.
-        /// Inline bars now update from the visible tool window only — opening
-        /// the usage window refreshes the cached snapshot. Trying to host a
-        /// second WebView2 in the background fights with the visible one for
-        /// focus and causes click drops in the tool window.
-        /// </summary>
         private Task RefreshInlineUsageAsync() => Task.CompletedTask;
 
         private void HandleScrapedSnapshot(UsageSnapshot snap)
@@ -154,6 +151,10 @@ namespace ClaudeCodeVS
                     SaveSettings();
                 }
                 UpdateInlineUsagePanelVisibility();
+
+                // Signal any in-progress background show-hide that real data arrived —
+                // the tab can now be safely hidden.
+                _backgroundScrapeCompletionTcs?.TrySetResult(true);
             }
             catch (Exception ex)
             {
@@ -162,10 +163,86 @@ namespace ClaudeCodeVS
         }
 
         /// <summary>
+        /// Shows the tab briefly, waits for the WebView2 scraper to deliver actual usage data
+        /// (or times out), then hides the tab. Bars are updated by HandleScrapedSnapshot before
+        /// the tab disappears.  SetBackgroundInitMode prevents Focus() from being stolen.
+        /// </summary>
+        private async Task ShowHideForScrapeAsync()
+        {
+            await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
+            try
+            {
+                if (_usageToolWindow?.Frame == null) return;
+                if (_usageToolWindow.IsWindowVisible) return; // already visible, scraper is live
+
+                var frame = (IVsWindowFrame)_usageToolWindow.Frame;
+
+                _usageToolWindow.UsageControl?.SetBackgroundInitMode(true);
+                Microsoft.VisualStudio.ErrorHandler.ThrowOnFailure(frame.Show());
+
+                _backgroundScrapeCompletionTcs = new TaskCompletionSource<bool>();
+                _usageToolWindow.UsageControl?.Reload();
+                // Wait for the JS scraper to post real data (max 10 s)
+                await Task.WhenAny(_backgroundScrapeCompletionTcs.Task, Task.Delay(10000));
+                _backgroundScrapeCompletionTcs = null;
+
+                _usageToolWindow.UsageControl?.SetBackgroundInitMode(false);
+                frame.Hide();
+                _usageToolWindow.UsageControl?.MarkNeedsReloadOnShow();
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine("ShowHideForScrapeAsync failed: " + ex);
+            }
+        }
+
+        /// <summary>
+        /// Starts (or restarts) the background refresh timer that periodically calls
+        /// ShowHideForScrapeAsync so inline bars stay up to date while the tab is hidden.
+        /// The interval uses UsageAutoRefreshSeconds when set (minimum 60 s), or 5 minutes.
+        /// Stops and nulls itself if bars are disabled or provider is not Claude.
+        /// </summary>
+        private void StartUsageBackgroundRefreshTimer()
+        {
+            _usageBackgroundRefreshTimer?.Stop();
+            _usageBackgroundRefreshTimer = null;
+
+            if (_settings?.ShowInlineUsageBars != true || !IsClaudeProviderSelected()) return;
+            if (_settings?.UsageWindowOpened == true) return; // tab is visible, no timer needed
+
+            int intervalSeconds = (_settings?.UsageAutoRefreshSeconds > 0)
+                ? Math.Max(60, _settings.UsageAutoRefreshSeconds)
+                : 300; // 5 minutes default
+
+            _usageBackgroundRefreshTimer = new DispatcherTimer
+            {
+                Interval = TimeSpan.FromSeconds(intervalSeconds)
+            };
+            _usageBackgroundRefreshTimer.Tick += OnUsageBackgroundRefreshTimerTick;
+            _usageBackgroundRefreshTimer.Start();
+        }
+
+#pragma warning disable VSTHRD100 // async void is required for DispatcherTimer.Tick
+        private async void OnUsageBackgroundRefreshTimerTick(object sender, EventArgs e)
+#pragma warning restore VSTHRD100
+        {
+            try
+            {
+                if (_usageToolWindow?.IsWindowVisible == true) return;
+                if (_settings?.ShowInlineUsageBars != true || !IsClaudeProviderSelected()) return;
+                await ShowHideForScrapeAsync();
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine("OnUsageBackgroundRefreshTimerTick failed: " + ex);
+            }
+        }
+
+        /// <summary>
         /// Finds (and optionally creates) the Claude usage tool window and shows it.
-        /// <paramref name="updateWindowState"/> controls whether <see cref="ClaudeCodeSettings.UsageWindowOpened"/>
-        /// is persisted — pass false when auto-opening just to scrape data on startup so the user's
-        /// explicit close is not overwritten.
+        /// When showWindow is false and WebView2 is not yet initialized, shows the tab
+        /// briefly (BackgroundInitMode) to satisfy WebView2's parent-HWND requirement,
+        /// waits for a real scrape to complete, then hides it again.
         /// </summary>
         private async Task EnsureUsageToolWindowAsync(bool showWindow, bool updateWindowState = true)
         {
@@ -176,7 +253,9 @@ namespace ClaudeCodeVS
                 var package = await GetPackageAsync();
                 if (package == null) return;
 
-                _usageToolWindow = package.FindToolWindow(typeof(ClaudeUsageToolWindow), 0, showWindow) as ClaudeUsageToolWindow;
+                // Always create (true) so the tool window object exists; showWindow controls
+                // whether the tab is actually made visible.
+                _usageToolWindow = package.FindToolWindow(typeof(ClaudeUsageToolWindow), 0, true) as ClaudeUsageToolWindow;
                 if (_usageToolWindow?.Frame == null) return;
 
                 if (_usageToolWindow.UsageControl != null)
@@ -191,9 +270,14 @@ namespace ClaudeCodeVS
                 _usageToolWindow.ClosedByUser -= OnUsageToolWindowClosed;
                 _usageToolWindow.ClosedByUser += OnUsageToolWindowClosed;
 
+                var frame = (IVsWindowFrame)_usageToolWindow.Frame;
+
                 if (showWindow)
                 {
-                    var frame = (IVsWindowFrame)_usageToolWindow.Frame;
+                    // Stop background timer — tab is visible, scraper runs normally.
+                    _usageBackgroundRefreshTimer?.Stop();
+                    _usageBackgroundRefreshTimer = null;
+
                     Microsoft.VisualStudio.ErrorHandler.ThrowOnFailure(frame.Show());
 
                     if (updateWindowState && _settings != null && _settings.UsageWindowOpened != true)
@@ -202,6 +286,30 @@ namespace ClaudeCodeVS
                         SaveSettings();
                     }
                     UpdateInlineUsagePanelVisibility();
+                }
+                else if (_usageToolWindow.UsageControl?.IsWebViewInitialized != true)
+                {
+                    // WebView2 EnsureCoreWebView2Async needs the control in a visible WPF visual
+                    // tree to get a parent HWND and fire the Loaded event. Show the tab,
+                    // wait for first navigation (so the rendering surface is established), then
+                    // wait for the JS scraper to deliver actual data before hiding.
+                    _usageToolWindow.UsageControl.SetBackgroundInitMode(true);
+                    Microsoft.VisualStudio.ErrorHandler.ThrowOnFailure(frame.Show());
+
+                    await _usageToolWindow.UsageControl.WaitForFirstNavigationAsync(15000);
+
+                    _backgroundScrapeCompletionTcs = new TaskCompletionSource<bool>();
+                    // Wait up to 10 s for the React components to render and the JS scraper to fire.
+                    await Task.WhenAny(_backgroundScrapeCompletionTcs.Task, Task.Delay(10000));
+                    _backgroundScrapeCompletionTcs = null;
+
+                    _usageToolWindow.UsageControl.SetBackgroundInitMode(false);
+                    frame.Hide();
+                    // Mark so the next explicit open re-navigates to rebuild the rendering surface.
+                    _usageToolWindow.UsageControl.MarkNeedsReloadOnShow();
+
+                    // Start periodic timer to keep bars fresh while tab stays hidden.
+                    StartUsageBackgroundRefreshTimer();
                 }
             }
             catch (Exception ex)
@@ -243,6 +351,8 @@ namespace ClaudeCodeVS
                     SaveSettings();
                 }
                 UpdateInlineUsagePanelVisibility();
+                // Tab was closed by user — start background timer to keep bars fresh.
+                StartUsageBackgroundRefreshTimer();
             }
             catch { }
         }
@@ -255,13 +365,11 @@ namespace ClaudeCodeVS
         }
 
         /// <summary>
-        /// Toolbar button is a toggle:
-        /// - OFF path: <see cref="ClaudeUsageToolWindow.ForceClose"/> destroys the window
-        ///   (WebView2 disposed) and hides the inline bars via ShowInlineUsageBars = false.
-        /// - ON path: re-enables bars and opens the tab.
-        /// Closing the tab via its own X button is intercepted by the tool window and
-        /// converted to a <see cref="IVsWindowFrame.Hide"/> — the WebView2 stays alive and
-        /// keeps scraping so the inline bars continue to update while the tab is hidden.
+        /// Toolbar button toggle:
+        /// - OFF: ForceClose destroys the window (WebView2 disposed), hides bars, stops timer.
+        /// - ON: re-enables bars and opens the tab.
+        /// X-button close is intercepted by the tool window → frame.Hide() so the
+        /// background timer can resume scraping without destroying the WebView2.
         /// </summary>
         private async Task ToggleUsageToolWindowAsync()
         {
@@ -275,7 +383,10 @@ namespace ClaudeCodeVS
                 if (existing?.Frame is IVsWindowFrame frame &&
                     frame.IsVisible() == Microsoft.VisualStudio.VSConstants.S_OK)
                 {
-                    // Button-OFF: hide bars immediately then destroy the window for real
+                    // Button-OFF: stop timer, hide bars, destroy window
+                    _usageBackgroundRefreshTimer?.Stop();
+                    _usageBackgroundRefreshTimer = null;
+
                     if (_settings != null)
                     {
                         _settings.ShowInlineUsageBars = false;
@@ -307,12 +418,11 @@ namespace ClaudeCodeVS
             await EnsureUsageToolWindowAsync(showWindow: true);
         }
 
-        /// <summary>
-        /// Cleanup hook. Currently no-op — the visible tool window owns its
-        /// own WebView2 and disposes it via <see cref="ClaudeUsageControl.Cleanup"/>.
-        /// </summary>
         private void DisposeUsageMonitoring()
         {
+            _usageBackgroundRefreshTimer?.Stop();
+            _usageBackgroundRefreshTimer = null;
+            _backgroundScrapeCompletionTcs = null;
         }
     }
 }
