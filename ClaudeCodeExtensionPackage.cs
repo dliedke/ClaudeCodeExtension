@@ -1,7 +1,7 @@
 ﻿/* *******************************************************************************************************************
  * Application: ClaudeCodeExtension
  *
- * Autor:  Daniel Carvalho Liedke
+ * Autor:  Daniel Carvalho Liedke / Claude Code
  *
  * Copyright © Daniel Carvalho Liedke 2026
  * Usage and reproduction in any manner whatsoever without the written permission of Daniel Carvalho Liedke is strictly forbidden.
