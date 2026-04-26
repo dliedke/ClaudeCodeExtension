@@ -6,7 +6,7 @@
 
 - **Author**: Daniel Carvalho Liedke (dliedke@gmail.com) | **License**: MIT
 - **Repository**: https://github.com/dliedke/ClaudeCodeExtension
-- **Current Version**: 10.17 | **Target Framework**: .NET Framework 4.7.2
+- **Current Version**: 10.29 | **Target Framework**: .NET Framework 4.7.2
 
 ---
 
@@ -61,10 +61,11 @@ ClaudeCodeExtension/
 │   ├── ClaudeCodeControl.CustomCommands.cs # User-defined custom commands: configure dialog, toolbar dropdown, dispatch
 │   ├── ClaudeCodeControl.Interop.cs     # Win32 API declarations (P/Invoke)
 │   ├── ClaudeCodeControl.Theme.cs       # Dark/light theme support
-│   └── ClaudeCodeControl.Detach.cs      # Terminal detach/attach to separate VS tab
+│   ├── ClaudeCodeControl.Detach.cs      # Terminal detach/attach to separate VS tab
+│   └── ClaudeCodeControl.Usage.cs       # Claude usage tool window wiring & inline bars
 ├── UI:
-│   ├── ClaudeCodeControl.xaml / DiffViewerControl.xaml(.cs)
-│   ├── ClaudeCodeToolWindow.cs / DiffViewerToolWindow.cs / DetachedTerminalToolWindow.cs
+│   ├── ClaudeCodeControl.xaml / DiffViewerControl.xaml(.cs) / ClaudeUsageControl.xaml(.cs)
+│   ├── ClaudeCodeToolWindow.cs / DiffViewerToolWindow.cs / DetachedTerminalToolWindow.cs / ClaudeUsageToolWindow.cs
 ├── Diff Engine:
 │   ├── Diff/DiffComputer.cs / FileChangeTracker.cs / ChangedFile.cs
 ├── Models & Package:
@@ -163,6 +164,16 @@ WSL:     cmd.exe /k chcp 65001 >nul && cls && wsl bash -lic "cd {wslPath} && {co
 - **Clipboard retry**: Up to 10 retries with 100ms delay for `CLIPBRD_E_CANT_OPEN`
 - **Enter key varies by provider**: `WM_CHAR` (Claude/OpenCode), `KEYDOWN/KEYUP` (WSL), double-Enter (Codex)
 
+### Claude Usage (Usage.cs / ClaudeUsageControl / ClaudeUsageToolWindow)
+
+- **Tool window**: Embeds `claude.ai/settings/usage` in a WebView2 control (`ClaudeUsageToolWindow`, GUID `C3D4E5F6-...`); opened via toolbar or menu
+- **X-button behavior**: Intercepted via `IVsWindowFrameNotify2.OnClose` — calls `frame.Hide()` and returns `E_ABORT` so the WebView2 scraper keeps running in the background
+- **`ForceClose()`**: Toolbar toggle calls this to fully destroy the window (WebView2 disposed); distinct from X-button hide
+- **Inline usage bars**: Mini progress bars in the prompt panel showing session/weekly usage; populated from `UsageSnapshot`; hidden when scraping fails or user not signed in
+- **Snapshot caching**: Last successful scrape serialized as JSON to `LastUsageJson` + `LastUsageTimestamp`; restored on startup so bars render immediately with stale data while fresh fetch runs
+- **Auto-refresh**: `UsageAutoRefreshSeconds` setting (0 = manual); page reload triggered by visible tool window's scraper — no background WebView2 to avoid focus contention
+- **Session restore**: `UsageWindowOpened` persisted; `InitializeUsageMonitoring()` auto-reopens the window and reloads data 2s after solution load
+
 ### Settings (Settings.cs)
 
 - **`_isInitializing` guard**: Prevents `SaveSettings()` during `LoadSettings()`
@@ -187,9 +198,12 @@ enum ClaudeModel { Opus, Sonnet, Haiku }
 enum WindsurfModel { ClaudeOpus, ClaudeSonnet, Codex, GeminiPro }
 enum EffortLevel { Auto, Low, Medium, High, Max }
 enum TerminalType { CommandPrompt, WindowsTerminal }
+class CustomCommand { Name, Command }
+class PromptHistoryEntry { Text, FilePaths }
+class UsageSnapshot { SessionLabel, SessionReset, SessionPercent, WeeklyLabel, WeeklyReset, WeeklyPercent }
 ```
 
-Key settings: `SplitterPosition` (236px default), `SelectedProvider`, `SelectedClaudeModel`, `SelectedWindsurfModel`, `PromptHistory` (max 50), `AutoOpenChangesOnPrompt`, `ClaudeDangerouslySkipPermissions`, `CodexFullAuto`, `CursorAgentAutoRun`, `WindsurfDangerousMode`, `SelectedEffortLevel`, `CustomWorkingDirectory`, `SelectedTerminalType`, `IsTerminalDetached`, `PromptFontSize` (8–24pt), `TerminalZoomDelta`, `InvertLayout`, `CustomCommands` (list of `{Name, Command}`)
+Key settings: `SplitterPosition` (236px default), `SelectedProvider`, `SelectedClaudeModel`, `SelectedWindsurfModel`, `PromptHistory` (max 50), `AutoOpenChangesOnPrompt`, `ClaudeDangerouslySkipPermissions`, `CodexFullAuto`, `CursorAgentAutoRun`, `WindsurfDangerousMode`, `SelectedEffortLevel`, `CustomWorkingDirectory`, `SelectedTerminalType`, `IsTerminalDetached`, `PromptFontSize` (8–24pt), `TerminalZoomDelta`, `InvertLayout`, `CustomCommands` (list of `{Name, Command}`), `UsageAutoRefreshSeconds` (0 = manual), `UsageWindowOpened` (auto-reopen on load), `ShowInlineUsageBars` (default true), `LastUsageJson` / `LastUsageTimestamp` (cached snapshot)
 
 ---
 
@@ -218,6 +232,7 @@ Key settings: `SplitterPosition` (236px default), `SelectedProvider`, `SelectedC
 | VSIX Identity | `87de5d13-743e-46b3-b05e-24e1cbeca0c3` |
 | Command Set | `11111111-2222-3333-4444-555555555555` |
 | Detached Terminal Window | `B2C3D4E5-F6A7-8901-BCDE-FA2345678901` |
+| Claude Usage Tool Window | `C3D4E5F6-A7B8-9012-CDEF-123456789AB1` |
 | Tool Window Command ID | `0x0100` |
 
 ---
