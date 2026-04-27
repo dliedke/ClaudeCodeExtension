@@ -2402,6 +2402,7 @@ devin";
             // Update checkbox state from settings
             if (_settings != null)
             {
+                SendWithEnterMenuItem.IsChecked = _settings.SendWithEnter;
                 AutoOpenChangesMenuItem.IsChecked = _settings.AutoOpenChangesOnPrompt;
                 ClaudeDangerouslySkipPermissionsMenuItem.IsChecked = _settings.ClaudeDangerouslySkipPermissions;
                 CodexFullAutoMenuItem.IsChecked = _settings.CodexFullAuto;
@@ -2468,6 +2469,21 @@ devin";
             if (_settings == null) return;
 
             _settings.AutoOpenChangesOnPrompt = AutoOpenChangesMenuItem.IsChecked;
+            SaveSettings();
+        }
+
+        /// <summary>
+        /// Handles Send-with-Enter menu item click. Toggles whether the Enter key
+        /// submits the prompt and shows/hides the Send button accordingly.
+        /// </summary>
+        private void SendWithEnterMenuItem_Click(object sender, RoutedEventArgs e)
+        {
+            ThreadHelper.ThrowIfNotOnUIThread();
+
+            if (_settings == null) return;
+
+            _settings.SendWithEnter = SendWithEnterMenuItem.IsChecked;
+            SendPromptButton.Visibility = _settings.SendWithEnter ? Visibility.Collapsed : Visibility.Visible;
             SaveSettings();
         }
 

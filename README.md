@@ -35,6 +35,7 @@ Any feedback, suggestions, or contributions are also very welcome - feel free to
 ### ⌨️ **Smart Send Controls**
 - **Enter to send**: Press Enter to send the prompt to the active code agent
 - **Shift+Enter** or **Ctrl+Enter**: Insert a new line in the prompt
+- **Toggle "Send with Enter"**: Available in the Code Agent settings menu (⚙). When disabled, Enter inserts a newline and a Send (▶) button appears in the prompt toolbar to submit the prompt
 
 ### 📋 **Editor Selection to Prompt**
 - **Toolbar Button**: Click the 📋 button to grab the currently selected code from the active editor and insert it into the prompt
@@ -251,6 +252,9 @@ Claude will write the `SKILL.md` file with the proper frontmatter and instructio
 **Step 4 — Use it**. Click the new ⚡ button in the toolbar → **Codex Review**. Claude Code receives the `/codex-review` slash command, runs the skill, calls Codex against your uncommitted diff, and reports back the findings — without you ever leaving Visual Studio.
 
 ## Version History
+
+### Version 10.32
+- **"Send with Enter" option restored**: Re-added as a toggle in the Code Agent settings menu (next to "Auto-open Changes on Send"). When disabled, Enter inserts a newline and a Send (▶) button appears in the prompt toolbar to submit. Default remains enabled. Fixes [#39](https://github.com/dliedke/ClaudeCodeExtension/issues/39).
 
 ### Version 10.31
 - **Usage tab no longer blinks during background refresh**: Periodic inline-bar scrapes now reload the hidden WebView2 directly without activating the Claude Usage tab. The tab only becomes visible when the user explicitly opens it.

@@ -129,6 +129,12 @@ namespace ClaudeCodeVS
         public System.Collections.Generic.IDictionary<string, Newtonsoft.Json.Linq.JToken> AdditionalData { get; set; }
 
         /// <summary>
+        /// If true, Enter key sends the prompt (Shift+Enter / Ctrl+Enter for newline).
+        /// If false, Enter inserts a newline and the Send button is shown to submit.
+        /// </summary>
+        public bool SendWithEnter { get; set; } = true;
+
+        /// <summary>
         /// Saved position of the grid splitter (in pixels)
         /// </summary>
         public double SplitterPosition { get; set; } = 236.0; // Default pixel height for first row

@@ -189,11 +189,13 @@ namespace ClaudeCodeVS
 
         /// <summary>
         /// Handles KeyDown event for the prompt textbox.
-        /// Enter always sends the prompt; Shift+Enter or Ctrl+Enter inserts a newline.
+        /// When Send-with-Enter is enabled, Enter sends the prompt;
+        /// Shift+Enter or Ctrl+Enter inserts a newline.
+        /// When disabled, Enter inserts a newline (default TextBox behavior).
         /// </summary>
         private void PromptTextBox_KeyDown(object sender, KeyEventArgs e)
         {
-            if (e.Key == Key.Enter)
+            if (e.Key == Key.Enter && _settings?.SendWithEnter != false)
             {
                 // Plain Enter sends the prompt (modifier cases handled in PreviewKeyDown)
                 e.Handled = true;
@@ -226,23 +228,29 @@ namespace ClaudeCodeVS
 
             if (e.Key == Key.Enter)
             {
+                bool sendWithEnter = _settings?.SendWithEnter != false;
                 bool shift = (Keyboard.Modifiers & ModifierKeys.Shift) == ModifierKeys.Shift;
                 bool ctrl = (Keyboard.Modifiers & ModifierKeys.Control) == ModifierKeys.Control;
 
-                if (shift || ctrl)
+                if (sendWithEnter)
                 {
-                    // Shift+Enter or Ctrl+Enter: insert newline at caret
-                    int caret = PromptTextBox.CaretIndex;
-                    PromptTextBox.SelectedText = "\n";
-                    PromptTextBox.CaretIndex = caret + 1;
+                    if (shift || ctrl)
+                    {
+                        // Shift+Enter or Ctrl+Enter: insert newline at caret
+                        int caret = PromptTextBox.CaretIndex;
+                        PromptTextBox.SelectedText = "\n";
+                        PromptTextBox.CaretIndex = caret + 1;
+                        e.Handled = true;
+                        return;
+                    }
+
+                    // Plain Enter: send prompt
                     e.Handled = true;
+                    SendButton_Click(sender, null);
                     return;
                 }
 
-                // Plain Enter: send prompt
-                e.Handled = true;
-                SendButton_Click(sender, null);
-                return;
+                // Send-with-Enter disabled: let TextBox insert a newline by default.
             }
 
             // Preserve paste-image shortcut even with new behavior

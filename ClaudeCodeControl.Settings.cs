@@ -423,6 +423,12 @@ namespace ClaudeCodeVS
             // Apply layout inversion if enabled
             ApplyLayout();
 
+            // Reflect Send-with-Enter setting on the Send button visibility
+            if (_settings != null)
+            {
+                SendPromptButton.Visibility = _settings.SendWithEnter ? Visibility.Collapsed : Visibility.Visible;
+            }
+
             // Update provider selection and title
             UpdateProviderSelection();
 
