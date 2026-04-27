@@ -438,16 +438,14 @@ namespace ClaudeCodeVS
             // WebView2 hosted in WPF doesn't render its mouse cursor until
             // the control gains focus for the first time. Without this the
             // cursor stays invisible while hovering the tool window until
-            // the user clicks somewhere inside, which feels broken. The
-            // injected CSS already declares `cursor: default` on the page,
-            // and a one-time programmatic Focus() on the first successful
-            // navigation primes the WebView2 surface so the cursor renders
-            // immediately. Subsequent navigations (SPA route changes,
-            // refreshes) do NOT call Focus() again — that would steal
-            // keyboard focus from whatever the user is doing in VS.
-            // Only prime the cursor when actually visible — the window may have been
-            // created hidden (bars-only startup path) and we must not steal focus then.
-            if (!_firstNavigationCompleted && IsVisible)
+            // the user clicks somewhere inside, which feels broken.
+            // Only prime when actually visible AND not in background-init mode.
+            // Background-init shows the frame briefly then hides it; calling
+            // Focus() there hands keyboard focus to the WebView2 HWND, which is
+            // then hidden — VS can't recover that focus automatically, causing
+            // the mouse cursor to vanish in the main IDE window. OnWindowBecameVisible
+            // handles the cursor prime for the explicit-open case instead.
+            if (!_firstNavigationCompleted && IsVisible && !_backgroundInitMode)
             {
                 _firstNavigationCompleted = true;
                 try { WebView?.Focus(); }
