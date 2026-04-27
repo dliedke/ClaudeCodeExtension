@@ -253,6 +253,9 @@ Claude will write the `SKILL.md` file with the proper frontmatter and instructio
 
 ## Version History
 
+### Version 10.34
+- **Custom Claude Code launchers**: Configure named commands to start Claude Code routed through a local model (e.g. `ollama launch claude --model qwen3-coder:30b`). Multiple launchers supported — they appear in the Code Agent menu after Windsurf. The configuration dialog includes step-by-step Ollama install instructions. While a custom launcher is active, the cloud usage feature, model selection menu and update agent button are hidden (cloud features don't apply to local models).
+
 ### Version 10.32
 - **"Send with Enter" option restored**: Re-added as a toggle in the Code Agent settings menu (next to "Auto-open Changes on Send"). When disabled, Enter inserts a newline and a Send (▶) button appears in the prompt toolbar to submit. Default remains enabled. Fixes [#39](https://github.com/dliedke/ClaudeCodeExtension/issues/39).
 

@@ -63,6 +63,13 @@ namespace ClaudeCodeVS
 
                 UpdateInlineUsagePanelVisibility();
 
+                // Cloud usage tracking only applies to stock Claude providers — skip entirely
+                // for custom launchers (e.g. Ollama-backed local models).
+                if (!IsClaudeProviderSelected())
+                {
+                    return;
+                }
+
                 bool wasWindowOpen = _settings.UsageWindowOpened;
                 bool shouldRefresh = wasWindowOpen ||
                     (_settings.ShowInlineUsageBars && IsClaudeProviderSelected());

@@ -48,6 +48,7 @@
     <Compile Include="ClaudeCodeControl.cs" />
     <Compile Include="ClaudeCodeControl.Cleanup.cs" />
     <Compile Include="ClaudeCodeControl.CustomCommands.cs" />
+    <Compile Include="ClaudeCodeControl.CustomLaunchers.cs" />
     <Compile Include="ClaudeCodeControl.Detach.cs" />
     <Compile Include="ClaudeCodeControl.Diff.cs" />
     <Compile Include="ClaudeCodeControl.ImageHandling.cs" />
