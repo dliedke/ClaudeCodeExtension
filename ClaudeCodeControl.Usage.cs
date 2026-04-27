@@ -198,10 +198,10 @@ namespace ClaudeCodeVS
                 }
 
                 // WebView2 not yet initialized — must show the frame so it can acquire a
-                // parent HWND. SetBackgroundInitMode prevents Focus() from stealing focus.
+                // parent HWND. ShowNoActivate keeps VS focus on the user's active editor/app.
                 var frame = (IVsWindowFrame)_usageToolWindow.Frame;
                 _usageToolWindow.UsageControl?.SetBackgroundInitMode(true);
-                Microsoft.VisualStudio.ErrorHandler.ThrowOnFailure(frame.Show());
+                Microsoft.VisualStudio.ErrorHandler.ThrowOnFailure(frame.ShowNoActivate());
 
                 _backgroundScrapeCompletionTcs = new TaskCompletionSource<bool>();
                 _usageToolWindow.UsageControl?.Reload();
@@ -222,8 +222,8 @@ namespace ClaudeCodeVS
         /// <summary>
         /// Starts (or restarts) the background refresh timer that periodically calls
         /// ShowHideForScrapeAsync so inline bars stay up to date while the tab is hidden.
-        /// The interval uses UsageAutoRefreshSeconds when set (minimum 60 s), or 5 minutes.
-        /// Stops and nulls itself if bars are disabled or provider is not Claude.
+        /// Stops and nulls itself if bars are disabled, provider is not Claude,
+        /// UsageAutoRefreshSeconds is 0 (Off), or the tab is already visible.
         /// </summary>
         private void StartUsageBackgroundRefreshTimer()
         {
@@ -232,10 +232,9 @@ namespace ClaudeCodeVS
 
             if (_settings?.ShowInlineUsageBars != true || !IsClaudeProviderSelected()) return;
             if (_settings?.UsageWindowOpened == true) return; // tab is visible, no timer needed
+            if (_settings?.UsageAutoRefreshSeconds == 0) return; // Off — user wants manual refresh only
 
-            int intervalSeconds = (_settings?.UsageAutoRefreshSeconds > 0)
-                ? Math.Max(60, _settings.UsageAutoRefreshSeconds)
-                : 300; // 5 minutes default
+            int intervalSeconds = Math.Max(60, _settings.UsageAutoRefreshSeconds);
 
             _usageBackgroundRefreshTimer = new DispatcherTimer
             {
@@ -317,7 +316,7 @@ namespace ClaudeCodeVS
                     // wait for first navigation (so the rendering surface is established), then
                     // wait for the JS scraper to deliver actual data before hiding.
                     _usageToolWindow.UsageControl.SetBackgroundInitMode(true);
-                    Microsoft.VisualStudio.ErrorHandler.ThrowOnFailure(frame.Show());
+                    Microsoft.VisualStudio.ErrorHandler.ThrowOnFailure(frame.ShowNoActivate());
 
                     await _usageToolWindow.UsageControl.WaitForFirstNavigationAsync(15000);
 
@@ -359,6 +358,9 @@ namespace ClaudeCodeVS
                 if (_settings == null) return;
                 _settings.UsageAutoRefreshSeconds = seconds;
                 SaveSettings();
+                // Restart (or stop) the background timer to match the new setting immediately.
+                if (_usageToolWindow?.IsWindowVisible != true)
+                    StartUsageBackgroundRefreshTimer();
             }
             catch { }
         }
