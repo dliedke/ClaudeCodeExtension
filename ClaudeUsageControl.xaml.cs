@@ -448,7 +448,7 @@ namespace ClaudeCodeVS
   }
   function tick(){
     const section = findSection();
-    if (TRIM && section) trimPage(section);
+    if (TRIM && !window.__claudeSuppressTrim && section) trimPage(section);
     postSnapshot();
   }
   tick();
@@ -692,6 +692,59 @@ namespace ClaudeCodeVS
         private void OpenInBrowserButton_Click(object sender, RoutedEventArgs e)
         {
             try { Process.Start(new ProcessStartInfo(UsageUrl) { UseShellExecute = true }); } catch { }
+        }
+
+        /// <summary>
+        /// Reveals the claude.ai native account switcher menu inside the embedded
+        /// WebView. The trim CSS hides the avatar button by default (it lives in
+        /// nav/header/sidebar), so this:
+        ///   1. Removes the trim style and clears trim-related data attributes
+        ///   2. Stops the tick() from re-applying the trim by setting a flag
+        ///   3. Clicks the user avatar to open the org/account picker
+        /// After the user picks an account, the page navigates to the new
+        /// org context. When the user wants the focused usage view back,
+        /// they can press Refresh — the next NavigationCompleted re-runs the
+        /// injected script which re-trims if TRIM=true.
+        /// </summary>
+        private void SwitchAccountButton_Click(object sender, RoutedEventArgs e)
+        {
+            try
+            {
+                var core = WebView?.CoreWebView2;
+                if (core == null) return;
+                string js = @"
+(function(){
+  window.__claudeSuppressTrim = true;
+  var s = document.getElementById('__claude_usage_trim_css__');
+  if (s) s.remove();
+  document.querySelectorAll('[data-claude-usage-hide]').forEach(function(el){ el.removeAttribute('data-claude-usage-hide'); });
+  document.querySelectorAll('[data-claude-usage-path]').forEach(function(el){ el.removeAttribute('data-claude-usage-path'); });
+  document.querySelectorAll('[data-claude-usage-keep]').forEach(function(el){ el.removeAttribute('data-claude-usage-keep'); });
+  // Try several selectors for the avatar / user menu trigger.
+  var selectors = [
+    'button[aria-label*=""profile menu"" i]',
+    'button[aria-label*=""user menu"" i]',
+    'button[aria-label*=""account menu"" i]',
+    'button[aria-label*=""account"" i]',
+    'button[data-testid*=""user-menu"" i]',
+    'button[data-testid*=""account-menu"" i]',
+    'button[data-testid*=""profile"" i]',
+    '[data-testid=""user-menu-button""]'
+  ];
+  for (var i = 0; i < selectors.length; i++) {
+    var el = document.querySelector(selectors[i]);
+    if (el) { el.click(); return true; }
+  }
+  return false;
+})();";
+#pragma warning disable VSTHRD110 // ExecuteScriptAsync fire-and-forget is intentional
+                _ = core.ExecuteScriptAsync(js);
+#pragma warning restore VSTHRD110
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine("ClaudeUsageControl: SwitchAccountButton_Click failed: " + ex);
+            }
         }
 
 #pragma warning disable VSTHRD100 // async void Click handler is required by WPF
