@@ -264,7 +264,10 @@ Claude will write the `SKILL.md` file with the proper frontmatter and instructio
 
 ## Version History
 
-### Version 10.37
+### Version 10.38
+- **Usage page auto sign-out on Change Account**: When "Change Account" is selected from the model menu and the Claude Usage feature is active (usage bars or usage window enabled), the embedded WebView2 usage page automatically clears its claude.ai session cookies and reloads — so the new account is reflected without requiring a manual sign-out in the usage window.
+
+### Version 10.37 - devStoner2024 contribution
 - **Switch Account button for Claude Usage**: New **👤 Switch Account** button in the Claude Usage tool window toolbar. Clicking it temporarily disables the page-trim CSS and clicks the claude.ai user avatar to surface the native account/organization switcher (e.g. swap between a Team account and a Personal Max account in the embedded view). Click **↻ Refresh** to return to the focused usage view.
 
 ### Version 10.36

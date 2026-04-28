@@ -747,25 +747,33 @@ namespace ClaudeCodeVS
             }
         }
 
-#pragma warning disable VSTHRD100 // async void Click handler is required by WPF
-        private async void SignOutButton_Click(object sender, RoutedEventArgs e)
-#pragma warning restore VSTHRD100
+        public async Task SignOutAsync()
         {
             try
             {
-                var cm = WebView?.CoreWebView2?.CookieManager;
-                if (cm == null) return;
-                var cookies = await cm.GetCookiesAsync("https://claude.ai");
-                foreach (var c in cookies) cm.DeleteCookie(c);
-                cookies = await cm.GetCookiesAsync("https://anthropic.com");
-                foreach (var c in cookies) cm.DeleteCookie(c);
                 try { if (File.Exists(SharedCookiePath)) File.Delete(SharedCookiePath); } catch { }
-                Reload();
+
+                var cm = WebView?.CoreWebView2?.CookieManager;
+                if (cm != null)
+                {
+                    var cookies = await cm.GetCookiesAsync("https://claude.ai");
+                    foreach (var c in cookies) cm.DeleteCookie(c);
+                    cookies = await cm.GetCookiesAsync("https://anthropic.com");
+                    foreach (var c in cookies) cm.DeleteCookie(c);
+                    Reload();
+                }
             }
             catch (Exception ex)
             {
                 Debug.WriteLine("ClaudeUsageControl: sign out failed: " + ex);
             }
+        }
+
+#pragma warning disable VSTHRD100 // async void Click handler is required by WPF
+        private async void SignOutButton_Click(object sender, RoutedEventArgs e)
+#pragma warning restore VSTHRD100
+        {
+            await SignOutAsync();
         }
 
         private void InstallWebView2Button_Click(object sender, RoutedEventArgs e)

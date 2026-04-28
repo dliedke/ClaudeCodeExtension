@@ -456,6 +456,40 @@ namespace ClaudeCodeVS
             await EnsureUsageToolWindowAsync(showWindow: true);
         }
 
+        /// <summary>
+        /// Signs out the usage page when changing accounts: clears the cached snapshot
+        /// (hiding the inline bars immediately), deletes the shared cookie file, and
+        /// clears WebView2 cookies + reloads if the WebView is already initialized.
+        /// </summary>
+        private async Task SignOutUsageWindowIfActiveAsync()
+        {
+            await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
+            try
+            {
+                bool usageActive = _settings?.ShowInlineUsageBars == true ||
+                                   _settings?.UsageWindowOpened == true;
+                if (!usageActive) return;
+
+                // Clear cached snapshot so bars disappear immediately
+                if (_settings != null)
+                {
+                    _settings.LastUsageJson = null;
+                    _settings.LastUsageTimestamp = null;
+                    SaveSettings();
+                }
+                UpdateInlineUsagePanelVisibility();
+
+                // Clear WebView2 cookies (and cookie file) — works even if WebView not yet shown
+                var control = _usageToolWindow?.UsageControl;
+                if (control != null)
+                    await control.SignOutAsync();
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine("SignOutUsageWindowIfActiveAsync failed: " + ex);
+            }
+        }
+
         private void DisposeUsageMonitoring()
         {
             _usageBackgroundRefreshTimer?.Stop();

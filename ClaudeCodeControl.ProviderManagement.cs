@@ -2201,6 +2201,9 @@ devin";
                 // Send /logout command
                 await SendTextToTerminalAsync("/logout");
 
+                // Sign out the embedded usage WebView2 so the new account is picked up
+                await SignOutUsageWindowIfActiveAsync();
+
                 // Wait for logout to complete
                 await Task.Delay(3000);
 
