@@ -264,6 +264,9 @@ Claude will write the `SKILL.md` file with the proper frontmatter and instructio
 
 ## Version History
 
+### Version 10.37
+- **Switch Account button for Claude Usage**: New **👤 Switch Account** button in the Claude Usage tool window toolbar. Clicking it temporarily disables the page-trim CSS and clicks the claude.ai user avatar to surface the native account/organization switcher (e.g. swap between a Team account and a Personal Max account in the embedded view). Click **↻ Refresh** to return to the focused usage view.
+
 ### Version 10.36
 - **Claude Code session history**: New 📜 toolbar button (visible only for Claude Code / Claude Code WSL) opens a dialog listing past sessions for the current workspace, parsed from `~/.claude/projects/<encoded-cwd>/*.jsonl`. Each entry shows timestamp, message count, token usage, and the first user prompt. Resume relaunches Claude with `--resume <id>`; **Resume Last Session** maps to `claude --continue`. Delete removes the transcript on disk. Works for both native Windows and WSL Claude Code (WSL paths resolved via `wslpath -w`).
 - **Drag & drop file attachments**: Files dragged onto the **Prompt / Paste Image** area are now attached as if added via the 📎 button. Folders are skipped, duplicates are filtered out.

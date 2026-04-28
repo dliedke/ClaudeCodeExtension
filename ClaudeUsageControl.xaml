@@ -71,6 +71,12 @@
                     <ComboBoxItem Content="2m"  Tag="120"/>
                 </ComboBox>
 
+                <Button x:Name="SwitchAccountButton" Style="{StaticResource UsageButtonStyle}"
+                        ToolTip="Show the claude.ai account switcher (e.g. swap between Team and Personal accounts)"
+                        Click="SwitchAccountButton_Click">
+                    <TextBlock Text="👤 Switch Account" FontSize="12"/>
+                </Button>
+
                 <Button x:Name="OpenInBrowserButton" Style="{StaticResource UsageButtonStyle}"
                         ToolTip="Open claude.ai/settings/usage in your default browser"
                         Click="OpenInBrowserButton_Click">
