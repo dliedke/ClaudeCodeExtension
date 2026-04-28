@@ -148,7 +148,6 @@ namespace ClaudeCodeVS
                 bool useCursorAgentNative = _settings?.SelectedProvider == AiProvider.CursorAgentNative;
                 bool useOpenCode = _settings?.SelectedProvider == AiProvider.OpenCode;
                 bool useWindsurf = _settings?.SelectedProvider == AiProvider.Windsurf;
-                bool useCustomLauncher = _settings?.SelectedProvider == AiProvider.CustomClaudeLauncher;
                 bool providerAvailable = false;
 
 
@@ -187,10 +186,6 @@ namespace ClaudeCodeVS
                     {
                         providerAvailable = await IsWindsurfAvailableAsync();
                     }
-                }
-                else if (useCustomLauncher)
-                {
-                    providerAvailable = GetActiveCustomLauncher() != null;
                 }
                 else
                 {
@@ -352,25 +347,6 @@ namespace ClaudeCodeVS
                             ShowWindsurfInstallationInstructions();
                         }
                         await StartEmbeddedTerminalAsync(null); // Regular CMD
-                    }
-                }
-                else if (useCustomLauncher)
-                {
-                    if (providerAvailable)
-                    {
-                        await StartEmbeddedTerminalAsync(AiProvider.CustomClaudeLauncher);
-                    }
-                    else
-                    {
-                        // Active launcher missing — fall back to stock Claude Code selection
-                        if (_settings != null)
-                        {
-                            _settings.SelectedProvider = AiProvider.ClaudeCode;
-                            _settings.SelectedCustomLauncherName = "";
-                            UpdateProviderSelection();
-                            SaveSettings();
-                        }
-                        await StartEmbeddedTerminalAsync(null);
                     }
                 }
                 else
@@ -839,14 +815,6 @@ namespace ClaudeCodeVS
                             cmdCommand = $"/k chcp 65001 >nul && cd /d \"{workspaceDir}\" && ping localhost -n 3 >nul && cls && opencode";
                             break;
 
-                        case AiProvider.CustomClaudeLauncher:
-                            {
-                                var customLauncher = GetActiveCustomLauncher();
-                                string customCmd = customLauncher?.Command ?? "claude";
-                                cmdCommand = $"/k chcp 65001 >nul && cd /d \"{workspaceDir}\" && ping localhost -n 3 >nul && cls && {customCmd}";
-                            }
-                            break;
-
                         case AiProvider.Windsurf:
                             string wslPathWindsurf = ConvertToWslPath(workspaceDir);
                             string windsurfWslCommand = GetWindsurfCommand();
@@ -1019,14 +987,6 @@ namespace ClaudeCodeVS
 
                         case AiProvider.OpenCode:
                             terminalCommand = $"/k chcp 65001 >nul && cd /d \"{workspaceDir}\" && ping localhost -n 3 >nul && cls && opencode";
-                            break;
-
-                        case AiProvider.CustomClaudeLauncher:
-                            {
-                                var customLauncher = GetActiveCustomLauncher();
-                                string customCmd = customLauncher?.Command ?? "claude";
-                                terminalCommand = $"/k chcp 65001 >nul && cd /d \"{workspaceDir}\" && ping localhost -n 3 >nul && cls && {customCmd}";
-                            }
                             break;
 
                         case AiProvider.Windsurf:
@@ -2238,12 +2198,6 @@ namespace ClaudeCodeVS
                     }
                     break;
 
-                case AiProvider.CustomClaudeLauncher:
-                    // Availability of a launcher's underlying tool (e.g. ollama) is the user's
-                    // concern — we never gate startup on it. Treat as available iff a launcher
-                    // entry actually resolves; otherwise fall back to plain CMD.
-                    providerAvailable = GetActiveCustomLauncher() != null;
-                    break;
             }
 
             // Start the terminal with the selected provider if available, otherwise regular CMD

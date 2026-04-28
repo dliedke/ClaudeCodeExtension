@@ -1541,11 +1541,8 @@ devin";
             bool isClaudeProvider = _settings.SelectedProvider == AiProvider.ClaudeCode ||
                                    _settings.SelectedProvider == AiProvider.ClaudeCodeWSL;
             bool isWindsurfProvider = _settings.SelectedProvider == AiProvider.Windsurf;
-            bool isCustomLauncher = _settings.SelectedProvider == AiProvider.CustomClaudeLauncher;
             ModelDropdownButton.Visibility = (isClaudeProvider || isWindsurfProvider) ? Visibility.Visible : Visibility.Collapsed;
-
-            // Hide update agent button for custom launchers (local model — no upgrade path)
-            UpdateAgentButton.Visibility = isCustomLauncher ? Visibility.Collapsed : Visibility.Visible;
+            UpdateAgentButton.Visibility = Visibility.Visible;
 
             // Show usage button only for stock Claude providers (cloud usage doesn't apply to local launchers)
             ShowUsageButton.Visibility = isClaudeProvider ? Visibility.Visible : Visibility.Collapsed;
@@ -1598,11 +1595,6 @@ devin";
                     return "Open Code";
                 case AiProvider.Windsurf:
                     return "Windsurf";
-                case AiProvider.CustomClaudeLauncher:
-                    {
-                        var launcher = GetActiveCustomLauncher();
-                        return launcher != null ? launcher.Name : "Claude Code (Custom)";
-                    }
                 default:
                     return "CMD";
             }
@@ -2467,8 +2459,6 @@ devin";
                 InvertLayoutMenuItem.IsChecked = _settings.InvertLayout;
             }
 
-            // Rebuild dynamic custom Claude launcher entries (after Windsurf, before Configure)
-            RebuildCustomLauncherMenuItems();
         }
 
         /// <summary>

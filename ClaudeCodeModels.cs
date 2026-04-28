@@ -27,15 +27,7 @@ namespace ClaudeCodeVS
         CursorAgentNative = 5,
         // 6 = QwenCode (removed in v10.12)
         OpenCode = 7,
-        Windsurf = 8,
-        /// <summary>
-        /// Marker provider used when the user has selected a user-defined custom
-        /// Claude Code launcher (e.g. Claude Code routed through Ollama).
-        /// The actual command run is resolved at terminal-start time by looking
-        /// up <see cref="ClaudeCodeSettings.SelectedCustomLauncherName"/> in
-        /// <see cref="ClaudeCodeSettings.CustomClaudeLaunchers"/>.
-        /// </summary>
-        CustomClaudeLauncher = 9
+        Windsurf = 8
     }
 
     /// <summary>
@@ -104,26 +96,6 @@ namespace ClaudeCodeVS
         /// Literal text sent to the terminal when the menu item is clicked.
         /// May be a slash command, a free-form prompt, or any string the
         /// active agent understands.
-        /// </summary>
-        public string Command { get; set; } = string.Empty;
-    }
-
-    /// <summary>
-    /// User-defined launcher entry that starts a custom Claude Code instance,
-    /// typically pointed at a local model proxy (e.g. Ollama). Stored as a
-    /// list in settings; each entry shows up after Windsurf in the provider
-    /// menu.
-    /// </summary>
-    public class CustomClaudeLauncher
-    {
-        /// <summary>
-        /// Display label shown in the provider context menu.
-        /// </summary>
-        public string Name { get; set; } = string.Empty;
-
-        /// <summary>
-        /// Literal command line invoked to start this Claude Code variant
-        /// (e.g. <c>ollama launch claude --model qwen3-coder:30b</c>).
         /// </summary>
         public string Command { get; set; } = string.Empty;
     }
@@ -264,20 +236,6 @@ namespace ClaudeCodeVS
         /// dropdown. Empty list hides the dropdown button entirely.
         /// </summary>
         public System.Collections.Generic.List<CustomCommand> CustomCommands { get; set; } = new System.Collections.Generic.List<CustomCommand>();
-
-        /// <summary>
-        /// User-defined Claude Code launchers (e.g. Ollama-backed local model).
-        /// Empty list = feature inactive; entries are appended to the provider
-        /// menu after Windsurf.
-        /// </summary>
-        public System.Collections.Generic.List<CustomClaudeLauncher> CustomClaudeLaunchers { get; set; } = new System.Collections.Generic.List<CustomClaudeLauncher>();
-
-        /// <summary>
-        /// Name of the currently active custom launcher (matches one of the
-        /// entries in <see cref="CustomClaudeLaunchers"/>). Only meaningful when
-        /// <see cref="SelectedProvider"/> is <see cref="AiProvider.CustomClaudeLauncher"/>.
-        /// </summary>
-        public string SelectedCustomLauncherName { get; set; } = "";
 
         /// <summary>
         /// Auto-refresh interval (seconds) for the Claude usage tool window's
