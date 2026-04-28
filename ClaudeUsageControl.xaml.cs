@@ -361,14 +361,44 @@ namespace ClaudeCodeVS
         });
       }
       if (rows.length < 2) return null;
-      return {
+      const result = {
         SessionLabel: rows[0].label,
         SessionReset: rows[0].reset,
         SessionPercent: rows[0].pct,
         WeeklyLabel: rows[1].label,
         WeeklyReset: rows[1].reset,
-        WeeklyPercent: rows[1].pct
+        WeeklyPercent: rows[1].pct,
+        HasExtraUsage: false,
+        ExtraUsageSpent: '',
+        ExtraUsageReset: '',
+        ExtraUsagePercent: 0
       };
+      const extraSection = document.querySelector('[data-testid=extra-usage-section]');
+      if (extraSection) {
+        const extraBar = extraSection.querySelector('[role=progressbar][aria-valuenow]');
+        if (extraBar) {
+          let rowDiv = extraBar.parentElement;
+          for (let d = 0; d < 5 && rowDiv && rowDiv !== extraSection; d++) {
+            if (rowDiv.querySelectorAll('p').length >= 2) break;
+            rowDiv = rowDiv.parentElement;
+          }
+          if (rowDiv && rowDiv !== extraSection) {
+            const ps = rowDiv.querySelectorAll('p');
+            let spent = ps.length >= 1 ? (ps[0].textContent || '').trim() : '';
+            let xreset = ps.length >= 2 ? (ps[1].textContent || '').trim() : '';
+            let extraPct = parseInt(extraBar.getAttribute('aria-valuenow') || '0', 10);
+            if (ps.length >= 3) {
+              const m = (ps[2].textContent || '').match(/(\d+)/);
+              if (m) extraPct = parseInt(m[1], 10);
+            }
+            result.HasExtraUsage = true;
+            result.ExtraUsageSpent = spent;
+            result.ExtraUsageReset = xreset;
+            result.ExtraUsagePercent = extraPct;
+          }
+        }
+      }
+      return result;
     } catch (e) { return null; }
   }
   function postSnapshot(){

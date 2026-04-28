@@ -130,10 +130,23 @@ namespace ClaudeCodeVS
                 InlineSessionBar.Value = ClampPercent(snap.SessionPercent);
                 InlineSessionPct.Text = ClampPercent(snap.SessionPercent) + "%";
 
-                if (!string.IsNullOrEmpty(snap.WeeklyLabel)) InlineWeeklyLabel.Text = snap.WeeklyLabel;
+                InlineWeeklyLabel.Text = "Weekly limit";
                 if (snap.WeeklyReset != null) InlineWeeklyReset.Text = snap.WeeklyReset;
                 InlineWeeklyBar.Value = ClampPercent(snap.WeeklyPercent);
                 InlineWeeklyPct.Text = ClampPercent(snap.WeeklyPercent) + "%";
+
+                bool showExtra = snap.HasExtraUsage && !string.IsNullOrEmpty(snap.ExtraUsageSpent);
+                var extraVis = showExtra ? System.Windows.Visibility.Visible : System.Windows.Visibility.Collapsed;
+                InlineExtraUsageStack.Visibility = extraVis;
+                InlineExtraUsageBar.Visibility = extraVis;
+                InlineExtraUsagePct.Visibility = extraVis;
+                if (showExtra)
+                {
+                    InlineExtraUsageSpent.Text = snap.ExtraUsageSpent;
+                    if (snap.ExtraUsageReset != null) InlineExtraUsageReset.Text = snap.ExtraUsageReset;
+                    InlineExtraUsageBar.Value = ClampPercent(snap.ExtraUsagePercent);
+                    InlineExtraUsagePct.Text = snap.ExtraUsagePercent + "%";
+                }
             }
             catch (Exception ex)
             {

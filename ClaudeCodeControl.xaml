@@ -412,6 +412,7 @@
 					<Grid.RowDefinitions>
 						<RowDefinition Height="Auto"/>
 						<RowDefinition Height="Auto"/>
+						<RowDefinition Height="Auto"/>
 					</Grid.RowDefinitions>
 					<Grid.ColumnDefinitions>
 						<ColumnDefinition Width="Auto" MinWidth="100"/>
@@ -430,15 +431,16 @@
 					</StackPanel>
 					<ProgressBar x:Name="InlineSessionBar" Grid.Row="0" Grid.Column="1"
 					             Height="8" Minimum="0" Maximum="100" Value="0"
+					             Foreground="#3886E5" Background="#2A2A2A" BorderBrush="#606060" BorderThickness="1"
 					             VerticalAlignment="Center"/>
 					<TextBlock x:Name="InlineSessionPct" Grid.Row="0" Grid.Column="2"
 					           Text="0%" FontSize="11" Margin="8,0,0,0"
 					           VerticalAlignment="Center" MinWidth="36" TextAlignment="Right"
 					           Foreground="{DynamicResource {x:Static vsshell:VsBrushes.ToolWindowTextKey}}"/>
 
-					<!-- Weekly row -->
+					<!-- Weekly limit row -->
 					<StackPanel Grid.Row="1" Grid.Column="0" Margin="0,4,8,0">
-						<TextBlock x:Name="InlineWeeklyLabel" Text="Todos os modelos"
+						<TextBlock x:Name="InlineWeeklyLabel" Text="Weekly limit"
 						           FontSize="11" Opacity="0.95"
 						           Foreground="{DynamicResource {x:Static vsshell:VsBrushes.ToolWindowTextKey}}"/>
 						<TextBlock x:Name="InlineWeeklyReset" Text=""
@@ -447,11 +449,31 @@
 					</StackPanel>
 					<ProgressBar x:Name="InlineWeeklyBar" Grid.Row="1" Grid.Column="1"
 					             Height="8" Minimum="0" Maximum="100" Value="0"
+					             Foreground="#3886E5" Background="#2A2A2A" BorderBrush="#606060" BorderThickness="1"
 					             Margin="0,4,0,0" VerticalAlignment="Center"/>
 					<TextBlock x:Name="InlineWeeklyPct" Grid.Row="1" Grid.Column="2"
 					           Text="0%" FontSize="11" Margin="8,4,0,0"
 					           VerticalAlignment="Center" MinWidth="36" TextAlignment="Right"
 					           Foreground="{DynamicResource {x:Static vsshell:VsBrushes.ToolWindowTextKey}}"/>
+					<!-- Extra usage row (hidden until extra-usage is active) -->
+					<StackPanel x:Name="InlineExtraUsageStack" Grid.Row="2" Grid.Column="0" Margin="0,4,8,0" Visibility="Collapsed">
+						<TextBlock x:Name="InlineExtraUsageSpent" Text="Extra usage"
+						           FontSize="11" Opacity="0.95"
+						           Foreground="{DynamicResource {x:Static vsshell:VsBrushes.ToolWindowTextKey}}"/>
+						<TextBlock x:Name="InlineExtraUsageReset" Text=""
+						           FontSize="10" Opacity="0.65"
+						           Foreground="{DynamicResource {x:Static vsshell:VsBrushes.ToolWindowTextKey}}"/>
+					</StackPanel>
+					<ProgressBar x:Name="InlineExtraUsageBar" Grid.Row="2" Grid.Column="1"
+					             Height="8" Minimum="0" Maximum="100" Value="0"
+					             Foreground="#3886E5" Background="#2A2A2A" BorderBrush="#606060" BorderThickness="1"
+					             Margin="0,4,0,0" VerticalAlignment="Center"
+					             Visibility="Collapsed"/>
+					<TextBlock x:Name="InlineExtraUsagePct" Grid.Row="2" Grid.Column="2"
+					           Text="0%" FontSize="11" Margin="8,4,0,0"
+					           VerticalAlignment="Center" MinWidth="36" TextAlignment="Right"
+					           Foreground="{DynamicResource {x:Static vsshell:VsBrushes.ToolWindowTextKey}}"
+					           Visibility="Collapsed"/>
 				</Grid>
 			</Border>
 		</Grid>

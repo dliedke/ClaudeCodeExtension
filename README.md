@@ -254,7 +254,8 @@ Claude will write the `SKILL.md` file with the proper frontmatter and instructio
 ## Version History
 
 ### Version 10.34
-- **Custom Claude Code launchers**: Configure named commands to start Claude Code routed through a local model (e.g. `ollama launch claude --model qwen3-coder:30b`). Multiple launchers supported — they appear in the Code Agent menu after Windsurf. The configuration dialog includes step-by-step Ollama install instructions. While a custom launcher is active, the cloud usage feature, model selection menu and update agent button are hidden (cloud features don't apply to local models).
+- **Weekly limit label**: The "All models" inline usage bar is now labelled **Weekly limit** for clarity.
+- **Extra usage bar**: Inline usage panel now shows an **Extra usage** row (blue bar) when extra-usage billing is active, displaying the amount spent, reset date, and percentage used (including values over 100%).
 
 ### Version 10.33
 - **Auto-Refresh Off now works correctly**: Setting Auto-Refresh to Off in the Claude Usage window now stops all background bar refreshing immediately. Previously the background timer kept running at a 5-minute interval regardless of the Off setting. Fixes [#41](https://github.com/dliedke/ClaudeCodeExtension/issues/41).

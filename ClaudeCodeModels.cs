@@ -294,5 +294,17 @@ namespace ClaudeCodeVS
 
         /// <summary>Weekly usage percentage (0-100), parsed from aria-valuenow.</summary>
         public int WeeklyPercent { get; set; }
+
+        /// <summary>true when extra-usage billing is enabled and the section was found on the page.</summary>
+        public bool HasExtraUsage { get; set; }
+
+        /// <summary>"R$110.71 spent" — verbatim label from the extra-usage row.</summary>
+        public string ExtraUsageSpent { get; set; } = "";
+
+        /// <summary>"Resets May 1" — verbatim reset text from the extra-usage row.</summary>
+        public string ExtraUsageReset { get; set; } = "";
+
+        /// <summary>Extra usage percentage parsed from the "X% used" text. May exceed 100.</summary>
+        public int ExtraUsagePercent { get; set; }
     }
 }
