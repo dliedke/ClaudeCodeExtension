@@ -253,6 +253,9 @@ Claude will write the `SKILL.md` file with the proper frontmatter and instructio
 
 ## Version History
 
+### Version 10.35
+- **Inline usage bars now refresh correctly**: The Claude usage page layout split bars across multiple `<section>` elements and switched labels from `<p>` to `<span>`/`<div>` tags. The scraper has been rewritten to walk up to the row container, read `.text-primary` (label) and `.text-secondary`/`.text-footnote` (reset) by class, identify session/weekly bars by label text, and parse the displayed `X% used` text for extra usage values exceeding 100%.
+
 ### Version 10.34
 - **Weekly limit label**: The "All models" inline usage bar is now labelled **Weekly limit** for clarity.
 - **Extra usage bar**: Inline usage panel now shows an **Extra usage** row (blue bar) when extra-usage billing is active, displaying the amount spent, reset date, and percentage used (including values over 100%).

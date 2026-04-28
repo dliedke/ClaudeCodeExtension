@@ -332,69 +332,104 @@ namespace ClaudeCodeVS
       }
     }
   }
+  // Walks up from a progress bar to find the sibling column that holds the
+  // label and reset text. Page layout has the row container with two flex
+  // children: label column + bar column. The label column is the first
+  // sibling that has a `.text-primary` element and does not contain the bar.
+  function findLabelColumn(bar){
+    let row = bar.parentElement;
+    for (let depth = 0; depth < 10 && row && row !== document.body; depth++) {
+      for (const child of row.children) {
+        if (child === bar || child.contains(bar)) continue;
+        if (child.querySelector && child.querySelector('.text-primary')) return child;
+      }
+      row = row.parentElement;
+    }
+    return null;
+  }
+  function readLabelAndReset(labelColumn){
+    if (!labelColumn) return { label: '', reset: '' };
+    const primary = labelColumn.querySelector('.text-primary');
+    const label = primary ? (primary.textContent || '').trim() : '';
+    let reset = '';
+    const secondaries = labelColumn.querySelectorAll('.text-secondary, .text-footnote, .text-neutral-500');
+    for (const s of secondaries) {
+      const t = (s.textContent || '').trim();
+      if (t && t !== label) { reset = t; break; }
+    }
+    return { label: label, reset: reset };
+  }
+  // Reads the displayed `X% used` text near the bar — used for extra usage
+  // which can exceed 100% (aria-valuenow caps at 100, display shows actual).
+  function readUsedPercent(bar){
+    let n = bar.parentElement;
+    for (let d = 0; d < 5 && n; d++) {
+      const txt = (n.textContent || '');
+      const m = txt.match(/(\d+)\s*%\s*used/i);
+      if (m) return parseInt(m[1], 10);
+      n = n.parentElement;
+    }
+    return null;
+  }
   function extract(){
     try {
-      const section = findSection();
-      if (!section) return null;
-      const bars = section.querySelectorAll('[role=\""progressbar\""][aria-valuenow]');
-      if (bars.length < 2) return null;
+      // Page now splits bars across multiple <section> elements
+      // (Plan usage limits, Weekly limits, Additional features, Extra usage)
+      // and uses <span>/<div> for labels rather than <p>. Query bars
+      // document-wide; identify session/weekly by label text. The
+      // `[data-testid=extra-usage-section]` element is now an empty hidden
+      // marker `<span>` — walk up to its containing <section> to find the
+      // actual extra-usage bar and to filter that bar from the main rows.
+      const extraMarker = document.querySelector('[data-testid=extra-usage-section]');
+      const extraContainer = extraMarker ? (extraMarker.closest('section') || extraMarker.parentElement) : null;
+      const allBars = document.querySelectorAll('[role=\""progressbar\""][aria-valuenow]');
+      if (!allBars.length) return null;
       const rows = [];
-      for (const bar of bars) {
-        let row = bar.parentElement;
-        let labels = [];
-        for (let depth = 0; depth < 8 && row && row !== section; depth++) {
-          labels = row.querySelectorAll('p');
-          if (labels.length >= 2) break;
-          row = row.parentElement;
-        }
-        let label = '', reset = '';
-        if (labels.length >= 2) {
-          label = (labels[0].textContent || '').trim();
-          reset = (labels[1].textContent || '').trim();
-        } else if (labels.length === 1) {
-          label = (labels[0].textContent || '').trim();
-        }
+      for (const bar of allBars) {
+        if (extraContainer && extraContainer.contains(bar)) continue;
+        const lc = findLabelColumn(bar);
+        const li = readLabelAndReset(lc);
         rows.push({
-          label: label,
-          reset: reset,
+          label: li.label,
+          reset: li.reset,
           pct: parseInt(bar.getAttribute('aria-valuenow') || '0', 10)
         });
       }
-      if (rows.length < 2) return null;
+      if (!rows.length) return null;
+      function pick(predicate){
+        for (const r of rows) if (predicate(r)) return r;
+        return null;
+      }
+      const sessionRow = pick(r => /session/i.test(r.label)) || rows[0];
+      const weeklyRow =
+        pick(r => /^all models$/i.test(r.label)) ||
+        pick(r => /weekly|all models/i.test(r.label)) ||
+        pick(r => r !== sessionRow);
+      if (!sessionRow || !weeklyRow) return null;
       const result = {
-        SessionLabel: rows[0].label,
-        SessionReset: rows[0].reset,
-        SessionPercent: rows[0].pct,
-        WeeklyLabel: rows[1].label,
-        WeeklyReset: rows[1].reset,
-        WeeklyPercent: rows[1].pct,
+        SessionLabel: sessionRow.label,
+        SessionReset: sessionRow.reset,
+        SessionPercent: sessionRow.pct,
+        WeeklyLabel: weeklyRow.label,
+        WeeklyReset: weeklyRow.reset,
+        WeeklyPercent: weeklyRow.pct,
         HasExtraUsage: false,
         ExtraUsageSpent: '',
         ExtraUsageReset: '',
         ExtraUsagePercent: 0
       };
-      const extraSection = document.querySelector('[data-testid=extra-usage-section]');
-      if (extraSection) {
-        const extraBar = extraSection.querySelector('[role=progressbar][aria-valuenow]');
+      if (extraContainer) {
+        const extraBar = extraContainer.querySelector('[role=\""progressbar\""][aria-valuenow]');
         if (extraBar) {
-          let rowDiv = extraBar.parentElement;
-          for (let d = 0; d < 5 && rowDiv && rowDiv !== extraSection; d++) {
-            if (rowDiv.querySelectorAll('p').length >= 2) break;
-            rowDiv = rowDiv.parentElement;
-          }
-          if (rowDiv && rowDiv !== extraSection) {
-            const ps = rowDiv.querySelectorAll('p');
-            let spent = ps.length >= 1 ? (ps[0].textContent || '').trim() : '';
-            let xreset = ps.length >= 2 ? (ps[1].textContent || '').trim() : '';
-            let extraPct = parseInt(extraBar.getAttribute('aria-valuenow') || '0', 10);
-            if (ps.length >= 3) {
-              const m = (ps[2].textContent || '').match(/(\d+)/);
-              if (m) extraPct = parseInt(m[1], 10);
-            }
+          const lc = findLabelColumn(extraBar);
+          const li = readLabelAndReset(lc);
+          if (li.label) {
+            const usedPct = readUsedPercent(extraBar);
             result.HasExtraUsage = true;
-            result.ExtraUsageSpent = spent;
-            result.ExtraUsageReset = xreset;
-            result.ExtraUsagePercent = extraPct;
+            result.ExtraUsageSpent = li.label;
+            result.ExtraUsageReset = li.reset;
+            result.ExtraUsagePercent = usedPct != null ? usedPct
+              : parseInt(extraBar.getAttribute('aria-valuenow') || '0', 10);
           }
         }
       }
