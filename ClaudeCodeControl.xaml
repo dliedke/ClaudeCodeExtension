@@ -162,6 +162,9 @@
                          Foreground="{DynamicResource {x:Static vsshell:VsBrushes.WindowTextKey}}"
                          BorderBrush="Transparent"
                          BorderThickness="0"
+                         AllowDrop="True"
+                         PreviewDragOver="PromptTextBox_PreviewDragOver"
+                         PreviewDrop="PromptTextBox_PreviewDrop"
                          KeyDown="PromptTextBox_KeyDown"
                          PreviewKeyDown="PromptTextBox_PreviewKeyDown"
                          PreviewMouseWheel="PromptTextBox_PreviewMouseWheel">
@@ -264,6 +267,18 @@
                             Style="{StaticResource IconButtonStyle}"
                             Click="RestartTerminalButton_Click"
                             ToolTip="Restart Code Agent"
+                            Margin="0,0,6,0"/>
+
+					<Button x:Name="SessionHistoryButton"
+                            Content="📜"
+                            Width="30"
+                            Height="30"
+                            FontSize="14"
+                            Style="{StaticResource IconButtonStyle}"
+                            FontFamily="Consolas"
+                            ToolTip="Claude Code Session History — resume past sessions in this workspace"
+                            Visibility="Collapsed"
+                            Click="SessionHistoryButton_Click"
                             Margin="0,0,6,0"/>
 
 					<Button x:Name="CustomCommandsButton"

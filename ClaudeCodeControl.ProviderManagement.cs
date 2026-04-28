@@ -398,12 +398,12 @@ namespace ClaudeCodeVS
                 {
                     cancellationToken.ThrowIfCancellationRequested();
 
-                    // Check if codex is available in WSL using 'which codex' with interactive shell
-                    // We need -i flag because codex is installed via nvm which requires interactive shell
+                    // Check if codex is available in WSL using an interactive login shell.
+                    // Codex is often installed through nvm, which may only be loaded for interactive shells.
                     var startInfo = new ProcessStartInfo
                     {
                         FileName = "cmd.exe",
-                        Arguments = "/c wsl bash -lc \"which codex\"",
+                        Arguments = "/c wsl bash -lic \"which codex\"",
                         UseShellExecute = false,
                         RedirectStandardOutput = true,
                         RedirectStandardError = true,
@@ -1547,6 +1547,10 @@ devin";
             // Show usage button only for stock Claude providers (cloud usage doesn't apply to local launchers)
             ShowUsageButton.Visibility = isClaudeProvider ? Visibility.Visible : Visibility.Collapsed;
             UpdateInlineUsagePanelVisibility();
+
+            // Session history is only meaningful for Claude Code providers (other agents store
+            // transcripts elsewhere or not at all)
+            RefreshSessionHistoryButton();
 
             // Reflect the selected provider/model immediately in the VS tool window title.
             UpdateToolWindowTitle(GetExtensionTitle(_settings.SelectedProvider));

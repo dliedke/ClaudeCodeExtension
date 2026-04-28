@@ -101,6 +101,38 @@ namespace ClaudeCodeVS
     }
 
     /// <summary>
+    /// Summary metadata for a single Claude Code session loaded from a JSONL transcript
+    /// under <c>~/.claude/projects/&lt;encoded-cwd&gt;/&lt;session-uuid&gt;.jsonl</c>.
+    /// Built in-memory by the session-history dialog, never persisted.
+    /// </summary>
+    public class SessionInfo
+    {
+        /// <summary>Session UUID (also the JSONL filename without extension).</summary>
+        public string SessionId { get; set; } = string.Empty;
+
+        /// <summary>Absolute path to the JSONL transcript on disk.</summary>
+        public string FilePath { get; set; } = string.Empty;
+
+        /// <summary>First user-typed message in the session, trimmed for the list preview.</summary>
+        public string Preview { get; set; } = string.Empty;
+
+        /// <summary>Count of user + assistant turns (skipping system/snapshot/attachment lines).</summary>
+        public int MessageCount { get; set; }
+
+        /// <summary>Sum of input + output tokens across all assistant messages.</summary>
+        public int TokenCount { get; set; }
+
+        /// <summary>File mtime — used to sort the list newest-first.</summary>
+        public System.DateTime LastModified { get; set; }
+
+        /// <summary>Working directory recorded in the transcript (the original cwd of the session).</summary>
+        public string Cwd { get; set; } = string.Empty;
+
+        /// <summary>Provider this session belongs to (Windows-native or WSL Claude Code).</summary>
+        public AiProvider Provider { get; set; }
+    }
+
+    /// <summary>
     /// Represents a single prompt history entry with optional file attachments
     /// </summary>
     public class PromptHistoryEntry

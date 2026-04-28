@@ -197,6 +197,17 @@ Open Windows Settings, search for "Terminal settings", and set the Terminal opti
 - **Instant Switching**: Model changes are applied immediately by sending the `/model` command to the running terminal
 - **Persistent Selection**: Your model choice is saved and restored between Visual Studio sessions
 
+### Claude Code Session History
+
+The new 📜 toolbar button opens Claude Code session history for the current workspace. It is visible only when the selected provider is **Claude Code** or **Claude Code (WSL)**.
+
+- **Current Workspace Sessions**: Lists previous Claude Code sessions from `~/.claude/projects/<encoded-cwd>/*.jsonl`
+- **Session Details**: Shows timestamp, message count, token usage, and the first user prompt to help identify the right session
+- **Resume**: Select a session and click **Resume** to relaunch Claude with `claude --resume <id>`
+- **Resume Last Session**: Click **Resume Last Session** to run `claude --continue` for the most recent session in the current workspace
+- **Delete**: Removes the selected transcript file from disk
+- **WSL Support**: Works with Claude Code (WSL) by resolving WSL session paths back to Windows paths
+
 ### Customization
 - **Layout**: Drag the splitter to adjust the prompt/terminal ratio. Use "Invert Layout" in the ⚙ menu to swap prompt and terminal positions
 - **AI Provider**: Use the context menu to switch between available providers
@@ -252,6 +263,10 @@ Claude will write the `SKILL.md` file with the proper frontmatter and instructio
 **Step 4 — Use it**. Click the new ⚡ button in the toolbar → **Codex Review**. Claude Code receives the `/codex-review` slash command, runs the skill, calls Codex against your uncommitted diff, and reports back the findings — without you ever leaving Visual Studio.
 
 ## Version History
+
+### Version 10.36
+- **Claude Code session history**: New 📜 toolbar button (visible only for Claude Code / Claude Code WSL) opens a dialog listing past sessions for the current workspace, parsed from `~/.claude/projects/<encoded-cwd>/*.jsonl`. Each entry shows timestamp, message count, token usage, and the first user prompt. Resume relaunches Claude with `--resume <id>`; **Resume Last Session** maps to `claude --continue`. Delete removes the transcript on disk. Works for both native Windows and WSL Claude Code (WSL paths resolved via `wslpath -w`).
+- **Drag & drop file attachments**: Files dragged onto the **Prompt / Paste Image** area are now attached as if added via the 📎 button. Folders are skipped, duplicates are filtered out.
 
 ### Version 10.35
 - **Inline usage bars now refresh correctly**: The Claude usage page layout split bars across multiple `<section>` elements and switched labels from `<p>` to `<span>`/`<div>` tags. The scraper has been rewritten to walk up to the row container, read `.text-primary` (label) and `.text-secondary`/`.text-footnote` (reset) by class, identify session/weekly bars by label text, and parse the displayed `X% used` text for extra usage values exceeding 100%.

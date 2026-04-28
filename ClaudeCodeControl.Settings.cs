@@ -440,6 +440,9 @@ namespace ClaudeCodeVS
 
             // Show the custom-commands toolbar button when entries are configured
             RefreshCustomCommandsButton();
+
+            // Show the session-history button only for Claude Code providers
+            RefreshSessionHistoryButton();
         }
 
         #endregion

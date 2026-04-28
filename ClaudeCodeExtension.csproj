@@ -53,6 +53,7 @@
     <Compile Include="ClaudeCodeControl.ImageHandling.cs" />
     <Compile Include="ClaudeCodeControl.Interop.cs" />
     <Compile Include="ClaudeCodeControl.ProviderManagement.cs" />
+    <Compile Include="ClaudeCodeControl.SessionHistory.cs" />
     <Compile Include="ClaudeCodeControl.Settings.cs" />
     <Compile Include="ClaudeCodeControl.Terminal.cs" />
     <Compile Include="ClaudeCodeControl.TerminalIO.cs" />

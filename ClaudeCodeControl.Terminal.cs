@@ -49,6 +49,14 @@ namespace ClaudeCodeVS
         private AiProvider? _currentRunningProvider = null;
 
         /// <summary>
+        /// Session UUID to resume on the next <see cref="StartEmbeddedTerminalAsync"/> for a Claude
+        /// Code provider. Consumed once by <see cref="GetClaudeCommand"/> and cleared so subsequent
+        /// restarts behave normally. Set by the session-history dialog (Resume button); the special
+        /// sentinel "-c" means "continue last session" (claude --continue).
+        /// </summary>
+        internal string _pendingResumeSessionId = null;
+
+        /// <summary>
         /// Height of the Windows Terminal tab bar in pixels (0 for Command Prompt mode)
         /// </summary>
         private int _wtTabBarHeight = 0;
@@ -2313,7 +2321,22 @@ namespace ClaudeCodeVS
 
             if (_settings?.ClaudeDangerouslySkipPermissions == true)
             {
-                return $"{baseCommand} --dangerously-skip-permissions";
+                baseCommand = $"{baseCommand} --dangerously-skip-permissions";
+            }
+
+            // Consume one-shot resume request if present — the session-history
+            // dialog sets this just before triggering a terminal restart.
+            string resumeArg = System.Threading.Interlocked.Exchange(ref _pendingResumeSessionId, null);
+            if (!string.IsNullOrEmpty(resumeArg))
+            {
+                if (resumeArg == "-c")
+                {
+                    baseCommand = $"{baseCommand} --continue";
+                }
+                else
+                {
+                    baseCommand = $"{baseCommand} --resume {resumeArg}";
+                }
             }
 
             return baseCommand;

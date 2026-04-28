@@ -159,6 +159,68 @@ namespace ClaudeCodeVS
             }
         }
 
+        /// <summary>
+        /// PreviewDragOver handler for the prompt textbox — accepts dropped files and shows
+        /// the Copy cursor only when the payload actually contains file paths. Marked Handled
+        /// so the textbox's default text-drop behavior doesn't override it.
+        /// </summary>
+        private void PromptTextBox_PreviewDragOver(object sender, DragEventArgs e)
+        {
+            if (e.Data != null && e.Data.GetDataPresent(DataFormats.FileDrop))
+            {
+                e.Effects = DragDropEffects.Copy;
+            }
+            else
+            {
+                e.Effects = DragDropEffects.None;
+            }
+            e.Handled = true;
+        }
+
+        /// <summary>
+        /// PreviewDrop handler for the prompt textbox — adds dropped files to the attachment
+        /// list using the same path as the 📎 toolbar button. Directories are skipped (Claude
+        /// can't attach folders directly); duplicates are filtered out.
+        /// </summary>
+        private void PromptTextBox_PreviewDrop(object sender, DragEventArgs e)
+        {
+            try
+            {
+                if (e.Data == null || !e.Data.GetDataPresent(DataFormats.FileDrop))
+                {
+                    return;
+                }
+
+                var dropped = e.Data.GetData(DataFormats.FileDrop) as string[];
+                if (dropped == null || dropped.Length == 0) return;
+
+                bool any = false;
+                foreach (string path in dropped)
+                {
+                    if (string.IsNullOrEmpty(path)) continue;
+                    if (Directory.Exists(path)) continue; // skip folders
+                    if (!File.Exists(path)) continue;
+                    if (attachedImagePaths.Contains(path)) continue;
+
+                    attachedImagePaths.Add(path);
+                    any = true;
+                }
+
+                if (any)
+                {
+                    UpdateImageDropDisplay();
+                }
+
+                e.Handled = true;
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"PromptTextBox_PreviewDrop error: {ex.Message}");
+                MessageBox.Show($"Error attaching dropped files: {ex.Message}",
+                    "Drag & Drop", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+        }
+
         #endregion
 
         #region Image Display Management
