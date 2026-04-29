@@ -264,6 +264,9 @@ Claude will write the `SKILL.md` file with the proper frontmatter and instructio
 
 ## Version History
 
+### Version 10.39 - Ocrosoft contribution
+- **UTF-8 codepage for conhost via per-exe registry subkey**: The embedded Command Prompt now boots with codepage 65001 (UTF-8) by writing `CodePage=65001` to `HKCU\Console\%SystemRoot%_System32_conhost.exe` before launching conhost. The parent `HKCU\Console\CodePage` value is ignored in practice, so the per-executable subkey is required. Original `CodePage` value (and the subkey itself, if it didn't exist) is restored after conhost starts, alongside the existing `FaceName` / `FontFamily` restore. Fixes garbled non-ASCII output in the embedded terminal.
+
 ### Version 10.38
 - **Usage page auto sign-out on Change Account**: When "Change Account" is selected from the model menu and the Claude Usage feature is active (usage bars or usage window enabled), the embedded WebView2 usage page automatically clears its claude.ai session cookies and reloads — so the new account is reflected without requiring a manual sign-out in the usage window.
 
