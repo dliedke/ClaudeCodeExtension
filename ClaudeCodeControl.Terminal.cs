@@ -1160,6 +1160,25 @@ namespace ClaudeCodeVS
         private object _savedConsoleFontFamily;
 
         /// <summary>
+        /// Saved original console CodePage from registry, for restoration after conhost starts.
+        /// Stored in the conhost.exe-specific subkey (HKCU\Console\%SystemRoot%_System32_conhost.exe),
+        /// because the parent HKCU\Console CodePage value is ignored in practice.
+        /// </summary>
+        private object _savedConsoleCodePage;
+
+        /// <summary>
+        /// Whether the conhost.exe-specific subkey existed before we touched it.
+        /// If false, we created it ourselves and will delete it entirely on restore.
+        /// </summary>
+        private bool _cmdConhostSubkeyExisted;
+
+        /// <summary>
+        /// Registry subkey path conhost.exe reads for its per-executable console settings
+        /// (overrides values at the parent HKCU\Console level).
+        /// </summary>
+        private const string ConsoleConhostSubkeyPath = @"Console\%SystemRoot%_System32_conhost.exe";
+
+        /// <summary>
         /// Whether we have saved console font values that need restoration
         /// </summary>
         private bool _consoleFontSaved;
@@ -1168,6 +1187,9 @@ namespace ClaudeCodeVS
         /// Temporarily sets the console default font in the registry to "Cascadia Mono".
         /// Conhost reads HKCU\Console when creating a new console window, so setting
         /// the font before starting conhost ensures the correct font is used.
+        /// CodePage must be written to the conhost.exe-specific subkey
+        /// (HKCU\Console\%SystemRoot%_System32_conhost.exe) because the parent
+        /// HKCU\Console CodePage value is ignored in practice.
         /// The original values are saved for restoration after conhost has started.
         /// </summary>
         private void SaveAndSetConsoleFontRegistry()
@@ -1184,6 +1206,18 @@ namespace ClaudeCodeVS
 
                     key.SetValue("FaceName", "Cascadia Mono", Microsoft.Win32.RegistryValueKind.String);
                     key.SetValue("FontFamily", 54, Microsoft.Win32.RegistryValueKind.DWord);
+                }
+
+                // CodePage lives in the per-executable conhost.exe subkey; the parent Console\CodePage is ignored by conhost.exe.
+                using (var existing = Microsoft.Win32.Registry.CurrentUser.OpenSubKey(ConsoleConhostSubkeyPath, writable: false))
+                {
+                    _cmdConhostSubkeyExisted = existing != null;
+                    _savedConsoleCodePage = existing?.GetValue("CodePage");
+                }
+
+                using (var cmdKey = Microsoft.Win32.Registry.CurrentUser.CreateSubKey(ConsoleConhostSubkeyPath))
+                {
+                    cmdKey?.SetValue("CodePage", 65001, Microsoft.Win32.RegistryValueKind.DWord);
                 }
             }
             catch (Exception ex)
@@ -1204,17 +1238,37 @@ namespace ClaudeCodeVS
             {
                 using (var key = Microsoft.Win32.Registry.CurrentUser.OpenSubKey("Console", writable: true))
                 {
-                    if (key == null) return;
+                    if (key != null)
+                    {
+                        if (_savedConsoleFaceName != null)
+                            key.SetValue("FaceName", _savedConsoleFaceName, Microsoft.Win32.RegistryValueKind.String);
+                        else
+                            key.DeleteValue("FaceName", throwOnMissingValue: false);
 
-                    if (_savedConsoleFaceName != null)
-                        key.SetValue("FaceName", _savedConsoleFaceName, Microsoft.Win32.RegistryValueKind.String);
-                    else
-                        key.DeleteValue("FaceName", throwOnMissingValue: false);
+                        if (_savedConsoleFontFamily != null)
+                            key.SetValue("FontFamily", _savedConsoleFontFamily, Microsoft.Win32.RegistryValueKind.DWord);
+                        else
+                            key.DeleteValue("FontFamily", throwOnMissingValue: false);
+                    }
+                }
 
-                    if (_savedConsoleFontFamily != null)
-                        key.SetValue("FontFamily", _savedConsoleFontFamily, Microsoft.Win32.RegistryValueKind.DWord);
-                    else
-                        key.DeleteValue("FontFamily", throwOnMissingValue: false);
+                if (_cmdConhostSubkeyExisted)
+                {
+                    using (var cmdKey = Microsoft.Win32.Registry.CurrentUser.OpenSubKey(ConsoleConhostSubkeyPath, writable: true))
+                    {
+                        if (cmdKey != null)
+                        {
+                            if (_savedConsoleCodePage != null)
+                                cmdKey.SetValue("CodePage", _savedConsoleCodePage, Microsoft.Win32.RegistryValueKind.DWord);
+                            else
+                                cmdKey.DeleteValue("CodePage", throwOnMissingValue: false);
+                        }
+                    }
+                }
+                else
+                {
+                    // We created the subkey; remove it entirely to leave the registry as we found it.
+                    Microsoft.Win32.Registry.CurrentUser.DeleteSubKey(ConsoleConhostSubkeyPath, throwOnMissingSubKey: false);
                 }
 
                 _consoleFontSaved = false;
