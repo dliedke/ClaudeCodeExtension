@@ -231,6 +231,12 @@ namespace ClaudeCodeVS
         [DllImport("user32.dll")]
         private static extern uint GetWindowThreadProcessId(IntPtr hWnd, out uint lpdwProcessId);
 
+        /// <summary>
+        /// Retrieves the handle to the window that currently has the clipboard open (zero if none)
+        /// </summary>
+        [DllImport("user32.dll")]
+        private static extern IntPtr GetOpenClipboardWindow();
+
         #endregion
 
         #region Win32 API Declarations - Input and Focus

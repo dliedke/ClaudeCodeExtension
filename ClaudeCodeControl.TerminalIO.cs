@@ -28,14 +28,16 @@ namespace ClaudeCodeVS
         private const int ClipboardTimeoutMs = 2000;
 
         /// <summary>
-        /// Maximum number of retry attempts for clipboard operations
+        /// Maximum number of retry attempts for clipboard operations.
+        /// Combined with ClipboardRetryDelayMs gives a ~6s ceiling (30 * 200ms).
+        /// Tuned for cases where another process (clipboard manager, conhost mark-mode) holds the clipboard.
         /// </summary>
-        private const int ClipboardMaxRetries = 10;
+        private const int ClipboardMaxRetries = 30;
 
         /// <summary>
         /// Delay between clipboard retry attempts in milliseconds
         /// </summary>
-        private const int ClipboardRetryDelayMs = 100;
+        private const int ClipboardRetryDelayMs = 200;
 
         /// <summary>
         /// Sends text to the embedded terminal by copying to clipboard and simulating paste
@@ -69,11 +71,29 @@ namespace ClaudeCodeVS
                     // Make sure we're on the UI thread for clipboard operations
                     await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
 
-                    // Save the current clipboard content before modifying it
-                    originalClipboardData = await ClipboardRetryAsync(() => SaveClipboardContent());
+                    // Save the current clipboard content before modifying it.
+                    // Non-fatal: if another process holds the clipboard, skip preservation and continue —
+                    // losing the user's prior clipboard is preferable to aborting the send.
+                    try
+                    {
+                        originalClipboardData = await ClipboardRetryAsync(() => SaveClipboardContent());
+                    }
+                    catch (System.Runtime.InteropServices.COMException ex) when (ex.ErrorCode == unchecked((int)0x800401D0))
+                    {
+                        LogClipboardLockOwner("SaveClipboardContent");
+                        originalClipboardData = null;
+                    }
 
-                    // Clear clipboard immediately so the deselect right-click below won't paste old content
-                    await ClipboardRetryAsync(() => Clipboard.Clear());
+                    // Clear clipboard immediately so the deselect right-click below won't paste old content.
+                    // Non-fatal — if it fails, the right-click below may paste stale content but the send still proceeds.
+                    try
+                    {
+                        await ClipboardRetryAsync(() => Clipboard.Clear());
+                    }
+                    catch (System.Runtime.InteropServices.COMException ex) when (ex.ErrorCode == unchecked((int)0x800401D0))
+                    {
+                        LogClipboardLockOwner("Clipboard.Clear (pre-deselect)");
+                    }
                     await Task.Delay(50);
 
                     // If terminal is detached, ensure the detached window tab is visible
@@ -103,9 +123,36 @@ namespace ClaudeCodeVS
 
                     // Now set the clipboard to the prompt text (after deselect right-click which may overwrite clipboard)
                     await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
-                    await ClipboardRetryAsync(() => Clipboard.Clear());
+                    try
+                    {
+                        await ClipboardRetryAsync(() => Clipboard.Clear());
+                    }
+                    catch (System.Runtime.InteropServices.COMException ex) when (ex.ErrorCode == unchecked((int)0x800401D0))
+                    {
+                        LogClipboardLockOwner("Clipboard.Clear (pre-SetText)");
+                    }
                     await Task.Delay(50);
-                    await ClipboardRetryAsync(() => Clipboard.SetText(text));
+
+                    // SetText is the critical step — if it fails the paste will not contain our text, so abort with diagnostics.
+                    try
+                    {
+                        await ClipboardRetryAsync(() => Clipboard.SetText(text));
+                    }
+                    catch (System.Runtime.InteropServices.COMException ex) when (ex.ErrorCode == unchecked((int)0x800401D0))
+                    {
+                        string owner = LogClipboardLockOwner("Clipboard.SetText");
+                        await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
+                        MessageBox.Show(
+                            $"Clipboard is locked by another process and could not be opened after {ClipboardMaxRetries * ClipboardRetryDelayMs / 1000}s.\n\n" +
+                            $"Likely culprit: {owner}\n\n" +
+                            "Common causes:\n" +
+                            "  • A clipboard manager (Win+V history, Ditto, etc.)\n" +
+                            "  • Conhost in mark/select mode (press Esc inside the terminal)\n" +
+                            "  • Remote Desktop clipboard redirection\n\n" +
+                            "Try again after closing the offending app, or press Esc in the terminal to leave selection mode.",
+                            "Clipboard Locked", MessageBoxButton.OK, MessageBoxImage.Warning);
+                        return;
+                    }
 
                     // Re-focus terminal after clipboard operations
                     SetForegroundWindow(terminalHandle);
@@ -242,6 +289,43 @@ namespace ClaudeCodeVS
                 }
             }
             return default; // Should never reach here
+        }
+
+        /// <summary>
+        /// Logs which process currently holds the Win32 clipboard (when a CLIPBRD_E_CANT_OPEN occurs)
+        /// and returns a human-readable description for use in dialogs / debug output.
+        /// </summary>
+        /// <param name="context">Where the lock was hit, used as log prefix</param>
+        /// <returns>"ProcessName (PID 1234)" or "unknown" if owner cannot be determined</returns>
+        private string LogClipboardLockOwner(string context)
+        {
+            string description = "unknown";
+            try
+            {
+                IntPtr ownerWindow = GetOpenClipboardWindow();
+                if (ownerWindow != IntPtr.Zero)
+                {
+                    GetWindowThreadProcessId(ownerWindow, out uint pid);
+                    if (pid != 0)
+                    {
+                        try
+                        {
+                            var proc = System.Diagnostics.Process.GetProcessById((int)pid);
+                            description = $"{proc.ProcessName} (PID {pid})";
+                        }
+                        catch
+                        {
+                            description = $"PID {pid}";
+                        }
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"LogClipboardLockOwner: failed to query owner: {ex.Message}");
+            }
+            System.Diagnostics.Debug.WriteLine($"[Clipboard lock] {context}: owner = {description}");
+            return description;
         }
 
         /// <summary>

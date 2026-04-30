@@ -264,6 +264,9 @@ Claude will write the `SKILL.md` file with the proper frontmatter and instructio
 
 ## Version History
 
+### Version 10.40
+- **Resilient clipboard handoff to terminal**: Sending a prompt no longer fails outright when another process briefly holds the Win32 clipboard (e.g. a clipboard manager such as Win+V history or Ditto, RDP clipboard redirection, or conhost in mark/select mode). Retry ceiling raised from 1s (10×100ms) to 6s (30×200ms). The `SaveClipboardContent` and pre-paste `Clipboard.Clear` calls are now non-fatal — if they exhaust retries, the send still proceeds (worst case: user's prior clipboard isn't preserved). Only `Clipboard.SetText` remains fatal, since the pasted text would otherwise be wrong; on that failure the dialog now names the locking process (e.g. `Ditto.exe (PID 1234)`) and lists common culprits, instead of the bare `CLIPBRD_E_CANT_OPEN` HRESULT. Owner detection uses `GetOpenClipboardWindow` + `GetWindowThreadProcessId`.
+
 ### Version 10.39 - Ocrosoft contribution
 - **UTF-8 codepage for conhost via per-exe registry subkey**: The embedded Command Prompt now boots with codepage 65001 (UTF-8) by writing `CodePage=65001` to `HKCU\Console\%SystemRoot%_System32_conhost.exe` before launching conhost. The parent `HKCU\Console\CodePage` value is ignored in practice, so the per-executable subkey is required. Original `CodePage` value (and the subkey itself, if it didn't exist) is restored after conhost starts, alongside the existing `FaceName` / `FontFamily` restore. Fixes garbled non-ASCII output in the embedded terminal.
 
