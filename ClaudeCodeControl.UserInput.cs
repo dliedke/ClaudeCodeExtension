@@ -209,6 +209,11 @@ namespace ClaudeCodeVS
         /// </summary>
         private void PromptTextBox_PreviewKeyDown(object sender, KeyEventArgs e)
         {
+            // Force cursor visible — "Hide pointer while typing" calls SetCursor(NULL) which WPF
+            // only counteracts via WM_SETCURSOR (i.e. on mouse move). While typing non-stop with
+            // the mouse stationary, WM_SETCURSOR never fires, so we must call SetCursor directly.
+            SetCursor(LoadCursor(IntPtr.Zero, new IntPtr(IDC_IBEAM)));
+
             // Handle Ctrl+Up/Down for prompt history navigation
             if ((Keyboard.Modifiers & ModifierKeys.Control) == ModifierKeys.Control)
             {

@@ -288,6 +288,21 @@ namespace ClaudeCodeVS
         private static extern bool SetCursorPos(int x, int y);
 
         /// <summary>
+        /// Sets the cursor shape; used to restore the cursor after Win32 "Hide pointer while typing"
+        /// calls SetCursor(NULL) which WPF cannot counteract without a direct Win32 call.
+        /// </summary>
+        [DllImport("user32.dll")]
+        private static extern IntPtr SetCursor(IntPtr hCursor);
+
+        /// <summary>
+        /// Loads a predefined system cursor (pass IntPtr.Zero for hInstance)
+        /// </summary>
+        [DllImport("user32.dll", CharSet = CharSet.Auto)]
+        private static extern IntPtr LoadCursor(IntPtr hInstance, IntPtr lpCursorName);
+
+        private const int IDC_IBEAM = 32513;
+
+        /// <summary>
         /// Synthesizes mouse motion and button clicks
         /// </summary>
         [DllImport("user32.dll")]

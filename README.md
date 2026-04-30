@@ -264,6 +264,9 @@ Claude will write the `SKILL.md` file with the proper frontmatter and instructio
 
 ## Version History
 
+### Version 10.41
+- **Mouse cursor stays visible while typing in prompt area**: Added `Cursor="IBeam"` to `PromptTextBox` so WPF maintains the text cursor and restores it on mouse move, overriding the Windows "Hide pointer while typing" system behavior.
+
 ### Version 10.40
 - **Resilient clipboard handoff to terminal**: Sending a prompt no longer fails outright when another process briefly holds the Win32 clipboard (e.g. a clipboard manager such as Win+V history or Ditto, RDP clipboard redirection, or conhost in mark/select mode). Retry ceiling raised from 1s (10×100ms) to 6s (30×200ms). The `SaveClipboardContent` and pre-paste `Clipboard.Clear` calls are now non-fatal — if they exhaust retries, the send still proceeds (worst case: user's prior clipboard isn't preserved). Only `Clipboard.SetText` remains fatal, since the pasted text would otherwise be wrong; on that failure the dialog now names the locking process (e.g. `Ditto.exe (PID 1234)`) and lists common culprits, instead of the bare `CLIPBRD_E_CANT_OPEN` HRESULT. Owner detection uses `GetOpenClipboardWindow` + `GetWindowThreadProcessId`.
 

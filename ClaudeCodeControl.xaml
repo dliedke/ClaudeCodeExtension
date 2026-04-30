@@ -158,6 +158,7 @@
                          AcceptsReturn="True"
                          VerticalScrollBarVisibility="Auto"
                          FontFamily="Cascadia Mono"
+                         Cursor="IBeam"
                          Background="{DynamicResource {x:Static vsshell:VsBrushes.WindowKey}}"
                          Foreground="{DynamicResource {x:Static vsshell:VsBrushes.WindowTextKey}}"
                          BorderBrush="Transparent"
