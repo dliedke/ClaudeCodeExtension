@@ -305,9 +305,9 @@ namespace ClaudeCodeVS
         {
             try
             {
-                if (SessionHistoryButton == null) return;
+                if (SessionHistoryViewMenuItem == null) return;
 
-                SessionHistoryButton.Visibility = IsClaudeCodeSessionHistoryProvider(_settings?.SelectedProvider)
+                SessionHistoryViewMenuItem.Visibility = IsClaudeCodeSessionHistoryProvider(_settings?.SelectedProvider)
                     ? Visibility.Visible
                     : Visibility.Collapsed;
             }

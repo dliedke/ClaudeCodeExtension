@@ -264,6 +264,9 @@ Claude will write the `SKILL.md` file with the proper frontmatter and instructio
 
 ## Version History
 
+### Version 10.42
+- **Toolbar declutter**: Reduced from 12 buttons to 6. Attach + Insert Selection merged into a 📎 dropdown; View Changes + Session History + Show Usage merged into a 📊 Views dropdown; Update Agent and Detach Terminal moved into the ⚙️ Settings menu. Removed Show Usage from the 🤖 Model menu.
+
 ### Version 10.41
 - **Mouse cursor stays visible while typing in prompt area**: Added `Cursor="IBeam"` to `PromptTextBox` so WPF maintains the text cursor and restores it on mouse move, overriding the Windows "Hide pointer while typing" system behavior.
 

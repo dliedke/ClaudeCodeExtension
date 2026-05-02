@@ -6,7 +6,7 @@
 
 - **Author**: Daniel Carvalho Liedke (dliedke@gmail.com) | **License**: MIT
 - **Repository**: https://github.com/dliedke/ClaudeCodeExtension
-- **Current Version**: 10.40 | **Target Framework**: .NET Framework 4.7.2
+- **Current Version**: 10.42 | **Target Framework**: .NET Framework 4.7.2
 
 ---
 
@@ -62,7 +62,8 @@ ClaudeCodeExtension/
 │   ├── ClaudeCodeControl.Interop.cs     # Win32 API declarations (P/Invoke)
 │   ├── ClaudeCodeControl.Theme.cs       # Dark/light theme support
 │   ├── ClaudeCodeControl.Detach.cs      # Terminal detach/attach to separate VS tab
-│   └── ClaudeCodeControl.Usage.cs       # Claude usage tool window wiring & inline bars
+│   ├── ClaudeCodeControl.Usage.cs       # Claude usage tool window wiring & inline bars
+│   └── ClaudeCodeControl.SessionHistory.cs # Session history dialog: list/resume/delete JSONL transcripts
 ├── UI:
 │   ├── ClaudeCodeControl.xaml / DiffViewerControl.xaml(.cs) / ClaudeUsageControl.xaml(.cs)
 │   ├── ClaudeCodeToolWindow.cs / DiffViewerToolWindow.cs / DetachedTerminalToolWindow.cs / ClaudeUsageToolWindow.cs
@@ -188,6 +189,16 @@ Priority: DTE solution dir → active project dir → IVsSolution dir → curren
 
 Re-parents terminal to/from `DetachedTerminalToolWindow` via `SetParent()`. Auto-reattaches when detached tab is closed.
 
+### Session History (SessionHistory.cs)
+
+- **Scope**: Claude Code (native) and Claude Code (WSL) only — other providers don't use this transcript format
+- **Toolbar button**: `SessionHistoryButton` — visible only when a Claude Code provider is active (`RefreshSessionHistoryButton()`)
+- **Path encoding**: `EncodeClaudeProjectPath()` replicates Claude Code's filesystem encoding: every non-alphanumeric char → `-`. Example: `C:\Users\Daniel` → `C--Users-Daniel`
+- **Directory resolution**: Native → `%USERPROFILE%\.claude\projects\<encoded-cwd>`; WSL → shells out `wslpath -w "$HOME/.claude/projects/<encoded>"` to get a `\\wsl.localhost\` UNC path readable by .NET
+- **JSONL parsing**: `ParseSessionFile()` reads with `FileShare.ReadWrite` (so the active session file isn't locked); extracts first user-typed message as preview, skips `tool_result`/`image` parts, sums `input_tokens + output_tokens` from assistant lines
+- **Dialog**: WPF modal built programmatically; loads sessions async after open (shows "Loading…" placeholder); supports Resume (restart terminal with `--resume <uuid>`), Resume Last Session (`--continue`), Delete, Refresh
+- **Resume flow**: `ResumeSessionAsync()` sets `_pendingResumeSessionId` on the settings object → `GetClaudeCommand()` injects `--resume <id>` or `--continue` on the next terminal start; provider is forced to match the session's origin (native vs WSL)
+
 ---
 
 ## Data Models (ClaudeCodeModels.cs)
@@ -200,7 +211,8 @@ enum EffortLevel { Auto, Low, Medium, High, Max }
 enum TerminalType { CommandPrompt, WindowsTerminal }
 class CustomCommand { Name, Command }
 class PromptHistoryEntry { Text, FilePaths }
-class UsageSnapshot { SessionLabel, SessionReset, SessionPercent, WeeklyLabel, WeeklyReset, WeeklyPercent }
+class SessionInfo { SessionId, FilePath, Preview, MessageCount, TokenCount, LastModified, Cwd, Provider }
+class UsageSnapshot { SessionLabel, SessionReset, SessionPercent, WeeklyLabel, WeeklyReset, WeeklyPercent, HasExtraUsage, ExtraUsageSpent, ExtraUsageReset, ExtraUsagePercent }
 ```
 
 Key settings: `SplitterPosition` (236px default), `SelectedProvider`, `SelectedClaudeModel`, `SelectedWindsurfModel`, `PromptHistory` (max 50), `AutoOpenChangesOnPrompt`, `ClaudeDangerouslySkipPermissions`, `CodexFullAuto`, `CursorAgentAutoRun`, `WindsurfDangerousMode`, `SelectedEffortLevel`, `CustomWorkingDirectory`, `SelectedTerminalType`, `IsTerminalDetached`, `PromptFontSize` (8–24pt), `TerminalZoomDelta`, `InvertLayout`, `CustomCommands` (list of `{Name, Command}`), `UsageAutoRefreshSeconds` (0 = manual), `UsageWindowOpened` (auto-reopen on load), `ShowInlineUsageBars` (default true), `LastUsageJson` / `LastUsageTimestamp` (cached snapshot)
@@ -257,4 +269,5 @@ Key settings: `SplitterPosition` (236px default), `SelectedProvider`, `SelectedC
 5. **`UserInput.cs`**: Add to `isWSLProvider` check for WSL path conversion
 6. **`Detach.cs`**: Add to `GetCurrentProviderName()` switch
 7. **`ClaudeCodeControl.xaml`**: Add context menu item; add settings item if provider has flags
-8. **`README.md`**: Document in Features, System Requirements, AI Provider Menu, Updating sections
+8. **`SessionHistory.cs`**: Update `IsClaudeCodeSessionHistoryProvider()` if the new provider supports JSONL session transcripts; call `RefreshSessionHistoryButton()` from `UpdateProviderSelection()`
+9. **`README.md`**: Document in Features, System Requirements, AI Provider Menu, Updating sections

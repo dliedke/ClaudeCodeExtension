@@ -125,6 +125,18 @@ namespace ClaudeCodeVS
             return false;
         }
 
+        private void AttachDropdownButton_Click(object sender, RoutedEventArgs e)
+        {
+            if (AttachDropdownButton?.ContextMenu != null)
+            {
+                AttachDropdownButton.ContextMenu.PlacementTarget = AttachDropdownButton;
+                AttachDropdownButton.ContextMenu.IsOpen = true;
+            }
+        }
+
+        private void AttachFileMenuItem_Click(object sender, RoutedEventArgs e)
+            => ImageDropBorder_Click(sender, null);
+
         /// <summary>
         /// Handles click on file drop border to open file selection dialog
         /// </summary>

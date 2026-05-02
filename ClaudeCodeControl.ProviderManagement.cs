@@ -1542,10 +1542,10 @@ devin";
                                    _settings.SelectedProvider == AiProvider.ClaudeCodeWSL;
             bool isWindsurfProvider = _settings.SelectedProvider == AiProvider.Windsurf;
             ModelDropdownButton.Visibility = (isClaudeProvider || isWindsurfProvider) ? Visibility.Visible : Visibility.Collapsed;
-            UpdateAgentButton.Visibility = Visibility.Visible;
 
-            // Show usage button only for stock Claude providers (cloud usage doesn't apply to local launchers)
-            ShowUsageButton.Visibility = isClaudeProvider ? Visibility.Visible : Visibility.Collapsed;
+            // Show Usage item in Views dropdown only for Claude and Windsurf providers
+            if (ShowUsageViewMenuItem != null)
+                ShowUsageViewMenuItem.Visibility = (isClaudeProvider || isWindsurfProvider) ? Visibility.Visible : Visibility.Collapsed;
             UpdateInlineUsagePanelVisibility();
 
             // Session history is only meaningful for Claude Code providers (other agents store
@@ -1893,8 +1893,6 @@ devin";
             bool isClaude = !isWindsurf;
 
             // Claude-specific items
-            ShowUsageMenuItem.Visibility = isClaude ? Visibility.Visible : Visibility.Collapsed;
-            ClaudeModelSeparator.Visibility = isClaude ? Visibility.Visible : Visibility.Collapsed;
             OpusMenuItem.Visibility = isClaude ? Visibility.Visible : Visibility.Collapsed;
             SonnetMenuItem.Visibility = isClaude ? Visibility.Visible : Visibility.Collapsed;
             HaikuMenuItem.Visibility = isClaude ? Visibility.Visible : Visibility.Collapsed;
@@ -1911,8 +1909,6 @@ devin";
             InstallCavemanMenuItem.Visibility = isClaude ? Visibility.Visible : Visibility.Collapsed;
 
             // Windsurf-specific items
-            WindsurfShowUsageMenuItem.Visibility = isWindsurf ? Visibility.Visible : Visibility.Collapsed;
-            WindsurfModelSeparator.Visibility = isWindsurf ? Visibility.Visible : Visibility.Collapsed;
             WindsurfClaudeOpusMenuItem.Visibility = isWindsurf ? Visibility.Visible : Visibility.Collapsed;
             WindsurfClaudeSonnetMenuItem.Visibility = isWindsurf ? Visibility.Visible : Visibility.Collapsed;
             WindsurfCodexMenuItem.Visibility = isWindsurf ? Visibility.Visible : Visibility.Collapsed;

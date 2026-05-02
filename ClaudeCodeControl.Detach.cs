@@ -171,9 +171,7 @@ namespace ClaudeCodeVS
                 MainGrid.RowDefinitions[terminalRow].MinHeight = 0;
                 MainGrid.UpdateLayout();
 
-                // Update button icon and tooltip to show "attach" (arrow pointing right into box)
                 UpdateDetachButtonIcon(true);
-                DetachTerminalButton.ToolTip = "Attach Terminal Back to Main Panel";
 
                 // Save state
                 if (_settings != null)
@@ -267,9 +265,7 @@ namespace ClaudeCodeVS
                 _detachedTerminalPanel = null;
                 _detachedTerminalWindow = null;
 
-                // Update button icon and tooltip to show "detach" (arrow pointing left out of box)
                 UpdateDetachButtonIcon(false);
-                DetachTerminalButton.ToolTip = "Detach Terminal to Separate Tab";
 
                 // Save state
                 if (_settings != null)
@@ -394,58 +390,10 @@ namespace ClaudeCodeVS
         {
             try
             {
-                var canvas = new Canvas { Width = 16, Height = 14 };
-                var iconBrush = (Brush)FindResource(VsBrushes.ToolWindowTextKey);
-
-                var rect = new Rectangle
-                {
-                    Width = 10,
-                    Height = 12,
-                    Stroke = iconBrush,
-                    StrokeThickness = 1.5,
-                    Fill = Brushes.Transparent
-                };
-
-                if (isDetached)
-                {
-                    // Attach icon: box on left, arrow pointing right into box
-                    Canvas.SetLeft(rect, 1);
-                    Canvas.SetTop(rect, 1);
-                    canvas.Children.Add(rect);
-
-                    var line = new Line { X1 = 8, Y1 = 7, X2 = 15, Y2 = 7, Stroke = iconBrush, StrokeThickness = 1.5 };
-                    canvas.Children.Add(line);
-
-                    var arrow = new Polyline
-                    {
-                        Points = new PointCollection { new Point(12, 4), new Point(15, 7), new Point(12, 10) },
-                        Stroke = iconBrush,
-                        StrokeThickness = 1.5,
-                        Fill = Brushes.Transparent
-                    };
-                    canvas.Children.Add(arrow);
-                }
-                else
-                {
-                    // Detach icon: box on right, arrow pointing left out of box
-                    Canvas.SetLeft(rect, 5);
-                    Canvas.SetTop(rect, 1);
-                    canvas.Children.Add(rect);
-
-                    var line = new Line { X1 = 8, Y1 = 7, X2 = 1, Y2 = 7, Stroke = iconBrush, StrokeThickness = 1.5 };
-                    canvas.Children.Add(line);
-
-                    var arrow = new Polyline
-                    {
-                        Points = new PointCollection { new Point(4, 4), new Point(1, 7), new Point(4, 10) },
-                        Stroke = iconBrush,
-                        StrokeThickness = 1.5,
-                        Fill = Brushes.Transparent
-                    };
-                    canvas.Children.Add(arrow);
-                }
-
-                DetachButtonIcon.Child = canvas;
+                if (DetachTerminalMenuItem != null)
+                    DetachTerminalMenuItem.Header = isDetached
+                        ? "Attach Terminal Back to Main Panel"
+                        : "Detach Terminal to Separate Tab";
             }
             catch (Exception ex)
             {

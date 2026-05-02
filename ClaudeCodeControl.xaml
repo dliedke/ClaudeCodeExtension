@@ -209,26 +209,22 @@
                             ToolTip="Send Prompt to Code Agent"
                             Margin="0,0,6,0"/>
 
-					<Button x:Name="AddImageButton"
+					<Button x:Name="AttachDropdownButton"
                             Content="📎"
                             Style="{StaticResource IconButtonStyle}"
                             Width="30"
                             MinWidth="30"
                             FontSize="14"
                             HorizontalAlignment="Left"
-                            ToolTip="Add Files to Prompt (Images, PDFs, Documents, etc.)"
-                            PreviewMouseLeftButtonUp="ImageDropBorder_Click"/>
-
-						<Button x:Name="GrabSelectionButton"
-                            Content="📋"
-                            Style="{StaticResource IconButtonStyle}"
-                            Width="30"
-                            MinWidth="30"
-                            FontSize="14"
-                            HorizontalAlignment="Left"
-                            ToolTip="Insert Editor Selection into Prompt"
-                            Click="GrabSelectionButton_Click"
-                            Margin="6,0,0,0"/>
+                            ToolTip="Attach / Insert Content"
+                            Click="AttachDropdownButton_Click">
+							<Button.ContextMenu>
+								<ContextMenu x:Name="AttachContextMenu">
+									<MenuItem Header="📎  Attach File..." x:Name="AttachFileMenuItem" Click="AttachFileMenuItem_Click"/>
+									<MenuItem Header="📋  Insert Editor Selection" x:Name="InsertSelectionMenuItem" Click="GrabSelectionButton_Click"/>
+								</ContextMenu>
+							</Button.ContextMenu>
+						</Button>
 				</StackPanel>
 
                 <!-- Right-aligned buttons (Restart + Model + Settings + Update) -->
@@ -239,26 +235,23 @@
                             Margin="6,0,0,0">
 
 
-					<Button x:Name="ShowUsageButton"
+					<Button x:Name="ViewsDropdownButton"
                             Content="📊"
                             Width="30"
                             MinWidth="30"
                             FontSize="14"
                             Style="{StaticResource IconButtonStyle}"
-                            Click="ShowUsageButton_Click"
-                            ToolTip="Claude Usage Limits"
-                            Visibility="Collapsed"
-                            Margin="0,0,6,0"/>
-
-					<Button x:Name="ViewChangesButton"
-                            Content="🔀"
-                            Width="30"
-                            MinWidth="30"
-                            FontSize="14"
-                            Style="{StaticResource IconButtonStyle}"
-                            Click="ViewChangesButton_Click"
-                            ToolTip="View Code Changes"
-                            Margin="0,0,6,0"/>
+                            ToolTip="Views"
+                            Click="ViewsDropdownButton_Click"
+                            Margin="0,0,6,0">
+							<Button.ContextMenu>
+								<ContextMenu x:Name="ViewsContextMenu">
+									<MenuItem Header="🔀  View Changes" x:Name="ViewChangesMenuItem" Click="ViewChangesButton_Click"/>
+									<MenuItem Header="📜  Session History" x:Name="SessionHistoryViewMenuItem" Click="SessionHistoryButton_Click" Visibility="Collapsed"/>
+									<MenuItem Header="📊  Show Usage" x:Name="ShowUsageViewMenuItem" Click="ShowUsageViewMenuItem_Click" Visibility="Collapsed"/>
+								</ContextMenu>
+							</Button.ContextMenu>
+						</Button>
 
 					<Button x:Name="RestartTerminalButton"
                             Content="⟳"
@@ -268,18 +261,6 @@
                             Style="{StaticResource IconButtonStyle}"
                             Click="RestartTerminalButton_Click"
                             ToolTip="Restart Code Agent"
-                            Margin="0,0,6,0"/>
-
-					<Button x:Name="SessionHistoryButton"
-                            Content="📜"
-                            Width="30"
-                            Height="30"
-                            FontSize="14"
-                            Style="{StaticResource IconButtonStyle}"
-                            FontFamily="Consolas"
-                            ToolTip="Claude Code Session History — resume past sessions in this workspace"
-                            Visibility="Collapsed"
-                            Click="SessionHistoryButton_Click"
                             Margin="0,0,6,0"/>
 
 					<Button x:Name="CustomCommandsButton"
@@ -311,8 +292,6 @@
 						<Button.ContextMenu>
 							<ContextMenu x:Name="ModelContextMenu" Opened="ModelContextMenu_Opened">
 								<!-- Claude-specific items -->
-								<MenuItem Header="Show Usage" x:Name="ShowUsageMenuItem" Click="ShowUsageMenuItem_Click"/>
-								<Separator x:Name="ClaudeModelSeparator"/>
 								<MenuItem Header="Opus - Complex tasks" x:Name="OpusMenuItem" Click="OpusMenuItem_Click" IsCheckable="True"/>
 								<MenuItem Header="Sonnet - Everyday tasks" x:Name="SonnetMenuItem" Click="SonnetMenuItem_Click" IsCheckable="True" IsChecked="True"/>
 								<MenuItem Header="Haiku - Easy tasks" x:Name="HaikuMenuItem" Click="HaikuMenuItem_Click" IsCheckable="True"/>
@@ -328,8 +307,6 @@
 								<MenuItem Header="Set Language" x:Name="SetLanguageMenuItem" Click="SetLanguageMenuItem_Click"/>
 								<MenuItem Header="Install Caveman" x:Name="InstallCavemanMenuItem" Click="InstallCavemanMenuItem_Click" ToolTip="Install the Caveman plugin (JuliusBrussee/caveman) — ultra-compressed communication mode for Claude Code"/>
 								<!-- Windsurf-specific items -->
-								<MenuItem Header="Show Usage" x:Name="WindsurfShowUsageMenuItem" Click="WindsurfShowUsageMenuItem_Click"/>
-								<Separator x:Name="WindsurfModelSeparator"/>
 								<MenuItem Header="Claude Opus" x:Name="WindsurfClaudeOpusMenuItem" Click="WindsurfClaudeOpusMenuItem_Click" IsCheckable="True"/>
 								<MenuItem Header="Claude Sonnet" x:Name="WindsurfClaudeSonnetMenuItem" Click="WindsurfClaudeSonnetMenuItem_Click" IsCheckable="True" IsChecked="True"/>
 								<MenuItem Header="Codex" x:Name="WindsurfCodexMenuItem" Click="WindsurfCodexMenuItem_Click" IsCheckable="True"/>
@@ -349,6 +326,9 @@
                             Margin="0,0,6,0">
 						<Button.ContextMenu>
 							<ContextMenu x:Name="ProviderContextMenu" Opened="ProviderContextMenu_Opened">
+								<MenuItem Header="Update Code Agent" x:Name="UpdateAgentMenuItem" Click="UpdateAgentButton_Click"/>
+								<MenuItem Header="Detach Terminal to Separate Tab" x:Name="DetachTerminalMenuItem" Click="DetachTerminalButton_Click"/>
+								<Separator/>
 								<MenuItem Header="Claude Code" x:Name="ClaudeCodeMenuItem" Click="ClaudeCodeMenuItem_Click" IsCheckable="True" IsChecked="True"/>
 								<MenuItem Header="Claude Code (WSL)" x:Name="ClaudeCodeWSLMenuItem" Click="ClaudeCodeWSLMenuItem_Click" IsCheckable="True"/>
 								<MenuItem Header="Codex" x:Name="CodexNativeMenuItem" Click="CodexNativeMenuItem_Click" IsCheckable="True"/>
@@ -374,31 +354,6 @@
 								<MenuItem Header="About" x:Name="AboutMenuItem" Click="AboutMenuItem_Click"/>
 							</ContextMenu>
 						</Button.ContextMenu>
-					</Button>
-                    <Button x:Name="UpdateAgentButton"
-						Content="🔄️"
-						Width="30"
-						MinWidth="30"
-						Style="{StaticResource AdaptiveButtonStyle}"
-						Click="UpdateAgentButton_Click"
-						ToolTip="Update Code Agent"
-						Margin="0,0,6,0"/>
-					<Button x:Name="DetachTerminalButton"
-						Width="30" Height="30"
-						Style="{StaticResource IconButtonStyle}"
-						Click="DetachTerminalButton_Click"
-						ToolTip="Detach Terminal to Separate Tab"
-						Margin="0">
-						<Viewbox x:Name="DetachButtonIcon" Width="16" Height="14" Stretch="Uniform">
-							<Canvas Width="16" Height="14">
-								<!-- Box -->
-								<Rectangle Canvas.Left="5" Canvas.Top="1" Width="10" Height="12"
-										   Stroke="{DynamicResource {x:Static vsshell:VsBrushes.ToolWindowTextKey}}" StrokeThickness="1.5" Fill="Transparent"/>
-								<!-- Arrow pointing left (detach) -->
-								<Line X1="8" Y1="7" X2="1" Y2="7" Stroke="{DynamicResource {x:Static vsshell:VsBrushes.ToolWindowTextKey}}" StrokeThickness="1.5"/>
-								<Polyline Points="4,4 1,7 4,10" Stroke="{DynamicResource {x:Static vsshell:VsBrushes.ToolWindowTextKey}}" StrokeThickness="1.5" Fill="Transparent"/>
-							</Canvas>
-						</Viewbox>
 					</Button>
 				</StackPanel>
 			</Grid>

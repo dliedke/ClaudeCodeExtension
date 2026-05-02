@@ -2275,6 +2275,14 @@ namespace ClaudeCodeVS
         {
             try
             {
+                var result = MessageBox.Show(
+                    "Restart the code agent? The current session will be terminated.",
+                    "Restart Code Agent",
+                    MessageBoxButton.YesNo,
+                    MessageBoxImage.Question,
+                    MessageBoxResult.No);
+                if (result != MessageBoxResult.Yes) return;
+
                 await RestartTerminalWithSelectedProviderAsync();
             }
             catch (Exception ex)

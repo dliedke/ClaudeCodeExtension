@@ -419,6 +419,15 @@ namespace ClaudeCodeVS
             }
         }
 
+        private void ViewsDropdownButton_Click(object sender, RoutedEventArgs e)
+        {
+            if (ViewsDropdownButton?.ContextMenu != null)
+            {
+                ViewsDropdownButton.ContextMenu.PlacementTarget = ViewsDropdownButton;
+                ViewsDropdownButton.ContextMenu.IsOpen = true;
+            }
+        }
+
         /// <summary>
         /// Handles the View Changes button click
         /// </summary>
@@ -456,9 +465,9 @@ namespace ClaudeCodeVS
 
                 await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
 
-                if (ViewChangesButton != null)
+                if (ViewChangesMenuItem != null)
                 {
-                    ViewChangesButton.Visibility = isGitRepo ? Visibility.Visible : Visibility.Collapsed;
+                    ViewChangesMenuItem.Visibility = isGitRepo ? Visibility.Visible : Visibility.Collapsed;
                 }
             }
             catch (Exception ex)

@@ -402,6 +402,16 @@ namespace ClaudeCodeVS
             await ToggleUsageToolWindowAsync();
         }
 
+#pragma warning disable VSTHRD100
+        private async void ShowUsageViewMenuItem_Click(object sender, RoutedEventArgs e)
+#pragma warning restore VSTHRD100
+        {
+            if (_settings?.SelectedProvider == AiProvider.Windsurf)
+                System.Diagnostics.Process.Start("https://windsurf.com/subscription/usage");
+            else
+                await ToggleUsageToolWindowAsync();
+        }
+
         /// <summary>
         /// Toolbar button toggle:
         /// - OFF: ForceClose destroys the window (WebView2 disposed), hides bars, stops timer.
