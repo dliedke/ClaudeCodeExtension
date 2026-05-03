@@ -264,6 +264,10 @@ Claude will write the `SKILL.md` file with the proper frontmatter and instructio
 
 ## Version History
 
+### Version 10.43
+- **Light theme support for Command Prompt**: Terminal colors now match VS light/dark theme. Prompts to restart terminal when theme changes.
+  - Note: Command Prompt mode only. Windows Terminal uses its own color scheme.
+
 ### Version 10.42
 - **Toolbar declutter**: Reduced from 12 buttons to 6. Attach + Insert Selection merged into a 📎 dropdown; View Changes + Session History + Show Usage merged into a 📊 Views dropdown; Update Agent and Detach Terminal moved into the ⚙️ Settings menu. Removed Show Usage from the 🤖 Model menu.
 

@@ -1030,7 +1030,10 @@ namespace ClaudeCodeVS
                     // Enable Virtual Terminal Processing
                     startInfo.EnvironmentVariables["VIRTUAL_TERMINAL_LEVEL"] = "1";
 
-                    // Temporarily set console font
+                    // Temporarily set console colors based on VS theme and font
+                    // (must be on UI thread to access GetTerminalBackgroundColor)
+                    await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
+                    SaveAndSetConsoleColorsRegistry();
                     SaveAndSetConsoleFontRegistry();
 
                     await Task.Run(() =>
@@ -1065,8 +1068,9 @@ namespace ClaudeCodeVS
                         Debug.WriteLine($"FindMainWindowHandleByConhostAsync attempt {findAttempt + 1} timed out after {findTimeouts[findAttempt]}ms, retrying...");
                     }
 
-                    // Restore original console font
+                    // Restore original console font and colors
                     RestoreConsoleFontRegistry();
+                    RestoreConsoleColorsRegistry();
 
                     terminalHandle = hwnd;
 
@@ -1184,6 +1188,31 @@ namespace ClaudeCodeVS
         private bool _consoleFontSaved;
 
         /// <summary>
+        /// Saved original console ScreenColors from registry, for restoration after conhost starts
+        /// </summary>
+        private object _savedConsoleScreenColors;
+
+        /// <summary>
+        /// Saved original console PopupColors from registry, for restoration after conhost starts
+        /// </summary>
+        private object _savedConsolePopupColors;
+
+        /// <summary>
+        /// Saved original console ColorTable00 (black) from registry
+        /// </summary>
+        private object _savedConsoleColorTable00;
+
+        /// <summary>
+        /// Saved original console ColorTable07 (white) from registry
+        /// </summary>
+        private object _savedConsoleColorTable07;
+
+        /// <summary>
+        /// Whether we have saved console color values that need restoration
+        /// </summary>
+        private bool _consoleColorsSaved;
+
+        /// <summary>
         /// Temporarily sets the console default font in the registry to "Cascadia Mono".
         /// Conhost reads HKCU\Console when creating a new console window, so setting
         /// the font before starting conhost ensures the correct font is used.
@@ -1276,6 +1305,153 @@ namespace ClaudeCodeVS
             catch (Exception ex)
             {
                 Debug.WriteLine($"RestoreConsoleFontRegistry: {ex.Message}");
+            }
+        }
+
+        /// <summary>
+        /// Determines if Visual Studio is using a light theme
+        /// </summary>
+        private bool IsVsInLightTheme()
+        {
+            try
+            {
+                // Check VS theme via environment or registry
+                // Light theme typically has RGB > 180 for window background
+                var bgColor = GetTerminalBackgroundColor();
+                Debug.WriteLine($"Terminal BG Color: R={bgColor.R}, G={bgColor.G}, B={bgColor.B}");
+                int brightness = (bgColor.R * 299 + bgColor.G * 587 + bgColor.B * 114) / 1000;
+                Debug.WriteLine($"Brightness: {brightness}, Is Light: {brightness > 180}");
+                return brightness > 180;
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"IsVsInLightTheme error: {ex.Message}");
+                return false;
+            }
+        }
+
+        /// <summary>
+        /// Temporarily sets console colors based on VS theme before starting conhost.
+        /// For light theme: sets white/light background with dark text.
+        /// For dark theme: sets black background with light text.
+        /// The original values are saved for restoration after conhost has started.
+        /// </summary>
+        private void SaveAndSetConsoleColorsRegistry()
+        {
+            try
+            {
+                bool isLightTheme = IsVsInLightTheme();
+                Debug.WriteLine($"SaveAndSetConsoleColorsRegistry - isLightTheme: {isLightTheme}");
+
+                using (var key = Microsoft.Win32.Registry.CurrentUser.OpenSubKey("Console", writable: true))
+                {
+                    if (key == null)
+                    {
+                        Debug.WriteLine("Console registry key not found");
+                        return;
+                    }
+
+                    // Save original colors
+                    _savedConsoleScreenColors = key.GetValue("ScreenColors");
+                    _savedConsolePopupColors = key.GetValue("PopupColors");
+                    _savedConsoleColorTable00 = key.GetValue("ColorTable00");
+                    _savedConsoleColorTable07 = key.GetValue("ColorTable07");
+                    _consoleColorsSaved = true;
+                    Debug.WriteLine($"Saved original ScreenColors: {_savedConsoleScreenColors}");
+
+                    // Set colors based on theme
+                    uint screenColors = isLightTheme ? 0xF0U : 0x0FU;
+                    uint popupColors = isLightTheme ? 0xF0U : 0x0FU;
+
+                    key.SetValue("ScreenColors", screenColors, Microsoft.Win32.RegistryValueKind.DWord);
+                    key.SetValue("PopupColors", popupColors, Microsoft.Win32.RegistryValueKind.DWord);
+
+                    if (isLightTheme)
+                    {
+                        // Set explicit RGB values for color table entries
+                        key.SetValue("ColorTable00", 0x00000000U, Microsoft.Win32.RegistryValueKind.DWord); // Black
+                        key.SetValue("ColorTable07", 0x00FFFFFFU, Microsoft.Win32.RegistryValueKind.DWord); // White
+                    }
+
+                    Debug.WriteLine($"Set ScreenColors to: {screenColors:X}");
+                }
+
+                // Also set colors in the conhost-specific subkey to ensure they are applied
+                using (var conhostKey = Microsoft.Win32.Registry.CurrentUser.CreateSubKey(ConsoleConhostSubkeyPath))
+                {
+                    if (conhostKey != null)
+                    {
+                        uint screenColors = isLightTheme ? 0xF0U : 0x0FU;
+                        uint popupColors = isLightTheme ? 0xF0U : 0x0FU;
+                        conhostKey.SetValue("ScreenColors", screenColors, Microsoft.Win32.RegistryValueKind.DWord);
+                        conhostKey.SetValue("PopupColors", popupColors, Microsoft.Win32.RegistryValueKind.DWord);
+                        Debug.WriteLine($"Set conhost ScreenColors to: {screenColors:X}");
+                    }
+                }
+
+                // Flush registry to ensure changes propagate before terminal reads them
+                Microsoft.Win32.Registry.CurrentUser.Flush();
+                Debug.WriteLine("Registry flushed");
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"SaveAndSetConsoleColorsRegistry error: {ex.Message}\n{ex.StackTrace}");
+            }
+        }
+
+        /// <summary>
+        /// Restores the original console color registry values saved by SaveAndSetConsoleColorsRegistry.
+        /// Called after conhost has started and read its color settings from the registry.
+        /// </summary>
+        private void RestoreConsoleColorsRegistry()
+        {
+            if (!_consoleColorsSaved) return;
+
+            try
+            {
+                using (var key = Microsoft.Win32.Registry.CurrentUser.OpenSubKey("Console", writable: true))
+                {
+                    if (key != null)
+                    {
+                        // Restore all saved values to their original state
+                        if (_savedConsoleScreenColors != null)
+                            key.SetValue("ScreenColors", _savedConsoleScreenColors, Microsoft.Win32.RegistryValueKind.DWord);
+                        else
+                            key.DeleteValue("ScreenColors", throwOnMissingValue: false);
+
+                        if (_savedConsolePopupColors != null)
+                            key.SetValue("PopupColors", _savedConsolePopupColors, Microsoft.Win32.RegistryValueKind.DWord);
+                        else
+                            key.DeleteValue("PopupColors", throwOnMissingValue: false);
+
+                        // Restore color table entries (only for light theme which sets them)
+                        if (_savedConsoleColorTable00 != null)
+                            key.SetValue("ColorTable00", _savedConsoleColorTable00, Microsoft.Win32.RegistryValueKind.DWord);
+                        else
+                            key.DeleteValue("ColorTable00", throwOnMissingValue: false);
+
+                        if (_savedConsoleColorTable07 != null)
+                            key.SetValue("ColorTable07", _savedConsoleColorTable07, Microsoft.Win32.RegistryValueKind.DWord);
+                        else
+                            key.DeleteValue("ColorTable07", throwOnMissingValue: false);
+                    }
+                }
+
+                // Also remove colors from conhost-specific subkey
+                using (var conhostKey = Microsoft.Win32.Registry.CurrentUser.OpenSubKey(ConsoleConhostSubkeyPath, writable: true))
+                {
+                    if (conhostKey != null)
+                    {
+                        conhostKey.DeleteValue("ScreenColors", throwOnMissingValue: false);
+                        conhostKey.DeleteValue("PopupColors", throwOnMissingValue: false);
+                    }
+                }
+
+                _consoleColorsSaved = false;
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"RestoreConsoleColorsRegistry: {ex.Message}");
             }
         }
 

@@ -29,6 +29,11 @@ namespace ClaudeCodeVS
         /// </summary>
         private System.Drawing.Color _lastTerminalColor = System.Drawing.Color.Black;
 
+        /// <summary>
+        /// Debounce timer for theme change restart prompt
+        /// </summary>
+        private System.Windows.Threading.DispatcherTimer _themeChangeDebounceTimer;
+
         #endregion
 
         #region Theme Initialization
@@ -66,6 +71,17 @@ namespace ClaudeCodeVS
                 {
                     UpdateTerminalTheme();
                     UpdateDetachButtonIcon(_isTerminalDetached);
+
+                    // Debounce theme change restart prompt (event may fire multiple times)
+                    if (_themeChangeDebounceTimer == null)
+                    {
+                        _themeChangeDebounceTimer = new System.Windows.Threading.DispatcherTimer();
+                        _themeChangeDebounceTimer.Interval = TimeSpan.FromMilliseconds(500);
+                        _themeChangeDebounceTimer.Tick += OnThemeChangeDebounceTimerTick;
+                    }
+
+                    _themeChangeDebounceTimer.Stop();
+                    _themeChangeDebounceTimer.Start();
                 }
                 catch (Exception ex)
                 {
@@ -74,6 +90,36 @@ namespace ClaudeCodeVS
             });
         }
 #pragma warning restore VSSDK007
+
+        /// <summary>
+        /// Debounced handler for theme change restart prompt
+        /// </summary>
+        private void OnThemeChangeDebounceTimerTick(object sender, EventArgs e)
+        {
+            ThreadHelper.ThrowIfNotOnUIThread();
+
+            _themeChangeDebounceTimer?.Stop();
+
+            // Prompt user to restart terminal if it's running to apply new theme colors
+            if (terminalHandle != IntPtr.Zero && IsWindow(terminalHandle))
+            {
+                var result = MessageBox.Show(
+                    "Theme changed. Restart the AI code agent to apply the new terminal colors?",
+                    "Theme Changed",
+                    MessageBoxButton.YesNo,
+                    MessageBoxImage.Question);
+
+                if (result == MessageBoxResult.Yes)
+                {
+#pragma warning disable VSSDK007 // Fire-and-forget is intentional for restart
+                    _ = ThreadHelper.JoinableTaskFactory.RunAsync(async delegate
+                    {
+                        await RestartTerminalWithSelectedProviderAsync();
+                    });
+#pragma warning restore VSSDK007
+                }
+            }
+        }
 
         #endregion
 
@@ -175,6 +221,12 @@ namespace ClaudeCodeVS
             try
             {
                 VSColorTheme.ThemeChanged -= OnVSThemeChanged;
+
+                if (_themeChangeDebounceTimer != null)
+                {
+                    _themeChangeDebounceTimer.Stop();
+                    _themeChangeDebounceTimer = null;
+                }
             }
             catch (Exception ex)
             {
