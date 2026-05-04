@@ -236,7 +236,9 @@ namespace ClaudeCodeVS
         /// Starts (or restarts) the background refresh timer that periodically calls
         /// ShowHideForScrapeAsync so inline bars stay up to date while the tab is hidden.
         /// Stops and nulls itself if bars are disabled, provider is not Claude,
-        /// UsageAutoRefreshSeconds is 0 (Off), or the tab is already visible.
+        /// or the tab is already visible. UsageAutoRefreshSeconds=0 ("Off" in the combo)
+        /// only suppresses the page-visible reload — background bar refresh still runs
+        /// at a 60s default so inline bars never go stale forever.
         /// </summary>
         private void StartUsageBackgroundRefreshTimer()
         {
@@ -245,9 +247,11 @@ namespace ClaudeCodeVS
 
             if (_settings?.ShowInlineUsageBars != true || !IsClaudeProviderSelected()) return;
             if (_settings?.UsageWindowOpened == true) return; // tab is visible, no timer needed
-            if (_settings?.UsageAutoRefreshSeconds == 0) return; // Off — user wants manual refresh only
 
-            int intervalSeconds = Math.Max(60, _settings.UsageAutoRefreshSeconds);
+            // Combo "Off" (0) → 60s background floor; otherwise honor user's interval (min 60s).
+            int intervalSeconds = (_settings?.UsageAutoRefreshSeconds ?? 0) <= 0
+                ? 60
+                : Math.Max(60, _settings.UsageAutoRefreshSeconds);
 
             _usageBackgroundRefreshTimer = new DispatcherTimer
             {

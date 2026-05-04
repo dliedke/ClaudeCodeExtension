@@ -264,6 +264,9 @@ Claude will write the `SKILL.md` file with the proper frontmatter and instructio
 
 ## Version History
 
+### Version 10.44
+- **Fix: Inline usage bars going stale**: Background refresh timer now always runs (60s default) when inline bars are enabled, regardless of the auto-refresh combo setting. The combo's "Off" value now only suppresses the page-visible reload — it no longer prevents the hidden show-hide cycle that keeps the bars current.
+
 ### Version 10.43
 - **Light theme support for Command Prompt**: Terminal colors now match VS light/dark theme. Prompts to restart terminal when theme changes.
   - Note: Command Prompt mode only. Windows Terminal uses its own color scheme.
