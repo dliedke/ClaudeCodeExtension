@@ -46,6 +46,7 @@ namespace ClaudeCodeVS
         private bool _suppressComboEvent;
         private DateTime _lastRedirectAttemptUtc = DateTime.MinValue;
         private DateTime _lastCookieSaveUtc = DateTime.MinValue;
+        private DateTime _lastUrlBlockClickUtc = DateTime.MinValue;
 
         /// <summary>
         /// Fires when a usage snapshot is successfully scraped from the page.
@@ -498,6 +499,7 @@ namespace ClaudeCodeVS
             _firstNavTcs.TrySetResult(true);
             if (LoadingText != null) LoadingText.Visibility = Visibility.Collapsed;
             UpdateStatus();
+            if (TryHandleUrlBlock()) return;
             TryRedirectToUsage();
 
             // WebView2 hosted in WPF doesn't render its mouse cursor until
@@ -526,7 +528,42 @@ namespace ClaudeCodeVS
         /// </summary>
         private void OnSourceChanged(object sender, CoreWebView2SourceChangedEventArgs e)
         {
+            if (TryHandleUrlBlock()) return;
             TryRedirectToUsage();
+        }
+
+        /// <summary>
+        /// Some corporate proxies (e.g. iboss at 160.79.104.10:6080) intercept the
+        /// usage page with an interstitial that has a single Continue submit
+        /// button. Detect the block URL and click the button so navigation
+        /// resumes back to /settings/usage automatically. NavigationCompleted
+        /// guarantees the form is in the DOM before we click.
+        /// </summary>
+        private bool TryHandleUrlBlock()
+        {
+            try
+            {
+                var core = WebView?.CoreWebView2;
+                if (core == null) return false;
+                if (!Uri.TryCreate(core.Source, UriKind.Absolute, out var uri)) return false;
+                if (!uri.AbsolutePath.EndsWith("/urlblock.php", StringComparison.OrdinalIgnoreCase)) return false;
+
+                var now = DateTime.UtcNow;
+                if ((now - _lastUrlBlockClickUtc).TotalSeconds < 3) return true;
+                _lastUrlBlockClickUtc = now;
+
+                string js = @"
+  document.querySelector('input[type=submit][name=ok]').click();";
+#pragma warning disable VSTHRD110
+                _ = core.ExecuteScriptAsync(js);
+#pragma warning restore VSTHRD110
+                return true;
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine("ClaudeUsageControl: TryHandleUrlBlock failed: " + ex);
+                return false;
+            }
         }
 
         /// <summary>
