@@ -420,6 +420,9 @@ namespace ClaudeCodeVS
         {
             Microsoft.VisualStudio.Shell.ThreadHelper.ThrowIfNotOnUIThread();
 
+            // Apply forced theme if configured (before layout so colors are right)
+            ApplyForcedThemeResources();
+
             // Apply layout inversion if enabled
             ApplyLayout();
 

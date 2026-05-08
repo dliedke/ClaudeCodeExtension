@@ -1836,6 +1836,175 @@ devin";
         }
 
         /// <summary>
+        /// Handles set theme menu item click - shows dialog to select Automatic, Dark, or Light theme
+        /// </summary>
+#pragma warning disable VSTHRD100 // async void is acceptable for event handlers
+        private async void SetThemeMenuItem_Click(object sender, RoutedEventArgs e)
+#pragma warning restore VSTHRD100
+        {
+            await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
+
+            if (_settings == null) return;
+
+            ThemePreference currentPref = _settings.SelectedThemePreference;
+
+            // Resolve VS theme colors for the dialog
+            System.Windows.Media.Brush themeBg;
+            System.Windows.Media.Brush themeFg;
+            try
+            {
+                themeBg = (System.Windows.Media.SolidColorBrush)FindResource(VsBrushes.WindowKey);
+                themeFg = (System.Windows.Media.SolidColorBrush)FindResource(VsBrushes.WindowTextKey);
+            }
+            catch
+            {
+                themeBg = System.Windows.SystemColors.WindowBrush;
+                themeFg = System.Windows.SystemColors.WindowTextBrush;
+            }
+
+            // Show a simple dialog with radio button options
+            var window = new System.Windows.Window
+            {
+                Title = "Select Theme",
+                Width = 400,
+                Height = 240,
+                WindowStartupLocation = System.Windows.WindowStartupLocation.CenterScreen,
+                ResizeMode = System.Windows.ResizeMode.NoResize,
+                Background = themeBg,
+                Foreground = themeFg,
+                ShowInTaskbar = false
+            };
+
+            // Try to set owner to VS main window
+            try
+            {
+                window.Owner = System.Windows.Application.Current?.MainWindow;
+            }
+            catch
+            {
+                // Ignore if owner cannot be set
+            }
+
+            var grid = new System.Windows.Controls.Grid();
+            grid.Margin = new System.Windows.Thickness(15);
+            grid.RowDefinitions.Add(new System.Windows.Controls.RowDefinition { Height = new System.Windows.GridLength(1, System.Windows.GridUnitType.Star) });
+            grid.RowDefinitions.Add(new System.Windows.Controls.RowDefinition { Height = System.Windows.GridLength.Auto });
+
+            var stackPanel = new System.Windows.Controls.StackPanel
+            {
+                Orientation = System.Windows.Controls.Orientation.Vertical
+            };
+
+            // Automatic option
+            var autoRadio = new System.Windows.Controls.RadioButton
+            {
+                Content = "Automatic (follow Visual Studio theme)",
+                Margin = new System.Windows.Thickness(0, 10, 0, 15),
+                IsChecked = currentPref == ThemePreference.Automatic,
+                Foreground = themeFg
+            };
+            stackPanel.Children.Add(autoRadio);
+
+            // Dark option
+            var darkRadio = new System.Windows.Controls.RadioButton
+            {
+                Content = "Dark",
+                Margin = new System.Windows.Thickness(0, 0, 0, 15),
+                IsChecked = currentPref == ThemePreference.Dark,
+                Foreground = themeFg
+            };
+            stackPanel.Children.Add(darkRadio);
+
+            // Light option
+            var lightRadio = new System.Windows.Controls.RadioButton
+            {
+                Content = "Light",
+                Margin = new System.Windows.Thickness(0, 0, 0, 15),
+                IsChecked = currentPref == ThemePreference.Light,
+                Foreground = themeFg
+            };
+            stackPanel.Children.Add(lightRadio);
+
+            System.Windows.Controls.Grid.SetRow(stackPanel, 0);
+            grid.Children.Add(stackPanel);
+
+            // Button panel
+            var buttonPanel = new System.Windows.Controls.StackPanel
+            {
+                Orientation = System.Windows.Controls.Orientation.Horizontal,
+                HorizontalAlignment = System.Windows.HorizontalAlignment.Right
+            };
+            System.Windows.Controls.Grid.SetRow(buttonPanel, 1);
+
+            var okButton = new System.Windows.Controls.Button
+            {
+                Content = "OK",
+                Width = 75,
+                Height = 25,
+                Margin = new System.Windows.Thickness(0, 0, 8, 0),
+                IsDefault = true,
+                Background = themeBg,
+                Foreground = themeFg
+            };
+            okButton.Click += (s, okArgs) => window.DialogResult = true;
+            buttonPanel.Children.Add(okButton);
+
+            var cancelButton = new System.Windows.Controls.Button
+            {
+                Content = "Cancel",
+                Width = 75,
+                Height = 25,
+                IsCancel = true,
+                Background = themeBg,
+                Foreground = themeFg
+            };
+            cancelButton.Click += (s, cancelArgs) => window.DialogResult = false;
+            buttonPanel.Children.Add(cancelButton);
+
+            grid.Children.Add(buttonPanel);
+            window.Content = grid;
+
+            if (window.ShowDialog() == true)
+            {
+                ThemePreference selectedPref = ThemePreference.Automatic;
+                if (darkRadio.IsChecked == true)
+                    selectedPref = ThemePreference.Dark;
+                else if (lightRadio.IsChecked == true)
+                    selectedPref = ThemePreference.Light;
+
+                if (selectedPref != currentPref)
+                {
+                    _settings.SelectedThemePreference = selectedPref;
+                    SaveSettings();
+
+                    // Update terminal theme immediately
+                    UpdateTerminalTheme();
+
+                    // Restart terminal to apply new theme colors
+                    var result = MessageBox.Show(
+                        "Theme preference changed. Restart the AI code agent to apply the new terminal colors?",
+                        "Theme Changed",
+                        MessageBoxButton.YesNo,
+                        MessageBoxImage.Question);
+
+                    if (result == MessageBoxResult.Yes)
+                    {
+                        try
+                        {
+                            await RestartTerminalWithSelectedProviderAsync();
+                        }
+                        catch (Exception ex)
+                        {
+                            Debug.WriteLine($"Error restarting terminal after theme change: {ex.Message}");
+                            await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
+                            MessageBox.Show($"Failed to restart terminal: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                        }
+                    }
+                }
+            }
+        }
+
+        /// <summary>
         /// Handles About menu item click - displays extension information
         /// </summary>
         private void AboutMenuItem_Click(object sender, RoutedEventArgs e)
@@ -2457,6 +2626,16 @@ devin";
                 // Update terminal type menu item to show current selection
                 string terminalTypeName = _settings.SelectedTerminalType == TerminalType.WindowsTerminal ? "Windows Terminal" : "Command Prompt";
                 SetTerminalTypeMenuItem.Header = $"Set Terminal Type... ({terminalTypeName})";
+
+                // Update theme menu item to show current selection
+                string themeName;
+                switch (_settings.SelectedThemePreference)
+                {
+                    case ThemePreference.Dark:  themeName = "Dark";  break;
+                    case ThemePreference.Light: themeName = "Light"; break;
+                    default:                    themeName = "Automatic"; break;
+                }
+                SetThemeMenuItem.Header = $"Set Theme... ({themeName})";
 
                 // Update invert layout checkbox
                 InvertLayoutMenuItem.IsChecked = _settings.InvertLayout;

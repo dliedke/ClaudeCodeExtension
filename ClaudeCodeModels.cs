@@ -63,6 +63,29 @@ namespace ClaudeCodeVS
         Max
     }
 
+
+    /// <summary>
+    /// Theme preference for the extension's terminal panel.
+    /// Controls whether the terminal colors follow Visual Studio's theme
+    /// or are forced to dark/light regardless of the IDE.
+    /// </summary>
+    public enum ThemePreference
+    {
+        /// <summary>
+        /// Automatically follow the Visual Studio IDE theme (default behavior)
+        /// </summary>
+        Automatic,
+
+        /// <summary>
+        /// Always use dark theme regardless of VS IDE theme
+        /// </summary>
+        Dark,
+
+        /// <summary>
+        /// Always use light theme regardless of VS IDE theme
+        /// </summary>
+        Light
+    }
     /// <summary>
     /// Terminal emulator type for the embedded terminal
     /// </summary>
@@ -262,6 +285,12 @@ namespace ClaudeCodeVS
         /// Default is false (prompt on top, terminal on bottom).
         /// </summary>
         public bool InvertLayout { get; set; } = false;
+
+        /// <summary>
+        /// Theme preference for the terminal panel.
+        /// Automatic = follow VS IDE theme (default), Dark = always dark, Light = always light.
+        /// </summary>
+        public ThemePreference SelectedThemePreference { get; set; } = ThemePreference.Automatic;
 
         /// <summary>
         /// User-defined custom commands surfaced in the toolbar custom-commands

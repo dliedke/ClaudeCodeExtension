@@ -264,6 +264,10 @@ Claude will write the `SKILL.md` file with the proper frontmatter and instructio
 
 ## Version History
 
+### Version 10.46
+- **Theme preference setting**: New "Set Theme..." option in the Settings menu lets you force Dark or Light theme regardless of the Visual Studio IDE theme. Default is Automatic (follows VS). When a forced theme is active, VS theme changes no longer prompt to restart the terminal. (Fixes [#47](https://github.com/dliedke/ClaudeCodeExtension/issues/47))
+- **Fix: Large prompt truncation**: Post-paste delay before sending Enter now scales with text length (+1ms per 2 characters, capped at 5s extra) so large prompts are fully received by the terminal before submission. (Fixes [#48](https://github.com/dliedke/ClaudeCodeExtension/issues/48))
+
 ### Version 10.44
 - **Fix: Inline usage bars going stale**: Background refresh timer now always runs (60s default) when inline bars are enabled, regardless of the auto-refresh combo setting. The combo's "Off" value now only suppresses the page-visible reload — it no longer prevents the hidden show-hide cycle that keeps the bars current.
 

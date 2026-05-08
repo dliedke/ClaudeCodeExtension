@@ -159,6 +159,12 @@ namespace ClaudeCodeVS
                     SetFocus(terminalHandle);
                     await Task.Delay(100);
 
+                    // Scale the post-paste delay based on text length to avoid
+                    // truncation with large prompts (the terminal needs time to
+                    // render all pasted characters before Enter is sent).
+                    int textLen = text?.Length ?? 0;
+                    int extraDelayMs = Math.Min(textLen / 2, 5000); // +1ms per 2 chars, capped at 5s
+
                     // Paste text into the terminal
                     // Windows Terminal: use Ctrl+Shift+V (right-click opens context menu instead of pasting)
                     // OpenCode: use Shift+Right-click
@@ -166,18 +172,18 @@ namespace ClaudeCodeVS
                     if (_wtTabBarHeight > 0)
                     {
                         await PasteViaCtrlShiftVAsync();
-                        await Task.Delay(500);
+                        await Task.Delay(500 + extraDelayMs);
                     }
                     else if (_currentRunningProvider == AiProvider.OpenCode)
                     {
                         await ShiftRightClickTerminalCenterAsync();
-                        await Task.Delay(800);
+                        await Task.Delay(800 + extraDelayMs);
                     }
                     else
                     {
                         // Right-click to paste the clipboard content
                         await RightClickTerminalCenterAsync();
-                        await Task.Delay(800);
+                        await Task.Delay(800 + extraDelayMs);
                     }
 
                     // Send Enter key to execute the command
