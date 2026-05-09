@@ -189,6 +189,15 @@ Priority: DTE solution dir → active project dir → IVsSolution dir → curren
 
 Re-parents terminal to/from `DetachedTerminalToolWindow` via `SetParent()`. Auto-reattaches when detached tab is closed.
 
+### Theme (Theme.cs)
+
+- **Two distinct colors**: `terminalPanel.BackColor` is the live WPF panel color; `_terminalAgentColor` is the color the embedded terminal/agent was launched with. Theme-change prompts compare these two — the panel can drift away from the agent color across multiple theme switches without restarting the agent
+- **Agent color set only on launch**: `RecordTerminalAgentColor()` is called at the end of both successful embed paths in `StartEmbeddedTerminalAsync` (WT and CMD). It snapshots `terminalPanel.BackColor` and persists it as `LastAgentTerminalColorArgb`. Never updated by `UpdateTerminalTheme` (which only re-tints the panel)
+- **Restart prompt skip conditions**: No prompt when (a) a forced theme is active (`SelectedThemePreference != Automatic`), (b) terminal isn't running, or (c) `terminalPanel.BackColor == _terminalAgentColor` — covers two-dark-themes-same-RGB and reverting to a previously-declined color
+- **Re-entrancy guard**: `_isShowingThemeRestartPrompt` prevents a second "Theme Changed" `MessageBox` stacking on the first. WPF dispatcher keeps pumping during the modal, so a later debounce tick from another `VSColorTheme.ThemeChanged` event would otherwise open a second dialog
+- **Debounce**: 500ms `DispatcherTimer` collapses rapid consecutive theme events into one prompt
+- **Forced theme overrides**: `ApplyForcedThemeResources()` injects 9 VS brush keys into the control's `Resources` dictionary so child WPF elements pick up the forced palette via `DynamicResource`. Removed when reverting to Automatic
+
 ### Session History (SessionHistory.cs)
 
 - **Scope**: Claude Code (native) and Claude Code (WSL) only — other providers don't use this transcript format
@@ -215,7 +224,7 @@ class SessionInfo { SessionId, FilePath, Preview, MessageCount, TokenCount, Last
 class UsageSnapshot { SessionLabel, SessionReset, SessionPercent, WeeklyLabel, WeeklyReset, WeeklyPercent, HasExtraUsage, ExtraUsageSpent, ExtraUsageReset, ExtraUsagePercent }
 ```
 
-Key settings: `SplitterPosition` (236px default), `SelectedProvider`, `SelectedClaudeModel`, `SelectedWindsurfModel`, `PromptHistory` (max 50), `AutoOpenChangesOnPrompt`, `ClaudeDangerouslySkipPermissions`, `CodexFullAuto`, `CursorAgentAutoRun`, `WindsurfDangerousMode`, `SelectedEffortLevel`, `CustomWorkingDirectory`, `SelectedTerminalType`, `IsTerminalDetached`, `PromptFontSize` (8–24pt), `TerminalZoomDelta`, `InvertLayout`, `CustomCommands` (list of `{Name, Command}`), `UsageAutoRefreshSeconds` (0 = manual), `UsageWindowOpened` (auto-reopen on load), `ShowInlineUsageBars` (default true), `LastUsageJson` / `LastUsageTimestamp` (cached snapshot)
+Key settings: `SplitterPosition` (236px default), `SelectedProvider`, `SelectedClaudeModel`, `SelectedWindsurfModel`, `PromptHistory` (max 50), `AutoOpenChangesOnPrompt`, `ClaudeDangerouslySkipPermissions`, `CodexFullAuto`, `CursorAgentAutoRun`, `WindsurfDangerousMode`, `SelectedEffortLevel`, `CustomWorkingDirectory`, `SelectedTerminalType`, `IsTerminalDetached`, `PromptFontSize` (8–24pt), `TerminalZoomDelta`, `InvertLayout`, `SelectedThemePreference` (Automatic/Dark/Light), `LastAgentTerminalColorArgb` (agent's launched color, used to skip redundant restart prompts), `CustomCommands` (list of `{Name, Command}`), `UsageAutoRefreshSeconds` (0 = manual), `UsageWindowOpened` (auto-reopen on load), `ShowInlineUsageBars` (default true), `LastUsageJson` / `LastUsageTimestamp` (cached snapshot)
 
 ---
 
