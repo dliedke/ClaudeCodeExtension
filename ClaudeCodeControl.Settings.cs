@@ -97,6 +97,14 @@ namespace ClaudeCodeVS
                 {
                     PromptTextBox.FontSize = _settings.PromptFontSize;
                 }
+
+                // Restore the color the agent was last launched with so theme-
+                // change prompts work correctly across VS restarts. The value
+                // is overwritten the next time the embedded terminal launches.
+                if (_settings.LastAgentTerminalColorArgb != 0)
+                {
+                    _terminalAgentColor = System.Drawing.Color.FromArgb(_settings.LastAgentTerminalColorArgb);
+                }
             }
             catch (Exception ex)
             {

@@ -25,14 +25,28 @@ namespace ClaudeCodeVS
         #region Theme Fields
 
         /// <summary>
-        /// Last applied terminal background color to detect theme changes
+        /// Color the AI agent was last started with. Updated only when the
+        /// embedded terminal is started or restarted -- not on every panel
+        /// re-paint -- so the restart prompt can compare the new theme color
+        /// against what the running agent actually has, not against whatever
+        /// the WPF panel has been re-tinted to since the agent launched.
+        /// Persisted via <see cref="ClaudeCodeSettings.LastAgentTerminalColorArgb"/>.
         /// </summary>
-        private System.Drawing.Color _lastTerminalColor = System.Drawing.Color.Black;
+        private System.Drawing.Color _terminalAgentColor = System.Drawing.Color.Empty;
 
         /// <summary>
         /// Debounce timer for theme change restart prompt
         /// </summary>
         private System.Windows.Threading.DispatcherTimer _themeChangeDebounceTimer;
+
+        /// <summary>
+        /// Re-entrancy guard. VS fires <see cref="VSColorTheme.ThemeChanged"/>
+        /// multiple times for a single user theme switch, and the WPF
+        /// dispatcher keeps pumping while a MessageBox is open. Without this
+        /// flag the debounce timer can fire a second Tick during the modal
+        /// loop, stacking another "Theme Changed" dialog on top of the first.
+        /// </summary>
+        private bool _isShowingThemeRestartPrompt = false;
 
         #endregion
 
@@ -77,6 +91,16 @@ namespace ClaudeCodeVS
                     UpdateTerminalTheme();
                     UpdateDetachButtonIcon(_isTerminalDetached);
 
+                    // Skip the prompt when the agent's running color already
+                    // matches the new panel color. Covers (a) switching
+                    // between two VS themes that resolve to the same RGB and
+                    // (b) reverting to a theme the user previously declined
+                    // to restart for -- the agent is already in that color.
+                    if (terminalPanel != null &&
+                        _terminalAgentColor != System.Drawing.Color.Empty &&
+                        terminalPanel.BackColor == _terminalAgentColor)
+                        return;
+
                     // Debounce theme change restart prompt (event may fire multiple times)
                     if (_themeChangeDebounceTimer == null)
                     {
@@ -105,13 +129,31 @@ namespace ClaudeCodeVS
 
             _themeChangeDebounceTimer?.Stop();
 
+            // Re-entrancy guard: WPF keeps pumping the dispatcher while a
+            // MessageBox is open, so a later VS theme event can restart the
+            // debounce timer and fire a second Tick mid-modal. Suppress it.
+            if (_isShowingThemeRestartPrompt)
+                return;
+
             // Skip the restart prompt when the user has forced a specific theme --
             // the VS theme change has no effect on the terminal colors in that case.
             if (_settings?.SelectedThemePreference != ThemePreference.Automatic)
                 return;
 
-            // Prompt user to restart terminal if it's running to apply new theme colors
-            if (terminalHandle != IntPtr.Zero && IsWindow(terminalHandle))
+            // Skip if no terminal is currently embedded.
+            if (terminalHandle == IntPtr.Zero || !IsWindow(terminalHandle))
+                return;
+
+            // Re-check after debounce: between the event and the Tick, more
+            // theme events may have flipped the panel back to the agent's
+            // current color.
+            if (terminalPanel != null &&
+                _terminalAgentColor != System.Drawing.Color.Empty &&
+                terminalPanel.BackColor == _terminalAgentColor)
+                return;
+
+            _isShowingThemeRestartPrompt = true;
+            try
             {
                 var result = MessageBox.Show(
                     "Theme changed. Restart the AI code agent to apply the new terminal colors?",
@@ -128,6 +170,10 @@ namespace ClaudeCodeVS
                     });
 #pragma warning restore VSSDK007
                 }
+            }
+            finally
+            {
+                _isShowingThemeRestartPrompt = false;
             }
         }
 
@@ -220,7 +266,6 @@ namespace ClaudeCodeVS
                 if (terminalPanel.BackColor != newColor)
                 {
                     terminalPanel.BackColor = newColor;
-                    _lastTerminalColor = newColor;
                 }
 
                 // Also update detached panel if terminal is detached
@@ -228,6 +273,34 @@ namespace ClaudeCodeVS
                 {
                     _detachedTerminalWindow.UpdateTheme(newColor);
                 }
+            }
+        }
+
+        /// <summary>
+        /// Records the panel background color that the embedded terminal /
+        /// AI agent was just launched with. Persisted to settings so future
+        /// theme-change comparisons (in this session and across VS restarts)
+        /// know whether a restart is actually needed.
+        /// </summary>
+        internal void RecordTerminalAgentColor()
+        {
+            try
+            {
+                var color = terminalPanel?.BackColor ?? GetTerminalBackgroundColor();
+                if (_terminalAgentColor == color)
+                    return;
+
+                _terminalAgentColor = color;
+
+                if (_settings != null)
+                {
+                    _settings.LastAgentTerminalColorArgb = color.ToArgb();
+                    SaveSettings();
+                }
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"Error recording terminal agent color: {ex.Message}");
             }
         }
 

@@ -293,6 +293,14 @@ namespace ClaudeCodeVS
         public ThemePreference SelectedThemePreference { get; set; } = ThemePreference.Automatic;
 
         /// <summary>
+        /// ARGB value of the terminal panel color the AI agent was last
+        /// launched with. Persisted so the "Theme changed -- restart agent?"
+        /// prompt can be skipped when the new color matches what the agent
+        /// already has. 0 = not yet set.
+        /// </summary>
+        public int LastAgentTerminalColorArgb { get; set; } = 0;
+
+        /// <summary>
         /// User-defined custom commands surfaced in the toolbar custom-commands
         /// dropdown. Empty list hides the dropdown button entirely.
         /// </summary>

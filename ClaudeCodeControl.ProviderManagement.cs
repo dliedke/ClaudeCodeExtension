@@ -1980,6 +1980,18 @@ devin";
                     // Update terminal theme immediately
                     UpdateTerminalTheme();
 
+                    // Skip the restart prompt entirely when no terminal is
+                    // running, or when the new panel color matches what the
+                    // agent was launched with -- e.g. forcing Dark while VS
+                    // is already on a dark theme that resolves to the same
+                    // RGB. Same-color restarts are pure churn.
+                    if (terminalHandle == IntPtr.Zero || !IsWindow(terminalHandle))
+                        return;
+                    if (terminalPanel != null &&
+                        _terminalAgentColor != System.Drawing.Color.Empty &&
+                        terminalPanel.BackColor == _terminalAgentColor)
+                        return;
+
                     // Restart terminal to apply new theme colors
                     var result = MessageBox.Show(
                         "Theme preference changed. Restart the AI code agent to apply the new terminal colors?",

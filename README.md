@@ -264,6 +264,9 @@ Claude will write the `SKILL.md` file with the proper frontmatter and instructio
 
 ## Version History
 
+### Version 10.47
+- **Fix: Theme change prompts**: No more duplicate "Theme Changed" dialogs stacking on top of each other. The restart prompt is also skipped when the new theme color matches what the agent already has — both for VS theme switches and for the "Set Theme..." menu — so switching between themes with the same color no longer asks to restart. The color the agent was started with is now remembered across VS sessions.
+
 ### Version 10.46
 - **Theme preference setting**: New "Set Theme..." option in the Settings menu lets you force Dark or Light theme regardless of the Visual Studio IDE theme. Default is Automatic (follows VS). When a forced theme is active, VS theme changes no longer prompt to restart the terminal. (Fixes [#47](https://github.com/dliedke/ClaudeCodeExtension/issues/47))
 - **Fix: Large prompt truncation**: Post-paste delay before sending Enter now scales with text length (+1ms per 2 characters, capped at 5s extra) so large prompts are fully received by the terminal before submission. (Fixes [#48](https://github.com/dliedke/ClaudeCodeExtension/issues/48))

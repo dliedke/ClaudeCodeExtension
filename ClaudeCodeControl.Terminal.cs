@@ -938,6 +938,10 @@ namespace ClaudeCodeVS
                                 _detachedTerminalWindow?.UpdateCaption(wtProviderTitle);
                             }
 
+                            // Snapshot the color the agent just launched with --
+                            // theme-change prompts compare against this.
+                            RecordTerminalAgentColor();
+
                             SchedulePostStartupTerminalAdjustments();
                         }
                         catch (Exception ex)
@@ -1123,6 +1127,10 @@ namespace ClaudeCodeVS
                                 ResizeEmbeddedTerminal();
                                 _detachedTerminalWindow?.UpdateCaption(providerTitle);
                             }
+
+                            // Snapshot the color the agent just launched with --
+                            // theme-change prompts compare against this.
+                            RecordTerminalAgentColor();
 
                             SchedulePostStartupTerminalAdjustments();
                         }

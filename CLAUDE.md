@@ -6,7 +6,7 @@
 
 - **Author**: Daniel Carvalho Liedke (dliedke@gmail.com) | **License**: MIT
 - **Repository**: https://github.com/dliedke/ClaudeCodeExtension
-- **Current Version**: 10.46 | **Target Framework**: .NET Framework 4.7.2
+- **Current Version**: 10.47 | **Target Framework**: .NET Framework 4.7.2
 
 ---
 
