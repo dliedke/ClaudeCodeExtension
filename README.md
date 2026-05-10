@@ -270,7 +270,7 @@ Claude will write the `SKILL.md` file with the proper frontmatter and instructio
 
 ## Version History
 
-### Version 10.48
+### Version 10.48 - CholmesFr contribution
 - **PI Coding Agent support**: Full integration with [PI Coding Agent](https://github.com/earendil-works/pi-coding-agent) — a new AI provider that runs natively on Windows (requires Node.js + Git for Windows). Install via `npm install -g @earendil-works/pi-coding-agent`.
 
 ### Version 10.47
