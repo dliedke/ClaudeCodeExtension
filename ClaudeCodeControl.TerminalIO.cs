@@ -110,11 +110,20 @@ namespace ClaudeCodeVS
 
                     await Task.Delay(500); // Reduced from 700ms
 
+                    // TUI-based Node.js providers need extra time to initialize
+                    // their interface after receiving focus, otherwise the paste may arrive
+                    // before the TUI is ready to accept input.
+                    if (_currentRunningProvider == AiProvider.Pi)
+                    {
+                        await Task.Delay(400);
+                    }
+
                     // For Command Prompt (conhost): right-click first to cancel any active text selection.
                     // If text is selected, right-click copies it to clipboard and deselects.
-                    // If no text is selected, right-click pastes from clipboard (which is empty, so harmless).
+                    // If no text is selected, right-click pastes from clipboard (which is empty, so harmless).                    
                     bool isCommandPrompt = _wtTabBarHeight == 0
-                                           && _currentRunningProvider != AiProvider.OpenCode;
+                                           && _currentRunningProvider != AiProvider.OpenCode
+                                           && _currentRunningProvider != AiProvider.Pi;
                     if (isCommandPrompt)
                     {
                         await RightClickTerminalCenterAsync();
@@ -167,14 +176,16 @@ namespace ClaudeCodeVS
 
                     // Paste text into the terminal
                     // Windows Terminal: use Ctrl+Shift+V (right-click opens context menu instead of pasting)
-                    // OpenCode: use Shift+Right-click
+                    // OpenCode / PI: use Shift+Right-click (TUI-based Node.js apps enable ANSI mouse mode
+                    // which intercepts regular right-clicks; Shift forces conhost to paste)
                     // Others (Command Prompt): use right-click
                     if (_wtTabBarHeight > 0)
                     {
                         await PasteViaCtrlShiftVAsync();
                         await Task.Delay(500 + extraDelayMs);
                     }
-                    else if (_currentRunningProvider == AiProvider.OpenCode)
+                    else if (_currentRunningProvider == AiProvider.OpenCode
+                             || _currentRunningProvider == AiProvider.Pi)
                     {
                         await ShiftRightClickTerminalCenterAsync();
                         await Task.Delay(800 + extraDelayMs);
@@ -657,6 +668,7 @@ namespace ClaudeCodeVS
                 bool isCodexNative = _currentRunningProvider == AiProvider.CodexNative;
 
                 bool isOpenCode = _currentRunningProvider == AiProvider.OpenCode;
+                bool isPi = _currentRunningProvider == AiProvider.Pi;
 
                 // Check if Windows Terminal is active (tab bar height > 0)
                 bool isWindowsTerminal = _wtTabBarHeight > 0;
@@ -681,9 +693,9 @@ namespace ClaudeCodeVS
                     // For other WSL-based providers (Codex, CursorAgent), use KEYDOWN/KEYUP approach
                     SendEnterKeyDownUp();
                 }
-                else if (isOpenCode)
+                else if (isOpenCode || isPi)
                 {
-                    // For Open Code, use single WM_CHAR (similar to Claude Code)
+                    // For Open Code and PI, use single WM_CHAR (TUI-based Node.js apps)
                     PostMessage(terminalHandle, WM_CHAR, new IntPtr(VK_RETURN), IntPtr.Zero);
                 }
                 else

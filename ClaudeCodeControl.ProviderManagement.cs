@@ -64,6 +64,11 @@ namespace ClaudeCodeVS
         /// </summary>
         private static bool _windsurfNotificationShown = false;
 
+        /// <summary>
+        /// Flag to show PI installation notification only once per session
+        /// </summary>
+        private static bool _piNotificationShown = false;
+
         #endregion
 
         #region Provider Availability Cache
@@ -953,6 +958,68 @@ namespace ClaudeCodeVS
         }
 
         /// <summary>
+        /// Checks if PI CLI is available (NPM installation)
+        /// Uses 'where pi' to check if pi is in PATH
+        /// Uses caching to avoid repeated slow checks
+        /// </summary>
+        /// <param name="cancellationToken">Optional cancellation token</param>
+        /// <returns>True if pi is available, false otherwise</returns>
+        private async Task<bool> IsPiAvailableAsync(CancellationToken cancellationToken = default)
+        {
+            // Check cache first
+            lock (_cacheLock)
+            {
+                if (_providerCache.TryGetValue(AiProvider.Pi, out var cached) && IsCacheValid(cached))
+                {
+                    return cached.IsAvailable;
+                }
+            }
+
+            try
+            {
+                var startInfo = new ProcessStartInfo
+                {
+                    FileName = "cmd.exe",
+                    Arguments = "/c where pi",
+                    UseShellExecute = false,
+                    RedirectStandardOutput = true,
+                    RedirectStandardError = true,
+                    CreateNoWindow = true
+                };
+
+                using (var process = Process.Start(startInfo))
+                {
+                    var completed = await WaitForProcessExitAsync(process, 3000, cancellationToken);
+
+                    if (!completed)
+                    {
+                        try { process.Kill(); } catch { }
+                        CacheProviderResult(AiProvider.Pi, false);
+                        return false;
+                    }
+
+                    string output = await process.StandardOutput.ReadToEndAsync();
+                    string error = await process.StandardError.ReadToEndAsync();
+
+                    bool isAvailable = process.ExitCode == 0 && !string.IsNullOrWhiteSpace(output);
+
+                    CacheProviderResult(AiProvider.Pi, isAvailable);
+                    return isAvailable;
+                }
+            }
+            catch (OperationCanceledException)
+            {
+                throw;
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"Error checking for PI: {ex.Message}");
+                CacheProviderResult(AiProvider.Pi, false);
+                return false;
+            }
+        }
+
+        /// <summary>
         /// Checks if Windows Terminal is installed and available
         /// Checks the PATH (refreshed from registry) for wt.exe executable
         /// </summary>
@@ -1264,6 +1331,31 @@ devin";
                           MessageBoxButton.OK, MessageBoxImage.Information);
         }
 
+        /// <summary>
+        /// Shows installation instructions for PI CLI
+        /// </summary>
+        private void ShowPiInstallationInstructions()
+        {
+            const string instructions = @"PI is not installed. A regular CMD terminal will be used instead.
+
+(you may click CTRL+C to copy full instructions)
+
+INSTALLATION: NPM Installation
+
+Open cmd and run:
+
+npm install -g @earendil-works/pi-coding-agent
+
+Requirements:
+- Node.js installed
+- Git for Windows (Git Bash) installed for bash support
+
+For more details, visit: https://pi.dev";
+
+            MessageBox.Show(instructions, "PI Installation",
+                          MessageBoxButton.OK, MessageBoxImage.Information);
+        }
+
         #endregion
 
         #region Provider Switching
@@ -1328,6 +1420,34 @@ devin";
             else
             {
                 await StartEmbeddedTerminalAsync(AiProvider.Windsurf);
+            }
+        }
+
+        /// <summary>
+        /// Handles PI menu item click - switches to PI provider
+        /// </summary>
+#pragma warning disable VSTHRD100 // async void is acceptable for event handlers
+        private async void PiMenuItem_Click(object sender, RoutedEventArgs e)
+#pragma warning restore VSTHRD100
+        {
+            if (_settings == null) return;
+
+            bool piAvailable = await IsPiAvailableAsync();
+            await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
+
+            // Always update the selection regardless of availability
+            _settings.SelectedProvider = AiProvider.Pi;
+            UpdateProviderSelection();
+            SaveSettings();
+
+            if (!piAvailable)
+            {
+                ShowPiInstallationInstructions();
+                await StartEmbeddedTerminalAsync(null); // Regular CMD
+            }
+            else
+            {
+                await StartEmbeddedTerminalAsync(AiProvider.Pi);
             }
         }
 
@@ -1524,6 +1644,7 @@ devin";
             CursorAgentMenuItem.IsChecked = _settings.SelectedProvider == AiProvider.CursorAgent;
             OpenCodeMenuItem.IsChecked = _settings.SelectedProvider == AiProvider.OpenCode;
             WindsurfMenuItem.IsChecked = _settings.SelectedProvider == AiProvider.Windsurf;
+            PiMenuItem.IsChecked = _settings.SelectedProvider == AiProvider.Pi;
 
             // Update GroupBox header to show selected provider (not necessarily running yet)
             string providerName = GetProviderDisplayName(_settings.SelectedProvider);
@@ -1599,6 +1720,8 @@ devin";
                     return "Open Code";
                 case AiProvider.Windsurf:
                     return "Windsurf";
+                case AiProvider.Pi:
+                    return "PI";
                 default:
                     return "CMD";
             }
@@ -2027,7 +2150,7 @@ devin";
                                 $"Version: {version}\n" +
                                 $"Author: Daniel Carvalho Liedke\n" +
                                 $"Copyright © Daniel Carvalho Liedke 2026\n\n" +
-                                $"Provides seamless integration with Claude Code, Codex, Cursor Agent, and Open Code AI assistants directly within Visual Studio 2022/2026 IDE.";
+                                $"Provides seamless integration with Claude Code, Codex, Cursor Agent, Open Code, Windsurf, and PI AI assistants directly within Visual Studio 2022/2026 IDE.";
 
             MessageBox.Show(aboutMessage, "About Claude Code Extension",
                           MessageBoxButton.OK, MessageBoxImage.Information);
@@ -2576,8 +2699,10 @@ devin";
                                           _settings.SelectedProvider == AiProvider.CursorAgentNative);
             bool isWindsurfProvider = _settings != null &&
                                      _settings.SelectedProvider == AiProvider.Windsurf;
+            bool isPiProvider = _settings != null &&
+                               _settings.SelectedProvider == AiProvider.Pi;
 
-            AutoOpenChangesSeparator.Visibility = (isInGitRepo || isClaudeProvider || isCodexProvider || isCursorAgentProvider || isWindsurfProvider) ? Visibility.Visible : Visibility.Collapsed;
+            AutoOpenChangesSeparator.Visibility = (isInGitRepo || isClaudeProvider || isCodexProvider || isCursorAgentProvider || isWindsurfProvider || isPiProvider) ? Visibility.Visible : Visibility.Collapsed;
             AutoOpenChangesMenuItem.Visibility = isInGitRepo ? Visibility.Visible : Visibility.Collapsed;
             ClaudeDangerouslySkipPermissionsMenuItem.Visibility = isClaudeProvider ? Visibility.Visible : Visibility.Collapsed;
             CodexFullAutoMenuItem.Visibility = isCodexProvider ? Visibility.Visible : Visibility.Collapsed;
