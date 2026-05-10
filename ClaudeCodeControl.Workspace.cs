@@ -286,6 +286,9 @@ namespace ClaudeCodeVS
                         case AiProvider.OpenCode:
                             providerAvailable = await IsOpenCodeAvailableAsync();
                             break;
+                        case AiProvider.Pi:
+                            providerAvailable = await IsPiAvailableAsync();
+                            break;
                     }
 
                     // Switch to main thread for UI operations
@@ -349,6 +352,13 @@ namespace ClaudeCodeVS
                                 {
                                     _openCodeNotificationShown = true;
                                     ShowOpenCodeInstallationInstructions();
+                                }
+                                break;
+                            case AiProvider.Pi:
+                                if (!_piNotificationShown)
+                                {
+                                    _piNotificationShown = true;
+                                    ShowPiInstallationInstructions();
                                 }
                                 break;
                         }

@@ -156,6 +156,7 @@ namespace ClaudeCodeVS
                 bool useCursorAgentNative = _settings?.SelectedProvider == AiProvider.CursorAgentNative;
                 bool useOpenCode = _settings?.SelectedProvider == AiProvider.OpenCode;
                 bool useWindsurf = _settings?.SelectedProvider == AiProvider.Windsurf;
+                bool usePi = _settings?.SelectedProvider == AiProvider.Pi;
                 bool providerAvailable = false;
 
 
@@ -194,6 +195,10 @@ namespace ClaudeCodeVS
                     {
                         providerAvailable = await IsWindsurfAvailableAsync();
                     }
+                }
+                else if (usePi)
+                {
+                    providerAvailable = await IsPiAvailableAsync();
                 }
                 else
                 {
@@ -353,6 +358,22 @@ namespace ClaudeCodeVS
                         {
                             _windsurfNotificationShown = true;
                             ShowWindsurfInstallationInstructions();
+                        }
+                        await StartEmbeddedTerminalAsync(null); // Regular CMD
+                    }
+                }
+                else if (usePi)
+                {
+                    if (providerAvailable)
+                    {
+                        await StartEmbeddedTerminalAsync(AiProvider.Pi);
+                    }
+                    else
+                    {
+                        if (!_piNotificationShown)
+                        {
+                            _piNotificationShown = true;
+                            ShowPiInstallationInstructions();
                         }
                         await StartEmbeddedTerminalAsync(null); // Regular CMD
                     }
@@ -829,6 +850,10 @@ namespace ClaudeCodeVS
                             cmdCommand = $"/k chcp 65001 >nul && cls && wsl bash -lic \"cd '{wslPathWindsurf}' && {windsurfWslCommand}\"";
                             break;
 
+                        case AiProvider.Pi:
+                            cmdCommand = $"/k chcp 65001 >nul && cd /d \"{workspaceDir}\" && ping localhost -n 3 >nul && cls && pi";
+                            break;
+
                         default: // null or any other value = regular CMD
                             cmdCommand = $"/k chcp 65001 >nul && cd /d \"{workspaceDir}\"";
                             break;
@@ -1005,6 +1030,10 @@ namespace ClaudeCodeVS
                             string wslPathWindsurf = ConvertToWslPath(workspaceDir);
                             string windsurfCmdCommand = GetWindsurfCommand();
                             terminalCommand = $"/k chcp 65001 >nul && cls && wsl bash -lic \"cd '{wslPathWindsurf}' && {windsurfCmdCommand}\"";
+                            break;
+
+                        case AiProvider.Pi:
+                            terminalCommand = $"/k chcp 65001 >nul && cd /d \"{workspaceDir}\" && ping localhost -n 3 >nul && cls && pi";
                             break;
 
                         default: // null or any other value = regular CMD
@@ -2272,6 +2301,13 @@ namespace ClaudeCodeVS
                         await SendTextToTerminalAsync("wsl bash -lic \"devin update\"");
                         break;
 
+                    case AiProvider.Pi:
+                        // PI: exit, wait, then update
+                        await SendTextToTerminalAsync("exit");
+                        await Task.Delay(1000);
+                        await SendTextToTerminalAsync("npm install -g @earendil-works/pi-coding-agent@latest");
+                        break;
+
                     default:
                         // Regular CMD - just try to update Claude if available
                         await SendTextToTerminalAsync("claude update");
@@ -2442,6 +2478,10 @@ namespace ClaudeCodeVS
                     {
                         providerAvailable = await IsWindsurfAvailableAsync();
                     }
+                    break;
+
+                case AiProvider.Pi:
+                    providerAvailable = await IsPiAvailableAsync();
                     break;
 
             }

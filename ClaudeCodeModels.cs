@@ -27,7 +27,8 @@ namespace ClaudeCodeVS
         CursorAgentNative = 5,
         // 6 = QwenCode (removed in v10.12)
         OpenCode = 7,
-        Windsurf = 8
+        Windsurf = 8,
+        Pi = 9
     }
 
     /// <summary>

@@ -1,6 +1,6 @@
 # Claude Code Extension for Visual Studio
 
-A Visual Studio extension that provides seamless integration with Claude Code, OpenAI Codex, Cursor Agent, Open Code or Windsurf directly within the Visual Studio IDE.
+A Visual Studio extension that provides seamless integration with Claude Code, OpenAI Codex, Cursor Agent, Open Code, Windsurf or PI directly within the Visual Studio IDE.
 
 <center>
 <img src="https://i.ibb.co/mFcsh3nt/BFB9-B830-8122-4091-9-C8-B-869959-B1-B391.png" alt="Claude Code Extension Screenshot" width=350 height=450 />
@@ -28,6 +28,7 @@ Any feedback, suggestions, or contributions are also very welcome - feel free to
 - **Cursor Agent (WSL)**: Support for Cursor Agent running inside WSL
 - **Open Code**: Support for Open Code AI assistant (requires Node.js 14+)
 - **Windsurf (WSL)**: Support for Windsurf (devin) running inside WSL
+- **PI**: Support for PI coding agent (requires Node.js + Git for Windows)
 - **Provider Switching**: Easy dropdown menu to switch between providers
 - **Smart Detection**: Automatic detection and installation instructions for each AI tool
 - **Claude Model Selection**: Quick model switching for Claude Code (Opus, Sonnet, Haiku) with dropdown menu. For Opus also possible to select low, medium, high thinking modes
@@ -121,6 +122,9 @@ Any feedback, suggestions, or contributions are also very welcome - feel free to
   Install via `curl -fsSL https://cli.devin.ai/install.sh | bash`
   Installation instructions are provided automatically if not installed
   Optional: Use `--permission-mode dangerous` flag via the extension settings menu
+- **For PI**: Node.js installed + Git for Windows (Git Bash) + PI CLI installed and accessible via `pi` in path.
+  Install via `npm install -g @earendil-works/pi-coding-agent`
+  Installation instructions are provided automatically if not installed
 
 ## Installing Windows Terminal (Optional)
 
@@ -146,9 +150,9 @@ Open Windows Settings, search for "Terminal settings", and set the Terminal opti
 
 ## Quick Start
 
-- **First-Time Setup**: Verify that your preferred AI provider (Claude Code, Claude Code WSL, OpenAI Codex, Cursor Agent, Cursor Agent WSL, Open Code, or Windsurf) is installed and accessible
+- **First-Time Setup**: Verify that your preferred AI provider (Claude Code, Claude Code WSL, OpenAI Codex, Cursor Agent, Cursor Agent WSL, Open Code, Windsurf, or PI) is installed and accessible
 - **Open the Tool Window**: View → Other Windows → Claude Code Extension
-- **Select an AI Provider**: Click the ⚙ (gear) button and choose among Claude Code, Claude Code (WSL), Codex, Cursor Agent, Cursor Agent (WSL), Open Code, or Windsurf (WSL)
+- **Select an AI Provider**: Click the ⚙ (gear) button and choose among Claude Code, Claude Code (WSL), Codex, Cursor Agent, Cursor Agent (WSL), Open Code, Windsurf (WSL), or PI
 - **Connect to Provider**: If you use Open Code, press **Ctrl+P**, search for "connect providers", and complete the authentication flow
 - **Select a Claude Model**: Click the 🤖 (robot) button to choose Opus, Sonnet, or Haiku (available only when Claude Code is selected)
 - **Start a Session**: Enter your prompt and press Enter
@@ -182,6 +186,7 @@ Open Windows Settings, search for "Terminal settings", and set the Terminal opti
 - **Cursor Agent (WSL)**: Switch to Cursor Agent (runs inside WSL)
 - **Open Code**: Switch to Open Code AI assistant (Windows)
 - **Windsurf (WSL)**: Switch to Windsurf (devin) running inside WSL
+- **PI**: Switch to PI coding agent (Windows)
 - **Auto-open Changes on Send**: (Git projects only) Automatically opens the Changes view, expands all files, and enables auto-scroll when you send a prompt - perfect for watching the AI work in real-time
 - **Claude Code: Skip Permissions**: (Claude providers only) Starts Claude Code with `--dangerously-skip-permissions`, saves the preference, and reloads Claude Code immediately when changed
 - **Codex: Full Auto**: (Codex providers only) Starts Codex with `--full-auto`, saves the preference, and reloads Codex immediately when changed
@@ -224,6 +229,7 @@ The extension includes an Update Agent button (🔄️) that updates your select
 - **Cursor Agent (WSL)**: Exits the agent and runs `cursor-agent update` inside WSL
 - **Open Code**: Exits the agent and runs `npm i -g opencode-ai`
 - **Windsurf (WSL)**: Exits the agent and runs `devin update` inside WSL
+- **PI**: Exits the agent and runs `npm install -g @earendil-works/pi-coding-agent@latest`
 
 Click the update button and the extension will handle the update process. Agents use the appropriate exit methods before updating (exit command for most, double CTRL+C for Codex).
 
@@ -263,6 +269,9 @@ Claude will write the `SKILL.md` file with the proper frontmatter and instructio
 **Step 4 — Use it**. Click the new ⚡ button in the toolbar → **Codex Review**. Claude Code receives the `/codex-review` slash command, runs the skill, calls Codex against your uncommitted diff, and reports back the findings — without you ever leaving Visual Studio.
 
 ## Version History
+
+### Version 10.48
+- **PI Coding Agent support**: Full integration with [PI Coding Agent](https://github.com/earendil-works/pi-coding-agent) — a new AI provider that runs natively on Windows (requires Node.js + Git for Windows). Install via `npm install -g @earendil-works/pi-coding-agent`.
 
 ### Version 10.47
 - **Fix: Theme change prompts**: No more duplicate "Theme Changed" dialogs stacking on top of each other. The restart prompt is also skipped when the new theme color matches what the agent already has — both for VS theme switches and for the "Set Theme..." menu — so switching between themes with the same color no longer asks to restart. The color the agent was started with is now remembered across VS sessions.
