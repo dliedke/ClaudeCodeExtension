@@ -270,6 +270,9 @@ Claude will write the `SKILL.md` file with the proper frontmatter and instructio
 
 ## Version History
 
+### Version 10.49
+- **Fix: Claude Usage tab stealing focus**: The Claude Usage tab no longer pops to the front on its own. WebView2 re-applies its saved zoom level on every background refresh, and the zoom-changed handler was calling `Focus()` unconditionally — pulling keyboard focus into the hidden tab and making Visual Studio activate it. The handler now skips focusing during background scrapes and while the tab is hidden.
+
 ### Version 10.48 - CholmesFr contribution
 - **PI Coding Agent support**: Full integration with [PI Coding Agent](https://github.com/earendil-works/pi-coding-agent) — a new AI provider that runs natively on Windows (requires Node.js + Git for Windows). Install via `npm install -g @earendil-works/pi-coding-agent`.
 

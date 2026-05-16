@@ -94,12 +94,22 @@ namespace ClaudeCodeVS
 
                 // Re-focus after Ctrl+Scroll zoom so WebView2 re-establishes cursor tracking.
                 // Without this the mouse cursor disappears until the user clicks again.
+                // Guarded against background-init / hidden state: WebView2 re-applies its
+                // persisted zoom factor on every Reload(), so this event also fires during
+                // hidden background scrapes. Calling Focus() there pulls keyboard focus into
+                // the tool window, which makes VS activate the Claude Usage tab unexpectedly.
                 WebView.ZoomFactorChanged += (s, e) =>
                 {
+                    if (_backgroundInitMode || !IsVisible) return;
 #pragma warning disable VSTHRD001, VSTHRD110
                     _ = Dispatcher.BeginInvoke(new Action(() =>
                     {
-                        try { WebView?.Focus(); } catch { }
+                        try
+                        {
+                            if (_backgroundInitMode || !IsVisible) return;
+                            WebView?.Focus();
+                        }
+                        catch { }
                     }), System.Windows.Threading.DispatcherPriority.Background);
 #pragma warning restore VSTHRD001, VSTHRD110
                 };
