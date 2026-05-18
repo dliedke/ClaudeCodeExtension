@@ -40,6 +40,20 @@ namespace ClaudeCodeVS
         private const int ClipboardRetryDelayMs = 200;
 
         /// <summary>
+        /// Maximum number of characters per paste chunk. Texts longer than this are split
+        /// into multiple sequential pastes. Keeps each paste well below the per-chunk delay
+        /// budget so Enter never fires before the paste has finished streaming. See issue #48.
+        /// </summary>
+        private const int PasteChunkSize = 4096;
+
+        /// <summary>
+        /// Maximum number of SetText+verify attempts before giving up. If verify keeps
+        /// failing a clipboard manager is persistently overwriting our content; sending
+        /// would silently truncate, so we abort with a visible error instead.
+        /// </summary>
+        private const int ClipboardVerifyRetries = 3;
+
+        /// <summary>
         /// Sends text to the embedded terminal by copying to clipboard and simulating paste
         /// Preserves the original clipboard content and restores it after sending
         /// This is the synchronous wrapper for backward compatibility
@@ -142,65 +156,61 @@ namespace ClaudeCodeVS
                     }
                     await Task.Delay(50);
 
-                    // SetText is the critical step — if it fails the paste will not contain our text, so abort with diagnostics.
-                    try
-                    {
-                        await ClipboardRetryAsync(() => Clipboard.SetText(text));
-                    }
-                    catch (System.Runtime.InteropServices.COMException ex) when (ex.ErrorCode == unchecked((int)0x800401D0))
-                    {
-                        string owner = LogClipboardLockOwner("Clipboard.SetText");
-                        await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
-                        MessageBox.Show(
-                            $"Clipboard is locked by another process and could not be opened after {ClipboardMaxRetries * ClipboardRetryDelayMs / 1000}s.\n\n" +
-                            $"Likely culprit: {owner}\n\n" +
-                            "Common causes:\n" +
-                            "  • A clipboard manager (Win+V history, Ditto, etc.)\n" +
-                            "  • Conhost in mark/select mode (press Esc inside the terminal)\n" +
-                            "  • Remote Desktop clipboard redirection\n\n" +
-                            "Try again after closing the offending app, or press Esc in the terminal to leave selection mode.",
-                            "Clipboard Locked", MessageBoxButton.OK, MessageBoxImage.Warning);
-                        return;
-                    }
+                    // Split the prompt into chunks small enough that each paste fits comfortably
+                    // inside the per-chunk delay budget. For each chunk we put it on the clipboard,
+                    // verify the clipboard actually holds that exact content (a clipboard manager
+                    // can race in and replace it between SetText and paste), then trigger the paste.
+                    // If any chunk fails verification we abort with a visible error rather than
+                    // silently sending a partial prompt — addresses issue #48.
+                    int totalLen = text?.Length ?? 0;
+                    int chunkCount = totalLen <= PasteChunkSize ? 1 : (totalLen + PasteChunkSize - 1) / PasteChunkSize;
 
-                    // Re-focus terminal after clipboard operations
+                    // Re-focus terminal once before the loop; per-chunk re-focus happens inside TriggerPasteAndWaitAsync.
                     SetForegroundWindow(terminalHandle);
                     SetFocus(terminalHandle);
                     await Task.Delay(100);
 
-                    // Scale the post-paste delay based on text length to avoid
-                    // truncation with large prompts (the terminal needs time to
-                    // render all pasted characters before Enter is sent).
-                    // The previous cap of 5s truncated large prompts because Enter
-                    // fired before conhost/ConPTY had finished streaming the paste
-                    // into the CLI's stdin. See issue #48.
-                    int textLen = text?.Length ?? 0;
-                    int extraDelayMs = Math.Min(textLen / 2, 30000); // +1ms per 2 chars, capped at 30s
+                    for (int chunkIdx = 0; chunkIdx < chunkCount; chunkIdx++)
+                    {
+                        int start = chunkIdx * PasteChunkSize;
+                        int len = Math.Min(PasteChunkSize, totalLen - start);
+                        string chunk = chunkCount == 1 ? text : text.Substring(start, len);
 
-                    // Paste text into the terminal
-                    // Windows Terminal: use Ctrl+Shift+V (right-click opens context menu instead of pasting)
-                    // OpenCode / PI: use Shift+Right-click (TUI-based Node.js apps enable ANSI mouse mode
-                    // which intercepts regular right-clicks; Shift forces conhost to paste)
-                    // Others (Command Prompt): use right-click
-                    if (_wtTabBarHeight > 0)
-                    {
-                        await PasteViaCtrlShiftVAsync();
-                        await Task.Delay(500 + extraDelayMs);
-                    }
-                    else if (_currentRunningProvider == AiProvider.OpenCode
-                             || _currentRunningProvider == AiProvider.Pi)
-                    {
-                        await ShiftRightClickTerminalCenterAsync();
-                        await Task.Delay(800 + extraDelayMs);
-                    }
-                    else
-                    {
-                        // Right-click to paste the clipboard content
-                        await RightClickTerminalCenterAsync();
-                        await Task.Delay(800 + extraDelayMs);
+                        bool clipboardOk;
+                        try
+                        {
+                            clipboardOk = await SetClipboardAndVerifyAsync(chunk);
+                        }
+                        catch (System.Runtime.InteropServices.COMException ex) when (ex.ErrorCode == unchecked((int)0x800401D0))
+                        {
+                            clipboardOk = false;
+                        }
+
+                        if (!clipboardOk)
+                        {
+                            string owner = LogClipboardLockOwner("Clipboard.SetText");
+                            await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
+                            string scope = chunkCount == 1
+                                ? "the prompt"
+                                : $"chunk {chunkIdx + 1} of {chunkCount}";
+                            MessageBox.Show(
+                                $"Could not reliably put {scope} on the clipboard after {ClipboardVerifyRetries} attempts. " +
+                                "The prompt was NOT sent to the terminal.\n\n" +
+                                $"Likely culprit: {owner}\n\n" +
+                                "Common causes:\n" +
+                                "  • A clipboard manager (Win+V history, Ditto, Office clipboard, etc.) keeps overwriting the clipboard\n" +
+                                "  • Conhost in mark/select mode (press Esc inside the terminal)\n" +
+                                "  • Remote Desktop clipboard redirection\n\n" +
+                                "Close the offending app or press Esc in the terminal, then try again.",
+                                "Send Aborted — Clipboard Verification Failed",
+                                MessageBoxButton.OK, MessageBoxImage.Warning);
+                            return;
+                        }
+
+                        await TriggerPasteAndWaitAsync(len);
                     }
 
-                    // Send Enter key to execute the command
+                    // All chunks successfully pasted — send Enter to execute the command.
                     SendEnterKey();
                 }
                 else
@@ -222,12 +232,7 @@ namespace ClaudeCodeVS
                 try
                 {
                     await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
-                    // Scale the pre-restore delay with text length: conhost/WT stream
-                    // the clipboard during paste rather than reading it atomically, so
-                    // restoring too early can replace the tail of a large paste with
-                    // the original clipboard content. See issue #48.
-                    int restoreDelayMs = 100 + Math.Min((text?.Length ?? 0) / 4, 15000);
-                    await Task.Delay(restoreDelayMs);
+                    await Task.Delay(100); // Small delay to ensure paste completed
                     await ClipboardRetryAsync(() => RestoreClipboardContent(originalClipboardData));
                 }
                 catch (Exception ex)
@@ -287,6 +292,81 @@ namespace ClaudeCodeVS
                 }
             }
             return default; // Should never reach here
+        }
+
+        /// <summary>
+        /// Sets the clipboard to <paramref name="text"/> and verifies the content is actually
+        /// what we put there before returning true. A clipboard manager (Win+V history, Ditto,
+        /// Office clipboard) can overwrite our content between SetText and the paste trigger;
+        /// without this verification that would silently truncate the prompt. See issue #48.
+        /// </summary>
+        /// <returns>true if the clipboard reliably contains <paramref name="text"/>; false otherwise.</returns>
+        private async Task<bool> SetClipboardAndVerifyAsync(string text)
+        {
+            for (int attempt = 0; attempt < ClipboardVerifyRetries; attempt++)
+            {
+                try
+                {
+                    await ClipboardRetryAsync(() => Clipboard.SetText(text));
+                }
+                catch (System.Runtime.InteropServices.COMException)
+                {
+                    return false;
+                }
+
+                // Brief settle to let other clipboard listeners react before we verify.
+                await Task.Delay(30);
+
+                string current = null;
+                try
+                {
+                    current = await ClipboardRetryAsync(() => Clipboard.ContainsText() ? Clipboard.GetText() : null);
+                }
+                catch (System.Runtime.InteropServices.COMException)
+                {
+                    current = null;
+                }
+
+                if (string.Equals(current, text, StringComparison.Ordinal))
+                {
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        /// <summary>
+        /// Triggers the provider-specific paste action for the content currently on the clipboard
+        /// and waits long enough for conhost/ConPTY to stream it into the CLI's stdin. Re-focuses
+        /// the terminal first in case focus drifted between chunks. See issue #48.
+        /// </summary>
+        /// <param name="chunkLength">Length of the chunk currently on the clipboard, used to scale the post-paste wait.</param>
+        private async Task TriggerPasteAndWaitAsync(int chunkLength)
+        {
+            SetForegroundWindow(terminalHandle);
+            SetFocus(terminalHandle);
+            await Task.Delay(50);
+
+            // Per-chunk additional delay. Each chunk is bounded by PasteChunkSize, so the cap
+            // here is comfortably above what the longest possible chunk needs.
+            int extraDelayMs = Math.Min(chunkLength / 2, 5000);
+
+            if (_wtTabBarHeight > 0)
+            {
+                await PasteViaCtrlShiftVAsync();
+                await Task.Delay(500 + extraDelayMs);
+            }
+            else if (_currentRunningProvider == AiProvider.OpenCode
+                     || _currentRunningProvider == AiProvider.Pi)
+            {
+                await ShiftRightClickTerminalCenterAsync();
+                await Task.Delay(800 + extraDelayMs);
+            }
+            else
+            {
+                await RightClickTerminalCenterAsync();
+                await Task.Delay(800 + extraDelayMs);
+            }
         }
 
         /// <summary>
