@@ -171,8 +171,11 @@ namespace ClaudeCodeVS
                     // Scale the post-paste delay based on text length to avoid
                     // truncation with large prompts (the terminal needs time to
                     // render all pasted characters before Enter is sent).
+                    // The previous cap of 5s truncated large prompts because Enter
+                    // fired before conhost/ConPTY had finished streaming the paste
+                    // into the CLI's stdin. See issue #48.
                     int textLen = text?.Length ?? 0;
-                    int extraDelayMs = Math.Min(textLen / 2, 5000); // +1ms per 2 chars, capped at 5s
+                    int extraDelayMs = Math.Min(textLen / 2, 30000); // +1ms per 2 chars, capped at 30s
 
                     // Paste text into the terminal
                     // Windows Terminal: use Ctrl+Shift+V (right-click opens context menu instead of pasting)
@@ -219,7 +222,12 @@ namespace ClaudeCodeVS
                 try
                 {
                     await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
-                    await Task.Delay(100); // Small delay to ensure paste completed
+                    // Scale the pre-restore delay with text length: conhost/WT stream
+                    // the clipboard during paste rather than reading it atomically, so
+                    // restoring too early can replace the tail of a large paste with
+                    // the original clipboard content. See issue #48.
+                    int restoreDelayMs = 100 + Math.Min((text?.Length ?? 0) / 4, 15000);
+                    await Task.Delay(restoreDelayMs);
                     await ClipboardRetryAsync(() => RestoreClipboardContent(originalClipboardData));
                 }
                 catch (Exception ex)
