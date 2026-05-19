@@ -270,6 +270,9 @@ Claude will write the `SKILL.md` file with the proper frontmatter and instructio
 
 ## Version History
 
+### Version 10.50 - rbuss93 contribution
+- **Fix: Reliable prompt sends (chunked paste + clipboard verification)**: Long prompts no longer get truncated when sent to the terminal. Texts over 4 KB are split into sequential pastes so Enter can never race ahead of the streaming paste. Before each paste the clipboard is read back and verified, retrying up to 3 times — if a clipboard manager (Win+V history, Ditto, Office clipboard, Remote Desktop redirection) overwrites the content, the send is aborted with a clear error naming the lock owner instead of silently inserting the wrong text.
+
 ### Version 10.49
 - **Fix: Claude Usage tab stealing focus**: The Claude Usage tab no longer pops to the front on its own. WebView2 re-applies its saved zoom level on every background refresh, and the zoom-changed handler was calling `Focus()` unconditionally — pulling keyboard focus into the hidden tab and making Visual Studio activate it. The handler now skips focusing during background scrapes and while the tab is hidden.
 

@@ -2,11 +2,11 @@
 
 ## Project Overview
 
-**Visual Studio Extension (VSIX)** for VS 2022/2026 — integrates AI code assistants (Claude Code, OpenAI Codex, Cursor Agent, Open Code, Windsurf) via embedded terminal (Win32 `SetParent` interop).
+**Visual Studio Extension (VSIX)** for VS 2022/2026 — integrates AI code assistants (Claude Code, OpenAI Codex, Cursor Agent, Open Code, Windsurf, PI) via embedded terminal (Win32 `SetParent` interop).
 
 - **Author**: Daniel Carvalho Liedke (dliedke@gmail.com) | **License**: MIT
 - **Repository**: https://github.com/dliedke/ClaudeCodeExtension
-- **Current Version**: 10.47 | **Target Framework**: .NET Framework 4.7.2
+- **Current Version**: 10.50 | **Target Framework**: .NET Framework 4.7.2
 
 ---
 
@@ -134,6 +134,7 @@ WSL:     cmd.exe /k chcp 65001 >nul && cls && wsl bash -lic "cd {wslPath} && {co
 - **Thread-safe cache**: `_cacheLock` object for synchronized access; `IsCacheValid()` checks timestamp expiry
 - **Claude Code detection**: Two-tier — first checks native path (`%USERPROFILE%\.local\bin\claude.exe`), then falls back to `where claude` (PATHEXT-aware, finds both `claude.exe` from winget and `claude.cmd` from NPM)
 - **WSL detection**: `bash -lc` (login shell) for `which` commands — avoids `.bashrc` noise; retries 2x with 8s/20s timeouts for cold boot
+- **PI detection**: `IsPiAvailableAsync()` runs `cmd /c where pi` (3s timeout), available when exit code 0 and stdout non-empty; native Windows NPM tool (`@earendil-works/pi-coding-agent`), TUI-based — paste uses Shift+Right-click and `WM_CHAR` Enter like Open Code
 - **Early-exit logic**: Only stops retrying when stdout has content (ignores stderr-only shell warnings)
 - **Notification flags**: Static booleans (one per provider) ensure install pop-ups show only once per VS session
 - **Model menus**: `ModelContextMenu_Opened()` toggles Claude items vs Windsurf items based on active provider
@@ -164,6 +165,8 @@ WSL:     cmd.exe /k chcp 65001 >nul && cls && wsl bash -lic "cd {wslPath} && {co
 - **Paste mechanism**: Saves full clipboard state → sets text → right-clicks terminal center → sends Enter → restores clipboard
 - **Clipboard retry**: Up to 10 retries with 100ms delay for `CLIPBRD_E_CANT_OPEN`
 - **Enter key varies by provider**: `WM_CHAR` (Claude/OpenCode), `KEYDOWN/KEYUP` (WSL), double-Enter (Codex)
+- **Chunked paste**: `SendTextToTerminalAsync()` splits text longer than `PasteChunkSize` (4096 chars) into sequential pastes — each chunk fits the per-chunk post-paste budget (`500–800ms base + min(len/2, 5000)ms`), so Enter (sent only after the final chunk) can never race ahead of a streaming paste. Small prompts (≤4 KB) run the loop once, equivalent to the old single-shot path. Provider-specific paste + scaled wait extracted into `TriggerPasteAndWaitAsync()` for reuse across chunks
+- **Clipboard verification**: `SetClipboardAndVerifyAsync()` calls `Clipboard.SetText` then reads the clipboard back to confirm exact content before each paste trigger — guards against a clipboard manager (Win+V history, Ditto, Office clipboard, RDP redirection) overwriting it mid-send. Retries up to `ClipboardVerifyRetries` (3); on failure the send is **aborted** with a `MessageBox` naming the lock owner (via `LogClipboardLockOwner`) rather than silently pasting wrong content
 
 ### Claude Usage (Usage.cs / ClaudeUsageControl / ClaudeUsageToolWindow)
 
@@ -213,7 +216,7 @@ Re-parents terminal to/from `DetachedTerminalToolWindow` via `SetParent()`. Auto
 ## Data Models (ClaudeCodeModels.cs)
 
 ```csharp
-enum AiProvider { ClaudeCode, ClaudeCodeWSL, Codex, CodexNative, CursorAgent, CursorAgentNative, OpenCode, Windsurf }
+enum AiProvider { ClaudeCode, ClaudeCodeWSL, Codex, CodexNative, CursorAgent, CursorAgentNative, OpenCode, Windsurf, Pi }
 enum ClaudeModel { Opus, Sonnet, Haiku }
 enum WindsurfModel { ClaudeOpus, ClaudeSonnet, Codex, GeminiPro }
 enum EffortLevel { Auto, Low, Medium, High, Max }
@@ -240,6 +243,7 @@ Key settings: `SplitterPosition` (236px default), `SelectedProvider`, `SelectedC
 | Cursor Agent (WSL) | `CursorAgent` | WSL | `cursor-agent` | `exit` |
 | Open Code | `OpenCode` | Windows | `opencode` | `exit` |
 | Windsurf (WSL) | `Windsurf` | WSL | `devin` | `exit` |
+| PI | `Pi` | Windows | `pi` | `exit` |
 
 **Plugin**: Caveman (JuliusBrussee/caveman) — installable into Claude Code sessions via model menu
 
