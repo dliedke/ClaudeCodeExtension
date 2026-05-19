@@ -6,7 +6,7 @@
 
 - **Author**: Daniel Carvalho Liedke (dliedke@gmail.com) | **License**: MIT
 - **Repository**: https://github.com/dliedke/ClaudeCodeExtension
-- **Current Version**: 10.50 | **Target Framework**: .NET Framework 4.7.2
+- **Current Version**: 10.51 | **Target Framework**: .NET Framework 4.7.2
 
 ---
 
@@ -17,6 +17,10 @@
 1. **`Properties/AssemblyInfo.cs`**: Bump `AssemblyVersion` and `AssemblyFileVersion`
 2. **`source.extension.vsixmanifest`**: Bump `Version` in `<Identity>` tag
 3. **`README.md`**: Add `### Version X.Y` entry at top of `## Version History`
+   - **Style**: Short, business-focused. One sentence per bullet (two max). Describe the user-visible feature or fix, not the implementation.
+   - **Avoid**: code/file/class/method names, internal selectors, file paths, constants, line numbers, JS snippets, framework jargon (`CoreWebView2`, `INPUT_RECORD`, `NavigationCompleted`, etc.), step-by-step "how it works" explanations, and PR-description-style root-cause analysis.
+   - **Keep**: what the user gets ("auto-confirms proxy block screens"), opt-in/opt-out status, and the menu/setting name they interact with.
+   - Technical details belong in commit messages and `CLAUDE.md` Architecture section, not in release notes.
 
 ---
 
@@ -165,7 +169,8 @@ WSL:     cmd.exe /k chcp 65001 >nul && cls && wsl bash -lic "cd {wslPath} && {co
 - **Paste mechanism**: Saves full clipboard state → sets text → right-clicks terminal center → sends Enter → restores clipboard
 - **Clipboard retry**: Up to 10 retries with 100ms delay for `CLIPBRD_E_CANT_OPEN`
 - **Enter key varies by provider**: `WM_CHAR` (Claude/OpenCode), `KEYDOWN/KEYUP` (WSL), double-Enter (Codex)
-- **Chunked paste**: `SendTextToTerminalAsync()` splits text longer than `PasteChunkSize` (4096 chars) into sequential pastes — each chunk fits the per-chunk post-paste budget (`500–800ms base + min(len/2, 5000)ms`), so Enter (sent only after the final chunk) can never race ahead of a streaming paste. Small prompts (≤4 KB) run the loop once, equivalent to the old single-shot path. Provider-specific paste + scaled wait extracted into `TriggerPasteAndWaitAsync()` for reuse across chunks
+- **Chunked paste**: `SendTextToTerminalAsync()` splits text longer than `PasteChunkSize` (24 KB) into sequential pastes — each chunk fits the per-chunk post-paste budget (`500–800ms base + min(len/PasteMsPerCharDivisor, MaxExtraPasteDelayMs)`, default 1ms per 5 chars, capped at 5s), so Enter (sent only after the final chunk) can never race ahead of a streaming paste. Small prompts (≤24 KB) run the loop once, equivalent to the old single-shot path. Provider-specific paste + scaled wait extracted into `TriggerPasteAndWaitAsync()` for reuse across chunks
+- **Large prompts as file (opt-in)**: When `_settings.SendLargePromptsAsFile` is true and the assembled prompt exceeds ~1 KB, `SendButton_Click` writes the prompt to `%TEMP%\ClaudeCodeVS_Session\<guid>\prompt-<timestamp>.md` and sends only `Please read the file and follow the instructions inside: <path>` instead of the inline text. Bypasses the conhost INPUT_RECORD buffer entirely (which truncates pastes around ~1 KB regardless of chunking), keeping the `Files attached:` list intact. WSL providers get a WSL-converted path. See issue #48
 - **Clipboard verification**: `SetClipboardAndVerifyAsync()` calls `Clipboard.SetText` then reads the clipboard back to confirm exact content before each paste trigger — guards against a clipboard manager (Win+V history, Ditto, Office clipboard, RDP redirection) overwriting it mid-send. Retries up to `ClipboardVerifyRetries` (3); on failure the send is **aborted** with a `MessageBox` naming the lock owner (via `LogClipboardLockOwner`) rather than silently pasting wrong content
 
 ### Claude Usage (Usage.cs / ClaudeUsageControl / ClaudeUsageToolWindow)
@@ -177,6 +182,7 @@ WSL:     cmd.exe /k chcp 65001 >nul && cls && wsl bash -lic "cd {wslPath} && {co
 - **Snapshot caching**: Last successful scrape serialized as JSON to `LastUsageJson` + `LastUsageTimestamp`; restored on startup so bars render immediately with stale data while fresh fetch runs
 - **Auto-refresh**: `UsageAutoRefreshSeconds` setting (0 = manual); page reload triggered by visible tool window's scraper — no background WebView2 to avoid focus contention
 - **Session restore**: `UsageWindowOpened` persisted; `InitializeUsageMonitoring()` auto-reopens the window and reloads data 2s after solution load
+- **Corporate proxy interstitial handling (`TryHandleUrlBlock`)**: Detects when `core.Source` ends with `/urlblock.php` (iboss/Forcepoint/Zscaler style block pages) and injects a JS poller that retries up to 25× at 200ms looking for the Continue submit button — multiple selector fallbacks (`input[type=submit][name=ok]` → generic `input[type=submit]` → `button[type=submit]` → `button[name=ok]` → `form.submit()`). Works while the tool window is hidden because CoreWebView2 processes navigation and JS without a visible rendering surface. Throttled to one click per 3 s. Triggered from both `OnNavigationCompleted` and `OnSourceChanged`
 
 ### Settings (Settings.cs)
 
@@ -227,7 +233,7 @@ class SessionInfo { SessionId, FilePath, Preview, MessageCount, TokenCount, Last
 class UsageSnapshot { SessionLabel, SessionReset, SessionPercent, WeeklyLabel, WeeklyReset, WeeklyPercent, HasExtraUsage, ExtraUsageSpent, ExtraUsageReset, ExtraUsagePercent }
 ```
 
-Key settings: `SplitterPosition` (236px default), `SelectedProvider`, `SelectedClaudeModel`, `SelectedWindsurfModel`, `PromptHistory` (max 50), `AutoOpenChangesOnPrompt`, `ClaudeDangerouslySkipPermissions`, `CodexFullAuto`, `CursorAgentAutoRun`, `WindsurfDangerousMode`, `SelectedEffortLevel`, `CustomWorkingDirectory`, `SelectedTerminalType`, `IsTerminalDetached`, `PromptFontSize` (8–24pt), `TerminalZoomDelta`, `InvertLayout`, `SelectedThemePreference` (Automatic/Dark/Light), `LastAgentTerminalColorArgb` (agent's launched color, used to skip redundant restart prompts), `CustomCommands` (list of `{Name, Command}`), `UsageAutoRefreshSeconds` (0 = manual), `UsageWindowOpened` (auto-reopen on load), `ShowInlineUsageBars` (default true), `LastUsageJson` / `LastUsageTimestamp` (cached snapshot)
+Key settings: `SplitterPosition` (236px default), `SelectedProvider`, `SelectedClaudeModel`, `SelectedWindsurfModel`, `PromptHistory` (max 50), `AutoOpenChangesOnPrompt`, `ClaudeDangerouslySkipPermissions`, `CodexFullAuto`, `CursorAgentAutoRun`, `WindsurfDangerousMode`, `SelectedEffortLevel`, `CustomWorkingDirectory`, `SelectedTerminalType`, `IsTerminalDetached`, `PromptFontSize` (8–24pt), `TerminalZoomDelta`, `InvertLayout`, `SelectedThemePreference` (Automatic/Dark/Light), `LastAgentTerminalColorArgb` (agent's launched color, used to skip redundant restart prompts), `CustomCommands` (list of `{Name, Command}`), `UsageAutoRefreshSeconds` (0 = manual), `UsageWindowOpened` (auto-reopen on load), `ShowInlineUsageBars` (default true), `LastUsageJson` / `LastUsageTimestamp` (cached snapshot), `SendLargePromptsAsFile` (default false — when true, prompts >1 KB are sent as a file reference instead of inline paste)
 
 ---
 

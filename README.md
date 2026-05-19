@@ -270,6 +270,10 @@ Claude will write the `SKILL.md` file with the proper frontmatter and instructio
 
 ## Version History
 
+### Version 10.51
+- **Fix: Usage page auto-confirms corporate proxy block screens**: When a network proxy shows a "Continue" interstitial before claude.ai, it is now clicked automatically even while the Claude Usage tab is hidden, so the inline usage bars keep updating.
+- **rbuss93 contribution (PR #51): Send large prompts as file (opt-in)**: New "Send large prompts as file" option in the Settings menu. When enabled, very long prompts are saved to a temp file and the assistant is asked to read it — avoiding paste truncation on big prompts and keeping the "Files attached:" list intact.
+
 ### Version 10.50 - rbuss93 contribution
 - **Fix: Reliable prompt sends (chunked paste + clipboard verification)**: Long prompts no longer get truncated when sent to the terminal. Texts over 4 KB are split into sequential pastes so Enter can never race ahead of the streaming paste. Before each paste the clipboard is read back and verified, retrying up to 3 times — if a clipboard manager (Win+V history, Ditto, Office clipboard, Remote Desktop redirection) overwrites the content, the send is aborted with a clear error naming the lock owner instead of silently inserting the wrong text.
 

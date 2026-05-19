@@ -546,8 +546,18 @@ namespace ClaudeCodeVS
         /// Some corporate proxies (e.g. iboss at 160.79.104.10:6080) intercept the
         /// usage page with an interstitial that has a single Continue submit
         /// button. Detect the block URL and click the button so navigation
-        /// resumes back to /settings/usage automatically. NavigationCompleted
-        /// guarantees the form is in the DOM before we click.
+        /// resumes back to /settings/usage automatically.
+        ///
+        /// Runs in two modes — both work while the tool window is hidden because
+        /// CoreWebView2 keeps processing navigation, DOM construction and JS even
+        /// without a visible rendering surface:
+        ///  1. Polls for the submit button with multiple selector fallbacks (some
+        ///     interstitials render late or use &lt;button&gt; instead of input).
+        ///  2. Selector is broadened beyond input[name=ok] so unrelated variants
+        ///     (iboss/Forcepoint/Zscaler/etc. all use slightly different markup)
+        ///     also get clicked.
+        ///
+        /// Throttled to one click attempt per 3 s so a redirect storm can't spam clicks.
         /// </summary>
         private bool TryHandleUrlBlock()
         {
@@ -562,8 +572,37 @@ namespace ClaudeCodeVS
                 if ((now - _lastUrlBlockClickUtc).TotalSeconds < 3) return true;
                 _lastUrlBlockClickUtc = now;
 
+                // Poll up to ~5s for the Continue/OK button — the interstitial form may not be
+                // in the DOM at NavigationCompleted time, and runs even when the tool window is
+                // hidden (CoreWebView2 keeps processing JS in the background).
                 string js = @"
-  document.querySelector('input[type=submit][name=ok]').click();";
+(function(){
+  var attempts = 0;
+  var maxAttempts = 25; // 25 * 200ms = 5s
+  function tryClick(){
+    attempts++;
+    var btn =
+      document.querySelector('input[type=submit][name=ok]') ||
+      document.querySelector('form input[type=submit]') ||
+      document.querySelector('form button[type=submit]') ||
+      document.querySelector('input[type=submit]') ||
+      document.querySelector('button[type=submit]') ||
+      document.querySelector('button[name=ok]') ||
+      document.querySelector('a[href*=continue i]');
+    if (btn) {
+      try { btn.click(); return true; } catch(e) {}
+    }
+    var form = document.querySelector('form');
+    if (form) {
+      try { form.submit(); return true; } catch(e) {}
+    }
+    if (attempts < maxAttempts) {
+      setTimeout(tryClick, 200);
+    }
+    return false;
+  }
+  tryClick();
+})();";
 #pragma warning disable VSTHRD110
                 _ = core.ExecuteScriptAsync(js);
 #pragma warning restore VSTHRD110
