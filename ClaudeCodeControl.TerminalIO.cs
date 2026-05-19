@@ -40,18 +40,36 @@ namespace ClaudeCodeVS
         private const int ClipboardRetryDelayMs = 200;
 
         /// <summary>
-        /// Maximum number of characters per paste chunk. Texts longer than this are split
-        /// into multiple sequential pastes. Keeps each paste well below the per-chunk delay
-        /// budget so Enter never fires before the paste has finished streaming. See issue #48.
-        /// </summary>
-        private const int PasteChunkSize = 4096;
-
-        /// <summary>
         /// Maximum number of SetText+verify attempts before giving up. If verify keeps
         /// failing a clipboard manager is persistently overwriting our content; sending
         /// would silently truncate, so we abort with a visible error instead.
         /// </summary>
         private const int ClipboardVerifyRetries = 3;
+
+        /// <summary>
+        /// Upper bound on the additional post-paste wait per chunk. Each chunk is bounded
+        /// by PasteChunkSize so a 5-second cap is far more than needed at realistic paste
+        /// rates. See issue #48.
+        /// </summary>
+        private const int MaxExtraPasteDelayMs = 5000;
+
+        /// <summary>
+        /// Estimated paste-streaming rate, expressed as milliseconds-per-character.
+        /// conhost realistically streams a paste at ~5 KB/s once you factor in TUI render
+        /// time, so 1 ms per 5 chars (= 5000 chars/s) is conservative-but-not-excessive.
+        /// </summary>
+        private const int PasteMsPerCharDivisor = 5;
+
+        /// <summary>
+        /// Maximum chunk size for a single paste operation. Texts longer than this are split
+        /// into multiple sequential pastes. A single paste larger than this hits the Claude
+        /// Code CLI input-buffer limit and produces front-truncation (the head of the prompt
+        /// gets dropped). At 24 KB each chunk is small enough to fit comfortably in the CLI
+        /// input buffer while keeping the number of [Pasted text #N] blocks low for big
+        /// prompts (e.g. a 65 KB file → 3 blocks instead of 20+ with the previous 4 KB
+        /// chunking). See issue #48.
+        /// </summary>
+        private const int PasteChunkSize = 24576;
 
         /// <summary>
         /// Sends text to the embedded terminal by copying to clipboard and simulating paste
@@ -156,19 +174,17 @@ namespace ClaudeCodeVS
                     }
                     await Task.Delay(50);
 
-                    // Split the prompt into chunks small enough that each paste fits comfortably
-                    // inside the per-chunk delay budget. For each chunk we put it on the clipboard,
-                    // verify the clipboard actually holds that exact content (a clipboard manager
-                    // can race in and replace it between SetText and paste), then trigger the paste.
-                    // If any chunk fails verification we abort with a visible error rather than
-                    // silently sending a partial prompt — addresses issue #48.
+                    // Put the prompt on the clipboard, verify the clipboard actually holds that
+                    // exact content (a clipboard manager can race in and replace it between
+                    // SetText and paste), then paste it. If the prompt is larger than the
+                    // Claude-Code-CLI input-buffer fits, we split it into chunks so each paste
+                    // arrives whole — sending the whole thing as one paste produces front-
+                    // truncation upstream. If verification keeps failing we abort with a visible
+                    // error rather than silently sending a partial prompt. See issue #48.
                     int totalLen = text?.Length ?? 0;
-                    int chunkCount = totalLen <= PasteChunkSize ? 1 : (totalLen + PasteChunkSize - 1) / PasteChunkSize;
-
-                    // Re-focus terminal once before the loop; per-chunk re-focus happens inside TriggerPasteAndWaitAsync.
-                    SetForegroundWindow(terminalHandle);
-                    SetFocus(terminalHandle);
-                    await Task.Delay(100);
+                    int chunkCount = totalLen <= PasteChunkSize
+                        ? 1
+                        : (totalLen + PasteChunkSize - 1) / PasteChunkSize;
 
                     for (int chunkIdx = 0; chunkIdx < chunkCount; chunkIdx++)
                     {
@@ -210,7 +226,6 @@ namespace ClaudeCodeVS
                         await TriggerPasteAndWaitAsync(len);
                     }
 
-                    // All chunks successfully pasted — send Enter to execute the command.
                     SendEnterKey();
                 }
                 else
@@ -338,18 +353,19 @@ namespace ClaudeCodeVS
         /// <summary>
         /// Triggers the provider-specific paste action for the content currently on the clipboard
         /// and waits long enough for conhost/ConPTY to stream it into the CLI's stdin. Re-focuses
-        /// the terminal first in case focus drifted between chunks. See issue #48.
+        /// the terminal first in case focus drifted. See issue #48.
         /// </summary>
-        /// <param name="chunkLength">Length of the chunk currently on the clipboard, used to scale the post-paste wait.</param>
-        private async Task TriggerPasteAndWaitAsync(int chunkLength)
+        /// <param name="textLength">Length of the text currently on the clipboard, used to scale the post-paste wait.</param>
+        private async Task TriggerPasteAndWaitAsync(int textLength)
         {
             SetForegroundWindow(terminalHandle);
             SetFocus(terminalHandle);
             await Task.Delay(50);
 
-            // Per-chunk additional delay. Each chunk is bounded by PasteChunkSize, so the cap
-            // here is comfortably above what the longest possible chunk needs.
-            int extraDelayMs = Math.Min(chunkLength / 2, 5000);
+            // Scale the post-paste wait with text length, capped at MaxExtraPasteDelayMs.
+            // The cap is the safety ceiling for very large prompts; in practice paste rates
+            // are faster than 5 KB/s, so the wait is usually shorter than the cap.
+            int extraDelayMs = Math.Min(textLength / PasteMsPerCharDivisor, MaxExtraPasteDelayMs);
 
             if (_wtTabBarHeight > 0)
             {

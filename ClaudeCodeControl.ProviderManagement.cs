@@ -2713,6 +2713,7 @@ For more details, visit: https://pi.dev";
             if (_settings != null)
             {
                 SendWithEnterMenuItem.IsChecked = _settings.SendWithEnter;
+                SendLargePromptsAsFileMenuItem.IsChecked = _settings.SendLargePromptsAsFile;
                 AutoOpenChangesMenuItem.IsChecked = _settings.AutoOpenChangesOnPrompt;
                 ClaudeDangerouslySkipPermissionsMenuItem.IsChecked = _settings.ClaudeDangerouslySkipPermissions;
                 CodexFullAutoMenuItem.IsChecked = _settings.CodexFullAuto;
@@ -2805,6 +2806,19 @@ For more details, visit: https://pi.dev";
 
             _settings.SendWithEnter = SendWithEnterMenuItem.IsChecked;
             SendPromptButton.Visibility = _settings.SendWithEnter ? Visibility.Collapsed : Visibility.Visible;
+            SaveSettings();
+        }
+
+        /// <summary>
+        /// Handles "Send large prompts as file" menu item click
+        /// </summary>
+        private void SendLargePromptsAsFileMenuItem_Click(object sender, RoutedEventArgs e)
+        {
+            ThreadHelper.ThrowIfNotOnUIThread();
+
+            if (_settings == null) return;
+
+            _settings.SendLargePromptsAsFile = SendLargePromptsAsFileMenuItem.IsChecked;
             SaveSettings();
         }
 

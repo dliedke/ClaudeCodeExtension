@@ -72,14 +72,16 @@ namespace ClaudeCodeVS
 
                 StringBuilder fullPrompt = new StringBuilder();
 
+                // Check if CURRENTLY RUNNING provider is WSL-based (not CodexNative, CursorAgentNative).
+                // Hoisted out of the hasFiles branch so the large-prompt-as-file path can use it too.
+                bool isWSLProvider = _currentRunningProvider == AiProvider.Codex ||
+                                     _currentRunningProvider == AiProvider.ClaudeCodeWSL ||
+                                     _currentRunningProvider == AiProvider.CursorAgent ||
+                                     _currentRunningProvider == AiProvider.Windsurf;
+
                 // If files are attached, include their paths in the prompt
                 if (hasFiles)
                 {
-                    // Check if CURRENTLY RUNNING provider is WSL-based (not CodexNative, CursorAgentNative)
-                    bool isWSLProvider = _currentRunningProvider == AiProvider.Codex ||
-                                         _currentRunningProvider == AiProvider.ClaudeCodeWSL ||
-                                         _currentRunningProvider == AiProvider.CursorAgent ||
-                                         _currentRunningProvider == AiProvider.Windsurf;
 
                     // Create a unique directory under ClaudeCodeVS_Session for this prompt with files
                     string promptDirectory = null;
@@ -160,8 +162,38 @@ namespace ClaudeCodeVS
 
                 // Send to terminal
                 string finalPrompt = fullPrompt.ToString();
-                Debug.WriteLine($"Sending prompt to terminal ({finalPrompt.Length} chars): {finalPrompt.Substring(0, Math.Min(200, finalPrompt.Length))}...");
-                await SendTextToTerminalAsync(finalPrompt);
+                string textToSend = finalPrompt;
+
+                // If "Send large prompts as file" is enabled and the prompt exceeds the
+                // ~1 KB conhost paste-buffer threshold, save the prompt to a temp file and
+                // send only a short reference. This avoids front-truncation of large pastes
+                // (see issue #48) and keeps the "Files attached:" list intact.
+                const int LargePromptThresholdChars = 1024;
+                if (_settings != null
+                    && _settings.SendLargePromptsAsFile
+                    && finalPrompt.Length > LargePromptThresholdChars)
+                {
+                    try
+                    {
+                        string sessionDir = Path.Combine(Path.GetTempPath(), "ClaudeCodeVS_Session", Guid.NewGuid().ToString());
+                        Directory.CreateDirectory(sessionDir);
+                        string promptFile = Path.Combine(sessionDir, $"prompt-{DateTime.Now:yyyyMMdd-HHmmss}.md");
+                        File.WriteAllText(promptFile, finalPrompt, new UTF8Encoding(false));
+
+                        string displayPath = isWSLProvider ? ConvertToWslPath(promptFile) : promptFile;
+                        textToSend = $"Please read the file and follow the instructions inside: {displayPath}";
+                        Debug.WriteLine($"Large prompt ({finalPrompt.Length} chars) saved to: {promptFile}");
+                    }
+                    catch (Exception ex)
+                    {
+                        Debug.WriteLine($"Failed to save large prompt to file, falling back to inline paste: {ex.Message}");
+                        // Fall back to inline send
+                        textToSend = finalPrompt;
+                    }
+                }
+
+                Debug.WriteLine($"Sending prompt to terminal ({textToSend.Length} chars): {textToSend.Substring(0, Math.Min(200, textToSend.Length))}...");
+                await SendTextToTerminalAsync(textToSend);
 
                 // Clear prompt and images
                 PromptTextBox.Clear();
@@ -559,6 +591,140 @@ namespace ClaudeCodeVS
             catch (Exception ex)
             {
                 Debug.WriteLine($"Error inserting code snippet: {ex.Message}");
+            }
+        }
+
+        /// <summary>
+        /// Maintainer toggle for the optional "📥 Paste from Clipboard" entry in the attach
+        /// dropdown menu. When false (default) the entry is hidden in <see cref="ClaudeCodeControl"/>'s
+        /// constructor. Flip this to true to expose the feature to users.
+        ///
+        /// The entry pastes short clipboard text inline into the prompt, but for clipboard
+        /// content above the conhost truncation threshold it saves the text to a temp file
+        /// and attaches it instead — a workaround for the conhost INPUT_RECORD buffer
+        /// overflow that drops the front of large pastes (see issue #48).
+        /// </summary>
+        private const bool EnablePasteFromClipboardMenu = false;
+
+        /// <summary>
+        /// Handles the "Paste from Clipboard" menu item.
+        /// Short clipboard text is inserted into the prompt textbox at the caret;
+        /// large text is written to a temp file and attached (same path as the
+        /// regular Attach File flow), avoiding conhost paste-buffer truncation.
+        /// </summary>
+        private void PasteFromClipboardMenuItem_Click(object sender, RoutedEventArgs e)
+        {
+            try
+            {
+                ThreadHelper.ThrowIfNotOnUIThread();
+
+                // 1) File-drop list: clipboard holds a list of file paths (e.g. files copied
+                //    from Explorer). Attach them directly without copying.
+                if (Clipboard.ContainsFileDropList())
+                {
+                    var files = Clipboard.GetFileDropList();
+                    int added = 0;
+                    foreach (string path in files)
+                    {
+                        if (!string.IsNullOrEmpty(path) && (File.Exists(path) || Directory.Exists(path)))
+                        {
+                            attachedImagePaths.Add(path);
+                            added++;
+                        }
+                    }
+                    if (added > 0)
+                    {
+                        UpdateImageDropDisplay();
+                        PromptTextBox.Focus();
+                        Debug.WriteLine($"Attached {added} file(s) from clipboard file drop list");
+                        return;
+                    }
+                }
+
+                // 2) Image content: reuse the existing image-paste pipeline which saves the
+                //    bitmap as PNG into the temp image directory and attaches it.
+                //    TryPasteImage() intentionally skips when text is also present (Excel etc.),
+                //    so falls through to the text branch below in that case.
+                if (TryPasteImage())
+                {
+                    PromptTextBox.Focus();
+                    return;
+                }
+
+                // 3) Text content: small text goes inline at the caret, large text is saved
+                //    to a temp file and attached (avoids conhost paste-buffer truncation).
+                if (Clipboard.ContainsText())
+                {
+                    string clipboardText;
+                    try
+                    {
+                        clipboardText = Clipboard.GetText();
+                    }
+                    catch (Exception ex)
+                    {
+                        MessageBox.Show($"Could not read clipboard: {ex.Message}",
+                            "Clipboard Error", MessageBoxButton.OK, MessageBoxImage.Warning);
+                        return;
+                    }
+
+                    if (string.IsNullOrEmpty(clipboardText))
+                    {
+                        MessageBox.Show("Clipboard text is empty.",
+                            "Nothing to Paste", MessageBoxButton.OK, MessageBoxImage.Information);
+                        return;
+                    }
+
+                    // Same threshold as SendButton_Click — below it inline pastes are safe,
+                    // above it conhost would truncate the front.
+                    const int LargePasteThresholdChars = 1024;
+
+                    if (clipboardText.Length <= LargePasteThresholdChars)
+                    {
+                        // Short paste: insert at caret position.
+                        string currentText = PromptTextBox.Text ?? string.Empty;
+                        int caretIndex = PromptTextBox.CaretIndex;
+                        if (caretIndex >= 0 && caretIndex < currentText.Length && !string.IsNullOrEmpty(currentText))
+                        {
+                            PromptTextBox.Text = currentText.Insert(caretIndex, clipboardText);
+                            PromptTextBox.CaretIndex = caretIndex + clipboardText.Length;
+                        }
+                        else
+                        {
+                            PromptTextBox.Text = currentText + clipboardText;
+                            PromptTextBox.CaretIndex = PromptTextBox.Text.Length;
+                        }
+                        PromptTextBox.Focus();
+                        return;
+                    }
+
+                    // Large paste: write to a session temp file and attach it.
+                    try
+                    {
+                        string sessionDir = Path.Combine(Path.GetTempPath(), "ClaudeCodeVS_Session", Guid.NewGuid().ToString());
+                        Directory.CreateDirectory(sessionDir);
+                        string pasteFile = Path.Combine(sessionDir, $"paste-{DateTime.Now:yyyyMMdd-HHmmss}.txt");
+                        File.WriteAllText(pasteFile, clipboardText, new UTF8Encoding(false));
+
+                        attachedImagePaths.Add(pasteFile);
+                        UpdateImageDropDisplay();
+                        PromptTextBox.Focus();
+                        Debug.WriteLine($"Pasted clipboard ({clipboardText.Length} chars) attached as file: {pasteFile}");
+                    }
+                    catch (Exception ex)
+                    {
+                        MessageBox.Show($"Could not save clipboard to file: {ex.Message}",
+                            "Paste Failed", MessageBoxButton.OK, MessageBoxImage.Error);
+                    }
+                    return;
+                }
+
+                // 4) Nothing usable.
+                MessageBox.Show("Clipboard does not contain text, an image, or a file list.",
+                    "Nothing to Paste", MessageBoxButton.OK, MessageBoxImage.Information);
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"Error in PasteFromClipboardMenuItem_Click: {ex.Message}");
             }
         }
 
