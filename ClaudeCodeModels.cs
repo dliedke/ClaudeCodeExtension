@@ -191,6 +191,16 @@ namespace ClaudeCodeVS
         public bool SendWithEnter { get; set; } = true;
 
         /// <summary>
+        /// If true, prompts above ~1 KB are written to a temp file and only a file reference
+        /// (`Prompt content saved to: &lt;path&gt;`) is pasted into the terminal. This avoids the
+        /// conhost INPUT_RECORD buffer overflow that truncates the front of large pastes and
+        /// preserves the `Files attached:` list which would otherwise fall off the front.
+        /// If false, the prompt is pasted inline regardless of size (legacy behavior).
+        /// See issue #48.
+        /// </summary>
+        public bool SendLargePromptsAsFile { get; set; } = false;
+
+        /// <summary>
         /// Saved position of the grid splitter (in pixels)
         /// </summary>
         public double SplitterPosition { get; set; } = 236.0; // Default pixel height for first row

@@ -222,6 +222,12 @@
 								<ContextMenu x:Name="AttachContextMenu">
 									<MenuItem Header="📎  Attach File..." x:Name="AttachFileMenuItem" Click="AttachFileMenuItem_Click"/>
 									<MenuItem Header="📋  Insert Editor Selection" x:Name="InsertSelectionMenuItem" Click="GrabSelectionButton_Click"/>
+									<!--
+										Optional menu entry. Hidden by default. Set
+										EnablePasteFromClipboardMenu = true in ClaudeCodeControl.UserInput.cs
+										to expose it.
+									-->
+									<MenuItem Header="📥  Paste from Clipboard" x:Name="PasteFromClipboardMenuItem" Click="PasteFromClipboardMenuItem_Click" Visibility="Collapsed" ToolTip="When clipboard text is short it is inserted into the prompt directly. When it exceeds the truncation threshold it is saved to a temp file and attached, avoiding paste truncation."/>
 								</ContextMenu>
 							</Button.ContextMenu>
 						</Button>
@@ -340,6 +346,7 @@
 								<MenuItem Header="PI" x:Name="PiMenuItem" Click="PiMenuItem_Click" IsCheckable="True"/>
 								<Separator x:Name="AutoOpenChangesSeparator"/>
 								<MenuItem Header="Send with Enter" x:Name="SendWithEnterMenuItem" Click="SendWithEnterMenuItem_Click" IsCheckable="True" IsChecked="True" ToolTip="When enabled, Enter sends the prompt (use Shift+Enter or Ctrl+Enter for new lines). When disabled, Enter inserts a newline and the Send button is shown."/>
+								<MenuItem Header="Send large prompts as file" x:Name="SendLargePromptsAsFileMenuItem" Click="SendLargePromptsAsFileMenuItem_Click" IsCheckable="True" ToolTip="When enabled, long prompts are saved to a temporary file and only the file path is sent. Avoids truncation of large content."/>
 								<MenuItem Header="Auto-open Changes on Send" x:Name="AutoOpenChangesMenuItem" Click="AutoOpenChangesMenuItem_Click" IsCheckable="True" ToolTip="Automatically open Changes view, expand files, and enable auto-scroll when a prompt is sent"/>
 								<MenuItem Header="Claude Code: Skip Permissions" x:Name="ClaudeDangerouslySkipPermissionsMenuItem" Click="ClaudeDangerouslySkipPermissionsMenuItem_Click" IsCheckable="True" ToolTip="When enabled, Claude Code starts with --dangerously-skip-permissions"/>
 								<MenuItem Header="Codex: Approval Never" x:Name="CodexFullAutoMenuItem" Click="CodexFullAutoMenuItem_Click" IsCheckable="True" ToolTip="When enabled, Codex starts with --ask-for-approval never"/>

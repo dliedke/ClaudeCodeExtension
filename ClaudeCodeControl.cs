@@ -70,6 +70,14 @@ namespace ClaudeCodeVS
             // Initialize XAML components
             InitializeComponent();
 
+            // Show or hide the optional "Paste from Clipboard" menu item based on the
+            // EnablePasteFromClipboardMenu flag in ClaudeCodeControl.UserInput.cs.
+            // The flag is OFF by default — flip it to true to expose the entry.
+            if (EnablePasteFromClipboardMenu && PasteFromClipboardMenuItem != null)
+            {
+                PasteFromClipboardMenuItem.Visibility = System.Windows.Visibility.Visible;
+            }
+
             // Initialize temporary directory for image storage
             InitializeTempDirectory();
 
