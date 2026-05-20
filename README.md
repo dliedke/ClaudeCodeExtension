@@ -270,6 +270,10 @@ Claude will write the `SKILL.md` file with the proper frontmatter and instructio
 
 ## Version History
 
+### Version 10.52
+- **New: "Disable Auto Zoom on Startup" setting**: New toggle in the Settings menu skips the automatic terminal zoom-out and saved zoom-delta replay that runs after each terminal start. Useful on 4K/high-DPI displays where the default auto-zoom produces fonts that are too small. Manual Ctrl+Scroll zoom is unaffected.
+- **Performance: Faster startup zoom**: The Windows Terminal zoom replay now batches all keystrokes through a single SendInput call instead of looping `keybd_event` with per-step delays. The auto-zoom step is roughly 10× faster and no longer freezes mouse/keyboard input on slower machines while the extension is starting.
+
 ### Version 10.51
 - **Fix: Usage page auto-confirms corporate proxy block screens**: When a network proxy shows a "Continue" interstitial before claude.ai, it is now clicked automatically even while the Claude Usage tab is hidden, so the inline usage bars keep updating.
 - **rbuss93 contribution (PR #51): Send large prompts as file (opt-in)**: New "Send large prompts as file" option in the Settings menu. When enabled, very long prompts are saved to a temp file and the assistant is asked to read it — avoiding paste truncation on big prompts and keeping the "Files attached:" list intact.

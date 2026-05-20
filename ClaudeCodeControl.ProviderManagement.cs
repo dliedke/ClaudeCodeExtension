@@ -2777,8 +2777,26 @@ For more details, visit: https://pi.dev";
 
                 // Update invert layout checkbox
                 InvertLayoutMenuItem.IsChecked = _settings.InvertLayout;
+
+                // Update disable-startup-auto-zoom checkbox
+                DisableStartupAutoZoomMenuItem.IsChecked = _settings.DisableStartupAutoZoom;
             }
 
+        }
+
+        /// <summary>
+        /// Handles the "Disable Auto Zoom on Startup" toggle. When checked, the
+        /// extension skips the automatic terminal zoom-out and saved zoom-delta
+        /// replay performed after each terminal start.
+        /// </summary>
+        private void DisableStartupAutoZoomMenuItem_Click(object sender, RoutedEventArgs e)
+        {
+            ThreadHelper.ThrowIfNotOnUIThread();
+
+            if (_settings == null) return;
+
+            _settings.DisableStartupAutoZoom = DisableStartupAutoZoomMenuItem.IsChecked;
+            SaveSettings();
         }
 
         /// <summary>

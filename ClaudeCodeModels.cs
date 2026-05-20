@@ -292,6 +292,15 @@ namespace ClaudeCodeVS
         public int TerminalZoomDelta { get; set; } = 0;
 
         /// <summary>
+        /// When true, the extension skips the automatic terminal zoom-out and saved
+        /// zoom-delta replay that runs after each terminal start. Manual Ctrl+Scroll
+        /// zoom remains available. Useful on high-DPI displays where the default
+        /// auto-zoom produces fonts that are too small, or to avoid the brief input
+        /// freeze caused by the synthesized keystrokes during startup.
+        /// </summary>
+        public bool DisableStartupAutoZoom { get; set; } = false;
+
+        /// <summary>
         /// If true, the layout is inverted: terminal on top, prompt on bottom.
         /// Default is false (prompt on top, terminal on bottom).
         /// </summary>

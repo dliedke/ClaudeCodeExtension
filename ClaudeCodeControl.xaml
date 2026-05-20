@@ -354,6 +354,7 @@
 								<MenuItem Header="Windsurf: Dangerous Mode" x:Name="WindsurfDangerousModeMenuItem" Click="WindsurfDangerousModeMenuItem_Click" IsCheckable="True" ToolTip="When enabled, Windsurf starts with --permission-mode dangerous"/>
 								<Separator/>
 								<MenuItem Header="Invert Layout" x:Name="InvertLayoutMenuItem" Click="InvertLayoutMenuItem_Click" IsCheckable="True" ToolTip="Swap prompt and terminal positions (terminal on top, prompt on bottom)"/>
+								<MenuItem Header="Disable Auto Zoom on Startup" x:Name="DisableStartupAutoZoomMenuItem" Click="DisableStartupAutoZoomMenuItem_Click" IsCheckable="True" ToolTip="Skip the automatic terminal zoom-out and saved zoom-delta replay performed after each terminal start. Manual Ctrl+Scroll zoom still works. Enable this on high-DPI displays where the default auto-zoom is too small, or to avoid the brief input freeze caused by synthesized keystrokes during startup."/>
 								<Separator/>
 								<MenuItem Header="Set Working Directory..." x:Name="SetWorkingDirectoryMenuItem" Click="SetWorkingDirectoryMenuItem_Click" ToolTip="Set a custom working directory (absolute or relative to solution). Leave empty for default behavior."/>
 								<MenuItem Header="Set Terminal Type..." x:Name="SetTerminalTypeMenuItem" Click="SetTerminalTypeMenuItem_Click" ToolTip="Choose between Command Prompt (default) or Windows Terminal (better emoji/unicode support)"/>

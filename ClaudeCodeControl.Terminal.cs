@@ -719,7 +719,7 @@ namespace ClaudeCodeVS
                 {
                     await StabilizeEmbeddedTerminalLayoutAsync(expectedSessionId, expectedHandle);
 
-                    if (!EnableStartupTerminalAutoZoom)
+                    if (!EnableStartupTerminalAutoZoom || _settings?.DisableStartupAutoZoom == true)
                     {
                         return;
                     }
@@ -732,19 +732,16 @@ namespace ClaudeCodeVS
                         return;
                     }
 
-                    if (_wtTabBarHeight > 0)
-                    {
-                        await ApplyWindowsTerminalZoomOutAsync();
-                    }
+                    // Batch the WT zoom-out and the saved-delta replay into a single
+                    // focus+SendInput pass so the synthesized keystrokes block input
+                    // for tens of milliseconds rather than the better part of a second.
+                    int defaultWtZoomOutSteps = _wtTabBarHeight > 0 ? 3 : 0;
+                    int savedDelta = _settings?.TerminalZoomDelta ?? 0;
+                    int netDelta = savedDelta - defaultWtZoomOutSteps;
 
-                    if (!IsCurrentTerminalSession(expectedSessionId, expectedHandle))
+                    if (netDelta != 0)
                     {
-                        return;
-                    }
-
-                    if (_settings?.TerminalZoomDelta != 0)
-                    {
-                        await ApplyTerminalZoomDeltaAsync(_settings.TerminalZoomDelta, initialDelayMs: 0);
+                        await ApplyTerminalZoomDeltaAsync(netDelta, initialDelayMs: 0);
                     }
 
                     if (!IsCurrentTerminalSession(expectedSessionId, expectedHandle))
@@ -1562,53 +1559,6 @@ namespace ClaudeCodeVS
         }
 
         /// <summary>
-        /// Applies zoom out to Windows Terminal for better visibility
-        /// Sends Ctrl+Minus multiple times to zoom out significantly
-        /// </summary>
-        private async Task ApplyWindowsTerminalZoomOutAsync()
-        {
-            if (_wtTabBarHeight <= 0 || terminalHandle == IntPtr.Zero || !IsWindow(terminalHandle))
-                return;
-            try
-            {
-                // Activate the tool window tab first so keybd_event keystrokes hit the terminal
-                await ActivateTerminalToolWindowAsync();
-                await Task.Delay(100);
-
-                await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
-                var panel = ActiveTerminalPanel;
-                if (panel == null) return;
-
-                FocusTerminalPanel(panel);
-                await Task.Delay(150);
-
-                // Re-assert focus in case VS restored it to another control during the delay
-                await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
-                SetFocus(terminalHandle);
-
-                for (int i = 0; i < 3; i++)
-                {
-                    keybd_event(VK_CONTROL, 0, 0, UIntPtr.Zero);
-                    await Task.Delay(50);
-                    keybd_event(0xBD, 0, 0, UIntPtr.Zero); // VK_OEM_MINUS
-                    await Task.Delay(50);
-                    keybd_event(0xBD, 0, KEYEVENTF_KEYUP, UIntPtr.Zero);
-                    await Task.Delay(50);
-                    keybd_event(VK_CONTROL, 0, KEYEVENTF_KEYUP, UIntPtr.Zero);
-                    await Task.Delay(100);
-                }
-
-                // Trigger a WM_MOUSEMOVE so Windows re-shows the cursor after keybd_event suppressed it
-                var curPos = System.Windows.Forms.Cursor.Position;
-                System.Windows.Forms.Cursor.Position = curPos;
-            }
-            catch (Exception ex)
-            {
-                Debug.WriteLine($"Error applying zoom to Windows Terminal: {ex.Message}");
-            }
-        }
-
-        /// <summary>
         /// Ensures the VS tool window tab that hosts the terminal is the active tab.
         /// Uses the detached window frame when the terminal is detached, otherwise the main tool window frame.
         /// Must be called before keybd_event zoom so the keystrokes go to the terminal, not whatever
@@ -1651,7 +1601,10 @@ namespace ClaudeCodeVS
 
         /// <summary>
         /// Replays the saved terminal zoom delta.
-        /// Windows Terminal: uses keybd_event (Ctrl+= / Ctrl+-) — same proven approach as ApplyWindowsTerminalZoomOutAsync.
+        /// Windows Terminal: batches Ctrl+= / Ctrl+- keystrokes through a single SendInput
+        /// syscall. This is dramatically faster than the previous keybd_event loop (which
+        /// took ~250 ms per step and suppressed the cursor between every press), so the
+        /// startup auto-zoom no longer produces a visible input freeze.
         /// Command Prompt: uses PostMessage WM_MOUSEWHEEL+MK_CONTROL — same mechanism as Ctrl+Scroll forwarding.
         /// </summary>
         private async Task ApplyTerminalZoomDeltaAsync(int delta, int initialDelayMs = 1500)
@@ -1680,30 +1633,20 @@ namespace ClaudeCodeVS
                     // Activate the VS tab hosting the terminal before sending keystrokes,
                     // then re-acquire the main thread (Task.Delay inside may have left it).
                     await ActivateTerminalToolWindowAsync();
-                    await Task.Delay(100);
+                    await Task.Delay(60);
                     await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
 
                     FocusTerminalPanel(panel);
-                    await Task.Delay(150);
+                    await Task.Delay(80);
 
                     // Re-assert focus in case VS restored it to another control during the delay
                     await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
                     SetFocus(terminalHandle);
 
-                    int key = delta > 0 ? 0xBB : 0xBD; // VK_OEM_PLUS / VK_OEM_MINUS
-                    for (int i = 0; i < steps; i++)
-                    {
-                        keybd_event(VK_CONTROL, 0, 0, UIntPtr.Zero);
-                        await Task.Delay(50);
-                        keybd_event(key, 0, 0, UIntPtr.Zero);
-                        await Task.Delay(50);
-                        keybd_event(key, 0, KEYEVENTF_KEYUP, UIntPtr.Zero);
-                        await Task.Delay(50);
-                        keybd_event(VK_CONTROL, 0, KEYEVENTF_KEYUP, UIntPtr.Zero);
-                        await Task.Delay(100);
-                    }
+                    SendBatchedCtrlChordToTerminal(delta > 0 ? (ushort)0xBB : (ushort)0xBD, steps);
 
-                    // Trigger a WM_MOUSEMOVE so Windows re-shows the cursor after keybd_event suppressed it
+                    // Trigger a WM_MOUSEMOVE so Windows re-shows the cursor after the
+                    // synthesized keystrokes briefly suppressed it.
                     var curPos = System.Windows.Forms.Cursor.Position;
                     System.Windows.Forms.Cursor.Position = curPos;
                 }
@@ -1720,7 +1663,7 @@ namespace ClaudeCodeVS
                     {
                         int wParam = (notch << 16) | 0x0008; // HIWORD=delta, LOWORD=MK_CONTROL
                         PostMessage(terminalHandle, WM_MOUSEWHEEL, (IntPtr)wParam, (IntPtr)lParam);
-                        await Task.Delay(80);
+                        await Task.Delay(40);
                     }
                 }
 
@@ -1731,6 +1674,41 @@ namespace ClaudeCodeVS
             {
                 Debug.WriteLine($"Error applying terminal zoom delta: {ex.Message}");
             }
+        }
+
+        /// <summary>
+        /// Synthesizes <paramref name="repeats"/> Ctrl+<paramref name="vkKey"/> presses
+        /// through a single SendInput call. Replaces a loop of keybd_event + Task.Delay
+        /// that was the dominant cost of the Windows Terminal zoom replay.
+        /// </summary>
+        private static void SendBatchedCtrlChordToTerminal(ushort vkKey, int repeats)
+        {
+            if (repeats <= 0) return;
+
+            // Per repeat: Ctrl down, key down, key up, Ctrl up
+            INPUT[] inputs = new INPUT[repeats * 4];
+            for (int i = 0; i < repeats; i++)
+            {
+                int b = i * 4;
+
+                inputs[b].type = INPUT_KEYBOARD;
+                inputs[b].u.ki.wVk = (ushort)VK_CONTROL;
+                inputs[b].u.ki.dwFlags = 0;
+
+                inputs[b + 1].type = INPUT_KEYBOARD;
+                inputs[b + 1].u.ki.wVk = vkKey;
+                inputs[b + 1].u.ki.dwFlags = 0;
+
+                inputs[b + 2].type = INPUT_KEYBOARD;
+                inputs[b + 2].u.ki.wVk = vkKey;
+                inputs[b + 2].u.ki.dwFlags = KEYEVENTF_KEYUP;
+
+                inputs[b + 3].type = INPUT_KEYBOARD;
+                inputs[b + 3].u.ki.wVk = (ushort)VK_CONTROL;
+                inputs[b + 3].u.ki.dwFlags = KEYEVENTF_KEYUP;
+            }
+
+            SendInput((uint)inputs.Length, inputs, Marshal.SizeOf(typeof(INPUT)));
         }
 
         /// <summary>
