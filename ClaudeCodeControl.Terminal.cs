@@ -157,6 +157,7 @@ namespace ClaudeCodeVS
                 bool useOpenCode = _settings?.SelectedProvider == AiProvider.OpenCode;
                 bool useWindsurf = _settings?.SelectedProvider == AiProvider.Windsurf;
                 bool usePi = _settings?.SelectedProvider == AiProvider.Pi;
+                bool useAntigravity = _settings?.SelectedProvider == AiProvider.Antigravity;
                 bool providerAvailable = false;
 
 
@@ -199,6 +200,10 @@ namespace ClaudeCodeVS
                 else if (usePi)
                 {
                     providerAvailable = await IsPiAvailableAsync();
+                }
+                else if (useAntigravity)
+                {
+                    providerAvailable = await IsAntigravityAvailableAsync();
                 }
                 else
                 {
@@ -374,6 +379,22 @@ namespace ClaudeCodeVS
                         {
                             _piNotificationShown = true;
                             ShowPiInstallationInstructions();
+                        }
+                        await StartEmbeddedTerminalAsync(null); // Regular CMD
+                    }
+                }
+                else if (useAntigravity)
+                {
+                    if (providerAvailable)
+                    {
+                        await StartEmbeddedTerminalAsync(AiProvider.Antigravity);
+                    }
+                    else
+                    {
+                        if (!_antigravityNotificationShown)
+                        {
+                            _antigravityNotificationShown = true;
+                            ShowAntigravityInstallationInstructions();
                         }
                         await StartEmbeddedTerminalAsync(null); // Regular CMD
                     }
@@ -851,6 +872,10 @@ namespace ClaudeCodeVS
                             cmdCommand = $"/k chcp 65001 >nul && cd /d \"{workspaceDir}\" && ping localhost -n 3 >nul && cls && pi";
                             break;
 
+                        case AiProvider.Antigravity:
+                            cmdCommand = $"/k chcp 65001 >nul && cd /d \"{workspaceDir}\" && ping localhost -n 3 >nul && cls && agy";
+                            break;
+
                         default: // null or any other value = regular CMD
                             cmdCommand = $"/k chcp 65001 >nul && cd /d \"{workspaceDir}\"";
                             break;
@@ -1031,6 +1056,10 @@ namespace ClaudeCodeVS
 
                         case AiProvider.Pi:
                             terminalCommand = $"/k chcp 65001 >nul && cd /d \"{workspaceDir}\" && ping localhost -n 3 >nul && cls && pi";
+                            break;
+
+                        case AiProvider.Antigravity:
+                            terminalCommand = $"/k chcp 65001 >nul && cd /d \"{workspaceDir}\" && ping localhost -n 3 >nul && cls && agy";
                             break;
 
                         default: // null or any other value = regular CMD
@@ -2286,6 +2315,13 @@ namespace ClaudeCodeVS
                         await SendTextToTerminalAsync("npm install -g @earendil-works/pi-coding-agent@latest");
                         break;
 
+                    case AiProvider.Antigravity:
+                        // Antigravity: exit, wait, then re-run the installer to update
+                        await SendTextToTerminalAsync("exit");
+                        await Task.Delay(1000);
+                        await SendTextToTerminalAsync("powershell -Command \"irm https://antigravity.google/cli/install.ps1 | iex\"");
+                        break;
+
                     default:
                         // Regular CMD - just try to update Claude if available
                         await SendTextToTerminalAsync("claude update");
@@ -2460,6 +2496,10 @@ namespace ClaudeCodeVS
 
                 case AiProvider.Pi:
                     providerAvailable = await IsPiAvailableAsync();
+                    break;
+
+                case AiProvider.Antigravity:
+                    providerAvailable = await IsAntigravityAvailableAsync();
                     break;
 
             }

@@ -6,7 +6,7 @@
 
 - **Author**: Daniel Carvalho Liedke (dliedke@gmail.com) | **License**: MIT
 - **Repository**: https://github.com/dliedke/ClaudeCodeExtension
-- **Current Version**: 10.51 | **Target Framework**: .NET Framework 4.7.2
+- **Current Version**: 10.53 | **Target Framework**: .NET Framework 4.7.2
 
 ---
 
@@ -139,6 +139,7 @@ WSL:     cmd.exe /k chcp 65001 >nul && cls && wsl bash -lic "cd {wslPath} && {co
 - **Claude Code detection**: Two-tier — first checks native path (`%USERPROFILE%\.local\bin\claude.exe`), then falls back to `where claude` (PATHEXT-aware, finds both `claude.exe` from winget and `claude.cmd` from NPM)
 - **WSL detection**: `bash -lc` (login shell) for `which` commands — avoids `.bashrc` noise; retries 2x with 8s/20s timeouts for cold boot
 - **PI detection**: `IsPiAvailableAsync()` runs `cmd /c where pi` (3s timeout), available when exit code 0 and stdout non-empty; native Windows NPM tool (`@earendil-works/pi-coding-agent`), TUI-based — paste uses Shift+Right-click and `WM_CHAR` Enter like Open Code
+- **Antigravity detection**: `IsAntigravityAvailableAsync()` runs `cmd /c where agy` (3s timeout, PATH refreshed from registry), available when exit code 0 and stdout non-empty; Google's native Windows agent (installed via `irm https://antigravity.google/cli/install.ps1 | iex` to `%LocalAppData%\agy`, launched with `agy`). Runs in regular conhost and uses `WM_CHAR` Enter like Claude Code. **Paste workaround**: Antigravity disables conhost `ENABLE_QUICK_EDIT_MODE` at startup (so its TUI can capture mouse input), so a plain right-click opens the conhost context menu (Mark/Copy/Paste/…) instead of pasting. `SetConsoleMode` re-attachment via `AttachConsole(conhostPid)` was tried first but Antigravity races us and re-disables it before the click lands. Working approach: dedicated paste branch right-clicks to open the menu, then sends Down → Down → Down → Enter via `keybd_event` (`SendKeyDownUp` helper). The menu order is Mark, Copy (disabled), Paste, Select All, Scroll, Find; Windows menus still stop on disabled items during arrow navigation, so three Downs are needed to land on Paste. Menu order is locale-agnostic; only the labels change. Delays are intentionally generous (500ms after right-click, 150ms between keys) — rushing drops keystrokes. Antigravity is excluded from the `isCommandPrompt` cancel-selection right-click for the same reason
 - **Early-exit logic**: Only stops retrying when stdout has content (ignores stderr-only shell warnings)
 - **Notification flags**: Static booleans (one per provider) ensure install pop-ups show only once per VS session
 - **Model menus**: `ModelContextMenu_Opened()` toggles Claude items vs Windsurf items based on active provider
@@ -222,7 +223,7 @@ Re-parents terminal to/from `DetachedTerminalToolWindow` via `SetParent()`. Auto
 ## Data Models (ClaudeCodeModels.cs)
 
 ```csharp
-enum AiProvider { ClaudeCode, ClaudeCodeWSL, Codex, CodexNative, CursorAgent, CursorAgentNative, OpenCode, Windsurf, Pi }
+enum AiProvider { ClaudeCode, ClaudeCodeWSL, Codex, CodexNative, CursorAgent, CursorAgentNative, OpenCode, Windsurf, Pi, Antigravity }
 enum ClaudeModel { Opus, Sonnet, Haiku }
 enum WindsurfModel { ClaudeOpus, ClaudeSonnet, Codex, GeminiPro }
 enum EffortLevel { Auto, Low, Medium, High, Max }
@@ -250,6 +251,7 @@ Key settings: `SplitterPosition` (236px default), `SelectedProvider`, `SelectedC
 | Open Code | `OpenCode` | Windows | `opencode` | `exit` |
 | Windsurf (WSL) | `Windsurf` | WSL | `devin` | `exit` |
 | PI | `Pi` | Windows | `pi` | `exit` |
+| Antigravity | `Antigravity` | Windows | `agy` | `exit` |
 
 **Plugin**: Caveman (JuliusBrussee/caveman) — installable into Claude Code sessions via model menu
 

@@ -152,10 +152,14 @@ namespace ClaudeCodeVS
 
                     // For Command Prompt (conhost): right-click first to cancel any active text selection.
                     // If text is selected, right-click copies it to clipboard and deselects.
-                    // If no text is selected, right-click pastes from clipboard (which is empty, so harmless).                    
+                    // If no text is selected, right-click pastes from clipboard (which is empty, so harmless).
+                    // Antigravity is excluded because it disables QuickEdit at startup, so a plain
+                    // right-click would open the conhost context menu instead — the menu navigation
+                    // for Antigravity happens in the dedicated paste branch below.
                     bool isCommandPrompt = _wtTabBarHeight == 0
                                            && _currentRunningProvider != AiProvider.OpenCode
-                                           && _currentRunningProvider != AiProvider.Pi;
+                                           && _currentRunningProvider != AiProvider.Pi
+                                           && _currentRunningProvider != AiProvider.Antigravity;
                     if (isCommandPrompt)
                     {
                         await RightClickTerminalCenterAsync();
@@ -376,6 +380,28 @@ namespace ClaudeCodeVS
                      || _currentRunningProvider == AiProvider.Pi)
             {
                 await ShiftRightClickTerminalCenterAsync();
+                await Task.Delay(800 + extraDelayMs);
+            }
+            else if (_currentRunningProvider == AiProvider.Antigravity)
+            {
+                // Antigravity disables conhost QuickEdit mode at startup so its TUI can
+                // capture mouse events. As a result, right-click opens the conhost context
+                // menu instead of pasting. Navigate the menu with the keyboard:
+                //   Down -> highlights "Mark" (first item)
+                //   Down -> highlights "Copy" (disabled, but Windows menus still stop on it)
+                //   Down -> highlights "Paste"
+                //   Enter -> invokes Paste
+                // Menu order is locale-agnostic; only the labels change. The delays are
+                // intentionally generous because rushing the keystrokes drops them.
+                await RightClickTerminalCenterAsync();
+                await Task.Delay(500); // let conhost render the context menu
+                SendKeyDownUp(VK_DOWN);
+                await Task.Delay(150);
+                SendKeyDownUp(VK_DOWN);
+                await Task.Delay(150);
+                SendKeyDownUp(VK_DOWN);
+                await Task.Delay(150);
+                SendKeyDownUp(VK_RETURN);
                 await Task.Delay(800 + extraDelayMs);
             }
             else
@@ -751,6 +777,17 @@ namespace ClaudeCodeVS
                 // Release SHIFT key
                 keybd_event(VK_SHIFT, 0, KEYEVENTF_KEYUP, UIntPtr.Zero);
             }
+        }
+
+        /// <summary>
+        /// Sends a single virtual-key down+up using keybd_event. Used for keyboard navigation
+        /// of system context menus (e.g. the conhost right-click menu shown by Antigravity).
+        /// </summary>
+        private void SendKeyDownUp(int virtualKey)
+        {
+            keybd_event(virtualKey, 0, 0, UIntPtr.Zero);
+            System.Threading.Thread.Sleep(50);
+            keybd_event(virtualKey, 0, KEYEVENTF_KEYUP, UIntPtr.Zero);
         }
 
         /// <summary>

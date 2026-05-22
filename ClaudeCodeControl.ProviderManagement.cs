@@ -69,6 +69,11 @@ namespace ClaudeCodeVS
         /// </summary>
         private static bool _piNotificationShown = false;
 
+        /// <summary>
+        /// Flag to show Antigravity installation notification only once per session
+        /// </summary>
+        private static bool _antigravityNotificationShown = false;
+
         #endregion
 
         #region Provider Availability Cache
@@ -1020,6 +1025,75 @@ namespace ClaudeCodeVS
         }
 
         /// <summary>
+        /// Checks if Antigravity CLI is available (native Windows installation under %LocalAppData%\agy)
+        /// Uses 'where agy' to check if agy is in PATH
+        /// Uses caching to avoid repeated slow checks
+        /// </summary>
+        /// <param name="cancellationToken">Optional cancellation token</param>
+        /// <returns>True if agy is available, false otherwise</returns>
+        private async Task<bool> IsAntigravityAvailableAsync(CancellationToken cancellationToken = default)
+        {
+            // Check cache first
+            lock (_cacheLock)
+            {
+                if (_providerCache.TryGetValue(AiProvider.Antigravity, out var cached) && IsCacheValid(cached))
+                {
+                    return cached.IsAvailable;
+                }
+            }
+
+            try
+            {
+                var startInfo = new ProcessStartInfo
+                {
+                    FileName = "cmd.exe",
+                    Arguments = "/c where agy",
+                    UseShellExecute = false,
+                    RedirectStandardOutput = true,
+                    RedirectStandardError = true,
+                    CreateNoWindow = true
+                };
+
+                // Refresh PATH from registry so a freshly installed agy is detected without VS restart
+                string freshPath = GetFreshPathFromRegistry();
+                if (!string.IsNullOrEmpty(freshPath))
+                {
+                    startInfo.EnvironmentVariables["PATH"] = freshPath;
+                }
+
+                using (var process = Process.Start(startInfo))
+                {
+                    var completed = await WaitForProcessExitAsync(process, 3000, cancellationToken);
+
+                    if (!completed)
+                    {
+                        try { process.Kill(); } catch { }
+                        CacheProviderResult(AiProvider.Antigravity, false);
+                        return false;
+                    }
+
+                    string output = await process.StandardOutput.ReadToEndAsync();
+                    string error = await process.StandardError.ReadToEndAsync();
+
+                    bool isAvailable = process.ExitCode == 0 && !string.IsNullOrWhiteSpace(output);
+
+                    CacheProviderResult(AiProvider.Antigravity, isAvailable);
+                    return isAvailable;
+                }
+            }
+            catch (OperationCanceledException)
+            {
+                throw;
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"Error checking for Antigravity: {ex.Message}");
+                CacheProviderResult(AiProvider.Antigravity, false);
+                return false;
+            }
+        }
+
+        /// <summary>
         /// Checks if Windows Terminal is installed and available
         /// Checks the PATH (refreshed from registry) for wt.exe executable
         /// </summary>
@@ -1356,6 +1430,30 @@ For more details, visit: https://pi.dev";
                           MessageBoxButton.OK, MessageBoxImage.Information);
         }
 
+        private void ShowAntigravityInstallationInstructions()
+        {
+            // Expand %LocalAppData%\agy to the actual path so the user can copy it
+            // straight into the Environment Variables dialog without guessing.
+            string agyPath = System.IO.Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+                "agy");
+
+            string instructions =
+                "Antigravity is not installed. A regular CMD terminal will be used instead.\r\n\r\n" +
+                "(you may click CTRL+C to copy full instructions)\r\n\r\n" +
+                "INSTALLATION\r\n\r\n" +
+                "Open PowerShell and run:\r\n\r\n" +
+                "irm https://antigravity.google/cli/install.ps1 | iex\r\n\r\n" +
+                "Then add the install folder to your PATH:\r\n\r\n" +
+                agyPath + "\r\n\r\n" +
+                "(Open a new terminal afterwards so the updated PATH takes effect.)\r\n\r\n" +
+                "The agent is launched with the 'agy' command.\r\n\r\n" +
+                "For more details, visit: https://antigravity.google/download";
+
+            MessageBox.Show(instructions, "Antigravity Installation",
+                          MessageBoxButton.OK, MessageBoxImage.Information);
+        }
+
         #endregion
 
         #region Provider Switching
@@ -1448,6 +1546,34 @@ For more details, visit: https://pi.dev";
             else
             {
                 await StartEmbeddedTerminalAsync(AiProvider.Pi);
+            }
+        }
+
+        /// <summary>
+        /// Handles Antigravity menu item click - switches to Antigravity provider
+        /// </summary>
+#pragma warning disable VSTHRD100 // async void is acceptable for event handlers
+        private async void AntigravityMenuItem_Click(object sender, RoutedEventArgs e)
+#pragma warning restore VSTHRD100
+        {
+            if (_settings == null) return;
+
+            bool antigravityAvailable = await IsAntigravityAvailableAsync();
+            await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
+
+            // Always update the selection regardless of availability
+            _settings.SelectedProvider = AiProvider.Antigravity;
+            UpdateProviderSelection();
+            SaveSettings();
+
+            if (!antigravityAvailable)
+            {
+                ShowAntigravityInstallationInstructions();
+                await StartEmbeddedTerminalAsync(null); // Regular CMD
+            }
+            else
+            {
+                await StartEmbeddedTerminalAsync(AiProvider.Antigravity);
             }
         }
 
@@ -1645,6 +1771,7 @@ For more details, visit: https://pi.dev";
             OpenCodeMenuItem.IsChecked = _settings.SelectedProvider == AiProvider.OpenCode;
             WindsurfMenuItem.IsChecked = _settings.SelectedProvider == AiProvider.Windsurf;
             PiMenuItem.IsChecked = _settings.SelectedProvider == AiProvider.Pi;
+            AntigravityMenuItem.IsChecked = _settings.SelectedProvider == AiProvider.Antigravity;
 
             // Update GroupBox header to show selected provider (not necessarily running yet)
             string providerName = GetProviderDisplayName(_settings.SelectedProvider);
@@ -1722,6 +1849,8 @@ For more details, visit: https://pi.dev";
                     return "Windsurf";
                 case AiProvider.Pi:
                     return "PI";
+                case AiProvider.Antigravity:
+                    return "Antigravity";
                 default:
                     return "CMD";
             }
@@ -2701,8 +2830,10 @@ For more details, visit: https://pi.dev";
                                      _settings.SelectedProvider == AiProvider.Windsurf;
             bool isPiProvider = _settings != null &&
                                _settings.SelectedProvider == AiProvider.Pi;
+            bool isAntigravityProvider = _settings != null &&
+                               _settings.SelectedProvider == AiProvider.Antigravity;
 
-            AutoOpenChangesSeparator.Visibility = (isInGitRepo || isClaudeProvider || isCodexProvider || isCursorAgentProvider || isWindsurfProvider || isPiProvider) ? Visibility.Visible : Visibility.Collapsed;
+            AutoOpenChangesSeparator.Visibility = (isInGitRepo || isClaudeProvider || isCodexProvider || isCursorAgentProvider || isWindsurfProvider || isPiProvider || isAntigravityProvider) ? Visibility.Visible : Visibility.Collapsed;
             AutoOpenChangesMenuItem.Visibility = isInGitRepo ? Visibility.Visible : Visibility.Collapsed;
             ClaudeDangerouslySkipPermissionsMenuItem.Visibility = isClaudeProvider ? Visibility.Visible : Visibility.Collapsed;
             CodexFullAutoMenuItem.Visibility = isCodexProvider ? Visibility.Visible : Visibility.Collapsed;

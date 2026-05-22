@@ -1,6 +1,6 @@
 # Claude Code Extension for Visual Studio
 
-A Visual Studio extension that provides seamless integration with Claude Code, OpenAI Codex, Cursor Agent, Open Code, Windsurf or PI directly within the Visual Studio IDE.
+A Visual Studio extension that provides seamless integration with Claude Code, OpenAI Codex, Cursor Agent, Open Code, Windsurf, PI or Google Antigravity directly within the Visual Studio IDE.
 
 <center>
 <img src="https://i.ibb.co/mFcsh3nt/BFB9-B830-8122-4091-9-C8-B-869959-B1-B391.png" alt="Claude Code Extension Screenshot" width=350 height=450 />
@@ -29,6 +29,7 @@ Any feedback, suggestions, or contributions are also very welcome - feel free to
 - **Open Code**: Support for Open Code AI assistant (requires Node.js 14+)
 - **Windsurf (WSL)**: Support for Windsurf (devin) running inside WSL
 - **PI**: Support for PI coding agent (requires Node.js + Git for Windows)
+- **Google Antigravity**: Support for Google's Antigravity CLI agent (Windows native, Gemini 3.5 Flash)
 - **Provider Switching**: Easy dropdown menu to switch between providers
 - **Smart Detection**: Automatic detection and installation instructions for each AI tool
 - **Claude Model Selection**: Quick model switching for Claude Code (Opus, Sonnet, Haiku) with dropdown menu. For Opus also possible to select low, medium, high thinking modes
@@ -125,6 +126,10 @@ Any feedback, suggestions, or contributions are also very welcome - feel free to
 - **For PI**: Node.js installed + Git for Windows (Git Bash) + PI CLI installed and accessible via `pi` in path.
   Install via `npm install -g @earendil-works/pi-coding-agent`
   Installation instructions are provided automatically if not installed
+- **For Google Antigravity**: Antigravity CLI installed and accessible via `agy` in path. Uses Gemini 3.5 Flash.
+  Install via PowerShell: `irm https://antigravity.google/cli/install.ps1 | iex`, then add `%LocalAppData%\agy` to your PATH.
+  Installation instructions are provided automatically if not installed
+  More info: https://antigravity.google/download
 
 ## Installing Windows Terminal (Optional)
 
@@ -150,9 +155,9 @@ Open Windows Settings, search for "Terminal settings", and set the Terminal opti
 
 ## Quick Start
 
-- **First-Time Setup**: Verify that your preferred AI provider (Claude Code, Claude Code WSL, OpenAI Codex, Cursor Agent, Cursor Agent WSL, Open Code, Windsurf, or PI) is installed and accessible
+- **First-Time Setup**: Verify that your preferred AI provider (Claude Code, Claude Code WSL, OpenAI Codex, Cursor Agent, Cursor Agent WSL, Open Code, Windsurf, PI, or Google Antigravity) is installed and accessible
 - **Open the Tool Window**: View → Other Windows → Claude Code Extension
-- **Select an AI Provider**: Click the ⚙ (gear) button and choose among Claude Code, Claude Code (WSL), Codex, Cursor Agent, Cursor Agent (WSL), Open Code, Windsurf (WSL), or PI
+- **Select an AI Provider**: Click the ⚙ (gear) button and choose among Claude Code, Claude Code (WSL), Codex, Cursor Agent, Cursor Agent (WSL), Open Code, Windsurf (WSL), PI, or Google Antigravity
 - **Connect to Provider**: If you use Open Code, press **Ctrl+P**, search for "connect providers", and complete the authentication flow
 - **Select a Claude Model**: Click the 🤖 (robot) button to choose Opus, Sonnet, or Haiku (available only when Claude Code is selected)
 - **Start a Session**: Enter your prompt and press Enter
@@ -187,6 +192,7 @@ Open Windows Settings, search for "Terminal settings", and set the Terminal opti
 - **Open Code**: Switch to Open Code AI assistant (Windows)
 - **Windsurf (WSL)**: Switch to Windsurf (devin) running inside WSL
 - **PI**: Switch to PI coding agent (Windows)
+- **Antigravity**: Switch to Google Antigravity CLI (Windows native, Gemini 3.5 Flash)
 - **Auto-open Changes on Send**: (Git projects only) Automatically opens the Changes view, expands all files, and enables auto-scroll when you send a prompt - perfect for watching the AI work in real-time
 - **Claude Code: Skip Permissions**: (Claude providers only) Starts Claude Code with `--dangerously-skip-permissions`, saves the preference, and reloads Claude Code immediately when changed
 - **Codex: Full Auto**: (Codex providers only) Starts Codex with `--full-auto`, saves the preference, and reloads Codex immediately when changed
@@ -230,6 +236,7 @@ The extension includes an Update Agent button (🔄️) that updates your select
 - **Open Code**: Exits the agent and runs `npm i -g opencode-ai`
 - **Windsurf (WSL)**: Exits the agent and runs `devin update` inside WSL
 - **PI**: Exits the agent and runs `npm install -g @earendil-works/pi-coding-agent@latest`
+- **Antigravity**: Exits the agent and re-runs the PowerShell installer (`irm https://antigravity.google/cli/install.ps1 | iex`)
 
 Click the update button and the extension will handle the update process. Agents use the appropriate exit methods before updating (exit command for most, double CTRL+C for Codex).
 
@@ -269,6 +276,9 @@ Claude will write the `SKILL.md` file with the proper frontmatter and instructio
 **Step 4 — Use it**. Click the new ⚡ button in the toolbar → **Codex Review**. Claude Code receives the `/codex-review` slash command, runs the skill, calls Codex against your uncommitted diff, and reports back the findings — without you ever leaving Visual Studio.
 
 ## Version History
+
+### Version 10.53
+- **New AI provider: Google Antigravity (Gemini 3.5 Flash)**: Google's Antigravity agent (the `agy` command) is now selectable from the provider menu, giving you Gemini 3.5 Flash directly inside Visual Studio. If it isn't installed, the extension shows the PowerShell install command and the exact folder to add to your PATH.
 
 ### Version 10.52
 - **New: "Disable Auto Zoom on Startup" setting**: New toggle in the Settings menu skips the automatic terminal zoom-out and saved zoom-delta replay that runs after each terminal start. Useful on 4K/high-DPI displays where the default auto-zoom produces fonts that are too small. Manual Ctrl+Scroll zoom is unaffected.

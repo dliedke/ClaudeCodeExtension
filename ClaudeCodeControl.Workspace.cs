@@ -289,6 +289,9 @@ namespace ClaudeCodeVS
                         case AiProvider.Pi:
                             providerAvailable = await IsPiAvailableAsync();
                             break;
+                        case AiProvider.Antigravity:
+                            providerAvailable = await IsAntigravityAvailableAsync();
+                            break;
                     }
 
                     // Switch to main thread for UI operations
@@ -359,6 +362,13 @@ namespace ClaudeCodeVS
                                 {
                                     _piNotificationShown = true;
                                     ShowPiInstallationInstructions();
+                                }
+                                break;
+                            case AiProvider.Antigravity:
+                                if (!_antigravityNotificationShown)
+                                {
+                                    _antigravityNotificationShown = true;
+                                    ShowAntigravityInstallationInstructions();
                                 }
                                 break;
                         }
