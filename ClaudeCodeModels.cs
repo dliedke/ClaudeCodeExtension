@@ -252,6 +252,12 @@ namespace ClaudeCodeVS
         public bool WindsurfDangerousMode { get; set; } = false;
 
         /// <summary>
+        /// If true, starts Antigravity with the --dangerously-skip-permissions parameter
+        /// Applies to Antigravity (Windows native).
+        /// </summary>
+        public bool AntigravityDangerouslySkipPermissions { get; set; } = false;
+
+        /// <summary>
         /// If true, starts Cursor Agent with --yolo to skip all approvals.
         /// Applies to Cursor Agent (Windows native) and Cursor Agent (WSL).
         /// </summary>

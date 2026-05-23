@@ -2839,6 +2839,7 @@ For more details, visit: https://pi.dev";
             CodexFullAutoMenuItem.Visibility = isCodexProvider ? Visibility.Visible : Visibility.Collapsed;
             CursorAgentAutoRunMenuItem.Visibility = isCursorAgentProvider ? Visibility.Visible : Visibility.Collapsed;
             WindsurfDangerousModeMenuItem.Visibility = isWindsurfProvider ? Visibility.Visible : Visibility.Collapsed;
+            AntigravityDangerouslySkipPermissionsMenuItem.Visibility = isAntigravityProvider ? Visibility.Visible : Visibility.Collapsed;
 
             // Update checkbox state from settings
             if (_settings != null)
@@ -2850,6 +2851,7 @@ For more details, visit: https://pi.dev";
                 CodexFullAutoMenuItem.IsChecked = _settings.CodexFullAuto;
                 CursorAgentAutoRunMenuItem.IsChecked = _settings.CursorAgentAutoRun;
                 WindsurfDangerousModeMenuItem.IsChecked = _settings.WindsurfDangerousMode;
+                AntigravityDangerouslySkipPermissionsMenuItem.IsChecked = _settings.AntigravityDangerouslySkipPermissions;
 
                 // Update working directory menu item to show current value, with red text if path doesn't exist
                 if (!string.IsNullOrWhiteSpace(_settings.CustomWorkingDirectory))
@@ -3090,6 +3092,36 @@ For more details, visit: https://pi.dev";
                     Debug.WriteLine($"Error reloading Windsurf after dangerous mode change: {ex.Message}");
                     await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
                     MessageBox.Show($"Failed to reload Windsurf: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                }
+            }
+        }
+
+        /// <summary>
+        /// Handles Antigravity dangerous skip permissions menu item click
+        /// </summary>
+#pragma warning disable VSTHRD100 // async void is acceptable for event handlers
+        private async void AntigravityDangerouslySkipPermissionsMenuItem_Click(object sender, RoutedEventArgs e)
+#pragma warning restore VSTHRD100
+        {
+            await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
+
+            if (_settings == null) return;
+
+            _settings.AntigravityDangerouslySkipPermissions = AntigravityDangerouslySkipPermissionsMenuItem.IsChecked;
+            SaveSettings();
+
+            // Reload Antigravity terminal immediately so the new startup flag is applied.
+            if (_settings.SelectedProvider == AiProvider.Antigravity)
+            {
+                try
+                {
+                    await RestartTerminalWithSelectedProviderAsync();
+                }
+                catch (Exception ex)
+                {
+                    Debug.WriteLine($"Error reloading Antigravity after skip permissions change: {ex.Message}");
+                    await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
+                    MessageBox.Show($"Failed to reload Antigravity: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
                 }
             }
         }

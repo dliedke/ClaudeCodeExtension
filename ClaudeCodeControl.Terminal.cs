@@ -873,7 +873,8 @@ namespace ClaudeCodeVS
                             break;
 
                         case AiProvider.Antigravity:
-                            cmdCommand = $"/k chcp 65001 >nul && cd /d \"{workspaceDir}\" && ping localhost -n 3 >nul && cls && agy";
+                            string antigravityCommand = GetAntigravityCommand();
+                            cmdCommand = $"/k chcp 65001 >nul && cd /d \"{workspaceDir}\" && ping localhost -n 3 >nul && cls && {antigravityCommand}";
                             break;
 
                         default: // null or any other value = regular CMD
@@ -1059,7 +1060,8 @@ namespace ClaudeCodeVS
                             break;
 
                         case AiProvider.Antigravity:
-                            terminalCommand = $"/k chcp 65001 >nul && cd /d \"{workspaceDir}\" && ping localhost -n 3 >nul && cls && agy";
+                            string antigravityTerminalCommand = GetAntigravityCommand();
+                            terminalCommand = $"/k chcp 65001 >nul && cd /d \"{workspaceDir}\" && ping localhost -n 3 >nul && cls && {antigravityTerminalCommand}";
                             break;
 
                         default: // null or any other value = regular CMD
@@ -2675,6 +2677,23 @@ namespace ClaudeCodeVS
             if (_settings?.WindsurfDangerousMode == true)
             {
                 return $"{baseCommand} --permission-mode dangerous";
+            }
+
+            return baseCommand;
+        }
+
+        /// <summary>
+        /// Gets the appropriate Antigravity command.
+        /// Uses --dangerously-skip-permissions when the setting is enabled.
+        /// </summary>
+        /// <returns>The agy command to execute</returns>
+        private string GetAntigravityCommand()
+        {
+            string baseCommand = "agy";
+
+            if (_settings?.AntigravityDangerouslySkipPermissions == true)
+            {
+                return $"{baseCommand} --dangerously-skip-permissions";
             }
 
             return baseCommand;

@@ -74,6 +74,7 @@ Any feedback, suggestions, or contributions are also very welcome - feel free to
 - **Claude Skip Permissions State**: Remembers whether Claude Code starts with `--dangerously-skip-permissions`
 - **Codex Full Auto State**: Remembers whether Codex starts with `--full-auto`
 - **Windsurf Dangerous Mode State**: Remembers whether Windsurf starts with `--permission-mode dangerous`
+- **Antigravity Skip Permissions State**: Remembers whether Antigravity starts with `--dangerously-skip-permissions`
 
 ### ⚡ **Custom Commands**
 - **User-Defined Shortcuts**: Add slash commands or canned prompts (e.g. `/codex-review`, "explain this file") and dispatch them to the active code agent with one click
@@ -197,6 +198,7 @@ Open Windows Settings, search for "Terminal settings", and set the Terminal opti
 - **Claude Code: Skip Permissions**: (Claude providers only) Starts Claude Code with `--dangerously-skip-permissions`, saves the preference, and reloads Claude Code immediately when changed
 - **Codex: Full Auto**: (Codex providers only) Starts Codex with `--full-auto`, saves the preference, and reloads Codex immediately when changed
 - **Windsurf: Dangerous Mode**: (Windsurf provider only) Starts Windsurf with `--permission-mode dangerous`, saves the preference, and reloads Windsurf immediately when changed
+- **Antigravity: Skip Permissions**: (Antigravity provider only) Starts Antigravity with `--dangerously-skip-permissions`, saves the preference, and reloads Antigravity immediately when changed
 - **Invert Layout**: Swaps the prompt and terminal positions, placing the terminal on top and the prompt area on the bottom. Buttons stay in the middle between panels.
 - **About**: View extension version and information
 
@@ -276,6 +278,9 @@ Claude will write the `SKILL.md` file with the proper frontmatter and instructio
 **Step 4 — Use it**. Click the new ⚡ button in the toolbar → **Codex Review**. Claude Code receives the `/codex-review` slash command, runs the skill, calls Codex against your uncommitted diff, and reports back the findings — without you ever leaving Visual Studio.
 
 ## Version History
+
+### Version 10.54
+- **Antigravity: Skip Permissions support**: Added support for starting Google Antigravity (`agy`) with the `--dangerously-skip-permissions` parameter to automatically skip permission approvals, mirroring the behavior already available for Claude Code, Codex, and Windsurf.
 
 ### Version 10.53
 - **New AI provider: Google Antigravity (Gemini 3.5 Flash)**: Google's Antigravity agent (the `agy` command) is now selectable from the provider menu, giving you Gemini 3.5 Flash directly inside Visual Studio. If it isn't installed, the extension shows the PowerShell install command and the exact folder to add to your PATH.
@@ -940,4 +945,4 @@ For licensing inquiries or permission requests, please contact the author at dli
 
 *Claude Code Extension for Visual Studio - Enhancing your AI-assisted development workflow*
 
-*Build with the help of Claude Opus 4.5, Claude Code, GPT-5 and Qwen Code*
+*Build with the help of Claude Opus 4.5, Claude Code, GPT-5, Codex, Qwen Code and Antigravity*
