@@ -1,283 +1,106 @@
 # Claude Code Extension for Visual Studio
 
-A Visual Studio extension that provides seamless integration with Claude Code, OpenAI Codex, Cursor Agent, Open Code, Windsurf, PI or Google Antigravity directly within the Visual Studio IDE.
+Embedded terminal inside Visual Studio for **Claude Code, OpenAI Codex, Cursor Agent, Open Code, Windsurf, PI, and Google Antigravity** — with multi-line prompts, file attachments, and an integrated diff viewer.
 
 <center>
 <img src="https://i.ibb.co/mFcsh3nt/BFB9-B830-8122-4091-9-C8-B-869959-B1-B391.png" alt="Claude Code Extension Screenshot" width=350 height=450 />
 </center>
 
-In case you enjoy this work and want to support it, you can buy me a coffee here: [https://buymeacoffee.com/dliedke](https://www.buymeacoffee.com/dliedke) - every cup helps fuel development and keep the extension free for everyone!
-
-Any feedback, suggestions, or contributions are also very welcome - feel free to post review here, open issues or submit pull requests in the GitHub repository.
+Enjoying the extension? [Buy me a coffee](https://www.buymeacoffee.com/dliedke) — every cup helps keep it free. Bug reports, suggestions, and pull requests are welcome on [GitHub](https://github.com/dliedke/ClaudeCodeExtension).
 
 [Mentioned in Awesome Codex CLI](https://github.com/RoggeOhta/awesome-codex-cli)
 
 ## Features
 
-### 🎯 **Integrated Terminal**
-- Embedded terminal within Visual Studio supporting multiple AI providers
-- Automatic workspace directory detection when loading solutions
-- Seamless command execution without leaving the IDE YES
+- **Embedded AI terminal** — Run any supported AI coding agent inside a Visual Studio tool window. Auto-detects the solution directory; restarts when you switch solutions. Optionally use Windows Terminal instead of Command Prompt for better emoji/Unicode rendering.
+- **Multi-line prompts** — Press **Enter** to send, **Shift+Enter** or **Ctrl+Enter** for a new line. Toggle "Send with Enter" off in the ⚙ menu to make Enter insert a newline and reveal a Send button.
+- **File and image attachments** — Paste images with **Ctrl+V**, drag & drop files onto the prompt area, or use the 📎 button. Any file type is accepted (no limit). Text content like Excel cells pastes as text, not as an image.
+- **Editor selection → prompt** — Click 📋 or right-click selected code → *Send Selection to Claude Code* to insert a formatted snippet (file path + line numbers + syntax-highlighted code fence) into the prompt.
+- **Integrated diff viewer** — For Git projects, the 📊 view shows uncommitted changes in a dedicated tab with search, auto-scroll, double-click-to-open, and double-click-line-to-navigate. Optionally auto-opens when you send a prompt.
+- **Prompt history** — Last 50 prompts saved (with attached files). Browse with **Ctrl+Up / Ctrl+Down**; clear via right-click.
+- **Claude Code session history** — 📜 toolbar button lists past sessions for the current workspace; resume any session or the most recent one with one click. Works for native and WSL Claude Code.
+- **Claude usage in VS** — 📊 button (when Claude is active) opens the claude.ai usage page inside a dockable tab. Inline session/weekly progress bars below the prompt update automatically and adapt to the active theme.
+- **Custom commands (⚡)** — Save slash commands or canned prompts and dispatch them to the active agent in one click. Configure via *⚙ → Configure Custom Commands...*.
+- **Model selection (Claude)** — 🤖 button to switch between Opus / Sonnet / Haiku and pick an effort level (Auto / Low / Medium / High / Max) for Opus thinking depth.
+- **Detach / attach terminal** — Pop the terminal into a separate VS tab and bring it back at any time. State persists across sessions.
+- **Theme aware** — Follows VS dark/light theme automatically, or force a theme via *⚙ → Set Theme...*. Prompt and terminal zoom (Ctrl+Scroll) are persisted across sessions.
+- **Persistent settings** — Layout, provider choice, model, flags, and zoom level all saved to `%LocalAppData%\ClaudeCodeExtension\claudecode-settings.json`.
 
-### 🤖 **Multiple AI Provider Support**
-- **Claude Code**: Full support for Claude Code CLI integration (Windows native)
-- **Claude Code (WSL)**: Support for Claude Code running inside WSL (Windows Subsystem for Linux)
-- **OpenAI Codex**: Support for Codex AI assistant (Windows native)
-- **OpenAI Codex (WSL)**: Support for Codex AI assistant running inside WSL
-- **Cursor Agent**: Support for Cursor Agent CLI integration (Windows native)
-- **Cursor Agent (WSL)**: Support for Cursor Agent running inside WSL
-- **Open Code**: Support for Open Code AI assistant (requires Node.js 14+)
-- **Windsurf (WSL)**: Support for Windsurf (devin) running inside WSL
-- **PI**: Support for PI coding agent (requires Node.js + Git for Windows)
-- **Google Antigravity**: Support for Google's Antigravity CLI agent (Windows native, Gemini 3.5 Flash)
-- **Provider Switching**: Easy dropdown menu to switch between providers
-- **Smart Detection**: Automatic detection and installation instructions for each AI tool
-- **Claude Model Selection**: Quick model switching for Claude Code (Opus, Sonnet, Haiku) with dropdown menu. For Opus also possible to select low, medium, high thinking modes
+## Supported AI Providers
 
-### ⌨️ **Smart Send Controls**
-- **Enter to send**: Press Enter to send the prompt to the active code agent
-- **Shift+Enter** or **Ctrl+Enter**: Insert a new line in the prompt
-- **Toggle "Send with Enter"**: Available in the Code Agent settings menu (⚙). When disabled, Enter inserts a newline and a Send (▶) button appears in the prompt toolbar to submit the prompt
+By default only **Claude Code** is shown in the agent picker — use *⚙ → Configure Visible Code Agents...* to opt in to the others. The active agent always remains visible.
 
-### 📋 **Editor Selection to Prompt**
-- **Toolbar Button**: Click the 📋 button to grab the currently selected code from the active editor and insert it into the prompt
-- **Editor Context Menu**: Right-click on selected code in the editor and choose "Send Selection to Claude Code"
-- **Formatted Snippet**: Code is inserted with file path, line numbers, and syntax-highlighted code fence (e.g., ```csharp)
-- **Non-Destructive**: Code is inserted into the prompt without sending — type your question or instruction first, then send
-- **Relative Paths**: File paths are automatically made relative to the current workspace/solution directory
+| Provider | Platform | Command | Subscription / Notes |
+|----------|----------|---------|----------------------|
+| Claude Code | Windows / WSL | `claude` | Claude Pro or higher. [Setup docs](https://docs.claude.com/en/docs/claude-code/setup) |
+| OpenAI Codex | Windows / WSL | `codex` | ChatGPT Plus or higher. Optional `--ask-for-approval never` toggle |
+| Cursor Agent | Windows / WSL | `agent` / `cursor-agent` | Cursor account. Optional `--yolo` toggle |
+| Open Code | Windows | `opencode` | Node.js 14+; provider configured via `Ctrl+P` → "connect providers" |
+| Windsurf | WSL | `devin` | Windsurf paid plan. Optional `--permission-mode dangerous` toggle |
+| PI | Windows | `pi` | Node.js + Git for Windows |
+| Google Antigravity | Windows | `agy` | Google account. Optional `--dangerously-skip-permissions` toggle |
 
-### 🖼️ **File Attachment Support**
-- **Clipboard Paste**: Use Ctrl+V to paste images from clipboard in the prompt area (text content like Excel cells will paste as text)
-- **File Browser**: Click "Add File" to select files from file system (no limit)
-- **Supported File Types**: Images, PDFs, documents (Word, text), spreadsheets (Excel, CSV), data files (JSON, XML, YAML), code files, and more
-- **File Chips**: Visual representation of attached files with remove functionality
-- **Clickable Chips**: Click on file chips to open and view files
-- **Smart Paste**: Excel cells and other text content paste as text, not images
-
-### 📝 **Prompt History**
-- **Smart History**: Automatically saves up to 50 most recent prompts
-- **Quick Navigation**: Use Ctrl+Up/Ctrl+Down to browse through previous prompts
-- **Clear Option**: Right-click in prompt area to clear history
-- **Persistent Storage**: History saved between Visual Studio sessions
-
-### 🔧 **Workspace Intelligence**
-- **Solution Detection**: Automatically detects and switches to solution directory
-- **Dynamic Updates**: Terminal restarts when switching between solutions
-- **Fallback Handling**: Smart directory resolution when no solution is open
-
-### 💾 **Persistent Settings**
-- **JSON Configuration**: Settings stored in `%LocalAppData%\..\Local\ClaudeCodeExtension\claudecode-settings.json`
-- **Splitter Position**: Maintains your preferred layout between sessions
-- **Invert Layout**: Remembers your preferred panel arrangement (prompt on top or bottom)
-- **AI Provider Selection**: Remembers your preferred AI assistant
-- **Claude Model Selection**: Remembers your last selected Claude model (Opus, Sonnet, or Haiku)
-- **Claude Skip Permissions State**: Remembers whether Claude Code starts with `--dangerously-skip-permissions`
-- **Codex Full Auto State**: Remembers whether Codex starts with `--full-auto`
-- **Windsurf Dangerous Mode State**: Remembers whether Windsurf starts with `--permission-mode dangerous`
-- **Antigravity Skip Permissions State**: Remembers whether Antigravity starts with `--dangerously-skip-permissions`
-
-### ⚡ **Custom Commands**
-- **User-Defined Shortcuts**: Add slash commands or canned prompts (e.g. `/codex-review`, "explain this file") and dispatch them to the active code agent with one click
-- **Configure Dialog**: "Configure Custom Commands..." entry in the Code Agent Selection (⚙) menu opens an Add/Edit/Remove/Reorder UI
-- **Toolbar Dropdown**: Once at least one custom command exists, a ⚡ button appears in the toolbar; clicking it shows a menu of saved commands
-- **Direct Send**: Selecting a command sends the configured text verbatim to the running agent — no editing in the prompt box first
-- **Persistent**: Saved alongside the rest of the extension settings in `claudecode-settings.json`
-
-### 🔍 **Zoom Support**
-- **Prompt Zoom**: Ctrl+Scroll on the prompt text box to increase/decrease font size (range 8–24pt), persisted across sessions
-- **Terminal Zoom**: Ctrl+Scroll on the terminal area to zoom in/out, zoom level persisted and replayed on restart (works for both Command Prompt and Windows Terminal)
-
-### 🪟 **Detach / Attach Terminal**
-- **Detach**: Click the detach button to pop the terminal out into a separate Visual Studio tool window tab
-- **Attach**: Close the detached tab or click the attach button to bring the terminal back to the main panel
-- **Expanded Prompt**: When detached, the prompt area automatically grows for more comfortable editing
-- **Persistent State**: Detached/attached state is saved and restored across Visual Studio sessions
-- **Seamless Operation**: Terminal restart, provider switching, and theme changes work while detached
-
-### 🎨 **Visual Studio Integration**
-- **Dark/Light Theme**: Consistent with Visual Studio's dark/light theme
-- **Resizable Layout**: Adjustable splitter between prompt and terminal areas
-- **Native Controls**: Follows Visual Studio UI conventions
-- **Dynamic Titles**: Window title changes based on selected AI provider
+If a provider isn't installed, the extension shows the install command automatically when you select it. The 🔄️ **Update Agent** button runs the right update command for the active provider (e.g. `claude update`, `npm install -g @openai/codex@latest`, `cursor-agent update`).
 
 ## System Requirements
 
-- Visual Studio 2022 or 2026 (x64 and ARM64 supported)
-- Windows operating system
-- **For Claude Code (Windows)**: Claude Pro or better paid subscription + Claude Code CLI installed and accessible via `claude` in path.
-  Refer to https://docs.claude.com/en/docs/claude-code/setup for Claude Code installation
-- **For Claude Code (WSL)**: Claude Pro or better paid subscription + Windows Subsystem for Linux (WSL) + Claude Code CLI installed inside WSL
-  Installation instructions are provided automatically if not installed
-- **For OpenAI Codex (Windows)**: Chat GPT Plus or better paid subscription + Codex CLI installed and accessible via `codex` in path.
-  Installation instructions are provided automatically if not installed
-  Optional: Use `--full-auto` flag for automated approval mode via the extension settings menu
-- **For OpenAI Codex (WSL)**: Chat GPT Plus or better paid subscription + Windows Subsystem for Linux (WSL) + Codex AI assistant installed inside WSL
-  Installation instructions are provided automatically if not installed
-  Optional: Use `--full-auto` flag for automated approval mode via the extension settings menu
-- **For Cursor Agent (Windows)**: Cursor Agent CLI installed and accessible via `agent` in path.
-  Installation instructions are provided automatically if not installed
-- **For Cursor Agent (WSL)**: Windows Subsystem for Linux (WSL) + Cursor Agent installed inside WSL
-  Installation instructions are provided automatically if not installed
-- **For Open Code**: Node.js version 14 or higher + Open Code CLI installed and accessible via `opencode` in path.
-  Installation instructions are provided automatically if not installed
-- **For Windsurf (WSL)**: Windows Subsystem for Linux (WSL) + Windsurf Paid Plan (devin) CLI installed inside WSL
-  Install via `curl -fsSL https://cli.devin.ai/install.sh | bash`
-  Installation instructions are provided automatically if not installed
-  Optional: Use `--permission-mode dangerous` flag via the extension settings menu
-- **For PI**: Node.js installed + Git for Windows (Git Bash) + PI CLI installed and accessible via `pi` in path.
-  Install via `npm install -g @earendil-works/pi-coding-agent`
-  Installation instructions are provided automatically if not installed
-- **For Google Antigravity**: Antigravity CLI installed and accessible via `agy` in path. Uses Gemini 3.5 Flash.
-  Install via PowerShell: `irm https://antigravity.google/cli/install.ps1 | iex`, then add `%LocalAppData%\agy` to your PATH.
-  Installation instructions are provided automatically if not installed
-  More info: https://antigravity.google/download
-
-## Installing Windows Terminal (Optional)
-
-Windows Terminal provides better emoji, Unicode, and ANSI rendering compared to Command Prompt.
-
-To install, open **Command Prompt as Administrator** and run:
-
-```
-winget install --id Microsoft.WindowsTerminal -e
-```
-
-After installing, restart Visual Studio. Then select Windows Terminal via the ⚙ menu → **Set Terminal Type...**.
+- Visual Studio 2022 or 2026 (x64 or ARM64)
+- Windows 10 / 11
+- Plus whatever the chosen AI provider needs (see table above)
 
 ## Installation
 
-1. Download the latest VSIX package
-2. Double-click the VSIX file to install
-3. Restart Visual Studio
-4. Open the extension via **View** → **Other Windows** → **Claude Code Extension**
+1. Download the latest VSIX from the marketplace or [GitHub releases](https://github.com/dliedke/ClaudeCodeExtension/releases)
+2. Double-click the VSIX file to install, then restart Visual Studio
+3. Open the tool window via **View → Other Windows → Claude Code Extension**
 
-**If the terminal opens in a separate window instead of inside the extension:
-Open Windows Settings, search for "Terminal settings", and set the Terminal option to "Windows Console Host".**
+> If the terminal opens in a separate window instead of inside the extension panel, open Windows Settings → search "Terminal settings" → set **Terminal** to **Windows Console Host**.
+
+**Optional — Windows Terminal**: For better emoji and Unicode rendering, install Windows Terminal from an elevated Command Prompt:
+```
+winget install --id Microsoft.WindowsTerminal -e
+```
+Then choose it via *⚙ → Set Terminal Type...*.
 
 ## Quick Start
 
-- **First-Time Setup**: Verify that your preferred AI provider (Claude Code, Claude Code WSL, OpenAI Codex, Cursor Agent, Cursor Agent WSL, Open Code, Windsurf, PI, or Google Antigravity) is installed and accessible
-- **Open the Tool Window**: View → Other Windows → Claude Code Extension
-- **Select an AI Provider**: Click the ⚙ (gear) button and choose among Claude Code, Claude Code (WSL), Codex, Cursor Agent, Cursor Agent (WSL), Open Code, Windsurf (WSL), PI, or Google Antigravity
-- **Connect to Provider**: If you use Open Code, press **Ctrl+P**, search for "connect providers", and complete the authentication flow
-- **Select a Claude Model**: Click the 🤖 (robot) button to choose Opus, Sonnet, or Haiku (available only when Claude Code is selected)
-- **Start a Session**: Enter your prompt and press Enter
-- **Attach Files**: Use Ctrl+V to paste or click the "Add File" button
-- **Customize**: Adjust the layout as needed and pick your preferred AI provider from the ⚙ menu
+1. Click ⚙ → pick your AI provider (use *Configure Visible Code Agents...* if it isn't listed)
+2. If using Open Code, run `Ctrl+P` → "connect providers" once to authenticate
+3. (Claude only) Pick a model via the 🤖 button
+4. Type a prompt, press **Enter** to send. Attach files with Ctrl+V, drag-and-drop, or 📎
+5. Watch the agent work in the embedded terminal. For Git projects, open 📊 to see live diffs
 
-## Usage
+## Settings & Menus
 
-1. **Open the Tool Window**: Navigate to View → Other Windows → Claude Code Extension
-2. **Select an AI Provider**: Click the ⚙ (gear) button and choose your preferred assistant
-3. **Enter Prompts**: Type your questions or requests in the prompt area
-4. **Attach Files**: Paste images/text with Ctrl+V or use the "Add File" button to attach up to five files
-5. **Send Messages**: Press Enter (if enabled) or click the Send button
-6. **Review Responses**: Read responses in the embedded terminal and interact with it directly as needed
-7. **Review Code Changes**: (Only projects in Git) Use the integrated diff tool to compare code changes in a new tab while the AI is working.Option to search, auto-scroll, double click in filename to open, double click in code line to navigate to file
+**⚙ Settings menu** (gear button, top-right):
+- Pick an AI provider, *Configure Visible Code Agents...*, *Configure Custom Commands...*, *Set Theme...*, *Set Terminal Type...*, *Set Working Directory...*
+- Toggles: *Send with Enter*, *Auto-open Changes on Send*, *Invert Layout*, *Disable Auto Zoom on Startup*, *Send large prompts as file*
+- Provider-specific flags: Claude *Skip Permissions*, Codex *Approval Never*, Cursor *Yolo Mode*, Windsurf *Dangerous Mode*, Antigravity *Skip Permissions*
+- Update Agent, Detach/Attach Terminal, About
 
-### Working with Prompt History
+**🤖 Model menu** (Claude only): Opus / Sonnet / Haiku, effort level for Opus (Auto / Low / Medium / High / Max), Change Account, Install Caveman plugin.
 
-- **Browse Previous Prompts**: Press **Ctrl+Up** to navigate to older prompts in your history
-- **Browse Forward**: Press **Ctrl+Down** to move to newer prompts or return to current text
-- **View Attached Files**: Click on any file chip to open and view the file
-- **Clear History**: Right-click in the prompt area and select "Clear Prompt History"
-- **Automatic Saving**: Your last 50 prompts are automatically saved between sessions
+**Custom commands (⚡)**: Once you've added a command via *Configure Custom Commands...*, the ⚡ toolbar button appears. Clicking an entry sends the saved text verbatim to the active agent — useful for slash commands or canned prompts.
 
-### AI Provider Menu
-- **Settings Menu**: Click the ⚙ (gear) button in the top-right corner to access provider settings
-- **Claude Code**: Switch to Claude Code CLI integration (Windows native)
-- **Claude Code (WSL)**: Switch to Claude Code running inside WSL
-- **Codex**: Switch to Codex AI assistant (runs inside WSL)
-- **Cursor Agent**: Switch to Cursor Agent CLI integration (Windows native)
-- **Cursor Agent (WSL)**: Switch to Cursor Agent (runs inside WSL)
-- **Open Code**: Switch to Open Code AI assistant (Windows)
-- **Windsurf (WSL)**: Switch to Windsurf (devin) running inside WSL
-- **PI**: Switch to PI coding agent (Windows)
-- **Antigravity**: Switch to Google Antigravity CLI (Windows native, Gemini 3.5 Flash)
-- **Auto-open Changes on Send**: (Git projects only) Automatically opens the Changes view, expands all files, and enables auto-scroll when you send a prompt - perfect for watching the AI work in real-time
-- **Claude Code: Skip Permissions**: (Claude providers only) Starts Claude Code with `--dangerously-skip-permissions`, saves the preference, and reloads Claude Code immediately when changed
-- **Codex: Full Auto**: (Codex providers only) Starts Codex with `--full-auto`, saves the preference, and reloads Codex immediately when changed
-- **Windsurf: Dangerous Mode**: (Windsurf provider only) Starts Windsurf with `--permission-mode dangerous`, saves the preference, and reloads Windsurf immediately when changed
-- **Antigravity: Skip Permissions**: (Antigravity provider only) Starts Antigravity with `--dangerously-skip-permissions`, saves the preference, and reloads Antigravity immediately when changed
-- **Invert Layout**: Swaps the prompt and terminal positions, placing the terminal on top and the prompt area on the bottom. Buttons stay in the middle between panels.
-- **About**: View extension version and information
+### Recipe — Codex review of uncommitted code, dispatched from Claude Code
 
-### Claude Model Selection Menu
-- **Model Menu**: Click the 🤖 (robot) button to access Claude model selection (only visible when Claude Code or Claude Code WSL is selected)
-- **Opus - Complex tasks**: Switch to Claude Opus for complex, multi-step tasks requiring deep reasoning
-- **Sonnet - Everyday tasks**: Switch to Claude Sonnet for balanced performance on everyday coding tasks (default)
-- **Haiku - Easy tasks**: Switch to Claude Haiku for quick, straightforward tasks with faster responses
-- **Instant Switching**: Model changes are applied immediately by sending the `/model` command to the running terminal
-- **Persistent Selection**: Your model choice is saved and restored between Visual Studio sessions
+This binds a Claude Code skill that shells out to OpenAI Codex to audit pending changes for bugs, security issues, performance problems, and code quality.
 
-### Claude Code Session History
-
-The new 📜 toolbar button opens Claude Code session history for the current workspace. It is visible only when the selected provider is **Claude Code** or **Claude Code (WSL)**.
-
-- **Current Workspace Sessions**: Lists previous Claude Code sessions from `~/.claude/projects/<encoded-cwd>/*.jsonl`
-- **Session Details**: Shows timestamp, message count, token usage, and the first user prompt to help identify the right session
-- **Resume**: Select a session and click **Resume** to relaunch Claude with `claude --resume <id>`
-- **Resume Last Session**: Click **Resume Last Session** to run `claude --continue` for the most recent session in the current workspace
-- **Delete**: Removes the selected transcript file from disk
-- **WSL Support**: Works with Claude Code (WSL) by resolving WSL session paths back to Windows paths
-
-### Customization
-- **Layout**: Drag the splitter to adjust the prompt/terminal ratio. Use "Invert Layout" in the ⚙ menu to swap prompt and terminal positions
-- **AI Provider**: Use the context menu to switch between available providers
-- **Settings Persist Automatically**: Preferences are saved between Visual Studio sessions
-
-### Updating Your AI Agent
-
-The extension includes an Update Agent button (🔄️) that updates your selected AI provider:
-
-- **Claude Code (Windows)**: Exits the agent and runs `claude update`
-- **Claude Code (WSL)**: Exits the agent and runs `claude update` inside WSL
-- **Codex**: Exits the agent and runs `npm install -g @openai/codex@latest` inside WSL
-- **Cursor Agent (Windows)**: Exits the agent and runs `agent update`
-- **Cursor Agent (WSL)**: Exits the agent and runs `cursor-agent update` inside WSL
-- **Open Code**: Exits the agent and runs `npm i -g opencode-ai`
-- **Windsurf (WSL)**: Exits the agent and runs `devin update` inside WSL
-- **PI**: Exits the agent and runs `npm install -g @earendil-works/pi-coding-agent@latest`
-- **Antigravity**: Exits the agent and re-runs the PowerShell installer (`irm https://antigravity.google/cli/install.ps1 | iex`)
-
-Click the update button and the extension will handle the update process. Agents use the appropriate exit methods before updating (exit command for most, double CTRL+C for Codex).
-
-### Custom Commands
-
-User-defined shortcuts that dispatch a slash command or prompt directly to the active code agent.
-
-**Configure**:
-1. Click the ⚙ button → **Configure Custom Commands...**
-2. Click **Add...**, enter a friendly **Name** (shown in the dropdown) and the **Command** text (sent verbatim to the agent)
-3. Use **Edit / Remove / Move Up / Move Down** to manage existing entries, then **Close**
-4. Once at least one command is saved, the ⚡ button appears in the toolbar — click it to pick a command and send it instantly
-
-**Recipe — Have Codex review uncommitted code from inside Claude Code via a custom command**
-
-This walkthrough creates a Claude Code skill (`/codex-review`) that shells out to the OpenAI Codex CLI to audit pending changes for bugs, security issues, performance problems, and code quality. You then bind that slash command to a custom command in this extension so it is one click away.
-
-**Step 1 — Install the OpenAI Codex CLI** (if you haven't already):
-```bash
-npm install -g @openai/codex
-codex login
-```
-
-**Step 2 — Have Claude Code create the skill for you**. Open a Claude Code session and paste this prompt:
-
-> Create a Claude Code user skill called `codex-review` at `~/.claude/skills/codex-review/SKILL.md`. The skill runs `codex review --uncommitted` (OpenAI Codex CLI) against the current repo's uncommitted changes and surfaces the findings. Preconditions: verify git repo, verify there are uncommitted changes, skip when the diff is only non-meaningful (harness/IDE config, lockfile regens, build artifacts, whitespace), and verify `codex` is on PATH. The Codex prompt should ask for bugs, security issues (OWASP Top 10), performance problems, and code quality findings, each with file:line, severity, why it matters, and a concrete fix. Codex is the reviewer; Claude relays the output verbatim and does not auto-apply fixes. After creating the file, run `/reload-plugins` so the skill is registered.
-
-Claude will write the `SKILL.md` file with the proper frontmatter and instructions, then reload plugins so `/codex-review` becomes available immediately.
-
-**Step 3 — Bind it as a custom command in this extension**:
-1. Make sure the active provider is **Claude Code** (or **Claude Code (WSL)**)
-2. ⚙ → **Configure Custom Commands...** → **Add...**
-3. **Name**: `Codex Review`
-4. **Command**: `/codex-review`
-5. **OK** → **Close**
-
-**Step 4 — Use it**. Click the new ⚡ button in the toolbar → **Codex Review**. Claude Code receives the `/codex-review` slash command, runs the skill, calls Codex against your uncommitted diff, and reports back the findings — without you ever leaving Visual Studio.
+1. **Install Codex CLI** (if needed):
+   ```bash
+   npm install -g @openai/codex
+   codex login
+   ```
+2. **Create the skill from inside Claude Code** — paste this prompt into a Claude Code session:
+   > Create a Claude Code user skill called `codex-review` at `~/.claude/skills/codex-review/SKILL.md`. The skill runs `codex review --uncommitted` against the current repo's uncommitted changes. Preconditions: verify git repo, verify uncommitted changes exist, skip non-meaningful diffs (config/lockfiles/whitespace), and verify `codex` is on PATH. Ask Codex for bugs, OWASP Top 10 issues, performance problems, and code quality findings — each with file:line, severity, why it matters, and a concrete fix. Codex is the reviewer; Claude relays the output verbatim. After creating the file, run `/reload-plugins`.
+3. **Bind it as a custom command**: ⚙ → *Configure Custom Commands...* → Add... → Name: `Codex Review`, Command: `/codex-review`.
+4. **Use it**: ⚡ → *Codex Review*. Claude runs the skill, Codex audits your diff, findings appear inline.
 
 ## Version History
+
+### Version 10.57
+- **README slim-down**: The README is now about a third shorter and easier to scan. The AI provider list is consolidated into a single table (instead of being repeated five times across Features, System Requirements, Quick Start, the menu reference, and the update-agent reference), and the duplicated Quick Start / Usage / Menu sections have been merged. All current features remain documented — including **Configure Visible Code Agents**, **Set Theme...**, the Claude Usage tab, inline usage bars, Opus effort levels, and the Codex `--ask-for-approval never` flag.
+- **Shorter marketplace description**: Tightened the Visual Studio Marketplace description so it no longer gets cut mid-sentence in the listing.
 
 ### Version 10.56
 - **Inline usage bars: readable on light theme**: The unfilled portion of the Claude usage progress bars no longer looks like a dark slab when Visual Studio is on a light theme. The bar track and border now adapt automatically to the active theme (light or dark, including the forced Theme preference).
