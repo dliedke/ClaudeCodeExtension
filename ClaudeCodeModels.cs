@@ -212,6 +212,16 @@ namespace ClaudeCodeVS
         public AiProvider SelectedProvider { get; set; } = AiProvider.ClaudeCode;
 
         /// <summary>
+        /// Which AI providers should be listed in the agent selection menu.
+        /// Defaults to Claude Code only so the menu stays short out-of-the-box.
+        /// The currently selected provider is always shown in the menu regardless
+        /// of this list, so users who had a different provider configured before
+        /// upgrading don't lose access to it.
+        /// </summary>
+        public System.Collections.Generic.List<AiProvider> VisibleProviders { get; set; }
+            = new System.Collections.Generic.List<AiProvider> { AiProvider.ClaudeCode };
+
+        /// <summary>
         /// Currently selected Claude model (for Claude Code and Claude Code WSL providers)
         /// </summary>
         public ClaudeModel SelectedClaudeModel { get; set; } = ClaudeModel.Sonnet;

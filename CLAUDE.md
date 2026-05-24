@@ -6,7 +6,7 @@
 
 - **Author**: Daniel Carvalho Liedke (dliedke@gmail.com) | **License**: MIT
 - **Repository**: https://github.com/dliedke/ClaudeCodeExtension
-- **Current Version**: 10.53 | **Target Framework**: .NET Framework 4.7.2
+- **Current Version**: 10.56 | **Target Framework**: .NET Framework 4.7.2
 
 ---
 
@@ -157,6 +157,14 @@ WSL:     cmd.exe /k chcp 65001 >nul && cls && wsl bash -lic "cd {wslPath} && {co
   6. `yes` to confirm activation
 - **Confirmation dialog**: Shows all commands that will be sent before execution
 
+### Visible Agents (ProviderManagement.cs)
+
+- **Default**: `VisibleProviders = [ClaudeCode]` keeps the agent menu short out-of-the-box
+- **Active-always-visible**: `ApplyProviderMenuVisibility()` shows any provider whose menu item is in `VisibleProviders` OR equals `SelectedProvider`. This guarantees a user who had a non-default agent picked before upgrading never loses access to it
+- **Dialog**: "Configure Visible Code Agents..." in the provider context menu. Built programmatically; one checkbox per provider. The active provider's checkbox is force-checked and disabled so the user can't hide the currently-running agent. On OK, all checked checkboxes (including active) are saved into `VisibleProviders`
+- **Menu wiring**: `ApplyProviderMenuVisibility()` is called from `ApplyLoadedSettings()` (startup) and `ProviderContextMenu_Opened` (every menu open) so visibility is always current
+- **Provider→MenuItem lookup**: `_providerMenuItems` dictionary built lazily once via `GetProviderMenuItems()` so the field references are guaranteed initialized by the XAML parser before first access
+
 ### Custom Commands (CustomCommands.cs)
 
 - **Configuration**: Stored as `List<CustomCommand>` (Name + Command) under `CustomCommands` in `claudecode-settings.json`
@@ -234,7 +242,7 @@ class SessionInfo { SessionId, FilePath, Preview, MessageCount, TokenCount, Last
 class UsageSnapshot { SessionLabel, SessionReset, SessionPercent, WeeklyLabel, WeeklyReset, WeeklyPercent, HasExtraUsage, ExtraUsageSpent, ExtraUsageReset, ExtraUsagePercent }
 ```
 
-Key settings: `SplitterPosition` (236px default), `SelectedProvider`, `SelectedClaudeModel`, `SelectedWindsurfModel`, `PromptHistory` (max 50), `AutoOpenChangesOnPrompt`, `ClaudeDangerouslySkipPermissions`, `CodexFullAuto`, `CursorAgentAutoRun`, `WindsurfDangerousMode`, `SelectedEffortLevel`, `CustomWorkingDirectory`, `SelectedTerminalType`, `IsTerminalDetached`, `PromptFontSize` (8–24pt), `TerminalZoomDelta`, `InvertLayout`, `SelectedThemePreference` (Automatic/Dark/Light), `LastAgentTerminalColorArgb` (agent's launched color, used to skip redundant restart prompts), `CustomCommands` (list of `{Name, Command}`), `UsageAutoRefreshSeconds` (0 = manual), `UsageWindowOpened` (auto-reopen on load), `ShowInlineUsageBars` (default true), `LastUsageJson` / `LastUsageTimestamp` (cached snapshot), `SendLargePromptsAsFile` (default false — when true, prompts >1 KB are sent as a file reference instead of inline paste)
+Key settings: `SplitterPosition` (236px default), `SelectedProvider`, `VisibleProviders` (defaults to `[ClaudeCode]` — controls which agents appear in the provider menu; active provider is always shown regardless), `SelectedClaudeModel`, `SelectedWindsurfModel`, `PromptHistory` (max 50), `AutoOpenChangesOnPrompt`, `ClaudeDangerouslySkipPermissions`, `CodexFullAuto`, `CursorAgentAutoRun`, `WindsurfDangerousMode`, `SelectedEffortLevel`, `CustomWorkingDirectory`, `SelectedTerminalType`, `IsTerminalDetached`, `PromptFontSize` (8–24pt), `TerminalZoomDelta`, `InvertLayout`, `SelectedThemePreference` (Automatic/Dark/Light), `LastAgentTerminalColorArgb` (agent's launched color, used to skip redundant restart prompts), `CustomCommands` (list of `{Name, Command}`), `UsageAutoRefreshSeconds` (0 = manual), `UsageWindowOpened` (auto-reopen on load), `ShowInlineUsageBars` (default true), `LastUsageJson` / `LastUsageTimestamp` (cached snapshot), `SendLargePromptsAsFile` (default false — when true, prompts >1 KB are sent as a file reference instead of inline paste)
 
 ---
 

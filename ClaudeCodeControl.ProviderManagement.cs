@@ -2231,6 +2231,7 @@ For more details, visit: https://pi.dev";
 
                     // Update terminal theme immediately
                     UpdateTerminalTheme();
+                    UpdateInlineUsageBarColors();
 
                     // Skip the restart prompt entirely when no terminal is
                     // running, or when the new panel color matches what the
@@ -2833,6 +2834,10 @@ For more details, visit: https://pi.dev";
             bool isAntigravityProvider = _settings != null &&
                                _settings.SelectedProvider == AiProvider.Antigravity;
 
+            // Show/hide individual provider menu items based on VisibleProviders.
+            // The currently selected provider is always shown so users keep access to it.
+            ApplyProviderMenuVisibility();
+
             AutoOpenChangesSeparator.Visibility = (isInGitRepo || isClaudeProvider || isCodexProvider || isCursorAgentProvider || isWindsurfProvider || isPiProvider || isAntigravityProvider) ? Visibility.Visible : Visibility.Collapsed;
             AutoOpenChangesMenuItem.Visibility = isInGitRepo ? Visibility.Visible : Visibility.Collapsed;
             ClaudeDangerouslySkipPermissionsMenuItem.Visibility = isClaudeProvider ? Visibility.Visible : Visibility.Collapsed;
@@ -3331,6 +3336,260 @@ For more details, visit: https://pi.dev";
             }
 
             return null;
+        }
+
+        #endregion
+
+        #region Visible Agents Configuration
+
+        /// <summary>
+        /// All provider menu items keyed by their <see cref="AiProvider"/> value.
+        /// Built lazily on first use so menu-item field references are guaranteed
+        /// to be initialized by the XAML parser.
+        /// </summary>
+        private System.Collections.Generic.Dictionary<AiProvider, System.Windows.Controls.MenuItem> _providerMenuItems;
+
+        private System.Collections.Generic.Dictionary<AiProvider, System.Windows.Controls.MenuItem> GetProviderMenuItems()
+        {
+            if (_providerMenuItems == null)
+            {
+                _providerMenuItems = new System.Collections.Generic.Dictionary<AiProvider, System.Windows.Controls.MenuItem>
+                {
+                    { AiProvider.ClaudeCode,         ClaudeCodeMenuItem },
+                    { AiProvider.ClaudeCodeWSL,      ClaudeCodeWSLMenuItem },
+                    { AiProvider.CodexNative,        CodexNativeMenuItem },
+                    { AiProvider.Codex,              CodexMenuItem },
+                    { AiProvider.CursorAgentNative,  CursorAgentNativeMenuItem },
+                    { AiProvider.CursorAgent,        CursorAgentMenuItem },
+                    { AiProvider.OpenCode,           OpenCodeMenuItem },
+                    { AiProvider.Windsurf,           WindsurfMenuItem },
+                    { AiProvider.Pi,                 PiMenuItem },
+                    { AiProvider.Antigravity,        AntigravityMenuItem },
+                };
+            }
+            return _providerMenuItems;
+        }
+
+        /// <summary>
+        /// Friendly display name for a provider, used in the configure-visible-agents dialog.
+        /// </summary>
+        private static string GetProviderConfigLabel(AiProvider provider)
+        {
+            switch (provider)
+            {
+                case AiProvider.ClaudeCode:        return "Claude Code";
+                case AiProvider.ClaudeCodeWSL:     return "Claude Code (WSL)";
+                case AiProvider.CodexNative:       return "Codex";
+                case AiProvider.Codex:             return "Codex (WSL)";
+                case AiProvider.CursorAgentNative: return "Cursor Agent";
+                case AiProvider.CursorAgent:       return "Cursor Agent (WSL)";
+                case AiProvider.OpenCode:          return "Open Code";
+                case AiProvider.Windsurf:          return "Windsurf (WSL)";
+                case AiProvider.Pi:                return "PI";
+                case AiProvider.Antigravity:       return "Antigravity";
+                default:                           return provider.ToString();
+            }
+        }
+
+        /// <summary>
+        /// Applies the user's VisibleProviders filter to the provider items in the
+        /// agent menu. The currently selected provider is always visible so a user
+        /// who already had a non-default agent picked before upgrading still sees it.
+        /// </summary>
+        private void ApplyProviderMenuVisibility()
+        {
+            ThreadHelper.ThrowIfNotOnUIThread();
+
+            if (_settings == null) return;
+
+            var visible = _settings.VisibleProviders ?? new System.Collections.Generic.List<AiProvider>();
+            var selected = _settings.SelectedProvider;
+            var items = GetProviderMenuItems();
+
+            foreach (var pair in items)
+            {
+                if (pair.Value == null) continue;
+                bool show = visible.Contains(pair.Key) || pair.Key == selected;
+                pair.Value.Visibility = show ? Visibility.Visible : Visibility.Collapsed;
+            }
+        }
+
+        /// <summary>
+        /// Handles the "Configure Visible Code Agents..." menu item click.
+        /// Opens a checkbox dialog letting the user pick which agents appear
+        /// in the provider menu.
+        /// </summary>
+        private void ConfigureVisibleAgentsMenuItem_Click(object sender, RoutedEventArgs e)
+        {
+            ThreadHelper.ThrowIfNotOnUIThread();
+
+            try
+            {
+                if (_settings == null) _settings = new ClaudeCodeSettings();
+                if (_settings.VisibleProviders == null)
+                {
+                    _settings.VisibleProviders = new System.Collections.Generic.List<AiProvider> { AiProvider.ClaudeCode };
+                }
+
+                if (ShowVisibleAgentsDialog())
+                {
+                    SaveSettings();
+                    ApplyProviderMenuVisibility();
+                }
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"Error configuring visible agents: {ex.Message}");
+                MessageBox.Show($"Error configuring visible agents: {ex.Message}",
+                    "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+        }
+
+        /// <summary>
+        /// Shows the dialog with one checkbox per provider. Returns true when the
+        /// user clicked OK and the selection was saved into <c>_settings.VisibleProviders</c>.
+        /// The currently selected provider's checkbox is force-checked and disabled
+        /// because hiding the active agent would leave the menu inconsistent with
+        /// the live terminal title.
+        /// </summary>
+        private bool ShowVisibleAgentsDialog()
+        {
+            GetThemeBrushes(out System.Windows.Media.Brush themeBg, out System.Windows.Media.Brush themeFg);
+
+            var dialog = new System.Windows.Window
+            {
+                Title = "Configure Visible Code Agents",
+                Width = 420,
+                Height = 460,
+                WindowStartupLocation = System.Windows.WindowStartupLocation.CenterOwner,
+                ResizeMode = System.Windows.ResizeMode.NoResize,
+                Background = themeBg,
+                Foreground = themeFg,
+                ShowInTaskbar = false
+            };
+
+            try { dialog.Owner = System.Windows.Application.Current?.MainWindow; } catch { }
+
+            var grid = new System.Windows.Controls.Grid { Margin = new System.Windows.Thickness(12) };
+            grid.RowDefinitions.Add(new System.Windows.Controls.RowDefinition { Height = System.Windows.GridLength.Auto });
+            grid.RowDefinitions.Add(new System.Windows.Controls.RowDefinition { Height = new System.Windows.GridLength(1, System.Windows.GridUnitType.Star) });
+            grid.RowDefinitions.Add(new System.Windows.Controls.RowDefinition { Height = System.Windows.GridLength.Auto });
+
+            var label = new System.Windows.Controls.TextBlock
+            {
+                Text = "Select which code agents appear in the agent menu. " +
+                       "The currently active agent is always shown.",
+                TextWrapping = System.Windows.TextWrapping.Wrap,
+                Foreground = themeFg,
+                Margin = new System.Windows.Thickness(0, 0, 0, 10)
+            };
+            System.Windows.Controls.Grid.SetRow(label, 0);
+            grid.Children.Add(label);
+
+            var stack = new System.Windows.Controls.StackPanel { Orientation = System.Windows.Controls.Orientation.Vertical };
+            var scroll = new System.Windows.Controls.ScrollViewer
+            {
+                VerticalScrollBarVisibility = System.Windows.Controls.ScrollBarVisibility.Auto,
+                Content = stack
+            };
+            System.Windows.Controls.Grid.SetRow(scroll, 1);
+            grid.Children.Add(scroll);
+
+            var visible = _settings.VisibleProviders ?? new System.Collections.Generic.List<AiProvider>();
+            var selected = _settings.SelectedProvider;
+
+            // Preserve menu order from the XAML provider list
+            var providersInOrder = new[]
+            {
+                AiProvider.ClaudeCode,
+                AiProvider.ClaudeCodeWSL,
+                AiProvider.CodexNative,
+                AiProvider.Codex,
+                AiProvider.CursorAgentNative,
+                AiProvider.CursorAgent,
+                AiProvider.OpenCode,
+                AiProvider.Windsurf,
+                AiProvider.Pi,
+                AiProvider.Antigravity,
+            };
+
+            var checkboxes = new System.Collections.Generic.Dictionary<AiProvider, System.Windows.Controls.CheckBox>();
+            foreach (var provider in providersInOrder)
+            {
+                bool isActive = provider == selected;
+                var cb = new System.Windows.Controls.CheckBox
+                {
+                    Content = isActive
+                        ? GetProviderConfigLabel(provider) + "  (active)"
+                        : GetProviderConfigLabel(provider),
+                    IsChecked = isActive || visible.Contains(provider),
+                    IsEnabled = !isActive,
+                    Foreground = themeFg,
+                    Margin = new System.Windows.Thickness(0, 4, 0, 4)
+                };
+                stack.Children.Add(cb);
+                checkboxes[provider] = cb;
+            }
+
+            var buttonPanel = new System.Windows.Controls.StackPanel
+            {
+                Orientation = System.Windows.Controls.Orientation.Horizontal,
+                HorizontalAlignment = System.Windows.HorizontalAlignment.Right,
+                Margin = new System.Windows.Thickness(0, 10, 0, 0)
+            };
+            System.Windows.Controls.Grid.SetRow(buttonPanel, 2);
+
+            System.Windows.Style buttonStyle = GetDialogButtonStyle();
+
+            var okButton = new System.Windows.Controls.Button
+            {
+                Content = "OK",
+                Width = 80,
+                Height = 26,
+                Margin = new System.Windows.Thickness(0, 0, 8, 0),
+                IsDefault = true
+            };
+            var cancelButton = new System.Windows.Controls.Button
+            {
+                Content = "Cancel",
+                Width = 80,
+                Height = 26,
+                IsCancel = true
+            };
+            if (buttonStyle != null)
+            {
+                okButton.Style = buttonStyle;
+                cancelButton.Style = buttonStyle;
+            }
+            else
+            {
+                okButton.Background = themeBg; okButton.Foreground = themeFg; okButton.BorderBrush = themeFg;
+                cancelButton.Background = themeBg; cancelButton.Foreground = themeFg; cancelButton.BorderBrush = themeFg;
+            }
+
+            bool confirmed = false;
+            okButton.Click += (s, args) =>
+            {
+                var newList = new System.Collections.Generic.List<AiProvider>();
+                foreach (var provider in providersInOrder)
+                {
+                    if (checkboxes[provider].IsChecked == true)
+                    {
+                        newList.Add(provider);
+                    }
+                }
+                _settings.VisibleProviders = newList;
+                confirmed = true;
+                dialog.DialogResult = true;
+            };
+
+            buttonPanel.Children.Add(okButton);
+            buttonPanel.Children.Add(cancelButton);
+            grid.Children.Add(buttonPanel);
+
+            dialog.Content = grid;
+            dialog.ShowDialog();
+            return confirmed;
         }
 
         #endregion

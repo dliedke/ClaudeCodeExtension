@@ -345,6 +345,7 @@
 								<MenuItem Header="Windsurf (WSL)" x:Name="WindsurfMenuItem" Click="WindsurfMenuItem_Click" IsCheckable="True"/>
 								<MenuItem Header="PI" x:Name="PiMenuItem" Click="PiMenuItem_Click" IsCheckable="True"/>
 								<MenuItem Header="Antigravity" x:Name="AntigravityMenuItem" Click="AntigravityMenuItem_Click" IsCheckable="True"/>
+								<MenuItem Header="Configure Visible Code Agents..." x:Name="ConfigureVisibleAgentsMenuItem" Click="ConfigureVisibleAgentsMenuItem_Click" ToolTip="Choose which code agents appear in this menu. The active agent always remains visible."/>
 								<Separator x:Name="AutoOpenChangesSeparator"/>
 								<MenuItem Header="Send with Enter" x:Name="SendWithEnterMenuItem" Click="SendWithEnterMenuItem_Click" IsCheckable="True" IsChecked="True" ToolTip="When enabled, Enter sends the prompt (use Shift+Enter or Ctrl+Enter for new lines). When disabled, Enter inserts a newline and the Send button is shown."/>
 								<MenuItem Header="Send large prompts as file" x:Name="SendLargePromptsAsFileMenuItem" Click="SendLargePromptsAsFileMenuItem_Click" IsCheckable="True" ToolTip="When enabled, long prompts are saved to a temporary file and only the file path is sent. Avoids truncation of large content."/>

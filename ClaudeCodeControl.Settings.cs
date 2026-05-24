@@ -443,11 +443,19 @@ namespace ClaudeCodeVS
             // Update provider selection and title
             UpdateProviderSelection();
 
+            // Apply visible-providers filter to the agent menu (default shows
+            // only Claude Code; user-configured providers and the active one
+            // also appear).
+            ApplyProviderMenuVisibility();
+
             // Update model selection
             UpdateModelSelection();
 
             // Update effort selection
             UpdateEffortSelection();
+
+            // Color the inline usage bars to match the current theme
+            UpdateInlineUsageBarColors();
 
             // Show the custom-commands toolbar button when entries are configured
             RefreshCustomCommandsButton();

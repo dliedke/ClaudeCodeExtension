@@ -99,6 +99,85 @@ namespace ClaudeCodeVS
         }
 
         /// <summary>
+        /// Re-tints the inline usage progress bar backgrounds and borders so they
+        /// remain readable on both dark and light Visual Studio themes. The
+        /// hard-coded dark track from the XAML defaults makes the unfilled portion
+        /// of each bar look like a black slab on light themes; this picks a soft
+        /// tone that matches the surrounding tool window background instead.
+        /// </summary>
+        internal void UpdateInlineUsageBarColors()
+        {
+            try
+            {
+                ThreadHelper.ThrowIfNotOnUIThread();
+                if (InlineSessionBar == null) return;
+
+                bool isDark = IsDarkThemeActive();
+
+                System.Windows.Media.Brush trackBrush;
+                System.Windows.Media.Brush borderBrush;
+
+                if (isDark)
+                {
+                    trackBrush  = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(0x2A, 0x2A, 0x2A));
+                    borderBrush = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(0x60, 0x60, 0x60));
+                }
+                else
+                {
+                    // Light theme: soft grey track that contrasts with the blue fill
+                    // but doesn't punch a dark hole into the panel background.
+                    trackBrush  = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(0xDC, 0xDC, 0xE0));
+                    borderBrush = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(0xB8, 0xB8, 0xBE));
+                }
+
+                (trackBrush as System.Windows.Media.SolidColorBrush)?.Freeze();
+                (borderBrush as System.Windows.Media.SolidColorBrush)?.Freeze();
+
+                System.Windows.Controls.ProgressBar[] bars =
+                {
+                    InlineSessionBar, InlineWeeklyBar, InlineExtraUsageBar
+                };
+
+                foreach (var bar in bars)
+                {
+                    if (bar == null) continue;
+                    bar.Background = trackBrush;
+                    bar.BorderBrush = borderBrush;
+                }
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine("UpdateInlineUsageBarColors failed: " + ex.Message);
+            }
+        }
+
+        /// <summary>
+        /// Detects whether the effective theme is dark by inspecting the resolved
+        /// VS WindowKey brush brightness. Honors a forced ThemePreference override
+        /// when set.
+        /// </summary>
+        private bool IsDarkThemeActive()
+        {
+            try
+            {
+                var pref = _settings?.SelectedThemePreference ?? ThemePreference.Automatic;
+                if (pref == ThemePreference.Dark) return true;
+                if (pref == ThemePreference.Light) return false;
+
+                var brush = FindResource(Microsoft.VisualStudio.Shell.VsBrushes.WindowKey) as System.Windows.Media.SolidColorBrush;
+                if (brush == null) return true;
+                var c = brush.Color;
+                // ITU-R BT.601 luma
+                double luma = (0.299 * c.R + 0.587 * c.G + 0.114 * c.B);
+                return luma < 128.0;
+            }
+            catch
+            {
+                return true;
+            }
+        }
+
+        /// <summary>
         /// Shows or hides the inline usage panel based on the active provider,
         /// the user setting, and whether we have any data to show.
         /// </summary>

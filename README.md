@@ -279,6 +279,12 @@ Claude will write the `SKILL.md` file with the proper frontmatter and instructio
 
 ## Version History
 
+### Version 10.56
+- **Inline usage bars: readable on light theme**: The unfilled portion of the Claude usage progress bars no longer looks like a dark slab when Visual Studio is on a light theme. The bar track and border now adapt automatically to the active theme (light or dark, including the forced Theme preference).
+
+### Version 10.55
+- **Shorter agent menu**: The code agent selection menu now shows only Claude Code by default instead of all ten providers. Use the new **Configure Visible Code Agents...** entry in the same menu to opt back in to the agents you actually use. If you already had a different agent selected before upgrading, it stays visible automatically.
+
 ### Version 10.54
 - **Antigravity: Skip Permissions support**: Added support for starting Google Antigravity (`agy`) with the `--dangerously-skip-permissions` parameter to automatically skip permission approvals, mirroring the behavior already available for Claude Code, Codex, and Windsurf.
 

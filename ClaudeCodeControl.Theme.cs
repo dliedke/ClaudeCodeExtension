@@ -90,6 +90,7 @@ namespace ClaudeCodeVS
 
                     UpdateTerminalTheme();
                     UpdateDetachButtonIcon(_isTerminalDetached);
+                    UpdateInlineUsageBarColors();
 
                     // Skip the prompt when the agent's running color already
                     // matches the new panel color. Covers (a) switching
