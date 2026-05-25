@@ -6,7 +6,7 @@
 
 - **Author**: Daniel Carvalho Liedke (dliedke@gmail.com) | **License**: MIT
 - **Repository**: https://github.com/dliedke/ClaudeCodeExtension
-- **Current Version**: 10.62 | **Target Framework**: .NET Framework 4.7.2
+- **Current Version**: 10.64 | **Target Framework**: .NET Framework 4.7.2
 
 ---
 
@@ -52,7 +52,7 @@ When the user asks to **publish the app** (or any equivalent phrasing like "publ
 
 ```
 ClaudeCodeExtension/
-├── Core Control (partial classes of ClaudeCodeControl):
+├── Controls/                            # Partial classes of ClaudeCodeControl
 │   ├── ClaudeCodeControl.cs             # Core initialization & orchestration
 │   ├── ClaudeCodeControl.Terminal.cs    # Terminal embedding, process init, F5 forwarding
 │   ├── ClaudeCodeControl.ProviderManagement.cs  # AI provider detection & switching, Caveman plugin install
@@ -70,19 +70,34 @@ ClaudeCodeExtension/
 │   ├── ClaudeCodeControl.Detach.cs      # Terminal detach/attach to separate VS tab
 │   ├── ClaudeCodeControl.Usage.cs       # Claude usage tool window wiring & inline bars
 │   └── ClaudeCodeControl.SessionHistory.cs # Session history dialog: list/resume/delete JSONL transcripts
-├── UI:
-│   ├── ClaudeCodeControl.xaml / DiffViewerControl.xaml(.cs) / ClaudeUsageControl.xaml(.cs)
-│   ├── ClaudeCodeToolWindow.cs / DiffViewerToolWindow.cs / DetachedTerminalToolWindow.cs / ClaudeUsageToolWindow.cs
-├── Diff Engine:
-│   ├── Diff/DiffComputer.cs / FileChangeTracker.cs / ChangedFile.cs
-├── Models & Package:
-│   ├── ClaudeCodeModels.cs              # Enums & settings class
+├── UI/                                  # XAML controls + paired code-behind
+│   ├── ClaudeCodeControl.xaml
+│   ├── ClaudeUsageControl.xaml(.cs)
+│   └── DiffViewerControl.xaml(.cs)
+├── ToolWindows/                         # VS tool window hosts
+│   ├── ClaudeCodeToolWindow.cs
+│   ├── DiffViewerToolWindow.cs
+│   ├── DetachedTerminalToolWindow.cs
+│   └── ClaudeUsageToolWindow.cs
+├── Models/
+│   └── ClaudeCodeModels.cs              # Enums & settings class
+├── Package/                             # VS package & solution event wiring
 │   ├── ClaudeCodeExtensionPackage.cs    # VS package registration
 │   └── SolutionEventsHandler.cs         # Solution/project open events
-├── Publishing:
-│   ├── publish.cmd                      # Automated marketplace deployment script
-│   └── publishManifest.json             # VS Marketplace metadata
+├── Diff/                                # Diff engine
+│   ├── DiffComputer.cs
+│   ├── FileChangeTracker.cs
+│   └── ChangedFile.cs
+├── Root (project metadata only):
+│   ├── ClaudeCodeExtensionPackage.vsct  # Command table
+│   ├── source.extension.vsixmanifest
+│   └── ClaudeCodeExtension.csproj / .sln
+└── Publishing:
+    ├── publish.cmd                      # Automated marketplace deployment script
+    └── publishManifest.json             # VS Marketplace metadata
 ```
+
+**Folder reorg note**: When adding a new XAML control, place both `.xaml` and `.xaml.cs` in `UI/` and add a `<Page Include="UI\Foo.xaml">` entry plus a `<Compile Include="UI\Foo.xaml.cs">` with `<DependentUpon>Foo.xaml</DependentUpon>` to the csproj. Partial-class extensions of `ClaudeCodeControl` live in `Controls/`.
 
 ---
 

@@ -98,6 +98,12 @@ This binds a Claude Code skill that shells out to OpenAI Codex to audit pending 
 
 ## Version History
 
+### Version 10.64
+- XAML controls and their code-behind moved into a dedicated UI/ folder. No user-facing changes.
+
+### Version 10.63
+- Internal source tree reorganized into Controls/, ToolWindows/, Models/, and Package/ folders for easier navigation. No user-facing changes.
+
 ### Version 10.62
 - Splitter between terminal and prompt can now be dragged fully to the top or bottom to hide either panel.
 
