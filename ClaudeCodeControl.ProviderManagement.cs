@@ -2838,8 +2838,7 @@ For more details, visit: https://pi.dev";
             // The currently selected provider is always shown so users keep access to it.
             ApplyProviderMenuVisibility();
 
-            AutoOpenChangesSeparator.Visibility = (isInGitRepo || isClaudeProvider || isCodexProvider || isCursorAgentProvider || isWindsurfProvider || isPiProvider || isAntigravityProvider) ? Visibility.Visible : Visibility.Collapsed;
-            AutoOpenChangesMenuItem.Visibility = isInGitRepo ? Visibility.Visible : Visibility.Collapsed;
+            AutoOpenChangesSeparator.Visibility = (isClaudeProvider || isCodexProvider || isCursorAgentProvider || isWindsurfProvider || isPiProvider || isAntigravityProvider) ? Visibility.Visible : Visibility.Collapsed;
             ClaudeDangerouslySkipPermissionsMenuItem.Visibility = isClaudeProvider ? Visibility.Visible : Visibility.Collapsed;
             CodexFullAutoMenuItem.Visibility = isCodexProvider ? Visibility.Visible : Visibility.Collapsed;
             CursorAgentAutoRunMenuItem.Visibility = isCursorAgentProvider ? Visibility.Visible : Visibility.Collapsed;
@@ -2849,9 +2848,6 @@ For more details, visit: https://pi.dev";
             // Update checkbox state from settings
             if (_settings != null)
             {
-                SendWithEnterMenuItem.IsChecked = _settings.SendWithEnter;
-                SendLargePromptsAsFileMenuItem.IsChecked = _settings.SendLargePromptsAsFile;
-                AutoOpenChangesMenuItem.IsChecked = _settings.AutoOpenChangesOnPrompt;
                 ClaudeDangerouslySkipPermissionsMenuItem.IsChecked = _settings.ClaudeDangerouslySkipPermissions;
                 CodexFullAutoMenuItem.IsChecked = _settings.CodexFullAuto;
                 CursorAgentAutoRunMenuItem.IsChecked = _settings.CursorAgentAutoRun;
@@ -2898,84 +2894,8 @@ For more details, visit: https://pi.dev";
                 {
                     SetWorkingDirectoryMenuItem.Header = "Set Working Directory...";
                 }
-
-                // Update terminal type menu item to show current selection
-                string terminalTypeName = _settings.SelectedTerminalType == TerminalType.WindowsTerminal ? "Windows Terminal" : "Command Prompt";
-                SetTerminalTypeMenuItem.Header = $"Set Terminal Type... ({terminalTypeName})";
-
-                // Update theme menu item to show current selection
-                string themeName;
-                switch (_settings.SelectedThemePreference)
-                {
-                    case ThemePreference.Dark:  themeName = "Dark";  break;
-                    case ThemePreference.Light: themeName = "Light"; break;
-                    default:                    themeName = "Automatic"; break;
-                }
-                SetThemeMenuItem.Header = $"Set Theme... ({themeName})";
-
-                // Update invert layout checkbox
-                InvertLayoutMenuItem.IsChecked = _settings.InvertLayout;
-
-                // Update disable-startup-auto-zoom checkbox
-                DisableStartupAutoZoomMenuItem.IsChecked = _settings.DisableStartupAutoZoom;
             }
 
-        }
-
-        /// <summary>
-        /// Handles the "Disable Auto Zoom on Startup" toggle. When checked, the
-        /// extension skips the automatic terminal zoom-out and saved zoom-delta
-        /// replay performed after each terminal start.
-        /// </summary>
-        private void DisableStartupAutoZoomMenuItem_Click(object sender, RoutedEventArgs e)
-        {
-            ThreadHelper.ThrowIfNotOnUIThread();
-
-            if (_settings == null) return;
-
-            _settings.DisableStartupAutoZoom = DisableStartupAutoZoomMenuItem.IsChecked;
-            SaveSettings();
-        }
-
-        /// <summary>
-        /// Handles auto-open changes menu item click
-        /// </summary>
-        private void AutoOpenChangesMenuItem_Click(object sender, RoutedEventArgs e)
-        {
-            ThreadHelper.ThrowIfNotOnUIThread();
-
-            if (_settings == null) return;
-
-            _settings.AutoOpenChangesOnPrompt = AutoOpenChangesMenuItem.IsChecked;
-            SaveSettings();
-        }
-
-        /// <summary>
-        /// Handles Send-with-Enter menu item click. Toggles whether the Enter key
-        /// submits the prompt and shows/hides the Send button accordingly.
-        /// </summary>
-        private void SendWithEnterMenuItem_Click(object sender, RoutedEventArgs e)
-        {
-            ThreadHelper.ThrowIfNotOnUIThread();
-
-            if (_settings == null) return;
-
-            _settings.SendWithEnter = SendWithEnterMenuItem.IsChecked;
-            SendPromptButton.Visibility = _settings.SendWithEnter ? Visibility.Collapsed : Visibility.Visible;
-            SaveSettings();
-        }
-
-        /// <summary>
-        /// Handles "Send large prompts as file" menu item click
-        /// </summary>
-        private void SendLargePromptsAsFileMenuItem_Click(object sender, RoutedEventArgs e)
-        {
-            ThreadHelper.ThrowIfNotOnUIThread();
-
-            if (_settings == null) return;
-
-            _settings.SendLargePromptsAsFile = SendLargePromptsAsFileMenuItem.IsChecked;
-            SaveSettings();
         }
 
         /// <summary>

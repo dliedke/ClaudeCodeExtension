@@ -6,7 +6,7 @@
 
 - **Author**: Daniel Carvalho Liedke (dliedke@gmail.com) | **License**: MIT
 - **Repository**: https://github.com/dliedke/ClaudeCodeExtension
-- **Current Version**: 10.57 | **Target Framework**: .NET Framework 4.7.2
+- **Current Version**: 10.62 | **Target Framework**: .NET Framework 4.7.2
 
 ---
 
@@ -62,6 +62,7 @@ ClaudeCodeExtension/
 │   ├── ClaudeCodeControl.Workspace.cs   # Solution/workspace directory detection
 │   ├── ClaudeCodeControl.ImageHandling.cs # Image paste & file attachments
 │   ├── ClaudeCodeControl.Settings.cs    # Settings persistence (JSON), layout inversion
+│   ├── ClaudeCodeControl.SettingsDialog.cs # Consolidated Settings dialog: behavior, layout, terminal type, theme
 │   ├── ClaudeCodeControl.Cleanup.cs     # Resource cleanup, temp dir management
 │   ├── ClaudeCodeControl.CustomCommands.cs # User-defined custom commands: configure dialog, toolbar dropdown, dispatch
 │   ├── ClaudeCodeControl.Interop.cs     # Win32 API declarations (P/Invoke)
@@ -198,7 +199,7 @@ WSL:     cmd.exe /k chcp 65001 >nul && cls && wsl bash -lic "cd {wslPath} && {co
 
 - **`_isInitializing` guard**: Prevents `SaveSettings()` during `LoadSettings()`
 - **`[JsonExtensionData]`**: Preserves unknown JSON properties across DLL versions
-- **Layout inversion**: `ApplyLayout()` swaps prompt and terminal grid rows, adjusts MinHeights (Terminal 20px, Prompt 80px), hides/shows terminal GroupBox header, reorders prompt section controls
+- **Layout inversion**: `ApplyLayout()` swaps prompt and terminal grid rows. Outer `MainGrid` row `MinHeight`s are 0 in both orientations so the splitter can be dragged fully to the top or bottom to hide either panel. Inner `PromptSectionGrid` row 0 still uses MinHeight 80 to keep the prompt input usable when the prompt section itself has height. `ApplyLayout()` also hides/shows the terminal GroupBox header and reorders prompt section controls
 
 ### Workspace (Workspace.cs)
 
@@ -216,6 +217,15 @@ Re-parents terminal to/from `DetachedTerminalToolWindow` via `SetParent()`. Auto
 - **Re-entrancy guard**: `_isShowingThemeRestartPrompt` prevents a second "Theme Changed" `MessageBox` stacking on the first. WPF dispatcher keeps pumping during the modal, so a later debounce tick from another `VSColorTheme.ThemeChanged` event would otherwise open a second dialog
 - **Debounce**: 500ms `DispatcherTimer` collapses rapid consecutive theme events into one prompt
 - **Forced theme overrides**: `ApplyForcedThemeResources()` injects 9 VS brush keys into the control's `Resources` dictionary so child WPF elements pick up the forced palette via `DynamicResource`. Removed when reverting to Automatic
+- **Opt-out**: `SkipThemeRestartPrompt` setting (exposed in the consolidated Settings dialog) short-circuits `OnThemeChangeDebounceTimerTick` entirely — for users who auto-swap themes mid-session (e.g. VS debugging theme on F5) and don't want to be asked
+
+### Consolidated Settings Dialog (SettingsDialog.cs)
+
+- **Single entry point**: `Settings...` menu item in the ⚙ context menu, replacing 7 previously-scattered toggles: Invert Layout, Disable Auto Zoom, Terminal Type, Theme, Send with Enter, Large prompts as file, Auto Open Changes on Send
+- **Dialog construction**: Built programmatically (no XAML) via `ShowConsolidatedSettingsDialogAsync()`; reuses `MakeSectionHeader`/`MakeCheckBox`/`MakeRadioButton` helpers and `GetThemeBrushes`/`GetDialogButtonStyle` from CustomCommands.cs
+- **Batched apply**: All settings persisted once on OK via a single `SaveSettings()` at the end. Side effects fire in order: prompt button visibility → `ApplyInvertLayoutChange()` → theme repaint (`UpdateTerminalTheme`/`UpdateInlineUsageBarColors`) → at most one terminal restart (only when terminal type changed, or theme changed AND user confirms restart popup — popup itself is gated by `SkipThemeRestartPrompt`, terminal-not-running, and agent-color-already-matches)
+- **Windows Terminal validation**: `IsWindowsTerminalAvailableAsync()` runs before persisting a WT selection; reverts to CMD with a `MessageBox` if `wt.exe` isn't on PATH
+- **Layout swap helper**: `ApplyInvertLayoutChange()` in Settings.cs is the only entry point for inverting the layout — the old `InvertLayoutMenuItem_Click` is gone since the XAML field was removed
 
 ### Session History (SessionHistory.cs)
 
@@ -243,7 +253,7 @@ class SessionInfo { SessionId, FilePath, Preview, MessageCount, TokenCount, Last
 class UsageSnapshot { SessionLabel, SessionReset, SessionPercent, WeeklyLabel, WeeklyReset, WeeklyPercent, HasExtraUsage, ExtraUsageSpent, ExtraUsageReset, ExtraUsagePercent }
 ```
 
-Key settings: `SplitterPosition` (236px default), `SelectedProvider`, `VisibleProviders` (defaults to `[ClaudeCode]` — controls which agents appear in the provider menu; active provider is always shown regardless), `SelectedClaudeModel`, `SelectedWindsurfModel`, `PromptHistory` (max 50), `AutoOpenChangesOnPrompt`, `ClaudeDangerouslySkipPermissions`, `CodexFullAuto`, `CursorAgentAutoRun`, `WindsurfDangerousMode`, `SelectedEffortLevel`, `CustomWorkingDirectory`, `SelectedTerminalType`, `IsTerminalDetached`, `PromptFontSize` (8–24pt), `TerminalZoomDelta`, `InvertLayout`, `SelectedThemePreference` (Automatic/Dark/Light), `LastAgentTerminalColorArgb` (agent's launched color, used to skip redundant restart prompts), `CustomCommands` (list of `{Name, Command}`), `UsageAutoRefreshSeconds` (0 = manual), `UsageWindowOpened` (auto-reopen on load), `ShowInlineUsageBars` (default true), `LastUsageJson` / `LastUsageTimestamp` (cached snapshot), `SendLargePromptsAsFile` (default false — when true, prompts >1 KB are sent as a file reference instead of inline paste)
+Key settings: `SplitterPosition` (236px default), `SelectedProvider`, `VisibleProviders` (defaults to `[ClaudeCode]` — controls which agents appear in the provider menu; active provider is always shown regardless), `SelectedClaudeModel`, `SelectedWindsurfModel`, `PromptHistory` (max 50), `AutoOpenChangesOnPrompt`, `ClaudeDangerouslySkipPermissions`, `CodexFullAuto`, `CursorAgentAutoRun`, `WindsurfDangerousMode`, `SelectedEffortLevel`, `CustomWorkingDirectory`, `SelectedTerminalType`, `IsTerminalDetached`, `PromptFontSize` (8–24pt), `TerminalZoomDelta`, `InvertLayout`, `SelectedThemePreference` (Automatic/Dark/Light), `LastAgentTerminalColorArgb` (agent's launched color, used to skip redundant restart prompts), `SkipThemeRestartPrompt` (default false — suppresses the "Theme Changed, restart agent?" prompt entirely), `CustomCommands` (list of `{Name, Command}`), `UsageAutoRefreshSeconds` (0 = manual), `UsageWindowOpened` (auto-reopen on load), `ShowInlineUsageBars` (default true), `LastUsageJson` / `LastUsageTimestamp` (cached snapshot), `SendLargePromptsAsFile` (default false — when true, prompts >1 KB are sent as a file reference instead of inline paste)
 
 ---
 

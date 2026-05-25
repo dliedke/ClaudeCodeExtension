@@ -55,6 +55,7 @@
     <Compile Include="ClaudeCodeControl.ProviderManagement.cs" />
     <Compile Include="ClaudeCodeControl.SessionHistory.cs" />
     <Compile Include="ClaudeCodeControl.Settings.cs" />
+    <Compile Include="ClaudeCodeControl.SettingsDialog.cs" />
     <Compile Include="ClaudeCodeControl.Terminal.cs" />
     <Compile Include="ClaudeCodeControl.TerminalIO.cs" />
     <Compile Include="ClaudeCodeControl.Theme.cs" />

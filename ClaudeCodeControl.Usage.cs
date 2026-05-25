@@ -81,7 +81,7 @@ namespace ClaudeCodeVS
                     {
                         await Task.Delay(2000);
                         await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
-                        await EnsureUsageToolWindowAsync(showWindow: wasWindowOpen, updateWindowState: wasWindowOpen);
+                        await EnsureUsageToolWindowAsync(showWindow: wasWindowOpen, updateWindowState: wasWindowOpen, activate: false);
                     }).FileAndForget("claudecode/usage/auto-reopen");
 #pragma warning restore VSSDK007
                 }
@@ -362,7 +362,7 @@ namespace ClaudeCodeVS
         /// briefly (BackgroundInitMode) to satisfy WebView2's parent-HWND requirement,
         /// waits for a real scrape to complete, then hides it again.
         /// </summary>
-        private async Task EnsureUsageToolWindowAsync(bool showWindow, bool updateWindowState = true)
+        private async Task EnsureUsageToolWindowAsync(bool showWindow, bool updateWindowState = true, bool activate = true)
         {
             await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
 
@@ -396,7 +396,12 @@ namespace ClaudeCodeVS
                     _usageBackgroundRefreshTimer?.Stop();
                     _usageBackgroundRefreshTimer = null;
 
-                    Microsoft.VisualStudio.ErrorHandler.ThrowOnFailure(frame.Show());
+                    // ShowNoActivate when the tab is being restored automatically (e.g.
+                    // after a solution reload) so the editor / agent terminal keeps focus.
+                    if (activate)
+                        Microsoft.VisualStudio.ErrorHandler.ThrowOnFailure(frame.Show());
+                    else
+                        Microsoft.VisualStudio.ErrorHandler.ThrowOnFailure(frame.ShowNoActivate());
 
                     if (updateWindowState && _settings != null && _settings.UsageWindowOpened != true)
                     {
@@ -493,6 +498,18 @@ namespace ClaudeCodeVS
                 System.Diagnostics.Process.Start("https://windsurf.com/subscription/usage");
             else
                 await ToggleUsageToolWindowAsync();
+        }
+
+        /// <summary>
+        /// Syncs the Show Usage menu item's checkmark to reflect whether the
+        /// usage tool window is currently open. Windsurf is link-only (no
+        /// embedded window) so the check is suppressed for that provider.
+        /// </summary>
+        private void ViewsContextMenu_Opened(object sender, RoutedEventArgs e)
+        {
+            if (ShowUsageViewMenuItem == null) return;
+            bool isWindsurf = _settings?.SelectedProvider == AiProvider.Windsurf;
+            ShowUsageViewMenuItem.IsChecked = !isWindsurf && _settings?.UsageWindowOpened == true;
         }
 
         /// <summary>

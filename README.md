@@ -98,6 +98,19 @@ This binds a Claude Code skill that shells out to OpenAI Codex to audit pending 
 
 ## Version History
 
+### Version 10.62
+- Splitter between terminal and prompt can now be dragged fully to the top or bottom to hide either panel.
+
+### Version 10.61
+- Auto-reopened **Claude Usage** tab no longer steals focus on solution load.
+
+### Version 10.60
+- **Show Usage** menu item now displays a checkmark when the usage view is open.
+
+### Version 10.59
+- Consolidated layout, terminal type, theme, send behavior, auto-zoom, and auto-open changes into a single **Settings...** dialog in the ⚙ menu.
+- Added an opt-out for the "Theme Changed" restart prompt for users who auto-switch themes when debugging.
+
 ### Version 10.58
 - README cleanup: trimmed version history to user-visible features. Fixed outdated **Update Agent** button reference (now a menu item) and clarified installation source.
 

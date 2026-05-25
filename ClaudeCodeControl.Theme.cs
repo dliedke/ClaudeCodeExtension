@@ -141,6 +141,10 @@ namespace ClaudeCodeVS
             if (_settings?.SelectedThemePreference != ThemePreference.Automatic)
                 return;
 
+            // Skip if the user opted out of the theme-restart prompt entirely.
+            if (_settings?.SkipThemeRestartPrompt == true)
+                return;
+
             // Skip if no terminal is currently embedded.
             if (terminalHandle == IntPtr.Zero || !IsWindow(terminalHandle))
                 return;

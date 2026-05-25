@@ -338,6 +338,14 @@ namespace ClaudeCodeVS
         public int LastAgentTerminalColorArgb { get; set; } = 0;
 
         /// <summary>
+        /// When true, the "Theme changed. Restart the AI code agent?" prompt
+        /// is suppressed entirely. Useful for users who automatically swap
+        /// themes mid-session (e.g. VS debugging theme on F5) and do not want
+        /// to be asked every time.
+        /// </summary>
+        public bool SkipThemeRestartPrompt { get; set; } = false;
+
+        /// <summary>
         /// User-defined custom commands surfaced in the toolbar custom-commands
         /// dropdown. Empty list hides the dropdown button entirely.
         /// </summary>

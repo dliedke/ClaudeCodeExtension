@@ -128,9 +128,9 @@
 
 	<Grid x:Name="MainGrid">
 		<Grid.RowDefinitions>
-			<RowDefinition Height="*" MinHeight="80"/>
+			<RowDefinition Height="*" MinHeight="0"/>
 			<RowDefinition Height="4"/>
-			<RowDefinition Height="2*" MinHeight="20"/>
+			<RowDefinition Height="2*" MinHeight="0"/>
 		</Grid.RowDefinitions>
 
 		<!-- Top Section Container (Prompt area) -->
@@ -251,10 +251,10 @@
                             Click="ViewsDropdownButton_Click"
                             Margin="0,0,6,0">
 							<Button.ContextMenu>
-								<ContextMenu x:Name="ViewsContextMenu">
+								<ContextMenu x:Name="ViewsContextMenu" Opened="ViewsContextMenu_Opened">
 									<MenuItem Header="🔀  View Changes" x:Name="ViewChangesMenuItem" Click="ViewChangesButton_Click"/>
 									<MenuItem Header="📜  Session History" x:Name="SessionHistoryViewMenuItem" Click="SessionHistoryButton_Click" Visibility="Collapsed"/>
-									<MenuItem Header="📊  Show Usage" x:Name="ShowUsageViewMenuItem" Click="ShowUsageViewMenuItem_Click" Visibility="Collapsed"/>
+									<MenuItem Header="📊  Show Usage" x:Name="ShowUsageViewMenuItem" Click="ShowUsageViewMenuItem_Click" IsCheckable="True" Visibility="Collapsed"/>
 								</ContextMenu>
 							</Button.ContextMenu>
 						</Button>
@@ -347,22 +347,15 @@
 								<MenuItem Header="Antigravity" x:Name="AntigravityMenuItem" Click="AntigravityMenuItem_Click" IsCheckable="True"/>
 								<MenuItem Header="Configure Visible Code Agents..." x:Name="ConfigureVisibleAgentsMenuItem" Click="ConfigureVisibleAgentsMenuItem_Click" ToolTip="Choose which code agents appear in this menu. The active agent always remains visible."/>
 								<Separator x:Name="AutoOpenChangesSeparator"/>
-								<MenuItem Header="Send with Enter" x:Name="SendWithEnterMenuItem" Click="SendWithEnterMenuItem_Click" IsCheckable="True" IsChecked="True" ToolTip="When enabled, Enter sends the prompt (use Shift+Enter or Ctrl+Enter for new lines). When disabled, Enter inserts a newline and the Send button is shown."/>
-								<MenuItem Header="Send large prompts as file" x:Name="SendLargePromptsAsFileMenuItem" Click="SendLargePromptsAsFileMenuItem_Click" IsCheckable="True" ToolTip="When enabled, long prompts are saved to a temporary file and only the file path is sent. Avoids truncation of large content."/>
-								<MenuItem Header="Auto-open Changes on Send" x:Name="AutoOpenChangesMenuItem" Click="AutoOpenChangesMenuItem_Click" IsCheckable="True" ToolTip="Automatically open Changes view, expand files, and enable auto-scroll when a prompt is sent"/>
 								<MenuItem Header="Claude Code: Skip Permissions" x:Name="ClaudeDangerouslySkipPermissionsMenuItem" Click="ClaudeDangerouslySkipPermissionsMenuItem_Click" IsCheckable="True" ToolTip="When enabled, Claude Code starts with --dangerously-skip-permissions"/>
 								<MenuItem Header="Codex: Approval Never" x:Name="CodexFullAutoMenuItem" Click="CodexFullAutoMenuItem_Click" IsCheckable="True" ToolTip="When enabled, Codex starts with --ask-for-approval never"/>
 								<MenuItem Header="Cursor Agent: Yolo Mode" x:Name="CursorAgentAutoRunMenuItem" Click="CursorAgentAutoRunMenuItem_Click" IsCheckable="True" ToolTip="When enabled, Cursor Agent starts with --yolo to skip all approvals"/>
 								<MenuItem Header="Windsurf: Dangerous Mode" x:Name="WindsurfDangerousModeMenuItem" Click="WindsurfDangerousModeMenuItem_Click" IsCheckable="True" ToolTip="When enabled, Windsurf starts with --permission-mode dangerous"/>
 								<MenuItem Header="Antigravity: Skip Permissions" x:Name="AntigravityDangerouslySkipPermissionsMenuItem" Click="AntigravityDangerouslySkipPermissionsMenuItem_Click" IsCheckable="True" ToolTip="When enabled, Antigravity starts with --dangerously-skip-permissions"/>
 								<Separator/>
-								<MenuItem Header="Invert Layout" x:Name="InvertLayoutMenuItem" Click="InvertLayoutMenuItem_Click" IsCheckable="True" ToolTip="Swap prompt and terminal positions (terminal on top, prompt on bottom)"/>
-								<MenuItem Header="Disable Auto Zoom on Startup" x:Name="DisableStartupAutoZoomMenuItem" Click="DisableStartupAutoZoomMenuItem_Click" IsCheckable="True" ToolTip="Skip the automatic terminal zoom-out and saved zoom-delta replay performed after each terminal start. Manual Ctrl+Scroll zoom still works. Enable this on high-DPI displays where the default auto-zoom is too small, or to avoid the brief input freeze caused by synthesized keystrokes during startup."/>
-								<Separator/>
 								<MenuItem Header="Set Working Directory..." x:Name="SetWorkingDirectoryMenuItem" Click="SetWorkingDirectoryMenuItem_Click" ToolTip="Set a custom working directory (absolute or relative to solution). Leave empty for default behavior."/>
-								<MenuItem Header="Set Terminal Type..." x:Name="SetTerminalTypeMenuItem" Click="SetTerminalTypeMenuItem_Click" ToolTip="Choose between Command Prompt (default) or Windows Terminal (better emoji/unicode support)"/>
-								<MenuItem Header="Set Theme..." x:Name="SetThemeMenuItem" Click="SetThemeMenuItem_Click" ToolTip="Choose terminal theme: Automatic (follows VS), Dark, or Light"/>
 								<MenuItem Header="Configure Custom Commands..." x:Name="ConfigureCustomCommandsMenuItem" Click="ConfigureCustomCommandsMenuItem_Click" ToolTip="Add, edit, or remove custom commands surfaced in the toolbar dropdown next to the agent menu."/>
+								<MenuItem Header="Settings..." x:Name="SettingsMenuItem" Click="SettingsMenuItem_Click" ToolTip="Open the consolidated settings dialog (layout, terminal type, theme, send behavior, auto-zoom, auto-open changes)."/>
 								<Separator/>
 								<MenuItem Header="About" x:Name="AboutMenuItem" Click="AboutMenuItem_Click"/>
 							</ContextMenu>

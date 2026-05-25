@@ -484,9 +484,11 @@ namespace ClaudeCodeVS
                     System.Windows.Controls.Grid.SetRow(PromptSectionGrid, 2);
                     System.Windows.Controls.Grid.SetRow(TerminalGroupBox, 0);
 
-                    // Swap MinHeights to match content
-                    MainGrid.RowDefinitions[0].MinHeight = 20;
-                    MainGrid.RowDefinitions[2].MinHeight = 80;
+                    // MinHeight 0 on both rows so the splitter can be dragged
+                    // all the way to the top (collapsing the terminal) or to
+                    // the bottom (collapsing the prompt section).
+                    MainGrid.RowDefinitions[0].MinHeight = 0;
+                    MainGrid.RowDefinitions[2].MinHeight = 0;
 
                     // Margins: match the regular layout spacing (10px gap across splitter)
                     TerminalGroupBox.Margin = new Thickness(6, 6, 6, 0);
@@ -515,9 +517,11 @@ namespace ClaudeCodeVS
                     System.Windows.Controls.Grid.SetRow(PromptSectionGrid, 0);
                     System.Windows.Controls.Grid.SetRow(TerminalGroupBox, 2);
 
-                    // Restore MinHeights
-                    MainGrid.RowDefinitions[0].MinHeight = 80;
-                    MainGrid.RowDefinitions[2].MinHeight = 20;
+                    // MinHeight 0 on both rows so the splitter can be dragged
+                    // all the way to the top (collapsing the prompt) or to
+                    // the bottom (collapsing the terminal).
+                    MainGrid.RowDefinitions[0].MinHeight = 0;
+                    MainGrid.RowDefinitions[2].MinHeight = 0;
 
                     // Restore margins
                     PromptSectionGrid.Margin = new Thickness(6, 6, 6, 0);
@@ -556,13 +560,13 @@ namespace ClaudeCodeVS
         }
 
         /// <summary>
-        /// Handles the Invert Layout menu item click
+        /// Applies the user's Invert Layout setting and re-balances the splitter
+        /// rows so the layout looks natural after a swap. Called from the
+        /// consolidated Settings dialog when the toggle is changed.
         /// </summary>
-        private void InvertLayoutMenuItem_Click(object sender, RoutedEventArgs e)
+        internal void ApplyInvertLayoutChange()
         {
             if (_settings == null) return;
-
-            _settings.InvertLayout = InvertLayoutMenuItem.IsChecked;
 
             // Reset splitter to proportional sizing so layout looks natural after swap
             MainGrid.RowDefinitions[0].Height = new System.Windows.GridLength(1, System.Windows.GridUnitType.Star);
@@ -576,7 +580,6 @@ namespace ClaudeCodeVS
             }
 
             ApplyLayout();
-            SaveSettings();
         }
 
         #endregion
