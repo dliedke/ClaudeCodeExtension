@@ -9,6 +9,9 @@
       <Group guid="guidClaudeCodeExtensionPackageCmdSet" id="EditorContextMenuGroup" priority="0x0600">
         <Parent guid="guidSHLMainMenu" id="IDM_VS_CTXT_CODEWIN"/>
       </Group>
+      <Group guid="guidClaudeCodeExtensionPackageCmdSet" id="HtmlCodeContextMenuGroup" priority="0x0600">
+        <Parent guid="guidSHLMainMenu" id="IDM_VS_CTXT_HTMLCODE"/>
+      </Group>
     </Groups>
 
     <Buttons>
@@ -29,6 +32,12 @@
       </Button>
     </Buttons>
 
+    <CommandPlacements>
+      <CommandPlacement guid="guidClaudeCodeExtensionPackageCmdSet" id="EditorSendSelectionCommandId" priority="0x0100">
+        <Parent guid="guidClaudeCodeExtensionPackageCmdSet" id="HtmlCodeContextMenuGroup"/>
+      </CommandPlacement>
+    </CommandPlacements>
+
     <Bitmaps>
       <Bitmap guid="guidImages" href="app.ico" usedList="bmpIcon"/>
     </Bitmaps>
@@ -40,6 +49,7 @@
     <GuidSymbol name="guidClaudeCodeExtensionPackageCmdSet" value="{11111111-2222-3333-4444-555555555555}">
       <IDSymbol name="ClaudeCodeToolWindowCommandId" value="0x0100" />
       <IDSymbol name="EditorContextMenuGroup" value="0x1020" />
+      <IDSymbol name="HtmlCodeContextMenuGroup" value="0x1021" />
       <IDSymbol name="EditorSendSelectionCommandId" value="0x0201" />
     </GuidSymbol>
 

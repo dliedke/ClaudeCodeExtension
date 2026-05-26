@@ -98,6 +98,9 @@ This binds a Claude Code skill that shells out to OpenAI Codex to audit pending 
 
 ## Version History
 
+### Version 10.65
+- "Send Selection to Claude Code" context menu option now appears in HTML file editors, in addition to standard code editors.
+
 ### Version 10.64
 - XAML controls and their code-behind moved into a dedicated UI/ folder. No user-facing changes.
 
