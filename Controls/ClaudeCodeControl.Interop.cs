@@ -275,6 +275,21 @@ namespace ClaudeCodeVS
         private static extern bool BringWindowToTop(IntPtr hWnd);
 
         /// <summary>
+        /// Attaches or detaches the input processing mechanism of one thread to another.
+        /// Used to bypass focus-stealing protection: when our thread shares input state with
+        /// the current foreground window's thread, SetForegroundWindow is treated as
+        /// originating from the foreground app and is no longer denied by Windows.
+        /// </summary>
+        [DllImport("user32.dll")]
+        private static extern bool AttachThreadInput(uint idAttach, uint idAttachTo, bool fAttach);
+
+        /// <summary>
+        /// Returns the calling thread's ID. Paired with AttachThreadInput.
+        /// </summary>
+        [DllImport("kernel32.dll")]
+        private static extern uint GetCurrentThreadId();
+
+        /// <summary>
         /// Synthesizes keystrokes, mouse motions, and button clicks
         /// </summary>
         [DllImport("user32.dll")]

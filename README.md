@@ -98,8 +98,11 @@ This binds a Claude Code skill that shells out to OpenAI Codex to audit pending 
 
 ## Version History
 
+### Version 10.66
+- Clicking the embedded terminal now brings Visual Studio to the foreground even when another app is on top.
+
 ### Version 10.65
-- "Send Selection to Claude Code" context menu option now appears in HTML file editors, in addition to standard code editors.
+- Internal build fix for the editor context menu registration. No user-facing changes.
 
 ### Version 10.64
 - XAML controls and their code-behind moved into a dedicated UI/ folder. No user-facing changes.

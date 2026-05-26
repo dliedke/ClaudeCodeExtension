@@ -1950,6 +1950,8 @@ namespace ClaudeCodeVS
 
         /// <summary>
         /// Brings the VS top-level window to the front of the Win32 Z-order if it isn't already.
+        /// Uses AttachThreadInput to bypass Windows' focus-stealing protection so the activation
+        /// works even when another application currently owns the foreground.
         /// </summary>
         private void BringVisualStudioToForegroundIfNeeded()
         {
@@ -1965,8 +1967,32 @@ namespace ClaudeCodeVS
                 return;
             }
 
-            BringWindowToTop(root);
-            SetForegroundWindow(root);
+            // Plain SetForegroundWindow is denied when our process isn't the foreground app,
+            // so attach our input queue to the foreground window's thread for the duration of
+            // the call. Windows then treats the activation as originating from the foreground app.
+            uint currentThreadId = GetCurrentThreadId();
+            uint foregroundThreadId = foreground != IntPtr.Zero
+                ? GetWindowThreadProcessId(foreground, out _)
+                : 0;
+
+            bool attached = false;
+            if (foregroundThreadId != 0 && foregroundThreadId != currentThreadId)
+            {
+                attached = AttachThreadInput(currentThreadId, foregroundThreadId, true);
+            }
+
+            try
+            {
+                BringWindowToTop(root);
+                SetForegroundWindow(root);
+            }
+            finally
+            {
+                if (attached)
+                {
+                    AttachThreadInput(currentThreadId, foregroundThreadId, false);
+                }
+            }
         }
 
         /// <summary>
