@@ -1925,6 +1925,101 @@ namespace ClaudeCodeVS
         }
 
         /// <summary>
+        /// Reacts to a click on the embedded terminal panel: makes sure VS is on top of the
+        /// Win32 Z-order and that our tool window is the active pane inside VS.
+        /// </summary>
+        private void ActivateEmbeddedTerminalOnClick(POINT screenPoint)
+        {
+            ThreadHelper.ThrowIfNotOnUIThread();
+
+            if (!IsScreenPointInsideActiveTerminalPanel(screenPoint))
+            {
+                return;
+            }
+
+            // Verify the click really hit the terminal (not another app fully covering VS at the
+            // same screen coordinates). Done once here so both activation steps below can trust it.
+            if (WindowFromPoint(screenPoint) != terminalHandle)
+            {
+                return;
+            }
+
+            BringVisualStudioToForegroundIfNeeded();
+            ActivateTerminalToolWindowIfNeeded();
+        }
+
+        /// <summary>
+        /// Brings the VS top-level window to the front of the Win32 Z-order if it isn't already.
+        /// </summary>
+        private void BringVisualStudioToForegroundIfNeeded()
+        {
+            IntPtr foreground = GetForegroundWindow();
+            if (foreground == terminalHandle)
+            {
+                return;
+            }
+
+            IntPtr root = GetAncestor(terminalHandle, GA_ROOT);
+            if (root == IntPtr.Zero || !IsWindow(root) || foreground == root)
+            {
+                return;
+            }
+
+            BringWindowToTop(root);
+            SetForegroundWindow(root);
+        }
+
+        /// <summary>
+        /// Marks the embedded terminal's tool window as the active pane inside VS, if it isn't already.
+        /// </summary>
+        private void ActivateTerminalToolWindowIfNeeded()
+        {
+            ThreadHelper.ThrowIfNotOnUIThread();
+
+            if (IsTerminalToolWindowActive())
+            {
+                return;
+            }
+
+#pragma warning disable VSSDK007 // Fire-and-forget is intentional here
+            _ = ThreadHelper.JoinableTaskFactory.RunAsync(async () =>
+            {
+                await ActivateTerminalToolWindowAsync();
+            });
+#pragma warning restore VSSDK007
+        }
+
+        /// <summary>
+        /// Returns true when the embedded terminal's tool window is the currently active pane inside VS.
+        /// </summary>
+        private bool IsTerminalToolWindowActive()
+        {
+            ThreadHelper.ThrowIfNotOnUIThread();
+
+            var myFrame = ((_isTerminalDetached && _detachedTerminalWindow != null)
+                ? _detachedTerminalWindow.Frame
+                : _toolWindow?.Frame) as IVsWindowFrame;
+            if (myFrame == null)
+            {
+                return false;
+            }
+
+            var monitor = Package.GetGlobalService(typeof(SVsShellMonitorSelection)) as IVsMonitorSelection;
+            if (monitor == null)
+            {
+                return false;
+            }
+
+            if (Microsoft.VisualStudio.ErrorHandler.Failed(monitor.GetCurrentElementValue(
+                (uint)Microsoft.VisualStudio.VSConstants.VSSELELEMID.SEID_WindowFrame, out object active)))
+            {
+                return false;
+            }
+
+            return ReferenceEquals(active, myFrame);
+        }
+
+        /// <summary>
         /// Returns true when the supplied screen point is inside the active terminal panel.
         /// </summary>
         private bool IsScreenPointInsideActiveTerminalPanel(POINT screenPoint)
@@ -2024,6 +2119,11 @@ namespace ClaudeCodeVS
                 }
                 else if (message == WM_LBUTTONDOWN)
                 {
+                    // Low-level mouse hooks are invoked on the thread that installed them
+                    // (the UI thread, see InstallMouseHook), so the UI-thread requirement is met.
+#pragma warning disable VSTHRD010
+                    ActivateEmbeddedTerminalOnClick(info.pt);
+#pragma warning restore VSTHRD010
                     BeginWindowsTerminalSelectionTracking(info.pt);
                 }
                 else if (message == WM_MOUSEMOVE)

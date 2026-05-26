@@ -55,6 +55,9 @@ namespace ClaudeCodeVS
         private const uint WM_LBUTTONUP = 0x0202;
         private const uint WM_MOUSEWHEEL = 0x020A;
 
+        // GetAncestor flags
+        private const uint GA_ROOT = 2;
+
         // RedrawWindow flags
         private const uint RDW_INVALIDATE = 0x0001;
         private const uint RDW_ERASE = 0x0004;
@@ -252,6 +255,24 @@ namespace ClaudeCodeVS
         /// </summary>
         [DllImport("user32.dll")]
         private static extern bool SetForegroundWindow(IntPtr hWnd);
+
+        /// <summary>
+        /// Retrieves a handle to the foreground window (the window with which the user is currently working)
+        /// </summary>
+        [DllImport("user32.dll")]
+        private static extern IntPtr GetForegroundWindow();
+
+        /// <summary>
+        /// Retrieves the handle to the ancestor of the specified window
+        /// </summary>
+        [DllImport("user32.dll")]
+        private static extern IntPtr GetAncestor(IntPtr hWnd, uint gaFlags);
+
+        /// <summary>
+        /// Brings the specified window to the top of the Z order without activating it
+        /// </summary>
+        [DllImport("user32.dll")]
+        private static extern bool BringWindowToTop(IntPtr hWnd);
 
         /// <summary>
         /// Synthesizes keystrokes, mouse motions, and button clicks
@@ -513,6 +534,12 @@ namespace ClaudeCodeVS
         /// </summary>
         [DllImport("user32.dll")]
         private static extern bool IsChild(IntPtr hWndParent, IntPtr hWnd);
+
+        /// <summary>
+        /// Retrieves a handle to the window at the specified screen point (topmost, hit-tested)
+        /// </summary>
+        [DllImport("user32.dll")]
+        private static extern IntPtr WindowFromPoint(POINT Point);
 
         #endregion
 
