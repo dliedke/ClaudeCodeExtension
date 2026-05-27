@@ -67,6 +67,7 @@ namespace ClaudeCodeVS
             // Snapshot the current values so we can detect what changed on OK.
             bool origSendWithEnter            = _settings.SendWithEnter;
             bool origSendLargeAsFile          = _settings.SendLargePromptsAsFile;
+            bool origStrictClipboardVerify    = _settings.StrictClipboardVerification;
             bool origAutoOpenChanges          = _settings.AutoOpenChangesOnPrompt;
             bool origInvertLayout             = _settings.InvertLayout;
             bool origDisableAutoZoom          = _settings.DisableStartupAutoZoom;
@@ -116,6 +117,12 @@ namespace ClaudeCodeVS
                 "When enabled, prompts above ~1 KB are saved to a temp file and only the file path is sent. Avoids paste truncation of large content.",
                 origSendLargeAsFile, themeFg);
             stack.Children.Add(largeAsFileCheck);
+
+            var strictClipboardCheck = MakeCheckBox(
+                "Strict clipboard verification (abort send on failure)",
+                "When enabled, the extension aborts a send with a pop-up if it cannot verify the prompt actually reached the clipboard (clipboard manager interference, conhost mark mode, etc.). When disabled (default), verification failures are logged and the send proceeds anyway — recommended unless you see truncated prompts.",
+                origStrictClipboardVerify, themeFg);
+            stack.Children.Add(strictClipboardCheck);
 
             // Auto-open Changes only applies inside git repos, but we keep the
             // checkbox visible so users can pre-toggle the setting before
@@ -232,6 +239,7 @@ namespace ClaudeCodeVS
             // ---- Collect new values ----
             bool newSendWithEnter   = sendEnterCheck.IsChecked == true;
             bool newSendLargeAsFile = largeAsFileCheck.IsChecked == true;
+            bool newStrictClipboardVerify = strictClipboardCheck.IsChecked == true;
             bool newAutoOpenChanges = autoOpenCheck.IsChecked == true;
             bool newInvertLayout    = invertCheck.IsChecked == true;
             bool newDisableAutoZoom = disableAutoZoomCheck.IsChecked == true;
@@ -268,6 +276,7 @@ namespace ClaudeCodeVS
             // ---- Apply settings ----
             _settings.SendWithEnter           = newSendWithEnter;
             _settings.SendLargePromptsAsFile  = newSendLargeAsFile;
+            _settings.StrictClipboardVerification = newStrictClipboardVerify;
             _settings.AutoOpenChangesOnPrompt = newAutoOpenChanges;
             _settings.InvertLayout            = newInvertLayout;
             _settings.DisableStartupAutoZoom  = newDisableAutoZoom;

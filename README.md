@@ -98,6 +98,9 @@ This binds a Claude Code skill that shells out to OpenAI Codex to audit pending 
 
 ## Version History
 
+### Version 10.67
+- Sending a prompt no longer aborts with a "Clipboard Verification Failed" pop-up when a clipboard manager or background app briefly holds the clipboard — the send now proceeds and a tolerant comparison ignores harmless line-ending differences. Strict abort behavior is still available via a new opt-in toggle in the Settings dialog.
+
 ### Version 10.66
 - Clicking the embedded terminal now brings Visual Studio to the foreground even when another app is on top.
 

@@ -346,6 +346,18 @@ namespace ClaudeCodeVS
         public bool SkipThemeRestartPrompt { get; set; } = false;
 
         /// <summary>
+        /// When true, the extension aborts a send (with a visible MessageBox)
+        /// if the clipboard verification step keeps failing — protects against
+        /// silent truncation when a clipboard manager overwrites our content.
+        /// When false (default), verification failure is logged to Debug and
+        /// the send proceeds anyway. Defaults to false because in practice the
+        /// abort blocks legitimate sends more often than it prevents corruption
+        /// (see issue #59). Users who rely on strict verification can re-enable
+        /// it via the Settings dialog.
+        /// </summary>
+        public bool StrictClipboardVerification { get; set; } = false;
+
+        /// <summary>
         /// User-defined custom commands surfaced in the toolbar custom-commands
         /// dropdown. Empty list hides the dropdown button entirely.
         /// </summary>

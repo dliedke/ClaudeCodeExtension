@@ -6,7 +6,7 @@
 
 - **Author**: Daniel Carvalho Liedke (dliedke@gmail.com) | **License**: MIT
 - **Repository**: https://github.com/dliedke/ClaudeCodeExtension
-- **Current Version**: 10.64 | **Target Framework**: .NET Framework 4.7.2
+- **Current Version**: 10.67 | **Target Framework**: .NET Framework 4.7.2
 
 ---
 
@@ -197,7 +197,7 @@ WSL:     cmd.exe /k chcp 65001 >nul && cls && wsl bash -lic "cd {wslPath} && {co
 - **Enter key varies by provider**: `WM_CHAR` (Claude/OpenCode), `KEYDOWN/KEYUP` (WSL), double-Enter (Codex)
 - **Chunked paste**: `SendTextToTerminalAsync()` splits text longer than `PasteChunkSize` (24 KB) into sequential pastes — each chunk fits the per-chunk post-paste budget (`500–800ms base + min(len/PasteMsPerCharDivisor, MaxExtraPasteDelayMs)`, default 1ms per 5 chars, capped at 5s), so Enter (sent only after the final chunk) can never race ahead of a streaming paste. Small prompts (≤24 KB) run the loop once, equivalent to the old single-shot path. Provider-specific paste + scaled wait extracted into `TriggerPasteAndWaitAsync()` for reuse across chunks
 - **Large prompts as file (opt-in)**: When `_settings.SendLargePromptsAsFile` is true and the assembled prompt exceeds ~1 KB, `SendButton_Click` writes the prompt to `%TEMP%\ClaudeCodeVS_Session\<guid>\prompt-<timestamp>.md` and sends only `Please read the file and follow the instructions inside: <path>` instead of the inline text. Bypasses the conhost INPUT_RECORD buffer entirely (which truncates pastes around ~1 KB regardless of chunking), keeping the `Files attached:` list intact. WSL providers get a WSL-converted path. See issue #48
-- **Clipboard verification**: `SetClipboardAndVerifyAsync()` calls `Clipboard.SetText` then reads the clipboard back to confirm exact content before each paste trigger — guards against a clipboard manager (Win+V history, Ditto, Office clipboard, RDP redirection) overwriting it mid-send. Retries up to `ClipboardVerifyRetries` (3); on failure the send is **aborted** with a `MessageBox` naming the lock owner (via `LogClipboardLockOwner`) rather than silently pasting wrong content
+- **Clipboard verification**: `SetClipboardAndVerifyAsync()` calls `Clipboard.SetText` then reads the clipboard back before each paste trigger — guards against a clipboard manager (Win+V history, Ditto, Office clipboard, RDP redirection) overwriting it mid-send. Comparison is tolerant (via `ClipboardTextMatches`): normalizes line endings, ignores trailing `\0`/`\n` from CF_UNICODETEXT round-trips. Retries up to `ClipboardVerifyRetries` (3) with a 150 ms backoff. On persistent failure, default behavior is to log to Debug and proceed with the paste — silently bad pastes are rare in practice and aborting blocks too many legitimate sends (issue #59). Set `StrictClipboardVerification = true` to restore the old behavior of aborting with a `MessageBox` naming the lock owner (via `LogClipboardLockOwner`)
 
 ### Claude Usage (Usage.cs / ClaudeUsageControl / ClaudeUsageToolWindow)
 

@@ -209,22 +209,38 @@ namespace ClaudeCodeVS
                         if (!clipboardOk)
                         {
                             string owner = LogClipboardLockOwner("Clipboard.SetText");
-                            await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
                             string scope = chunkCount == 1
                                 ? "the prompt"
                                 : $"chunk {chunkIdx + 1} of {chunkCount}";
-                            MessageBox.Show(
-                                $"Could not reliably put {scope} on the clipboard after {ClipboardVerifyRetries} attempts. " +
-                                "The prompt was NOT sent to the terminal.\n\n" +
-                                $"Likely culprit: {owner}\n\n" +
-                                "Common causes:\n" +
-                                "  • A clipboard manager (Win+V history, Ditto, Office clipboard, etc.) keeps overwriting the clipboard\n" +
-                                "  • Conhost in mark/select mode (press Esc inside the terminal)\n" +
-                                "  • Remote Desktop clipboard redirection\n\n" +
-                                "Close the offending app or press Esc in the terminal, then try again.",
-                                "Send Aborted — Clipboard Verification Failed",
-                                MessageBoxButton.OK, MessageBoxImage.Warning);
-                            return;
+
+                            // Strict mode (opt-in): abort the send with a visible message so the
+                            // user can fix the offending app before retrying. Used to be the
+                            // default but blocked too many legitimate sends — see issue #59.
+                            if (_settings != null && _settings.StrictClipboardVerification)
+                            {
+                                await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
+                                MessageBox.Show(
+                                    $"Could not reliably put {scope} on the clipboard after {ClipboardVerifyRetries} attempts. " +
+                                    "The prompt was NOT sent to the terminal.\n\n" +
+                                    $"Likely culprit: {owner}\n\n" +
+                                    "Common causes:\n" +
+                                    "  • A clipboard manager (Win+V history, Ditto, Office clipboard, etc.) keeps overwriting the clipboard\n" +
+                                    "  • Conhost in mark/select mode (press Esc inside the terminal)\n" +
+                                    "  • Remote Desktop clipboard redirection\n\n" +
+                                    "Close the offending app or press Esc in the terminal, then try again.\n\n" +
+                                    "(You can disable strict verification in Settings to send anyway when this happens.)",
+                                    "Send Aborted — Clipboard Verification Failed",
+                                    MessageBoxButton.OK, MessageBoxImage.Warning);
+                                return;
+                            }
+
+                            // Default: log and proceed. The paste might still succeed — the
+                            // verification read can fail intermittently even when SetText
+                            // actually put the right content on the clipboard (race with
+                            // clipboard listeners that briefly open the clipboard for
+                            // notification, RDP redirection delays, etc.).
+                            System.Diagnostics.Debug.WriteLine(
+                                $"[Clipboard] Verification failed for {scope} (owner = {owner}); proceeding with paste anyway.");
                         }
 
                         await TriggerPasteAndWaitAsync(len);
@@ -346,11 +362,47 @@ namespace ClaudeCodeVS
                     current = null;
                 }
 
-                if (string.Equals(current, text, StringComparison.Ordinal))
+                if (ClipboardTextMatches(current, text))
                 {
                     return true;
                 }
+
+                // Brief backoff before the next SetText attempt — gives transient
+                // clipboard holders (notification listeners, RDP redirection,
+                // history apps) time to release the clipboard. Without it, the
+                // three retries can finish in under 100 ms and hit the same hold.
+                await Task.Delay(150);
             }
+            return false;
+        }
+
+        /// <summary>
+        /// Compares a clipboard read-back against the original text. Tolerates the
+        /// well-known cases where the round-tripped string differs harmlessly from
+        /// the source: line endings normalized to <c>\r\n</c>, a trailing newline
+        /// appended, or a stray <c>\0</c> terminator left from CF_UNICODETEXT.
+        /// Without this leniency the verify step rejects content that would have
+        /// pasted correctly. See issue #59.
+        /// </summary>
+        private static bool ClipboardTextMatches(string actual, string expected)
+        {
+            if (actual == null || expected == null) return false;
+            if (string.Equals(actual, expected, StringComparison.Ordinal)) return true;
+
+            // Trim a trailing NUL (CF_UNICODETEXT terminator sometimes leaks through).
+            string normalizedActual = actual.TrimEnd('\0');
+
+            // Normalize line endings on both sides: convert all \r\n and lone \r to \n.
+            normalizedActual = normalizedActual.Replace("\r\n", "\n").Replace("\r", "\n");
+            string normalizedExpected = expected.Replace("\r\n", "\n").Replace("\r", "\n");
+
+            if (string.Equals(normalizedActual, normalizedExpected, StringComparison.Ordinal))
+                return true;
+
+            // Some clipboard pipelines append a trailing newline to text content.
+            if (string.Equals(normalizedActual, normalizedExpected + "\n", StringComparison.Ordinal))
+                return true;
+
             return false;
         }
 
