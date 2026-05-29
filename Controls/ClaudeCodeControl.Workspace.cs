@@ -286,6 +286,13 @@ namespace ClaudeCodeVS
                         case AiProvider.OpenCode:
                             providerAvailable = await IsOpenCodeAvailableAsync();
                             break;
+                        case AiProvider.Windsurf:
+                            bool wslInstalledForWindsurf = await IsWslInstalledAsync();
+                            if (wslInstalledForWindsurf)
+                            {
+                                providerAvailable = await IsWindsurfAvailableAsync();
+                            }
+                            break;
                         case AiProvider.Pi:
                             providerAvailable = await IsPiAvailableAsync();
                             break;
@@ -355,6 +362,13 @@ namespace ClaudeCodeVS
                                 {
                                     _openCodeNotificationShown = true;
                                     ShowOpenCodeInstallationInstructions();
+                                }
+                                break;
+                            case AiProvider.Windsurf:
+                                if (!_windsurfNotificationShown)
+                                {
+                                    _windsurfNotificationShown = true;
+                                    ShowWindsurfInstallationInstructions();
                                 }
                                 break;
                             case AiProvider.Pi:
