@@ -87,6 +87,27 @@ namespace ClaudeCodeVS
         private LowLevelKeyboardProc _keyboardHookProc;
 
         /// <summary>
+        /// Dedicated thread that owns and pumps the low-level keyboard/mouse hooks.
+        /// Low-level hook callbacks are delivered on the thread that installed them and that
+        /// thread must keep pumping messages, or Windows freezes input system-wide once the
+        /// LowLevelHooksTimeout (~300ms) is exceeded. Running them here — instead of on the VS
+        /// UI thread — keeps global keyboard/mouse responsive even when the UI thread stalls
+        /// (e.g. on a contended clipboard during a large prompt send). See issue #61.
+        /// </summary>
+        private Thread _hookThread;
+
+        /// <summary>
+        /// Win32 thread id of <see cref="_hookThread"/>, used to PostThreadMessage(WM_QUIT) on shutdown.
+        /// </summary>
+        private uint _hookThreadId;
+
+        /// <summary>
+        /// Signaled by the hook thread once both hooks are installed (or installation failed),
+        /// so the caller can proceed without racing the first input events.
+        /// </summary>
+        private ManualResetEventSlim _hookThreadReady;
+
+        /// <summary>
         /// Debounce timer for saving zoom delta to settings after Ctrl+Scroll
         /// </summary>
         private System.Windows.Threading.DispatcherTimer _zoomSaveTimer;
@@ -1769,26 +1790,23 @@ namespace ClaudeCodeVS
         /// </summary>
         private void InstallMouseHook()
         {
-            if (_mouseHookHandle != IntPtr.Zero) return;
-
-            _mouseHookProc = LowLevelMouseHookCallback;
-            using (var curProcess = Process.GetCurrentProcess())
-            using (var curModule = curProcess.MainModule)
+            // Debounce timer: saves settings 500ms after last scroll tick.
+            // Created on the UI thread (here) since DispatcherTimer is UI-thread-affined; the
+            // mouse hook callback marshals back to the UI thread before touching it.
+            if (_zoomSaveTimer == null)
             {
-                _mouseHookHandle = SetWindowsHookEx(WH_MOUSE_LL, _mouseHookProc,
-                    GetModuleHandle(curModule.ModuleName), 0);
+                _zoomSaveTimer = new System.Windows.Threading.DispatcherTimer
+                {
+                    Interval = TimeSpan.FromMilliseconds(500)
+                };
+                _zoomSaveTimer.Tick += (s, e) =>
+                {
+                    _zoomSaveTimer.Stop();
+                    SaveSettings();
+                };
             }
 
-            // Debounce timer: saves settings 500ms after last scroll tick
-            _zoomSaveTimer = new System.Windows.Threading.DispatcherTimer
-            {
-                Interval = TimeSpan.FromMilliseconds(500)
-            };
-            _zoomSaveTimer.Tick += (s, e) =>
-            {
-                _zoomSaveTimer.Stop();
-                SaveSettings();
-            };
+            StartHookThread();
         }
 
         /// <summary>
@@ -1797,13 +1815,7 @@ namespace ClaudeCodeVS
         private void UninstallMouseHook()
         {
             ResetWindowsTerminalSelectionTracking();
-
-            if (_mouseHookHandle != IntPtr.Zero)
-            {
-                UnhookWindowsHookEx(_mouseHookHandle);
-                _mouseHookHandle = IntPtr.Zero;
-            }
-            _mouseHookProc = null;
+            StopHookThread();
             _zoomSaveTimer?.Stop();
             _zoomSaveTimer = null;
         }
@@ -1813,15 +1825,7 @@ namespace ClaudeCodeVS
         /// </summary>
         private void InstallKeyboardHook()
         {
-            if (_keyboardHookHandle != IntPtr.Zero) return;
-
-            _keyboardHookProc = LowLevelKeyboardHookCallback;
-            using (var curProcess = Process.GetCurrentProcess())
-            using (var curModule = curProcess.MainModule)
-            {
-                _keyboardHookHandle = SetWindowsHookEx(WH_KEYBOARD_LL, _keyboardHookProc,
-                    GetModuleHandle(curModule.ModuleName), 0);
-            }
+            StartHookThread();
         }
 
         /// <summary>
@@ -1829,12 +1833,109 @@ namespace ClaudeCodeVS
         /// </summary>
         private void UninstallKeyboardHook()
         {
-            if (_keyboardHookHandle != IntPtr.Zero)
+            StopHookThread();
+        }
+
+        /// <summary>
+        /// Starts the dedicated hook thread (idempotent). The thread installs BOTH low-level
+        /// hooks and runs its own Win32 message loop so they are serviced independently of the
+        /// VS UI thread. See <see cref="_hookThread"/> and issue #61.
+        /// </summary>
+        private void StartHookThread()
+        {
+            if (_hookThread != null && _hookThread.IsAlive) return;
+
+            _hookThreadReady = new ManualResetEventSlim(false);
+            _hookThread = new Thread(HookThreadProc)
             {
-                UnhookWindowsHookEx(_keyboardHookHandle);
-                _keyboardHookHandle = IntPtr.Zero;
+                IsBackground = true,
+                Name = "ClaudeCodeVS LL Input Hooks"
+            };
+            _hookThread.Start();
+
+            // Wait briefly for the hooks to be installed so the first user input after a terminal
+            // start is already intercepted. Bounded so a failure to install never hangs startup.
+            _hookThreadReady.Wait(2000);
+        }
+
+        /// <summary>
+        /// Stops the dedicated hook thread (idempotent) by posting WM_QUIT to its message loop;
+        /// the thread unhooks both hooks in its finally block before exiting.
+        /// </summary>
+        private void StopHookThread()
+        {
+            var thread = _hookThread;
+            if (thread == null) return;
+
+            if (_hookThreadId != 0)
+            {
+                PostThreadMessage(_hookThreadId, WM_QUIT, IntPtr.Zero, IntPtr.Zero);
             }
-            _keyboardHookProc = null;
+
+            if (!thread.Join(2000))
+            {
+                Debug.WriteLine("Hook thread did not exit within the timeout.");
+            }
+
+            _hookThread = null;
+            _hookThreadId = 0;
+            _hookThreadReady?.Dispose();
+            _hookThreadReady = null;
+        }
+
+        /// <summary>
+        /// Entry point for the dedicated hook thread: installs both low-level hooks and pumps a
+        /// Win32 message loop until WM_QUIT, then unhooks. Keeping the loop here means a stalled
+        /// VS UI thread can never starve the hooks and freeze global input. See issue #61.
+        /// </summary>
+        private void HookThreadProc()
+        {
+            try
+            {
+                _hookThreadId = GetCurrentThreadId();
+
+                _mouseHookProc = LowLevelMouseHookCallback;
+                _keyboardHookProc = LowLevelKeyboardHookCallback;
+
+                using (var curProcess = Process.GetCurrentProcess())
+                using (var curModule = curProcess.MainModule)
+                {
+                    IntPtr hModule = GetModuleHandle(curModule.ModuleName);
+                    _mouseHookHandle = SetWindowsHookEx(WH_MOUSE_LL, _mouseHookProc, hModule, 0);
+                    _keyboardHookHandle = SetWindowsHookEx(WH_KEYBOARD_LL, _keyboardHookProc, hModule, 0);
+                }
+
+                // Signal the starter that installation is done (success or not) before pumping.
+                _hookThreadReady?.Set();
+
+                while (GetMessage(out MSG msg, IntPtr.Zero, 0, 0) > 0)
+                {
+                    TranslateMessage(ref msg);
+                    DispatchMessage(ref msg);
+                }
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"Hook thread error: {ex.Message}");
+            }
+            finally
+            {
+                if (_mouseHookHandle != IntPtr.Zero)
+                {
+                    UnhookWindowsHookEx(_mouseHookHandle);
+                    _mouseHookHandle = IntPtr.Zero;
+                }
+                if (_keyboardHookHandle != IntPtr.Zero)
+                {
+                    UnhookWindowsHookEx(_keyboardHookHandle);
+                    _keyboardHookHandle = IntPtr.Zero;
+                }
+                _mouseHookProc = null;
+                _keyboardHookProc = null;
+
+                // Ensure a starter waiting on readiness is released even if install threw early.
+                _hookThreadReady?.Set();
+            }
         }
 
         /// <summary>
@@ -2127,42 +2228,89 @@ namespace ClaudeCodeVS
         {
             if (nCode >= 0)
             {
-                var info = (MSLLHOOKSTRUCT)Marshal.PtrToStructure(lParam, typeof(MSLLHOOKSTRUCT));
                 uint message = unchecked((uint)wParam.ToInt64());
 
-                if (message == WM_MOUSEWHEEL)
+                // This runs on the dedicated hook thread, not the UI thread. All the actual
+                // handling touches WPF/WinForms state, so marshal it to the UI thread without
+                // blocking this callback. A cheap inline filter keeps us from flooding the
+                // dispatcher with the high-frequency WM_MOUSEMOVE/plain-wheel events.
+                if (ShouldDispatchMouseHookMessage(message))
                 {
-                    if ((GetAsyncKeyState(VK_CONTROL) & 0x8000) != 0 &&
-                        IsScreenPointInsideActiveTerminalPanel(info.pt) &&
-                        _settings != null)
+                    var info = (MSLLHOOKSTRUCT)Marshal.PtrToStructure(lParam, typeof(MSLLHOOKSTRUCT));
+                    try
                     {
-                        int wheelDelta = (short)((info.mouseData >> 16) & 0xFFFF);
-                        _settings.TerminalZoomDelta += wheelDelta > 0 ? 1 : -1;
-                        _zoomSaveTimer?.Stop();
-                        _zoomSaveTimer?.Start();
-                        ScheduleManualZoomRefresh();
+                        // Fire-and-forget marshal to the UI thread; HandleMouseHookEvent runs there.
+#pragma warning disable VSTHRD001, VSTHRD010, VSTHRD110
+                        Dispatcher.BeginInvoke(new Action(() => HandleMouseHookEvent(message, info)));
+#pragma warning restore VSTHRD001, VSTHRD010, VSTHRD110
                     }
-                }
-                else if (message == WM_LBUTTONDOWN)
-                {
-                    // Low-level mouse hooks are invoked on the thread that installed them
-                    // (the UI thread, see InstallMouseHook), so the UI-thread requirement is met.
-#pragma warning disable VSTHRD010
-                    ActivateEmbeddedTerminalOnClick(info.pt);
-#pragma warning restore VSTHRD010
-                    BeginWindowsTerminalSelectionTracking(info.pt);
-                }
-                else if (message == WM_MOUSEMOVE)
-                {
-                    UpdateWindowsTerminalSelectionTracking(info.pt);
-                }
-                else if (message == WM_LBUTTONUP)
-                {
-                    ResetWindowsTerminalSelectionTracking();
+                    catch (Exception ex)
+                    {
+                        Debug.WriteLine($"Mouse hook dispatch error: {ex.Message}");
+                    }
                 }
             }
 
             return CallNextHookEx(_mouseHookHandle, nCode, wParam, lParam);
+        }
+
+        /// <summary>
+        /// Cheap, thread-safe pre-filter run on the hook thread to decide whether a mouse event
+        /// is worth marshaling to the UI thread. Only the Ctrl+Scroll zoom gesture, left-button
+        /// clicks, and in-progress Windows Terminal selection drags need handling.
+        /// </summary>
+        private bool ShouldDispatchMouseHookMessage(uint message)
+        {
+            switch (message)
+            {
+                case WM_MOUSEWHEEL:
+                    return (GetAsyncKeyState(VK_CONTROL) & 0x8000) != 0;
+                case WM_LBUTTONDOWN:
+                case WM_LBUTTONUP:
+                    return true;
+                case WM_MOUSEMOVE:
+                    return _wtTabBarHeight > 0
+                           && _windowsTerminalSelectionPending
+                           && !_windowsTerminalSelectionActive;
+                default:
+                    return false;
+            }
+        }
+
+        /// <summary>
+        /// Handles a marshaled mouse-hook event on the UI thread. Mirrors the original inline
+        /// hook logic; only the thread it runs on changed (see <see cref="LowLevelMouseHookCallback"/>).
+        /// </summary>
+        private void HandleMouseHookEvent(uint message, MSLLHOOKSTRUCT info)
+        {
+            ThreadHelper.ThrowIfNotOnUIThread();
+
+            if (message == WM_MOUSEWHEEL)
+            {
+                if ((GetAsyncKeyState(VK_CONTROL) & 0x8000) != 0 &&
+                    IsScreenPointInsideActiveTerminalPanel(info.pt) &&
+                    _settings != null)
+                {
+                    int wheelDelta = (short)((info.mouseData >> 16) & 0xFFFF);
+                    _settings.TerminalZoomDelta += wheelDelta > 0 ? 1 : -1;
+                    _zoomSaveTimer?.Stop();
+                    _zoomSaveTimer?.Start();
+                    ScheduleManualZoomRefresh();
+                }
+            }
+            else if (message == WM_LBUTTONDOWN)
+            {
+                ActivateEmbeddedTerminalOnClick(info.pt);
+                BeginWindowsTerminalSelectionTracking(info.pt);
+            }
+            else if (message == WM_MOUSEMOVE)
+            {
+                UpdateWindowsTerminalSelectionTracking(info.pt);
+            }
+            else if (message == WM_LBUTTONUP)
+            {
+                ResetWindowsTerminalSelectionTracking();
+            }
         }
 
         /// <summary>

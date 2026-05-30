@@ -98,6 +98,9 @@ This binds a Claude Code skill that shells out to OpenAI Codex to audit pending 
 
 ## Version History
 
+### Version 10.70
+- Fixed a system-wide keyboard and mouse freeze (and prompts occasionally landing in the wrong window) that could happen while sending a prompt when another app was contending for the clipboard. Input handling now runs independently of the editor, so it stays responsive during a send.
+
 ### Version 10.69
 - Fixed the Update Agent button for Antigravity — it now exits the agent correctly before updating, so the installer runs instead of being typed into the running agent.
 

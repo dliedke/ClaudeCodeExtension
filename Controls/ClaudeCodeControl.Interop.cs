@@ -534,6 +534,52 @@ namespace ClaudeCodeVS
         private static extern IntPtr GetModuleHandle(string lpModuleName);
 
         /// <summary>
+        /// WM_QUIT message: posted to the dedicated hook thread to exit its message loop.
+        /// </summary>
+        private const uint WM_QUIT = 0x0012;
+
+        /// <summary>
+        /// Win32 MSG structure used by the dedicated hook thread's message loop.
+        /// </summary>
+        [StructLayout(LayoutKind.Sequential)]
+        private struct MSG
+        {
+            public IntPtr hwnd;
+            public uint message;
+            public IntPtr wParam;
+            public IntPtr lParam;
+            public uint time;
+            public POINT pt;
+        }
+
+        /// <summary>
+        /// Retrieves a message from the calling thread's message queue (blocking).
+        /// Used by the dedicated hook thread so its low-level hooks are serviced
+        /// independently of the VS UI thread.
+        /// </summary>
+        [DllImport("user32.dll")]
+        private static extern int GetMessage(out MSG lpMsg, IntPtr hWnd, uint wMsgFilterMin, uint wMsgFilterMax);
+
+        /// <summary>
+        /// Translates virtual-key messages into character messages.
+        /// </summary>
+        [DllImport("user32.dll")]
+        private static extern bool TranslateMessage(ref MSG lpMsg);
+
+        /// <summary>
+        /// Dispatches a message to a window procedure.
+        /// </summary>
+        [DllImport("user32.dll")]
+        private static extern IntPtr DispatchMessage(ref MSG lpMsg);
+
+        /// <summary>
+        /// Posts a message to the message queue of the specified thread (used to signal
+        /// the dedicated hook thread to exit via WM_QUIT).
+        /// </summary>
+        [DllImport("user32.dll", SetLastError = true)]
+        private static extern bool PostThreadMessage(uint idThread, uint Msg, IntPtr wParam, IntPtr lParam);
+
+        /// <summary>
         /// Determines whether a key is up or down at the time the function is called
         /// </summary>
         [DllImport("user32.dll")]
