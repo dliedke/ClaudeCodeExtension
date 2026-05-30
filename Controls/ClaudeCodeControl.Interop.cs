@@ -75,6 +75,7 @@ namespace ClaudeCodeVS
         private const int VK_RIGHT = 0x27;
         private const int VK_DOWN = 0x28;
         private const int VK_C = 0x43;
+        private const int VK_D = 0x44;
         private const int VK_F5 = 0x74;
 
         // Input type constants

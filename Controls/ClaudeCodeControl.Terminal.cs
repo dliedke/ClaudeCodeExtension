@@ -2444,10 +2444,10 @@ namespace ClaudeCodeVS
                         break;
 
                     case AiProvider.Antigravity:
-                        // Antigravity: exit, wait, then re-run the installer to update
-                        await SendTextToTerminalAsync("exit");
-                        await Task.Delay(1000);
-                        await SendTextToTerminalAsync("powershell -Command \"irm https://antigravity.google/cli/install.ps1 | iex\"");
+                        // Antigravity: exit by holding CTRL and tapping D twice, wait, then update
+                        SendCtrlDD();
+                        await Task.Delay(3000);
+                        await SendTextToTerminalAsync("agy update");
                         break;
 
                     default:
@@ -2488,6 +2488,32 @@ namespace ClaudeCodeVS
                 keybd_event(VK_C, 0, KEYEVENTF_KEYUP, UIntPtr.Zero); // C up
                 Thread.Sleep(30); // Reduced from 50ms
                 keybd_event(VK_CONTROL, 0, KEYEVENTF_KEYUP, UIntPtr.Zero); // CTRL up
+            }
+        }
+
+        /// <summary>
+        /// Exits the Antigravity agent: holds CTRL down, taps D twice, then releases CTRL
+        /// (Antigravity requires CTRL+D twice to quit instead of an "exit" command)
+        /// </summary>
+        private void SendCtrlDD()
+        {
+            if (terminalHandle != IntPtr.Zero && IsWindow(terminalHandle))
+            {
+                SetForegroundWindow(terminalHandle);
+                SetFocus(terminalHandle);
+                Thread.Sleep(50);
+
+                keybd_event(VK_CONTROL, 0, 0, UIntPtr.Zero); // CTRL down (hold)
+                Thread.Sleep(50);
+                keybd_event(VK_D, 0, 0, UIntPtr.Zero); // first D down
+                Thread.Sleep(50);
+                keybd_event(VK_D, 0, KEYEVENTF_KEYUP, UIntPtr.Zero); // first D up
+                Thread.Sleep(150);
+                keybd_event(VK_D, 0, 0, UIntPtr.Zero); // second D down
+                Thread.Sleep(50);
+                keybd_event(VK_D, 0, KEYEVENTF_KEYUP, UIntPtr.Zero); // second D up
+                Thread.Sleep(50);
+                keybd_event(VK_CONTROL, 0, KEYEVENTF_KEYUP, UIntPtr.Zero); // CTRL up (release)
             }
         }
 

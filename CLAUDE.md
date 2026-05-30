@@ -285,7 +285,7 @@ Key settings: `SplitterPosition` (236px default), `SelectedProvider`, `VisiblePr
 | Open Code | `OpenCode` | Windows | `opencode` | `exit` |
 | Windsurf (WSL) | `Windsurf` | WSL | `devin` | `exit` |
 | PI | `Pi` | Windows | `pi` | `exit` |
-| Antigravity | `Antigravity` | Windows | `agy` | `exit` |
+| Antigravity | `Antigravity` | Windows | `agy` | Double CTRL+D |
 
 **Plugin**: Caveman (JuliusBrussee/caveman) — installable into Claude Code sessions via model menu
 

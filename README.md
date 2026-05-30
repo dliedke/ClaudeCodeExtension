@@ -98,6 +98,9 @@ This binds a Claude Code skill that shells out to OpenAI Codex to audit pending 
 
 ## Version History
 
+### Version 10.69
+- Fixed the Update Agent button for Antigravity — it now exits the agent correctly before updating, so the installer runs instead of being typed into the running agent.
+
 ### Version 10.68
 - Fixed Windsurf not launching when a new solution is opened while the terminal was already running — it would fall back to a plain command prompt until you manually restarted the agent. Windsurf now loads automatically like the other providers.
 
