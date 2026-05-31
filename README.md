@@ -98,6 +98,12 @@ This binds a Claude Code skill that shells out to OpenAI Codex to audit pending 
 
 ## Version History
 
+### Version 10.74
+- Added Antigravity to the marketplace tags so the extension is discoverable when searching for it.
+
+### Version 10.72
+- Fixed the Session History dialog showing "0 sessions found" when the project path contains non-English characters (e.g. Japanese) — the session list now loads correctly for these paths.
+
 ### Version 10.71
 - Added a "Disable clipboard" option in the Settings dialog for users whose clipboard is held by another app (clipboard managers, Remote Desktop, security tools). When enabled, prompts are saved to a temporary file and a short reference is typed into the terminal with simulated keystrokes instead of being pasted.
 

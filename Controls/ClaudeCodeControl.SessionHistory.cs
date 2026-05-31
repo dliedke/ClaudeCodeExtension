@@ -34,8 +34,10 @@ namespace ClaudeCodeVS
 
         /// <summary>
         /// Replicates Claude Code's filesystem-safe encoding of a working directory: every
-        /// non-alphanumeric character becomes a single dash. Example:
+        /// character outside ASCII <c>[a-zA-Z0-9]</c> becomes a single dash. Example:
         /// <c>C:\Users\Daniel_Liedke</c> → <c>C--Users-Daniel-Liedke</c>.
+        /// Non-ASCII letters/digits (e.g. Japanese) are also turned into dashes, matching
+        /// the CLI — so <c>char.IsLetterOrDigit</c> (Unicode-aware) must NOT be used here.
         /// </summary>
         private static string EncodeClaudeProjectPath(string workspacePath)
         {
@@ -44,7 +46,7 @@ namespace ClaudeCodeVS
             var sb = new StringBuilder(workspacePath.Length + 4);
             foreach (char c in workspacePath)
             {
-                if (char.IsLetterOrDigit(c))
+                if ((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9'))
                 {
                     sb.Append(c);
                 }
