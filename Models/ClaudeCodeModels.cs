@@ -202,6 +202,15 @@ namespace ClaudeCodeVS
         public bool SendLargePromptsAsFile { get; set; } = false;
 
         /// <summary>
+        /// If true, the clipboard is never used to send a prompt. The assembled prompt is always
+        /// written to a temp file and only a short file reference is injected into the terminal via
+        /// OS-level Unicode keystrokes (SendInput). For users whose clipboard is held by another app
+        /// (clipboard managers, RDP redirection, security tooling) so paste-based sending fails.
+        /// If false, the normal clipboard paste path is used. See issue #61.
+        /// </summary>
+        public bool DisableClipboardSend { get; set; } = false;
+
+        /// <summary>
         /// Saved position of the grid splitter (in pixels)
         /// </summary>
         public double SplitterPosition { get; set; } = 236.0; // Default pixel height for first row
@@ -344,18 +353,6 @@ namespace ClaudeCodeVS
         /// to be asked every time.
         /// </summary>
         public bool SkipThemeRestartPrompt { get; set; } = false;
-
-        /// <summary>
-        /// When true, the extension aborts a send (with a visible MessageBox)
-        /// if the clipboard verification step keeps failing — protects against
-        /// silent truncation when a clipboard manager overwrites our content.
-        /// When false (default), verification failure is logged to Debug and
-        /// the send proceeds anyway. Defaults to false because in practice the
-        /// abort blocks legitimate sends more often than it prevents corruption
-        /// (see issue #59). Users who rely on strict verification can re-enable
-        /// it via the Settings dialog.
-        /// </summary>
-        public bool StrictClipboardVerification { get; set; } = false;
 
         /// <summary>
         /// User-defined custom commands surfaced in the toolbar custom-commands

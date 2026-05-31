@@ -98,6 +98,9 @@ This binds a Claude Code skill that shells out to OpenAI Codex to audit pending 
 
 ## Version History
 
+### Version 10.71
+- Added a "Disable clipboard" option in the Settings dialog for users whose clipboard is held by another app (clipboard managers, Remote Desktop, security tools). When enabled, prompts are saved to a temporary file and a short reference is typed into the terminal with simulated keystrokes instead of being pasted.
+
 ### Version 10.70
 - Fixed a system-wide keyboard and mouse freeze (and prompts occasionally landing in the wrong window) that could happen while sending a prompt when another app was contending for the clipboard. Input handling now runs independently of the editor, so it stays responsive during a send.
 

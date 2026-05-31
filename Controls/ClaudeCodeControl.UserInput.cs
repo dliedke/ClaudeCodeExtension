@@ -164,14 +164,28 @@ namespace ClaudeCodeVS
                 string finalPrompt = fullPrompt.ToString();
                 string textToSend = finalPrompt;
 
-                // If "Send large prompts as file" is enabled and the prompt exceeds the
-                // ~1 KB conhost paste-buffer threshold, save the prompt to a temp file and
-                // send only a short reference. This avoids front-truncation of large pastes
-                // (see issue #48) and keeps the "Files attached:" list intact.
+                // "Disable clipboard" mode (issue #61): never touch the clipboard. Always write the
+                // prompt to a temp file and inject only a short reference via simulated keystrokes, so
+                // an app holding the clipboard can't break the send. Only available with conhost
+                // (Command Prompt) — Windows Terminal (_wtTabBarHeight > 0) doesn't accept the posted
+                // WM_CHAR keystrokes, so fall back to the normal clipboard paste path there.
+                bool clipboardFree = _settings != null
+                    && _settings.DisableClipboardSend
+                    && _wtTabBarHeight == 0;
+
+                // Save the prompt to a temp file and send only a short reference when either:
+                //   • "Disable clipboard" is on (always, so the keystroke payload stays short), or
+                //   • "Send large prompts as file" is on and the prompt exceeds the ~1 KB conhost
+                //     paste-buffer threshold (avoids front-truncation of large pastes, see issue #48).
+                // In both cases the "Files attached:" list is preserved by living inside the file.
                 const int LargePromptThresholdChars = 1024;
-                if (_settings != null
-                    && _settings.SendLargePromptsAsFile
-                    && finalPrompt.Length > LargePromptThresholdChars)
+                bool writeToFile = !string.IsNullOrEmpty(finalPrompt)
+                    && (clipboardFree
+                        || (_settings != null
+                            && _settings.SendLargePromptsAsFile
+                            && finalPrompt.Length > LargePromptThresholdChars));
+
+                if (writeToFile)
                 {
                     try
                     {
@@ -181,19 +195,26 @@ namespace ClaudeCodeVS
                         File.WriteAllText(promptFile, finalPrompt, new UTF8Encoding(false));
 
                         string displayPath = isWSLProvider ? ConvertToWslPath(promptFile) : promptFile;
-                        textToSend = $"Please read the file and follow the instructions inside: {displayPath}";
-                        Debug.WriteLine($"Large prompt ({finalPrompt.Length} chars) saved to: {promptFile}");
+                        textToSend = $"Read and follow: {displayPath}";
+                        Debug.WriteLine($"Prompt ({finalPrompt.Length} chars) saved to: {promptFile}");
                     }
                     catch (Exception ex)
                     {
-                        Debug.WriteLine($"Failed to save large prompt to file, falling back to inline paste: {ex.Message}");
-                        // Fall back to inline send
+                        Debug.WriteLine($"Failed to save prompt to file, falling back to inline send: {ex.Message}");
+                        // Fall back to inline send (keystrokes or paste, depending on mode)
                         textToSend = finalPrompt;
                     }
                 }
 
                 Debug.WriteLine($"Sending prompt to terminal ({textToSend.Length} chars): {textToSend.Substring(0, Math.Min(200, textToSend.Length))}...");
-                await SendTextToTerminalAsync(textToSend);
+                if (clipboardFree)
+                {
+                    await SendTextViaKeystrokesAsync(textToSend);
+                }
+                else
+                {
+                    await SendTextToTerminalAsync(textToSend);
+                }
 
                 // Clear prompt and images
                 PromptTextBox.Clear();

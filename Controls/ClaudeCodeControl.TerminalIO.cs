@@ -213,32 +213,12 @@ namespace ClaudeCodeVS
                                 ? "the prompt"
                                 : $"chunk {chunkIdx + 1} of {chunkCount}";
 
-                            // Strict mode (opt-in): abort the send with a visible message so the
-                            // user can fix the offending app before retrying. Used to be the
-                            // default but blocked too many legitimate sends — see issue #59.
-                            if (_settings != null && _settings.StrictClipboardVerification)
-                            {
-                                await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
-                                MessageBox.Show(
-                                    $"Could not reliably put {scope} on the clipboard after {ClipboardVerifyRetries} attempts. " +
-                                    "The prompt was NOT sent to the terminal.\n\n" +
-                                    $"Likely culprit: {owner}\n\n" +
-                                    "Common causes:\n" +
-                                    "  • A clipboard manager (Win+V history, Ditto, Office clipboard, etc.) keeps overwriting the clipboard\n" +
-                                    "  • Conhost in mark/select mode (press Esc inside the terminal)\n" +
-                                    "  • Remote Desktop clipboard redirection\n\n" +
-                                    "Close the offending app or press Esc in the terminal, then try again.\n\n" +
-                                    "(You can disable strict verification in Settings to send anyway when this happens.)",
-                                    "Send Aborted — Clipboard Verification Failed",
-                                    MessageBoxButton.OK, MessageBoxImage.Warning);
-                                return;
-                            }
-
-                            // Default: log and proceed. The paste might still succeed — the
-                            // verification read can fail intermittently even when SetText
-                            // actually put the right content on the clipboard (race with
-                            // clipboard listeners that briefly open the clipboard for
-                            // notification, RDP redirection delays, etc.).
+                            // Log and proceed. The paste might still succeed — the verification read
+                            // can fail intermittently even when SetText actually put the right content
+                            // on the clipboard (race with clipboard listeners that briefly open the
+                            // clipboard for notification, RDP redirection delays, etc.). Users who keep
+                            // hitting clipboard contention should enable "Disable clipboard" in Settings
+                            // to bypass the clipboard entirely. See issues #59 and #61.
                             System.Diagnostics.Debug.WriteLine(
                                 $"[Clipboard] Verification failed for {scope} (owner = {owner}); proceeding with paste anyway.");
                         }
@@ -274,6 +254,112 @@ namespace ClaudeCodeVS
                 {
                     System.Diagnostics.Debug.WriteLine($"Error restoring clipboard: {ex.Message}");
                 }
+            }
+        }
+
+        /// <summary>
+        /// Sends text to the embedded terminal WITHOUT touching the clipboard, by injecting each
+        /// character as an OS-level Unicode keystroke via SendInput (KEYEVENTF_UNICODE). Used by the
+        /// "Disable clipboard" send mode for users whose clipboard is held by another application so
+        /// the normal paste path fails. The payload is expected to be short (a file reference), so
+        /// per-character SendInput is fast enough. Focus/detach setup mirrors the paste path; the
+        /// provider-specific Enter is reused via SendEnterKey. See issue #61.
+        /// </summary>
+        /// <param name="text">The text to type into the terminal (no clipboard is used)</param>
+        private async Task SendTextViaKeystrokesAsync(string text)
+        {
+            try
+            {
+                if (terminalHandle == IntPtr.Zero || !IsWindow(terminalHandle))
+                {
+                    await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
+                    MessageBox.Show("Terminal is not available. Please restart the terminal.",
+                                  "Terminal Error", MessageBoxButton.OK, MessageBoxImage.Warning);
+                    return;
+                }
+
+                await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
+
+                // If terminal is detached, ensure the detached window tab is visible
+                // (auto-open changes may have activated the diff viewer tab instead)
+                if (_isTerminalDetached && _detachedTerminalWindow?.Frame is Microsoft.VisualStudio.Shell.Interop.IVsWindowFrame detachedFrame)
+                {
+                    detachedFrame.Show();
+                    await Task.Delay(200);
+                }
+
+                // Properly focus the embedded terminal before typing. SetForegroundWindow on the
+                // terminal child window silently fails (it's a child of the VS panel), so SendInput
+                // would otherwise type into whatever VS control currently has keyboard focus. Mirror
+                // the zoom-replay focus sequence: activate the hosting tool window, focus the WinForms
+                // panel, then SetFocus the child terminal window. See issue #61.
+                await ActivateTerminalToolWindowAsync();
+                await Task.Delay(60);
+                await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
+
+                var panel = ActiveTerminalPanel;
+                if (panel == null)
+                {
+                    MessageBox.Show("Terminal is not available. Please restart the terminal.",
+                                  "Terminal Error", MessageBoxButton.OK, MessageBoxImage.Warning);
+                    return;
+                }
+
+                FocusTerminalPanel(panel);
+                await Task.Delay(120);
+
+                // TUI-based Node.js providers need extra time to initialize their interface
+                // after receiving focus, otherwise the first keystrokes may arrive too early.
+                if (_currentRunningProvider == AiProvider.Pi)
+                {
+                    await Task.Delay(400);
+                }
+
+                // Re-assert focus in case VS restored it to another control during the delay.
+                await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
+                SetFocus(terminalHandle);
+                await Task.Delay(50);
+
+                TypeUnicodeText(text);
+
+                // Brief settle so the typed text is fully rendered before Enter is sent.
+                await Task.Delay(150);
+                SendEnterKey();
+            }
+            catch (Exception ex)
+            {
+                await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
+                MessageBox.Show($"Error sending text to terminal: {ex.Message}",
+                              "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+        }
+
+        /// <summary>
+        /// Injects a string into the terminal one UTF-16 code unit at a time by posting WM_CHAR
+        /// directly to the terminal window. This is the same focus-independent, cross-process
+        /// primitive SendEnterKey uses to deliver Enter to Claude Code — unlike SendInput, it does
+        /// not depend on the terminal owning the foreground keyboard focus (the embedded terminal
+        /// is a child of the VS panel in a separate process, so SendInput's WM_CHAR lands on the
+        /// panel instead). Surrogate pairs are posted as their two constituent code units. Carriage
+        /// returns are skipped; the caller sends the provider-specific Enter separately. See issue #61.
+        /// </summary>
+        private void TypeUnicodeText(string text)
+        {
+            if (terminalHandle == IntPtr.Zero || !IsWindow(terminalHandle)) return;
+            if (string.IsNullOrEmpty(text)) return;
+
+            foreach (char c in text)
+            {
+                // Skip CR — line submission is handled by SendEnterKey, not by typing a newline.
+                if (c == '\r') continue;
+
+                PostMessage(terminalHandle, WM_CHAR, new IntPtr(c), IntPtr.Zero);
+
+                // Pacing delay so the TUI's input loop doesn't drop characters. At a few ms the
+                // readline occasionally coalesced/dropped keystrokes (notably spaces); 25 ms is
+                // reliable and, for the short file-reference payload (~90 chars), still imperceptible
+                // (~2 s total).
+                System.Threading.Thread.Sleep(25);
             }
         }
 

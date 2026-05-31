@@ -67,7 +67,7 @@ namespace ClaudeCodeVS
             // Snapshot the current values so we can detect what changed on OK.
             bool origSendWithEnter            = _settings.SendWithEnter;
             bool origSendLargeAsFile          = _settings.SendLargePromptsAsFile;
-            bool origStrictClipboardVerify    = _settings.StrictClipboardVerification;
+            bool origDisableClipboardSend     = _settings.DisableClipboardSend;
             bool origAutoOpenChanges          = _settings.AutoOpenChangesOnPrompt;
             bool origInvertLayout             = _settings.InvertLayout;
             bool origDisableAutoZoom          = _settings.DisableStartupAutoZoom;
@@ -118,11 +118,23 @@ namespace ClaudeCodeVS
                 origSendLargeAsFile, themeFg);
             stack.Children.Add(largeAsFileCheck);
 
-            var strictClipboardCheck = MakeCheckBox(
-                "Strict clipboard verification (abort send on failure)",
-                "When enabled, the extension aborts a send with a pop-up if it cannot verify the prompt actually reached the clipboard (clipboard manager interference, conhost mark mode, etc.). When disabled (default), verification failures are logged and the send proceeds anyway — recommended unless you see truncated prompts.",
-                origStrictClipboardVerify, themeFg);
-            stack.Children.Add(strictClipboardCheck);
+            var disableClipboardCheck = MakeCheckBox(
+                "Disable clipboard (type prompts instead of pasting)",
+                "When enabled, the clipboard is never used to send a prompt. The prompt is saved to a temp file and only a short file reference is typed into the terminal via simulated keystrokes. Use this if another app (clipboard manager, Remote Desktop, security tool) holds the clipboard and breaks normal paste-based sending.\n\nAvailable only with the Command Prompt terminal type — Windows Terminal does not accept the simulated keystrokes this uses.",
+                origDisableClipboardSend, themeFg);
+            stack.Children.Add(disableClipboardCheck);
+
+            // Hint shown only while Windows Terminal is selected, explaining why the toggle is greyed out.
+            var disableClipboardWtHint = new TextBlock
+            {
+                Text = "Not available with Windows Terminal (works only with Command Prompt).",
+                FontSize = 11,
+                Opacity = 0.7,
+                Foreground = themeFg,
+                TextWrapping = TextWrapping.Wrap,
+                Margin = new Thickness(20, 0, 0, 0)
+            };
+            stack.Children.Add(disableClipboardWtHint);
 
             // Auto-open Changes only applies inside git repos, but we keep the
             // checkbox visible so users can pre-toggle the setting before
@@ -166,6 +178,25 @@ namespace ClaudeCodeVS
                 TextWrapping = TextWrapping.Wrap,
                 Margin = new Thickness(20, 2, 0, 0)
             });
+
+            // "Disable clipboard" relies on simulated keystrokes that only conhost (Command Prompt)
+            // accepts, so the toggle is enabled only while Command Prompt is selected. Keep it in sync
+            // with the terminal-type radios live, and uncheck it when switching to Windows Terminal so
+            // an unavailable setting can't be saved as enabled.
+            void SyncDisableClipboardAvailability()
+            {
+                bool cmdSelected = cmdRadio.IsChecked == true;
+                disableClipboardCheck.IsEnabled = cmdSelected;
+                disableClipboardCheck.Opacity = cmdSelected ? 1.0 : 0.5;
+                disableClipboardWtHint.Visibility = cmdSelected ? Visibility.Collapsed : Visibility.Visible;
+                if (!cmdSelected)
+                {
+                    disableClipboardCheck.IsChecked = false;
+                }
+            }
+            cmdRadio.Checked += (s, e) => SyncDisableClipboardAvailability();
+            wtRadio.Checked += (s, e) => SyncDisableClipboardAvailability();
+            SyncDisableClipboardAvailability();
 
             // ---- Theme section ----
             stack.Children.Add(MakeSectionHeader("Theme", themeFg));
@@ -239,7 +270,7 @@ namespace ClaudeCodeVS
             // ---- Collect new values ----
             bool newSendWithEnter   = sendEnterCheck.IsChecked == true;
             bool newSendLargeAsFile = largeAsFileCheck.IsChecked == true;
-            bool newStrictClipboardVerify = strictClipboardCheck.IsChecked == true;
+            bool newDisableClipboardSend = disableClipboardCheck.IsChecked == true;
             bool newAutoOpenChanges = autoOpenCheck.IsChecked == true;
             bool newInvertLayout    = invertCheck.IsChecked == true;
             bool newDisableAutoZoom = disableAutoZoomCheck.IsChecked == true;
@@ -276,7 +307,7 @@ namespace ClaudeCodeVS
             // ---- Apply settings ----
             _settings.SendWithEnter           = newSendWithEnter;
             _settings.SendLargePromptsAsFile  = newSendLargeAsFile;
-            _settings.StrictClipboardVerification = newStrictClipboardVerify;
+            _settings.DisableClipboardSend    = newDisableClipboardSend;
             _settings.AutoOpenChangesOnPrompt = newAutoOpenChanges;
             _settings.InvertLayout            = newInvertLayout;
             _settings.DisableStartupAutoZoom  = newDisableAutoZoom;
