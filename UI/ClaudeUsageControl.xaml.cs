@@ -79,17 +79,22 @@ namespace ClaudeCodeVS
         {
             try
             {
-                // WebView2 exclusively locks its user data folder — two VS processes sharing
-                // the same folder causes the second to throw during environment creation.
-                // Use a per-process folder so multiple VS instances coexist without conflict.
+                // Use a single fixed user-data folder so the full WebView2 profile
+                // (cookies, localStorage, IndexedDB) survives a Visual Studio restart —
+                // devenv.exe gets a new PID every launch, so the old per-PID folder
+                // started each session logged-out and stuck on the cookie banner (issue #62).
+                // A per-PID folder is still used as a fallback for the rare case where a
+                // second VS process can't share the locked folder (see GetOrCreateAsync).
                 int pid = System.Diagnostics.Process.GetCurrentProcess().Id;
-                var userDataFolder = Path.Combine(
+                var baseDir = Path.Combine(
                     Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-                    "ClaudeCodeExtension", "WebView2_" + pid);
+                    "ClaudeCodeExtension");
+                var userDataFolder = Path.Combine(baseDir, "WebView2");
+                var fallbackFolder = Path.Combine(baseDir, "WebView2_" + pid);
                 Directory.CreateDirectory(userDataFolder);
                 CleanupStaleWebView2Folders();
 
-                var env = await ClaudeUsageWebViewEnvironment.GetOrCreateAsync(userDataFolder);
+                var env = await ClaudeUsageWebViewEnvironment.GetOrCreateAsync(userDataFolder, fallbackFolder);
                 await WebView.EnsureCoreWebView2Async(env);
 
                 // Re-focus after Ctrl+Scroll zoom so WebView2 re-establishes cursor tracking.
@@ -948,6 +953,9 @@ namespace ClaudeCodeVS
             public int SameSite { get; set; }
         }
 
+        // Reclaims legacy per-PID profile folders left by older versions (and by the
+        // multi-instance fallback). The fixed "WebView2" folder does not match the
+        // "WebView2_*" glob, so the persistent profile is never touched here (issue #62).
         private static void CleanupStaleWebView2Folders()
         {
             try
@@ -1000,22 +1008,44 @@ namespace ClaudeCodeVS
         private static readonly object _lock = new object();
         private static Task<CoreWebView2Environment> _pending;
 
-        public static Task<CoreWebView2Environment> GetOrCreateAsync(string userDataFolder)
+        public static Task<CoreWebView2Environment> GetOrCreateAsync(string userDataFolder, string fallbackFolder = null)
         {
             lock (_lock)
             {
                 if (_env != null) return Task.FromResult(_env);
                 if (_pending != null) return _pending;
-                _pending = CreateAsync(userDataFolder);
+                _pending = CreateAsync(userDataFolder, fallbackFolder);
                 return _pending;
             }
         }
 
-        private static async Task<CoreWebView2Environment> CreateAsync(string userDataFolder)
+        private static async Task<CoreWebView2Environment> CreateAsync(string userDataFolder, string fallbackFolder)
         {
-            var env = await CoreWebView2Environment.CreateAsync(null, userDataFolder, null);
-            lock (_lock) { _env = env; _pending = null; }
-            return env;
+            try
+            {
+                CoreWebView2Environment env;
+                try
+                {
+                    env = await CoreWebView2Environment.CreateAsync(null, userDataFolder, null);
+                }
+                catch (Exception ex) when (!string.IsNullOrEmpty(fallbackFolder))
+                {
+                    // Another VS process holds an exclusive lock on the shared folder.
+                    // Fall back to a per-process folder so this instance still works
+                    // (its session won't persist, but shared_cookies.json restores login
+                    // on the next launch that gets the shared folder).
+                    Debug.WriteLine("ClaudeUsage: shared WebView2 folder unavailable, using per-PID fallback: " + ex);
+                    Directory.CreateDirectory(fallbackFolder);
+                    env = await CoreWebView2Environment.CreateAsync(null, fallbackFolder, null);
+                }
+                lock (_lock) { _env = env; _pending = null; }
+                return env;
+            }
+            catch
+            {
+                lock (_lock) { _pending = null; }
+                throw;
+            }
         }
     }
 }

@@ -98,6 +98,9 @@ This binds a Claude Code skill that shells out to OpenAI Codex to audit pending 
 
 ## Version History
 
+### Version 10.75
+- Fixed the Claude Usage panel showing the claude.ai homepage and cookie banner instead of your usage, and not staying signed in across Visual Studio restarts.
+
 ### Version 10.74
 - Added Antigravity to the marketplace tags so the extension is discoverable when searching for it.
 
