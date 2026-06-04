@@ -21,6 +21,8 @@ Enjoying the extension? [Buy me a coffee](https://www.buymeacoffee.com/dliedke) 
 - **Claude Code session history** — 📜 toolbar button lists past sessions for the current workspace; resume any session or the most recent one with one click. Works for native and WSL Claude Code.
 - **Claude usage in VS** — 📊 button (when Claude is active) opens the claude.ai usage page inside a dockable tab. Inline session/weekly progress bars below the prompt update automatically and adapt to the active theme.
 - **Custom commands (⚡)** — Save slash commands or canned prompts and dispatch them to the active agent in one click. Configure via *⚙ → Configure Custom Commands...*.
+- **"@" file picker** — Type **@** in the prompt box to search your solution's files and folders and insert one with the keyboard; keep typing to filter, arrow keys + Enter to insert, pick a folder to drill in.
+- **On Agent Finish** — Optionally play a sound, show a notification (with duration, plus token count for Claude Code), and run an action (build/rebuild, run, tests, a script, or a follow-up command) when the agent goes idle. Global defaults plus per-solution overrides. Configure via *⚙ → Settings...*.
 - **Model selection (Claude)** — 🤖 button to switch between Opus / Sonnet / Haiku and pick an effort level (Auto / Low / Medium / High / Max) for Opus thinking depth.
 - **Detach / attach terminal** — Pop the terminal into a separate VS tab and bring it back at any time. State persists across sessions.
 - **Theme aware** — Follows VS dark/light theme automatically, or force a theme via *⚙ → Set Theme...*. Prompt and terminal zoom (Ctrl+Scroll) are persisted across sessions.
@@ -97,6 +99,14 @@ This binds a Claude Code skill that shells out to OpenAI Codex to audit pending 
 4. **Use it**: ⚡ → *Codex Review*. Claude runs the skill, Codex audits your diff, findings appear inline.
 
 ## Version History
+
+### Version 10.77
+- The "On Agent Finish" settings now open in their own window via a button in Settings, and you can keep different settings per solution — turn on "Use custom settings for this solution" to override the global defaults for just the project you're in.
+- Fixed the embedded terminal breaking when you switch to a different solution while the agent-finish notification is enabled. Pending notifications are now cleared when a new solution loads.
+- The agent-finish notification and action no longer trigger while the agent is waiting for your input (a yes/no confirmation or a selection prompt); they now wait for the real completion after you answer.
+- Fixed the agent-finish watcher occasionally interfering with typing in the terminal — it no longer reads the console while you're actively typing there.
+- Fixed the agent-finish notification taking much longer than the idle time you set — it no longer waits until you click away from the terminal, so it appears at the configured time.
+- Fixed Visual Studio occasionally freezing while an agent-finish action ran (such as running the app).
 
 ### Version 10.76
 - Added an optional notification when the agent finishes a task — play a sound and/or show a Visual Studio bar with how long it took (and, for Claude Code, how many tokens it used). It works by noticing when the terminal goes idle, so it covers any agent running in the Command Prompt terminal.

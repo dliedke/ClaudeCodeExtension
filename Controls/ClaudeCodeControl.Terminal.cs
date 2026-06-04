@@ -836,6 +836,12 @@ namespace ClaudeCodeVS
 
                 await StopExistingTerminalAsync();
 
+                // Defensively detach VS from any console the agent-finish watcher may have left
+                // attached. A lingering attachment makes the conhost we spawn below fail to create
+                // its own window, leaving the embedded terminal blank (notably after switching
+                // solutions). No-op when VS has no console attached.
+                EnsureNoConsoleAttached();
+
                 // Check if we should use Windows Terminal instead of Command Prompt
                 bool useWindowsTerminal = _settings?.SelectedTerminalType == TerminalType.WindowsTerminal;
 
@@ -1977,7 +1983,12 @@ namespace ClaudeCodeVS
             {
                 var info = (KBDLLHOOKSTRUCT)Marshal.PtrToStructure(lParam, typeof(KBDLLHOOKSTRUCT));
 
-                if (info.vkCode == VK_F5 && IsTerminalFocused())
+                // Note when the user is typing into the terminal so the "On Agent Finish" watcher
+                // can pause its console read mid-keystroke (computed once; reused for the F5 branch).
+                bool terminalFocused = IsTerminalFocused();
+                if (terminalFocused) _lastTerminalKeyUtc = DateTime.UtcNow;
+
+                if (info.vkCode == VK_F5 && terminalFocused)
                 {
                     bool ctrlHeld = (GetAsyncKeyState(VK_CONTROL) & 0x8000) != 0;
                     bool shiftHeld = (GetAsyncKeyState(VK_SHIFT) & 0x8000) != 0;

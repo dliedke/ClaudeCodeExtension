@@ -421,10 +421,20 @@ namespace ClaudeCodeVS
         public System.Collections.Generic.List<CustomCommand> CustomCommands { get; set; } = new System.Collections.Generic.List<CustomCommand>();
 
         /// <summary>
-        /// Configuration for the "On Agent Finish" notification + action feature
-        /// (Claude Code only). See ClaudeCodeControl.AgentCompletion.cs.
+        /// Global default configuration for the "On Agent Finish" notification +
+        /// action feature. Used by any solution that has no per-project override.
+        /// See ClaudeCodeControl.AgentCompletion.cs.
         /// </summary>
         public AgentFinishConfig AgentFinish { get; set; } = new AgentFinishConfig();
+
+        /// <summary>
+        /// Per-solution "On Agent Finish" overrides, keyed by solution name
+        /// (the .sln file name without extension). When the current solution name
+        /// has an entry here it takes precedence over <see cref="AgentFinish"/>;
+        /// otherwise the global default is used.
+        /// </summary>
+        public System.Collections.Generic.Dictionary<string, AgentFinishConfig> ProjectAgentFinish { get; set; }
+            = new System.Collections.Generic.Dictionary<string, AgentFinishConfig>(System.StringComparer.OrdinalIgnoreCase);
 
         /// <summary>
         /// Auto-refresh interval (seconds) for the Claude usage tool window's

@@ -246,6 +246,12 @@ namespace ClaudeCodeVS
                 {
                     _lastWorkspaceDirectory = newWorkspaceDir;
 
+                    // Stop the agent-finish watcher and clear any stale notification before
+                    // the terminal restarts. Leaving the watcher running lets its console-attach
+                    // tick overlap the new terminal launch and break the embedded cmd.
+                    await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
+                    ResetAgentCompletionForSolutionChange();
+
 
                     // Get the selected provider from settings
                     AiProvider? selectedProvider = _settings?.SelectedProvider;

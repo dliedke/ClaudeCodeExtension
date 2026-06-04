@@ -112,9 +112,23 @@ namespace ClaudeCodeVS
         public int OnBeforeCloseProject(IVsHierarchy pHierarchy, int fRemoved) => VSConstants.S_OK;
 
         /// <summary>
-        /// Called before a solution is closed
+        /// Called before a solution is closed. Stops the agent-finish watcher and clears any
+        /// pending notification up front, so its console-attach tick can't run while the old
+        /// terminal is torn down and the next one is launched.
         /// </summary>
-        public int OnBeforeCloseSolution(object pUnkReserved) => VSConstants.S_OK;
+        public int OnBeforeCloseSolution(object pUnkReserved)
+        {
+            try
+            {
+                ThreadHelper.ThrowIfNotOnUIThread();
+                _control?.ResetAgentCompletionForSolutionChange();
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"OnBeforeCloseSolution error: {ex.Message}");
+            }
+            return VSConstants.S_OK;
+        }
 
         /// <summary>
         /// Called before a project is unloaded

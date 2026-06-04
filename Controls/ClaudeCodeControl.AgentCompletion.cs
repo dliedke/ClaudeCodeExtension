@@ -43,6 +43,13 @@ namespace ClaudeCodeVS
         private const int AgentCompletionPollIntervalMs = 1000;
         private const int AgentCompletionMaxWatchMinutes = 30;
 
+        // While the user is actively typing in the terminal we skip the console read (the brief
+        // AttachConsole can disturb keystrokes). "Actively typing" means a key was pressed in the
+        // terminal within this window — merely holding focus (e.g. right after a paste) does not
+        // count, so detection still fires while the terminal is focused but idle.
+        private const int TerminalTypingGuardMs = 1500;
+        private DateTime _lastTerminalKeyUtc = DateTime.MinValue;
+
         private DispatcherTimer _agentCompletionTimer;
         private bool _completionWatchActive;
         private bool _completionTickBusy;
@@ -58,10 +65,67 @@ namespace ClaudeCodeVS
         private string _watchedSessionDir;
         private int _baselineTokenCount;
 
+        // The effective config captured when the watcher armed, so a mid-turn
+        // solution switch can't swap the per-project config out from under it.
+        private AgentFinishConfig _watchedAgentFinish;
+
         private readonly object _consoleSnapshotLock = new object();
 
         // The currently-shown agent-finish info bar, so a newer one can replace it.
         private IVsInfoBarUIElement _activeAgentFinishInfoBar;
+
+        #endregion
+
+        #region Effective Config Resolution
+
+        /// <summary>
+        /// Returns the "On Agent Finish" config that applies to the currently open
+        /// solution: the per-solution override when one exists for the solution
+        /// name, otherwise the global default. Never returns null.
+        /// </summary>
+        private AgentFinishConfig GetEffectiveAgentFinish()
+        {
+            ThreadHelper.ThrowIfNotOnUIThread();
+
+            if (_settings == null) _settings = new ClaudeCodeSettings();
+            if (_settings.AgentFinish == null) _settings.AgentFinish = new AgentFinishConfig();
+
+            string name = GetCurrentSolutionName();
+            if (!string.IsNullOrEmpty(name)
+                && _settings.ProjectAgentFinish != null
+                && _settings.ProjectAgentFinish.TryGetValue(name, out var projectCfg)
+                && projectCfg != null)
+            {
+                return projectCfg;
+            }
+
+            return _settings.AgentFinish;
+        }
+
+        /// <summary>
+        /// Returns the open solution's name (the .sln file name without extension),
+        /// or an empty string when no solution is loaded. Used as the per-project
+        /// key for "On Agent Finish" overrides.
+        /// </summary>
+        private string GetCurrentSolutionName()
+        {
+            ThreadHelper.ThrowIfNotOnUIThread();
+
+            try
+            {
+                var dte = Package.GetGlobalService(typeof(EnvDTE.DTE)) as EnvDTE.DTE;
+                string full = dte?.Solution?.FullName;
+                if (!string.IsNullOrEmpty(full))
+                {
+                    return Path.GetFileNameWithoutExtension(full);
+                }
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"GetCurrentSolutionName error: {ex.Message}");
+            }
+            return string.Empty;
+        }
 
         #endregion
 
@@ -78,13 +142,17 @@ namespace ClaudeCodeVS
         {
             try
             {
-                var cfg = _settings?.AgentFinish;
-                if (cfg == null || !cfg.Enabled) return;
+                if (_settings == null) return;
 
                 // The console screen buffer can only be read for the conhost (Command Prompt).
                 if (_settings.SelectedTerminalType != TerminalType.CommandPrompt) return;
 
                 await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
+
+                // Resolve the effective config (per-solution override or global default)
+                // on the UI thread, since the solution name comes from DTE.
+                var cfg = GetEffectiveAgentFinish();
+                if (cfg == null || !cfg.Enabled) return;
 
                 int pid = 0;
                 try { if (cmdProcess != null && !cmdProcess.HasExited) pid = cmdProcess.Id; }
@@ -120,6 +188,7 @@ namespace ClaudeCodeVS
                 _tokenEnrichmentClaude = claude;
                 _watchedSessionDir = dir;
                 _baselineTokenCount = baseTokens;
+                _watchedAgentFinish = cfg;
                 _completionWatchActive = true;
 
                 EnsureAgentCompletionTimer();
@@ -152,6 +221,69 @@ namespace ClaudeCodeVS
             _agentCompletionTimer = null;
         }
 
+        /// <summary>
+        /// Resets the completion watcher and clears any pending notification when the
+        /// solution changes. Stopping the watcher before the terminal restarts is important:
+        /// otherwise its 1-second console-attach tick can overlap the new terminal launch and
+        /// leave Visual Studio attached to the old console, which breaks the embedded cmd. Also
+        /// dismisses the agent-finish info bar so a stale "finished" notification from the
+        /// previous solution doesn't linger after switching.
+        /// </summary>
+        internal void ResetAgentCompletionForSolutionChange()
+        {
+            ThreadHelper.ThrowIfNotOnUIThread();
+            StopAgentCompletionTimer();
+            DismissAgentFinishNotification();
+        }
+
+        /// <summary>
+        /// Detaches Visual Studio's own process from any console it may still be attached to.
+        /// The completion watcher briefly AttachConsole()s VS to the agent's console to read its
+        /// screen buffer; if a FreeConsole() is ever missed (the console torn down mid-read, or a
+        /// later AttachConsole skipped because VS was already attached), VS stays attached. A
+        /// lingering attachment makes the next conhost.exe we launch fail to create its own window,
+        /// leaving the embedded terminal blank. Calling this before each terminal launch clears that
+        /// state; it is a harmless no-op when VS has no console. Serialized with the watcher via the
+        /// snapshot lock so it can't race an in-flight screen read.
+        /// </summary>
+        internal void EnsureNoConsoleAttached()
+        {
+            // Bounded acquire: this runs on the UI thread (terminal launch, Run action). A blocking
+            // lock here would freeze Visual Studio whenever a background console capture is mid-read
+            // and slow to release — the threading hang users hit. If the lock isn't free, a capture
+            // is in flight and will FreeConsole() itself in its own finally, so skipping is safe.
+            bool taken = false;
+            try
+            {
+                System.Threading.Monitor.TryEnter(_consoleSnapshotLock, 250, ref taken);
+                if (taken)
+                {
+                    try { FreeConsole(); }
+                    catch { }
+                }
+            }
+            finally
+            {
+                if (taken) System.Threading.Monitor.Exit(_consoleSnapshotLock);
+            }
+        }
+
+        /// <summary>
+        /// Closes the currently-shown agent-finish info bar, if any.
+        /// </summary>
+        private void DismissAgentFinishNotification()
+        {
+            ThreadHelper.ThrowIfNotOnUIThread();
+
+            var bar = _activeAgentFinishInfoBar;
+            _activeAgentFinishInfoBar = null;
+            if (bar != null)
+            {
+                try { bar.Close(); }
+                catch { }
+            }
+        }
+
         #endregion
 
         #region Detection (console-output quiescence)
@@ -177,7 +309,25 @@ namespace ClaudeCodeVS
                     int pid = _watchedConsolePid;
                     if (pid == 0) { StopAgentCompletionTimer(); return; }
 
-                    string hash = await Task.Run(() => TryCaptureConsoleHash(pid));
+                    // Don't read the console while the user is actively typing in the terminal.
+                    // The capture briefly AttachConsole()s VS to the terminal's console, which can
+                    // disturb the conhost's keyboard focus/input mid-keystroke (e.g. while the user
+                    // answers an agent prompt). Skipping these ticks — and pushing the idle window
+                    // forward so detection effectively pauses — keeps typing uninterrupted. The gate
+                    // is recent keystrokes, not mere focus: pasting a prompt leaves the terminal
+                    // focused but not being typed into, so a focus-only check would wrongly pause the
+                    // whole turn and only fire once the user clicked away (the reported ~15s lag).
+                    // (We're on the UI thread here, before the Task.Run, which is required for
+                    // GetGUIThreadInfo to be meaningful.)
+                    if ((DateTime.UtcNow - _lastTerminalKeyUtc).TotalMilliseconds < TerminalTypingGuardMs
+                        && IsTerminalFocused())
+                    {
+                        _lastConsoleChangeUtc = DateTime.UtcNow;
+                        return;
+                    }
+
+                    string text = await Task.Run(() => TryCaptureConsoleText(pid));
+                    string hash = text != null ? ComputeStableHash(text) : null;
                     if (hash == null)
                     {
                         // Read failed — if the console process is gone, the terminal was
@@ -198,11 +348,17 @@ namespace ClaudeCodeVS
                     // Don't fire until the agent actually produced output this turn.
                     if (!_consoleSawActivity) return;
 
-                    int idle = Math.Max(2, Math.Min(120, _settings?.AgentFinish?.IdleSeconds ?? 3));
+                    int idle = Math.Max(2, Math.Min(120, _watchedAgentFinish?.IdleSeconds ?? 3));
                     if ((DateTime.UtcNow - _lastConsoleChangeUtc).TotalSeconds < idle) return;
 
+                    // Settled — but a static y/n or selection prompt also reads as idle. If the
+                    // screen looks like the agent is waiting for input, this is not a completion:
+                    // don't fire and keep watching, so the notification lands on the real finish
+                    // after the user answers (the screen will change → activity → re-evaluate).
+                    if (LooksLikeAgentInputPrompt(text)) return;
+
                     // Settled — the turn is done.
-                    var cfg = _settings?.AgentFinish;
+                    var cfg = _watchedAgentFinish;
                     if (cfg == null) { StopAgentCompletionTimer(); return; }
 
                     int delta = 0;
@@ -233,14 +389,24 @@ namespace ClaudeCodeVS
         }
 
         /// <summary>
-        /// Attaches to the target process's console, reads the visible screen-buffer text and
-        /// cursor position, and returns a stable hash of it (or null on any failure). The
-        /// attach/read/detach is serialized and tightly scoped so it doesn't linger attached
-        /// to another process's console. A moving spinner / elapsed timer changes the text and
-        /// a moving cursor changes the position, so "busy" always hashes differently from a
-        /// settled, idle prompt.
+        /// Convenience wrapper: captures the console text and returns its stable hash
+        /// (or null on any failure). Used by the arm path which only needs a baseline hash.
         /// </summary>
         private string TryCaptureConsoleHash(int conhostPid)
+        {
+            string text = TryCaptureConsoleText(conhostPid);
+            return text != null ? ComputeStableHash(text) : null;
+        }
+
+        /// <summary>
+        /// Attaches to the target process's console, reads the visible screen-buffer text and
+        /// cursor position, and returns the raw captured string (or null on any failure). The
+        /// attach/read/detach is serialized and tightly scoped so it doesn't linger attached
+        /// to another process's console. A moving spinner / elapsed timer changes the text and
+        /// a moving cursor changes the position, so "busy" always differs from a settled prompt.
+        /// The trailing "|cursorX,cursorY" marker lets cursor movement count as activity.
+        /// </summary>
+        private string TryCaptureConsoleText(int conhostPid)
         {
             if (conhostPid <= 0) return null;
 
@@ -303,11 +469,11 @@ namespace ClaudeCodeVS
                     // Fold in the cursor position so cursor movement counts as activity.
                     sb.Append('|').Append(csbi.dwCursorPosition.X).Append(',').Append(csbi.dwCursorPosition.Y);
 
-                    return ComputeStableHash(sb.ToString());
+                    return sb.ToString();
                 }
                 catch (Exception ex)
                 {
-                    Debug.WriteLine($"TryCaptureConsoleHash error: {ex.Message}");
+                    Debug.WriteLine($"TryCaptureConsoleText error: {ex.Message}");
                     return null;
                 }
                 finally
@@ -317,6 +483,65 @@ namespace ClaudeCodeVS
                     if (ctrlGuarded) SetConsoleCtrlHandler(IntPtr.Zero, false);
                 }
             }
+        }
+
+        // High-precision markers that the agent is waiting on a yes/no or "press key" prompt.
+        // Kept deliberately strong to avoid mis-classifying a genuine completion (which would
+        // silently skip its notification). Compared case-insensitively against trimmed tail lines.
+        private static readonly string[] AgentPromptKeywords =
+        {
+            "(y/n)", "[y/n]", "y/n]", "(yes/no)", "[yes/no]",
+            "do you want to", "do you trust", "allow this", "allow command",
+            "press enter to continue", "press any key",
+        };
+
+        /// <summary>
+        /// Heuristically decides whether the settled console screen shows the agent waiting for
+        /// input (a y/n confirmation or a numbered selection menu, e.g. Claude Code's permission
+        /// box) rather than a finished turn. Only the bottom of the screen is examined, since
+        /// prompts render there. Intentionally conservative: it would rather miss an unusual
+        /// prompt than suppress a real completion. Provider-agnostic but tuned for Claude Code.
+        /// </summary>
+        private static bool LooksLikeAgentInputPrompt(string screenText)
+        {
+            if (string.IsNullOrEmpty(screenText)) return false;
+
+            // Drop the trailing "|cursorX,cursorY" marker the capture appends.
+            int bar = screenText.LastIndexOf('|');
+            string body = bar >= 0 ? screenText.Substring(0, bar) : screenText;
+
+            string[] lines = body.Split('\n');
+            int start = Math.Max(0, lines.Length - 18); // prompts sit at the bottom
+
+            bool sawArrow = false;
+            int menuItems = 0;
+
+            for (int i = start; i < lines.Length; i++)
+            {
+                string raw = lines[i];
+                string trimmed = raw.Trim();
+                if (trimmed.Length == 0) continue;
+
+                string lower = trimmed.ToLowerInvariant();
+                foreach (string kw in AgentPromptKeywords)
+                {
+                    if (lower.IndexOf(kw, StringComparison.Ordinal) >= 0) return true;
+                }
+
+                // Selection cursor used by Claude Code's permission / choice prompts.
+                if (raw.IndexOf('❯') >= 0 || raw.IndexOf('›') >= 0 || raw.IndexOf('▶') >= 0)
+                    sawArrow = true;
+
+                // Numbered option line: "1. Yes", "❯ 2. No", "3) ...".
+                if (System.Text.RegularExpressions.Regex.IsMatch(trimmed, @"^[❯›▶\s]*\d+[\.\)]\s+\S"))
+                    menuItems++;
+            }
+
+            // An arrow-marked menu, or two-plus numbered options together, is an interactive choice.
+            if (sawArrow && menuItems >= 1) return true;
+            if (menuItems >= 2) return true;
+
+            return false;
         }
 
         /// <summary>
@@ -474,6 +699,12 @@ namespace ClaudeCodeVS
         private async Task ExecuteAgentFinishActionAsync(AgentFinishConfig cfg)
         {
             await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
+
+            // Belt-and-suspenders: guarantee VS isn't still attached to the agent's console before
+            // launching/building. A leaked attachment makes the debuggee's own console allocation
+            // conflict and can hang VS when the action is Run.
+            EnsureNoConsoleAttached();
+
             try
             {
                 switch (cfg.Action)

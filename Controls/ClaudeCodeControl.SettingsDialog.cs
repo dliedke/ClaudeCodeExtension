@@ -75,10 +75,6 @@ namespace ClaudeCodeVS
             ThemePreference origThemePref     = _settings.SelectedThemePreference;
             bool origSkipThemePrompt          = _settings.SkipThemeRestartPrompt;
 
-            // "On Agent Finish" config is mutated in place on OK and persisted by the single
-            // SaveSettings() at the end; the watcher re-reads it on the next send (no restart).
-            AgentFinishConfig af = _settings.AgentFinish ?? (_settings.AgentFinish = new AgentFinishConfig());
-
             var dialog = new Window
             {
                 Title = "Claude Code Extension - Settings",
@@ -152,125 +148,30 @@ namespace ClaudeCodeVS
             // ---- On Agent Finish section ----
             stack.Children.Add(MakeSectionHeader("On Agent Finish", themeFg));
 
-            var afEnabledCheck = MakeCheckBox(
-                "Notify / run an action when the agent finishes",
-                "When the agent stops working (the terminal goes idle), optionally play a sound, show a Visual Studio notification (with how long it took, plus token count for Claude Code), and run an action.",
-                af.Enabled, themeFg);
-            stack.Children.Add(afEnabledCheck);
-
             stack.Children.Add(new TextBlock
             {
-                Text = "Works with the Command Prompt terminal (not Windows Terminal). Detected by watching the terminal go idle, so it covers any agent.",
+                Text = "Notify and optionally run an action when the agent finishes. Supports global defaults plus per-solution overrides.",
                 FontSize = 11,
                 Opacity = 0.7,
                 Foreground = themeFg,
                 TextWrapping = TextWrapping.Wrap,
-                Margin = new Thickness(20, 0, 0, 4)
+                Margin = new Thickness(4, 0, 0, 6)
             });
 
-            var afSoundCheck = MakeCheckBox("Play a sound",
-                "Play a system sound when the agent finishes.", af.PlaySound, themeFg);
-            afSoundCheck.Margin = new Thickness(20, 4, 0, 4);
-            stack.Children.Add(afSoundCheck);
-
-            var afToastCheck = MakeCheckBox("Show a notification",
-                "Show a Visual Studio info bar with the turn's duration and token count when the agent finishes.",
-                af.ShowToast, themeFg);
-            afToastCheck.Margin = new Thickness(20, 4, 0, 4);
-            stack.Children.Add(afToastCheck);
-
-            stack.Children.Add(new TextBlock
+            var afOpenButton = new Button
             {
-                Text = "Action:",
-                Foreground = themeFg,
-                Margin = new Thickness(20, 6, 0, 2)
-            });
-
-            var afActionCombo = new ComboBox
-            {
+                Content = "On Agent Finish…",
                 HorizontalAlignment = HorizontalAlignment.Left,
-                MinWidth = 240,
-                MinHeight = 26,
-                Margin = new Thickness(20, 0, 0, 4)
+                Padding = new Thickness(12, 4, 12, 4),
+                Margin = new Thickness(4, 0, 0, 4)
             };
-
-            // A standalone Window doesn't inherit VS's themed ComboBox styling, and the default
-            // ComboBox/ComboBoxItem templates paint their own system-colored selection/hover
-            // (light-blue highlight, washed-out gray toggle) on top of any Background we set — a
-            // style trigger can't beat that. So apply a fully custom flat template themed from the
-            // VS palette: readable text, dark toggle, derived hover instead of system blue.
-            var afComboRes = BuildThemedComboResources(themeBg, themeFg);
-            afActionCombo.Style = (Style)afComboRes["cb"];
-            var afItemStyle = (Style)afComboRes["cbi"];
-
-            Func<string, AgentFinishActionType, ComboBoxItem> mkActionItem = (txt, val) =>
-                new ComboBoxItem { Content = txt, Tag = val, Style = afItemStyle };
-            afActionCombo.Items.Add(mkActionItem("None (notify only)", AgentFinishActionType.None));
-            afActionCombo.Items.Add(mkActionItem("Build solution", AgentFinishActionType.BuildSolution));
-            afActionCombo.Items.Add(mkActionItem("Rebuild solution", AgentFinishActionType.RebuildSolution));
-            afActionCombo.Items.Add(mkActionItem("Run (F5)", AgentFinishActionType.Run));
-            afActionCombo.Items.Add(mkActionItem("Run without debugging (Ctrl+F5)", AgentFinishActionType.RunWithoutDebugging));
-            afActionCombo.Items.Add(mkActionItem("Run all tests", AgentFinishActionType.RunTests));
-            afActionCombo.Items.Add(mkActionItem("Run a script…", AgentFinishActionType.RunScript));
-            afActionCombo.Items.Add(mkActionItem("Send a command to the agent", AgentFinishActionType.SendToAgent));
-            foreach (ComboBoxItem it in afActionCombo.Items)
-            {
-                if ((AgentFinishActionType)it.Tag == af.Action) { afActionCombo.SelectedItem = it; break; }
-            }
-            if (afActionCombo.SelectedItem == null) afActionCombo.SelectedIndex = 0;
-            stack.Children.Add(afActionCombo);
-
-            stack.Children.Add(new TextBlock
-            {
-                Text = "Script path (for \"Run a script\") or command text (for \"Send a command\"):",
-                Foreground = themeFg,
-                Margin = new Thickness(20, 4, 0, 2)
-            });
-            var afScriptBox = new TextBox
-            {
-                Text = af.ScriptOrCommand ?? string.Empty,
-                Background = themeBg,
-                Foreground = themeFg,
-                BorderBrush = themeFg,
-                Margin = new Thickness(20, 0, 0, 4)
-            };
-            stack.Children.Add(afScriptBox);
-
-            var afConfirmCheck = MakeCheckBox("Ask before running the action",
-                "When enabled, the action appears as a button on the notification and runs only when you click it. When disabled, the action runs automatically. Recommended on for scripts, run, and rebuild.",
-                af.Confirm, themeFg);
-            afConfirmCheck.Margin = new Thickness(20, 4, 0, 4);
-            stack.Children.Add(afConfirmCheck);
-
-            var afReqChangesCheck = MakeCheckBox("Only run the action if files changed",
-                "Skip the action when the agent did not modify any files (git working tree clean). Has no effect outside a git repository.",
-                af.RequireFileChanges, themeFg);
-            afReqChangesCheck.Margin = new Thickness(20, 4, 0, 4);
-            stack.Children.Add(afReqChangesCheck);
-
-            var afIdlePanel = new StackPanel
-            {
-                Orientation = Orientation.Horizontal,
-                Margin = new Thickness(20, 4, 0, 4)
-            };
-            afIdlePanel.Children.Add(new TextBlock
-            {
-                Text = "Idle seconds before \"finished\" is detected:",
-                Foreground = themeFg,
-                VerticalAlignment = VerticalAlignment.Center,
-                Margin = new Thickness(0, 0, 8, 0)
-            });
-            var afIdleBox = new TextBox
-            {
-                Text = af.IdleSeconds.ToString(),
-                Width = 56,
-                Background = themeBg,
-                Foreground = themeFg,
-                BorderBrush = themeFg,
-                VerticalAlignment = VerticalAlignment.Center
-            };
-            afIdlePanel.Children.Add(afIdleBox);
-            stack.Children.Add(afIdlePanel);
+            Style afButtonStyle = GetDialogButtonStyle();
+            if (afButtonStyle != null) afOpenButton.Style = afButtonStyle;
+            else { afOpenButton.Background = themeBg; afOpenButton.Foreground = themeFg; afOpenButton.BorderBrush = themeFg; }
+#pragma warning disable VSTHRD110
+            afOpenButton.Click += (s, ea) => _ = ShowAgentFinishSettingsDialogAsync();
+#pragma warning restore VSTHRD110
+            stack.Children.Add(afOpenButton);
 
             // ---- Layout section ----
             stack.Children.Add(MakeSectionHeader("Layout", themeFg));
@@ -442,21 +343,8 @@ namespace ClaudeCodeVS
             _settings.SelectedThemePreference = newThemePref;
             _settings.SkipThemeRestartPrompt  = newSkipThemePrompt;
 
-            // On Agent Finish (mutated in place; persisted by SaveSettings below)
-            af.Enabled            = afEnabledCheck.IsChecked == true;
-            af.PlaySound          = afSoundCheck.IsChecked == true;
-            af.ShowToast          = afToastCheck.IsChecked == true;
-            af.Confirm            = afConfirmCheck.IsChecked == true;
-            af.RequireFileChanges = afReqChangesCheck.IsChecked == true;
-            af.ScriptOrCommand    = afScriptBox.Text?.Trim() ?? string.Empty;
-            if ((afActionCombo.SelectedItem as ComboBoxItem)?.Tag is AgentFinishActionType selectedAction)
-            {
-                af.Action = selectedAction;
-            }
-            if (int.TryParse(afIdleBox.Text?.Trim(), out int idleVal))
-            {
-                af.IdleSeconds = Math.Max(2, Math.Min(120, idleVal));
-            }
+            // On Agent Finish is configured in its own dialog (opened by the button above),
+            // which persists its own changes; nothing to apply here.
 
             // Send button visibility tied to SendWithEnter
             SendPromptButton.Visibility = _settings.SendWithEnter

@@ -47,6 +47,7 @@
   <ItemGroup>
     <Compile Include="Controls\ClaudeCodeControl.cs" />
     <Compile Include="Controls\ClaudeCodeControl.AgentCompletion.cs" />
+    <Compile Include="Controls\ClaudeCodeControl.AgentFinishDialog.cs" />
     <Compile Include="Controls\ClaudeCodeControl.AtMention.cs" />
     <Compile Include="Controls\ClaudeCodeControl.Cleanup.cs" />
     <Compile Include="Controls\ClaudeCodeControl.CustomCommands.cs" />
