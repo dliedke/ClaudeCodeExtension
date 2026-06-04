@@ -229,6 +229,9 @@ namespace ClaudeCodeVS
 
                 // Refresh inline usage bars (throttled internally)
                 _ = RefreshInlineUsageAsync();
+
+                // Arm the "On Agent Finish" watcher (Claude Code only; no-op when disabled)
+                _ = ArmAgentCompletionWatcherAsync();
             }
             catch (Exception ex)
             {
@@ -266,6 +269,10 @@ namespace ClaudeCodeVS
             // only counteracts via WM_SETCURSOR (i.e. on mouse move). While typing non-stop with
             // the mouse stationary, WM_SETCURSOR never fires, so we must call SetCursor directly.
             SetCursor(LoadCursor(IntPtr.Zero, new IntPtr(IDC_IBEAM)));
+
+            // When the "@" file/folder picker is open, let it consume navigation/commit keys
+            // (Up/Down/Enter/Tab/Esc) before history navigation or send-on-Enter runs.
+            if (HandleAtMentionKey(e)) return;
 
             // Handle Ctrl+Up/Down for prompt history navigation
             if ((Keyboard.Modifiers & ModifierKeys.Control) == ModifierKeys.Control)

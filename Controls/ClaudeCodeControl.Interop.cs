@@ -409,6 +409,76 @@ namespace ClaudeCodeVS
         [DllImport("kernel32.dll", SetLastError = true)]
         private static extern bool FreeConsole();
 
+        // ---- Console screen-buffer reading (used by the "On Agent Finish" idle detector) ----
+
+        private const uint GENERIC_READ_CONSOLE = 0x80000000;
+        private const uint GENERIC_WRITE_CONSOLE = 0x40000000;
+        private const uint FILE_SHARE_READ_CONSOLE = 0x00000001;
+        private const uint FILE_SHARE_WRITE_CONSOLE = 0x00000002;
+        private const uint OPEN_EXISTING_CONSOLE = 3;
+
+        /// <summary>
+        /// Rectangle (character cells) used by CONSOLE_SCREEN_BUFFER_INFO for the visible window.
+        /// </summary>
+        [StructLayout(LayoutKind.Sequential)]
+        private struct SMALL_RECT
+        {
+            public short Left;
+            public short Top;
+            public short Right;
+            public short Bottom;
+        }
+
+        /// <summary>
+        /// Console screen buffer information (size, cursor position, visible window rectangle).
+        /// </summary>
+        [StructLayout(LayoutKind.Sequential)]
+        private struct CONSOLE_SCREEN_BUFFER_INFO
+        {
+            public COORD dwSize;
+            public COORD dwCursorPosition;
+            public ushort wAttributes;
+            public SMALL_RECT srWindow;
+            public COORD dwMaximumWindowSize;
+        }
+
+        /// <summary>
+        /// Adds or removes a console control handler. Passing a null routine with add=true makes
+        /// the calling process IGNORE Ctrl+C — used to shield VS while it is briefly attached to
+        /// the agent's console (otherwise a user Ctrl+C in the agent could terminate VS).
+        /// </summary>
+        [DllImport("kernel32.dll", SetLastError = true)]
+        private static extern bool SetConsoleCtrlHandler(IntPtr handlerRoutine, bool add);
+
+        /// <summary>
+        /// Synthesizes a tone on the default audio device. Unlike System.Media.SystemSounds (which
+        /// plays the Windows sound-scheme event and is silent when that event is set to "None"),
+        /// Beep is independent of the scheme, so the "On Agent Finish" chime is reliably audible.
+        /// </summary>
+        [DllImport("kernel32.dll", SetLastError = true)]
+        private static extern bool Beep(uint dwFreq, uint dwDuration);
+
+        /// <summary>
+        /// Opens a handle to the attached console's active output buffer (via "CONOUT$").
+        /// </summary>
+        [DllImport("kernel32.dll", SetLastError = true, CharSet = CharSet.Auto)]
+        private static extern IntPtr CreateFile(
+            string lpFileName, uint dwDesiredAccess, uint dwShareMode, IntPtr lpSecurityAttributes,
+            uint dwCreationDisposition, uint dwFlagsAndAttributes, IntPtr hTemplateFile);
+
+        /// <summary>
+        /// Retrieves the size, cursor position, and visible window of a console screen buffer.
+        /// </summary>
+        [DllImport("kernel32.dll", SetLastError = true)]
+        private static extern bool GetConsoleScreenBufferInfo(IntPtr hConsoleOutput, out CONSOLE_SCREEN_BUFFER_INFO lpConsoleScreenBufferInfo);
+
+        /// <summary>
+        /// Copies a number of characters from consecutive cells of a console screen buffer.
+        /// </summary>
+        [DllImport("kernel32.dll", SetLastError = true, CharSet = CharSet.Unicode, EntryPoint = "ReadConsoleOutputCharacterW")]
+        private static extern bool ReadConsoleOutputCharacter(
+            IntPtr hConsoleOutput, [Out] char[] lpCharacter, uint nLength, COORD dwReadCoord, out uint lpNumberOfCharsRead);
+
         /// <summary>
         /// Retrieves a handle to the specified standard device
         /// </summary>

@@ -105,6 +105,22 @@ namespace ClaudeCodeVS
     }
 
     /// <summary>
+    /// Action automatically performed when the AI agent finishes a turn
+    /// (used by the "On Agent Finish" feature). Claude Code only.
+    /// </summary>
+    public enum AgentFinishActionType
+    {
+        None,
+        BuildSolution,
+        RebuildSolution,
+        Run,
+        RunWithoutDebugging,
+        RunTests,
+        RunScript,
+        SendToAgent
+    }
+
+    /// <summary>
     /// User-defined shortcut for a frequently sent prompt or slash command.
     /// Surfaced in a dropdown next to the toolbar so the user can dispatch
     /// canned prompts (e.g. "/codex-review", "explain this file") to the
@@ -123,6 +139,50 @@ namespace ClaudeCodeVS
         /// active agent understands.
         /// </summary>
         public string Command { get; set; } = string.Empty;
+    }
+
+    /// <summary>
+    /// Configuration for the "On Agent Finish" feature: optional sound + visible
+    /// notification and an action (build/run/tests/script/chained command) triggered
+    /// when a Claude Code turn completes. Detection rides the JSONL transcript, so the
+    /// feature is Claude Code only. See ClaudeCodeControl.AgentCompletion.cs.
+    /// </summary>
+    public class AgentFinishConfig
+    {
+        /// <summary>Master switch. When false the completion watcher never arms.</summary>
+        public bool Enabled { get; set; } = false;
+
+        /// <summary>Play a system sound when the agent finishes.</summary>
+        public bool PlaySound { get; set; } = true;
+
+        /// <summary>Show a Visual Studio info bar when the agent finishes.</summary>
+        public bool ShowToast { get; set; } = true;
+
+        /// <summary>
+        /// Seconds the terminal must stay idle (no on-screen change) before a turn is
+        /// considered complete. Guards against firing during brief pauses mid-turn.
+        /// Clamped to 2–120 in the UI.
+        /// </summary>
+        public int IdleSeconds { get; set; } = 3;
+
+        /// <summary>Action to run when the agent finishes.</summary>
+        public AgentFinishActionType Action { get; set; } = AgentFinishActionType.None;
+
+        /// <summary>
+        /// Script path (for <see cref="AgentFinishActionType.RunScript"/>) or literal
+        /// command text (for <see cref="AgentFinishActionType.SendToAgent"/>). Ignored
+        /// by the built-in Visual Studio actions.
+        /// </summary>
+        public string ScriptOrCommand { get; set; } = string.Empty;
+
+        /// <summary>Only run the action when the agent actually changed files (git working tree dirty).</summary>
+        public bool RequireFileChanges { get; set; } = false;
+
+        /// <summary>
+        /// When true, the action is offered as a button on the notification and runs
+        /// only if the user clicks it. When false it runs automatically.
+        /// </summary>
+        public bool Confirm { get; set; } = true;
     }
 
     /// <summary>
@@ -359,6 +419,12 @@ namespace ClaudeCodeVS
         /// dropdown. Empty list hides the dropdown button entirely.
         /// </summary>
         public System.Collections.Generic.List<CustomCommand> CustomCommands { get; set; } = new System.Collections.Generic.List<CustomCommand>();
+
+        /// <summary>
+        /// Configuration for the "On Agent Finish" notification + action feature
+        /// (Claude Code only). See ClaudeCodeControl.AgentCompletion.cs.
+        /// </summary>
+        public AgentFinishConfig AgentFinish { get; set; } = new AgentFinishConfig();
 
         /// <summary>
         /// Auto-refresh interval (seconds) for the Claude usage tool window's

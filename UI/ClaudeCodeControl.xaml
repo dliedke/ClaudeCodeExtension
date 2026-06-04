@@ -168,6 +168,7 @@
                          PreviewDrop="PromptTextBox_PreviewDrop"
                          KeyDown="PromptTextBox_KeyDown"
                          PreviewKeyDown="PromptTextBox_PreviewKeyDown"
+                         TextChanged="PromptTextBox_TextChanged"
                          PreviewMouseWheel="PromptTextBox_PreviewMouseWheel">
 					<TextBox.ContextMenu>
 						<ContextMenu>

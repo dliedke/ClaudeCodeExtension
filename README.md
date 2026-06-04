@@ -98,6 +98,11 @@ This binds a Claude Code skill that shells out to OpenAI Codex to audit pending 
 
 ## Version History
 
+### Version 10.76
+- Added an optional notification when the agent finishes a task — play a sound and/or show a Visual Studio bar with how long it took (and, for Claude Code, how many tokens it used). It works by noticing when the terminal goes idle, so it covers any agent running in the Command Prompt terminal.
+- The notification can also trigger an action when the agent is done: build or rebuild the solution, run it (with or without debugging), run your tests, run a script like deploy.cmd, or send a follow-up command back to the agent. Configure it under Settings, "On Agent Finish".
+- Added an "@" file picker in the prompt box: type "@" to search your solution's files and folders and insert one without leaving the keyboard. Keep typing to filter, use the arrow keys and Enter (or click) to insert, and pick a folder to drill into it.
+
 ### Version 10.75
 - Fixed the Claude Usage panel showing the claude.ai homepage and cookie banner instead of your usage, and not staying signed in across Visual Studio restarts.
 

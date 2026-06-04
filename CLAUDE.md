@@ -6,7 +6,7 @@
 
 - **Author**: Daniel Carvalho Liedke (dliedke@gmail.com) | **License**: MIT
 - **Repository**: https://github.com/dliedke/ClaudeCodeExtension
-- **Current Version**: 10.67 | **Target Framework**: .NET Framework 4.7.2
+- **Current Version**: 10.76 | **Target Framework**: .NET Framework 4.7.2
 
 ---
 
@@ -64,6 +64,8 @@ ClaudeCodeExtension/
 │   ├── ClaudeCodeControl.Settings.cs    # Settings persistence (JSON), layout inversion
 │   ├── ClaudeCodeControl.SettingsDialog.cs # Consolidated Settings dialog: behavior, layout, terminal type, theme
 │   ├── ClaudeCodeControl.Cleanup.cs     # Resource cleanup, temp dir management
+│   ├── ClaudeCodeControl.AgentCompletion.cs # "On Agent Finish": console-idle completion watcher, notify (info bar) + actions
+│   ├── ClaudeCodeControl.AtMention.cs   # "@" file/folder picker in the prompt box (workspace index + popup)
 │   ├── ClaudeCodeControl.CustomCommands.cs # User-defined custom commands: configure dialog, toolbar dropdown, dispatch
 │   ├── ClaudeCodeControl.Interop.cs     # Win32 API declarations (P/Invoke)
 │   ├── ClaudeCodeControl.Theme.cs       # Dark/light theme support
@@ -241,6 +243,7 @@ Re-parents terminal to/from `DetachedTerminalToolWindow` via `SetParent()`. Auto
 - **Dialog construction**: Built programmatically (no XAML) via `ShowConsolidatedSettingsDialogAsync()`; reuses `MakeSectionHeader`/`MakeCheckBox`/`MakeRadioButton` helpers and `GetThemeBrushes`/`GetDialogButtonStyle` from CustomCommands.cs
 - **Batched apply**: All settings persisted once on OK via a single `SaveSettings()` at the end. Side effects fire in order: prompt button visibility → `ApplyInvertLayoutChange()` → theme repaint (`UpdateTerminalTheme`/`UpdateInlineUsageBarColors`) → at most one terminal restart (only when terminal type changed, or theme changed AND user confirms restart popup — popup itself is gated by `SkipThemeRestartPrompt`, terminal-not-running, and agent-color-already-matches)
 - **Windows Terminal validation**: `IsWindowsTerminalAvailableAsync()` runs before persisting a WT selection; reverts to CMD with a `MessageBox` if `wt.exe` isn't on PATH
+- **Themed ComboBox** (On-Agent-Finish "Action" picker): a standalone dialog doesn't inherit VS's ComboBox styling, and the default ComboBox/ComboBoxItem templates paint their own system selection/hover on top of any `Background`, so a style trigger can't recolor them. `BuildThemedComboResources()` injects the VS palette colors into a flat `ComboBox`+`ComboBoxItem` template (`ComboBoxTemplateXaml`, parsed via `XamlReader.Parse`) — dark toggle, readable text, hover derived from the theme background (`ComputeAtHoverBrush`) instead of system blue
 - **Layout swap helper**: `ApplyInvertLayoutChange()` in Settings.cs is the only entry point for inverting the layout — the old `InvertLayoutMenuItem_Click` is gone since the XAML field was removed
 
 ### Session History (SessionHistory.cs)
@@ -253,6 +256,25 @@ Re-parents terminal to/from `DetachedTerminalToolWindow` via `SetParent()`. Auto
 - **Dialog**: WPF modal built programmatically; loads sessions async after open (shows "Loading…" placeholder); supports Resume (restart terminal with `--resume <uuid>`), Resume Last Session (`--continue`), Delete, Refresh
 - **Resume flow**: `ResumeSessionAsync()` sets `_pendingResumeSessionId` on the settings object → `GetClaudeCommand()` injects `--resume <id>` or `--continue` on the next terminal start; provider is forced to match the session's origin (native vs WSL)
 
+### On Agent Finish (AgentCompletion.cs)
+
+- **Scope**: any agent running in the **Command Prompt (conhost)** terminal — detection reads the console screen buffer, so it is provider-agnostic. Gated out for Windows Terminal (`SelectedTerminalType != CommandPrompt`), whose buffer lives in a separate process the console API can't read. Config in `_settings.AgentFinish` (`AgentFinishConfig`); default disabled. Exposed in the consolidated Settings dialog under "On Agent Finish"
+- **Arming**: `ArmAgentCompletionWatcherAsync()` is fired (fire-and-forget) at the end of `SendButton_Click`. Stores the conhost PID (`cmdProcess.Id`), takes an initial screen snapshot, and records the send time, then starts `_agentCompletionTimer` (a 1 s `DispatcherTimer`, mirrors the git-poll timer scaffolding in Diff.cs). When the running provider is Claude Code it also records a token baseline (newest `*.jsonl` summed via `CountTranscriptTokens`) purely to enrich the notification — **not** used for detection. Re-arming on each send resets state; `StopAgentCompletionTimer()` is also called from `CleanupResources()`
+- **Console-client PID**: the terminal is launched as `conhost.exe`, so `cmdProcess.Id` is the host, not a console *client*. `AttachConsole` needs a client, so `ResolveConsoleClientPid()` derives the cmd.exe PID from `GetWindowThreadProcessId(terminalHandle)` (returns the console client, not conhost, by Windows back-compat) and falls back to the conhost's first ToolHelp32 child (`GetChildProcessIds`). Resolved fresh each sample so a terminal restart can't pin a dead PID
+- **Completion detection** (`OnAgentCompletionTimerTick` → `TryCaptureConsoleHash`): each tick resolves the client PID, then `SetConsoleCtrlHandler(NULL,TRUE)` (shield VS from a user Ctrl+C delivered to the shared console) → `AttachConsole(clientPid)` → `CreateFile("CONOUT$")` → `GetConsoleScreenBufferInfo` → `ReadConsoleOutputCharacter` over the visible window → `FreeConsole` → restore Ctrl+C handler (all under `_consoleSnapshotLock`, tightly scoped, no defensive pre-`FreeConsole` which could detach an in-flight paste). The visible text **plus cursor position** is FNV-1a hashed (`ComputeStableHash`). Hash changed ⇒ agent working (a spinner/elapsed-timer animation or moving cursor changes the hash). Fires only when activity was seen this turn **and** the hash has been unchanged ≥ `IdleSeconds` (default 3, clamped 2–120). A dead console PID (terminal closed/restarted) or a 30-min hard cap disarms the watch. **Known limitation**: a static y/n prompt the agent is waiting on also reads as idle — so for notifications this means "agent needs attention"; for destructive actions, rely on `Confirm` (default on)
+- **Notify**: `OnAgentTurnCompletedAsync` plays `SystemSounds.Asterisk` (opt-in) and shows a VS **main-window info bar** (`ShowAgentFinishNotificationAsync` via `__VSSPROPID7.VSSPROPID_MainWindowInfoBarHost` + `SVsInfoBarUIFactory`) reading `Agent finished · <duration>` (+`<Δtokens>` only when Claude). Info bar shows even when the tool window is hidden. `AgentFinishInfoBarEvents` (an `IVsInfoBarUIEvents`) handles close/unadvise and the action hyperlink
+- **Actions** (`ExecuteAgentFinishActionAsync`): Build/Rebuild/Run/RunWithoutDebugging/RunTests → `dte.ExecuteCommand(...)` (same DTE path as the F5 hook); RunScript → `Process.Start` (`UseShellExecute`) in the workspace dir; SendToAgent → `SendTextToTerminalAsync` (chains a command back into the agent). `RequireFileChanges` gates on `git status --porcelain` in `_gitRepositoryRoot` (non-git ⇒ never blocks). `Confirm` (default true) surfaces the action as an info-bar button instead of auto-running it
+- **Console interop** (Interop.cs): reuses existing `AttachConsole`/`FreeConsole`/`CloseHandle`/`COORD`; adds `CreateFile`, `GetConsoleScreenBufferInfo`, `ReadConsoleOutputCharacterW`, `SetConsoleCtrlHandler`, `Beep`, and the `SMALL_RECT`/`CONSOLE_SCREEN_BUFFER_INFO` structs
+
+### "@" File/Folder Picker (AtMention.cs)
+
+- **Trigger**: `PromptTextBox`'s `TextChanged` (wired in XAML) calls `UpdateAtMentionPopup()`, which detects an `@` token under the caret (`@` at text start or after whitespace, followed by non-whitespace). Always on; no setting
+- **Index**: `EnumerateWorkspaceEntries()` walks `GetWorkspaceDirectoryAsync()` on a background thread, skipping build/VCS/package dirs (`AtIgnoredDirs`) and reparse points, returning workspace-relative `/`-separated paths (folders carry a trailing `/`), capped at 8000. Cached per-root with a 30 s TTL (`EnsureAtEntriesAsync`); a stale index refreshes in the background while current results still show. First trigger shows an "Indexing…" row, then `EnsureThenRefilterAsync` re-runs the filter
+- **Popup**: a programmatic `Popup` + `ListBox` (`EnsureAtPopup`), positioned at the caret via `GetRectFromCharacterIndex`. Themed with `GetThemeBrushes` + a derived hover brush (`ComputeAtHoverBrush`) so selected/hover rows stay readable in a standalone popup (no system-blue). Closes on real focus loss but not when focus enters the popup (`IsInsideAtPopup`), so a mouse click can commit first
+- **Keys**: `HandleAtMentionKey()` runs at the top of `PromptTextBox_PreviewKeyDown` (before history nav / send-on-Enter) and consumes Up/Down/Enter/Tab/Esc while the popup is open
+- **Ranking** (`RankAtEntries`): a query may contain `/` for folder drill-down — the part after the last `/` matches the entry name and the prefix constrains the subtree; name prefix-matches rank above name/path substring matches
+- **Insert** (`CommitAtSelection`): replaces the typed `@query` with `@<relative-path>`; a file appends a space and closes, a folder leaves the caret in place and re-opens the picker to drill in. Relative paths resolve for every provider (terminal cwd = workspace), so no WSL conversion. `_atSuppressTextChanged` guards the programmatic edit
+
 ---
 
 ## Data Models (ClaudeCodeModels.cs)
@@ -263,13 +285,15 @@ enum ClaudeModel { Opus, Sonnet, Haiku }
 enum WindsurfModel { ClaudeOpus, ClaudeSonnet, Codex, GeminiPro }
 enum EffortLevel { Auto, Low, Medium, High, Max }
 enum TerminalType { CommandPrompt, WindowsTerminal }
+enum AgentFinishActionType { None, BuildSolution, RebuildSolution, Run, RunWithoutDebugging, RunTests, RunScript, SendToAgent }
 class CustomCommand { Name, Command }
+class AgentFinishConfig { Enabled, PlaySound, ShowToast, IdleSeconds, Action, ScriptOrCommand, RequireFileChanges, Confirm }
 class PromptHistoryEntry { Text, FilePaths }
 class SessionInfo { SessionId, FilePath, Preview, MessageCount, TokenCount, LastModified, Cwd, Provider }
 class UsageSnapshot { SessionLabel, SessionReset, SessionPercent, WeeklyLabel, WeeklyReset, WeeklyPercent, HasExtraUsage, ExtraUsageSpent, ExtraUsageReset, ExtraUsagePercent }
 ```
 
-Key settings: `SplitterPosition` (236px default), `SelectedProvider`, `VisibleProviders` (defaults to `[ClaudeCode]` — controls which agents appear in the provider menu; active provider is always shown regardless), `SelectedClaudeModel`, `SelectedWindsurfModel`, `PromptHistory` (max 50), `AutoOpenChangesOnPrompt`, `ClaudeDangerouslySkipPermissions`, `CodexFullAuto`, `CursorAgentAutoRun`, `WindsurfDangerousMode`, `SelectedEffortLevel`, `CustomWorkingDirectory`, `SelectedTerminalType`, `IsTerminalDetached`, `PromptFontSize` (8–24pt), `TerminalZoomDelta`, `InvertLayout`, `SelectedThemePreference` (Automatic/Dark/Light), `LastAgentTerminalColorArgb` (agent's launched color, used to skip redundant restart prompts), `SkipThemeRestartPrompt` (default false — suppresses the "Theme Changed, restart agent?" prompt entirely), `CustomCommands` (list of `{Name, Command}`), `UsageAutoRefreshSeconds` (0 = manual), `UsageWindowOpened` (auto-reopen on load), `ShowInlineUsageBars` (default true), `LastUsageJson` / `LastUsageTimestamp` (cached snapshot), `SendLargePromptsAsFile` (default false — when true, prompts >1 KB are sent as a file reference instead of inline paste)
+Key settings: `SplitterPosition` (236px default), `SelectedProvider`, `VisibleProviders` (defaults to `[ClaudeCode]` — controls which agents appear in the provider menu; active provider is always shown regardless), `SelectedClaudeModel`, `SelectedWindsurfModel`, `PromptHistory` (max 50), `AutoOpenChangesOnPrompt`, `ClaudeDangerouslySkipPermissions`, `CodexFullAuto`, `CursorAgentAutoRun`, `WindsurfDangerousMode`, `SelectedEffortLevel`, `CustomWorkingDirectory`, `SelectedTerminalType`, `IsTerminalDetached`, `PromptFontSize` (8–24pt), `TerminalZoomDelta`, `InvertLayout`, `SelectedThemePreference` (Automatic/Dark/Light), `LastAgentTerminalColorArgb` (agent's launched color, used to skip redundant restart prompts), `SkipThemeRestartPrompt` (default false — suppresses the "Theme Changed, restart agent?" prompt entirely), `CustomCommands` (list of `{Name, Command}`), `UsageAutoRefreshSeconds` (0 = manual), `UsageWindowOpened` (auto-reopen on load), `ShowInlineUsageBars` (default true), `LastUsageJson` / `LastUsageTimestamp` (cached snapshot), `SendLargePromptsAsFile` (default false — when true, prompts >1 KB are sent as a file reference instead of inline paste), `AgentFinish` (`AgentFinishConfig` — "On Agent Finish" notify + action, Claude Code only; default disabled)
 
 ---
 

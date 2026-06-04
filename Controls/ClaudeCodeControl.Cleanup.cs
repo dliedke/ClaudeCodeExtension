@@ -156,6 +156,9 @@ namespace ClaudeCodeVS
                 // Uninstall the low-level keyboard hook used for F5/Ctrl+F5 interception
                 UninstallKeyboardHook();
 
+                // Stop the "On Agent Finish" completion watcher timer
+                StopAgentCompletionTimer();
+
                 // Cleanup detached terminal window
                 if (_isTerminalDetached && _detachedTerminalWindow != null)
                 {

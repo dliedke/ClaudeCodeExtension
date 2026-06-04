@@ -75,11 +75,15 @@ namespace ClaudeCodeVS
             ThemePreference origThemePref     = _settings.SelectedThemePreference;
             bool origSkipThemePrompt          = _settings.SkipThemeRestartPrompt;
 
+            // "On Agent Finish" config is mutated in place on OK and persisted by the single
+            // SaveSettings() at the end; the watcher re-reads it on the next send (no restart).
+            AgentFinishConfig af = _settings.AgentFinish ?? (_settings.AgentFinish = new AgentFinishConfig());
+
             var dialog = new Window
             {
                 Title = "Claude Code Extension - Settings",
                 Width = 520,
-                Height = 620,
+                Height = 680,
                 WindowStartupLocation = WindowStartupLocation.CenterOwner,
                 ResizeMode = ResizeMode.NoResize,
                 Background = themeBg,
@@ -144,6 +148,129 @@ namespace ClaudeCodeVS
                 "Automatically open the Changes view, expand files, and enable auto-scroll when a prompt is sent. Only applies when the project is in a git repository.",
                 origAutoOpenChanges, themeFg);
             stack.Children.Add(autoOpenCheck);
+
+            // ---- On Agent Finish section ----
+            stack.Children.Add(MakeSectionHeader("On Agent Finish", themeFg));
+
+            var afEnabledCheck = MakeCheckBox(
+                "Notify / run an action when the agent finishes",
+                "When the agent stops working (the terminal goes idle), optionally play a sound, show a Visual Studio notification (with how long it took, plus token count for Claude Code), and run an action.",
+                af.Enabled, themeFg);
+            stack.Children.Add(afEnabledCheck);
+
+            stack.Children.Add(new TextBlock
+            {
+                Text = "Works with the Command Prompt terminal (not Windows Terminal). Detected by watching the terminal go idle, so it covers any agent.",
+                FontSize = 11,
+                Opacity = 0.7,
+                Foreground = themeFg,
+                TextWrapping = TextWrapping.Wrap,
+                Margin = new Thickness(20, 0, 0, 4)
+            });
+
+            var afSoundCheck = MakeCheckBox("Play a sound",
+                "Play a system sound when the agent finishes.", af.PlaySound, themeFg);
+            afSoundCheck.Margin = new Thickness(20, 4, 0, 4);
+            stack.Children.Add(afSoundCheck);
+
+            var afToastCheck = MakeCheckBox("Show a notification",
+                "Show a Visual Studio info bar with the turn's duration and token count when the agent finishes.",
+                af.ShowToast, themeFg);
+            afToastCheck.Margin = new Thickness(20, 4, 0, 4);
+            stack.Children.Add(afToastCheck);
+
+            stack.Children.Add(new TextBlock
+            {
+                Text = "Action:",
+                Foreground = themeFg,
+                Margin = new Thickness(20, 6, 0, 2)
+            });
+
+            var afActionCombo = new ComboBox
+            {
+                HorizontalAlignment = HorizontalAlignment.Left,
+                MinWidth = 240,
+                MinHeight = 26,
+                Margin = new Thickness(20, 0, 0, 4)
+            };
+
+            // A standalone Window doesn't inherit VS's themed ComboBox styling, and the default
+            // ComboBox/ComboBoxItem templates paint their own system-colored selection/hover
+            // (light-blue highlight, washed-out gray toggle) on top of any Background we set — a
+            // style trigger can't beat that. So apply a fully custom flat template themed from the
+            // VS palette: readable text, dark toggle, derived hover instead of system blue.
+            var afComboRes = BuildThemedComboResources(themeBg, themeFg);
+            afActionCombo.Style = (Style)afComboRes["cb"];
+            var afItemStyle = (Style)afComboRes["cbi"];
+
+            Func<string, AgentFinishActionType, ComboBoxItem> mkActionItem = (txt, val) =>
+                new ComboBoxItem { Content = txt, Tag = val, Style = afItemStyle };
+            afActionCombo.Items.Add(mkActionItem("None (notify only)", AgentFinishActionType.None));
+            afActionCombo.Items.Add(mkActionItem("Build solution", AgentFinishActionType.BuildSolution));
+            afActionCombo.Items.Add(mkActionItem("Rebuild solution", AgentFinishActionType.RebuildSolution));
+            afActionCombo.Items.Add(mkActionItem("Run (F5)", AgentFinishActionType.Run));
+            afActionCombo.Items.Add(mkActionItem("Run without debugging (Ctrl+F5)", AgentFinishActionType.RunWithoutDebugging));
+            afActionCombo.Items.Add(mkActionItem("Run all tests", AgentFinishActionType.RunTests));
+            afActionCombo.Items.Add(mkActionItem("Run a script…", AgentFinishActionType.RunScript));
+            afActionCombo.Items.Add(mkActionItem("Send a command to the agent", AgentFinishActionType.SendToAgent));
+            foreach (ComboBoxItem it in afActionCombo.Items)
+            {
+                if ((AgentFinishActionType)it.Tag == af.Action) { afActionCombo.SelectedItem = it; break; }
+            }
+            if (afActionCombo.SelectedItem == null) afActionCombo.SelectedIndex = 0;
+            stack.Children.Add(afActionCombo);
+
+            stack.Children.Add(new TextBlock
+            {
+                Text = "Script path (for \"Run a script\") or command text (for \"Send a command\"):",
+                Foreground = themeFg,
+                Margin = new Thickness(20, 4, 0, 2)
+            });
+            var afScriptBox = new TextBox
+            {
+                Text = af.ScriptOrCommand ?? string.Empty,
+                Background = themeBg,
+                Foreground = themeFg,
+                BorderBrush = themeFg,
+                Margin = new Thickness(20, 0, 0, 4)
+            };
+            stack.Children.Add(afScriptBox);
+
+            var afConfirmCheck = MakeCheckBox("Ask before running the action",
+                "When enabled, the action appears as a button on the notification and runs only when you click it. When disabled, the action runs automatically. Recommended on for scripts, run, and rebuild.",
+                af.Confirm, themeFg);
+            afConfirmCheck.Margin = new Thickness(20, 4, 0, 4);
+            stack.Children.Add(afConfirmCheck);
+
+            var afReqChangesCheck = MakeCheckBox("Only run the action if files changed",
+                "Skip the action when the agent did not modify any files (git working tree clean). Has no effect outside a git repository.",
+                af.RequireFileChanges, themeFg);
+            afReqChangesCheck.Margin = new Thickness(20, 4, 0, 4);
+            stack.Children.Add(afReqChangesCheck);
+
+            var afIdlePanel = new StackPanel
+            {
+                Orientation = Orientation.Horizontal,
+                Margin = new Thickness(20, 4, 0, 4)
+            };
+            afIdlePanel.Children.Add(new TextBlock
+            {
+                Text = "Idle seconds before \"finished\" is detected:",
+                Foreground = themeFg,
+                VerticalAlignment = VerticalAlignment.Center,
+                Margin = new Thickness(0, 0, 8, 0)
+            });
+            var afIdleBox = new TextBox
+            {
+                Text = af.IdleSeconds.ToString(),
+                Width = 56,
+                Background = themeBg,
+                Foreground = themeFg,
+                BorderBrush = themeFg,
+                VerticalAlignment = VerticalAlignment.Center
+            };
+            afIdlePanel.Children.Add(afIdleBox);
+            stack.Children.Add(afIdlePanel);
 
             // ---- Layout section ----
             stack.Children.Add(MakeSectionHeader("Layout", themeFg));
@@ -315,6 +442,22 @@ namespace ClaudeCodeVS
             _settings.SelectedThemePreference = newThemePref;
             _settings.SkipThemeRestartPrompt  = newSkipThemePrompt;
 
+            // On Agent Finish (mutated in place; persisted by SaveSettings below)
+            af.Enabled            = afEnabledCheck.IsChecked == true;
+            af.PlaySound          = afSoundCheck.IsChecked == true;
+            af.ShowToast          = afToastCheck.IsChecked == true;
+            af.Confirm            = afConfirmCheck.IsChecked == true;
+            af.RequireFileChanges = afReqChangesCheck.IsChecked == true;
+            af.ScriptOrCommand    = afScriptBox.Text?.Trim() ?? string.Empty;
+            if ((afActionCombo.SelectedItem as ComboBoxItem)?.Tag is AgentFinishActionType selectedAction)
+            {
+                af.Action = selectedAction;
+            }
+            if (int.TryParse(afIdleBox.Text?.Trim(), out int idleVal))
+            {
+                af.IdleSeconds = Math.Max(2, Math.Min(120, idleVal));
+            }
+
             // Send button visibility tied to SendWithEnter
             SendPromptButton.Visibility = _settings.SendWithEnter
                 ? Visibility.Collapsed
@@ -418,6 +561,104 @@ namespace ClaudeCodeVS
                 Margin = new Thickness(4, 3, 0, 3)
             };
         }
+
+        /// <summary>
+        /// Parses the custom flat ComboBox + ComboBoxItem templates with the VS theme colors
+        /// injected, returning a dictionary with the "cb" (ComboBox) and "cbi" (ComboBoxItem)
+        /// styles. A standalone dialog doesn't inherit VS's themed ComboBox styling and the
+        /// default templates paint their own system selection/hover, so we replace the templates
+        /// outright. The hover/selection background is derived from the theme background (via
+        /// <see cref="ComputeAtHoverBrush"/>) so it stays readable in dark and light themes.
+        /// </summary>
+        private ResourceDictionary BuildThemedComboResources(Brush bg, Brush fg)
+        {
+            string bgHex = ((bg as SolidColorBrush)?.Color ?? Colors.Black).ToString();
+            string fgHex = ((fg as SolidColorBrush)?.Color ?? Colors.White).ToString();
+            string hoverHex = ((ComputeAtHoverBrush(bg) as SolidColorBrush)?.Color ?? Colors.Gray).ToString();
+
+            string xaml = ComboBoxTemplateXaml
+                .Replace("__BG__", bgHex)
+                .Replace("__FG__", fgHex)
+                .Replace("__HOVER__", hoverHex)
+                .Replace("__BORDER__", hoverHex);
+
+            return (ResourceDictionary)System.Windows.Markup.XamlReader.Parse(xaml);
+        }
+
+        // Flat ComboBox / ComboBoxItem templates. Single-quoted attributes so the whole thing can
+        // live in a verbatim C# string without escaping. Color tokens are substituted at runtime.
+        private const string ComboBoxTemplateXaml = @"
+<ResourceDictionary xmlns='http://schemas.microsoft.com/winfx/2006/xaml/presentation'
+                    xmlns:x='http://schemas.microsoft.com/winfx/2006/xaml'>
+  <Style x:Key='cbi' TargetType='ComboBoxItem'>
+    <Setter Property='Foreground' Value='__FG__'/>
+    <Setter Property='Background' Value='Transparent'/>
+    <Setter Property='Padding' Value='6,3'/>
+    <Setter Property='HorizontalContentAlignment' Value='Left'/>
+    <Setter Property='Template'>
+      <Setter.Value>
+        <ControlTemplate TargetType='ComboBoxItem'>
+          <Border x:Name='bd' Background='{TemplateBinding Background}' Padding='{TemplateBinding Padding}' SnapsToDevicePixels='True'>
+            <ContentPresenter/>
+          </Border>
+          <ControlTemplate.Triggers>
+            <Trigger Property='IsMouseOver' Value='True'>
+              <Setter TargetName='bd' Property='Background' Value='__HOVER__'/>
+            </Trigger>
+            <Trigger Property='IsSelected' Value='True'>
+              <Setter TargetName='bd' Property='Background' Value='__HOVER__'/>
+            </Trigger>
+          </ControlTemplate.Triggers>
+        </ControlTemplate>
+      </Setter.Value>
+    </Setter>
+  </Style>
+  <Style x:Key='cb' TargetType='ComboBox'>
+    <Setter Property='SnapsToDevicePixels' Value='True'/>
+    <Setter Property='ItemContainerStyle' Value='{StaticResource cbi}'/>
+    <Setter Property='Template'>
+      <Setter.Value>
+        <ControlTemplate TargetType='ComboBox'>
+          <Grid>
+            <ToggleButton x:Name='ToggleButton' Focusable='False' ClickMode='Press'
+                IsChecked='{Binding IsDropDownOpen, Mode=TwoWay, RelativeSource={RelativeSource TemplatedParent}}'>
+              <ToggleButton.Template>
+                <ControlTemplate TargetType='ToggleButton'>
+                  <Border Background='__BG__' BorderBrush='__BORDER__' BorderThickness='1' SnapsToDevicePixels='True'>
+                    <Grid>
+                      <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width='*'/>
+                        <ColumnDefinition Width='20'/>
+                      </Grid.ColumnDefinitions>
+                      <Path Grid.Column='1' HorizontalAlignment='Center' VerticalAlignment='Center'
+                            Data='M0,0 L8,0 L4,5 Z' Fill='__FG__'/>
+                    </Grid>
+                  </Border>
+                </ControlTemplate>
+              </ToggleButton.Template>
+            </ToggleButton>
+            <ContentPresenter IsHitTestVisible='False'
+                Content='{TemplateBinding SelectionBoxItem}'
+                ContentTemplate='{TemplateBinding SelectionBoxItemTemplate}'
+                Margin='8,3,24,3' VerticalAlignment='Center' HorizontalAlignment='Left'
+                TextElement.Foreground='__FG__'/>
+            <Popup x:Name='PART_Popup' AllowsTransparency='True' Focusable='False'
+                Placement='Bottom' PopupAnimation='Slide'
+                IsOpen='{TemplateBinding IsDropDownOpen}'>
+              <Border Background='__BG__' BorderBrush='__BORDER__' BorderThickness='1'
+                  MinWidth='{Binding ActualWidth, RelativeSource={RelativeSource TemplatedParent}}'
+                  SnapsToDevicePixels='True'>
+                <ScrollViewer MaxHeight='320'>
+                  <ItemsPresenter/>
+                </ScrollViewer>
+              </Border>
+            </Popup>
+          </Grid>
+        </ControlTemplate>
+      </Setter.Value>
+    </Setter>
+  </Style>
+</ResourceDictionary>";
 
         #endregion
     }
