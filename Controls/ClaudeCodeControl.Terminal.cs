@@ -2596,9 +2596,13 @@ namespace ClaudeCodeVS
                         break;
 
                     case AiProvider.Pi:
-                        // PI: exit, wait, then update
-                        await SendTextToTerminalAsync("exit");
+                        // PI: exit by holding CTRL and tapping D twice. PI quits on the first
+                        // CTRL+D, so the second leaks into cmd as a stray ^D — press Escape to
+                        // discard that input line before typing the update command.
+                        SendCtrlDD();
                         await Task.Delay(1000);
+                        SendEscapeKey();
+                        await Task.Delay(300);
                         await SendTextToTerminalAsync("npm install -g @earendil-works/pi-coding-agent@latest");
                         break;
 
@@ -2673,6 +2677,25 @@ namespace ClaudeCodeVS
                 keybd_event(VK_D, 0, KEYEVENTF_KEYUP, UIntPtr.Zero); // second D up
                 Thread.Sleep(50);
                 keybd_event(VK_CONTROL, 0, KEYEVENTF_KEYUP, UIntPtr.Zero); // CTRL up (release)
+            }
+        }
+
+        /// <summary>
+        /// Sends an Escape keypress to the terminal. In cmd.exe this discards the current
+        /// input line, clearing any stray character (e.g. a leftover ^D after exiting PI)
+        /// before the next command is typed.
+        /// </summary>
+        private void SendEscapeKey()
+        {
+            if (terminalHandle != IntPtr.Zero && IsWindow(terminalHandle))
+            {
+                SetForegroundWindow(terminalHandle);
+                SetFocus(terminalHandle);
+                Thread.Sleep(50);
+
+                keybd_event(VK_ESCAPE, 0, 0, UIntPtr.Zero); // ESC down
+                Thread.Sleep(30);
+                keybd_event(VK_ESCAPE, 0, KEYEVENTF_KEYUP, UIntPtr.Zero); // ESC up
             }
         }
 

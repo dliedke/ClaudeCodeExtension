@@ -100,6 +100,9 @@ This binds a Claude Code skill that shells out to OpenAI Codex to audit pending 
 
 ## Version History
 
+### Version 10.78
+- Fixed updating the PI agent failing because the extension tried to type "exit" — it now quits PI with CTRL+D twice before running the update.
+
 ### Version 10.77
 - The "On Agent Finish" settings now open in their own window via a button in Settings, and you can keep different settings per solution — turn on "Use custom settings for this solution" to override the global defaults for just the project you're in.
 - Fixed the embedded terminal breaking when you switch to a different solution while the agent-finish notification is enabled. Pending notifications are now cleared when a new solution loads.
