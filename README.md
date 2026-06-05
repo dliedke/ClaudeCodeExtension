@@ -100,6 +100,9 @@ This binds a Claude Code skill that shells out to OpenAI Codex to audit pending 
 
 ## Version History
 
+### Version 10.79
+- Fixed the prompt and its attached files being sent two or three times when the Send button (or Enter) was pressed again before a send finished.
+
 ### Version 10.78
 - Fixed updating the PI agent failing because the extension tried to type "exit" — it now quits PI with CTRL+D twice before running the update.
 
