@@ -47,6 +47,15 @@ namespace ClaudeCodeVS
         /// </summary>
         private const int MaxHistorySize = 50;
 
+        /// <summary>
+        /// Re-entrancy guard for prompt submission. A single send takes ~2 seconds (focus +
+        /// paste delays) and the prompt/attachments aren't cleared until it finishes, so a second
+        /// click or Enter during that window would re-send the same prompt (and re-attach the same
+        /// files). Set synchronously at the very top of SendButton_Click before any await and reset
+        /// in finally, so a concurrent UI-thread invocation is rejected. See issue #63.
+        /// </summary>
+        private bool _isSendingPrompt;
+
         #endregion
 
         #region Send Button and Prompt Submission
@@ -58,6 +67,14 @@ namespace ClaudeCodeVS
         private async void SendButton_Click(object sender, RoutedEventArgs e)
 #pragma warning restore VSTHRD100 // Avoid async void methods
         {
+            // Re-entrancy guard: reject a second click/Enter while a send is already in flight.
+            // Checked and set synchronously before any await (UI thread), so a concurrent
+            // invocation can't re-send the same prompt and re-attach the same files. See issue #63.
+            if (_isSendingPrompt)
+            {
+                return;
+            }
+
             try
             {
                 string prompt = PromptTextBox.Text.Trim();
@@ -69,6 +86,9 @@ namespace ClaudeCodeVS
                     MessageBox.Show("Please enter a prompt.", "No Prompt", MessageBoxButton.OK, MessageBoxImage.Information);
                     return;
                 }
+
+                _isSendingPrompt = true;
+                if (SendPromptButton != null) SendPromptButton.IsEnabled = false;
 
                 StringBuilder fullPrompt = new StringBuilder();
 
@@ -236,6 +256,12 @@ namespace ClaudeCodeVS
             catch (Exception ex)
             {
                 MessageBox.Show($"Error sending prompt: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+            finally
+            {
+                // Always release the re-entrancy guard and re-enable the button, even on error.
+                _isSendingPrompt = false;
+                if (SendPromptButton != null) SendPromptButton.IsEnabled = true;
             }
         }
 
