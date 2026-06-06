@@ -140,6 +140,7 @@ ClaudeCodeExtension/
 - **Mouse hook** (`WH_MOUSE_LL`): Tracks Ctrl+Scroll zoom delta (persisted); converts plain left-drag to SHIFT+drag for WT text selection
 - **Post-startup**: `SchedulePostStartupTerminalAdjustments()` runs deferred resize + zoom replay; `SchedulePostSolutionLoadTerminalRefresh()` does 200/500/1000ms repaint passes after solution load
 - **Fresh PATH from registry**: `GetFreshPathFromRegistry()` reads PATH from `HKLM` and `HKCU` registry keys to detect newly installed tools (e.g. Windows Terminal) without requiring VS restart
+- **WPF keyboard-focus reclaim** (issue #65): `SetParent`ing the terminal (a separate-process window) into VS permanently joins that process's input queue with the VS UI thread, so keyboard focus is a single shared state. If it gets stuck on the terminal window, WPF's own `Focus()` won't always move native focus back — the prompt won't accept typing (caret stops blinking) and the provider menu can't be arrow-key navigated until VS restarts. `ClaudeCodeControl_PreviewMouseLeftButtonDown` (wired on the UserControl; a tunneling event, so it fires before any child handles the click) calls `ReclaimWpfKeyboardFocusIfStuck()`: when `GetFocus() != HwndSource.Handle` it `SetFocus`es the WPF host window, so a single click anywhere on the WPF surface restores typing. No-op when WPF already owns focus, so ordinary clicks pay nothing
 
 **Command patterns**:
 ```

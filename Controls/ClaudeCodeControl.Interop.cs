@@ -254,6 +254,13 @@ namespace ClaudeCodeVS
         private static extern bool SetFocus(IntPtr hWnd);
 
         /// <summary>
+        /// Retrieves the handle to the window that has the keyboard focus within the calling thread's
+        /// input queue (which includes the embedded terminal, whose input queue is joined to ours via SetParent).
+        /// </summary>
+        [DllImport("user32.dll")]
+        private static extern IntPtr GetFocus();
+
+        /// <summary>
         /// Brings the window to the foreground and activates it
         /// </summary>
         [DllImport("user32.dll")]
