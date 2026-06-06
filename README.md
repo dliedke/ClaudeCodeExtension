@@ -100,6 +100,9 @@ This binds a Claude Code skill that shells out to OpenAI Codex to audit pending 
 
 ## Version History
 
+### Version 10.80
+- Fixed the prompt becoming unresponsive to the keyboard (cursor not blinking, arrow keys not switching agents) while the embedded terminal still accepted typing — clicking in the extension now restores keyboard input without restarting Visual Studio.
+
 ### Version 10.79
 - Fixed the prompt and its attached files being sent two or three times when the Send button (or Enter) was pressed again before a send finished.
 

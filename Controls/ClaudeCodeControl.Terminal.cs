@@ -1658,6 +1658,51 @@ namespace ClaudeCodeVS
         }
 
         /// <summary>
+        /// A left-click anywhere on the WPF surface re-asserts native keyboard focus on the WPF
+        /// host window when the embedded terminal currently holds it.
+        ///
+        /// The terminal is a child window from a separate process re-parented into Visual Studio
+        /// via SetParent, which permanently joins that process's input queue with the VS UI thread.
+        /// Keyboard focus is therefore a single shared state: once it lands on the terminal window,
+        /// WPF's own Focus() does not always move native focus back, so the prompt can't be typed
+        /// into (the caret stops blinking) and the provider menu can't be navigated with the arrow
+        /// keys until Visual Studio is restarted. Re-asserting native focus on the WPF host here
+        /// restores typing with a single click instead of a restart. See issue #65.
+        /// </summary>
+        private void ClaudeCodeControl_PreviewMouseLeftButtonDown(object sender, System.Windows.Input.MouseButtonEventArgs e)
+        {
+            ReclaimWpfKeyboardFocusIfStuck();
+        }
+
+        /// <summary>
+        /// Moves native keyboard focus to the WPF host window when it is currently held elsewhere
+        /// in the shared input queue (the embedded terminal). No-op when WPF already owns it, so
+        /// it adds no overhead to ordinary clicks.
+        /// </summary>
+        private void ReclaimWpfKeyboardFocusIfStuck()
+        {
+            try
+            {
+                var source = System.Windows.PresentationSource.FromVisual(this) as System.Windows.Interop.HwndSource;
+                if (source == null || source.Handle == IntPtr.Zero)
+                {
+                    return;
+                }
+
+                // Any WPF element with keyboard focus reports the HwndSource window as the native
+                // focus, so a mismatch means the terminal (or another joined window) holds it.
+                if (GetFocus() != source.Handle)
+                {
+                    SetFocus(source.Handle);
+                }
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"ReclaimWpfKeyboardFocusIfStuck error: {ex.Message}");
+            }
+        }
+
+        /// <summary>
         /// Replays the saved terminal zoom delta.
         /// Windows Terminal: batches Ctrl+= / Ctrl+- keystrokes through a single SendInput
         /// syscall. This is dramatically faster than the previous keybd_event loop (which

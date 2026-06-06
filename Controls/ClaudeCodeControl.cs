@@ -91,6 +91,11 @@ namespace ClaudeCodeVS
             Loaded += ClaudeCodeControl_Loaded;
             Unloaded += ClaudeCodeControl_Unloaded;
             SizeChanged += ClaudeCodeControl_SizeChanged;
+
+            // Recover keyboard focus for the WPF UI (prompt box, provider menu navigation) when the
+            // embedded terminal has trapped it. PreviewMouseLeftButtonDown is a tunneling event, so
+            // this fires before any child marks the click handled. See ReclaimWpfKeyboardFocusIfStuck.
+            PreviewMouseLeftButtonDown += ClaudeCodeControl_PreviewMouseLeftButtonDown;
         }
 
         #endregion
