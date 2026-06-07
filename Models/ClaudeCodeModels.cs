@@ -105,6 +105,21 @@ namespace ClaudeCodeVS
     }
 
     /// <summary>
+    /// Orientation of the split between the prompt panel and the embedded terminal.
+    /// Horizontal = stacked (top/bottom, the classic layout); Vertical = side-by-side
+    /// (left/right). Combined with <see cref="ClaudeCodeSettings.InvertLayout"/> this
+    /// yields the four "prompt panel position" choices: Top, Bottom, Left, Right.
+    /// </summary>
+    public enum LayoutOrientation
+    {
+        /// <summary>Prompt and terminal stacked vertically (top/bottom split).</summary>
+        Horizontal,
+
+        /// <summary>Prompt and terminal placed side by side (left/right split).</summary>
+        Vertical
+    }
+
+    /// <summary>
     /// Action automatically performed when the AI agent finishes a turn
     /// (used by the "On Agent Finish" feature). Claude Code only.
     /// </summary>
@@ -387,10 +402,21 @@ namespace ClaudeCodeVS
         public bool DisableStartupAutoZoom { get; set; } = false;
 
         /// <summary>
-        /// If true, the layout is inverted: terminal on top, prompt on bottom.
-        /// Default is false (prompt on top, terminal on bottom).
+        /// If true, the layout is inverted, swapping the prompt and terminal slots
+        /// within the active orientation. For a Horizontal split this puts the
+        /// terminal on top and the prompt on the bottom; for a Vertical split it
+        /// puts the terminal on the left and the prompt on the right.
+        /// Default is false (prompt first: top, or left).
         /// </summary>
         public bool InvertLayout { get; set; } = false;
+
+        /// <summary>
+        /// Whether the prompt panel and terminal are stacked (Horizontal, top/bottom —
+        /// the classic layout) or placed side by side (Vertical, left/right).
+        /// Combined with <see cref="InvertLayout"/> this determines whether the prompt
+        /// panel sits on the Top, Bottom, Left, or Right.
+        /// </summary>
+        public LayoutOrientation SelectedLayoutOrientation { get; set; } = LayoutOrientation.Horizontal;
 
         /// <summary>
         /// Theme preference for the terminal panel.

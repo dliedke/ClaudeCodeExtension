@@ -184,15 +184,42 @@ namespace ClaudeCodeVS
         #region Splitter Position Management
 
         /// <summary>
-        /// Finds the current splitter position in pixels
+        /// True when the MainGrid is configured for a side-by-side (Vertical)
+        /// split — i.e. it has been rebuilt with three columns instead of the
+        /// default three rows. The grid configuration is the source of truth so
+        /// the splitter math stays correct even before settings are applied.
         /// </summary>
-        /// <returns>The pixel height of the top row, or null if unable to determine</returns>
+        private bool LayoutGridIsVertical => MainGrid != null && MainGrid.ColumnDefinitions.Count >= 3;
+
+        /// <summary>
+        /// Finds the current splitter position in pixels — the size of the first
+        /// slot (top row for a horizontal split, left column for a vertical one).
+        /// </summary>
+        /// <returns>The pixel size of the first slot, or null if unable to determine</returns>
         private double? FindSplitterPosition()
         {
             try
             {
                 var grid = MainGrid;
-                if (grid?.RowDefinitions?.Count >= 3 && this.ActualHeight > 0)
+                if (grid == null)
+                {
+                    return null;
+                }
+
+                if (LayoutGridIsVertical)
+                {
+                    if (grid.ColumnDefinitions.Count >= 3 && this.ActualWidth > 0)
+                    {
+                        double leftWidth = grid.ColumnDefinitions[0].ActualWidth;
+                        if (leftWidth > 0)
+                        {
+                            return leftWidth;
+                        }
+                    }
+                    return null;
+                }
+
+                if (grid.RowDefinitions.Count >= 3 && this.ActualHeight > 0)
                 {
                     // ActualHeight is always the real rendered pixel height,
                     // regardless of whether the row uses Star or Pixel GridLength
@@ -215,13 +242,36 @@ namespace ClaudeCodeVS
         /// Sets the splitter position to the specified pixel height, clamped so
         /// the splitter and the opposite row always remain visible.
         /// </summary>
-        /// <param name="position">The desired pixel height for the top row</param>
+        /// <param name="position">The desired pixel size for the first slot
+        /// (top row for a horizontal split, left column for a vertical one)</param>
         private void SetSplitterPosition(double position)
         {
             try
             {
                 var grid = MainGrid;
-                if (grid?.RowDefinitions?.Count >= 3 && position > 0)
+                if (grid == null || position <= 0)
+                {
+                    return;
+                }
+
+                if (LayoutGridIsVertical)
+                {
+                    if (grid.ColumnDefinitions.Count >= 3)
+                    {
+                        // Refresh the live MaxWidth constraint before applying
+                        UpdateSplitterBoundaries();
+
+                        double clamped = ClampSplitterPosition(position);
+
+                        // Set absolute width for the left column, keep the right
+                        // column as star to fill remaining space.
+                        grid.ColumnDefinitions[0].Width = new GridLength(clamped, GridUnitType.Pixel);
+                        grid.ColumnDefinitions[2].Width = new GridLength(1, GridUnitType.Star);
+                    }
+                    return;
+                }
+
+                if (grid.RowDefinitions.Count >= 3)
                 {
                     // Refresh the live MaxHeight constraint before applying
                     UpdateSplitterBoundaries();
@@ -252,7 +302,53 @@ namespace ClaudeCodeVS
             try
             {
                 var grid = MainGrid;
-                if (grid == null || grid.RowDefinitions.Count < 3)
+                if (grid == null)
+                {
+                    return null;
+                }
+
+                if (LayoutGridIsVertical)
+                {
+                    if (grid.ColumnDefinitions.Count < 3)
+                    {
+                        return null;
+                    }
+
+                    double controlWidth = this.ActualWidth;
+                    if (controlWidth <= 0)
+                    {
+                        return null;
+                    }
+
+                    double splitterWidth = grid.ColumnDefinitions[1].ActualWidth;
+                    if (splitterWidth <= 0)
+                    {
+                        splitterWidth = 4;
+                    }
+
+                    double otherMinWidth = grid.ColumnDefinitions[2].MinWidth;
+                    double leftMinWidth = grid.ColumnDefinitions[0].MinWidth;
+
+                    double maxAllowedW = controlWidth - splitterWidth - otherMinWidth;
+                    if (maxAllowedW < leftMinWidth)
+                    {
+                        maxAllowedW = leftMinWidth;
+                    }
+
+                    // Apply as MaxWidth so WPF enforces it even during a live drag
+                    grid.ColumnDefinitions[0].MaxWidth = maxAllowedW;
+
+                    var leftCol = grid.ColumnDefinitions[0];
+                    if (leftCol.Width.GridUnitType == GridUnitType.Pixel &&
+                        leftCol.Width.Value > maxAllowedW)
+                    {
+                        leftCol.Width = new GridLength(maxAllowedW, GridUnitType.Pixel);
+                    }
+
+                    return maxAllowedW;
+                }
+
+                if (grid.RowDefinitions.Count < 3)
                 {
                     return null;
                 }
@@ -313,7 +409,51 @@ namespace ClaudeCodeVS
             try
             {
                 var grid = MainGrid;
-                if (grid == null || grid.RowDefinitions.Count < 3)
+                if (grid == null)
+                {
+                    return position;
+                }
+
+                if (LayoutGridIsVertical)
+                {
+                    if (grid.ColumnDefinitions.Count < 3)
+                    {
+                        return position;
+                    }
+
+                    double controlWidth = this.ActualWidth;
+                    if (controlWidth <= 0)
+                    {
+                        return position;
+                    }
+
+                    double splitterWidth = grid.ColumnDefinitions[1].ActualWidth;
+                    if (splitterWidth <= 0)
+                    {
+                        splitterWidth = 4;
+                    }
+
+                    double otherMinWidth = grid.ColumnDefinitions[2].MinWidth;
+                    double leftMinWidth = grid.ColumnDefinitions[0].MinWidth;
+
+                    double maxAllowedW = controlWidth - splitterWidth - otherMinWidth;
+                    if (maxAllowedW < leftMinWidth)
+                    {
+                        maxAllowedW = leftMinWidth;
+                    }
+
+                    if (position > maxAllowedW)
+                    {
+                        return maxAllowedW;
+                    }
+                    if (position < leftMinWidth)
+                    {
+                        return leftMinWidth;
+                    }
+                    return position;
+                }
+
+                if (grid.RowDefinitions.Count < 3)
                 {
                     return position;
                 }
@@ -403,12 +543,14 @@ namespace ClaudeCodeVS
         {
             try
             {
-                if (!e.HeightChanged || _isTerminalDetached)
+                // A vertical split is constrained by width; a horizontal one by height.
+                bool relevantChange = LayoutGridIsVertical ? e.WidthChanged : e.HeightChanged;
+                if (!relevantChange || _isTerminalDetached)
                 {
                     return;
                 }
 
-                // Re-applies both the MaxHeight cap and any needed snap-back
+                // Re-applies both the Max size cap and any needed snap-back
                 UpdateSplitterBoundaries();
             }
             catch (Exception ex)
@@ -466,90 +608,37 @@ namespace ClaudeCodeVS
 
         #endregion
 
-        #region Layout Inversion
+        #region Layout
 
         /// <summary>
-        /// Applies or reverts the inverted layout based on settings.
-        /// When inverted, the terminal is on top and the prompt area is on the bottom.
+        /// Applies the current layout: a Horizontal (top/bottom) or Vertical
+        /// (left/right) split between the prompt panel and the terminal, with the
+        /// two swapped when <see cref="ClaudeCodeSettings.InvertLayout"/> is set.
+        /// Combined, the four results place the prompt panel on the Top, Bottom,
+        /// Left, or Right.
         /// </summary>
         private void ApplyLayout()
         {
             try
             {
                 bool invert = _settings?.InvertLayout == true;
+                bool vertical = _settings?.SelectedLayoutOrientation == LayoutOrientation.Vertical;
 
-                if (invert)
+                // Rebuild the MainGrid as rows or columns (only when it differs),
+                // then orient the splitter to match.
+                ConfigureMainGridForOrientation(vertical);
+                ConfigureSplitterForOrientation(vertical);
+
+                if (vertical)
                 {
-                    // Terminal on top (row 0), prompt on bottom (row 2)
-                    System.Windows.Controls.Grid.SetRow(PromptSectionGrid, 2);
-                    System.Windows.Controls.Grid.SetRow(TerminalGroupBox, 0);
-
-                    // MinHeight 0 on both rows so the splitter can be dragged
-                    // all the way to the top (collapsing the terminal) or to
-                    // the bottom (collapsing the prompt section).
-                    MainGrid.RowDefinitions[0].MinHeight = 0;
-                    MainGrid.RowDefinitions[2].MinHeight = 0;
-
-                    // Margins: match the regular layout spacing (10px gap across splitter)
-                    TerminalGroupBox.Margin = new Thickness(6, 6, 6, 0);
-                    PromptSectionGrid.Margin = new Thickness(6, 6, 6, 6);
-
-                    // Hide terminal GroupBox header (redundant with tool window title)
-                    TerminalGroupBox.Header = null;
-
-                    // Reorder prompt section: buttons+checkbox on top (near splitter), prompt box below
-                    System.Windows.Controls.Grid.SetRow(CheckboxRow, 0);
-                    System.Windows.Controls.Grid.SetRow(ControlsRow, 1);
-                    System.Windows.Controls.Grid.SetRow(PromptGroupBox, 2);
-                    PromptSectionGrid.RowDefinitions[0].Height = new System.Windows.GridLength(0, System.Windows.GridUnitType.Auto);
-                    PromptSectionGrid.RowDefinitions[0].MinHeight = 0;
-                    PromptSectionGrid.RowDefinitions[2].Height = new System.Windows.GridLength(1, System.Windows.GridUnitType.Star);
-                    PromptSectionGrid.RowDefinitions[2].MinHeight = 80;
-
-                    // Adjust inner margins for inverted order
-                    CheckboxRow.Margin = new Thickness(0, 0, 0, 4);
-                    ControlsRow.Margin = new Thickness(0, 0, 0, 4);
-                    PromptGroupBox.Margin = new Thickness(0, 2, 0, 0);
+                    ApplyVerticalLayout(invert);
                 }
                 else
                 {
-                    // Default: Prompt on top (row 0), terminal on bottom (row 2)
-                    System.Windows.Controls.Grid.SetRow(PromptSectionGrid, 0);
-                    System.Windows.Controls.Grid.SetRow(TerminalGroupBox, 2);
-
-                    // MinHeight 0 on both rows so the splitter can be dragged
-                    // all the way to the top (collapsing the prompt) or to
-                    // the bottom (collapsing the terminal).
-                    MainGrid.RowDefinitions[0].MinHeight = 0;
-                    MainGrid.RowDefinitions[2].MinHeight = 0;
-
-                    // Restore margins
-                    PromptSectionGrid.Margin = new Thickness(6, 6, 6, 0);
-                    TerminalGroupBox.Margin = new Thickness(6);
-
-                    // Restore terminal GroupBox header
-                    TerminalGroupBox.Header = new System.Windows.Controls.TextBlock
-                    {
-                        Text = GetCurrentProviderName(),
-                        Opacity = 0.93
-                    };
-
-                    // Restore prompt section order: prompt box on top, buttons+checkbox below
-                    System.Windows.Controls.Grid.SetRow(PromptGroupBox, 0);
-                    System.Windows.Controls.Grid.SetRow(ControlsRow, 1);
-                    System.Windows.Controls.Grid.SetRow(CheckboxRow, 2);
-                    PromptSectionGrid.RowDefinitions[0].Height = new System.Windows.GridLength(1, System.Windows.GridUnitType.Star);
-                    PromptSectionGrid.RowDefinitions[0].MinHeight = 80;
-                    PromptSectionGrid.RowDefinitions[2].Height = new System.Windows.GridLength(0, System.Windows.GridUnitType.Auto);
-                    PromptSectionGrid.RowDefinitions[2].MinHeight = 0;
-
-                    // Restore inner margins
-                    CheckboxRow.Margin = new Thickness(0, 4, 0, 2);
-                    ControlsRow.Margin = new Thickness(0, 4, 0, 0);
-                    PromptGroupBox.Margin = new Thickness(0, 0, 0, 2);
+                    ApplyHorizontalLayout(invert);
                 }
 
-                // Row-0 MinHeight just changed; refresh the MaxHeight cap so
+                // The first slot's Min size just changed; refresh the Max cap so
                 // the splitter can't be pushed out of view in the new layout.
                 UpdateSplitterBoundaries();
             }
@@ -560,26 +649,262 @@ namespace ClaudeCodeVS
         }
 
         /// <summary>
-        /// Applies the user's Invert Layout setting and re-balances the splitter
-        /// rows so the layout looks natural after a swap. Called from the
-        /// consolidated Settings dialog when the toggle is changed.
+        /// Lays out the prompt panel and terminal stacked vertically (top/bottom).
+        /// When inverted, the terminal is on top and the prompt on the bottom.
         /// </summary>
-        internal void ApplyInvertLayoutChange()
+        private void ApplyHorizontalLayout(bool invert)
+        {
+            // All three children share the single column in a row-based grid.
+            System.Windows.Controls.Grid.SetColumn(PromptSectionGrid, 0);
+            System.Windows.Controls.Grid.SetColumn(TerminalGroupBox, 0);
+            System.Windows.Controls.Grid.SetColumn(MainGridSplitter, 0);
+            System.Windows.Controls.Grid.SetRow(MainGridSplitter, 1);
+
+            // MinHeight 0 on both panel rows so the splitter can be dragged all
+            // the way to either end, collapsing either panel.
+            MainGrid.RowDefinitions[0].MinHeight = 0;
+            MainGrid.RowDefinitions[2].MinHeight = 0;
+
+            if (invert)
+            {
+                // Terminal on top (row 0), prompt on bottom (row 2)
+                System.Windows.Controls.Grid.SetRow(PromptSectionGrid, 2);
+                System.Windows.Controls.Grid.SetRow(TerminalGroupBox, 0);
+
+                TerminalGroupBox.Margin = new Thickness(6, 6, 6, 0);
+                PromptSectionGrid.Margin = new Thickness(6, 6, 6, 6);
+
+                // Hide terminal GroupBox header (redundant with tool window title)
+                ShowTerminalHeader(false);
+
+                // Buttons+chips near the splitter, prompt box below
+                ApplyPromptSectionInvertedOrder();
+            }
+            else
+            {
+                // Default: Prompt on top (row 0), terminal on bottom (row 2)
+                System.Windows.Controls.Grid.SetRow(PromptSectionGrid, 0);
+                System.Windows.Controls.Grid.SetRow(TerminalGroupBox, 2);
+
+                PromptSectionGrid.Margin = new Thickness(6, 6, 6, 0);
+                TerminalGroupBox.Margin = new Thickness(6);
+
+                ShowTerminalHeader(true);
+                ApplyPromptSectionDefaultOrder();
+            }
+        }
+
+        /// <summary>
+        /// Lays out the prompt panel and terminal side by side (left/right).
+        /// When inverted, the terminal is on the left and the prompt on the right
+        /// (the most common request: prompt panel docked on the right-hand side).
+        /// </summary>
+        private void ApplyVerticalLayout(bool invert)
+        {
+            // All three children share the single row in a column-based grid.
+            System.Windows.Controls.Grid.SetRow(PromptSectionGrid, 0);
+            System.Windows.Controls.Grid.SetRow(TerminalGroupBox, 0);
+            System.Windows.Controls.Grid.SetRow(MainGridSplitter, 0);
+            System.Windows.Controls.Grid.SetColumn(MainGridSplitter, 1);
+
+            // MinWidth 0 on both panel columns so the splitter can be dragged all
+            // the way to either edge, collapsing either panel.
+            MainGrid.ColumnDefinitions[0].MinWidth = 0;
+            MainGrid.ColumnDefinitions[2].MinWidth = 0;
+
+            int promptColumn = invert ? 2 : 0;
+            int terminalColumn = invert ? 0 : 2;
+            System.Windows.Controls.Grid.SetColumn(PromptSectionGrid, promptColumn);
+            System.Windows.Controls.Grid.SetColumn(TerminalGroupBox, terminalColumn);
+
+            // Even margins on both panels around the 4px splitter.
+            PromptSectionGrid.Margin = new Thickness(6);
+            TerminalGroupBox.Margin = new Thickness(6);
+
+            // Side by side, the terminal header is not redundant — keep it visible.
+            ShowTerminalHeader(true);
+
+            // Prompt box on top of its panel, controls below (the natural order).
+            ApplyPromptSectionDefaultOrder();
+        }
+
+        /// <summary>
+        /// Rebuilds the MainGrid definitions for the requested orientation, but
+        /// only when the grid is not already configured that way (so repeated
+        /// ApplyLayout calls don't wipe the live splitter sizes). Horizontal uses
+        /// three rows (prompt / splitter / terminal); Vertical uses three columns.
+        /// </summary>
+        private void ConfigureMainGridForOrientation(bool vertical)
+        {
+            if (vertical)
+            {
+                if (MainGrid.ColumnDefinitions.Count >= 3)
+                {
+                    return; // already column-based
+                }
+
+                MainGrid.RowDefinitions.Clear();
+                MainGrid.RowDefinitions.Add(new System.Windows.Controls.RowDefinition
+                {
+                    Height = new System.Windows.GridLength(1, System.Windows.GridUnitType.Star)
+                });
+
+                MainGrid.ColumnDefinitions.Clear();
+                MainGrid.ColumnDefinitions.Add(new System.Windows.Controls.ColumnDefinition
+                {
+                    Width = new System.Windows.GridLength(1, System.Windows.GridUnitType.Star),
+                    MinWidth = 0
+                });
+                MainGrid.ColumnDefinitions.Add(new System.Windows.Controls.ColumnDefinition
+                {
+                    Width = new System.Windows.GridLength(4)
+                });
+                MainGrid.ColumnDefinitions.Add(new System.Windows.Controls.ColumnDefinition
+                {
+                    Width = new System.Windows.GridLength(2, System.Windows.GridUnitType.Star),
+                    MinWidth = 0
+                });
+            }
+            else
+            {
+                if (MainGrid.ColumnDefinitions.Count == 0 && MainGrid.RowDefinitions.Count >= 3)
+                {
+                    return; // already row-based (the XAML default)
+                }
+
+                MainGrid.ColumnDefinitions.Clear();
+                MainGrid.RowDefinitions.Clear();
+                MainGrid.RowDefinitions.Add(new System.Windows.Controls.RowDefinition
+                {
+                    Height = new System.Windows.GridLength(1, System.Windows.GridUnitType.Star),
+                    MinHeight = 0
+                });
+                MainGrid.RowDefinitions.Add(new System.Windows.Controls.RowDefinition
+                {
+                    Height = new System.Windows.GridLength(4)
+                });
+                MainGrid.RowDefinitions.Add(new System.Windows.Controls.RowDefinition
+                {
+                    Height = new System.Windows.GridLength(2, System.Windows.GridUnitType.Star),
+                    MinHeight = 0
+                });
+            }
+        }
+
+        /// <summary>
+        /// Orients the GridSplitter so it resizes rows (a horizontal bar the user
+        /// drags up/down) or columns (a vertical bar dragged left/right).
+        /// </summary>
+        private void ConfigureSplitterForOrientation(bool vertical)
+        {
+            if (vertical)
+            {
+                MainGridSplitter.Width = 4;
+                MainGridSplitter.Height = double.NaN;
+                MainGridSplitter.ResizeDirection = System.Windows.Controls.GridResizeDirection.Columns;
+                MainGridSplitter.HorizontalAlignment = HorizontalAlignment.Center;
+                MainGridSplitter.VerticalAlignment = VerticalAlignment.Stretch;
+                MainGridSplitter.Cursor = System.Windows.Input.Cursors.SizeWE;
+            }
+            else
+            {
+                MainGridSplitter.Height = 4;
+                MainGridSplitter.Width = double.NaN;
+                MainGridSplitter.ResizeDirection = System.Windows.Controls.GridResizeDirection.Rows;
+                MainGridSplitter.HorizontalAlignment = HorizontalAlignment.Stretch;
+                MainGridSplitter.VerticalAlignment = VerticalAlignment.Center;
+                MainGridSplitter.Cursor = System.Windows.Input.Cursors.SizeNS;
+            }
+        }
+
+        /// <summary>
+        /// Prompt section in its natural order: prompt box on top, then the
+        /// controls row, file chips, and inline usage bars below.
+        /// </summary>
+        private void ApplyPromptSectionDefaultOrder()
+        {
+            System.Windows.Controls.Grid.SetRow(PromptGroupBox, 0);
+            System.Windows.Controls.Grid.SetRow(ControlsRow, 1);
+            System.Windows.Controls.Grid.SetRow(CheckboxRow, 2);
+            PromptSectionGrid.RowDefinitions[0].Height = new System.Windows.GridLength(1, System.Windows.GridUnitType.Star);
+            PromptSectionGrid.RowDefinitions[0].MinHeight = 80;
+            PromptSectionGrid.RowDefinitions[2].Height = new System.Windows.GridLength(0, System.Windows.GridUnitType.Auto);
+            PromptSectionGrid.RowDefinitions[2].MinHeight = 0;
+
+            CheckboxRow.Margin = new Thickness(0, 4, 0, 2);
+            ControlsRow.Margin = new Thickness(0, 4, 0, 0);
+            PromptGroupBox.Margin = new Thickness(0, 0, 0, 2);
+        }
+
+        /// <summary>
+        /// Prompt section reordered for the inverted horizontal layout: the
+        /// buttons and file chips sit at the top (next to the splitter) and the
+        /// prompt box fills the space below.
+        /// </summary>
+        private void ApplyPromptSectionInvertedOrder()
+        {
+            System.Windows.Controls.Grid.SetRow(CheckboxRow, 0);
+            System.Windows.Controls.Grid.SetRow(ControlsRow, 1);
+            System.Windows.Controls.Grid.SetRow(PromptGroupBox, 2);
+            PromptSectionGrid.RowDefinitions[0].Height = new System.Windows.GridLength(0, System.Windows.GridUnitType.Auto);
+            PromptSectionGrid.RowDefinitions[0].MinHeight = 0;
+            PromptSectionGrid.RowDefinitions[2].Height = new System.Windows.GridLength(1, System.Windows.GridUnitType.Star);
+            PromptSectionGrid.RowDefinitions[2].MinHeight = 80;
+
+            CheckboxRow.Margin = new Thickness(0, 0, 0, 4);
+            ControlsRow.Margin = new Thickness(0, 0, 0, 4);
+            PromptGroupBox.Margin = new Thickness(0, 2, 0, 0);
+        }
+
+        /// <summary>
+        /// Shows or hides the terminal GroupBox header. Hidden only when the
+        /// terminal is on top (inverted horizontal layout), where the header is
+        /// redundant with the tool window title.
+        /// </summary>
+        private void ShowTerminalHeader(bool show)
+        {
+            if (show)
+            {
+                TerminalGroupBox.Header = new System.Windows.Controls.TextBlock
+                {
+                    Text = GetCurrentProviderName(),
+                    Opacity = 0.93
+                };
+            }
+            else
+            {
+                TerminalGroupBox.Header = null;
+            }
+        }
+
+        /// <summary>
+        /// Applies the user's layout choice (orientation and/or invert) and
+        /// re-balances the splitter so the layout looks natural after the change,
+        /// giving the terminal the larger share. Called from the consolidated
+        /// Settings dialog when the prompt panel position is changed.
+        /// </summary>
+        internal void ApplyLayoutSettingsChange()
         {
             if (_settings == null) return;
 
-            // Reset splitter to proportional sizing so layout looks natural after swap
-            MainGrid.RowDefinitions[0].Height = new System.Windows.GridLength(1, System.Windows.GridUnitType.Star);
-            MainGrid.RowDefinitions[2].Height = new System.Windows.GridLength(2, System.Windows.GridUnitType.Star);
-
-            if (_settings.InvertLayout)
-            {
-                // When inverted, terminal (top) gets more space
-                MainGrid.RowDefinitions[0].Height = new System.Windows.GridLength(2, System.Windows.GridUnitType.Star);
-                MainGrid.RowDefinitions[2].Height = new System.Windows.GridLength(1, System.Windows.GridUnitType.Star);
-            }
-
+            // Reconfigure the grid for the new orientation/invert first.
             ApplyLayout();
+
+            bool invert = _settings.InvertLayout;
+
+            // Reset to proportional sizing so the layout looks natural after the
+            // change. The terminal slot gets the larger (2*) share; the prompt the
+            // smaller (1*). The terminal is the first slot when inverted.
+            if (LayoutGridIsVertical)
+            {
+                MainGrid.ColumnDefinitions[0].Width = new System.Windows.GridLength(invert ? 2 : 1, System.Windows.GridUnitType.Star);
+                MainGrid.ColumnDefinitions[2].Width = new System.Windows.GridLength(invert ? 1 : 2, System.Windows.GridUnitType.Star);
+            }
+            else
+            {
+                MainGrid.RowDefinitions[0].Height = new System.Windows.GridLength(invert ? 2 : 1, System.Windows.GridUnitType.Star);
+                MainGrid.RowDefinitions[2].Height = new System.Windows.GridLength(invert ? 1 : 2, System.Windows.GridUnitType.Star);
+            }
         }
 
         #endregion

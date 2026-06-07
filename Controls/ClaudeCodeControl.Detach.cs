@@ -167,8 +167,15 @@ namespace ClaudeCodeVS
                 // Hide terminal area (terminal moved to separate tab)
                 // Keep splitter visible so user can resize the prompt area freely
                 TerminalGroupBox.Visibility = Visibility.Collapsed;
-                int terminalRow = (_settings?.InvertLayout == true) ? 0 : 2;
-                MainGrid.RowDefinitions[terminalRow].MinHeight = 0;
+                int terminalSlot = (_settings?.InvertLayout == true) ? 0 : 2;
+                if (LayoutGridIsVertical)
+                {
+                    MainGrid.ColumnDefinitions[terminalSlot].MinWidth = 0;
+                }
+                else
+                {
+                    MainGrid.RowDefinitions[terminalSlot].MinHeight = 0;
+                }
                 MainGrid.UpdateLayout();
 
                 UpdateDetachButtonIcon(true);
@@ -207,8 +214,15 @@ namespace ClaudeCodeVS
 
                 // Restore main terminal area
                 TerminalGroupBox.Visibility = Visibility.Visible;
-                int terminalRow = (_settings?.InvertLayout == true) ? 0 : 2;
-                MainGrid.RowDefinitions[terminalRow].MinHeight = 150;
+                int terminalSlot = (_settings?.InvertLayout == true) ? 0 : 2;
+                if (LayoutGridIsVertical)
+                {
+                    MainGrid.ColumnDefinitions[terminalSlot].MinWidth = 150;
+                }
+                else
+                {
+                    MainGrid.RowDefinitions[terminalSlot].MinHeight = 150;
+                }
 
                 // Restore splitter to pre-detach position
                 if (_settings != null && _settings.SplitterPosition > 0)

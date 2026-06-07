@@ -70,6 +70,7 @@ namespace ClaudeCodeVS
             bool origDisableClipboardSend     = _settings.DisableClipboardSend;
             bool origAutoOpenChanges          = _settings.AutoOpenChangesOnPrompt;
             bool origInvertLayout             = _settings.InvertLayout;
+            LayoutOrientation origOrientation = _settings.SelectedLayoutOrientation;
             bool origDisableAutoZoom          = _settings.DisableStartupAutoZoom;
             TerminalType origTerminalType     = _settings.SelectedTerminalType;
             ThemePreference origThemePref     = _settings.SelectedThemePreference;
@@ -176,11 +177,30 @@ namespace ClaudeCodeVS
             // ---- Layout section ----
             stack.Children.Add(MakeSectionHeader("Layout", themeFg));
 
-            var invertCheck = MakeCheckBox(
-                "Invert Layout",
-                "Swap prompt and terminal positions (terminal on top, prompt on bottom).",
-                origInvertLayout, themeFg);
-            stack.Children.Add(invertCheck);
+            stack.Children.Add(new TextBlock
+            {
+                Text = "Where the prompt panel (input box and usage bars) is docked relative to the terminal.",
+                FontSize = 11,
+                Opacity = 0.7,
+                Foreground = themeFg,
+                TextWrapping = TextWrapping.Wrap,
+                Margin = new Thickness(4, 0, 0, 4)
+            });
+
+            // Map the current orientation + invert to one of four positions.
+            bool origVertical = origOrientation == LayoutOrientation.Vertical;
+            var topRadio = MakeRadioButton("Top (default) — prompt above, terminal below",
+                !origVertical && !origInvertLayout, themeFg, "promptPosition");
+            var bottomRadio = MakeRadioButton("Bottom — terminal above, prompt below",
+                !origVertical && origInvertLayout, themeFg, "promptPosition");
+            var leftRadio = MakeRadioButton("Left — prompt on the left, terminal on the right",
+                origVertical && !origInvertLayout, themeFg, "promptPosition");
+            var rightRadio = MakeRadioButton("Right — terminal on the left, prompt on the right",
+                origVertical && origInvertLayout, themeFg, "promptPosition");
+            stack.Children.Add(topRadio);
+            stack.Children.Add(bottomRadio);
+            stack.Children.Add(leftRadio);
+            stack.Children.Add(rightRadio);
 
             var disableAutoZoomCheck = MakeCheckBox(
                 "Disable Auto Zoom on Startup",
@@ -300,7 +320,12 @@ namespace ClaudeCodeVS
             bool newSendLargeAsFile = largeAsFileCheck.IsChecked == true;
             bool newDisableClipboardSend = disableClipboardCheck.IsChecked == true;
             bool newAutoOpenChanges = autoOpenCheck.IsChecked == true;
-            bool newInvertLayout    = invertCheck.IsChecked == true;
+            // Map the selected position back to orientation + invert.
+            bool newVertical = leftRadio.IsChecked == true || rightRadio.IsChecked == true;
+            bool newInvertLayout = bottomRadio.IsChecked == true || rightRadio.IsChecked == true;
+            LayoutOrientation newOrientation = newVertical
+                ? LayoutOrientation.Vertical
+                : LayoutOrientation.Horizontal;
             bool newDisableAutoZoom = disableAutoZoomCheck.IsChecked == true;
             TerminalType newTerminalType = wtRadio.IsChecked == true
                 ? TerminalType.WindowsTerminal
@@ -338,6 +363,7 @@ namespace ClaudeCodeVS
             _settings.DisableClipboardSend    = newDisableClipboardSend;
             _settings.AutoOpenChangesOnPrompt = newAutoOpenChanges;
             _settings.InvertLayout            = newInvertLayout;
+            _settings.SelectedLayoutOrientation = newOrientation;
             _settings.DisableStartupAutoZoom  = newDisableAutoZoom;
             _settings.SelectedTerminalType    = newTerminalType;
             _settings.SelectedThemePreference = newThemePref;
@@ -351,10 +377,10 @@ namespace ClaudeCodeVS
                 ? Visibility.Collapsed
                 : Visibility.Visible;
 
-            // Layout swap
-            if (newInvertLayout != origInvertLayout)
+            // Layout change (position and/or orientation)
+            if (newInvertLayout != origInvertLayout || newOrientation != origOrientation)
             {
-                ApplyInvertLayoutChange();
+                ApplyLayoutSettingsChange();
             }
 
             // Theme change: re-paint panel and inline bars immediately

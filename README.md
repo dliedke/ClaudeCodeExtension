@@ -76,7 +76,7 @@ Then choose it via *⚙ → Set Terminal Type...*.
 
 **⚙ Settings menu** (gear button, top-right):
 - Pick an AI provider, *Configure Visible Code Agents...*, *Configure Custom Commands...*, *Set Theme...*, *Set Terminal Type...*, *Set Working Directory...*
-- Toggles: *Send with Enter*, *Auto-open Changes on Send*, *Invert Layout*, *Disable Auto Zoom on Startup*, *Send large prompts as file*
+- Toggles: *Send with Enter*, *Auto-open Changes on Send*, *Prompt panel position (top/bottom/left/right)*, *Disable Auto Zoom on Startup*, *Send large prompts as file*
 - Provider-specific flags: Claude *Skip Permissions*, Codex *Approval Never*, Cursor *Yolo Mode*, Windsurf *Dangerous Mode*, Antigravity *Skip Permissions*
 - Update Agent, Detach/Attach Terminal, About
 
@@ -99,6 +99,9 @@ This binds a Claude Code skill that shells out to OpenAI Codex to audit pending 
 4. **Use it**: ⚡ → *Codex Review*. Claude runs the skill, Codex audits your diff, findings appear inline.
 
 ## Version History
+
+### Version 10.81
+- The prompt panel can now be docked on the left or right (a side-by-side split) in addition to the top or bottom. Pick the position under Settings → Layout.
 
 ### Version 10.80
 - Fixed the prompt becoming unresponsive to the keyboard (cursor not blinking, arrow keys not switching agents) while the embedded terminal still accepted typing — clicking in the extension now restores keyboard input without restarting Visual Studio.

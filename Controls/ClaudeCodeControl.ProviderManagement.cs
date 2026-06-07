@@ -1773,10 +1773,14 @@ For more details, visit: https://pi.dev";
             PiMenuItem.IsChecked = _settings.SelectedProvider == AiProvider.Pi;
             AntigravityMenuItem.IsChecked = _settings.SelectedProvider == AiProvider.Antigravity;
 
-            // Update GroupBox header to show selected provider (not necessarily running yet)
+            // Update GroupBox header to show selected provider (not necessarily running yet).
+            // The header is hidden only when the terminal is on top (inverted horizontal
+            // layout), where it is redundant with the tool window title. In a vertical
+            // (side-by-side) split the terminal sits beside the prompt, so keep it visible.
             string providerName = GetProviderDisplayName(_settings.SelectedProvider);
-            // Only show header when layout is not inverted (inverted hides it to avoid redundancy with tool window title)
-            if (_settings?.InvertLayout == true)
+            bool terminalOnTop = _settings?.InvertLayout == true
+                && _settings?.SelectedLayoutOrientation == LayoutOrientation.Horizontal;
+            if (terminalOnTop)
             {
                 TerminalGroupBox.Header = null;
             }
