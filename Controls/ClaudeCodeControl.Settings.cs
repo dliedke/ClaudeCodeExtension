@@ -45,6 +45,29 @@ namespace ClaudeCodeVS
         /// </summary>
         private bool _isInitializing = true;
 
+        /// <summary>
+        /// Set to true during Dispose/CleanupResources so the final SaveSettings
+        /// call persists volatile per-instance fields (provider, model, effort).
+        /// During normal operation these fields are excluded from disk writes so
+        /// that multiple VS instances do not overwrite each other's selections.
+        /// </summary>
+        private bool _isShuttingDown = false;
+
+        /// <summary>
+        /// Settings properties that represent per-instance state (which provider
+        /// and model the user chose in THIS VS window). During normal operation
+        /// SaveSettings preserves whatever the disk file already has for these
+        /// fields, avoiding cross-instance overwrites. On shutdown the current
+        /// values are persisted so the next single-instance launch picks them up.
+        /// </summary>
+        private static readonly string[] VolatileSettingsFields = new[]
+        {
+            nameof(ClaudeCodeSettings.SelectedProvider),
+            nameof(ClaudeCodeSettings.SelectedClaudeModel),
+            nameof(ClaudeCodeSettings.SelectedWindsurfModel),
+            nameof(ClaudeCodeSettings.SelectedEffortLevel)
+        };
+
         #endregion
 
         #region Settings Management
@@ -170,7 +193,40 @@ namespace ClaudeCodeVS
                     Directory.CreateDirectory(directory);
                 }
 
-                var json = JsonConvert.SerializeObject(_settings, Formatting.Indented);
+                // During normal operation, preserve volatile per-instance fields
+                // (provider, model, effort) from the disk file so that multiple VS
+                // instances do not overwrite each other's selections.  On shutdown
+                // (_isShuttingDown) we write everything so the next launch picks up
+                // this instance's choices.
+                var toSave = Newtonsoft.Json.Linq.JObject.FromObject(_settings);
+
+                if (!_isShuttingDown)
+                {
+                    try
+                    {
+                        if (File.Exists(ConfigurationPath))
+                        {
+                            var diskJson = File.ReadAllText(ConfigurationPath);
+                            var diskObj = Newtonsoft.Json.Linq.JObject.Parse(diskJson);
+
+                            foreach (var field in VolatileSettingsFields)
+                            {
+                                if (diskObj.TryGetValue(field, out var diskValue))
+                                {
+                                    toSave[field] = diskValue;
+                                }
+                            }
+                        }
+                    }
+                    catch (Exception diskEx)
+                    {
+                        // If the disk file is unreadable or corrupt, just save
+                        // everything — better than losing all settings.
+                        Debug.WriteLine($"Could not read disk settings for merge: {diskEx.Message}");
+                    }
+                }
+
+                var json = toSave.ToString(Formatting.Indented);
                 File.WriteAllText(ConfigurationPath, json);
             }
             catch (Exception ex)

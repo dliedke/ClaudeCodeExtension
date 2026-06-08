@@ -100,6 +100,9 @@ This binds a Claude Code skill that shells out to OpenAI Codex to audit pending 
 
 ## Version History
 
+### Version 10.83
+- Running multiple Visual Studio instances no longer causes the selected AI agent and model to get mixed up across windows. Each instance now keeps its own provider/model choice in memory and only writes it to the shared settings file on shutdown.
+
 ### Version 10.82
 - New opt-in setting to prevent clicking the embedded terminal from bringing the entire Visual Studio window to the foreground. Useful when overlapping multiple VS instances and you want to interact with the terminal without rearranging your layout. Enable via Settings → "Don’t bring Visual Studio to the foreground on terminal click".
 

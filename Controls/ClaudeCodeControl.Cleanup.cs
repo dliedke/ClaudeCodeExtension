@@ -132,6 +132,10 @@ namespace ClaudeCodeVS
 
             try
             {
+                // Signal that this is the final save so volatile per-instance
+                // fields (provider, model, effort) are written to disk.
+                _isShuttingDown = true;
+
                 // Persist the latest UI state before tearing down the control.
                 SaveSettings();
 
