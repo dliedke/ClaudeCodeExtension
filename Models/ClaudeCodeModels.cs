@@ -267,6 +267,14 @@ namespace ClaudeCodeVS
         public bool SendWithEnter { get; set; } = true;
 
         /// <summary>
+        /// If true (and <see cref="SendWithEnter"/> is false), Ctrl+Enter sends the prompt
+        /// while plain Enter inserts a newline. Lets users avoid accidentally sending an
+        /// incomplete prompt with a stray Enter tap while still having a keyboard send shortcut.
+        /// Ignored when <see cref="SendWithEnter"/> is true. See issue #70.
+        /// </summary>
+        public bool SendWithCtrlEnter { get; set; } = false;
+
+        /// <summary>
         /// If true, prompts above ~1 KB are written to a temp file and only a file reference
         /// (`Prompt content saved to: &lt;path&gt;`) is pasted into the terminal. This avoids the
         /// conhost INPUT_RECORD buffer overflow that truncates the front of large pastes and

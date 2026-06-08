@@ -320,6 +320,7 @@ namespace ClaudeCodeVS
             if (e.Key == Key.Enter)
             {
                 bool sendWithEnter = _settings?.SendWithEnter != false;
+                bool sendWithCtrlEnter = _settings?.SendWithCtrlEnter == true;
                 bool shift = (Keyboard.Modifiers & ModifierKeys.Shift) == ModifierKeys.Shift;
                 bool ctrl = (Keyboard.Modifiers & ModifierKeys.Control) == ModifierKeys.Control;
 
@@ -341,7 +342,16 @@ namespace ClaudeCodeVS
                     return;
                 }
 
-                // Send-with-Enter disabled: let TextBox insert a newline by default.
+                if (sendWithCtrlEnter && ctrl)
+                {
+                    // Ctrl+Enter sends; plain/Shift+Enter fall through to the default newline.
+                    // Guards against accidentally sending an incomplete prompt with a stray Enter.
+                    e.Handled = true;
+                    SendButton_Click(sender, null);
+                    return;
+                }
+
+                // Plain Enter (and Shift+Enter): let TextBox insert a newline by default.
             }
 
             // Preserve paste-image shortcut even with new behavior

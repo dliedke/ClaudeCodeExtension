@@ -100,6 +100,11 @@ This binds a Claude Code skill that shells out to OpenAI Codex to audit pending 
 
 ## Version History
 
+### Version 10.84
+- The Settings window is now organized into tabs (Behavior, Layout, Terminal, Theme, Usage), making each group of options easier to find.
+- New "Send prompt with" choice adds a Ctrl+Enter option: Enter inserts a newline and Ctrl+Enter sends, so a stray Enter tap no longer submits an incomplete prompt.
+- Prompt font size and the inline usage bar options (show/hide and auto-refresh) can now be set directly in Settings, plus a "Reset to Defaults" button.
+
 ### Version 10.83
 - Running multiple Visual Studio instances no longer causes the selected AI agent and model to get mixed up across windows. Each instance now keeps its own provider/model choice in memory and only writes it to the shared settings file on shutdown.
 

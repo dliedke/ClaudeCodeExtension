@@ -57,15 +57,19 @@ namespace ClaudeCodeVS
 
         /// <summary>
         /// Builds and shows the consolidated settings dialog, then applies the
-        /// chosen values. Restart-requiring changes (terminal type, theme)
-        /// trigger a single terminal restart at the end if needed.
+        /// chosen values. The dialog is organized into tabs (Behavior, Layout,
+        /// Terminal, Theme, Usage). Restart-requiring changes (terminal type,
+        /// theme) trigger a single terminal restart at the end if needed.
         /// </summary>
         private async System.Threading.Tasks.Task ShowConsolidatedSettingsDialogAsync()
         {
             GetThemeBrushes(out Brush themeBg, out Brush themeFg);
+            ResourceDictionary comboRes = BuildThemedComboResources(themeBg, themeFg);
+            ResourceDictionary tabRes = BuildThemedTabResources(themeBg, themeFg);
 
             // Snapshot the current values so we can detect what changed on OK.
             bool origSendWithEnter            = _settings.SendWithEnter;
+            bool origSendWithCtrlEnter        = _settings.SendWithCtrlEnter;
             bool origSendLargeAsFile          = _settings.SendLargePromptsAsFile;
             bool origDisableClipboardSend     = _settings.DisableClipboardSend;
             bool origAutoOpenChanges          = _settings.AutoOpenChangesOnPrompt;
@@ -75,13 +79,18 @@ namespace ClaudeCodeVS
             TerminalType origTerminalType     = _settings.SelectedTerminalType;
             ThemePreference origThemePref     = _settings.SelectedThemePreference;
             bool origSkipThemePrompt          = _settings.SkipThemeRestartPrompt;
-            bool origDisableBringToFront    = _settings.DisableBringToForeground;
+            bool origDisableBringToFront      = _settings.DisableBringToForeground;
+            bool origShowInlineBars           = _settings.ShowInlineUsageBars;
+            int  origAutoRefresh              = _settings.UsageAutoRefreshSeconds;
+            int  origFontSize                 = (int)Math.Round(PromptTextBox?.FontSize ?? 12.0);
+            if (origFontSize < 8) origFontSize = 12;
+            if (origFontSize > 24) origFontSize = 24;
 
             var dialog = new Window
             {
                 Title = "Claude Code Extension - Settings",
-                Width = 520,
-                Height = 680,
+                Width = 620,
+                Height = 660,
                 WindowStartupLocation = WindowStartupLocation.CenterOwner,
                 ResizeMode = ResizeMode.NoResize,
                 Background = themeBg,
@@ -94,37 +103,58 @@ namespace ClaudeCodeVS
             rootGrid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
             rootGrid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
 
-            var scroll = new ScrollViewer
+            var tabs = new TabControl { Background = themeBg, BorderBrush = themeFg };
+            if (tabRes["tabControl"] is Style tabCtrlStyle) tabs.Style = tabCtrlStyle;
+            Grid.SetRow(tabs, 0);
+            rootGrid.Children.Add(tabs);
+
+            // Helper: build a scrollable tab page and return its content stack.
+            StackPanel AddTab(string header)
             {
-                VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
-                HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled
-            };
-            Grid.SetRow(scroll, 0);
-            rootGrid.Children.Add(scroll);
+                var pageStack = new StackPanel { Orientation = Orientation.Vertical, Margin = new Thickness(12) };
+                var pageScroll = new ScrollViewer
+                {
+                    VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
+                    HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
+                    Content = pageStack
+                };
+                tabs.Items.Add(new TabItem { Header = header, Content = pageScroll });
+                return pageStack;
+            }
 
-            var stack = new StackPanel { Orientation = Orientation.Vertical };
-            scroll.Content = stack;
+            // ========================= Behavior tab =========================
+            var behaviorStack = AddTab("Behavior");
 
-            // ---- Behavior section ----
-            stack.Children.Add(MakeSectionHeader("Behavior", themeFg));
+            behaviorStack.Children.Add(MakeSectionHeader("Send prompt with", themeFg));
 
-            var sendEnterCheck = MakeCheckBox(
-                "Send with Enter",
-                "When enabled, Enter sends the prompt (Shift+Enter / Ctrl+Enter for newlines). When disabled, Enter inserts a newline and the Send button appears.",
-                origSendWithEnter, themeFg);
-            stack.Children.Add(sendEnterCheck);
+            var sendEnterRadio = MakeRadioButton(
+                "Enter — sends the prompt (Shift+Enter / Ctrl+Enter insert a newline)",
+                origSendWithEnter, themeFg, "sendKey");
+            var sendCtrlEnterRadio = MakeRadioButton(
+                "Ctrl+Enter — sends the prompt (Enter inserts a newline)",
+                !origSendWithEnter && origSendWithCtrlEnter, themeFg, "sendKey");
+            var sendButtonRadio = MakeRadioButton(
+                "Button only — Enter inserts a newline, click Send to submit",
+                !origSendWithEnter && !origSendWithCtrlEnter, themeFg, "sendKey");
+            sendCtrlEnterRadio.ToolTip =
+                "Avoids accidentally sending an incomplete prompt with a stray Enter tap, while keeping a keyboard send shortcut (Ctrl+Enter).";
+            behaviorStack.Children.Add(sendEnterRadio);
+            behaviorStack.Children.Add(sendCtrlEnterRadio);
+            behaviorStack.Children.Add(sendButtonRadio);
+
+            behaviorStack.Children.Add(MakeSectionHeader("Prompt sending", themeFg));
 
             var largeAsFileCheck = MakeCheckBox(
                 "Send large prompts as file",
                 "When enabled, prompts above ~1 KB are saved to a temp file and only the file path is sent. Avoids paste truncation of large content.",
                 origSendLargeAsFile, themeFg);
-            stack.Children.Add(largeAsFileCheck);
+            behaviorStack.Children.Add(largeAsFileCheck);
 
             var disableClipboardCheck = MakeCheckBox(
                 "Disable clipboard (type prompts instead of pasting)",
                 "When enabled, the clipboard is never used to send a prompt. The prompt is saved to a temp file and only a short file reference is typed into the terminal via simulated keystrokes. Use this if another app (clipboard manager, Remote Desktop, security tool) holds the clipboard and breaks normal paste-based sending.\n\nAvailable only with the Command Prompt terminal type — Windows Terminal does not accept the simulated keystrokes this uses.",
                 origDisableClipboardSend, themeFg);
-            stack.Children.Add(disableClipboardCheck);
+            behaviorStack.Children.Add(disableClipboardCheck);
 
             // Hint shown only while Windows Terminal is selected, explaining why the toggle is greyed out.
             var disableClipboardWtHint = new TextBlock
@@ -136,7 +166,7 @@ namespace ClaudeCodeVS
                 TextWrapping = TextWrapping.Wrap,
                 Margin = new Thickness(20, 0, 0, 0)
             };
-            stack.Children.Add(disableClipboardWtHint);
+            behaviorStack.Children.Add(disableClipboardWtHint);
 
             // Auto-open Changes only applies inside git repos, but we keep the
             // checkbox visible so users can pre-toggle the setting before
@@ -145,18 +175,42 @@ namespace ClaudeCodeVS
                 "Auto-open Changes on Send",
                 "Automatically open the Changes view, expand files, and enable auto-scroll when a prompt is sent. Only applies when the project is in a git repository.",
                 origAutoOpenChanges, themeFg);
-            stack.Children.Add(autoOpenCheck);
+            behaviorStack.Children.Add(autoOpenCheck);
+
+            behaviorStack.Children.Add(MakeSectionHeader("Window", themeFg));
 
             var disableBringToFrontCheck = MakeCheckBox(
                 "Don't bring Visual Studio to the foreground on terminal click",
                 "When enabled, clicking the embedded terminal no longer pulls the entire Visual Studio window to the front. Useful when you overlap multiple VS instances or other apps and want to interact with the terminal without rearranging your window layout.",
                 origDisableBringToFront, themeFg);
-            stack.Children.Add(disableBringToFrontCheck);
+            behaviorStack.Children.Add(disableBringToFrontCheck);
 
-            // ---- On Agent Finish section ----
-            stack.Children.Add(MakeSectionHeader("On Agent Finish", themeFg));
+            // Prompt font size
+            behaviorStack.Children.Add(MakeSectionHeader("Prompt font size", themeFg));
+            behaviorStack.Children.Add(new TextBlock
+            {
+                Text = "Font size of the prompt input box (also adjustable with Ctrl+Scroll).",
+                FontSize = 11,
+                Opacity = 0.7,
+                Foreground = themeFg,
+                TextWrapping = TextWrapping.Wrap,
+                Margin = new Thickness(4, 0, 0, 4)
+            });
+            var fontSizeCombo = MakeThemedComboBox(comboRes, themeFg);
+            fontSizeCombo.Width = 90;
+            fontSizeCombo.HorizontalAlignment = HorizontalAlignment.Left;
+            fontSizeCombo.Margin = new Thickness(4, 0, 0, 4);
+            for (int pt = 8; pt <= 24; pt++)
+            {
+                var item = new ComboBoxItem { Content = pt + " pt", Tag = pt };
+                if (comboRes["cbi"] is Style cbiStyle) item.Style = cbiStyle;
+                if (pt == origFontSize) item.IsSelected = true;
+                fontSizeCombo.Items.Add(item);
+            }
+            behaviorStack.Children.Add(fontSizeCombo);
 
-            stack.Children.Add(new TextBlock
+            behaviorStack.Children.Add(MakeSectionHeader("On Agent Finish", themeFg));
+            behaviorStack.Children.Add(new TextBlock
             {
                 Text = "Notify and optionally run an action when the agent finishes. Supports global defaults plus per-solution overrides.",
                 FontSize = 11,
@@ -165,12 +219,13 @@ namespace ClaudeCodeVS
                 TextWrapping = TextWrapping.Wrap,
                 Margin = new Thickness(4, 0, 0, 6)
             });
-
             var afOpenButton = new Button
             {
                 Content = "On Agent Finish…",
                 HorizontalAlignment = HorizontalAlignment.Left,
-                Padding = new Thickness(12, 4, 12, 4),
+                Height = 32,
+                MinWidth = 160,
+                Padding = new Thickness(18, 0, 18, 0),
                 Margin = new Thickness(4, 0, 0, 4)
             };
             Style afButtonStyle = GetDialogButtonStyle();
@@ -179,12 +234,13 @@ namespace ClaudeCodeVS
 #pragma warning disable VSTHRD110
             afOpenButton.Click += (s, ea) => _ = ShowAgentFinishSettingsDialogAsync();
 #pragma warning restore VSTHRD110
-            stack.Children.Add(afOpenButton);
+            behaviorStack.Children.Add(afOpenButton);
 
-            // ---- Layout section ----
-            stack.Children.Add(MakeSectionHeader("Layout", themeFg));
+            // ========================= Layout tab =========================
+            var layoutStack = AddTab("Layout");
 
-            stack.Children.Add(new TextBlock
+            layoutStack.Children.Add(MakeSectionHeader("Prompt panel position", themeFg));
+            layoutStack.Children.Add(new TextBlock
             {
                 Text = "Where the prompt panel (input box and usage bars) is docked relative to the terminal.",
                 FontSize = 11,
@@ -204,27 +260,29 @@ namespace ClaudeCodeVS
                 origVertical && !origInvertLayout, themeFg, "promptPosition");
             var rightRadio = MakeRadioButton("Right — terminal on the left, prompt on the right",
                 origVertical && origInvertLayout, themeFg, "promptPosition");
-            stack.Children.Add(topRadio);
-            stack.Children.Add(bottomRadio);
-            stack.Children.Add(leftRadio);
-            stack.Children.Add(rightRadio);
+            layoutStack.Children.Add(topRadio);
+            layoutStack.Children.Add(bottomRadio);
+            layoutStack.Children.Add(leftRadio);
+            layoutStack.Children.Add(rightRadio);
 
+            layoutStack.Children.Add(MakeSectionHeader("Terminal zoom", themeFg));
             var disableAutoZoomCheck = MakeCheckBox(
                 "Disable Auto Zoom on Startup",
                 "Skip the automatic terminal zoom-out and saved zoom-delta replay performed after each terminal start. Manual Ctrl+Scroll zoom still works.",
                 origDisableAutoZoom, themeFg);
-            stack.Children.Add(disableAutoZoomCheck);
+            layoutStack.Children.Add(disableAutoZoomCheck);
 
-            // ---- Terminal Type section ----
-            stack.Children.Add(MakeSectionHeader("Terminal Type", themeFg));
+            // ========================= Terminal tab =========================
+            var terminalStack = AddTab("Terminal");
 
+            terminalStack.Children.Add(MakeSectionHeader("Terminal type", themeFg));
             var cmdRadio = MakeRadioButton("Command Prompt (default)",
                 origTerminalType == TerminalType.CommandPrompt, themeFg, "terminalType");
             var wtRadio = MakeRadioButton("Windows Terminal (better emoji/unicode support)",
                 origTerminalType == TerminalType.WindowsTerminal, themeFg, "terminalType");
-            stack.Children.Add(cmdRadio);
-            stack.Children.Add(wtRadio);
-            stack.Children.Add(new TextBlock
+            terminalStack.Children.Add(cmdRadio);
+            terminalStack.Children.Add(wtRadio);
+            terminalStack.Children.Add(new TextBlock
             {
                 Text = "Note: Windows Terminal must be installed (winget install Microsoft.WindowsTerminal).",
                 FontSize = 11,
@@ -237,7 +295,7 @@ namespace ClaudeCodeVS
             // "Disable clipboard" relies on simulated keystrokes that only conhost (Command Prompt)
             // accepts, so the toggle is enabled only while Command Prompt is selected. Keep it in sync
             // with the terminal-type radios live, and uncheck it when switching to Windows Terminal so
-            // an unavailable setting can't be saved as enabled.
+            // an unavailable setting can't be saved as enabled. (The checkbox lives on the Behavior tab.)
             void SyncDisableClipboardAvailability()
             {
                 bool cmdSelected = cmdRadio.IsChecked == true;
@@ -253,65 +311,159 @@ namespace ClaudeCodeVS
             wtRadio.Checked += (s, e) => SyncDisableClipboardAvailability();
             SyncDisableClipboardAvailability();
 
-            // ---- Theme section ----
-            stack.Children.Add(MakeSectionHeader("Theme", themeFg));
+            // ========================= Theme tab =========================
+            var themeStack = AddTab("Theme");
 
+            themeStack.Children.Add(MakeSectionHeader("Theme", themeFg));
             var autoRadio = MakeRadioButton("Automatic (follow Visual Studio theme)",
                 origThemePref == ThemePreference.Automatic, themeFg, "themePref");
             var darkRadio = MakeRadioButton("Dark",
                 origThemePref == ThemePreference.Dark, themeFg, "themePref");
             var lightRadio = MakeRadioButton("Light",
                 origThemePref == ThemePreference.Light, themeFg, "themePref");
-            stack.Children.Add(autoRadio);
-            stack.Children.Add(darkRadio);
-            stack.Children.Add(lightRadio);
+            themeStack.Children.Add(autoRadio);
+            themeStack.Children.Add(darkRadio);
+            themeStack.Children.Add(lightRadio);
 
             var skipPromptCheck = MakeCheckBox(
                 "Don't ask to restart the AI agent when the theme changes",
                 "Suppresses the \"Theme changed. Restart the AI code agent?\" pop-up. Useful when Visual Studio automatically switches themes (for example, the debugging theme triggered by F5).",
                 origSkipThemePrompt, themeFg);
-            skipPromptCheck.Margin = new Thickness(20, 6, 0, 0);
-            stack.Children.Add(skipPromptCheck);
+            skipPromptCheck.Margin = new Thickness(4, 10, 0, 0);
+            themeStack.Children.Add(skipPromptCheck);
+
+            // ========================= Usage tab =========================
+            var usageStack = AddTab("Usage");
+
+            usageStack.Children.Add(MakeSectionHeader("Usage bars", themeFg));
+            var showBarsCheck = MakeCheckBox(
+                "Show inline usage bars",
+                "Show the mini session/weekly usage bars in the prompt panel. Only applies when a Claude Code provider is active.",
+                origShowInlineBars, themeFg);
+            usageStack.Children.Add(showBarsCheck);
+
+            usageStack.Children.Add(MakeSectionHeader("Auto-refresh", themeFg));
+            usageStack.Children.Add(new TextBlock
+            {
+                Text = "How often to refresh usage data in the background. \"Off\" refreshes only when the usage window is open or refreshed manually.",
+                FontSize = 11,
+                Opacity = 0.7,
+                Foreground = themeFg,
+                TextWrapping = TextWrapping.Wrap,
+                Margin = new Thickness(4, 0, 0, 4)
+            });
+            var autoRefreshCombo = MakeThemedComboBox(comboRes, themeFg);
+            autoRefreshCombo.Width = 110;
+            autoRefreshCombo.HorizontalAlignment = HorizontalAlignment.Left;
+            autoRefreshCombo.Margin = new Thickness(4, 0, 0, 4);
+            (string, int)[] refreshOpts = { ("Off", 0), ("30 sec", 30), ("1 min", 60), ("2 min", 120) };
+            foreach (var (label, secs) in refreshOpts)
+            {
+                var item = new ComboBoxItem { Content = label, Tag = secs };
+                if (comboRes["cbi"] is Style cbiStyle) item.Style = cbiStyle;
+                if (secs == origAutoRefresh) item.IsSelected = true;
+                autoRefreshCombo.Items.Add(item);
+            }
+            if (autoRefreshCombo.SelectedItem == null && autoRefreshCombo.Items.Count > 0)
+                autoRefreshCombo.SelectedIndex = 0;
+            usageStack.Children.Add(autoRefreshCombo);
 
             // ---- Button row ----
-            var buttonPanel = new StackPanel
-            {
-                Orientation = Orientation.Horizontal,
-                HorizontalAlignment = HorizontalAlignment.Right,
-                Margin = new Thickness(0, 14, 0, 0)
-            };
+            var buttonPanel = new Grid { Margin = new Thickness(0, 14, 0, 0) };
+            buttonPanel.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+            buttonPanel.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+            buttonPanel.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
             Grid.SetRow(buttonPanel, 1);
 
             Style buttonStyle = GetDialogButtonStyle();
 
+            var resetButton = new Button
+            {
+                Content = "Reset to Defaults",
+                Height = 32,
+                MinWidth = 140,
+                Padding = new Thickness(18, 0, 18, 0),
+                HorizontalAlignment = HorizontalAlignment.Left
+            };
+            Grid.SetColumn(resetButton, 0);
+
+            var okCancelPanel = new StackPanel
+            {
+                Orientation = Orientation.Horizontal,
+                HorizontalAlignment = HorizontalAlignment.Right
+            };
+            Grid.SetColumn(okCancelPanel, 2);
+
             var okButton = new Button
             {
                 Content = "OK",
-                Width = 80,
-                Height = 28,
+                Width = 90,
+                Height = 32,
                 Margin = new Thickness(0, 0, 8, 0),
                 IsDefault = true
             };
             var cancelButton = new Button
             {
                 Content = "Cancel",
-                Width = 80,
-                Height = 28,
+                Width = 90,
+                Height = 32,
                 IsCancel = true
             };
             if (buttonStyle != null)
             {
                 okButton.Style = buttonStyle;
                 cancelButton.Style = buttonStyle;
+                resetButton.Style = buttonStyle;
             }
             else
             {
                 okButton.Background = themeBg; okButton.Foreground = themeFg; okButton.BorderBrush = themeFg;
                 cancelButton.Background = themeBg; cancelButton.Foreground = themeFg; cancelButton.BorderBrush = themeFg;
+                resetButton.Background = themeBg; resetButton.Foreground = themeFg; resetButton.BorderBrush = themeFg;
             }
             okButton.Click += (s, ea) => dialog.DialogResult = true;
-            buttonPanel.Children.Add(okButton);
-            buttonPanel.Children.Add(cancelButton);
+
+            // Reset to Defaults: restore every control on this dialog to its default value.
+            // Nothing is persisted until the user confirms with OK.
+            void SelectComboByTag(ComboBox combo, int tagValue)
+            {
+                foreach (var obj in combo.Items)
+                {
+                    if (obj is ComboBoxItem ci && ci.Tag is int t && t == tagValue)
+                    {
+                        ci.IsSelected = true;
+                        return;
+                    }
+                }
+            }
+            resetButton.Click += (s, ea) =>
+            {
+                if (MessageBox.Show(
+                        "Reset all settings shown here to their defaults?",
+                        "Reset to Defaults",
+                        MessageBoxButton.YesNo,
+                        MessageBoxImage.Question) != MessageBoxResult.Yes)
+                    return;
+
+                sendEnterRadio.IsChecked = true;          // Send with Enter
+                largeAsFileCheck.IsChecked = false;
+                disableClipboardCheck.IsChecked = false;
+                autoOpenCheck.IsChecked = false;
+                disableBringToFrontCheck.IsChecked = false;
+                SelectComboByTag(fontSizeCombo, 12);
+                topRadio.IsChecked = true;                // Top layout
+                disableAutoZoomCheck.IsChecked = false;
+                cmdRadio.IsChecked = true;                // Command Prompt
+                autoRadio.IsChecked = true;               // Automatic theme
+                skipPromptCheck.IsChecked = false;
+                showBarsCheck.IsChecked = true;
+                SelectComboByTag(autoRefreshCombo, 0);    // Off
+            };
+
+            okCancelPanel.Children.Add(okButton);
+            okCancelPanel.Children.Add(cancelButton);
+            buttonPanel.Children.Add(resetButton);
+            buttonPanel.Children.Add(okCancelPanel);
             rootGrid.Children.Add(buttonPanel);
 
             dialog.Content = rootGrid;
@@ -323,11 +475,13 @@ namespace ClaudeCodeVS
             }
 
             // ---- Collect new values ----
-            bool newSendWithEnter   = sendEnterCheck.IsChecked == true;
+            bool newSendWithEnter     = sendEnterRadio.IsChecked == true;
+            bool newSendWithCtrlEnter = sendCtrlEnterRadio.IsChecked == true;
             bool newSendLargeAsFile = largeAsFileCheck.IsChecked == true;
             bool newDisableClipboardSend = disableClipboardCheck.IsChecked == true;
             bool newAutoOpenChanges = autoOpenCheck.IsChecked == true;
             bool newDisableBringToFront = disableBringToFrontCheck.IsChecked == true;
+            int newFontSize = (fontSizeCombo.SelectedItem as ComboBoxItem)?.Tag is int fs ? fs : origFontSize;
             // Map the selected position back to orientation + invert.
             bool newVertical = leftRadio.IsChecked == true || rightRadio.IsChecked == true;
             bool newInvertLayout = bottomRadio.IsChecked == true || rightRadio.IsChecked == true;
@@ -343,6 +497,8 @@ namespace ClaudeCodeVS
                 lightRadio.IsChecked == true ? ThemePreference.Light :
                                                ThemePreference.Automatic;
             bool newSkipThemePrompt = skipPromptCheck.IsChecked == true;
+            bool newShowInlineBars = showBarsCheck.IsChecked == true;
+            int newAutoRefresh = (autoRefreshCombo.SelectedItem as ComboBoxItem)?.Tag is int ar ? ar : origAutoRefresh;
 
             // ---- Validate Windows Terminal availability before persisting ----
             if (newTerminalType == TerminalType.WindowsTerminal &&
@@ -367,6 +523,7 @@ namespace ClaudeCodeVS
 
             // ---- Apply settings ----
             _settings.SendWithEnter           = newSendWithEnter;
+            _settings.SendWithCtrlEnter       = newSendWithCtrlEnter;
             _settings.SendLargePromptsAsFile  = newSendLargeAsFile;
             _settings.DisableClipboardSend    = newDisableClipboardSend;
             _settings.AutoOpenChangesOnPrompt = newAutoOpenChanges;
@@ -377,6 +534,9 @@ namespace ClaudeCodeVS
             _settings.SelectedTerminalType    = newTerminalType;
             _settings.SelectedThemePreference = newThemePref;
             _settings.SkipThemeRestartPrompt  = newSkipThemePrompt;
+            _settings.ShowInlineUsageBars     = newShowInlineBars;
+            _settings.UsageAutoRefreshSeconds = newAutoRefresh;
+            _settings.PromptFontSize          = newFontSize;
 
             // On Agent Finish is configured in its own dialog (opened by the button above),
             // which persists its own changes; nothing to apply here.
@@ -385,6 +545,9 @@ namespace ClaudeCodeVS
             SendPromptButton.Visibility = _settings.SendWithEnter
                 ? Visibility.Collapsed
                 : Visibility.Visible;
+
+            // Apply prompt font size immediately
+            if (PromptTextBox != null) PromptTextBox.FontSize = newFontSize;
 
             // Layout change (position and/or orientation)
             if (newInvertLayout != origInvertLayout || newOrientation != origOrientation)
@@ -398,6 +561,22 @@ namespace ClaudeCodeVS
             {
                 UpdateTerminalTheme();
                 UpdateInlineUsageBarColors();
+            }
+
+            // Usage settings change: refresh inline bars visibility and auto-refresh cadence
+            if (newShowInlineBars != origShowInlineBars || newAutoRefresh != origAutoRefresh)
+            {
+                try
+                {
+                    UpdateInlineUsagePanelVisibility();
+                    if (_usageToolWindow?.IsWindowVisible != true)
+                        StartUsageBackgroundRefreshTimer();
+                    _usageToolWindow?.UsageControl?.ApplyAutoRefreshSeconds(newAutoRefresh);
+                }
+                catch (Exception ex)
+                {
+                    Debug.WriteLine($"Error applying usage settings change: {ex.Message}");
+                }
             }
 
             SaveSettings();
@@ -576,6 +755,89 @@ namespace ClaudeCodeVS
                 </ScrollViewer>
               </Border>
             </Popup>
+          </Grid>
+        </ControlTemplate>
+      </Setter.Value>
+    </Setter>
+  </Style>
+</ResourceDictionary>";
+
+        /// <summary>
+        /// Creates a ComboBox pre-wired with the flat themed templates from
+        /// <see cref="BuildThemedComboResources"/>. Items still need the "cbi" style applied
+        /// individually (the host code does this when adding ComboBoxItems).
+        /// </summary>
+        private ComboBox MakeThemedComboBox(ResourceDictionary comboRes, Brush fg)
+        {
+            var cb = new ComboBox { Foreground = fg, Height = 26 };
+            if (comboRes?["cb"] is Style cbStyle) cb.Style = cbStyle;
+            return cb;
+        }
+
+        /// <summary>
+        /// Parses flat TabControl + TabItem templates with the VS theme colors injected,
+        /// returning a dictionary with the "tabControl" and "tabItem" styles. A standalone
+        /// dialog doesn't inherit VS's themed tab styling and the default templates paint
+        /// their own system selection/hover, so we replace the templates outright. The selected
+        /// tab blends into the content area (same background) while unselected tabs use a derived
+        /// shade (via <see cref="ComputeAtHoverBrush"/>) so they stay readable in dark and light themes.
+        /// </summary>
+        private ResourceDictionary BuildThemedTabResources(Brush bg, Brush fg)
+        {
+            string bgHex = ((bg as SolidColorBrush)?.Color ?? Colors.Black).ToString();
+            string fgHex = ((fg as SolidColorBrush)?.Color ?? Colors.White).ToString();
+            string shadeHex = ((ComputeAtHoverBrush(bg) as SolidColorBrush)?.Color ?? Colors.Gray).ToString();
+
+            string xaml = TabControlTemplateXaml
+                .Replace("__BG__", bgHex)
+                .Replace("__FG__", fgHex)
+                .Replace("__SHADE__", shadeHex)
+                .Replace("__BORDER__", shadeHex);
+
+            return (ResourceDictionary)System.Windows.Markup.XamlReader.Parse(xaml);
+        }
+
+        // Flat TabControl / TabItem templates. Single-quoted attributes so the whole thing can
+        // live in a verbatim C# string without escaping. Color tokens are substituted at runtime.
+        private const string TabControlTemplateXaml = @"
+<ResourceDictionary xmlns='http://schemas.microsoft.com/winfx/2006/xaml/presentation'
+                    xmlns:x='http://schemas.microsoft.com/winfx/2006/xaml'>
+  <Style x:Key='tabItem' TargetType='TabItem'>
+    <Setter Property='Foreground' Value='__FG__'/>
+    <Setter Property='Template'>
+      <Setter.Value>
+        <ControlTemplate TargetType='TabItem'>
+          <Border x:Name='bd' Background='__SHADE__' BorderBrush='__BORDER__'
+                  BorderThickness='1,1,1,0' Margin='0,0,3,0' Padding='12,6' SnapsToDevicePixels='True'>
+            <ContentPresenter ContentSource='Header' TextElement.Foreground='__FG__'
+                              HorizontalAlignment='Center' VerticalAlignment='Center'/>
+          </Border>
+          <ControlTemplate.Triggers>
+            <Trigger Property='IsMouseOver' Value='True'>
+              <Setter TargetName='bd' Property='Background' Value='__BG__'/>
+            </Trigger>
+            <Trigger Property='IsSelected' Value='True'>
+              <Setter TargetName='bd' Property='Background' Value='__BG__'/>
+            </Trigger>
+          </ControlTemplate.Triggers>
+        </ControlTemplate>
+      </Setter.Value>
+    </Setter>
+  </Style>
+  <Style x:Key='tabControl' TargetType='TabControl'>
+    <Setter Property='ItemContainerStyle' Value='{StaticResource tabItem}'/>
+    <Setter Property='Template'>
+      <Setter.Value>
+        <ControlTemplate TargetType='TabControl'>
+          <Grid>
+            <Grid.RowDefinitions>
+              <RowDefinition Height='Auto'/>
+              <RowDefinition Height='*'/>
+            </Grid.RowDefinitions>
+            <TabPanel Grid.Row='0' IsItemsHost='True' Panel.ZIndex='1' Margin='0,0,0,-1'/>
+            <Border Grid.Row='1' Background='__BG__' BorderBrush='__BORDER__' BorderThickness='1' SnapsToDevicePixels='True'>
+              <ContentPresenter ContentSource='SelectedContent'/>
+            </Border>
           </Grid>
         </ControlTemplate>
       </Setter.Value>
