@@ -100,6 +100,9 @@ This binds a Claude Code skill that shells out to OpenAI Codex to audit pending 
 
 ## Version History
 
+### Version 10.82
+- New opt-in setting to prevent clicking the embedded terminal from bringing the entire Visual Studio window to the foreground. Useful when overlapping multiple VS instances and you want to interact with the terminal without rearranging your layout. Enable via Settings → "Don’t bring Visual Studio to the foreground on terminal click".
+
 ### Version 10.81
 - The prompt panel can now be docked on the left or right (a side-by-side split) in addition to the top or bottom. Pick the position under Settings → Layout.
 

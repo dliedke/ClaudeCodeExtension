@@ -2101,7 +2101,10 @@ namespace ClaudeCodeVS
                 return;
             }
 
-            BringVisualStudioToForegroundIfNeeded();
+            if (_settings == null || !_settings.DisableBringToForeground)
+            {
+                BringVisualStudioToForegroundIfNeeded();
+            }
             ActivateTerminalToolWindowIfNeeded();
         }
 

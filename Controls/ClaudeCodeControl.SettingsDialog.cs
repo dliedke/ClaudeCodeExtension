@@ -75,6 +75,7 @@ namespace ClaudeCodeVS
             TerminalType origTerminalType     = _settings.SelectedTerminalType;
             ThemePreference origThemePref     = _settings.SelectedThemePreference;
             bool origSkipThemePrompt          = _settings.SkipThemeRestartPrompt;
+            bool origDisableBringToFront    = _settings.DisableBringToForeground;
 
             var dialog = new Window
             {
@@ -145,6 +146,12 @@ namespace ClaudeCodeVS
                 "Automatically open the Changes view, expand files, and enable auto-scroll when a prompt is sent. Only applies when the project is in a git repository.",
                 origAutoOpenChanges, themeFg);
             stack.Children.Add(autoOpenCheck);
+
+            var disableBringToFrontCheck = MakeCheckBox(
+                "Don't bring Visual Studio to the foreground on terminal click",
+                "When enabled, clicking the embedded terminal no longer pulls the entire Visual Studio window to the front. Useful when you overlap multiple VS instances or other apps and want to interact with the terminal without rearranging your window layout.",
+                origDisableBringToFront, themeFg);
+            stack.Children.Add(disableBringToFrontCheck);
 
             // ---- On Agent Finish section ----
             stack.Children.Add(MakeSectionHeader("On Agent Finish", themeFg));
@@ -320,6 +327,7 @@ namespace ClaudeCodeVS
             bool newSendLargeAsFile = largeAsFileCheck.IsChecked == true;
             bool newDisableClipboardSend = disableClipboardCheck.IsChecked == true;
             bool newAutoOpenChanges = autoOpenCheck.IsChecked == true;
+            bool newDisableBringToFront = disableBringToFrontCheck.IsChecked == true;
             // Map the selected position back to orientation + invert.
             bool newVertical = leftRadio.IsChecked == true || rightRadio.IsChecked == true;
             bool newInvertLayout = bottomRadio.IsChecked == true || rightRadio.IsChecked == true;
@@ -362,6 +370,7 @@ namespace ClaudeCodeVS
             _settings.SendLargePromptsAsFile  = newSendLargeAsFile;
             _settings.DisableClipboardSend    = newDisableClipboardSend;
             _settings.AutoOpenChangesOnPrompt = newAutoOpenChanges;
+            _settings.DisableBringToForeground = newDisableBringToFront;
             _settings.InvertLayout            = newInvertLayout;
             _settings.SelectedLayoutOrientation = newOrientation;
             _settings.DisableStartupAutoZoom  = newDisableAutoZoom;
