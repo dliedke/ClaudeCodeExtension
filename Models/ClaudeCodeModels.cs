@@ -86,7 +86,13 @@ namespace ClaudeCodeVS
         /// <summary>
         /// Always use light theme regardless of VS IDE theme
         /// </summary>
-        Light
+        Light,
+
+        /// <summary>
+        /// Use a specific user-chosen background color regardless of VS IDE theme.
+        /// The color is stored in <see cref="ClaudeCodeSettings.CustomThemeColorArgb"/>.
+        /// </summary>
+        Custom
     }
     /// <summary>
     /// Terminal emulator type for the embedded terminal
@@ -441,6 +447,14 @@ namespace ClaudeCodeVS
         /// Automatic = follow VS IDE theme (default), Dark = always dark, Light = always light.
         /// </summary>
         public ThemePreference SelectedThemePreference { get; set; } = ThemePreference.Automatic;
+
+        /// <summary>
+        /// ARGB value of the background color used when
+        /// <see cref="SelectedThemePreference"/> is <see cref="ThemePreference.Custom"/>.
+        /// Defaults to #F4ECFF (a light lavender). Text color is derived
+        /// automatically from this color's brightness.
+        /// </summary>
+        public int CustomThemeColorArgb { get; set; } = unchecked((int)0xFFF4ECFF);
 
         /// <summary>
         /// ARGB value of the terminal panel color the AI agent was last

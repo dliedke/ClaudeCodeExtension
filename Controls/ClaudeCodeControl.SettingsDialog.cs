@@ -78,6 +78,7 @@ namespace ClaudeCodeVS
             bool origDisableAutoZoom          = _settings.DisableStartupAutoZoom;
             TerminalType origTerminalType     = _settings.SelectedTerminalType;
             ThemePreference origThemePref     = _settings.SelectedThemePreference;
+            int  origCustomColorArgb          = _settings.CustomThemeColorArgb;
             bool origSkipThemePrompt          = _settings.SkipThemeRestartPrompt;
             bool origDisableBringToFront      = _settings.DisableBringToForeground;
             bool origShowInlineBars           = _settings.ShowInlineUsageBars;
@@ -321,9 +322,99 @@ namespace ClaudeCodeVS
                 origThemePref == ThemePreference.Dark, themeFg, "themePref");
             var lightRadio = MakeRadioButton("Light",
                 origThemePref == ThemePreference.Light, themeFg, "themePref");
+            var customRadio = MakeRadioButton("Custom background color",
+                origThemePref == ThemePreference.Custom, themeFg, "themePref");
             themeStack.Children.Add(autoRadio);
             themeStack.Children.Add(darkRadio);
             themeStack.Children.Add(lightRadio);
+            themeStack.Children.Add(customRadio);
+
+            // Custom color row: hex text box + live swatch + "Pick..." button.
+            // Initialized from the saved custom color (#RRGGBB).
+            int initialCustomArgb = origCustomColorArgb == 0 ? unchecked((int)0xFFF4ECFF) : origCustomColorArgb;
+            var initialCustom = System.Drawing.Color.FromArgb(initialCustomArgb);
+
+            var customRow = new StackPanel
+            {
+                Orientation = Orientation.Horizontal,
+                Margin = new Thickness(24, 2, 0, 4)
+            };
+
+            var swatch = new Border
+            {
+                Width = 26,
+                Height = 22,
+                BorderThickness = new Thickness(1),
+                BorderBrush = themeFg,
+                Background = new SolidColorBrush(Color.FromRgb(initialCustom.R, initialCustom.G, initialCustom.B)),
+                VerticalAlignment = VerticalAlignment.Center,
+                Margin = new Thickness(0, 0, 8, 0)
+            };
+
+            var hexBox = new TextBox
+            {
+                Text = $"#{initialCustom.R:X2}{initialCustom.G:X2}{initialCustom.B:X2}",
+                Width = 90,
+                Height = 24,
+                VerticalContentAlignment = VerticalAlignment.Center,
+                Background = themeBg,
+                Foreground = themeFg,
+                BorderBrush = themeFg,
+                VerticalAlignment = VerticalAlignment.Center
+            };
+
+            var pickButton = new Button
+            {
+                Content = "Pick...",
+                Height = 24,
+                MinWidth = 64,
+                Margin = new Thickness(8, 0, 0, 0),
+                Padding = new Thickness(10, 0, 10, 0)
+            };
+            if (GetDialogButtonStyle() is Style pbStyle) pickButton.Style = pbStyle;
+
+            // Try to parse the hex box (#RGB or #RRGGBB). Returns null when invalid.
+            System.Drawing.Color? ParseHex(string s)
+            {
+                if (string.IsNullOrWhiteSpace(s)) return null;
+                s = s.Trim().TrimStart('#');
+                if (s.Length == 3)
+                    s = $"{s[0]}{s[0]}{s[1]}{s[1]}{s[2]}{s[2]}";
+                if (s.Length != 6) return null;
+                if (!int.TryParse(s, System.Globalization.NumberStyles.HexNumber, null, out int rgb))
+                    return null;
+                return System.Drawing.Color.FromArgb(255, (rgb >> 16) & 0xFF, (rgb >> 8) & 0xFF, rgb & 0xFF);
+            }
+
+            void UpdateSwatchFromHex()
+            {
+                var c = ParseHex(hexBox.Text);
+                if (c.HasValue)
+                    swatch.Background = new SolidColorBrush(Color.FromRgb(c.Value.R, c.Value.G, c.Value.B));
+            }
+            hexBox.TextChanged += (s, ea) => UpdateSwatchFromHex();
+
+            pickButton.Click += (s, ea) =>
+            {
+                var current = ParseHex(hexBox.Text) ?? initialCustom;
+                using (var cd = new System.Windows.Forms.ColorDialog
+                {
+                    FullOpen = true,
+                    Color = current
+                })
+                {
+                    if (cd.ShowDialog() == System.Windows.Forms.DialogResult.OK)
+                    {
+                        hexBox.Text = $"#{cd.Color.R:X2}{cd.Color.G:X2}{cd.Color.B:X2}";
+                        customRadio.IsChecked = true;
+                    }
+                }
+            };
+
+            customRow.Children.Add(swatch);
+            customRow.Children.Add(hexBox);
+            customRow.Children.Add(pickButton);
+            themeStack.Children.Add(customRow);
 
             var skipPromptCheck = MakeCheckBox(
                 "Don't ask to restart the AI agent when the theme changes",
@@ -455,6 +546,7 @@ namespace ClaudeCodeVS
                 disableAutoZoomCheck.IsChecked = false;
                 cmdRadio.IsChecked = true;                // Command Prompt
                 autoRadio.IsChecked = true;               // Automatic theme
+                hexBox.Text = "#F4ECFF";                  // default custom color
                 skipPromptCheck.IsChecked = false;
                 showBarsCheck.IsChecked = true;
                 SelectComboByTag(autoRefreshCombo, 0);    // Off
@@ -493,9 +585,28 @@ namespace ClaudeCodeVS
                 ? TerminalType.WindowsTerminal
                 : TerminalType.CommandPrompt;
             ThemePreference newThemePref =
-                darkRadio.IsChecked  == true ? ThemePreference.Dark  :
-                lightRadio.IsChecked == true ? ThemePreference.Light :
-                                               ThemePreference.Automatic;
+                darkRadio.IsChecked   == true ? ThemePreference.Dark   :
+                lightRadio.IsChecked  == true ? ThemePreference.Light  :
+                customRadio.IsChecked == true ? ThemePreference.Custom :
+                                                ThemePreference.Automatic;
+
+            // Parse the custom hex; fall back to the original color if invalid.
+            int newCustomColorArgb = origCustomColorArgb == 0 ? unchecked((int)0xFFF4ECFF) : origCustomColorArgb;
+            {
+                var parsed = ParseHex(hexBox.Text);
+                if (parsed.HasValue)
+                    newCustomColorArgb = parsed.Value.ToArgb();
+                else if (newThemePref == ThemePreference.Custom)
+                {
+                    await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
+                    MessageBox.Show(
+                        "The custom background color is not a valid hex value (use #RRGGBB, e.g. #F4ECFF).\n\n" +
+                        "Keeping the previous color.",
+                        "Invalid Color",
+                        MessageBoxButton.OK,
+                        MessageBoxImage.Information);
+                }
+            }
             bool newSkipThemePrompt = skipPromptCheck.IsChecked == true;
             bool newShowInlineBars = showBarsCheck.IsChecked == true;
             int newAutoRefresh = (autoRefreshCombo.SelectedItem as ComboBoxItem)?.Tag is int ar ? ar : origAutoRefresh;
@@ -533,6 +644,7 @@ namespace ClaudeCodeVS
             _settings.DisableStartupAutoZoom  = newDisableAutoZoom;
             _settings.SelectedTerminalType    = newTerminalType;
             _settings.SelectedThemePreference = newThemePref;
+            _settings.CustomThemeColorArgb    = newCustomColorArgb;
             _settings.SkipThemeRestartPrompt  = newSkipThemePrompt;
             _settings.ShowInlineUsageBars     = newShowInlineBars;
             _settings.UsageAutoRefreshSeconds = newAutoRefresh;
@@ -555,8 +667,10 @@ namespace ClaudeCodeVS
                 ApplyLayoutSettingsChange();
             }
 
-            // Theme change: re-paint panel and inline bars immediately
-            bool themeChanged = newThemePref != origThemePref;
+            // Theme change: re-paint panel and inline bars immediately.
+            // A custom-color edit (same Custom preference, different color) also counts.
+            bool themeChanged = newThemePref != origThemePref
+                || (newThemePref == ThemePreference.Custom && newCustomColorArgb != origCustomColorArgb);
             if (themeChanged)
             {
                 UpdateTerminalTheme();

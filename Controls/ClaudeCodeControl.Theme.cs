@@ -241,6 +241,8 @@ namespace ClaudeCodeVS
                         return System.Drawing.Color.FromArgb(255, 30, 30, 30);
                     if (_settings.SelectedThemePreference == ThemePreference.Light)
                         return System.Drawing.Color.FromArgb(255, 246, 246, 246);
+                    if (_settings.SelectedThemePreference == ThemePreference.Custom)
+                        return GetCustomThemeColor();
                 }
 
                 // Get the VS theme color for window background
@@ -255,6 +257,29 @@ namespace ClaudeCodeVS
                 // Fallback to black if theme color cannot be retrieved
                 return System.Drawing.Color.Black;
             }
+        }
+
+        /// <summary>
+        /// Returns the user-chosen custom background color from settings,
+        /// falling back to the default lavender when unset.
+        /// </summary>
+        private System.Drawing.Color GetCustomThemeColor()
+        {
+            int argb = _settings?.CustomThemeColorArgb ?? unchecked((int)0xFFF4ECFF);
+            if (argb == 0)
+                argb = unchecked((int)0xFFF4ECFF);
+            var c = System.Drawing.Color.FromArgb(argb);
+            // Force fully opaque so the panel/terminal paint solidly.
+            return System.Drawing.Color.FromArgb(255, c.R, c.G, c.B);
+        }
+
+        /// <summary>
+        /// Perceived brightness (0-255) used to pick black vs white foreground
+        /// text against a background color.
+        /// </summary>
+        private static int Brightness(System.Drawing.Color c)
+        {
+            return (c.R * 299 + c.G * 587 + c.B * 114) / 1000;
         }
 
         /// <summary>
@@ -352,7 +377,32 @@ namespace ClaudeCodeVS
                 SolidColorBrush windowBg, windowFg, toolBg, toolFg, toolBorder;
                 SolidColorBrush hoverBg, selectedBg, selectedBorder, grayText;
 
-                if (pref == ThemePreference.Dark)
+                if (pref == ThemePreference.Custom)
+                {
+                    var cc = GetCustomThemeColor();
+                    var bg = Color.FromRgb(cc.R, cc.G, cc.B);
+                    bool lightBg = Brightness(cc) > 150;
+                    var fg = lightBg ? Color.FromRgb(30, 30, 30) : Color.FromRgb(241, 241, 241);
+                    // Derive border/hover/gray shades from the background so they
+                    // stay legible regardless of the chosen color.
+                    var hover = lightBg
+                        ? Color.FromRgb((byte)Math.Max(0, cc.R - 24), (byte)Math.Max(0, cc.G - 24), (byte)Math.Max(0, cc.B - 24))
+                        : Color.FromRgb((byte)Math.Min(255, cc.R + 28), (byte)Math.Min(255, cc.G + 28), (byte)Math.Min(255, cc.B + 28));
+                    var border = lightBg
+                        ? Color.FromRgb((byte)Math.Max(0, cc.R - 48), (byte)Math.Max(0, cc.G - 48), (byte)Math.Max(0, cc.B - 48))
+                        : Color.FromRgb((byte)Math.Min(255, cc.R + 48), (byte)Math.Min(255, cc.G + 48), (byte)Math.Min(255, cc.B + 48));
+
+                    windowBg       = new SolidColorBrush(bg);
+                    windowFg       = new SolidColorBrush(fg);
+                    toolBg         = new SolidColorBrush(bg);
+                    toolFg         = new SolidColorBrush(fg);
+                    toolBorder     = new SolidColorBrush(border);
+                    hoverBg        = new SolidColorBrush(hover);
+                    selectedBg     = new SolidColorBrush(hover);
+                    selectedBorder = new SolidColorBrush(Color.FromRgb(0, 122, 204));
+                    grayText       = new SolidColorBrush(lightBg ? Color.FromRgb(110, 110, 110) : Color.FromRgb(170, 170, 170));
+                }
+                else if (pref == ThemePreference.Dark)
                 {
                     // VS Dark theme palette
                     windowBg       = new SolidColorBrush(Color.FromRgb(30, 30, 30));    // #1E1E1E

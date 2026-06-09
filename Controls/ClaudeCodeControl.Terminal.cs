@@ -1432,8 +1432,20 @@ namespace ClaudeCodeVS
         {
             try
             {
-                bool isLightTheme = IsVsInLightTheme();
-                Debug.WriteLine($"SaveAndSetConsoleColorsRegistry - isLightTheme: {isLightTheme}");
+                // Custom theme: paint the console background with the user-chosen
+                // color (bg = ColorTable00, fg = ColorTable07 black/white by brightness).
+                bool isCustom = _settings?.SelectedThemePreference == ThemePreference.Custom;
+                System.Drawing.Color customColor = isCustom ? GetCustomThemeColor() : System.Drawing.Color.Black;
+                bool customIsLight = isCustom && Brightness(customColor) > 150;
+                // Console color tables store BGR (0x00BBGGRR).
+                uint customBgr = (uint)((customColor.B << 16) | (customColor.G << 8) | customColor.R);
+
+                bool isLightTheme = isCustom ? customIsLight : IsVsInLightTheme();
+                Debug.WriteLine($"SaveAndSetConsoleColorsRegistry - isCustom: {isCustom}, isLightTheme: {isLightTheme}");
+
+                // For custom: bg index 0 (ColorTable00 = custom), fg index 7 (ColorTable07).
+                uint screenColors = isCustom ? 0x07U : (isLightTheme ? 0xF0U : 0x0FU);
+                uint popupColors = screenColors;
 
                 using (var key = Microsoft.Win32.Registry.CurrentUser.OpenSubKey("Console", writable: true))
                 {
@@ -1451,14 +1463,15 @@ namespace ClaudeCodeVS
                     _consoleColorsSaved = true;
                     Debug.WriteLine($"Saved original ScreenColors: {_savedConsoleScreenColors}");
 
-                    // Set colors based on theme
-                    uint screenColors = isLightTheme ? 0xF0U : 0x0FU;
-                    uint popupColors = isLightTheme ? 0xF0U : 0x0FU;
-
                     key.SetValue("ScreenColors", screenColors, Microsoft.Win32.RegistryValueKind.DWord);
                     key.SetValue("PopupColors", popupColors, Microsoft.Win32.RegistryValueKind.DWord);
 
-                    if (isLightTheme)
+                    if (isCustom)
+                    {
+                        key.SetValue("ColorTable00", customBgr, Microsoft.Win32.RegistryValueKind.DWord); // custom background
+                        key.SetValue("ColorTable07", customIsLight ? 0x00000000U : 0x00FFFFFFU, Microsoft.Win32.RegistryValueKind.DWord); // black/white text
+                    }
+                    else if (isLightTheme)
                     {
                         // Set explicit RGB values for color table entries
                         key.SetValue("ColorTable00", 0x00000000U, Microsoft.Win32.RegistryValueKind.DWord); // Black
@@ -1473,10 +1486,13 @@ namespace ClaudeCodeVS
                 {
                     if (conhostKey != null)
                     {
-                        uint screenColors = isLightTheme ? 0xF0U : 0x0FU;
-                        uint popupColors = isLightTheme ? 0xF0U : 0x0FU;
                         conhostKey.SetValue("ScreenColors", screenColors, Microsoft.Win32.RegistryValueKind.DWord);
                         conhostKey.SetValue("PopupColors", popupColors, Microsoft.Win32.RegistryValueKind.DWord);
+                        if (isCustom)
+                        {
+                            conhostKey.SetValue("ColorTable00", customBgr, Microsoft.Win32.RegistryValueKind.DWord);
+                            conhostKey.SetValue("ColorTable07", customIsLight ? 0x00000000U : 0x00FFFFFFU, Microsoft.Win32.RegistryValueKind.DWord);
+                        }
                         Debug.WriteLine($"Set conhost ScreenColors to: {screenColors:X}");
                     }
                 }
@@ -1536,6 +1552,8 @@ namespace ClaudeCodeVS
                     {
                         conhostKey.DeleteValue("ScreenColors", throwOnMissingValue: false);
                         conhostKey.DeleteValue("PopupColors", throwOnMissingValue: false);
+                        conhostKey.DeleteValue("ColorTable00", throwOnMissingValue: false);
+                        conhostKey.DeleteValue("ColorTable07", throwOnMissingValue: false);
                     }
                 }
 
