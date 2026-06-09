@@ -590,6 +590,117 @@ namespace ClaudeCodeVS
         }
 
         /// <summary>
+        /// Live drag of the grip on the bottom edge of the prompt box. Grows or
+        /// shrinks the prompt area by moving the same prompt/terminal split the
+        /// main splitter controls — the controls/chips/usage rows below the box
+        /// are fixed height, so the top row tracks the box height 1:1. Only the
+        /// default top/bottom layout enables the grip (see
+        /// <see cref="SetPromptResizeGripVisible"/>).
+        /// </summary>
+        private void PromptResizeGrip_DragDelta(object sender, System.Windows.Controls.Primitives.DragDeltaEventArgs e)
+        {
+            try
+            {
+                if (LayoutGridIsVertical || _settings?.InvertLayout == true)
+                {
+                    return;
+                }
+
+                var grid = MainGrid;
+                if (grid == null || grid.RowDefinitions.Count < 3)
+                {
+                    return;
+                }
+
+                double current = grid.RowDefinitions[0].ActualHeight;
+                if (current <= 0)
+                {
+                    return;
+                }
+
+                double target = current + e.VerticalChange;
+
+                // The main split allows collapsing the prompt to 0 (to hide the
+                // panel), but the grip should never shrink the box below a usable
+                // size. Floor at the box's MinHeight plus the fixed controls/chips/
+                // usage rows below it (the part of the section that isn't the box).
+                double minTopRow = GetMinPromptTopRowHeight();
+                if (target < minTopRow)
+                {
+                    target = minTopRow;
+                }
+
+                SetSplitterPosition(target);
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"Error resizing prompt area via grip: {ex.Message}");
+            }
+        }
+
+        /// <summary>
+        /// Persists the prompt area size after a grip drag, reusing the same
+        /// deferred-save path as the main splitter.
+        /// </summary>
+        private void PromptResizeGrip_DragCompleted(object sender, System.Windows.Controls.Primitives.DragCompletedEventArgs e)
+        {
+            SaveSplitterPositionAfterLayout();
+        }
+
+        /// <summary>
+        /// Minimum height for the prompt section's top row when resized via the
+        /// grip: the box's MinHeight (so the input stays usable) plus the fixed
+        /// rows below it (controls, file chips, inline usage). Computed from live
+        /// sizes so it adapts when the usage bars or chips are shown/hidden.
+        /// </summary>
+        private double GetMinPromptTopRowHeight()
+        {
+            try
+            {
+                double sectionHeight = PromptSectionGrid?.ActualHeight ?? 0;
+                double boxHeight = PromptGroupBox?.ActualHeight ?? 0;
+
+                // Everything in the section that isn't the prompt box (these rows
+                // are Auto-sized, so their height is constant as the box resizes).
+                double fixedBelow = sectionHeight - boxHeight;
+                if (fixedBelow < 0)
+                {
+                    fixedBelow = 0;
+                }
+
+                double boxMin = 80;
+                if (PromptSectionGrid != null && PromptSectionGrid.RowDefinitions.Count > 0)
+                {
+                    double declared = PromptSectionGrid.RowDefinitions[0].MinHeight;
+                    if (declared > 0)
+                    {
+                        boxMin = declared;
+                    }
+                }
+
+                return fixedBelow + boxMin;
+            }
+            catch
+            {
+                return 80;
+            }
+        }
+
+        /// <summary>
+        /// Shows the prompt-box resize grip only in the default top/bottom layout,
+        /// where dragging the box edge meaningfully trades space with the terminal
+        /// below it. Hidden for inverted (prompt on bottom) and side-by-side
+        /// layouts, where the box edge isn't adjacent to the terminal boundary.
+        /// </summary>
+        private void SetPromptResizeGripVisible(bool visible)
+        {
+            if (PromptResizeGrip != null)
+            {
+                PromptResizeGrip.Visibility = visible ? Visibility.Visible : Visibility.Collapsed;
+            }
+        }
+
+        /// <summary>
         /// Handles control size changes to re-apply the top-row MaxHeight cap
         /// and re-clamp the splitter position. Prevents the top row from
         /// overflowing when the tool window is shrunk or its content is grown
@@ -733,6 +844,9 @@ namespace ClaudeCodeVS
                 // Hide terminal GroupBox header (redundant with tool window title)
                 ShowTerminalHeader(false);
 
+                // Box edge isn't adjacent to the terminal here — hide the grip
+                SetPromptResizeGripVisible(false);
+
                 // Buttons+chips near the splitter, prompt box below
                 ApplyPromptSectionInvertedOrder();
             }
@@ -746,6 +860,10 @@ namespace ClaudeCodeVS
                 TerminalGroupBox.Margin = new Thickness(6);
 
                 ShowTerminalHeader(true);
+
+                // Prompt box sits directly above the terminal — enable the grip
+                SetPromptResizeGripVisible(true);
+
                 ApplyPromptSectionDefaultOrder();
             }
         }
@@ -779,6 +897,9 @@ namespace ClaudeCodeVS
 
             // Side by side, the terminal header is not redundant — keep it visible.
             ShowTerminalHeader(true);
+
+            // Box edge isn't adjacent to the terminal boundary here — hide the grip
+            SetPromptResizeGripVisible(false);
 
             // Prompt box on top of its panel, controls below (the natural order).
             ApplyPromptSectionDefaultOrder();

@@ -6,7 +6,7 @@
 
 - **Author**: Daniel Carvalho Liedke (dliedke@gmail.com) | **License**: MIT
 - **Repository**: https://github.com/dliedke/ClaudeCodeExtension
-- **Current Version**: 10.85 | **Target Framework**: .NET Framework 4.7.2
+- **Current Version**: 10.86 | **Target Framework**: .NET Framework 4.7.2
 
 ---
 
@@ -218,6 +218,7 @@ WSL:     cmd.exe /k chcp 65001 >nul && cls && wsl bash -lic "cd {wslPath} && {co
 - **`_isInitializing` guard**: Prevents `SaveSettings()` during `LoadSettings()`
 - **`[JsonExtensionData]`**: Preserves unknown JSON properties across DLL versions
 - **Layout inversion**: `ApplyLayout()` swaps prompt and terminal grid rows. Outer `MainGrid` row `MinHeight`s are 0 in both orientations so the splitter can be dragged fully to the top or bottom to hide either panel. Inner `PromptSectionGrid` row 0 still uses MinHeight 80 to keep the prompt input usable when the prompt section itself has height. `ApplyLayout()` also hides/shows the terminal GroupBox header and reorders prompt section controls
+- **Prompt resize grip**: `PromptResizeGrip` (a `Thumb` overlaid on the bottom edge of `PromptGroupBox`) lets the user drag the prompt area taller/shorter directly. `PromptResizeGrip_DragDelta` drives the same `SetSplitterPosition()` as the main splitter (controls/chips/usage rows are fixed-height, so the top row tracks box height 1:1); `DragCompleted` persists via `SaveSplitterPositionAfterLayout()`. `SetPromptResizeGripVisible()` shows it only in the default top/bottom layout (hidden when inverted or side-by-side, where the box edge isn't adjacent to the terminal boundary)
 
 ### Workspace (Workspace.cs)
 

@@ -188,6 +188,30 @@
 				</TextBox>
 			</GroupBox>
 
+			<!-- Resize grip at the bottom edge of the prompt box. Lets the user
+			     drag the prompt area taller/shorter directly (drives the same
+			     prompt/terminal split as MainGridSplitter). Shown only in the
+			     default top/bottom layout; hidden in inverted/side-by-side. -->
+			<Thumb x:Name="PromptResizeGrip" Grid.Row="0"
+			       VerticalAlignment="Bottom" HorizontalAlignment="Stretch"
+			       Height="6" Margin="0,0,0,2"
+			       Cursor="SizeNS"
+			       Visibility="Collapsed"
+			       ToolTip="Drag to resize the prompt area"
+			       DragDelta="PromptResizeGrip_DragDelta"
+			       DragCompleted="PromptResizeGrip_DragCompleted">
+				<Thumb.Template>
+					<ControlTemplate TargetType="Thumb">
+						<Border Background="Transparent">
+							<Border Width="44" Height="3" CornerRadius="2"
+							        VerticalAlignment="Center" HorizontalAlignment="Center"
+							        Opacity="0.85"
+							        Background="{DynamicResource {x:Static vsshell:VsBrushes.ToolWindowBorderKey}}"/>
+						</Border>
+					</ControlTemplate>
+				</Thumb.Template>
+			</Thumb>
+
 			<!-- Controls row: [Send + Add Image] | [Restart (right-aligned)] -->
 			<Grid x:Name="ControlsRow" Grid.Row="1" Margin="0,4,0,0" VerticalAlignment="Top">
 				<Grid.ColumnDefinitions>

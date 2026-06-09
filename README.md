@@ -100,6 +100,9 @@ This binds a Claude Code skill that shells out to OpenAI Codex to audit pending 
 
 ## Version History
 
+### Version 10.86
+- The Prompt / Paste Image box now has a drag grip on its bottom edge so you can resize the prompt area directly without hunting for the splitter below the buttons. The grip keeps a minimum prompt size so the input stays usable.
+
 ### Version 10.85
 - New "Custom background color" theme option under Settings → Theme: pick any color with the color picker or type a hex value (e.g. #F4ECFF) to set the terminal panel and console background.
 
