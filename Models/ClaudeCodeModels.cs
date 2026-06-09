@@ -39,7 +39,8 @@ namespace ClaudeCodeVS
     {
         Opus,
         Sonnet,
-        Haiku
+        Haiku,
+        Fable // appended last to preserve integer values in serialized settings
     }
 
     /// <summary>

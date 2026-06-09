@@ -160,7 +160,7 @@ When you add or materially change behavior in one of these files, update its sec
 
 ```csharp
 enum AiProvider { ClaudeCode, ClaudeCodeWSL, Codex, CodexNative, CursorAgent, CursorAgentNative, OpenCode, Windsurf, Pi, Antigravity }
-enum ClaudeModel { Opus, Sonnet, Haiku }
+enum ClaudeModel { Opus, Sonnet, Haiku, Fable }
 enum WindsurfModel { ClaudeOpus, ClaudeSonnet, Codex, GeminiPro }
 enum EffortLevel { Auto, Low, Medium, High, Max }
 enum TerminalType { CommandPrompt, WindowsTerminal }

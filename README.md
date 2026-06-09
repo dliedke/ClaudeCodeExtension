@@ -80,7 +80,7 @@ Then choose it via *⚙ → Set Terminal Type...*.
 - Provider-specific flags: Claude *Skip Permissions*, Codex *Approval Never*, Cursor *Yolo Mode*, Windsurf *Dangerous Mode*, Antigravity *Skip Permissions*
 - Update Agent, Detach/Attach Terminal, About
 
-**🤖 Model menu** (Claude only): Opus / Sonnet / Haiku, effort level for Opus (Auto / Low / Medium / High / Max), Change Account, Install Caveman plugin.
+**🤖 Model menu** (Claude only): Fable / Opus / Sonnet / Haiku, effort level for Opus (Auto / Low / Medium / High / Max), Change Account, Install Caveman plugin.
 
 **Custom commands (⚡)**: Once you've added a command via *Configure Custom Commands...*, the ⚡ toolbar button appears. Clicking an entry sends the saved text verbatim to the active agent — useful for slash commands or canned prompts.
 
@@ -99,6 +99,9 @@ This binds a Claude Code skill that shells out to OpenAI Codex to audit pending 
 4. **Use it**: ⚡ → *Codex Review*. Claude runs the skill, Codex audits your diff, findings appear inline.
 
 ## Version History
+
+### Version 10.89
+- Added the new Fable model to the Claude model menu — select "Fable - Most powerful" to switch the running session to Claude's top-tier model.
 
 ### Version 10.88
 - Fixed the "Don't bring Visual Studio to the foreground on terminal click" setting: clicking the terminal no longer pulls the whole Visual Studio window forward when the option is enabled, so overlapping window layouts stay intact.

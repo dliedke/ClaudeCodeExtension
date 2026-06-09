@@ -1944,6 +1944,8 @@ For more details, visit: https://pi.dev";
         {
             switch (_settings?.SelectedClaudeModel)
             {
+                case ClaudeModel.Fable:
+                    return "Fable";
                 case ClaudeModel.Opus:
                     return "Opus";
                 case ClaudeModel.Haiku:
@@ -2391,6 +2393,7 @@ For more details, visit: https://pi.dev";
             bool isClaude = !isWindsurf;
 
             // Claude-specific items
+            FableMenuItem.Visibility = isClaude ? Visibility.Visible : Visibility.Collapsed;
             OpusMenuItem.Visibility = isClaude ? Visibility.Visible : Visibility.Collapsed;
             SonnetMenuItem.Visibility = isClaude ? Visibility.Visible : Visibility.Collapsed;
             HaikuMenuItem.Visibility = isClaude ? Visibility.Visible : Visibility.Collapsed;
@@ -2411,6 +2414,29 @@ For more details, visit: https://pi.dev";
             WindsurfClaudeSonnetMenuItem.Visibility = isWindsurf ? Visibility.Visible : Visibility.Collapsed;
             WindsurfCodexMenuItem.Visibility = isWindsurf ? Visibility.Visible : Visibility.Collapsed;
             WindsurfGeminiProMenuItem.Visibility = isWindsurf ? Visibility.Visible : Visibility.Collapsed;
+        }
+
+        /// <summary>
+        /// Handles Fable menu item click - switches to Fable model
+        /// </summary>
+#pragma warning disable VSTHRD100 // Avoid async void methods
+        private async void FableMenuItem_Click(object sender, RoutedEventArgs e)
+#pragma warning restore VSTHRD100
+        {
+            if (_settings == null) return;
+
+            await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
+
+            _settings.SelectedClaudeModel = ClaudeModel.Fable;
+            UpdateModelSelection();
+            SaveSettings();
+
+            // Send /model command directly without restarting terminal
+            if (_currentRunningProvider == AiProvider.ClaudeCode ||
+                _currentRunningProvider == AiProvider.ClaudeCodeWSL)
+            {
+                await SendTextToTerminalAsync("/model fable");
+            }
         }
 
         /// <summary>
@@ -2492,6 +2518,7 @@ For more details, visit: https://pi.dev";
             if (_settings == null) return;
 
             // Update Claude menu item checkmarks
+            FableMenuItem.IsChecked = _settings.SelectedClaudeModel == ClaudeModel.Fable;
             OpusMenuItem.IsChecked = _settings.SelectedClaudeModel == ClaudeModel.Opus;
             SonnetMenuItem.IsChecked = _settings.SelectedClaudeModel == ClaudeModel.Sonnet;
             HaikuMenuItem.IsChecked = _settings.SelectedClaudeModel == ClaudeModel.Haiku;
