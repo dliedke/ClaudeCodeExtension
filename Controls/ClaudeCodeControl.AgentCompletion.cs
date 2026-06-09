@@ -222,14 +222,16 @@ namespace ClaudeCodeVS
         }
 
         /// <summary>
-        /// Resets the completion watcher and clears any pending notification when the
-        /// solution changes. Stopping the watcher before the terminal restarts is important:
-        /// otherwise its 1-second console-attach tick can overlap the new terminal launch and
-        /// leave Visual Studio attached to the old console, which breaks the embedded cmd. Also
-        /// dismisses the agent-finish info bar so a stale "finished" notification from the
-        /// previous solution doesn't linger after switching.
+        /// Resets the completion watcher and clears any pending notification. Runs on solution
+        /// change and before every terminal start (restart button, provider/model switch, theme
+        /// restart, session resume). Stopping the watcher before the terminal restarts is
+        /// important: otherwise its 1-second console-attach tick can overlap the new terminal
+        /// launch and leave Visual Studio attached to the old console, which makes the new
+        /// conhost fail to create its window and renders the embedded terminal blank (issue #73).
+        /// Also dismisses the agent-finish info bar so a stale "finished" notification from the
+        /// previous session doesn't linger.
         /// </summary>
-        internal void ResetAgentCompletionForSolutionChange()
+        internal void ResetAgentCompletionWatcher()
         {
             ThreadHelper.ThrowIfNotOnUIThread();
             StopAgentCompletionTimer();

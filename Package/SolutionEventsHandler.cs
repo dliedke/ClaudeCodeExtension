@@ -121,7 +121,7 @@ namespace ClaudeCodeVS
             try
             {
                 ThreadHelper.ThrowIfNotOnUIThread();
-                _control?.ResetAgentCompletionForSolutionChange();
+                _control?.ResetAgentCompletionWatcher();
             }
             catch (Exception ex)
             {

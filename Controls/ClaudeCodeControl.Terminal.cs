@@ -834,6 +834,14 @@ namespace ClaudeCodeVS
 
                 _lastWorkspaceDirectory = workspaceDir;
 
+                // Stop the agent-finish watcher and clear any stale notification before tearing
+                // the old terminal down. Its 1-second console-attach tick can otherwise overlap
+                // the teardown/relaunch below and leave VS attached to the dying console — the
+                // new conhost then fails to create its window and the panel comes up blank
+                // (issue #73: "Restart code agent" showing nothing until VS is reopened).
+                await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
+                ResetAgentCompletionWatcher();
+
                 await StopExistingTerminalAsync();
 
                 // Defensively detach VS from any console the agent-finish watcher may have left
@@ -1130,8 +1138,18 @@ namespace ClaudeCodeVS
 
                     await Task.Run(() =>
                     {
+                        // Serialize the spawn against the agent-finish console capture and detach
+                        // VS from any console right before CreateProcess. A child spawned while VS
+                        // is attached to a console inherits it instead of creating its own window,
+                        // which leaves the embedded terminal permanently blank (issue #73). The
+                        // bounded acquire keeps a pathological hung capture from blocking the
+                        // launch forever — FreeConsole still runs so the spawn never inherits.
+                        bool consoleLockTaken = false;
                         try
                         {
+                            Monitor.TryEnter(_consoleSnapshotLock, 5000, ref consoleLockTaken);
+                            try { FreeConsole(); } catch { }
+
                             cmdProcess = new Process { StartInfo = startInfo };
                             cmdProcess.Start();
                         }
@@ -1139,6 +1157,10 @@ namespace ClaudeCodeVS
                         {
                             Debug.WriteLine($"Error starting process: {ex.Message}");
                             throw;
+                        }
+                        finally
+                        {
+                            if (consoleLockTaken) Monitor.Exit(_consoleSnapshotLock);
                         }
                     });
 

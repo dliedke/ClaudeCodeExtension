@@ -100,6 +100,9 @@ This binds a Claude Code skill that shells out to OpenAI Codex to audit pending 
 
 ## Version History
 
+### Version 10.90
+- Fixed the terminal coming up blank after "Restart code agent" (and other agent restarts) when an "On Agent Finish" notification was enabled — previously the panel could stay empty until Visual Studio was reopened.
+
 ### Version 10.89
 - Added the new Fable model to the Claude model menu — select "Fable - Most powerful" to switch the running session to Claude's top-tier model.
 

@@ -250,7 +250,7 @@ namespace ClaudeCodeVS
                     // the terminal restarts. Leaving the watcher running lets its console-attach
                     // tick overlap the new terminal launch and break the embedded cmd.
                     await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
-                    ResetAgentCompletionForSolutionChange();
+                    ResetAgentCompletionWatcher();
 
 
                     // Get the selected provider from settings
