@@ -6,7 +6,7 @@
 
 - **Author**: Daniel Carvalho Liedke (dliedke@gmail.com) | **License**: MIT
 - **Repository**: https://github.com/dliedke/ClaudeCodeExtension
-- **Current Version**: 10.86 | **Target Framework**: .NET Framework 4.7.2
+- **Current Version**: 10.88 | **Target Framework**: .NET Framework 4.7.2
 
 ---
 
@@ -67,7 +67,7 @@ ClaudeCodeExtension/
 │   ├── ClaudeCodeControl.AgentCompletion.cs # "On Agent Finish": console-idle completion watcher, notify (info bar) + actions
 │   ├── ClaudeCodeControl.AtMention.cs   # "@" file/folder picker in the prompt box (workspace index + popup)
 │   ├── ClaudeCodeControl.CustomCommands.cs # User-defined custom commands: configure dialog, toolbar dropdown, dispatch
-│   ├── ClaudeCodeControl.CliPaths.cs    # Per-provider custom CLI executable path: configure dialog, resolution/validation helpers
+│   ├── ClaudeCodeControl.CliPaths.cs    # Per-provider custom CLI executable path: Settings "CLI Paths" tab content, resolution/validation helpers
 │   ├── ClaudeCodeControl.Interop.cs     # Win32 API declarations (P/Invoke)
 │   ├── ClaudeCodeControl.Theme.cs       # Dark/light theme support
 │   ├── ClaudeCodeControl.Detach.cs      # Terminal detach/attach to separate VS tab
@@ -142,6 +142,7 @@ ClaudeCodeExtension/
 - **Post-startup**: `SchedulePostStartupTerminalAdjustments()` runs deferred resize + zoom replay; `SchedulePostSolutionLoadTerminalRefresh()` does 200/500/1000ms repaint passes after solution load
 - **Fresh PATH from registry**: `GetFreshPathFromRegistry()` reads PATH from `HKLM` and `HKCU` registry keys to detect newly installed tools (e.g. Windows Terminal) without requiring VS restart
 - **WPF keyboard-focus reclaim** (issue #65): `SetParent`ing the terminal (separate-process window) into VS joins that process's input queue with the VS UI thread, so keyboard focus is shared state. If it gets stuck on the terminal, WPF's `Focus()` won't always move native focus back — the prompt stops accepting typing (caret stops blinking) and the provider menu can't be arrow-navigated until VS restarts. `ClaudeCodeControl_PreviewMouseLeftButtonDown` (tunneling, fires before any child handles the click) calls `ReclaimWpfKeyboardFocusIfStuck()`: when `GetFocus() != HwndSource.Handle` it `SetFocus`es the WPF host, so one click anywhere restores typing. No-op when WPF already owns focus
+- **Terminal-click activation + `DisableBringToForeground` opt-out** (issue #69): `WM_LBUTTONDOWN` in the mouse hook → `ActivateEmbeddedTerminalOnClick` does two things — `BringVisualStudioToForegroundIfNeeded()` (Win32 raise of the VS top-level window) and `ActivateTerminalToolWindowIfNeeded()` (selects the terminal pane via `IVsWindowFrame`). When the user enables `DisableBringToForeground`, **both** must be suppressed: gating only the first still raised VS because `IVsWindowFrame.Show()` activates the frame and pulls the whole window forward. So the opt-out passes `activate: false` down to `ActivateTerminalToolWindowAsync(bool)`, which calls `ShowNoActivate()` instead of `Show()` — pane gets selected without raising VS. The native click already delivers Win32 focus to the embedded terminal child window, so typing still works
 
 **Command patterns**:
 ```
@@ -197,10 +198,10 @@ WSL:     cmd.exe /k chcp 65001 >nul && cls && wsl bash -lic "cd {wslPath} && {co
 
 - **Purpose**: Per-provider override pointing each agent at a specific CLI executable instead of relying on PATH / the built-in native install location — for tools installed in non-standard locations
 - **Configuration**: Stored as `Dictionary<AiProvider, string>` under `CustomExecutablePaths` in `claudecode-settings.json`; empty/whitespace entries are treated as unset
-- **Configure dialog**: Opened via "Configure CLI Paths..." entry in the provider context menu (⚙ button), between "Set Working Directory..." and "Configure Custom Commands...". Built programmatically in WPF (no XAML); one row per provider (from the static `CliPathProviders` table) with label + textbox; native (non-WSL) rows also get a "Browse..." `OpenFileDialog`. Native textboxes turn red when the path doesn't exist (`File.Exists`); WSL paths can't be probed from Windows so they're trusted as-is. On OK, only actually-changed entries are written; clearing a field removes it
+- **Settings tab**: Lives as the **CLI Paths** tab in the consolidated Settings dialog (`BuildCliPathsTabContent` builds the tab content; the host calls `ApplyCliPathChanges` on OK). Built programmatically in WPF (no XAML); a header note explains empty paths use default detection, then one aligned row per provider (from the static `CliPathProviders` table) with label + textbox; native (non-WSL) rows also get a "Browse..." `OpenFileDialog`. The Browse column width is reserved on every row so textboxes align even on WSL rows (no button). Native textboxes turn red when the path doesn't exist (`File.Exists`); WSL paths can't be probed from Windows so they're trusted as-is. On OK, `ConfirmCliPathsBeforeClose` blocks the close (keeps the dialog open) with a Yes/No warning when any native path doesn't exist — Yes saves anyway, No returns to fix it. Only actually-changed entries are written; clearing a field removes it
 - **Resolution** (`ResolveProviderExecutable`): returns the configured path (native → double-quoted for cmd.exe; WSL → single-quoted only when it contains spaces, since it sits inside a double-quoted `bash -lic` string) or the default command when unset. Wired into `GetClaudeCommand`/`GetCodexCommand`/`GetWindsurfCommand`/`GetAntigravityCommand`/`GetCursorAgent*Command` and the OpenCode/Pi branches of `StartEmbeddedTerminalAsync` (both CMD and WT paths)
 - **Detection** (`CustomExecutableConfigured`): each `Is*AvailableAsync()` short-circuits to `true` when a custom path is configured (native validated with `File.Exists`, WSL trusted), so a tool off-PATH still reports available
-- **Apply**: changing a path triggers `SaveSettings()` → `ClearProviderCache()` → `RestartTerminalWithSelectedProviderAsync()` so the active agent relaunches with its configured executable
+- **Apply**: `ApplyCliPathChanges` returns the list of providers whose path changed. Any change runs `ClearProviderCache()` (detection results differ), but the terminal restart (folded into the Settings dialog's single `RestartTerminalWithSelectedProviderAsync()`) fires **only when the active provider's** path changed — editing an inactive provider's path doesn't disturb the running agent
 
 ### Terminal I/O (TerminalIO.cs)
 
@@ -252,7 +253,7 @@ Re-parents terminal to/from `DetachedTerminalToolWindow` via `SetParent()`. Auto
 ### Consolidated Settings Dialog (SettingsDialog.cs)
 
 - **Single entry point**: `Settings...` menu item in the ⚙ context menu, consolidating all previously-scattered toggles
-- **Tabbed layout**: `ShowConsolidatedSettingsDialogAsync()` builds a themed `TabControl` with five tabs via the local `AddTab(header)` helper: **Behavior** (send-key mode, large-prompt/clipboard sending, auto-open changes, don't-bring-to-front, prompt font size, On Agent Finish button), **Layout** (prompt-panel position, disable auto zoom), **Terminal** (terminal type), **Theme** (theme preference incl. custom-color hex box + `ColorDialog` picker, skip-restart-prompt), **Usage** (show inline bars, auto-refresh). Each tab is a `ScrollViewer` + `StackPanel`
+- **Tabbed layout**: `ShowConsolidatedSettingsDialogAsync()` builds a themed `TabControl` with six tabs via the local `AddTab(header)` helper: **Behavior** (send-key mode, large-prompt/clipboard sending, auto-open changes, don't-bring-to-front, prompt font size, On Agent Finish button), **Layout** (prompt-panel position, disable auto zoom), **Terminal** (terminal type), **Theme** (theme preference incl. custom-color hex box + `ColorDialog` picker, skip-restart-prompt), **Usage** (show inline bars, auto-refresh), **CLI Paths** (per-provider custom CLI executable paths — content built by `BuildCliPathsTabContent`, applied via `ApplyCliPathChanges`). Each tab is a `ScrollViewer` + `StackPanel`
 - **Send-key mode**: a 3-way radio group ("Send prompt with") maps to two bools — `SendWithEnter` (Enter sends) / `SendWithCtrlEnter` (Ctrl+Enter sends, Enter = newline) / both false (button only). Keyboard handling lives in `PromptTextBox_PreviewKeyDown`. See issue #70
 - **Dialog construction**: Built programmatically (no XAML); reuses `MakeSectionHeader`/`MakeCheckBox`/`MakeRadioButton`/`MakeThemedComboBox` helpers and `GetThemeBrushes`/`GetDialogButtonStyle` from CustomCommands.cs
 - **Batched apply**: all settings persisted once on OK via a single `SaveSettings()`. Side effects fire in order: prompt button visibility → font size → `ApplyLayoutSettingsChange()` → theme repaint (`UpdateTerminalTheme`/`UpdateInlineUsageBarColors`) → usage refresh → at most one terminal restart (terminal-type change, or theme/custom-color change AND user confirms the restart popup — popup gated by `SkipThemeRestartPrompt`, terminal-not-running, agent-color-matches)

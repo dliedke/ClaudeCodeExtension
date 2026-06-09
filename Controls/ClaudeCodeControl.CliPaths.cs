@@ -113,109 +113,48 @@ namespace ClaudeCodeVS
 
         #endregion
 
-        #region CLI Path Configuration Dialog
+        #region CLI Paths Settings Tab
 
         /// <summary>
-        /// Handles the "Configure CLI Paths..." menu item — lets the user point each provider at a
-        /// specific executable instead of relying on PATH / the built-in install location.
+        /// Builds the "CLI Paths" tab content into the supplied stack panel and returns the
+        /// per-provider editors so the host (consolidated Settings dialog) can apply changes on OK.
+        /// One aligned row per provider: label | path text box | Browse (native only). The Browse
+        /// column width is reserved on every row so the text boxes line up even for WSL providers
+        /// (which have no Browse button).
         /// </summary>
-#pragma warning disable VSTHRD100 // async void is acceptable for event handlers
-        private async void ConfigureCliPathsMenuItem_Click(object sender, RoutedEventArgs e)
-#pragma warning restore VSTHRD100
+        private Dictionary<AiProvider, TextBox> BuildCliPathsTabContent(StackPanel stack, Brush themeBg, Brush themeFg)
         {
-            await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
-
-            if (_settings == null) return;
-
             if (_settings.CustomExecutablePaths == null)
             {
                 _settings.CustomExecutablePaths = new Dictionary<AiProvider, string>();
             }
 
-            bool changed = ShowCliPathsDialog();
-            if (!changed) return;
-
-            SaveSettings();
-
-            // New paths change detection results — drop the availability cache so the next
-            // check (and menu state) reflects the override.
-            ClearProviderCache();
-
-            // Restart so the active provider relaunches with its configured executable.
-            try
-            {
-                await RestartTerminalWithSelectedProviderAsync();
-            }
-            catch (Exception ex)
-            {
-                Debug.WriteLine($"Error restarting terminal after CLI path change: {ex.Message}");
-                await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
-                MessageBox.Show($"Failed to restart terminal: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
-            }
-        }
-
-        /// <summary>
-        /// Shows the modal CLI-paths dialog. Returns true when the user pressed OK and at least
-        /// one path actually changed; mutates _settings.CustomExecutablePaths on OK.
-        /// </summary>
-        private bool ShowCliPathsDialog()
-        {
-            GetThemeBrushes(out Brush themeBg, out Brush themeFg);
             Style buttonStyle = GetDialogButtonStyle();
 
-            var dialog = new Window
+            stack.Children.Add(MakeSectionHeader("Custom CLI executable paths", themeFg));
+            stack.Children.Add(new TextBlock
             {
-                Title = "Configure CLI Paths",
-                Width = 640,
-                Height = 470,
-                WindowStartupLocation = WindowStartupLocation.CenterOwner,
-                ResizeMode = ResizeMode.CanResize,
-                MinWidth = 520,
-                MinHeight = 320,
-                Background = themeBg,
-                Foreground = themeFg,
-                ShowInTaskbar = false
-            };
-
-            try { dialog.Owner = Application.Current?.MainWindow; } catch { }
-
-            var grid = new Grid { Margin = new Thickness(12) };
-            grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
-            grid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
-            grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
-
-            var header = new TextBlock
-            {
-                Text = "Point a provider at a specific CLI executable instead of relying on PATH. " +
-                       "Leave a field empty to use the default detection (PATH / built-in install location).\n" +
+                Text = "Paths left empty use the default detection (PATH / built-in install location).\n" +
+                       "Set a path only to point a provider at a specific executable instead.\n" +
                        "Native providers expect a full Windows path (e.g. C:\\Tools\\claude.exe). " +
                        "WSL providers expect a Linux path or command (e.g. /home/me/.local/bin/claude).",
-                TextWrapping = TextWrapping.Wrap,
+                FontSize = 11,
+                Opacity = 0.7,
                 Foreground = themeFg,
-                Margin = new Thickness(0, 0, 0, 10)
-            };
-            Grid.SetRow(header, 0);
-            grid.Children.Add(header);
+                TextWrapping = TextWrapping.Wrap,
+                Margin = new Thickness(4, 0, 0, 8)
+            });
 
-            var scroller = new ScrollViewer
-            {
-                VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
-                HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled
-            };
-            Grid.SetRow(scroller, 1);
-            grid.Children.Add(scroller);
+            // Reserve a fixed width for the Browse column on every row so the text boxes align.
+            const double browseColumnWidth = 88;
 
-            var rows = new StackPanel { Orientation = Orientation.Vertical };
-            scroller.Content = rows;
-
-            // One row per provider: label | textbox | (Browse for native)
             var editors = new Dictionary<AiProvider, TextBox>();
             foreach (var p in CliPathProviders)
             {
-                var rowGrid = new Grid { Margin = new Thickness(0, 0, 0, 8) };
-                rowGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(150) });
+                var rowGrid = new Grid { Margin = new Thickness(4, 0, 0, 8) };
+                rowGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(140) });
                 rowGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-                rowGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+                rowGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(browseColumnWidth) });
 
                 var nameLabel = new TextBlock
                 {
@@ -265,7 +204,7 @@ namespace ClaudeCodeVS
                         Content = "Browse...",
                         Width = 80,
                         Height = 24,
-                        Margin = new Thickness(8, 0, 0, 0)
+                        HorizontalAlignment = HorizontalAlignment.Right
                     };
                     if (buttonStyle != null) { browse.Style = buttonStyle; }
                     else { browse.Background = themeBg; browse.Foreground = themeFg; browse.BorderBrush = themeFg; }
@@ -290,7 +229,7 @@ namespace ClaudeCodeVS
                         }
                         catch { }
 
-                        if (ofd.ShowDialog(dialog) == true)
+                        if (ofd.ShowDialog() == true)
                         {
                             tb.Text = ofd.FileName;
                         }
@@ -300,49 +239,33 @@ namespace ClaudeCodeVS
                 }
 
                 editors[p.Provider] = textBox;
-                rows.Children.Add(rowGrid);
+                stack.Children.Add(rowGrid);
             }
 
-            // Bottom buttons
-            var buttonPanel = new StackPanel
-            {
-                Orientation = Orientation.Horizontal,
-                HorizontalAlignment = HorizontalAlignment.Right,
-                Margin = new Thickness(0, 10, 0, 0)
-            };
-            Grid.SetRow(buttonPanel, 2);
+            return editors;
+        }
 
-            var okButton = new Button { Content = "OK", Width = 80, Height = 26, Margin = new Thickness(0, 0, 8, 0), IsDefault = true };
-            var cancelButton = new Button { Content = "Cancel", Width = 80, Height = 26, IsCancel = true };
-            if (buttonStyle != null) { okButton.Style = buttonStyle; cancelButton.Style = buttonStyle; }
-            else
-            {
-                okButton.Background = themeBg; okButton.Foreground = themeFg; okButton.BorderBrush = themeFg;
-                cancelButton.Background = themeBg; cancelButton.Foreground = themeFg; cancelButton.BorderBrush = themeFg;
-            }
-            okButton.Click += (s, args) => { dialog.DialogResult = true; };
-            buttonPanel.Children.Add(okButton);
-            buttonPanel.Children.Add(cancelButton);
-            grid.Children.Add(buttonPanel);
+        /// <summary>
+        /// Applies edits collected by <see cref="BuildCliPathsTabContent"/> into
+        /// _settings.CustomExecutablePaths. Returns true when at least one path actually changed
+        /// (so the host can drop the provider cache and restart the terminal).
+        /// </summary>
+        private List<AiProvider> ApplyCliPathChanges(Dictionary<AiProvider, TextBox> editors)
+        {
+            var changed = new List<AiProvider>();
+            if (editors == null || _settings?.CustomExecutablePaths == null) return changed;
 
-            dialog.Content = grid;
-
-            if (dialog.ShowDialog() != true)
-            {
-                return false;
-            }
-
-            // Apply edits; report whether anything actually changed.
-            bool changed = false;
             foreach (var p in CliPathProviders)
             {
-                string newValue = editors[p.Provider].Text.Trim();
+                if (!editors.TryGetValue(p.Provider, out var tb)) continue;
+
+                string newValue = tb.Text.Trim();
                 _settings.CustomExecutablePaths.TryGetValue(p.Provider, out var oldValue);
                 oldValue = oldValue ?? "";
 
                 if (newValue == oldValue) continue;
 
-                changed = true;
+                changed.Add(p.Provider);
                 if (string.IsNullOrWhiteSpace(newValue))
                 {
                     _settings.CustomExecutablePaths.Remove(p.Provider);
@@ -354,6 +277,47 @@ namespace ClaudeCodeVS
             }
 
             return changed;
+        }
+
+        /// <summary>
+        /// Confirms before closing the dialog when one or more native (non-WSL) providers point at a
+        /// path that doesn't exist on disk. WSL paths can't be probed from Windows, so they're skipped.
+        /// Returns true to allow the dialog to close (no bad paths, or the user chose to save anyway);
+        /// false to keep it open so the user can fix the path. Must be called on the UI thread.
+        /// </summary>
+        private bool ConfirmCliPathsBeforeClose(Dictionary<AiProvider, TextBox> editors)
+        {
+            ThreadHelper.ThrowIfNotOnUIThread();
+            if (editors == null) return true;
+
+            var invalid = new List<string>();
+            foreach (var p in CliPathProviders)
+            {
+                if (p.IsWsl) continue;
+                if (!editors.TryGetValue(p.Provider, out var tb)) continue;
+
+                string val = tb.Text.Trim().Trim('"');
+                if (string.IsNullOrEmpty(val)) continue;
+
+                bool exists;
+                try { exists = File.Exists(val); } catch { exists = false; }
+                if (!exists)
+                {
+                    invalid.Add($"  • {p.DisplayName}: {val}");
+                }
+            }
+
+            if (invalid.Count == 0) return true;
+
+            var result = MessageBox.Show(
+                "These CLI executable paths don't exist on disk:\n\n" +
+                string.Join("\n", invalid) +
+                "\n\nThe agent will fail to launch if a path is wrong. Save these paths anyway?",
+                "CLI Path Not Found",
+                MessageBoxButton.YesNo,
+                MessageBoxImage.Warning);
+
+            return result == MessageBoxResult.Yes;
         }
 
         #endregion

@@ -459,6 +459,10 @@ namespace ClaudeCodeVS
                 autoRefreshCombo.SelectedIndex = 0;
             usageStack.Children.Add(autoRefreshCombo);
 
+            // ========================= CLI Paths tab =========================
+            var cliPathsStack = AddTab("CLI Paths");
+            var cliPathEditors = BuildCliPathsTabContent(cliPathsStack, themeBg, themeFg);
+
             // ---- Button row ----
             var buttonPanel = new Grid { Margin = new Thickness(0, 14, 0, 0) };
             buttonPanel.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
@@ -512,7 +516,12 @@ namespace ClaudeCodeVS
                 cancelButton.Background = themeBg; cancelButton.Foreground = themeFg; cancelButton.BorderBrush = themeFg;
                 resetButton.Background = themeBg; resetButton.Foreground = themeFg; resetButton.BorderBrush = themeFg;
             }
-            okButton.Click += (s, ea) => dialog.DialogResult = true;
+            okButton.Click += (s, ea) =>
+            {
+                // Warn (and keep the dialog open) if a native CLI path doesn't exist on disk.
+                if (!ConfirmCliPathsBeforeClose(cliPathEditors)) return;
+                dialog.DialogResult = true;
+            };
 
             // Reset to Defaults: restore every control on this dialog to its default value.
             // Nothing is persisted until the user confirms with OK.
@@ -550,6 +559,10 @@ namespace ClaudeCodeVS
                 skipPromptCheck.IsChecked = false;
                 showBarsCheck.IsChecked = true;
                 SelectComboByTag(autoRefreshCombo, 0);    // Off
+
+                // CLI Paths tab: default is no custom path (use detection) for every provider.
+                foreach (var tb in cliPathEditors.Values)
+                    tb.Text = "";
             };
 
             okCancelPanel.Children.Add(okButton);
@@ -650,6 +663,13 @@ namespace ClaudeCodeVS
             _settings.UsageAutoRefreshSeconds = newAutoRefresh;
             _settings.PromptFontSize          = newFontSize;
 
+            // Custom CLI executable paths (CLI Paths tab). Mutates _settings.CustomExecutablePaths
+            // and returns the providers whose path actually changed.
+            var changedCliProviders = ApplyCliPathChanges(cliPathEditors);
+            bool cliPathsChanged = changedCliProviders.Count > 0;
+            // Only the active provider's path change warrants relaunching the terminal.
+            bool activeCliPathChanged = changedCliProviders.Contains(_settings.SelectedProvider);
+
             // On Agent Finish is configured in its own dialog (opened by the button above),
             // which persists its own changes; nothing to apply here.
 
@@ -695,9 +715,16 @@ namespace ClaudeCodeVS
 
             SaveSettings();
 
+            // A CLI path change alters detection results — drop the availability cache so the
+            // next check (and menu state) reflects the override, and relaunch the active provider.
+            if (cliPathsChanged)
+            {
+                ClearProviderCache();
+            }
+
             // ---- Restart-requiring changes ----
             bool terminalTypeChanged = newTerminalType != origTerminalType;
-            bool needsRestart = terminalTypeChanged;
+            bool needsRestart = terminalTypeChanged || activeCliPathChanged;
 
             // For theme changes, ask the user (respecting the skip-prompt opt-out
             // and the same "agent color already matches" short-circuit used elsewhere)

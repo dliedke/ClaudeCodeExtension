@@ -1644,7 +1644,7 @@ namespace ClaudeCodeVS
         /// Must be called before keybd_event zoom so the keystrokes go to the terminal, not whatever
         /// VS tab the user was looking at.
         /// </summary>
-        private async Task ActivateTerminalToolWindowAsync()
+        private async Task ActivateTerminalToolWindowAsync(bool activate = true)
         {
             await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
             try
@@ -1658,7 +1658,23 @@ namespace ClaudeCodeVS
                 {
                     frame = _toolWindow.Frame as IVsWindowFrame;
                 }
-                frame?.Show();
+
+                if (frame == null)
+                {
+                    return;
+                }
+
+                // Show() activates the frame, which raises the whole VS window to the foreground.
+                // When the user opted out of that (DisableBringToForeground), use ShowNoActivate so
+                // the terminal pane is selected without pulling VS forward over other windows.
+                if (activate)
+                {
+                    frame.Show();
+                }
+                else
+                {
+                    frame.ShowNoActivate();
+                }
             }
             catch (Exception ex)
             {
@@ -2123,11 +2139,14 @@ namespace ClaudeCodeVS
                 return;
             }
 
-            if (_settings == null || !_settings.DisableBringToForeground)
+            bool bringToFront = _settings == null || !_settings.DisableBringToForeground;
+            if (bringToFront)
             {
                 BringVisualStudioToForegroundIfNeeded();
             }
-            ActivateTerminalToolWindowIfNeeded();
+            // When opted out of foreground-raising, still select the terminal pane but without
+            // activating its frame (which would raise the whole VS window anyway).
+            ActivateTerminalToolWindowIfNeeded(bringToFront);
         }
 
         /// <summary>
@@ -2180,7 +2199,7 @@ namespace ClaudeCodeVS
         /// <summary>
         /// Marks the embedded terminal's tool window as the active pane inside VS, if it isn't already.
         /// </summary>
-        private void ActivateTerminalToolWindowIfNeeded()
+        private void ActivateTerminalToolWindowIfNeeded(bool activate = true)
         {
             ThreadHelper.ThrowIfNotOnUIThread();
 
@@ -2192,7 +2211,7 @@ namespace ClaudeCodeVS
 #pragma warning disable VSSDK007 // Fire-and-forget is intentional here
             _ = ThreadHelper.JoinableTaskFactory.RunAsync(async () =>
             {
-                await ActivateTerminalToolWindowAsync();
+                await ActivateTerminalToolWindowAsync(activate);
             });
 #pragma warning restore VSSDK007
         }
