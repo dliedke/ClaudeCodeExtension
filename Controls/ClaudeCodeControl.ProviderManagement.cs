@@ -143,6 +143,12 @@ namespace ClaudeCodeVS
         /// <returns>True if claude is available, false otherwise</returns>
         private async Task<bool> IsClaudeCmdAvailableAsync(CancellationToken cancellationToken = default)
         {
+            // A configured custom CLI path means the tool is usable even when it is not on PATH.
+            if (CustomExecutableConfigured(AiProvider.ClaudeCode, isWsl: false))
+            {
+                return true;
+            }
+
             // Check cache first
             lock (_cacheLock)
             {
@@ -267,6 +273,12 @@ namespace ClaudeCodeVS
         /// <returns>True if claude is available in WSL, false otherwise</returns>
         private async Task<bool> IsClaudeCodeWSLAvailableAsync(CancellationToken cancellationToken = default)
         {
+            // A configured custom CLI path means the tool is usable even when it is not on PATH.
+            if (CustomExecutableConfigured(AiProvider.ClaudeCodeWSL, isWsl: true))
+            {
+                return true;
+            }
+
             // Check cache first
             lock (_cacheLock)
             {
@@ -379,6 +391,12 @@ namespace ClaudeCodeVS
         /// <returns>True if codex is available in WSL, false otherwise</returns>
         private async Task<bool> IsCodexCmdAvailableAsync(CancellationToken cancellationToken = default)
         {
+            // A configured custom CLI path means the tool is usable even when it is not on PATH.
+            if (CustomExecutableConfigured(AiProvider.Codex, isWsl: true))
+            {
+                return true;
+            }
+
             // Check cache first
             lock (_cacheLock)
             {
@@ -492,6 +510,12 @@ namespace ClaudeCodeVS
         /// <returns>True if codex is available natively, false otherwise</returns>
         private async Task<bool> IsCodexNativeAvailableAsync(CancellationToken cancellationToken = default)
         {
+            // A configured custom CLI path means the tool is usable even when it is not on PATH.
+            if (CustomExecutableConfigured(AiProvider.CodexNative, isWsl: false))
+            {
+                return true;
+            }
+
             // Check cache first
             lock (_cacheLock)
             {
@@ -631,6 +655,12 @@ namespace ClaudeCodeVS
         /// <returns>True if cursor-agent is available in WSL, false otherwise</returns>
         private async Task<bool> IsCursorAgentInstalledInWslAsync(CancellationToken cancellationToken = default)
         {
+            // A configured custom CLI path means the tool is usable even when it is not on PATH.
+            if (CustomExecutableConfigured(AiProvider.CursorAgent, isWsl: true))
+            {
+                return true;
+            }
+
             // Check cache first
             lock (_cacheLock)
             {
@@ -729,6 +759,12 @@ namespace ClaudeCodeVS
         /// <returns>True if devin is available in WSL, false otherwise</returns>
         private async Task<bool> IsWindsurfAvailableAsync(CancellationToken cancellationToken = default)
         {
+            // A configured custom CLI path means the tool is usable even when it is not on PATH.
+            if (CustomExecutableConfigured(AiProvider.Windsurf, isWsl: true))
+            {
+                return true;
+            }
+
             // Check cache first
             lock (_cacheLock)
             {
@@ -833,6 +869,12 @@ namespace ClaudeCodeVS
         /// <returns>True if cursor agent is available natively, false otherwise</returns>
         private async Task<bool> IsCursorAgentNativeAvailableAsync(CancellationToken cancellationToken = default)
         {
+            // A configured custom CLI path means the tool is usable even when it is not on PATH.
+            if (CustomExecutableConfigured(AiProvider.CursorAgentNative, isWsl: false))
+            {
+                return true;
+            }
+
             // Check cache first
             lock (_cacheLock)
             {
@@ -908,6 +950,12 @@ namespace ClaudeCodeVS
         /// <returns>True if opencode is available, false otherwise</returns>
         private async Task<bool> IsOpenCodeAvailableAsync(CancellationToken cancellationToken = default)
         {
+            // A configured custom CLI path means the tool is usable even when it is not on PATH.
+            if (CustomExecutableConfigured(AiProvider.OpenCode, isWsl: false))
+            {
+                return true;
+            }
+
             // Check cache first
             lock (_cacheLock)
             {
@@ -971,6 +1019,12 @@ namespace ClaudeCodeVS
         /// <returns>True if pi is available, false otherwise</returns>
         private async Task<bool> IsPiAvailableAsync(CancellationToken cancellationToken = default)
         {
+            // A configured custom CLI path means the tool is usable even when it is not on PATH.
+            if (CustomExecutableConfigured(AiProvider.Pi, isWsl: false))
+            {
+                return true;
+            }
+
             // Check cache first
             lock (_cacheLock)
             {
@@ -1033,6 +1087,12 @@ namespace ClaudeCodeVS
         /// <returns>True if agy is available, false otherwise</returns>
         private async Task<bool> IsAntigravityAvailableAsync(CancellationToken cancellationToken = default)
         {
+            // A configured custom CLI path means the tool is usable even when it is not on PATH.
+            if (CustomExecutableConfigured(AiProvider.Antigravity, isWsl: false))
+            {
+                return true;
+            }
+
             // Check cache first
             lock (_cacheLock)
             {

@@ -384,6 +384,18 @@ namespace ClaudeCodeVS
         public string CustomWorkingDirectory { get; set; } = "";
 
         /// <summary>
+        /// Per-provider custom CLI executable paths, keyed by <see cref="AiProvider"/>.
+        /// When an entry is present and non-empty, it overrides the default executable
+        /// detection/launch for that provider (instead of relying on PATH or the built-in
+        /// native install location). Native providers expect a full Windows path
+        /// (e.g. C:\Tools\claude.exe); WSL providers expect a Linux path or command
+        /// (e.g. /home/user/.local/bin/claude). Empty/missing entries fall back to the
+        /// default behavior.
+        /// </summary>
+        public System.Collections.Generic.Dictionary<AiProvider, string> CustomExecutablePaths { get; set; }
+            = new System.Collections.Generic.Dictionary<AiProvider, string>();
+
+        /// <summary>
         /// Terminal emulator to use (Command Prompt or Windows Terminal)
         /// Defaults to Command Prompt for compatibility
         /// </summary>
