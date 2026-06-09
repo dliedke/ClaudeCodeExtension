@@ -86,6 +86,7 @@
   </ItemGroup>
   <ItemGroup>
     <None Include="CLAUDE.md" />
+    <None Include="docs\ARCHITECTURE.md" />
     <None Include="publish.cmd" />
     <None Include="publishManifest.json" />
     <None Include="README.md" />
