@@ -50,6 +50,7 @@
     <Compile Include="Controls\ClaudeCodeControl.AgentFinishDialog.cs" />
     <Compile Include="Controls\ClaudeCodeControl.AtMention.cs" />
     <Compile Include="Controls\ClaudeCodeControl.Cleanup.cs" />
+    <Compile Include="Controls\ClaudeCodeControl.CliPaths.cs" />
     <Compile Include="Controls\ClaudeCodeControl.CustomCommands.cs" />
     <Compile Include="Controls\ClaudeCodeControl.Detach.cs" />
     <Compile Include="Controls\ClaudeCodeControl.Diff.cs" />

@@ -886,7 +886,8 @@ namespace ClaudeCodeVS
                             break;
 
                         case AiProvider.OpenCode:
-                            cmdCommand = $"/k chcp 65001 >nul && cd /d \"{workspaceDir}\" && ping localhost -n 3 >nul && cls && opencode";
+                            string openCodeCommand = ResolveProviderExecutable(AiProvider.OpenCode, "opencode");
+                            cmdCommand = $"/k chcp 65001 >nul && cd /d \"{workspaceDir}\" && ping localhost -n 3 >nul && cls && {openCodeCommand}";
                             break;
 
                         case AiProvider.Windsurf:
@@ -896,7 +897,8 @@ namespace ClaudeCodeVS
                             break;
 
                         case AiProvider.Pi:
-                            cmdCommand = $"/k chcp 65001 >nul && cd /d \"{workspaceDir}\" && ping localhost -n 3 >nul && cls && pi";
+                            string piCommand = ResolveProviderExecutable(AiProvider.Pi, "pi");
+                            cmdCommand = $"/k chcp 65001 >nul && cd /d \"{workspaceDir}\" && ping localhost -n 3 >nul && cls && {piCommand}";
                             break;
 
                         case AiProvider.Antigravity:
@@ -1073,7 +1075,8 @@ namespace ClaudeCodeVS
                             break;
 
                         case AiProvider.OpenCode:
-                            terminalCommand = $"/k chcp 65001 >nul && cd /d \"{workspaceDir}\" && ping localhost -n 3 >nul && cls && opencode";
+                            string openCodeTerminalCommand = ResolveProviderExecutable(AiProvider.OpenCode, "opencode");
+                            terminalCommand = $"/k chcp 65001 >nul && cd /d \"{workspaceDir}\" && ping localhost -n 3 >nul && cls && {openCodeTerminalCommand}";
                             break;
 
                         case AiProvider.Windsurf:
@@ -1083,7 +1086,8 @@ namespace ClaudeCodeVS
                             break;
 
                         case AiProvider.Pi:
-                            terminalCommand = $"/k chcp 65001 >nul && cd /d \"{workspaceDir}\" && ping localhost -n 3 >nul && cls && pi";
+                            string piTerminalCommand = ResolveProviderExecutable(AiProvider.Pi, "pi");
+                            terminalCommand = $"/k chcp 65001 >nul && cd /d \"{workspaceDir}\" && ping localhost -n 3 >nul && cls && {piTerminalCommand}";
                             break;
 
                         case AiProvider.Antigravity:
@@ -3025,6 +3029,10 @@ namespace ClaudeCodeVS
                 }
             }
 
+            // A user-configured custom path overrides native/PATH resolution.
+            baseCommand = ResolveProviderExecutable(
+                isWsl ? AiProvider.ClaudeCodeWSL : AiProvider.ClaudeCode, baseCommand, isWsl);
+
             if (_settings?.ClaudeDangerouslySkipPermissions == true)
             {
                 baseCommand = $"{baseCommand} --dangerously-skip-permissions";
@@ -3055,7 +3063,8 @@ namespace ClaudeCodeVS
         /// <returns>The codex command to execute</returns>
         private string GetCodexCommand(bool isWsl = false)
         {
-            string baseCommand = "codex";
+            string baseCommand = ResolveProviderExecutable(
+                isWsl ? AiProvider.Codex : AiProvider.CodexNative, "codex", isWsl);
 
             if (_settings?.CodexFullAuto == true)
             {
@@ -3072,7 +3081,7 @@ namespace ClaudeCodeVS
         /// <returns>The devin command to execute</returns>
         private string GetWindsurfCommand()
         {
-            string baseCommand = "devin";
+            string baseCommand = ResolveProviderExecutable(AiProvider.Windsurf, "devin", isWsl: true);
 
             if (_settings?.WindsurfDangerousMode == true)
             {
@@ -3089,7 +3098,7 @@ namespace ClaudeCodeVS
         /// <returns>The agy command to execute</returns>
         private string GetAntigravityCommand()
         {
-            string baseCommand = "agy";
+            string baseCommand = ResolveProviderExecutable(AiProvider.Antigravity, "agy");
 
             if (_settings?.AntigravityDangerouslySkipPermissions == true)
             {
@@ -3153,6 +3162,9 @@ namespace ClaudeCodeVS
 
             string baseCommand = File.Exists(nativeAgentPath) ? $"\"{nativeAgentPath}\"" : "agent";
 
+            // A user-configured custom path overrides native/PATH resolution.
+            baseCommand = ResolveProviderExecutable(AiProvider.CursorAgentNative, baseCommand);
+
             if (_settings?.CursorAgentAutoRun == true)
             {
                 return $"{baseCommand} --yolo";
@@ -3168,12 +3180,14 @@ namespace ClaudeCodeVS
         /// <returns>The cursor-agent command to execute in WSL</returns>
         private string GetCursorAgentWslCommand()
         {
+            string baseCommand = ResolveProviderExecutable(AiProvider.CursorAgent, "cursor-agent", isWsl: true);
+
             if (_settings?.CursorAgentAutoRun == true)
             {
-                return "cursor-agent --yolo";
+                return $"{baseCommand} --yolo";
             }
 
-            return "cursor-agent";
+            return baseCommand;
         }
 
 
