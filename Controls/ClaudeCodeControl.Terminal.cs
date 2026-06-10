@@ -2133,7 +2133,14 @@ namespace ClaudeCodeVS
 
         /// <summary>
         /// Reacts to a click on the embedded terminal panel: makes sure VS is on top of the
-        /// Win32 Z-order and that our tool window is the active pane inside VS.
+        /// Win32 Z-order and that our tool window is the active pane inside VS, then puts
+        /// keyboard focus back on the terminal.
+        ///
+        /// The click itself focuses the terminal natively, but both activation steps below
+        /// (SetForegroundWindow and IVsWindowFrame.Show) make VS move keyboard focus into the
+        /// WPF tool-window content a moment later, silently stealing it from the terminal —
+        /// answering an agent prompt then required a second click (issue #74). When either
+        /// step actually ran, re-assert terminal focus after the activation settles.
         /// </summary>
         private void ActivateEmbeddedTerminalOnClick(POINT screenPoint)
         {
@@ -2151,27 +2158,66 @@ namespace ClaudeCodeVS
                 return;
             }
 
-            BringVisualStudioToForegroundIfNeeded();
-            ActivateTerminalToolWindowIfNeeded();
+            bool vsActivated = BringVisualStudioToForegroundIfNeeded();
+            bool paneNeedsActivation = !IsTerminalToolWindowActive();
+
+            if (!vsActivated && !paneNeedsActivation)
+            {
+                // Nothing stole focus from the click; stay a no-op on ordinary clicks.
+                return;
+            }
+
+#pragma warning disable VSSDK007 // Fire-and-forget is intentional here
+            _ = ThreadHelper.JoinableTaskFactory.RunAsync(async () =>
+            {
+                if (paneNeedsActivation)
+                {
+                    await ActivateTerminalToolWindowAsync();
+                }
+
+                // Let VS finish its activation focus shuffle before taking focus back.
+                await Task.Delay(80);
+                await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
+
+                var panel = ActiveTerminalPanel;
+                if (panel == null || panel.IsDisposed ||
+                    terminalHandle == IntPtr.Zero || !IsWindow(terminalHandle))
+                {
+                    return;
+                }
+
+                FocusTerminalPanel(panel);
+
+                // VS can restore focus to another control once more shortly after pane
+                // activation (same reason the zoom replay re-asserts), so assert again.
+                await Task.Delay(80);
+                await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
+                if (IsWindow(terminalHandle))
+                {
+                    SetFocus(terminalHandle);
+                }
+            });
+#pragma warning restore VSSDK007
         }
 
         /// <summary>
         /// Brings the VS top-level window to the front of the Win32 Z-order if it isn't already.
         /// Uses AttachThreadInput to bypass Windows' focus-stealing protection so the activation
         /// works even when another application currently owns the foreground.
+        /// Returns true when it actually activated VS (so the caller knows keyboard focus moved).
         /// </summary>
-        private void BringVisualStudioToForegroundIfNeeded()
+        private bool BringVisualStudioToForegroundIfNeeded()
         {
             IntPtr foreground = GetForegroundWindow();
             if (foreground == terminalHandle)
             {
-                return;
+                return false;
             }
 
             IntPtr root = GetAncestor(terminalHandle, GA_ROOT);
             if (root == IntPtr.Zero || !IsWindow(root) || foreground == root)
             {
-                return;
+                return false;
             }
 
             // Plain SetForegroundWindow is denied when our process isn't the foreground app,
@@ -2200,26 +2246,8 @@ namespace ClaudeCodeVS
                     AttachThreadInput(currentThreadId, foregroundThreadId, false);
                 }
             }
-        }
 
-        /// <summary>
-        /// Marks the embedded terminal's tool window as the active pane inside VS, if it isn't already.
-        /// </summary>
-        private void ActivateTerminalToolWindowIfNeeded()
-        {
-            ThreadHelper.ThrowIfNotOnUIThread();
-
-            if (IsTerminalToolWindowActive())
-            {
-                return;
-            }
-
-#pragma warning disable VSSDK007 // Fire-and-forget is intentional here
-            _ = ThreadHelper.JoinableTaskFactory.RunAsync(async () =>
-            {
-                await ActivateTerminalToolWindowAsync();
-            });
-#pragma warning restore VSSDK007
+            return true;
         }
 
         /// <summary>
