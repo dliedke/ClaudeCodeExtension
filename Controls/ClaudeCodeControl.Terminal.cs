@@ -948,16 +948,20 @@ namespace ClaudeCodeVS
                         wtStartInfo.EnvironmentVariables["PATH"] = freshPath;
                     }
 
+                    LogTerminalLaunch($"Launching Windows Terminal: provider={(provider?.ToString() ?? "CMD")}, workspace={workspaceDir}");
+
                     await Task.Run(() =>
                     {
                         try
                         {
                             cmdProcess = new Process { StartInfo = wtStartInfo };
                             cmdProcess.Start();
+                            LogTerminalLaunch($"wt.exe spawned: pid={cmdProcess.Id}");
                         }
                         catch (Exception ex)
                         {
                             Debug.WriteLine($"Error starting Windows Terminal process: {ex.Message}");
+                            LogTerminalLaunch($"wt.exe spawn FAILED: {ex.Message}");
                             throw;
                         }
                     });
@@ -975,7 +979,7 @@ namespace ClaudeCodeVS
 
                     if (terminalHandle != IntPtr.Zero && IsWindow(terminalHandle))
                     {
-                        if (terminalPanel?.Handle == null || terminalPanel.Handle == IntPtr.Zero)
+                        if (!EnsureTerminalPanelReady())
                         {
                             return;
                         }
@@ -988,19 +992,41 @@ namespace ClaudeCodeVS
                             ApplyEmbeddedTerminalWindowStyle(forceChildWindowStyle: true);
 
                             // Embed the window with retry — SetParent can fail transiently
-                            // on busy systems or when the window is not yet ready
-                            IntPtr wtPrevParent = IntPtr.Zero;
+                            // on busy systems or when the window is not yet ready. SetParent
+                            // returning zero is ambiguous (a top-level window's previous parent
+                            // is also zero), so confirm via GetParent before declaring failure.
+                            bool wtEmbedSucceeded = false;
                             for (int spAttempt = 1; spAttempt <= 3; spAttempt++)
                             {
-                                wtPrevParent = SetParent(terminalHandle, terminalPanel.Handle);
-                                if (wtPrevParent != IntPtr.Zero)
-                                    break;
-
+                                IntPtr wtPrevParent = SetParent(terminalHandle, terminalPanel.Handle);
                                 int err = Marshal.GetLastWin32Error();
+                                if (wtPrevParent != IntPtr.Zero || GetParent(terminalHandle) == terminalPanel.Handle)
+                                {
+                                    wtEmbedSucceeded = true;
+                                    break;
+                                }
+
                                 Debug.WriteLine($"SetParent failed for WT (attempt {spAttempt}/3, win32 error {err}) -- retrying after 200ms");
+                                LogTerminalLaunch($"SetParent failed for WT (attempt {spAttempt}/3, win32 error {err})");
                                 await Task.Delay(200);
                                 ApplyEmbeddedTerminalWindowStyle(forceChildWindowStyle: true);
                             }
+
+                            if (!wtEmbedSucceeded)
+                            {
+                                // Don't continue as if embedded — that leaves a hidden, parentless
+                                // window and a blank panel (issue #73). The next restart closes
+                                // the orphan via terminalHandle.
+                                LogTerminalLaunch("FAILED: SetParent never succeeded for WT — panel left blank");
+                                MessageBox.Show(
+                                    "The terminal started but could not be attached to the panel.\n\n" +
+                                    "Please try \"Restart code agent\" again. If the problem persists, report it with the log file:\n" +
+                                    TerminalLaunchLogPath,
+                                    "Claude Code Extension", MessageBoxButton.OK, MessageBoxImage.Warning);
+                                return;
+                            }
+
+                            LogTerminalLaunch($"embedded OK (WT): hwnd=0x{terminalHandle.ToInt64():X}");
 
                             // Calculate tab bar height
                             _wtTabBarHeight = GetWtTabBarHeight();
@@ -1038,6 +1064,7 @@ namespace ClaudeCodeVS
                     }
                     else
                     {
+                        LogTerminalLaunch("FAILED: no Windows Terminal window found to embed — panel left blank");
                         throw new InvalidOperationException("Failed to find Windows Terminal window");
                     }
                 }
@@ -1228,7 +1255,7 @@ namespace ClaudeCodeVS
 
                     if (terminalHandle != IntPtr.Zero && IsWindow(terminalHandle))
                     {
-                        if (terminalPanel?.Handle == null || terminalPanel.Handle == IntPtr.Zero)
+                        if (!EnsureTerminalPanelReady())
                         {
                             return;
                         }
@@ -1241,19 +1268,39 @@ namespace ClaudeCodeVS
                             ApplyEmbeddedTerminalWindowStyle(forceChildWindowStyle: false);
 
                             // Embed the window with retry — SetParent can fail transiently
-                            // on busy systems or when the window is not yet ready
-                            IntPtr prevParent = IntPtr.Zero;
+                            // on busy systems or when the window is not yet ready. SetParent
+                            // returning zero is ambiguous (a top-level window's previous parent
+                            // is also zero), so confirm via GetParent before declaring failure.
+                            bool embedSucceeded = false;
                             for (int spAttempt = 1; spAttempt <= 3; spAttempt++)
                             {
-                                prevParent = SetParent(terminalHandle, terminalPanel.Handle);
-                                if (prevParent != IntPtr.Zero)
-                                    break;
-
+                                IntPtr prevParent = SetParent(terminalHandle, terminalPanel.Handle);
                                 int err = Marshal.GetLastWin32Error();
+                                if (prevParent != IntPtr.Zero || GetParent(terminalHandle) == terminalPanel.Handle)
+                                {
+                                    embedSucceeded = true;
+                                    break;
+                                }
+
                                 Debug.WriteLine($"SetParent failed (attempt {spAttempt}/3, win32 error {err}) -- retrying after 200ms");
                                 LogTerminalLaunch($"SetParent failed (attempt {spAttempt}/3, win32 error {err})");
                                 await Task.Delay(200);
                                 ApplyEmbeddedTerminalWindowStyle(forceChildWindowStyle: false);
+                            }
+
+                            if (!embedSucceeded)
+                            {
+                                // Previously this fell through claiming success and showed a
+                                // hidden, parentless window — i.e. a blank panel with the agent
+                                // running invisibly (issue #73). Report it instead; the next
+                                // restart closes the orphan via terminalHandle.
+                                LogTerminalLaunch("FAILED: SetParent never succeeded — panel left blank");
+                                MessageBox.Show(
+                                    "The terminal started but could not be attached to the panel.\n\n" +
+                                    "Please try \"Restart code agent\" again. If the problem persists, report it with the log file:\n" +
+                                    TerminalLaunchLogPath,
+                                    "Claude Code Extension", MessageBoxButton.OK, MessageBoxImage.Warning);
+                                return;
                             }
 
                             LogTerminalLaunch($"embedded OK: hwnd=0x{terminalHandle.ToInt64():X}");
@@ -2667,6 +2714,48 @@ namespace ClaudeCodeVS
                 await Task.Delay(pollIntervalMs, cancellationToken);
             }
             return IntPtr.Zero;
+        }
+
+        /// <summary>
+        /// Makes sure the WinForms panel that hosts the embedded terminal exists and has a live
+        /// Win32 handle, recreating it when it is missing or disposed. The panel can die when its
+        /// WindowsFormsHost tears down — before this guard the launch silently bailed out, and
+        /// because the dead panel persisted, every subsequent "Restart code agent" stayed blank
+        /// until the project was reopened (issue #73). Must run on the UI thread. Returns false
+        /// only when there is no TerminalHost left to attach a panel to.
+        /// </summary>
+        private bool EnsureTerminalPanelReady()
+        {
+            ThreadHelper.ThrowIfNotOnUIThread();
+
+            try
+            {
+                if (terminalPanel != null && !terminalPanel.IsDisposed && terminalPanel.Handle != IntPtr.Zero)
+                {
+                    return true;
+                }
+            }
+            catch (ObjectDisposedException)
+            {
+                // Disposed between the checks — fall through and recreate.
+            }
+
+            if (TerminalHost == null)
+            {
+                LogTerminalLaunch("terminal panel unavailable and TerminalHost is null — cannot recreate");
+                return false;
+            }
+
+            LogTerminalLaunch($"terminal panel {(terminalPanel == null ? "missing" : "dead")} — recreating before embed");
+            terminalPanel = new System.Windows.Forms.Panel
+            {
+                Dock = System.Windows.Forms.DockStyle.Fill,
+                BackColor = GetTerminalBackgroundColor()
+            };
+            TerminalHost.Child = terminalPanel;
+            terminalPanel.Resize += (s, e) => ResizeEmbeddedTerminal();
+
+            return terminalPanel.Handle != IntPtr.Zero;
         }
 
         /// <summary>

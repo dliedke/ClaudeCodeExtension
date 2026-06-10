@@ -145,6 +145,12 @@ namespace ClaudeCodeVS
         private static extern IntPtr SetParent(IntPtr hWndChild, IntPtr hWndNewParent);
 
         /// <summary>
+        /// Returns the parent window of the specified window, or IntPtr.Zero for top-level windows
+        /// </summary>
+        [DllImport("user32.dll")]
+        private static extern IntPtr GetParent(IntPtr hWnd);
+
+        /// <summary>
         /// Changes the size and position of a window
         /// </summary>
         [DllImport("user32.dll")]
