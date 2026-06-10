@@ -417,6 +417,12 @@ namespace ClaudeCodeVS
         [DllImport("kernel32.dll", SetLastError = true)]
         private static extern bool FreeConsole();
 
+        /// <summary>
+        /// Returns the window handle of the console attached to the calling process, or IntPtr.Zero when none
+        /// </summary>
+        [DllImport("kernel32.dll")]
+        private static extern IntPtr GetConsoleWindow();
+
         // ---- Console screen-buffer reading (used by the "On Agent Finish" idle detector) ----
 
         private const uint GENERIC_READ_CONSOLE = 0x80000000;

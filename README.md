@@ -100,6 +100,9 @@ This binds a Claude Code skill that shells out to OpenAI Codex to audit pending 
 
 ## Version History
 
+### Version 10.95
+- More fixes for the terminal coming up blank after "Restart code agent": the restart now retries once when the terminal closes itself right after launch, and reports an error with a log file path instead of silently leaving the panel empty.
+
 ### Version 10.94
 - Clicking the agent terminal now reliably focuses it with a single click, so you can immediately answer the agent's questions — previously it could take a second click before typing reached the terminal.
 
