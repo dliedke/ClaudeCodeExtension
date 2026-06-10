@@ -100,6 +100,9 @@ This binds a Claude Code skill that shells out to OpenAI Codex to audit pending 
 
 ## Version History
 
+### Version 10.92
+- The "On Agent Finish" notification now greys out with an explanation when Windows Terminal is selected, since it only works with the Command Prompt terminal — previously it could be enabled there but silently did nothing.
+
 ### Version 10.91
 - Removed the "Don't bring Visual Studio to the foreground on terminal click" setting. Windows requires the Visual Studio window to be activated for typing to reach the embedded terminal, so the option could not work reliably and has been retired; clicking the terminal always brings Visual Studio forward again.
 

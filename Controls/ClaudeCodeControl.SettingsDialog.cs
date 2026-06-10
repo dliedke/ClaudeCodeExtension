@@ -228,6 +228,21 @@ namespace ClaudeCodeVS
 #pragma warning restore VSTHRD110
             behaviorStack.Children.Add(afOpenButton);
 
+            // Detection reads the conhost screen buffer, which Windows Terminal hosts in a
+            // separate process the console API can't read — so the feature is unavailable
+            // under Windows Terminal. Shown/hidden live by SyncAgentFinishAvailability().
+            var afWtHint = new TextBlock
+            {
+                Text = "Unavailable with Windows Terminal — switch the terminal type to Command Prompt (Terminal tab) to use this.",
+                FontSize = 11,
+                Opacity = 0.7,
+                Foreground = themeFg,
+                TextWrapping = TextWrapping.Wrap,
+                Visibility = Visibility.Collapsed,
+                Margin = new Thickness(4, 2, 0, 4)
+            };
+            behaviorStack.Children.Add(afWtHint);
+
             // ========================= Layout tab =========================
             var layoutStack = AddTab("Layout");
 
@@ -302,6 +317,20 @@ namespace ClaudeCodeVS
             cmdRadio.Checked += (s, e) => SyncDisableClipboardAvailability();
             wtRadio.Checked += (s, e) => SyncDisableClipboardAvailability();
             SyncDisableClipboardAvailability();
+
+            // "On Agent Finish" detection can only read the conhost screen buffer, so it is
+            // disabled for Windows Terminal. Keep the button (on the Behavior tab) and its hint
+            // in sync with the terminal-type radios live, the same way the clipboard toggle is.
+            void SyncAgentFinishAvailability()
+            {
+                bool cmdSelected = cmdRadio.IsChecked == true;
+                afOpenButton.IsEnabled = cmdSelected;
+                afOpenButton.Opacity = cmdSelected ? 1.0 : 0.5;
+                afWtHint.Visibility = cmdSelected ? Visibility.Collapsed : Visibility.Visible;
+            }
+            cmdRadio.Checked += (s, e) => SyncAgentFinishAvailability();
+            wtRadio.Checked += (s, e) => SyncAgentFinishAvailability();
+            SyncAgentFinishAvailability();
 
             // ========================= Theme tab =========================
             var themeStack = AddTab("Theme");
