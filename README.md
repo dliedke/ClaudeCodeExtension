@@ -100,6 +100,9 @@ This binds a Claude Code skill that shells out to OpenAI Codex to audit pending 
 
 ## Version History
 
+### Version 10.93
+- The "On Agent Finish" run-script action now correctly runs `.cmd`/`.bat` and `.ps1` scripts and keeps their window open afterward, so you can read the output instead of the console flashing closed (or a PowerShell script just opening in an editor).
+
 ### Version 10.92
 - The "On Agent Finish" notification now greys out with an explanation when Windows Terminal is selected, since it only works with the Command Prompt terminal — previously it could be enabled there but silently did nothing.
 

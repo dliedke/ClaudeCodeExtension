@@ -745,8 +745,10 @@ namespace ClaudeCodeVS
 
         /// <summary>
         /// Launches a script (deploy.cmd etc.) in the workspace directory. Relative paths
-        /// are resolved against the workspace. UseShellExecute lets a .cmd/.bat open its own
-        /// console so the user can watch its output.
+        /// are resolved against the workspace. A .cmd/.bat is launched through "cmd /k" and a
+        /// .ps1 through "powershell -NoExit", so the script runs (a .ps1's default shell verb
+        /// is Edit, which would just open it in an editor) and the console stays open afterwards
+        /// for the user to read its output. Anything else is shell-executed directly.
         /// </summary>
         private async Task RunFinishScriptAsync(string script)
         {
@@ -762,12 +764,37 @@ namespace ClaudeCodeVS
                     if (File.Exists(combined)) path = combined;
                 }
 
-                var psi = new ProcessStartInfo
+                string ext = Path.GetExtension(path).ToLowerInvariant();
+                ProcessStartInfo psi;
+                if (ext == ".cmd" || ext == ".bat")
                 {
-                    FileName = path,
-                    WorkingDirectory = workspace,
-                    UseShellExecute = true
-                };
+                    psi = new ProcessStartInfo
+                    {
+                        FileName = "cmd.exe",
+                        Arguments = $"/k \"{path}\"",
+                        WorkingDirectory = workspace,
+                        UseShellExecute = true
+                    };
+                }
+                else if (ext == ".ps1")
+                {
+                    psi = new ProcessStartInfo
+                    {
+                        FileName = "powershell.exe",
+                        Arguments = $"-ExecutionPolicy Bypass -NoExit -File \"{path}\"",
+                        WorkingDirectory = workspace,
+                        UseShellExecute = true
+                    };
+                }
+                else
+                {
+                    psi = new ProcessStartInfo
+                    {
+                        FileName = path,
+                        WorkingDirectory = workspace,
+                        UseShellExecute = true
+                    };
+                }
                 Process.Start(psi);
             }
             catch (Exception ex)
