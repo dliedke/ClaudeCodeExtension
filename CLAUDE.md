@@ -136,7 +136,7 @@ doc** — it captures non-obvious behavior that isn't apparent from the code:
 
 | File | `docs/ARCHITECTURE.md` section |
 |------|-------------------------------|
-| `Controls/ClaudeCodeControl.Terminal.cs` | Terminal Embedding — SetParent embed, conhost/WT modes, F5/mouse hooks, focus reclaim (#65), foreground opt-out (#69), WSL command patterns |
+| `Controls/ClaudeCodeControl.Terminal.cs` | Terminal Embedding — SetParent embed, conhost/WT modes, F5/mouse hooks, focus reclaim (#65), click-to-foreground (#69), WSL command patterns |
 | `Controls/ClaudeCodeControl.ProviderManagement.cs` | Provider Detection · Caveman Plugin · Visible Agents — caching, per-provider detect/paste quirks |
 | `Controls/ClaudeCodeControl.CustomCommands.cs` | Custom Commands |
 | `Controls/ClaudeCodeControl.CliPaths.cs` | Custom CLI Paths — CLI Paths settings tab, resolution/validation |

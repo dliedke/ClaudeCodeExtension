@@ -80,7 +80,6 @@ namespace ClaudeCodeVS
             ThemePreference origThemePref     = _settings.SelectedThemePreference;
             int  origCustomColorArgb          = _settings.CustomThemeColorArgb;
             bool origSkipThemePrompt          = _settings.SkipThemeRestartPrompt;
-            bool origDisableBringToFront      = _settings.DisableBringToForeground;
             bool origShowInlineBars           = _settings.ShowInlineUsageBars;
             int  origAutoRefresh              = _settings.UsageAutoRefreshSeconds;
             int  origFontSize                 = (int)Math.Round(PromptTextBox?.FontSize ?? 12.0);
@@ -177,14 +176,6 @@ namespace ClaudeCodeVS
                 "Automatically open the Changes view, expand files, and enable auto-scroll when a prompt is sent. Only applies when the project is in a git repository.",
                 origAutoOpenChanges, themeFg);
             behaviorStack.Children.Add(autoOpenCheck);
-
-            behaviorStack.Children.Add(MakeSectionHeader("Window", themeFg));
-
-            var disableBringToFrontCheck = MakeCheckBox(
-                "Don't bring Visual Studio to the foreground on terminal click",
-                "When enabled, clicking the embedded terminal no longer pulls the entire Visual Studio window to the front. Useful when you overlap multiple VS instances or other apps and want to interact with the terminal without rearranging your window layout.",
-                origDisableBringToFront, themeFg);
-            behaviorStack.Children.Add(disableBringToFrontCheck);
 
             // Prompt font size
             behaviorStack.Children.Add(MakeSectionHeader("Prompt font size", themeFg));
@@ -549,7 +540,6 @@ namespace ClaudeCodeVS
                 largeAsFileCheck.IsChecked = false;
                 disableClipboardCheck.IsChecked = false;
                 autoOpenCheck.IsChecked = false;
-                disableBringToFrontCheck.IsChecked = false;
                 SelectComboByTag(fontSizeCombo, 12);
                 topRadio.IsChecked = true;                // Top layout
                 disableAutoZoomCheck.IsChecked = false;
@@ -585,7 +575,6 @@ namespace ClaudeCodeVS
             bool newSendLargeAsFile = largeAsFileCheck.IsChecked == true;
             bool newDisableClipboardSend = disableClipboardCheck.IsChecked == true;
             bool newAutoOpenChanges = autoOpenCheck.IsChecked == true;
-            bool newDisableBringToFront = disableBringToFrontCheck.IsChecked == true;
             int newFontSize = (fontSizeCombo.SelectedItem as ComboBoxItem)?.Tag is int fs ? fs : origFontSize;
             // Map the selected position back to orientation + invert.
             bool newVertical = leftRadio.IsChecked == true || rightRadio.IsChecked == true;
@@ -651,7 +640,6 @@ namespace ClaudeCodeVS
             _settings.SendLargePromptsAsFile  = newSendLargeAsFile;
             _settings.DisableClipboardSend    = newDisableClipboardSend;
             _settings.AutoOpenChangesOnPrompt = newAutoOpenChanges;
-            _settings.DisableBringToForeground = newDisableBringToFront;
             _settings.InvertLayout            = newInvertLayout;
             _settings.SelectedLayoutOrientation = newOrientation;
             _settings.DisableStartupAutoZoom  = newDisableAutoZoom;

@@ -429,16 +429,6 @@ namespace ClaudeCodeVS
         public bool DisableStartupAutoZoom { get; set; } = false;
 
         /// <summary>
-        /// When true, clicking the embedded terminal no longer brings the entire
-        /// Visual Studio window to the foreground. Useful when overlapping multiple
-        /// VS instances or other apps and you want to click the terminal (e.g. to
-        /// grant a permission) without rearranging your window layout.
-        /// When false (the default), clicking the terminal activates the VS window
-        /// so it appears on top of other applications.
-        /// </summary>
-        public bool DisableBringToForeground { get; set; } = false;
-
-        /// <summary>
         /// If true, the layout is inverted, swapping the prompt and terminal slots
         /// within the active orientation. For a Horizontal split this puts the
         /// terminal on top and the prompt on the bottom; for a Vertical split it
