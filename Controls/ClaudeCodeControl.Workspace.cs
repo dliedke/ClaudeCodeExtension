@@ -39,6 +39,22 @@ namespace ClaudeCodeVS
         /// </summary>
         private string _lastWorkspaceDirectory;
 
+        /// <summary>
+        /// True while a workspace-change evaluation is running (UI-thread only).
+        /// </summary>
+        private bool _workspaceChangeInProgress;
+
+        /// <summary>
+        /// Set when a workspace-change request arrives while another is running; the
+        /// in-flight evaluation re-runs once more when it finishes (UI-thread only).
+        /// </summary>
+        private bool _workspaceChangeRerunRequested;
+
+        /// <summary>
+        /// Accumulated forceDiffReset flag for the coalesced re-run (UI-thread only).
+        /// </summary>
+        private bool _workspaceChangeRerunForceDiffReset;
+
         #endregion
 
         #region Workspace Initialization
@@ -202,6 +218,48 @@ namespace ClaudeCodeVS
         /// Restarts the terminal in the new workspace directory
         /// </summary>
         public async Task OnWorkspaceDirectoryChangedAsync(bool forceDiffReset = false)
+        {
+            // Solution load fires this in a burst: the solution-open event, one project-open
+            // event per project, and the control's own startup initialization. Each overlapping
+            // call used to queue its own terminal launch, and every queued launch tore down the
+            // terminal the previous one had just embedded. That stop/relaunch churn of fresh WSL
+            // sessions is what creates the teardown contention behind the blank-panel failures
+            // (issue #73). Coalesce instead: one evaluation runs at a time, and a burst collapses
+            // into a single trailing re-run that sees the terminal already in the right directory
+            // and leaves it alone. All flag access happens on the UI thread.
+            await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
+
+            if (_workspaceChangeInProgress)
+            {
+                _workspaceChangeRerunRequested = true;
+                _workspaceChangeRerunForceDiffReset |= forceDiffReset;
+                return;
+            }
+
+            _workspaceChangeInProgress = true;
+            try
+            {
+                do
+                {
+                    _workspaceChangeRerunRequested = false;
+                    forceDiffReset |= _workspaceChangeRerunForceDiffReset;
+                    _workspaceChangeRerunForceDiffReset = false;
+
+                    await HandleWorkspaceDirectoryChangedAsync(forceDiffReset);
+
+                    await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
+                } while (_workspaceChangeRerunRequested);
+            }
+            finally
+            {
+                _workspaceChangeInProgress = false;
+            }
+        }
+
+        /// <summary>
+        /// Single workspace-change evaluation; only called from the coalescing wrapper above.
+        /// </summary>
+        private async Task HandleWorkspaceDirectoryChangedAsync(bool forceDiffReset)
         {
             try
             {

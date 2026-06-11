@@ -143,6 +143,12 @@ namespace ClaudeCodeVS
         private readonly SemaphoreSlim _terminalLifecycleSemaphore = new SemaphoreSlim(1, 1);
 
         /// <summary>
+        /// Monotonic ticket for terminal launch requests. A launch that finds a newer ticket
+        /// after acquiring the lifecycle lock has been superseded and skips itself.
+        /// </summary>
+        private int _terminalLaunchTicket;
+
+        /// <summary>
         /// Monotonic session identifier used to discard deferred startup work from stale terminal instances.
         /// </summary>
         private int _terminalStartupSessionId = 0;
@@ -455,6 +461,10 @@ namespace ClaudeCodeVS
             Process existingProcess = cmdProcess;
             int existingTerminalWindowProcessId = 0;
             bool isWindowsTerminal = false;
+            bool wasWslProvider = _currentRunningProvider == AiProvider.ClaudeCodeWSL ||
+                                  _currentRunningProvider == AiProvider.Codex ||
+                                  _currentRunningProvider == AiProvider.CursorAgent ||
+                                  _currentRunningProvider == AiProvider.Windsurf;
 
             if (existingTerminalHandle != IntPtr.Zero && IsWindow(existingTerminalHandle))
             {
@@ -525,6 +535,51 @@ namespace ClaudeCodeVS
             terminalHandle = IntPtr.Zero;
             _wtTabBarHeight = 0;
             _currentRunningProvider = null;
+
+            // Relaunching while a just-killed `wsl bash` session is still tearing down is what
+            // makes the fresh conhost exit instantly or lose its window mid-embed (issue #73).
+            // Wait (bounded) for the killed processes to actually disappear before the caller
+            // spawns the next terminal, so most launches never enter that contention window.
+            if (wasWslProvider && terminatedProcessIds.Count > 0)
+            {
+                var teardownTimer = Stopwatch.StartNew();
+                while (teardownTimer.ElapsedMilliseconds < 3000 && AnyProcessStillRunning(terminatedProcessIds))
+                {
+                    await Task.Delay(100);
+                }
+
+                if (teardownTimer.ElapsedMilliseconds >= 100)
+                {
+                    LogTerminalLaunch($"waited {teardownTimer.ElapsedMilliseconds}ms for WSL terminal teardown" +
+                                      (AnyProcessStillRunning(terminatedProcessIds) ? " (old processes still running — proceeding anyway)" : ""));
+                }
+            }
+        }
+
+        /// <summary>
+        /// True when any of the given process IDs still maps to a running process.
+        /// </summary>
+        private static bool AnyProcessStillRunning(HashSet<int> processIds)
+        {
+            foreach (int pid in processIds)
+            {
+                try
+                {
+                    using (var process = Process.GetProcessById(pid))
+                    {
+                        if (!process.HasExited)
+                        {
+                            return true;
+                        }
+                    }
+                }
+                catch
+                {
+                    // Process is gone (or unreadable) — treat as exited.
+                }
+            }
+
+            return false;
         }
 
         /// <summary>
@@ -821,11 +876,22 @@ namespace ClaudeCodeVS
         private async Task StartEmbeddedTerminalAsync(AiProvider? provider)
         {
             bool terminalLifecycleLockHeld = false;
+            int launchTicket = System.Threading.Interlocked.Increment(ref _terminalLaunchTicket);
 
             try
             {
                 await _terminalLifecycleSemaphore.WaitAsync();
                 terminalLifecycleLockHeld = true;
+
+                // While this request waited for the lifecycle lock, a newer launch request was
+                // queued behind it. Starting a terminal here would only have the queued request
+                // immediately tear it down and relaunch — the WSL stop/start churn behind the
+                // blank-panel failures (issue #73). Let the newest request do the work.
+                if (launchTicket != System.Threading.Volatile.Read(ref _terminalLaunchTicket))
+                {
+                    LogTerminalLaunch($"skipping superseded launch request: provider={(provider?.ToString() ?? "CMD")}");
+                    return;
+                }
 
                 string workspaceDir = await GetWorkspaceDirectoryAsync();
                 if (string.IsNullOrEmpty(workspaceDir))
@@ -981,6 +1047,7 @@ namespace ClaudeCodeVS
                     {
                         if (!EnsureTerminalPanelReady())
                         {
+                            LogTerminalLaunch("ABORT: terminal panel not ready — WT launch abandoned");
                             return;
                         }
 
@@ -1173,12 +1240,22 @@ namespace ClaudeCodeVS
                     // moment later, so relaunch the whole spawn->find->embed unit a few times with
                     // growing backoff before giving up and leaving the panel blank.
                     bool embedded = false;
+                    bool superseded = false;
                     string lastFailureReason = "no console window to embed";
-                    int[] relaunchBackoffMs = { 0, 750, 1500 };
+                    int[] relaunchBackoffMs = { 0, 750, 1500, 3000, 6000 };
                     for (int relaunch = 0; relaunch < relaunchBackoffMs.Length && !embedded; relaunch++)
                     {
                         if (relaunch > 0)
                         {
+                            // A newer launch request queued up while this one was retrying —
+                            // stop burning backoff time on a doomed session and let it run.
+                            if (launchTicket != System.Threading.Volatile.Read(ref _terminalLaunchTicket))
+                            {
+                                superseded = true;
+                                LogTerminalLaunch($"abandoning relaunch retries: superseded by a newer launch request (relaunch {relaunch + 1}/{relaunchBackoffMs.Length})");
+                                break;
+                            }
+
                             // Clean up the orphan window/process from the failed attempt so retries
                             // don't pile up live conhosts, then back off to let WSL teardown settle.
                             await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
@@ -1280,6 +1357,7 @@ namespace ClaudeCodeVS
 
                         if (!EnsureTerminalPanelReady())
                         {
+                            LogTerminalLaunch("ABORT: terminal panel not ready — launch abandoned");
                             RestoreConsoleFontRegistry();
                             RestoreConsoleColorsRegistry();
                             return;
@@ -1375,7 +1453,7 @@ namespace ClaudeCodeVS
                     RestoreConsoleFontRegistry();
                     RestoreConsoleColorsRegistry();
 
-                    if (!embedded)
+                    if (!embedded && !superseded)
                     {
                         // Every relaunch attempt left the panel blank (issue #73). Tell the user
                         // where the launch log is so the failure can be reported with details.
