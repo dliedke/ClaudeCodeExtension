@@ -100,6 +100,9 @@ This binds a Claude Code skill that shells out to OpenAI Codex to audit pending 
 
 ## Version History
 
+### Version 10.99
+- Fixed the agent terminal staying stuck on a previously chosen custom background color after switching the theme back to Automatic, Dark, or Light — the terminal now always matches the selected theme.
+
 ### Version 10.98
 - Opening or switching solutions no longer restarts the code agent several times in a row — the agent now starts once in the right folder, which also fixes most cases of the panel coming up blank right after loading a new solution.
 - When the launch does fail to attach, the extension now waits for the old session to fully shut down and retries for longer before giving up.

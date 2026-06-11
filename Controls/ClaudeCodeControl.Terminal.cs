@@ -1670,20 +1670,32 @@ namespace ClaudeCodeVS
         {
             try
             {
-                // Custom theme: paint the console background with the user-chosen
-                // color (bg = ColorTable00, fg = ColorTable07 black/white by brightness).
-                bool isCustom = _settings?.SelectedThemePreference == ThemePreference.Custom;
-                System.Drawing.Color customColor = isCustom ? GetCustomThemeColor() : System.Drawing.Color.Black;
-                bool customIsLight = isCustom && Brightness(customColor) > 150;
+                // If a previous launch saved the originals but never restored them
+                // (e.g. a superseded/aborted launch during the issue #73 relaunch
+                // churn), recover the true user values first. Otherwise the next
+                // save would capture our own temporary themed color as the
+                // "original" and bake it in permanently -- every later restore
+                // would then write that color back, so a non-custom theme would
+                // keep showing the old custom background forever.
+                if (_consoleColorsSaved)
+                    RestoreConsoleColorsRegistry();
+
+                // Paint the console background with the current theme's background
+                // color for ALL themes (custom/dark/light/automatic). ColorTable00
+                // is written explicitly every time so a non-custom theme can never
+                // inherit a stale ColorTable00 left behind by a previous custom run.
+                // bg = ColorTable00, fg = ColorTable07 (black/white by brightness),
+                // ScreenColors low nibble = fg index 7, high nibble = bg index 0.
+                System.Drawing.Color bgColor = GetTerminalBackgroundColor();
+                bool bgIsLight = Brightness(bgColor) > 150;
                 // Console color tables store BGR (0x00BBGGRR).
-                uint customBgr = (uint)((customColor.B << 16) | (customColor.G << 8) | customColor.R);
+                uint bgBgr = (uint)((bgColor.B << 16) | (bgColor.G << 8) | bgColor.R);
+                uint fgBgr = bgIsLight ? 0x00000000U : 0x00FFFFFFU; // black on light, white on dark
 
-                bool isLightTheme = isCustom ? customIsLight : IsVsInLightTheme();
-                Debug.WriteLine($"SaveAndSetConsoleColorsRegistry - isCustom: {isCustom}, isLightTheme: {isLightTheme}");
-
-                // For custom: bg index 0 (ColorTable00 = custom), fg index 7 (ColorTable07).
-                uint screenColors = isCustom ? 0x07U : (isLightTheme ? 0xF0U : 0x0FU);
+                uint screenColors = 0x07U; // bg index 0 (ColorTable00), fg index 7 (ColorTable07)
                 uint popupColors = screenColors;
+
+                Debug.WriteLine($"SaveAndSetConsoleColorsRegistry - bg=#{bgColor.R:X2}{bgColor.G:X2}{bgColor.B:X2}, bgIsLight: {bgIsLight}");
 
                 using (var key = Microsoft.Win32.Registry.CurrentUser.OpenSubKey("Console", writable: true))
                 {
@@ -1703,18 +1715,8 @@ namespace ClaudeCodeVS
 
                     key.SetValue("ScreenColors", screenColors, Microsoft.Win32.RegistryValueKind.DWord);
                     key.SetValue("PopupColors", popupColors, Microsoft.Win32.RegistryValueKind.DWord);
-
-                    if (isCustom)
-                    {
-                        key.SetValue("ColorTable00", customBgr, Microsoft.Win32.RegistryValueKind.DWord); // custom background
-                        key.SetValue("ColorTable07", customIsLight ? 0x00000000U : 0x00FFFFFFU, Microsoft.Win32.RegistryValueKind.DWord); // black/white text
-                    }
-                    else if (isLightTheme)
-                    {
-                        // Set explicit RGB values for color table entries
-                        key.SetValue("ColorTable00", 0x00000000U, Microsoft.Win32.RegistryValueKind.DWord); // Black
-                        key.SetValue("ColorTable07", 0x00FFFFFFU, Microsoft.Win32.RegistryValueKind.DWord); // White
-                    }
+                    key.SetValue("ColorTable00", bgBgr, Microsoft.Win32.RegistryValueKind.DWord); // themed background
+                    key.SetValue("ColorTable07", fgBgr, Microsoft.Win32.RegistryValueKind.DWord); // black/white text
 
                     Debug.WriteLine($"Set ScreenColors to: {screenColors:X}");
                 }
@@ -1726,11 +1728,8 @@ namespace ClaudeCodeVS
                     {
                         conhostKey.SetValue("ScreenColors", screenColors, Microsoft.Win32.RegistryValueKind.DWord);
                         conhostKey.SetValue("PopupColors", popupColors, Microsoft.Win32.RegistryValueKind.DWord);
-                        if (isCustom)
-                        {
-                            conhostKey.SetValue("ColorTable00", customBgr, Microsoft.Win32.RegistryValueKind.DWord);
-                            conhostKey.SetValue("ColorTable07", customIsLight ? 0x00000000U : 0x00FFFFFFU, Microsoft.Win32.RegistryValueKind.DWord);
-                        }
+                        conhostKey.SetValue("ColorTable00", bgBgr, Microsoft.Win32.RegistryValueKind.DWord);
+                        conhostKey.SetValue("ColorTable07", fgBgr, Microsoft.Win32.RegistryValueKind.DWord);
                         Debug.WriteLine($"Set conhost ScreenColors to: {screenColors:X}");
                     }
                 }
