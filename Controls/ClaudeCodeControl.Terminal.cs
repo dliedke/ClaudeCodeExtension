@@ -1166,97 +1166,122 @@ namespace ClaudeCodeVS
 
                     LogTerminalLaunch($"Launching conhost terminal: provider={(provider?.ToString() ?? "CMD")}, workspace={workspaceDir}");
 
-                    // Spawn the terminal and locate its console window. If the conhost dies right
-                    // after launch (issue #73: a console window flashes for a split second, closes
-                    // itself, and the panel stays blank), re-spawn once before giving up.
-                    IntPtr hwnd = IntPtr.Zero;
-                    for (int spawnAttempt = 1; spawnAttempt <= 2 && hwnd == IntPtr.Zero; spawnAttempt++)
+                    // The freshly-launched conhost/cmd can die within a few hundred ms when WSL is
+                    // still tearing down a just-stopped session (issue #73): the console window
+                    // either never appears ("exited immediately, exitCode=0") or dies right after, so
+                    // SetParent then hits a dead window (win32 error 1400). Both clear on a retry a
+                    // moment later, so relaunch the whole spawn->find->embed unit a few times with
+                    // growing backoff before giving up and leaving the panel blank.
+                    bool embedded = false;
+                    string lastFailureReason = "no console window to embed";
+                    int[] relaunchBackoffMs = { 0, 750, 1500 };
+                    for (int relaunch = 0; relaunch < relaunchBackoffMs.Length && !embedded; relaunch++)
                     {
-                        await Task.Run(() =>
+                        if (relaunch > 0)
                         {
-                            // Serialize the spawn against the agent-finish console capture and detach
-                            // VS from any console right before CreateProcess. A child spawned while VS
-                            // is attached to a console inherits it instead of creating its own window,
-                            // which leaves the embedded terminal permanently blank (issue #73). The
-                            // bounded acquire keeps a pathological hung capture from blocking the
-                            // launch forever — FreeConsole still runs so the spawn never inherits.
-                            bool consoleLockTaken = false;
-                            try
-                            {
-                                Monitor.TryEnter(_consoleSnapshotLock, 5000, ref consoleLockTaken);
-                                bool vsHadConsole = GetConsoleWindow() != IntPtr.Zero;
-                                try { FreeConsole(); } catch { }
-
-                                cmdProcess = new Process { StartInfo = startInfo };
-                                cmdProcess.Start();
-                                LogTerminalLaunch($"conhost spawned: pid={cmdProcess.Id}, attempt={spawnAttempt}/2, vsHadConsoleAttached={vsHadConsole}, spawnLockTaken={consoleLockTaken}");
-                            }
-                            catch (Exception ex)
-                            {
-                                Debug.WriteLine($"Error starting process: {ex.Message}");
-                                LogTerminalLaunch($"conhost spawn FAILED: {ex.Message}");
-                                throw;
-                            }
-                            finally
-                            {
-                                if (consoleLockTaken) Monitor.Exit(_consoleSnapshotLock);
-                            }
-                        });
-
-                        if (cmdProcess == null)
-                        {
-                            throw new InvalidOperationException("Failed to create terminal process");
+                            // Clean up the orphan window/process from the failed attempt so retries
+                            // don't pile up live conhosts, then back off to let WSL teardown settle.
+                            await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
+                            await StopExistingTerminalAsync();
+                            LogTerminalLaunch($"relaunching after embed failure ({lastFailureReason}); relaunch {relaunch + 1}/{relaunchBackoffMs.Length} after {relaunchBackoffMs[relaunch]}ms backoff");
+                            await Task.Delay(relaunchBackoffMs[relaunch]);
                         }
 
-                        // Find the terminal window with retry -- on busy systems the first
-                        // attempt may time out before cmd.exe creates its window, leaving a floating
-                        // external window. Retry with a longer timeout before giving up.
-                        int[] findTimeouts = { 5000, 10000 }; // 5s, then 10s retry
-                        for (int findAttempt = 0; findAttempt < findTimeouts.Length; findAttempt++)
+                        // Spawn the terminal and locate its console window. If the conhost dies right
+                        // after launch (a console window flashes for a split second, closes itself,
+                        // and the panel stays blank), re-spawn once before deferring to the relaunch.
+                        IntPtr hwnd = IntPtr.Zero;
+                        for (int spawnAttempt = 1; spawnAttempt <= 2 && hwnd == IntPtr.Zero; spawnAttempt++)
                         {
-                            hwnd = await FindMainWindowHandleByConhostAsync(cmdProcess.Id, timeoutMs: findTimeouts[findAttempt], pollIntervalMs: 50, launcherProcess: cmdProcess);
-                            if (hwnd != IntPtr.Zero)
-                                break;
-                            if (HasTerminalProcessExited(cmdProcess))
-                                break; // dead launcher — no point polling for its window
-                            Debug.WriteLine($"FindMainWindowHandleByConhostAsync attempt {findAttempt + 1} timed out after {findTimeouts[findAttempt]}ms, retrying...");
-                            LogTerminalLaunch($"console window not found after {findTimeouts[findAttempt]}ms (find attempt {findAttempt + 1}), process still alive");
-                        }
-
-                        if (hwnd == IntPtr.Zero)
-                        {
-                            if (!HasTerminalProcessExited(cmdProcess))
+                            await Task.Run(() =>
                             {
-                                // The launcher is alive but its window was never found — do not
-                                // re-spawn (that would pile up a second live terminal process).
-                                LogTerminalLaunch("giving up: conhost is running but its console window was never found");
-                                break;
+                                // Serialize the spawn against the agent-finish console capture and detach
+                                // VS from any console right before CreateProcess. A child spawned while VS
+                                // is attached to a console inherits it instead of creating its own window,
+                                // which leaves the embedded terminal permanently blank (issue #73). The
+                                // bounded acquire keeps a pathological hung capture from blocking the
+                                // launch forever — FreeConsole still runs so the spawn never inherits.
+                                bool consoleLockTaken = false;
+                                try
+                                {
+                                    Monitor.TryEnter(_consoleSnapshotLock, 5000, ref consoleLockTaken);
+                                    bool vsHadConsole = GetConsoleWindow() != IntPtr.Zero;
+                                    try { FreeConsole(); } catch { }
+
+                                    cmdProcess = new Process { StartInfo = startInfo };
+                                    cmdProcess.Start();
+                                    LogTerminalLaunch($"conhost spawned: pid={cmdProcess.Id}, attempt={spawnAttempt}/2, vsHadConsoleAttached={vsHadConsole}, spawnLockTaken={consoleLockTaken}");
+                                }
+                                catch (Exception ex)
+                                {
+                                    Debug.WriteLine($"Error starting process: {ex.Message}");
+                                    LogTerminalLaunch($"conhost spawn FAILED: {ex.Message}");
+                                    throw;
+                                }
+                                finally
+                                {
+                                    if (consoleLockTaken) Monitor.Exit(_consoleSnapshotLock);
+                                }
+                            });
+
+                            if (cmdProcess == null)
+                            {
+                                throw new InvalidOperationException("Failed to create terminal process");
                             }
 
-                            int exitCode = 0;
-                            try { exitCode = cmdProcess.ExitCode; } catch { }
-                            LogTerminalLaunch($"conhost exited immediately after launch: exitCode={exitCode}, attempt={spawnAttempt}/2");
-                            try { cmdProcess.Dispose(); } catch { }
-                            cmdProcess = null;
-                            if (spawnAttempt < 2)
+                            // Find the terminal window with retry -- on busy systems the first
+                            // attempt may time out before cmd.exe creates its window, leaving a floating
+                            // external window. Retry with a longer timeout before giving up.
+                            int[] findTimeouts = { 5000, 10000 }; // 5s, then 10s retry
+                            for (int findAttempt = 0; findAttempt < findTimeouts.Length; findAttempt++)
                             {
-                                await Task.Delay(500);
+                                hwnd = await FindMainWindowHandleByConhostAsync(cmdProcess.Id, timeoutMs: findTimeouts[findAttempt], pollIntervalMs: 50, launcherProcess: cmdProcess);
+                                if (hwnd != IntPtr.Zero)
+                                    break;
+                                if (HasTerminalProcessExited(cmdProcess))
+                                    break; // dead launcher — no point polling for its window
+                                Debug.WriteLine($"FindMainWindowHandleByConhostAsync attempt {findAttempt + 1} timed out after {findTimeouts[findAttempt]}ms, retrying...");
+                                LogTerminalLaunch($"console window not found after {findTimeouts[findAttempt]}ms (find attempt {findAttempt + 1}), process still alive");
+                            }
+
+                            if (hwnd == IntPtr.Zero)
+                            {
+                                if (!HasTerminalProcessExited(cmdProcess))
+                                {
+                                    // The launcher is alive but its window was never found — do not
+                                    // re-spawn (that would pile up a second live terminal process).
+                                    LogTerminalLaunch("giving up: conhost is running but its console window was never found");
+                                    break;
+                                }
+
+                                int exitCode = 0;
+                                try { exitCode = cmdProcess.ExitCode; } catch { }
+                                LogTerminalLaunch($"conhost exited immediately after launch: exitCode={exitCode}, attempt={spawnAttempt}/2");
+                                try { cmdProcess.Dispose(); } catch { }
+                                cmdProcess = null;
+                                if (spawnAttempt < 2)
+                                {
+                                    await Task.Delay(500);
+                                }
                             }
                         }
-                    }
 
-                    // Restore original console font and colors
-                    RestoreConsoleFontRegistry();
-                    RestoreConsoleColorsRegistry();
+                        terminalHandle = hwnd;
 
-                    terminalHandle = hwnd;
+                        await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
 
-                    await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
+                        if (terminalHandle == IntPtr.Zero || !IsWindow(terminalHandle))
+                        {
+                            // No window to embed this attempt — relaunch (or report after the loop).
+                            lastFailureReason = "no console window to embed";
+                            LogTerminalLaunch($"no console window to embed (relaunch {relaunch + 1}/{relaunchBackoffMs.Length})");
+                            continue;
+                        }
 
-                    if (terminalHandle != IntPtr.Zero && IsWindow(terminalHandle))
-                    {
                         if (!EnsureTerminalPanelReady())
                         {
+                            RestoreConsoleFontRegistry();
+                            RestoreConsoleColorsRegistry();
                             return;
                         }
 
@@ -1272,8 +1297,20 @@ namespace ClaudeCodeVS
                             // returning zero is ambiguous (a top-level window's previous parent
                             // is also zero), so confirm via GetParent before declaring failure.
                             bool embedSucceeded = false;
+                            bool windowDied = false;
                             for (int spAttempt = 1; spAttempt <= 3; spAttempt++)
                             {
+                                // The conhost can die mid-embed when WSL is tearing down (issue #73);
+                                // SetParent then fails with win32 error 1400 on a dead window. Detect
+                                // the corpse up front so we relaunch at once instead of burning 600ms
+                                // retrying SetParent against a window that will never come back.
+                                if (!IsWindow(terminalHandle) || HasTerminalProcessExited(cmdProcess))
+                                {
+                                    windowDied = true;
+                                    LogTerminalLaunch($"console window/process died before embed (relaunch {relaunch + 1}/{relaunchBackoffMs.Length})");
+                                    break;
+                                }
+
                                 IntPtr prevParent = SetParent(terminalHandle, terminalPanel.Handle);
                                 int err = Marshal.GetLastWin32Error();
                                 if (prevParent != IntPtr.Zero || GetParent(terminalHandle) == terminalPanel.Handle)
@@ -1290,17 +1327,11 @@ namespace ClaudeCodeVS
 
                             if (!embedSucceeded)
                             {
-                                // Previously this fell through claiming success and showed a
-                                // hidden, parentless window — i.e. a blank panel with the agent
-                                // running invisibly (issue #73). Report it instead; the next
-                                // restart closes the orphan via terminalHandle.
-                                LogTerminalLaunch("FAILED: SetParent never succeeded — panel left blank");
-                                MessageBox.Show(
-                                    "The terminal started but could not be attached to the panel.\n\n" +
-                                    "Please try \"Restart code agent\" again. If the problem persists, report it with the log file:\n" +
-                                    TerminalLaunchLogPath,
-                                    "Claude Code Extension", MessageBoxButton.OK, MessageBoxImage.Warning);
-                                return;
+                                // Don't claim success and show a hidden, parentless window — that is
+                                // the blank panel with the agent running invisibly (issue #73). Defer
+                                // to the relaunch loop; the orphan is cleaned up before the next try.
+                                lastFailureReason = windowDied ? "console window died before embed" : "SetParent never succeeded";
+                                continue;
                             }
 
                             LogTerminalLaunch($"embedded OK: hwnd=0x{terminalHandle.ToInt64():X}");
@@ -1329,6 +1360,7 @@ namespace ClaudeCodeVS
                             RecordTerminalAgentColor();
 
                             SchedulePostStartupTerminalAdjustments();
+                            embedded = true;
                         }
                         catch (Exception ex)
                         {
@@ -1336,15 +1368,21 @@ namespace ClaudeCodeVS
                             throw;
                         }
                     }
-                    else
+
+                    // Restore original console font and colors. These are kept set across all
+                    // relaunch attempts (saved once before the loop) so every conhost picks up the
+                    // themed colors at startup — re-saving per attempt would clobber the originals.
+                    RestoreConsoleFontRegistry();
+                    RestoreConsoleColorsRegistry();
+
+                    if (!embedded)
                     {
-                        // Previously this failed silently and the panel just stayed blank
-                        // (issue #73). Tell the user what happened and where the launch log is
-                        // so the failure can be reported with actionable details.
-                        Debug.WriteLine("Could not find CMD window to embed. Terminal may not be available.");
-                        LogTerminalLaunch("FAILED: no console window to embed — panel left blank");
+                        // Every relaunch attempt left the panel blank (issue #73). Tell the user
+                        // where the launch log is so the failure can be reported with details.
+                        Debug.WriteLine("Could not embed CMD window after relaunch attempts. Terminal may not be available.");
+                        LogTerminalLaunch("FAILED: panel left blank after all relaunch attempts — " + lastFailureReason);
                         MessageBox.Show(
-                            "The terminal could not be started: its console window closed immediately or was never created.\n\n" +
+                            "The terminal could not be attached to the panel.\n\n" +
                             "Please try \"Restart code agent\" again. If the problem persists, report it with the log file:\n" +
                             TerminalLaunchLogPath,
                             "Claude Code Extension", MessageBoxButton.OK, MessageBoxImage.Warning);

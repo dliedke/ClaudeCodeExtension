@@ -100,6 +100,9 @@ This binds a Claude Code skill that shells out to OpenAI Codex to audit pending 
 
 ## Version History
 
+### Version 10.97
+- The terminal now retries the whole launch a few times when it comes up blank after "Restart code agent" or when switching solutions, recovering on its own from the brief startup failures that previously left the panel empty until you clicked restart again.
+
 ### Version 10.96
 - More fixes for the panel staying blank after "Restart code agent": the panel now repairs itself when its hosting area was torn down, and attach failures show an error instead of silently leaving the panel empty until Visual Studio is reopened.
 
