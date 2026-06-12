@@ -154,6 +154,14 @@ namespace ClaudeCodeVS
         private int _terminalStartupSessionId = 0;
 
         /// <summary>
+        /// PIDs of the previous terminal session's process tree that a stop issued kills for but
+        /// that may still be tearing down. Spawning a fresh conhost while these are dying makes it
+        /// exit instantly with code 0 (issue #73), so the relaunch loop re-checks this set before
+        /// every respawn. Cleared at the start of each launch request; only touched on the UI thread.
+        /// </summary>
+        private readonly HashSet<int> _pendingTeardownProcessIds = new HashSet<int>();
+
+        /// <summary>
         /// Monotonic request identifier used to debounce repaint passes after manual Ctrl+Scroll zoom.
         /// </summary>
         private int _manualZoomRefreshRequestId = 0;
@@ -163,6 +171,14 @@ namespace ClaudeCodeVS
         /// Manual Ctrl+Scroll zoom remains available regardless of this setting.
         /// </summary>
         private static readonly bool EnableStartupTerminalAutoZoom = true;
+
+        /// <summary>
+        /// Incremented for every left-button-down the mouse hook sees (anywhere on screen).
+        /// The terminal-click focus guard (issue #74) captures the value for its click and
+        /// aborts as soon as a newer click happens, so it can never fight the user over focus.
+        /// Only touched on the UI thread.
+        /// </summary>
+        private int _terminalClickSequence;
 
         #endregion
 
@@ -461,10 +477,6 @@ namespace ClaudeCodeVS
             Process existingProcess = cmdProcess;
             int existingTerminalWindowProcessId = 0;
             bool isWindowsTerminal = false;
-            bool wasWslProvider = _currentRunningProvider == AiProvider.ClaudeCodeWSL ||
-                                  _currentRunningProvider == AiProvider.Codex ||
-                                  _currentRunningProvider == AiProvider.CursorAgent ||
-                                  _currentRunningProvider == AiProvider.Windsurf;
 
             if (existingTerminalHandle != IntPtr.Zero && IsWindow(existingTerminalHandle))
             {
@@ -536,11 +548,20 @@ namespace ClaudeCodeVS
             _wtTabBarHeight = 0;
             _currentRunningProvider = null;
 
-            // Relaunching while a just-killed `wsl bash` session is still tearing down is what
-            // makes the fresh conhost exit instantly or lose its window mid-embed (issue #73).
-            // Wait (bounded) for the killed processes to actually disappear before the caller
-            // spawns the next terminal, so most launches never enter that contention window.
-            if (wasWslProvider && terminatedProcessIds.Count > 0)
+            // Remember every PID this stop issued a kill for, so the relaunch loop can keep
+            // checking whether the old session has really finished dying before each respawn.
+            foreach (int killedPid in terminatedProcessIds)
+            {
+                _pendingTeardownProcessIds.Add(killedPid);
+            }
+
+            // Relaunching while the just-killed session is still tearing down is what makes the
+            // fresh conhost exit instantly with code 0 or lose its window mid-embed (issue #73).
+            // Originally observed with WSL, but the reporter's log shows the same fingerprint
+            // with native Claude Code (slow agent/node tree teardown, e.g. under corporate EDR),
+            // so wait (bounded) for the killed processes to actually disappear for ALL providers
+            // before the caller spawns the next terminal.
+            if (terminatedProcessIds.Count > 0)
             {
                 var teardownTimer = Stopwatch.StartNew();
                 while (teardownTimer.ElapsedMilliseconds < 3000 && AnyProcessStillRunning(terminatedProcessIds))
@@ -550,7 +571,7 @@ namespace ClaudeCodeVS
 
                 if (teardownTimer.ElapsedMilliseconds >= 100)
                 {
-                    LogTerminalLaunch($"waited {teardownTimer.ElapsedMilliseconds}ms for WSL terminal teardown" +
+                    LogTerminalLaunch($"waited {teardownTimer.ElapsedMilliseconds}ms for terminal teardown" +
                                       (AnyProcessStillRunning(terminatedProcessIds) ? " (old processes still running — proceeding anyway)" : ""));
                 }
             }
@@ -561,6 +582,15 @@ namespace ClaudeCodeVS
         /// </summary>
         private static bool AnyProcessStillRunning(HashSet<int> processIds)
         {
+            return CountProcessesStillRunning(processIds) > 0;
+        }
+
+        /// <summary>
+        /// Number of the given process IDs that still map to a running process.
+        /// </summary>
+        private static int CountProcessesStillRunning(HashSet<int> processIds)
+        {
+            int alive = 0;
             foreach (int pid in processIds)
             {
                 try
@@ -569,7 +599,7 @@ namespace ClaudeCodeVS
                     {
                         if (!process.HasExited)
                         {
-                            return true;
+                            alive++;
                         }
                     }
                 }
@@ -579,7 +609,7 @@ namespace ClaudeCodeVS
                 }
             }
 
-            return false;
+            return alive;
         }
 
         /// <summary>
@@ -619,7 +649,7 @@ namespace ClaudeCodeVS
             try
             {
                 terminatedProcessIds.Add(processId);
-                KillProcessAndChildren(processId);
+                KillProcessAndChildren(processId, terminatedProcessIds);
 
                 using (var process = Process.GetProcessById(processId))
                 {
@@ -908,6 +938,14 @@ namespace ClaudeCodeVS
                 // (issue #73: "Restart code agent" showing nothing until VS is reopened).
                 await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
                 ResetAgentCompletionWatcher();
+
+                // Revive the low-level input hooks if their thread died — terminal click
+                // activation/focus (issue #74) and F5 forwarding stop working without them,
+                // and nothing else restarts the thread after a failure.
+                StartHookThread();
+
+                // Track teardown of the session being replaced for this launch request only.
+                _pendingTeardownProcessIds.Clear();
 
                 await StopExistingTerminalAsync();
 
@@ -1257,11 +1295,29 @@ namespace ClaudeCodeVS
                             }
 
                             // Clean up the orphan window/process from the failed attempt so retries
-                            // don't pile up live conhosts, then back off to let WSL teardown settle.
+                            // don't pile up live conhosts, then back off to let the teardown settle.
                             await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
                             await StopExistingTerminalAsync();
                             LogTerminalLaunch($"relaunching after embed failure ({lastFailureReason}); relaunch {relaunch + 1}/{relaunchBackoffMs.Length} after {relaunchBackoffMs[relaunch]}ms backoff");
                             await Task.Delay(relaunchBackoffMs[relaunch]);
+
+                            // An instant-exit attempt leaves nothing of its own to wait on, but the
+                            // ORIGINAL session's process tree may still be dying — and spawning into
+                            // that teardown is exactly what kills the fresh conhost (issue #73).
+                            // Hold this respawn (bounded) until the old tree is actually gone.
+                            int teardownStillAlive = CountProcessesStillRunning(_pendingTeardownProcessIds);
+                            if (teardownStillAlive > 0)
+                            {
+                                var respawnGateTimer = Stopwatch.StartNew();
+                                while (respawnGateTimer.ElapsedMilliseconds < 5000 &&
+                                       AnyProcessStillRunning(_pendingTeardownProcessIds))
+                                {
+                                    await Task.Delay(150);
+                                }
+
+                                LogTerminalLaunch($"waited extra {respawnGateTimer.ElapsedMilliseconds}ms for {teardownStillAlive} old terminal process(es) to exit before respawn" +
+                                                  (AnyProcessStillRunning(_pendingTeardownProcessIds) ? " (still running — proceeding anyway)" : ""));
+                            }
                         }
 
                         // Spawn the terminal and locate its console window. If the conhost dies right
@@ -1333,7 +1389,10 @@ namespace ClaudeCodeVS
 
                                 int exitCode = 0;
                                 try { exitCode = cmdProcess.ExitCode; } catch { }
-                                LogTerminalLaunch($"conhost exited immediately after launch: exitCode={exitCode}, attempt={spawnAttempt}/2");
+                                // oldSessionProcsAlive confirms (or rules out) the teardown-contention
+                                // cause from a user's log alone: >0 means the previous session's tree
+                                // was still dying when this spawn was killed (issue #73).
+                                LogTerminalLaunch($"conhost exited immediately after launch: exitCode={exitCode}, attempt={spawnAttempt}/2, oldSessionProcsAlive={CountProcessesStillRunning(_pendingTeardownProcessIds)}");
                                 try { cmdProcess.Dispose(); } catch { }
                                 cmdProcess = null;
                                 if (spawnAttempt < 2)
@@ -2344,14 +2403,18 @@ namespace ClaudeCodeVS
 
         /// <summary>
         /// Reacts to a click on the embedded terminal panel: makes sure VS is on top of the
-        /// Win32 Z-order and that our tool window is the active pane inside VS, then puts
-        /// keyboard focus back on the terminal.
+        /// Win32 Z-order and that our tool window is the active pane inside VS, then keeps
+        /// keyboard focus on the terminal until the activation dust settles.
         ///
-        /// The click itself focuses the terminal natively, but both activation steps below
+        /// The click itself focuses the terminal natively, but the activation steps
         /// (SetForegroundWindow and IVsWindowFrame.Show) make VS move keyboard focus into the
-        /// WPF tool-window content a moment later, silently stealing it from the terminal —
-        /// answering an agent prompt then required a second click (issue #74). When either
-        /// step actually ran, re-assert terminal focus after the activation settles.
+        /// WPF tool-window content a moment later, silently stealing it from the terminal
+        /// (issue #74). The original fix re-asserted focus exactly twice at fixed 80ms delays —
+        /// on a heavily loaded machine (an agent crunching while VS repaints) VS's focus restore
+        /// can land *after* both asserts, so every click appeared to do nothing and the terminal
+        /// became impossible to select. The guard now verifies and re-asserts focus repeatedly
+        /// for ~1.6s, aborting the moment the user clicks anywhere else or leaves VS, so a click
+        /// on the terminal reliably ends with the terminal focused regardless of timing.
         /// </summary>
         private void ActivateEmbeddedTerminalOnClick(POINT screenPoint)
         {
@@ -2363,20 +2426,18 @@ namespace ClaudeCodeVS
             }
 
             // Verify the click really hit the terminal (not another app fully covering VS at the
-            // same screen coordinates). Done once here so both activation steps below can trust it.
-            if (WindowFromPoint(screenPoint) != terminalHandle)
+            // same screen coordinates). Child windows of the terminal count as the terminal.
+            IntPtr hwndAtPoint = WindowFromPoint(screenPoint);
+            if (hwndAtPoint != terminalHandle &&
+                (hwndAtPoint == IntPtr.Zero || !IsChild(terminalHandle, hwndAtPoint)))
             {
                 return;
             }
 
-            bool vsActivated = BringVisualStudioToForegroundIfNeeded();
+            BringVisualStudioToForegroundIfNeeded();
             bool paneNeedsActivation = !IsTerminalToolWindowActive();
-
-            if (!vsActivated && !paneNeedsActivation)
-            {
-                // Nothing stole focus from the click; stay a no-op on ordinary clicks.
-                return;
-            }
+            int clickSequence = _terminalClickSequence;
+            IntPtr vsRootWindow = GetAncestor(terminalHandle, GA_ROOT);
 
 #pragma warning disable VSSDK007 // Fire-and-forget is intentional here
             _ = ThreadHelper.JoinableTaskFactory.RunAsync(async () =>
@@ -2386,29 +2447,57 @@ namespace ClaudeCodeVS
                     await ActivateTerminalToolWindowAsync();
                 }
 
-                // Let VS finish its activation focus shuffle before taking focus back.
-                await Task.Delay(80);
+                await EnsureTerminalFocusAfterClickAsync(clickSequence, vsRootWindow);
+            });
+#pragma warning restore VSSDK007
+        }
+
+        /// <summary>
+        /// Focus guard for a click on the embedded terminal (issue #74): checks every 80ms for
+        /// ~1.6s that native keyboard focus is on the terminal and re-asserts it when VS's
+        /// activation shuffle has moved it elsewhere. Bails out immediately when the user clicks
+        /// again anywhere (a newer click owns focus now), switches to another application, or the
+        /// terminal goes away — so it cannot fight the user, only VS's deferred focus restores.
+        /// Ordinary clicks cost one cheap GetFocus check per tick and no asserts.
+        /// </summary>
+        private async Task EnsureTerminalFocusAfterClickAsync(int clickSequence, IntPtr vsRootWindow)
+        {
+            const int checkIntervalMs = 80;
+            const int totalChecks = 20; // ~1.6s of guarding
+
+            for (int check = 0; check < totalChecks; check++)
+            {
+                await Task.Delay(checkIntervalMs);
                 await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
 
-                var panel = ActiveTerminalPanel;
-                if (panel == null || panel.IsDisposed ||
-                    terminalHandle == IntPtr.Zero || !IsWindow(terminalHandle))
+                // A newer click (terminal or not) supersedes this guard.
+                if (clickSequence != _terminalClickSequence)
                 {
                     return;
                 }
 
-                FocusTerminalPanel(panel);
-
-                // VS can restore focus to another control once more shortly after pane
-                // activation (same reason the zoom replay re-asserts), so assert again.
-                await Task.Delay(80);
-                await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
-                if (IsWindow(terminalHandle))
+                if (terminalHandle == IntPtr.Zero || !IsWindow(terminalHandle))
                 {
-                    SetFocus(terminalHandle);
+                    return;
                 }
-            });
-#pragma warning restore VSSDK007
+
+                // The user moved to another application — leave focus alone.
+                if (vsRootWindow != IntPtr.Zero && GetForegroundWindow() != vsRootWindow)
+                {
+                    return;
+                }
+
+                var panel = ActiveTerminalPanel;
+                if (panel == null || panel.IsDisposed)
+                {
+                    return;
+                }
+
+                if (!IsTerminalFocused())
+                {
+                    FocusTerminalPanel(panel);
+                }
+            }
         }
 
         /// <summary>
@@ -2645,6 +2734,9 @@ namespace ClaudeCodeVS
             }
             else if (message == WM_LBUTTONDOWN)
             {
+                // Every click (anywhere) invalidates the focus guard of the previous
+                // terminal click — increment before starting this click's guard.
+                _terminalClickSequence++;
                 ActivateEmbeddedTerminalOnClick(info.pt);
                 BeginWindowsTerminalSelectionTracking(info.pt);
             }

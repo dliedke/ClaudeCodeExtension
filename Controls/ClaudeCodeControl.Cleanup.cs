@@ -324,9 +324,14 @@ namespace ClaudeCodeVS
         /// Kills a process and all its child processes using ToolHelp32 snapshots.
         /// ToolHelp32 is a kernel-level snapshot API (sub-millisecond) and avoids the
         /// significant overhead of WMI queries (which can take 1-5 seconds each).
+        /// Process.Kill only *initiates* termination, so every PID this method touches is
+        /// recorded in <paramref name="killedProcessIds"/> — the terminal teardown wait polls
+        /// that set until the whole tree (including grandchildren like the agent's node
+        /// processes) has actually exited, not just the roots (issue #73).
         /// </summary>
         /// <param name="processId">The process ID to kill</param>
-        private void KillProcessAndChildren(int processId)
+        /// <param name="killedProcessIds">Optional set collecting every PID a kill was issued for</param>
+        private void KillProcessAndChildren(int processId, System.Collections.Generic.HashSet<int> killedProcessIds = null)
         {
             try
             {
@@ -337,7 +342,7 @@ namespace ClaudeCodeVS
                     try
                     {
                         // Recursively kill children of this child
-                        KillProcessAndChildren((int)childPid);
+                        KillProcessAndChildren((int)childPid, killedProcessIds);
 
                         // Kill the child process
                         using (var childProcess = Process.GetProcessById((int)childPid))
@@ -345,6 +350,7 @@ namespace ClaudeCodeVS
                             if (!childProcess.HasExited)
                             {
                                 childProcess.Kill();
+                                killedProcessIds?.Add((int)childPid);
                             }
                         }
                     }

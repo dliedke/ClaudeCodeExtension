@@ -100,6 +100,10 @@ This binds a Claude Code skill that shells out to OpenAI Codex to audit pending 
 
 ## Version History
 
+### Version 11.0
+- Fixed "Restart code agent" leaving the panel blank on machines where the previous agent session shuts down slowly (issue #73) — the restart now waits for the old session to fully terminate for every provider before launching the new one, instead of only for WSL.
+- Clicking the agent terminal now reliably focuses it even when the machine is busy (issue #74) — previously the focus could be silently taken back by Visual Studio right after the click, making the terminal impossible to select while the agent was working hard.
+
 ### Version 10.99
 - Fixed the agent terminal staying stuck on a previously chosen custom background color after switching the theme back to Automatic, Dark, or Light — the terminal now always matches the selected theme.
 

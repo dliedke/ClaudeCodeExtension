@@ -6,13 +6,15 @@
 
 - **Author**: Daniel Carvalho Liedke (dliedke@gmail.com) | **License**: MIT
 - **Repository**: https://github.com/dliedke/ClaudeCodeExtension
-- **Current Version**: 10.88 | **Target Framework**: .NET Framework 4.7.2
+- **Current Version**: 11.0 | **Target Framework**: .NET Framework 4.7.2
 
 ---
 
 ## MANDATORY: Version & Documentation Updates
 
 **Every development session that modifies code MUST update before finishing:**
+
+**Versioning scheme (since 11.0)**: each release bumps the MAJOR version by one — 11.0 → 12.0 → 13.0 and so on. Always use `.0` as the minor (AssemblyVersion `12.0.0.0`, manifest `12.0`, README `### Version 12.0`). Do not resume 10.x-style minor bumps.
 
 1. **`Properties/AssemblyInfo.cs`**: Bump `AssemblyVersion` and `AssemblyFileVersion`
 2. **`source.extension.vsixmanifest`**: Bump `Version` in `<Identity>` tag
