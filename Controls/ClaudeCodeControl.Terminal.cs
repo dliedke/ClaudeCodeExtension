@@ -1344,10 +1344,17 @@ namespace ClaudeCodeVS
                                     Monitor.TryEnter(_consoleSnapshotLock, 5000, ref consoleLockTaken);
                                     bool vsHadConsole = GetConsoleWindow() != IntPtr.Zero;
                                     try { FreeConsole(); } catch { }
+                                    // The agent-finish console capture replaces VS's standard
+                                    // handles via AttachConsole, and FreeConsole leaves them
+                                    // dangling once the old console dies. A conhost spawned with
+                                    // those dead values inherited exits immediately with code 0
+                                    // and the panel stays blank until VS is reopened (issue #73),
+                                    // so put the originals back right before CreateProcess.
+                                    bool stdHandlesWereDirty = RestoreOriginalStdHandles();
 
                                     cmdProcess = new Process { StartInfo = startInfo };
                                     cmdProcess.Start();
-                                    LogTerminalLaunch($"conhost spawned: pid={cmdProcess.Id}, attempt={spawnAttempt}/2, vsHadConsoleAttached={vsHadConsole}, spawnLockTaken={consoleLockTaken}");
+                                    LogTerminalLaunch($"conhost spawned: pid={cmdProcess.Id}, attempt={spawnAttempt}/2, vsHadConsoleAttached={vsHadConsole}, stdHandlesWereDirty={stdHandlesWereDirty}, spawnLockTaken={consoleLockTaken}");
                                 }
                                 catch (Exception ex)
                                 {

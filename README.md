@@ -102,6 +102,10 @@ This binds a Claude Code skill that shells out to OpenAI Codex to audit pending 
 
 ## Version History
 
+### Version 14.0
+- Fixed "Restart code agent" leaving the panel blank after an "On Agent Finish" notification had fired — previously the panel could stay broken until Visual Studio was reopened (issue #73).
+- Arrow keys and typed answers now work reliably when replying to the agent's questions in the console while "On Agent Finish" is enabled — the completion watcher now backs off while the agent waits for your reply.
+
 ### Version 13.0
 - "On Agent Finish" scripts can now close their console window automatically when they finish.
 - "On Agent Finish" Run and Run without debugging actions can now clean and rebuild the solution before launching, and those preferences are saved.

@@ -429,6 +429,18 @@ namespace ClaudeCodeVS
         [DllImport("kernel32.dll")]
         private static extern IntPtr GetConsoleWindow();
 
+        // ---- Standard-handle hygiene (used by the "On Agent Finish" console capture) ----
+        // AttachConsole REPLACES the calling process's standard handles with handles to the
+        // attached console, and FreeConsole does NOT restore them — they stay dangling after
+        // detach. These let the capture snapshot and put back the original values.
+
+        private const int STD_INPUT_HANDLE = -10;
+        private const int STD_ERROR_HANDLE = -12;
+        // STD_OUTPUT_HANDLE (-11) and GetStdHandle are declared further down in this file.
+
+        [DllImport("kernel32.dll", SetLastError = true)]
+        private static extern bool SetStdHandle(int nStdHandle, IntPtr hHandle);
+
         // ---- Console screen-buffer reading (used by the "On Agent Finish" idle detector) ----
 
         private const uint GENERIC_READ_CONSOLE = 0x80000000;

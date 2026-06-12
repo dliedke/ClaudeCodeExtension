@@ -50,6 +50,27 @@ namespace ClaudeCodeVS
         private const int TerminalTypingGuardMs = 1500;
         private DateTime _lastTerminalKeyUtc = DateTime.MinValue;
 
+        // While the settled screen is classified as the agent waiting for the user's reply
+        // (a y/n or selection menu), polling every second would attach VS to the console under
+        // the user's fingers and eat arrow keys / keystrokes. In that state the capture backs
+        // off to this interval while the terminal is focused (an unfocused terminal receives
+        // no keystrokes, so polling stays at the normal 1 s there).
+        private const int InputPromptRecheckMs = 10000;
+        private bool _awaitingAgentInputReply;
+        private DateTime _lastInputPromptRecheckUtc = DateTime.MinValue;
+
+        // devenv's standard handles as they were before this extension ever attached to a
+        // console. AttachConsole REPLACES the process's std handles and FreeConsole leaves
+        // them dangling; if they are not restored, the dead handle values poison every later
+        // "conhost.exe -- cmd.exe" spawn (the fresh conhost inherits them and exits within
+        // ~100 ms with code 0), which is why the blank panel survived until VS was reopened
+        // (issue #73, "On Agent Finish" repro).
+        private static readonly object _stdHandleCaptureLock = new object();
+        private static bool _originalStdHandlesCaptured;
+        private static IntPtr _originalStdIn;
+        private static IntPtr _originalStdOut;
+        private static IntPtr _originalStdErr;
+
         private DispatcherTimer _agentCompletionTimer;
         private bool _completionWatchActive;
         private bool _completionTickBusy;
@@ -182,6 +203,8 @@ namespace ClaudeCodeVS
                 _watchedConsolePid = pid;
                 _lastConsoleHash = initialHash;
                 _consoleSawActivity = false;
+                _awaitingAgentInputReply = false;
+                _lastInputPromptRecheckUtc = DateTime.MinValue;
                 _promptSentUtc = DateTime.UtcNow;
                 _watchStartedUtc = DateTime.UtcNow;
                 _lastConsoleChangeUtc = DateTime.UtcNow;
@@ -260,14 +283,78 @@ namespace ClaudeCodeVS
                 System.Threading.Monitor.TryEnter(_consoleSnapshotLock, 250, ref taken);
                 if (taken)
                 {
+                    CaptureOriginalStdHandlesOnce();
                     try { FreeConsole(); }
                     catch { }
+                    RestoreOriginalStdHandles();
                 }
             }
             finally
             {
                 if (taken) System.Threading.Monitor.Exit(_consoleSnapshotLock);
             }
+        }
+
+        /// <summary>
+        /// Records devenv's standard handles the first time any console operation runs — i.e.
+        /// before this extension has ever attached to a console, so the values are the process's
+        /// true originals (typically NULL for a GUI app). Later restores write these back.
+        /// </summary>
+        private static void CaptureOriginalStdHandlesOnce()
+        {
+            if (_originalStdHandlesCaptured) return;
+            lock (_stdHandleCaptureLock)
+            {
+                if (_originalStdHandlesCaptured) return;
+                try
+                {
+                    _originalStdIn = GetStdHandle(STD_INPUT_HANDLE);
+                    _originalStdOut = GetStdHandle(STD_OUTPUT_HANDLE);
+                    _originalStdErr = GetStdHandle(STD_ERROR_HANDLE);
+                    _originalStdHandlesCaptured = true;
+                }
+                catch (Exception ex)
+                {
+                    Debug.WriteLine($"CaptureOriginalStdHandlesOnce error: {ex.Message}");
+                }
+            }
+        }
+
+        /// <summary>
+        /// Puts devenv's standard handles back to their pre-attach originals. AttachConsole
+        /// replaces them with handles into the attached console and FreeConsole does NOT undo
+        /// that, so without this the process keeps dangling std handles after the agent's
+        /// console dies — and a child terminal spawned later inherits the dead values and exits
+        /// immediately (issue #73). Returns true when any handle actually needed resetting,
+        /// so the launch log can confirm or rule out this cause on a user's machine.
+        /// </summary>
+        internal static bool RestoreOriginalStdHandles()
+        {
+            if (!_originalStdHandlesCaptured) return false;
+            bool wasDirty = false;
+            try
+            {
+                if (GetStdHandle(STD_INPUT_HANDLE) != _originalStdIn)
+                {
+                    wasDirty = true;
+                    SetStdHandle(STD_INPUT_HANDLE, _originalStdIn);
+                }
+                if (GetStdHandle(STD_OUTPUT_HANDLE) != _originalStdOut)
+                {
+                    wasDirty = true;
+                    SetStdHandle(STD_OUTPUT_HANDLE, _originalStdOut);
+                }
+                if (GetStdHandle(STD_ERROR_HANDLE) != _originalStdErr)
+                {
+                    wasDirty = true;
+                    SetStdHandle(STD_ERROR_HANDLE, _originalStdErr);
+                }
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"RestoreOriginalStdHandles error: {ex.Message}");
+            }
+            return wasDirty;
         }
 
         /// <summary>
@@ -328,6 +415,21 @@ namespace ClaudeCodeVS
                         return;
                     }
 
+                    // While the agent is waiting for the user's reply (y/n box, selection menu),
+                    // the screen is static and there is nothing to detect until the user answers.
+                    // Attaching every second in that state is what made arrow keys / typed answers
+                    // unreliable: the first keypress after reading the question lands outside the
+                    // typing guard and collides with an in-flight console capture. Back off to a
+                    // slow recheck while the terminal is focused; an unfocused terminal receives
+                    // no keystrokes, so the normal 1 s cadence is harmless there.
+                    if (_awaitingAgentInputReply
+                        && IsTerminalFocused()
+                        && (DateTime.UtcNow - _lastInputPromptRecheckUtc).TotalMilliseconds < InputPromptRecheckMs)
+                    {
+                        return;
+                    }
+
+                    _lastInputPromptRecheckUtc = DateTime.UtcNow;
                     string text = await Task.Run(() => TryCaptureConsoleText(pid));
                     string hash = text != null ? ComputeStableHash(text) : null;
                     if (hash == null)
@@ -340,10 +442,12 @@ namespace ClaudeCodeVS
 
                     if (_lastConsoleHash == null || !string.Equals(hash, _lastConsoleHash, StringComparison.Ordinal))
                     {
-                        // Screen changed → agent is still working.
+                        // Screen changed → agent is still working (or the user answered the
+                        // input prompt, in which case the waiting state is over).
                         _lastConsoleHash = hash;
                         _lastConsoleChangeUtc = DateTime.UtcNow;
                         _consoleSawActivity = true;
+                        _awaitingAgentInputReply = false;
                         return;
                     }
 
@@ -357,7 +461,13 @@ namespace ClaudeCodeVS
                     // screen looks like the agent is waiting for input, this is not a completion:
                     // don't fire and keep watching, so the notification lands on the real finish
                     // after the user answers (the screen will change → activity → re-evaluate).
-                    if (LooksLikeAgentInputPrompt(text)) return;
+                    // Entering the waiting state also slows the capture cadence (see the gate
+                    // above) so the user's reply isn't disturbed by the console reads.
+                    if (LooksLikeAgentInputPrompt(text))
+                    {
+                        _awaitingAgentInputReply = true;
+                        return;
+                    }
 
                     // Settled — the turn is done.
                     var cfg = _watchedAgentFinish;
@@ -420,6 +530,10 @@ namespace ClaudeCodeVS
 
             lock (_consoleSnapshotLock)
             {
+                // AttachConsole below will overwrite the process's standard handles; remember
+                // the originals so the finally can put them back (FreeConsole won't).
+                CaptureOriginalStdHandlesOnce();
+
                 IntPtr handle = IntPtr.Zero;
                 bool attached = false;
                 bool ctrlGuarded = false;
@@ -481,7 +595,13 @@ namespace ClaudeCodeVS
                 finally
                 {
                     if (handle != IntPtr.Zero && handle.ToInt64() != -1) CloseHandle(handle);
-                    if (attached) FreeConsole();
+                    if (attached)
+                    {
+                        FreeConsole();
+                        // FreeConsole leaves the std handles AttachConsole installed dangling;
+                        // restore the originals so no capture ever poisons a later spawn.
+                        RestoreOriginalStdHandles();
+                    }
                     if (ctrlGuarded) SetConsoleCtrlHandler(IntPtr.Zero, false);
                 }
             }
