@@ -150,7 +150,7 @@ namespace ClaudeCodeVS
             var afActionCombo = new ComboBox
             {
                 HorizontalAlignment = HorizontalAlignment.Left,
-                MinWidth = 240,
+                MinWidth = 360,
                 MinHeight = 26,
                 Margin = new Thickness(20, 0, 0, 4)
             };
@@ -184,6 +184,44 @@ namespace ClaudeCodeVS
                 Margin = new Thickness(20, 0, 0, 4)
             };
             stack.Children.Add(afScriptBox);
+
+            var afAutoCloseScriptCheck = MakeCheckBox("Close script window when it finishes",
+                "When enabled, script windows close automatically after the script exits. When disabled, they stay open so you can read the output.",
+                false, themeFg);
+            afAutoCloseScriptCheck.Margin = new Thickness(20, 4, 0, 4);
+            stack.Children.Add(afAutoCloseScriptCheck);
+
+            void SyncScriptActionOptions()
+            {
+                bool isRunScript = (afActionCombo.SelectedItem as ComboBoxItem)?.Tag is AgentFinishActionType act
+                    && act == AgentFinishActionType.RunScript;
+                afAutoCloseScriptCheck.IsEnabled = isRunScript;
+                afAutoCloseScriptCheck.Opacity = isRunScript ? 1.0 : 0.5;
+            }
+            afActionCombo.SelectionChanged += (s, e) => SyncScriptActionOptions();
+
+            var afCleanBeforeRunCheck = MakeCheckBox("Clean solution before running",
+                "When enabled, Run and Run without debugging clean the solution before launching.",
+                true, themeFg);
+            afCleanBeforeRunCheck.Margin = new Thickness(20, 4, 0, 4);
+            stack.Children.Add(afCleanBeforeRunCheck);
+
+            var afRebuildBeforeRunCheck = MakeCheckBox("Rebuild solution before running",
+                "When enabled, Run and Run without debugging rebuild the solution before launching. If the rebuild fails, launching is skipped.",
+                true, themeFg);
+            afRebuildBeforeRunCheck.Margin = new Thickness(20, 4, 0, 4);
+            stack.Children.Add(afRebuildBeforeRunCheck);
+
+            void SyncRunActionOptions()
+            {
+                bool isRunAction = (afActionCombo.SelectedItem as ComboBoxItem)?.Tag is AgentFinishActionType act
+                    && (act == AgentFinishActionType.Run || act == AgentFinishActionType.RunWithoutDebugging);
+                afCleanBeforeRunCheck.IsEnabled = isRunAction;
+                afRebuildBeforeRunCheck.IsEnabled = isRunAction;
+                afCleanBeforeRunCheck.Opacity = isRunAction ? 1.0 : 0.5;
+                afRebuildBeforeRunCheck.Opacity = isRunAction ? 1.0 : 0.5;
+            }
+            afActionCombo.SelectionChanged += (s, e) => SyncRunActionOptions();
 
             var afConfirmCheck = MakeCheckBox("Ask before running the action",
                 "When enabled, the action appears as a button on the notification and runs only when you click it. When disabled, the action runs automatically. Recommended on for scripts, run, and rebuild.",
@@ -228,6 +266,9 @@ namespace ClaudeCodeVS
                 afToastCheck.IsChecked      = cfg.ShowToast;
                 afConfirmCheck.IsChecked    = cfg.Confirm;
                 afReqChangesCheck.IsChecked = cfg.RequireFileChanges;
+                afAutoCloseScriptCheck.IsChecked = cfg.AutoCloseScript;
+                afCleanBeforeRunCheck.IsChecked = cfg.CleanBeforeRun;
+                afRebuildBeforeRunCheck.IsChecked = cfg.RebuildBeforeRun;
                 afScriptBox.Text            = cfg.ScriptOrCommand ?? string.Empty;
                 afIdleBox.Text              = cfg.IdleSeconds.ToString();
                 afActionCombo.SelectedItem  = null;
@@ -236,6 +277,8 @@ namespace ClaudeCodeVS
                     if ((AgentFinishActionType)it.Tag == cfg.Action) { afActionCombo.SelectedItem = it; break; }
                 }
                 if (afActionCombo.SelectedItem == null) afActionCombo.SelectedIndex = 0;
+                SyncScriptActionOptions();
+                SyncRunActionOptions();
             }
 
             void ReadInto(AgentFinishConfig cfg)
@@ -245,6 +288,9 @@ namespace ClaudeCodeVS
                 cfg.ShowToast          = afToastCheck.IsChecked == true;
                 cfg.Confirm            = afConfirmCheck.IsChecked == true;
                 cfg.RequireFileChanges = afReqChangesCheck.IsChecked == true;
+                cfg.AutoCloseScript    = afAutoCloseScriptCheck.IsChecked == true;
+                cfg.CleanBeforeRun     = afCleanBeforeRunCheck.IsChecked == true;
+                cfg.RebuildBeforeRun   = afRebuildBeforeRunCheck.IsChecked == true;
                 cfg.ScriptOrCommand    = afScriptBox.Text?.Trim() ?? string.Empty;
                 if ((afActionCombo.SelectedItem as ComboBoxItem)?.Tag is AgentFinishActionType act)
                     cfg.Action = act;
@@ -361,6 +407,9 @@ namespace ClaudeCodeVS
                 IdleSeconds        = src.IdleSeconds,
                 Action             = src.Action,
                 ScriptOrCommand    = src.ScriptOrCommand,
+                AutoCloseScript    = src.AutoCloseScript,
+                CleanBeforeRun     = src.CleanBeforeRun,
+                RebuildBeforeRun   = src.RebuildBeforeRun,
                 RequireFileChanges = src.RequireFileChanges,
                 Confirm            = src.Confirm
             };

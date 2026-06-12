@@ -82,6 +82,8 @@ Then choose it via *⚙ → Set Terminal Type...*.
 
 **🤖 Model menu** (Claude only): Fable / Opus / Sonnet / Haiku, effort level for Opus (Auto / Low / Medium / High / Max), Change Account, Install Caveman plugin.
 
+**On Agent Finish**: Configure via *⚙ → Settings... → On Agent Finish...*. For scripts, enable *Close script window when it finishes* to auto-close the script console. For *Run (F5)* and *Run without debugging (Ctrl+F5)*, use *Clean solution before running* and *Rebuild solution before running* to control whether the solution is prepared before launch.
+
 **Custom commands (⚡)**: Once you've added a command via *Configure Custom Commands...*, the ⚡ toolbar button appears. Clicking an entry sends the saved text verbatim to the active agent — useful for slash commands or canned prompts.
 
 ### Recipe — Codex review of uncommitted code, dispatched from Claude Code
@@ -99,6 +101,10 @@ This binds a Claude Code skill that shells out to OpenAI Codex to audit pending 
 4. **Use it**: ⚡ → *Codex Review*. Claude runs the skill, Codex audits your diff, findings appear inline.
 
 ## Version History
+
+### Version 13.0
+- "On Agent Finish" scripts can now close their console window automatically when they finish.
+- "On Agent Finish" Run and Run without debugging actions can now clean and rebuild the solution before launching, and those preferences are saved.
 
 ### Version 12.0
 - Loading or switching solutions now avoids repeated terminal attach attempts and no longer keeps retrying the same failed launch, reducing blank terminal panels after a new solution opens.

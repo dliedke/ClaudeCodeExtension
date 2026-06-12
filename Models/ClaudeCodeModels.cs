@@ -197,6 +197,25 @@ namespace ClaudeCodeVS
         /// </summary>
         public string ScriptOrCommand { get; set; } = string.Empty;
 
+        /// <summary>
+        /// When true, script windows opened by <see cref="AgentFinishActionType.RunScript"/>
+        /// close automatically after the script finishes. When false, they stay open so
+        /// the output can be read.
+        /// </summary>
+        public bool AutoCloseScript { get; set; } = false;
+
+        /// <summary>
+        /// When true, <see cref="AgentFinishActionType.Run"/> and
+        /// <see cref="AgentFinishActionType.RunWithoutDebugging"/> clean the solution before launching.
+        /// </summary>
+        public bool CleanBeforeRun { get; set; } = true;
+
+        /// <summary>
+        /// When true, <see cref="AgentFinishActionType.Run"/> and
+        /// <see cref="AgentFinishActionType.RunWithoutDebugging"/> rebuild the solution before launching.
+        /// </summary>
+        public bool RebuildBeforeRun { get; set; } = true;
+
         /// <summary>Only run the action when the agent actually changed files (git working tree dirty).</summary>
         public bool RequireFileChanges { get; set; } = false;
 

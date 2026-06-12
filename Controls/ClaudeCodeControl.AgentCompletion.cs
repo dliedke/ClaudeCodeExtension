@@ -713,10 +713,10 @@ namespace ClaudeCodeVS
                 {
                     case AgentFinishActionType.BuildSolution:       ExecuteDteCommand("Build.BuildSolution"); break;
                     case AgentFinishActionType.RebuildSolution:     ExecuteDteCommand("Build.RebuildSolution"); break;
-                    case AgentFinishActionType.Run:                 ExecuteDteCommand("Debug.Start"); break;
-                    case AgentFinishActionType.RunWithoutDebugging: ExecuteDteCommand("Debug.StartWithoutDebugging"); break;
+                    case AgentFinishActionType.Run:                 await PrepareAndRunAsync("Debug.Start", cfg.CleanBeforeRun, cfg.RebuildBeforeRun); break;
+                    case AgentFinishActionType.RunWithoutDebugging: await PrepareAndRunAsync("Debug.StartWithoutDebugging", cfg.CleanBeforeRun, cfg.RebuildBeforeRun); break;
                     case AgentFinishActionType.RunTests:            ExecuteDteCommand("TestExplorer.RunAllTests"); break;
-                    case AgentFinishActionType.RunScript:           await RunFinishScriptAsync(cfg.ScriptOrCommand); break;
+                    case AgentFinishActionType.RunScript:           await RunFinishScriptAsync(cfg.ScriptOrCommand, cfg.AutoCloseScript); break;
                     case AgentFinishActionType.SendToAgent:
                         if (!string.IsNullOrWhiteSpace(cfg.ScriptOrCommand))
                             await SendTextToTerminalAsync(cfg.ScriptOrCommand);
@@ -727,6 +727,94 @@ namespace ClaudeCodeVS
             {
                 Debug.WriteLine($"ExecuteAgentFinishActionAsync error: {ex.Message}");
             }
+        }
+
+        private async Task PrepareAndRunAsync(string runCommand, bool cleanBeforeRun, bool rebuildBeforeRun)
+        {
+            await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
+
+            if (cleanBeforeRun)
+            {
+                ExecuteDteCommand("Build.CleanSolution");
+                if (!await WaitForDteBuildToFinishAsync())
+                {
+                    ShowAgentFinishActionWarning("The solution clean did not finish in time. The run action was skipped.");
+                    return;
+                }
+            }
+
+            if (rebuildBeforeRun)
+            {
+                ExecuteDteCommand("Build.RebuildSolution");
+                if (!await WaitForDteBuildToFinishAsync())
+                {
+                    ShowAgentFinishActionWarning("The solution rebuild did not finish in time. The run action was skipped.");
+                    return;
+                }
+
+                await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
+                int failedProjects = 0;
+                try
+                {
+                    var dte = Package.GetGlobalService(typeof(EnvDTE.DTE)) as EnvDTE.DTE;
+                    failedProjects = dte?.Solution?.SolutionBuild?.LastBuildInfo ?? 0;
+                }
+                catch (Exception ex)
+                {
+                    Debug.WriteLine($"Unable to read LastBuildInfo before run action: {ex.Message}");
+                }
+
+                if (failedProjects > 0)
+                {
+                    ShowAgentFinishActionWarning("The solution rebuild failed. The run action was skipped.");
+                    return;
+                }
+            }
+
+            ExecuteDteCommand(runCommand);
+        }
+
+        private static async Task<bool> WaitForDteBuildToFinishAsync()
+        {
+            var timeout = TimeSpan.FromMinutes(10);
+            var minObservation = TimeSpan.FromMilliseconds(750);
+            var sw = Stopwatch.StartNew();
+            bool observedBuildInProgress = false;
+
+            while (sw.Elapsed < timeout)
+            {
+                await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
+                EnvDTE.vsBuildState state = EnvDTE.vsBuildState.vsBuildStateDone;
+                try
+                {
+                    var dte = Package.GetGlobalService(typeof(EnvDTE.DTE)) as EnvDTE.DTE;
+                    state = dte?.Solution?.SolutionBuild?.BuildState ?? EnvDTE.vsBuildState.vsBuildStateDone;
+                }
+                catch (Exception ex)
+                {
+                    Debug.WriteLine($"Unable to read build state: {ex.Message}");
+                    return true;
+                }
+
+                if (state == EnvDTE.vsBuildState.vsBuildStateInProgress)
+                {
+                    observedBuildInProgress = true;
+                }
+                else if (observedBuildInProgress || sw.Elapsed >= minObservation)
+                {
+                    return true;
+                }
+
+                await Task.Delay(250);
+            }
+
+            return false;
+        }
+
+        private static void ShowAgentFinishActionWarning(string message)
+        {
+            ThreadHelper.ThrowIfNotOnUIThread();
+            MessageBox.Show(message, "On Agent Finish", MessageBoxButton.OK, MessageBoxImage.Warning);
         }
 
         private static void ExecuteDteCommand(string command)
@@ -745,12 +833,12 @@ namespace ClaudeCodeVS
 
         /// <summary>
         /// Launches a script (deploy.cmd etc.) in the workspace directory. Relative paths
-        /// are resolved against the workspace. A .cmd/.bat is launched through "cmd /k" and a
-        /// .ps1 through "powershell -NoExit", so the script runs (a .ps1's default shell verb
-        /// is Edit, which would just open it in an editor) and the console stays open afterwards
-        /// for the user to read its output. Anything else is shell-executed directly.
+        /// are resolved against the workspace. A .cmd/.bat is launched through cmd.exe and a
+        /// .ps1 through powershell.exe, so the script runs (a .ps1's default shell verb is
+        /// Edit, which would just open it in an editor). The console can stay open afterwards
+        /// for the user to read its output or auto-close based on the setting.
         /// </summary>
-        private async Task RunFinishScriptAsync(string script)
+        private async Task RunFinishScriptAsync(string script, bool autoClose)
         {
             if (string.IsNullOrWhiteSpace(script)) return;
 
@@ -771,7 +859,7 @@ namespace ClaudeCodeVS
                     psi = new ProcessStartInfo
                     {
                         FileName = "cmd.exe",
-                        Arguments = $"/k \"{path}\"",
+                        Arguments = $"{(autoClose ? "/c" : "/k")} \"{path}\"",
                         WorkingDirectory = workspace,
                         UseShellExecute = true
                     };
@@ -781,7 +869,7 @@ namespace ClaudeCodeVS
                     psi = new ProcessStartInfo
                     {
                         FileName = "powershell.exe",
-                        Arguments = $"-ExecutionPolicy Bypass -NoExit -File \"{path}\"",
+                        Arguments = $"-ExecutionPolicy Bypass {(autoClose ? string.Empty : "-NoExit ")}-File \"{path}\"",
                         WorkingDirectory = workspace,
                         UseShellExecute = true
                     };
@@ -857,8 +945,8 @@ namespace ClaudeCodeVS
             {
                 case AgentFinishActionType.BuildSolution: return "Build solution";
                 case AgentFinishActionType.RebuildSolution: return "Rebuild solution";
-                case AgentFinishActionType.Run: return "Run (F5)";
-                case AgentFinishActionType.RunWithoutDebugging: return "Run without debugging";
+                case AgentFinishActionType.Run: return DescribeRunAction("run", cfg);
+                case AgentFinishActionType.RunWithoutDebugging: return DescribeRunAction("run without debugging", cfg);
                 case AgentFinishActionType.RunTests: return "Run all tests";
                 case AgentFinishActionType.RunScript:
                     string s = cfg.ScriptOrCommand?.Trim().Trim('"');
@@ -870,6 +958,26 @@ namespace ClaudeCodeVS
                         : $"Send {(c.Length > 24 ? c.Substring(0, 24) + "…" : c)}";
                 default: return string.Empty;
             }
+        }
+
+        private static string DescribeRunAction(string runLabel, AgentFinishConfig cfg)
+        {
+            if (cfg.CleanBeforeRun && cfg.RebuildBeforeRun)
+            {
+                return $"Clean, rebuild, then {runLabel}";
+            }
+
+            if (cfg.CleanBeforeRun)
+            {
+                return $"Clean, then {runLabel}";
+            }
+
+            if (cfg.RebuildBeforeRun)
+            {
+                return $"Rebuild, then {runLabel}";
+            }
+
+            return char.ToUpperInvariant(runLabel[0]) + runLabel.Substring(1);
         }
 
         private static string FormatDuration(TimeSpan d)
