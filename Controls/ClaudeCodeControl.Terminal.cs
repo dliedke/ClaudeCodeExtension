@@ -471,7 +471,7 @@ namespace ClaudeCodeVS
         /// <summary>
         /// Stops the currently embedded terminal, including stale window owners left behind by wt.exe delegation.
         /// </summary>
-        private async Task StopExistingTerminalAsync()
+        private async Task StopExistingTerminalAsync(bool clearRunningProvider = true)
         {
             IntPtr existingTerminalHandle = terminalHandle;
             Process existingProcess = cmdProcess;
@@ -546,7 +546,10 @@ namespace ClaudeCodeVS
             ResetWindowsTerminalSelectionTracking();
             terminalHandle = IntPtr.Zero;
             _wtTabBarHeight = 0;
-            _currentRunningProvider = null;
+            if (clearRunningProvider)
+            {
+                _currentRunningProvider = null;
+            }
 
             // Remember every PID this stop issued a kill for, so the relaunch loop can keep
             // checking whether the old session has really finished dying before each respawn.
@@ -923,12 +926,13 @@ namespace ClaudeCodeVS
                     return;
                 }
 
-                string workspaceDir = await GetWorkspaceDirectoryAsync();
+                string workspaceDir = NormalizeWorkspaceDirectory(await GetWorkspaceDirectoryAsync());
                 if (string.IsNullOrEmpty(workspaceDir))
                 {
-                    workspaceDir = Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments);
+                    workspaceDir = NormalizeWorkspaceDirectory(Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments));
                 }
 
+                _lastTerminalLaunchWorkspaceDirectory = workspaceDir;
                 _lastWorkspaceDirectory = workspaceDir;
 
                 // Stop the agent-finish watcher and clear any stale notification before tearing
@@ -1297,7 +1301,7 @@ namespace ClaudeCodeVS
                             // Clean up the orphan window/process from the failed attempt so retries
                             // don't pile up live conhosts, then back off to let the teardown settle.
                             await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
-                            await StopExistingTerminalAsync();
+                            await StopExistingTerminalAsync(clearRunningProvider: false);
                             LogTerminalLaunch($"relaunching after embed failure ({lastFailureReason}); relaunch {relaunch + 1}/{relaunchBackoffMs.Length} after {relaunchBackoffMs[relaunch]}ms backoff");
                             await Task.Delay(relaunchBackoffMs[relaunch]);
 
@@ -2963,6 +2967,26 @@ namespace ClaudeCodeVS
             terminalPanel.Resize += (s, e) => ResizeEmbeddedTerminal();
 
             return terminalPanel.Handle != IntPtr.Zero;
+        }
+
+        /// <summary>
+        /// True when there is still terminal state to manage, even if the embedded window was
+        /// not found. Workspace events use this instead of cmdProcess == null so they do not
+        /// launch a second terminal while a previous launch is still running or being retried.
+        /// </summary>
+        private bool HasTerminalLaunchState()
+        {
+            if (terminalHandle != IntPtr.Zero && IsWindow(terminalHandle))
+            {
+                return true;
+            }
+
+            if (cmdProcess == null)
+            {
+                return false;
+            }
+
+            return !HasTerminalProcessExited(cmdProcess);
         }
 
         /// <summary>

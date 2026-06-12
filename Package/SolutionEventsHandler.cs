@@ -12,6 +12,7 @@
 
 using System;
 using System.Diagnostics;
+using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.VisualStudio;
 using Microsoft.VisualStudio.Shell;
@@ -32,6 +33,11 @@ namespace ClaudeCodeVS
         /// </summary>
         private readonly ClaudeCodeControl _control;
 
+        /// <summary>
+        /// Monotonic request id used to debounce solution/project-open bursts.
+        /// </summary>
+        private int _workspaceRefreshRequestId;
+
         #endregion
 
         #region Constructor
@@ -50,6 +56,27 @@ namespace ClaudeCodeVS
         #region Solution Event Handlers
 
         /// <summary>
+        /// Queues one workspace refresh after Visual Studio finishes its burst of solution/project events.
+        /// </summary>
+        private void QueueWorkspaceRefresh(bool forceDiffReset)
+        {
+            int requestId = Interlocked.Increment(ref _workspaceRefreshRequestId);
+
+#pragma warning disable VSSDK007, VSTHRD110 // Fire-and-forget to avoid blocking the UI thread during solution load
+            _ = ThreadHelper.JoinableTaskFactory.RunAsync(async delegate
+            {
+                await Task.Delay(900);
+                if (requestId != Volatile.Read(ref _workspaceRefreshRequestId))
+                {
+                    return;
+                }
+
+                await _control.OnWorkspaceDirectoryChangedAsync(forceDiffReset);
+            });
+#pragma warning restore VSSDK007, VSTHRD110
+        }
+
+        /// <summary>
         /// Called after a solution is opened
         /// </summary>
         /// <param name="pUnkReserved">Reserved for future use</param>
@@ -57,14 +84,7 @@ namespace ClaudeCodeVS
         /// <returns>S_OK if successful</returns>
         public int OnAfterOpenSolution(object pUnkReserved, int fNewSolution)
         {
-#pragma warning disable VSSDK007, VSTHRD110 // Fire-and-forget to avoid blocking the UI thread during solution load
-            _ = ThreadHelper.JoinableTaskFactory.RunAsync(async delegate
-            {
-                // Add small delay to ensure solution is fully loaded
-                await Task.Delay(500);
-                await _control.OnWorkspaceDirectoryChangedAsync(true);
-            });
-#pragma warning restore VSSDK007, VSTHRD110
+            QueueWorkspaceRefresh(true);
             return VSConstants.S_OK;
         }
 
@@ -76,14 +96,7 @@ namespace ClaudeCodeVS
         /// <returns>S_OK if successful</returns>
         public int OnAfterOpenProject(IVsHierarchy pHierarchy, int fAdded)
         {
-#pragma warning disable VSSDK007, VSTHRD110 // Fire-and-forget to avoid blocking the UI thread during project load
-            _ = ThreadHelper.JoinableTaskFactory.RunAsync(async delegate
-            {
-                // Add small delay to ensure project is fully loaded
-                await Task.Delay(300);
-                await _control.OnWorkspaceDirectoryChangedAsync(true);
-            });
-#pragma warning restore VSSDK007, VSTHRD110
+            QueueWorkspaceRefresh(true);
             return VSConstants.S_OK;
         }
 
@@ -120,6 +133,7 @@ namespace ClaudeCodeVS
         {
             try
             {
+                Interlocked.Increment(ref _workspaceRefreshRequestId);
                 ThreadHelper.ThrowIfNotOnUIThread();
                 _control?.ResetAgentCompletionWatcher();
             }

@@ -55,6 +55,13 @@ namespace ClaudeCodeVS
         /// </summary>
         private bool _workspaceChangeRerunForceDiffReset;
 
+        /// <summary>
+        /// Last workspace directory for which an automatic terminal launch was attempted.
+        /// Used to keep delayed solution/project events from retrying the same failed launch
+        /// repeatedly during one solution load.
+        /// </summary>
+        private string _lastTerminalLaunchWorkspaceDirectory;
+
         #endregion
 
         #region Workspace Initialization
@@ -214,6 +221,38 @@ namespace ClaudeCodeVS
         }
 
         /// <summary>
+        /// Normalizes a workspace path for stable comparisons across DTE/IVsSolution sources.
+        /// </summary>
+        private static string NormalizeWorkspaceDirectory(string directory)
+        {
+            if (string.IsNullOrWhiteSpace(directory))
+            {
+                return directory;
+            }
+
+            try
+            {
+                return Path.GetFullPath(directory.Trim())
+                    .TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+            }
+            catch
+            {
+                return directory.Trim().TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+            }
+        }
+
+        /// <summary>
+        /// Compares workspace paths using Windows path semantics.
+        /// </summary>
+        private static bool WorkspaceDirectoriesEqual(string left, string right)
+        {
+            return string.Equals(
+                NormalizeWorkspaceDirectory(left),
+                NormalizeWorkspaceDirectory(right),
+                StringComparison.OrdinalIgnoreCase);
+        }
+
+        /// <summary>
         /// Handles workspace directory changes (solution opened/closed)
         /// Restarts the terminal in the new workspace directory
         /// </summary>
@@ -263,16 +302,36 @@ namespace ClaudeCodeVS
         {
             try
             {
-                string newWorkspaceDir = await GetWorkspaceDirectoryAsync();
-                bool workspaceChanged = _lastWorkspaceDirectory != newWorkspaceDir;
+                string newWorkspaceDir = NormalizeWorkspaceDirectory(await GetWorkspaceDirectoryAsync());
+                bool workspaceChanged = !WorkspaceDirectoriesEqual(_lastWorkspaceDirectory, newWorkspaceDir);
                 bool resetDiff = forceDiffReset || workspaceChanged;
 
                 // Update View Changes button visibility based on git availability
                 await UpdateViewChangesButtonVisibilityAsync();
 
                 // If terminal hasn't been initialized yet, initialize it now
-                if (cmdProcess == null)
+                if (!HasTerminalLaunchState())
                 {
+                    if (WorkspaceDirectoriesEqual(_lastTerminalLaunchWorkspaceDirectory, newWorkspaceDir))
+                    {
+                        LogTerminalLaunch($"skipping repeated automatic terminal launch for workspace={newWorkspaceDir}");
+                        if (resetDiff)
+                        {
+                            bool refreshView = _diffViewerWindow != null;
+                            if (!refreshView)
+                            {
+                                await EnsureDiffViewerWindowAsync(false);
+                                refreshView = _diffViewerWindow != null;
+                            }
+                            await ResetDiffBaselineAsync(refreshView, false, false, true, newWorkspaceDir, true);
+                        }
+                        else
+                        {
+                            await EnsureDiffTrackingStartedAsync(false);
+                        }
+                        return;
+                    }
+
                     _lastWorkspaceDirectory = newWorkspaceDir;
                     await InitializeTerminalAsync();
 
