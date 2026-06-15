@@ -148,6 +148,30 @@ namespace ClaudeCodeVS
             return string.Empty;
         }
 
+        /// <summary>
+        /// Re-applies the current "On Agent Finish" settings to a watch that is already running,
+        /// so changes the user makes in the settings dialog while the agent is mid-turn take
+        /// effect when that turn finishes (instead of using the snapshot captured when the prompt
+        /// was sent). No-op when no watch is active. If the feature was turned off, the watcher
+        /// is stopped; otherwise the newly-resolved effective config replaces the captured one.
+        /// </summary>
+        internal void RefreshWatchedAgentFinishConfig()
+        {
+            ThreadHelper.ThrowIfNotOnUIThread();
+
+            if (!_completionWatchActive) return;
+
+            var cfg = GetEffectiveAgentFinish();
+            if (cfg == null || !cfg.Enabled)
+            {
+                // Feature disabled mid-turn → stop watching; no notification/action will fire.
+                StopAgentCompletionTimer();
+                return;
+            }
+
+            _watchedAgentFinish = cfg;
+        }
+
         #endregion
 
         #region Arm / Disarm

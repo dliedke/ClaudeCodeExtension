@@ -102,6 +102,9 @@ This binds a Claude Code skill that shells out to OpenAI Codex to audit pending 
 
 ## Version History
 
+### Version 16.0
+- Changes to "On Agent Finish" settings now take effect for a turn that is already running — the new settings are applied when the agent finishes, instead of only on your next prompt.
+
 ### Version 15.0
 - Arrow keys now work reliably while navigating the agent's question and selection menus in plan mode when "On Agent Finish" is enabled — the completion watcher recognizes the menu sooner and stays backed off as you move between options, instead of eating keystrokes.
 

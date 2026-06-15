@@ -390,6 +390,10 @@ namespace ClaudeCodeVS
             }
 
             SaveSettings();
+
+            // If the agent is mid-turn, apply the just-saved settings to the running watch so they
+            // take effect when this turn finishes rather than only on the next prompt.
+            RefreshWatchedAgentFinishConfig();
         }
 
         /// <summary>
