@@ -80,7 +80,7 @@ Then choose it via *⚙ → Set Terminal Type...*.
 - Provider-specific flags: Claude *Skip Permissions*, Codex *Approval Never*, Cursor *Yolo Mode*, Windsurf *Dangerous Mode*, Antigravity *Skip Permissions*
 - Update Agent, Detach/Attach Terminal, About
 
-**🤖 Model menu** (Claude only): Fable / Opus / Sonnet / Haiku, effort level for Opus (Auto / Low / Medium / High / Max), Change Account, Install Caveman plugin.
+**🤖 Model menu** (Claude only): Opus / Sonnet / Haiku, effort level for Opus (Auto / Low / Medium / High / Max), Change Account, Install Caveman plugin.
 
 **On Agent Finish**: Configure via *⚙ → Settings... → On Agent Finish...*. For scripts, enable *Close script window when it finishes* to auto-close the script console. For *Run (F5)* and *Run without debugging (Ctrl+F5)*, use *Clean solution before running* and *Rebuild solution before running* to control whether the solution is prepared before launch.
 
@@ -101,6 +101,9 @@ This binds a Claude Code skill that shells out to OpenAI Codex to audit pending 
 4. **Use it**: ⚡ → *Codex Review*. Claude runs the skill, Codex audits your diff, findings appear inline.
 
 ## Version History
+
+### Version 17.0
+- Removed the Fable option from the Claude model menu — choose Opus, Sonnet, or Haiku.
 
 ### Version 16.0
 - Changes to "On Agent Finish" settings now take effect for a turn that is already running — the new settings are applied when the agent finishes, instead of only on your next prompt.
