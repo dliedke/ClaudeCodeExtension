@@ -442,32 +442,37 @@ namespace ClaudeCodeVS
 
                     if (_lastConsoleHash == null || !string.Equals(hash, _lastConsoleHash, StringComparison.Ordinal))
                     {
-                        // Screen changed → agent is still working (or the user answered the
-                        // input prompt, in which case the waiting state is over).
+                        // Screen changed → agent is still working, the user answered the prompt,
+                        // OR the user is navigating an input prompt (arrow-keying a selection menu
+                        // moves the ❯ cursor, which changes the screen too). Keep the "awaiting
+                        // reply" backoff engaged whenever the changed screen still looks like a
+                        // prompt: clearing it on every keystroke dropped the cadence back to 1 s,
+                        // so the next console attach landed under the user's fingers and ate the
+                        // arrow keys (reported while answering the agent's questions in plan mode).
                         _lastConsoleHash = hash;
                         _lastConsoleChangeUtc = DateTime.UtcNow;
                         _consoleSawActivity = true;
-                        _awaitingAgentInputReply = false;
+                        _awaitingAgentInputReply = LooksLikeAgentInputPrompt(text);
                         return;
                     }
 
                     // Don't fire until the agent actually produced output this turn.
                     if (!_consoleSawActivity) return;
 
-                    int idle = Math.Max(2, Math.Min(120, _watchedAgentFinish?.IdleSeconds ?? 3));
-                    if ((DateTime.UtcNow - _lastConsoleChangeUtc).TotalSeconds < idle) return;
-
-                    // Settled — but a static y/n or selection prompt also reads as idle. If the
-                    // screen looks like the agent is waiting for input, this is not a completion:
+                    // A static y/n or selection prompt also reads as idle, so classify the settled
+                    // screen as soon as it holds still for one tick — before waiting out the full
+                    // idle window. If the agent is waiting for input, this is not a completion:
                     // don't fire and keep watching, so the notification lands on the real finish
-                    // after the user answers (the screen will change → activity → re-evaluate).
-                    // Entering the waiting state also slows the capture cadence (see the gate
-                    // above) so the user's reply isn't disturbed by the console reads.
+                    // after the user answers. Entering the waiting state also slows the capture
+                    // cadence (see the gate above) so the user's reply isn't disturbed by reads.
                     if (LooksLikeAgentInputPrompt(text))
                     {
                         _awaitingAgentInputReply = true;
                         return;
                     }
+
+                    int idle = Math.Max(2, Math.Min(120, _watchedAgentFinish?.IdleSeconds ?? 3));
+                    if ((DateTime.UtcNow - _lastConsoleChangeUtc).TotalSeconds < idle) return;
 
                     // Settled — the turn is done.
                     var cfg = _watchedAgentFinish;

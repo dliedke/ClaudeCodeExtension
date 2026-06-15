@@ -102,6 +102,9 @@ This binds a Claude Code skill that shells out to OpenAI Codex to audit pending 
 
 ## Version History
 
+### Version 15.0
+- Arrow keys now work reliably while navigating the agent's question and selection menus in plan mode when "On Agent Finish" is enabled — the completion watcher recognizes the menu sooner and stays backed off as you move between options, instead of eating keystrokes.
+
 ### Version 14.0
 - Fixed "Restart code agent" leaving the panel blank after an "On Agent Finish" notification had fired — previously the panel could stay broken until Visual Studio was reopened (issue #73).
 - Arrow keys and typed answers now work reliably when replying to the agent's questions in the console while "On Agent Finish" is enabled — the completion watcher now backs off while the agent waits for your reply.
