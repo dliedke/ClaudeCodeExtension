@@ -51,10 +51,12 @@ namespace ClaudeCodeVS
         private DateTime _lastTerminalKeyUtc = DateTime.MinValue;
 
         // While the settled screen is classified as the agent waiting for the user's reply
-        // (a y/n or selection menu), polling every second would attach VS to the console under
-        // the user's fingers and eat arrow keys / keystrokes. In that state the capture backs
-        // off to this interval while the terminal is focused (an unfocused terminal receives
-        // no keystrokes, so polling stays at the normal 1 s there).
+        // (a y/n or selection menu), each AttachConsole/FreeConsole on VS can bounce the embedded
+        // conhost's keyboard focus, so polling while the user is answering eats arrow keys. In
+        // that state the capture stops entirely while the terminal is focused (the user can see
+        // the result themselves, and only their reply ends the wait) and, while unfocused, backs
+        // off from the normal 1 s cadence to this interval — so a user clicking in to answer isn't
+        // fought by a rapid attach storm, while an agent that resumes on its own is still noticed.
         private const int InputPromptRecheckMs = 10000;
         private bool _awaitingAgentInputReply;
         private DateTime _lastInputPromptRecheckUtc = DateTime.MinValue;
@@ -441,16 +443,22 @@ namespace ClaudeCodeVS
 
                     // While the agent is waiting for the user's reply (y/n box, selection menu),
                     // the screen is static and there is nothing to detect until the user answers.
-                    // Attaching every second in that state is what made arrow keys / typed answers
-                    // unreliable: the first keypress after reading the question lands outside the
-                    // typing guard and collides with an in-flight console capture. Back off to a
-                    // slow recheck while the terminal is focused; an unfocused terminal receives
-                    // no keystrokes, so the normal 1 s cadence is harmless there.
-                    if (_awaitingAgentInputReply
-                        && IsTerminalFocused()
-                        && (DateTime.UtcNow - _lastInputPromptRecheckUtc).TotalMilliseconds < InputPromptRecheckMs)
+                    // Each console attach can bounce the embedded terminal's keyboard focus, so the
+                    // attach storm here is what made arrow keys / typed answers unreliable — the
+                    // user had to click the panel and the agent tab repeatedly before a keystroke
+                    // landed. The user answers by typing into the *focused* terminal, so:
+                    //   • Focused  → never attach. There is nothing to detect until the user acts,
+                    //                and while focused they can see the result themselves, so a
+                    //                delayed finish notification costs nothing. This is what stops
+                    //                a poll from knocking focus out from under them mid-reply.
+                    //   • Unfocused → attach, but only every InputPromptRecheckMs (not every
+                    //                second), so a user clicking in to answer isn't fought by a
+                    //                rapid attach storm, while an agent that resumes on its own is
+                    //                still noticed within ~10 s.
+                    if (_awaitingAgentInputReply)
                     {
-                        return;
+                        if (IsTerminalFocused()) return;
+                        if ((DateTime.UtcNow - _lastInputPromptRecheckUtc).TotalMilliseconds < InputPromptRecheckMs) return;
                     }
 
                     _lastInputPromptRecheckUtc = DateTime.UtcNow;
