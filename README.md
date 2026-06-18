@@ -102,6 +102,9 @@ This binds a Claude Code skill that shells out to OpenAI Codex to audit pending 
 
 ## Version History
 
+### Version 20.0
+- Terminal zoom (Ctrl+Scroll) and right-click paste now keep working after the agent's interface is fully up, not just during startup — previously both stopped responding once the agent took over the terminal (issue #78).
+
 ### Version 19.0
 - Terminal zoom (Ctrl+Scroll) and paste now keep working when signed in with a custom API key — previously some sessions left the mouse zoom and right-click paste unresponsive, and the extension now falls back automatically so both behave the same as a normal sign-in (issue #76).
 

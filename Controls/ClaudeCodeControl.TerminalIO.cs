@@ -357,6 +357,44 @@ namespace ClaudeCodeVS
         }
 
         /// <summary>
+        /// Pastes the current clipboard text into the embedded terminal through focus-independent
+        /// WM_CHAR keystrokes, without submitting (no Enter). Used by the right-click-paste fallback
+        /// when the console is in mouse-input mode and conhost's native right-click paste is swallowed
+        /// by the running TUI (issue #78). Best-effort and silent: returns quietly when the clipboard
+        /// holds no text or anything fails, so a failed paste never throws into the mouse hook.
+        /// </summary>
+        private async Task PasteClipboardToTerminalViaKeystrokesAsync()
+        {
+            try
+            {
+                if (terminalHandle == IntPtr.Zero || !IsWindow(terminalHandle)) return;
+
+                await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
+
+                string clipboardText = await ClipboardRetryAsync(
+                    () => Clipboard.ContainsText() ? Clipboard.GetText() : null);
+                if (string.IsNullOrEmpty(clipboardText)) return;
+
+                var panel = ActiveTerminalPanel;
+                if (panel == null) return;
+
+                // Focus the embedded terminal before typing (mirrors SendTextViaKeystrokesAsync).
+                FocusTerminalPanel(panel);
+                await Task.Delay(60);
+                await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
+                SetFocus(terminalHandle);
+                await Task.Delay(40);
+
+                // Type the clipboard text but do NOT send Enter — a paste only inserts the text.
+                TypeUnicodeText(clipboardText);
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"PasteClipboardToTerminalViaKeystrokesAsync error: {ex.Message}");
+            }
+        }
+
+        /// <summary>
         /// Injects a string into the terminal one UTF-16 code unit at a time by posting WM_CHAR
         /// directly to the terminal window. This is the same focus-independent, cross-process
         /// primitive SendEnterKey uses to deliver Enter to Claude Code — unlike SendInput, it does

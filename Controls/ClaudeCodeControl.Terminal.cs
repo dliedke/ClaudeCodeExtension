@@ -2086,19 +2086,11 @@ namespace ClaudeCodeVS
                 }
                 else
                 {
-                    // Command Prompt: PostMessage WM_MOUSEWHEEL+MK_CONTROL directly to
-                    // the terminal handle — no focus dependency needed.
-                    var screenPt = panel.PointToScreen(
-                        new System.Drawing.Point(panel.Width / 2, panel.Height / 2));
-                    int lParam = (screenPt.Y << 16) | (screenPt.X & 0xFFFF);
-                    int notch = delta > 0 ? 120 : -120;
-
-                    for (int i = 0; i < steps; i++)
-                    {
-                        int wParam = (notch << 16) | 0x0008; // HIWORD=delta, LOWORD=MK_CONTROL
-                        PostMessage(terminalHandle, WM_MOUSEWHEEL, (IntPtr)wParam, (IntPtr)lParam);
-                        await Task.Delay(40);
-                    }
+                    // Command Prompt: set the console font size directly (issue #76/#78). Posting
+                    // WM_MOUSEWHEEL would be swallowed if the agent's TUI is already in mouse-input
+                    // mode by the time the replay fires, so apply the saved delta the same
+                    // input-mode-independent way the interactive zoom now does.
+                    await Task.Run(() => TryAdjustConhostFontSize(delta));
                 }
 
                 await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
@@ -2675,14 +2667,14 @@ namespace ClaudeCodeVS
             {
                 uint message = unchecked((uint)wParam.ToInt64());
 
-                // Command Prompt (conhost) Ctrl+Scroll zoom (issue #76): drive the zoom by posting
-                // WM_MOUSEWHEEL+MK_CONTROL straight to the conhost window instead of relying on
-                // conhost handling the physical wheel. A TUI in mouse-input mode (QuickEdit off)
-                // swallows the physical wheel, killing native Ctrl+Scroll zoom; a posted message is
-                // handled by conhost's window proc regardless of console input mode (this is the same
-                // mechanism the saved-zoom replay already uses). The physical event is consumed so
-                // the zoom is never applied twice when QuickEdit is on. Windows Terminal is left on
-                // its native path (it isn't conhost and doesn't have this problem).
+                // Command Prompt (conhost) Ctrl+Scroll zoom (issue #76/#78): change the console font
+                // size directly via SetCurrentConsoleFontEx instead of relying on the mouse wheel.
+                // Neither the physical wheel nor a posted WM_MOUSEWHEEL reaches conhost's own zoom when
+                // a TUI has put the console into mouse-input mode (QuickEdit off) — conhost forwards
+                // the wheel to the app, which ignores it. Setting the font is independent of console
+                // input mode, so zoom works whether the agent's TUI is up or not. The physical event
+                // is consumed so the zoom is never applied twice when QuickEdit is on. Windows Terminal
+                // is left on its native path (it isn't conhost and doesn't have this problem).
                 if (message == WM_MOUSEWHEEL
                     && _wtTabBarHeight == 0
                     && (GetAsyncKeyState(VK_CONTROL) & 0x8000) != 0)
@@ -2693,6 +2685,27 @@ namespace ClaudeCodeVS
                         // Consume so conhost doesn't also process the physical wheel (double zoom).
                         return (IntPtr)1;
                     }
+                }
+
+                // Command Prompt (conhost) right-click paste (issue #78): when the agent's TUI has
+                // put the console into mouse-input mode (QuickEdit off), conhost forwards the
+                // right-click to the app instead of pasting the clipboard, so native right-click
+                // paste silently does nothing. Detect that state and paste via keystrokes instead,
+                // consuming both the down and the matching up so the agent doesn't also see a click.
+                // In normal (QuickEdit on) mode we don't touch it — conhost's native paste works.
+                if (message == WM_RBUTTONDOWN && _wtTabBarHeight == 0)
+                {
+                    var rInfo = (MSLLHOOKSTRUCT)Marshal.PtrToStructure(lParam, typeof(MSLLHOOKSTRUCT));
+                    if (TryConhostRightClickPaste(rInfo))
+                    {
+                        _consumeNextRButtonUp = true;
+                        return (IntPtr)1;
+                    }
+                }
+                else if (message == WM_RBUTTONUP && _consumeNextRButtonUp)
+                {
+                    _consumeNextRButtonUp = false;
+                    return (IntPtr)1;
                 }
 
                 // This runs on the dedicated hook thread, not the UI thread. All the actual
@@ -2720,13 +2733,16 @@ namespace ClaudeCodeVS
         }
 
         /// <summary>
-        /// Posts a Ctrl+MouseWheel zoom directly to the embedded Command Prompt (conhost) window
+        /// Zooms the embedded Command Prompt (conhost) by changing its console font size directly
         /// when the cursor is over it, and records the zoom delta for replay. Used so Ctrl+Scroll
         /// zoom keeps working even when a TUI has put the console into mouse-input mode (QuickEdit
-        /// off), in which conhost ignores the physical wheel (issue #76). Runs on the mouse-hook
-        /// thread, so the hit test is a Win32 GetWindowRect check (no WPF/WinForms access) and the
-        /// settings/refresh work is marshaled to the UI thread. Returns true when the event was
-        /// handled and should be consumed by the caller.
+        /// off), in which conhost ignores both the physical wheel and a posted WM_MOUSEWHEEL
+        /// (issue #76/#78). Runs on the mouse-hook thread, so the hit test is a Win32 GetWindowRect
+        /// check (no WPF/WinForms access); the font change (which briefly attaches to the agent's
+        /// console) is offloaded to a background task and the settings/refresh work is marshaled to
+        /// the UI thread. Returns true when the gesture targets the terminal and should be consumed
+        /// by the caller — even before the async font change completes — so conhost never also
+        /// processes the physical wheel (double zoom when QuickEdit is on).
         /// </summary>
         private bool TryForwardConhostCtrlZoom(MSLLHOOKSTRUCT info)
         {
@@ -2744,30 +2760,74 @@ namespace ClaudeCodeVS
             int wheelDelta = (short)((info.mouseData >> 16) & 0xFFFF);
             if (wheelDelta == 0) return false;
 
-            int notch = wheelDelta > 0 ? 120 : -120;
-            int lParam = (info.pt.y << 16) | (info.pt.x & 0xFFFF);
-            int wParam = (notch << 16) | 0x0008; // HIWORD = wheel delta, LOWORD = MK_CONTROL
-            PostMessage(handle, WM_MOUSEWHEEL, (IntPtr)wParam, (IntPtr)lParam);
-
-            // Persist the delta (for restart replay) and run the deferred repaint passes on the UI
-            // thread, mirroring the native Ctrl+Scroll handling in HandleMouseHookEvent.
             int step = wheelDelta > 0 ? 1 : -1;
+
+            // Apply the font change off the hook thread (AttachConsole is too heavy for a low-level
+            // hook callback), then persist the delta (for restart replay) and run the deferred
+            // repaint passes on the UI thread, mirroring the native Ctrl+Scroll handling.
             try
             {
-#pragma warning disable VSTHRD001, VSTHRD010, VSTHRD110
-                Dispatcher.BeginInvoke(new Action(() =>
+#pragma warning disable VSTHRD110
+                _ = Task.Run(async () =>
                 {
+                    bool applied = TryAdjustConhostFontSize(step);
+                    if (!applied) return;
+
+                    await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
                     if (_settings == null) return;
                     _settings.TerminalZoomDelta += step;
                     _zoomSaveTimer?.Stop();
                     _zoomSaveTimer?.Start();
                     ScheduleManualZoomRefresh();
-                }));
-#pragma warning restore VSTHRD001, VSTHRD010, VSTHRD110
+                });
+#pragma warning restore VSTHRD110
             }
             catch (Exception ex)
             {
                 Debug.WriteLine($"TryForwardConhostCtrlZoom dispatch error: {ex.Message}");
+            }
+
+            return true;
+        }
+
+        // Set when a right-click-down over the conhost terminal was consumed for a keystroke paste,
+        // so the matching right-click-up is consumed too and the agent never sees a stray click.
+        private bool _consumeNextRButtonUp;
+
+        /// <summary>
+        /// Handles a right-click over the embedded Command Prompt (conhost) as a paste when the
+        /// console is in mouse-input mode (QuickEdit off), in which conhost forwards the click to the
+        /// running TUI instead of pasting the clipboard (issue #78). Runs on the mouse-hook thread:
+        /// the hit test is a Win32 GetWindowRect check and the mouse-mode probe is a short AttachConsole
+        /// round-trip (acceptable for a one-off click, unlike the high-frequency wheel). When in
+        /// mouse-input mode it kicks off a keystroke paste of the clipboard text and returns true so
+        /// the caller consumes the click; otherwise returns false to let conhost's native paste run.
+        /// </summary>
+        private bool TryConhostRightClickPaste(MSLLHOOKSTRUCT info)
+        {
+            IntPtr handle = terminalHandle;
+            if (handle == IntPtr.Zero || !IsWindow(handle)) return false;
+
+            // Hook-thread-safe hit test: is the cursor over the embedded terminal window?
+            if (!GetWindowRect(handle, out RECT rect)) return false;
+            if (info.pt.x < rect.Left || info.pt.x >= rect.Right ||
+                info.pt.y < rect.Top || info.pt.y >= rect.Bottom)
+            {
+                return false;
+            }
+
+            // Only intervene when QuickEdit is off — otherwise conhost's own right-click paste works.
+            if (!IsTerminalInMouseInputMode()) return false;
+
+            try
+            {
+#pragma warning disable VSTHRD110
+                _ = PasteClipboardToTerminalViaKeystrokesAsync();
+#pragma warning restore VSTHRD110
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"TryConhostRightClickPaste dispatch error: {ex.Message}");
             }
 
             return true;

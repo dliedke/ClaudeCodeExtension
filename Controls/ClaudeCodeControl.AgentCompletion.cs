@@ -715,6 +715,97 @@ namespace ClaudeCodeVS
             }
         }
 
+        // Pixel change in cell height per Ctrl+Scroll notch, and the clamp range for the resulting
+        // console font height. Mirrors the rough feel of conhost's native Ctrl+Wheel font stepping.
+        private const short ConhostZoomStepPx = 2;
+        private const short ConhostZoomMinPx = 6;
+        private const short ConhostZoomMaxPx = 60;
+
+        /// <summary>
+        /// Changes the embedded conhost's font size by <paramref name="stepUnits"/> notches (each
+        /// notch = <see cref="ConhostZoomStepPx"/> pixels of cell height), the same way conhost's own
+        /// Ctrl+Scroll zoom does. Unlike posting WM_MOUSEWHEEL — which a TUI in mouse-input mode
+        /// swallows, killing native Ctrl+Scroll zoom (issue #76/#78) — this sets the font directly via
+        /// SetCurrentConsoleFontEx, so it works whether QuickEdit is on or off. Reuses the same guarded
+        /// AttachConsole machinery as the completion watcher (serialized by <see cref="_consoleSnapshotLock"/>,
+        /// std-handle hygiene restored in the finally). Returns false on any failure. Call off the UI
+        /// thread — it briefly attaches VS's process to the agent's console.
+        /// </summary>
+        private bool TryAdjustConhostFontSize(int stepUnits)
+        {
+            if (stepUnits == 0) return false;
+
+            int clientPid = ResolveConsoleClientPid(0);
+            if (clientPid <= 0) return false;
+
+            lock (_consoleSnapshotLock)
+            {
+                // AttachConsole overwrites the process's standard handles; remember the originals
+                // so the finally can put them back (FreeConsole won't).
+                CaptureOriginalStdHandlesOnce();
+
+                IntPtr handle = IntPtr.Zero;
+                bool attached = false;
+                bool ctrlGuarded = false;
+                try
+                {
+                    // Shield VS from a console Ctrl+C during the brief attach window.
+                    SetConsoleCtrlHandler(IntPtr.Zero, true);
+                    ctrlGuarded = true;
+
+                    if (!AttachConsole((uint)clientPid))
+                    {
+                        Debug.WriteLine($"TryAdjustConhostFontSize: AttachConsole({clientPid}) failed, Win32={Marshal.GetLastWin32Error()}");
+                        return false;
+                    }
+                    attached = true;
+
+                    // Font APIs operate on the active screen buffer (CONOUT$).
+                    handle = CreateFile("CONOUT$",
+                        GENERIC_READ_CONSOLE | GENERIC_WRITE_CONSOLE,
+                        FILE_SHARE_READ_CONSOLE | FILE_SHARE_WRITE_CONSOLE,
+                        IntPtr.Zero, OPEN_EXISTING_CONSOLE, 0, IntPtr.Zero);
+                    if (handle.ToInt64() == -1 || handle == IntPtr.Zero) return false;
+
+                    var font = new CONSOLE_FONT_INFOEX { cbSize = (uint)Marshal.SizeOf(typeof(CONSOLE_FONT_INFOEX)) };
+                    if (!GetCurrentConsoleFontEx(handle, false, ref font)) return false;
+
+                    int newHeight = font.dwFontSize.Y + stepUnits * ConhostZoomStepPx;
+                    if (newHeight < ConhostZoomMinPx) newHeight = ConhostZoomMinPx;
+                    if (newHeight > ConhostZoomMaxPx) newHeight = ConhostZoomMaxPx;
+                    if (newHeight == font.dwFontSize.Y) return false;
+
+                    font.dwFontSize.Y = (short)newHeight;
+                    // For TrueType fonts (conhost's default — Cascadia/Consolas), zero the width so
+                    // conhost derives it from the height and the font's aspect ratio. Raster fonts
+                    // keep their reported width and snap to the nearest available size.
+                    if ((font.FontFamily & TMPF_TRUETYPE) != 0)
+                    {
+                        font.dwFontSize.X = 0;
+                    }
+
+                    return SetCurrentConsoleFontEx(handle, false, ref font);
+                }
+                catch (Exception ex)
+                {
+                    Debug.WriteLine($"TryAdjustConhostFontSize error: {ex.Message}");
+                    return false;
+                }
+                finally
+                {
+                    if (handle != IntPtr.Zero && handle.ToInt64() != -1) CloseHandle(handle);
+                    if (attached)
+                    {
+                        FreeConsole();
+                        // FreeConsole leaves the std handles AttachConsole installed dangling;
+                        // restore the originals so the zoom never poisons a later conhost spawn.
+                        RestoreOriginalStdHandles();
+                    }
+                    if (ctrlGuarded) SetConsoleCtrlHandler(IntPtr.Zero, false);
+                }
+            }
+        }
+
         // High-precision markers that the agent is waiting on a yes/no or "press key" prompt.
         // Kept deliberately strong to avoid mis-classifying a genuine completion (which would
         // silently skip its notification). Compared case-insensitively against trimmed tail lines.
