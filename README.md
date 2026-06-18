@@ -102,6 +102,9 @@ This binds a Claude Code skill that shells out to OpenAI Codex to audit pending 
 
 ## Version History
 
+### Version 19.0
+- Terminal zoom (Ctrl+Scroll) and paste now keep working when signed in with a custom API key — previously some sessions left the mouse zoom and right-click paste unresponsive, and the extension now falls back automatically so both behave the same as a normal sign-in (issue #76).
+
 ### Version 18.0
 - Replying to the agent's questions with the arrow keys is now reliable when "On Agent Finish" is enabled — while the agent waits for your answer the completion watcher leaves the focused terminal alone instead of fighting you for keyboard focus, so you no longer have to click the terminal repeatedly before a keystroke registers.
 
