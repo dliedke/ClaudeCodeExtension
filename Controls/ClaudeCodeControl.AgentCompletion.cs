@@ -644,6 +644,77 @@ namespace ClaudeCodeVS
             }
         }
 
+        /// <summary>
+        /// Best-effort probe of whether the embedded conhost is currently in mouse-input mode — i.e.
+        /// QuickEdit is disabled because a running TUI captures the mouse. In that state conhost's
+        /// own right-click paste and Ctrl+Scroll zoom are swallowed by the app (issue #76), so the
+        /// paste path should deliver text through keystrokes instead of the clipboard right-click.
+        /// Reuses the same guarded AttachConsole machinery as the completion watcher (serialized by
+        /// <see cref="_consoleSnapshotLock"/>, std-handle hygiene restored in the finally); returns
+        /// false on any failure so callers fall back to the normal paste path. Call off the UI
+        /// thread — it briefly attaches VS's process to the agent's console.
+        /// </summary>
+        private bool IsTerminalInMouseInputMode()
+        {
+            // Resolve the console *client* (cmd.exe) from the terminal window; conhostPid 0 just
+            // means "derive it from terminalHandle" inside ResolveConsoleClientPid.
+            int clientPid = ResolveConsoleClientPid(0);
+            if (clientPid <= 0) return false;
+
+            lock (_consoleSnapshotLock)
+            {
+                // AttachConsole overwrites the process's standard handles; remember the originals
+                // so the finally can put them back (FreeConsole won't).
+                CaptureOriginalStdHandlesOnce();
+
+                IntPtr handle = IntPtr.Zero;
+                bool attached = false;
+                bool ctrlGuarded = false;
+                try
+                {
+                    // Shield VS from a console Ctrl+C during the brief attach window.
+                    SetConsoleCtrlHandler(IntPtr.Zero, true);
+                    ctrlGuarded = true;
+
+                    if (!AttachConsole((uint)clientPid))
+                    {
+                        Debug.WriteLine($"IsTerminalInMouseInputMode: AttachConsole({clientPid}) failed, Win32={Marshal.GetLastWin32Error()}");
+                        return false;
+                    }
+                    attached = true;
+
+                    handle = CreateFile("CONIN$",
+                        GENERIC_READ_CONSOLE | GENERIC_WRITE_CONSOLE,
+                        FILE_SHARE_READ_CONSOLE | FILE_SHARE_WRITE_CONSOLE,
+                        IntPtr.Zero, OPEN_EXISTING_CONSOLE, 0, IntPtr.Zero);
+                    if (handle.ToInt64() == -1 || handle == IntPtr.Zero) return false;
+
+                    if (!GetConsoleMode(handle, out uint mode)) return false;
+
+                    // QuickEdit cleared ⇒ a TUI holds the console in mouse-input mode, so conhost's
+                    // native right-click paste / Ctrl+Scroll zoom won't work for this session.
+                    return (mode & ENABLE_QUICK_EDIT_MODE) == 0;
+                }
+                catch (Exception ex)
+                {
+                    Debug.WriteLine($"IsTerminalInMouseInputMode error: {ex.Message}");
+                    return false;
+                }
+                finally
+                {
+                    if (handle != IntPtr.Zero && handle.ToInt64() != -1) CloseHandle(handle);
+                    if (attached)
+                    {
+                        FreeConsole();
+                        // FreeConsole leaves the std handles AttachConsole installed dangling;
+                        // restore the originals so the probe never poisons a later conhost spawn.
+                        RestoreOriginalStdHandles();
+                    }
+                    if (ctrlGuarded) SetConsoleCtrlHandler(IntPtr.Zero, false);
+                }
+            }
+        }
+
         // High-precision markers that the agent is waiting on a yes/no or "press key" prompt.
         // Kept deliberately strong to avoid mis-classifying a genuine completion (which would
         // silently skip its notification). Compared case-insensitively against trimmed tail lines.

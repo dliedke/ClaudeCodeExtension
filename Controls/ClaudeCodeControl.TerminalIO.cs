@@ -93,6 +93,28 @@ namespace ClaudeCodeVS
         /// <param name="text">The text to send to the terminal</param>
         private async Task SendTextToTerminalAsync(string text)
         {
+            // Mouse-input-mode fallback (issue #76): when a TUI has switched the embedded conhost
+            // into mouse-input mode (QuickEdit disabled), conhost's right-click paste is intercepted
+            // by the running app, so the clipboard paste below silently does nothing. Detect that
+            // state and deliver the text through focus-independent WM_CHAR keystrokes instead. Done
+            // before any clipboard work so the user's clipboard is left untouched. Only for plain
+            // conhost providers — Open Code / PI / Antigravity have their own paste handling and
+            // Windows Terminal isn't conhost. The probe is best-effort: any failure returns false
+            // and falls through to the normal clipboard paste, so the common case is unaffected.
+            if (terminalHandle != IntPtr.Zero && IsWindow(terminalHandle)
+                && _wtTabBarHeight == 0
+                && _currentRunningProvider != AiProvider.OpenCode
+                && _currentRunningProvider != AiProvider.Pi
+                && _currentRunningProvider != AiProvider.Antigravity)
+            {
+                bool mouseInputMode = await Task.Run(() => IsTerminalInMouseInputMode());
+                if (mouseInputMode)
+                {
+                    await SendTextViaKeystrokesAsync(text);
+                    return;
+                }
+            }
+
             // Dictionary to store all original clipboard formats and their data
             System.Collections.Generic.Dictionary<string, object> originalClipboardData = null;
 

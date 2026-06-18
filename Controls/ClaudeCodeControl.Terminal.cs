@@ -2675,6 +2675,26 @@ namespace ClaudeCodeVS
             {
                 uint message = unchecked((uint)wParam.ToInt64());
 
+                // Command Prompt (conhost) Ctrl+Scroll zoom (issue #76): drive the zoom by posting
+                // WM_MOUSEWHEEL+MK_CONTROL straight to the conhost window instead of relying on
+                // conhost handling the physical wheel. A TUI in mouse-input mode (QuickEdit off)
+                // swallows the physical wheel, killing native Ctrl+Scroll zoom; a posted message is
+                // handled by conhost's window proc regardless of console input mode (this is the same
+                // mechanism the saved-zoom replay already uses). The physical event is consumed so
+                // the zoom is never applied twice when QuickEdit is on. Windows Terminal is left on
+                // its native path (it isn't conhost and doesn't have this problem).
+                if (message == WM_MOUSEWHEEL
+                    && _wtTabBarHeight == 0
+                    && (GetAsyncKeyState(VK_CONTROL) & 0x8000) != 0)
+                {
+                    var wheelInfo = (MSLLHOOKSTRUCT)Marshal.PtrToStructure(lParam, typeof(MSLLHOOKSTRUCT));
+                    if (TryForwardConhostCtrlZoom(wheelInfo))
+                    {
+                        // Consume so conhost doesn't also process the physical wheel (double zoom).
+                        return (IntPtr)1;
+                    }
+                }
+
                 // This runs on the dedicated hook thread, not the UI thread. All the actual
                 // handling touches WPF/WinForms state, so marshal it to the UI thread without
                 // blocking this callback. A cheap inline filter keeps us from flooding the
@@ -2697,6 +2717,60 @@ namespace ClaudeCodeVS
             }
 
             return CallNextHookEx(_mouseHookHandle, nCode, wParam, lParam);
+        }
+
+        /// <summary>
+        /// Posts a Ctrl+MouseWheel zoom directly to the embedded Command Prompt (conhost) window
+        /// when the cursor is over it, and records the zoom delta for replay. Used so Ctrl+Scroll
+        /// zoom keeps working even when a TUI has put the console into mouse-input mode (QuickEdit
+        /// off), in which conhost ignores the physical wheel (issue #76). Runs on the mouse-hook
+        /// thread, so the hit test is a Win32 GetWindowRect check (no WPF/WinForms access) and the
+        /// settings/refresh work is marshaled to the UI thread. Returns true when the event was
+        /// handled and should be consumed by the caller.
+        /// </summary>
+        private bool TryForwardConhostCtrlZoom(MSLLHOOKSTRUCT info)
+        {
+            IntPtr handle = terminalHandle;
+            if (handle == IntPtr.Zero || !IsWindow(handle)) return false;
+
+            // Hook-thread-safe hit test: is the cursor over the embedded terminal window?
+            if (!GetWindowRect(handle, out RECT rect)) return false;
+            if (info.pt.x < rect.Left || info.pt.x >= rect.Right ||
+                info.pt.y < rect.Top || info.pt.y >= rect.Bottom)
+            {
+                return false;
+            }
+
+            int wheelDelta = (short)((info.mouseData >> 16) & 0xFFFF);
+            if (wheelDelta == 0) return false;
+
+            int notch = wheelDelta > 0 ? 120 : -120;
+            int lParam = (info.pt.y << 16) | (info.pt.x & 0xFFFF);
+            int wParam = (notch << 16) | 0x0008; // HIWORD = wheel delta, LOWORD = MK_CONTROL
+            PostMessage(handle, WM_MOUSEWHEEL, (IntPtr)wParam, (IntPtr)lParam);
+
+            // Persist the delta (for restart replay) and run the deferred repaint passes on the UI
+            // thread, mirroring the native Ctrl+Scroll handling in HandleMouseHookEvent.
+            int step = wheelDelta > 0 ? 1 : -1;
+            try
+            {
+#pragma warning disable VSTHRD001, VSTHRD010, VSTHRD110
+                Dispatcher.BeginInvoke(new Action(() =>
+                {
+                    if (_settings == null) return;
+                    _settings.TerminalZoomDelta += step;
+                    _zoomSaveTimer?.Stop();
+                    _zoomSaveTimer?.Start();
+                    ScheduleManualZoomRefresh();
+                }));
+#pragma warning restore VSTHRD001, VSTHRD010, VSTHRD110
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"TryForwardConhostCtrlZoom dispatch error: {ex.Message}");
+            }
+
+            return true;
         }
 
         /// <summary>

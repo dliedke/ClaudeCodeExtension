@@ -505,6 +505,22 @@ namespace ClaudeCodeVS
         private static extern bool GetConsoleScreenBufferInfo(IntPtr hConsoleOutput, out CONSOLE_SCREEN_BUFFER_INFO lpConsoleScreenBufferInfo);
 
         /// <summary>
+        /// Retrieves the current input/output mode of a console handle. Used on the input handle
+        /// (CONIN$) to detect when a TUI has put the embedded conhost into mouse-input mode
+        /// (ENABLE_QUICK_EDIT_MODE cleared), in which conhost's own right-click paste and
+        /// Ctrl+Scroll zoom are intercepted by the running app (issue #76).
+        /// </summary>
+        [DllImport("kernel32.dll", SetLastError = true)]
+        private static extern bool GetConsoleMode(IntPtr hConsoleHandle, out uint lpMode);
+
+        /// <summary>
+        /// Console input-mode flag: when set, the console is in QuickEdit mode (mouse selects text,
+        /// right-click pastes, Ctrl+Scroll zooms). A TUI that needs mouse events clears it (turning
+        /// ENABLE_MOUSE_INPUT on), which is the state that breaks conhost paste/zoom in issue #76.
+        /// </summary>
+        private const uint ENABLE_QUICK_EDIT_MODE = 0x0040;
+
+        /// <summary>
         /// Copies a number of characters from consecutive cells of a console screen buffer.
         /// </summary>
         [DllImport("kernel32.dll", SetLastError = true, CharSet = CharSet.Unicode, EntryPoint = "ReadConsoleOutputCharacterW")]
