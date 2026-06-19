@@ -72,6 +72,7 @@ namespace ClaudeCodeVS
             bool origSendWithCtrlEnter        = _settings.SendWithCtrlEnter;
             bool origSendLargeAsFile          = _settings.SendLargePromptsAsFile;
             bool origDisableClipboardSend     = _settings.DisableClipboardSend;
+            bool origSendSelectionRefOnly     = _settings.SendSelectionReferenceOnly;
             bool origAutoOpenChanges          = _settings.AutoOpenChangesOnPrompt;
             bool origInvertLayout             = _settings.InvertLayout;
             LayoutOrientation origOrientation = _settings.SelectedLayoutOrientation;
@@ -167,6 +168,12 @@ namespace ClaudeCodeVS
                 Margin = new Thickness(20, 0, 0, 0)
             };
             behaviorStack.Children.Add(disableClipboardWtHint);
+
+            var sendSelectionRefOnlyCheck = MakeCheckBox(
+                "Send selection as reference only (no code)",
+                "When enabled, \"Send Selection\" only inserts the file path and line numbers (e.g. \"File: foo.cs (lines 10-15)\"), without the selected code. The AI agent reads the file directly.",
+                origSendSelectionRefOnly, themeFg);
+            behaviorStack.Children.Add(sendSelectionRefOnlyCheck);
 
             // Auto-open Changes only applies inside git repos, but we keep the
             // checkbox visible so users can pre-toggle the setting before
@@ -568,6 +575,7 @@ namespace ClaudeCodeVS
                 sendEnterRadio.IsChecked = true;          // Send with Enter
                 largeAsFileCheck.IsChecked = false;
                 disableClipboardCheck.IsChecked = false;
+                sendSelectionRefOnlyCheck.IsChecked = false;
                 autoOpenCheck.IsChecked = false;
                 SelectComboByTag(fontSizeCombo, 12);
                 topRadio.IsChecked = true;                // Top layout
@@ -603,6 +611,7 @@ namespace ClaudeCodeVS
             bool newSendWithCtrlEnter = sendCtrlEnterRadio.IsChecked == true;
             bool newSendLargeAsFile = largeAsFileCheck.IsChecked == true;
             bool newDisableClipboardSend = disableClipboardCheck.IsChecked == true;
+            bool newSendSelectionRefOnly = sendSelectionRefOnlyCheck.IsChecked == true;
             bool newAutoOpenChanges = autoOpenCheck.IsChecked == true;
             int newFontSize = (fontSizeCombo.SelectedItem as ComboBoxItem)?.Tag is int fs ? fs : origFontSize;
             // Map the selected position back to orientation + invert.
@@ -668,6 +677,7 @@ namespace ClaudeCodeVS
             _settings.SendWithCtrlEnter       = newSendWithCtrlEnter;
             _settings.SendLargePromptsAsFile  = newSendLargeAsFile;
             _settings.DisableClipboardSend    = newDisableClipboardSend;
+            _settings.SendSelectionReferenceOnly = newSendSelectionRefOnly;
             _settings.AutoOpenChangesOnPrompt = newAutoOpenChanges;
             _settings.InvertLayout            = newInvertLayout;
             _settings.SelectedLayoutOrientation = newOrientation;

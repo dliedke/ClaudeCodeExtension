@@ -319,6 +319,12 @@ namespace ClaudeCodeVS
         public bool DisableClipboardSend { get; set; } = false;
 
         /// <summary>
+        /// When true, "Send Selection" only inserts the file reference (path + line numbers)
+        /// without the code block. Default false.
+        /// </summary>
+        public bool SendSelectionReferenceOnly { get; set; } = false;
+
+        /// <summary>
         /// Saved position of the grid splitter (in pixels)
         /// </summary>
         public double SplitterPosition { get; set; } = 236.0; // Default pixel height for first row
