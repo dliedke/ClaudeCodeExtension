@@ -314,9 +314,11 @@ namespace ClaudeCodeVS
         private static extern uint SendInput(uint nInputs, INPUT[] pInputs, int cbSize);
 
         /// <summary>
-        /// Posts a message to the message queue of a window
+        /// Posts a message to the message queue of a window.
+        /// CharSet.Unicode binds PostMessageW so WM_CHAR carries the full UTF-16 code unit
+        /// (issue #79 - CJK/non-ASCII input was garbled through the default ANSI PostMessageA).
         /// </summary>
-        [DllImport("user32.dll")]
+        [DllImport("user32.dll", CharSet = CharSet.Unicode)]
         private static extern bool PostMessage(IntPtr hWnd, uint Msg, IntPtr wParam, IntPtr lParam);
 
         /// <summary>

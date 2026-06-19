@@ -102,6 +102,10 @@ This binds a Claude Code skill that shells out to OpenAI Codex to audit pending 
 
 ## Version History
 
+### Version 21.0
+- Non-English text (such as Chinese, Japanese, or Korean) typed in the prompt box now reaches the terminal correctly instead of arriving as garbled characters (issue #79).
+- Agent output in the terminal is now readable under a light Visual Studio theme — accent colors like cyan and blue are painted in darker, legible tones instead of washing out against the light background (issue #80).
+
 ### Version 20.0
 - Terminal zoom (Ctrl+Scroll) and right-click paste now keep working after the agent's interface is fully up, not just during startup — previously both stopped responding once the agent took over the terminal (issue #78).
 

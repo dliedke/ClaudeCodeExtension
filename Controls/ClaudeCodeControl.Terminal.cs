@@ -1598,14 +1598,11 @@ namespace ClaudeCodeVS
         private object _savedConsolePopupColors;
 
         /// <summary>
-        /// Saved original console ColorTable00 (black) from registry
+        /// Saved original console ColorTable00..ColorTable15 from registry, for restoration
+        /// after conhost starts. All 16 ANSI palette slots are tracked because the light-theme
+        /// fix (issue #80) rewrites the accent slots, not just background/foreground.
         /// </summary>
-        private object _savedConsoleColorTable00;
-
-        /// <summary>
-        /// Saved original console ColorTable07 (white) from registry
-        /// </summary>
-        private object _savedConsoleColorTable07;
+        private readonly object[] _savedConsoleColorTable = new object[16];
 
         /// <summary>
         /// Whether we have saved console color values that need restoration
@@ -1775,18 +1772,18 @@ namespace ClaudeCodeVS
                         return;
                     }
 
-                    // Save original colors
+                    // Save original colors (all 16 palette slots, so the light-theme accent
+                    // overrides below can be reverted cleanly).
                     _savedConsoleScreenColors = key.GetValue("ScreenColors");
                     _savedConsolePopupColors = key.GetValue("PopupColors");
-                    _savedConsoleColorTable00 = key.GetValue("ColorTable00");
-                    _savedConsoleColorTable07 = key.GetValue("ColorTable07");
+                    for (int i = 0; i < 16; i++)
+                        _savedConsoleColorTable[i] = key.GetValue($"ColorTable{i:D2}");
                     _consoleColorsSaved = true;
                     Debug.WriteLine($"Saved original ScreenColors: {_savedConsoleScreenColors}");
 
                     key.SetValue("ScreenColors", screenColors, Microsoft.Win32.RegistryValueKind.DWord);
                     key.SetValue("PopupColors", popupColors, Microsoft.Win32.RegistryValueKind.DWord);
-                    key.SetValue("ColorTable00", bgBgr, Microsoft.Win32.RegistryValueKind.DWord); // themed background
-                    key.SetValue("ColorTable07", fgBgr, Microsoft.Win32.RegistryValueKind.DWord); // black/white text
+                    WriteThemedConsolePalette(key, bgBgr, fgBgr, bgIsLight);
 
                     Debug.WriteLine($"Set ScreenColors to: {screenColors:X}");
                 }
@@ -1798,8 +1795,7 @@ namespace ClaudeCodeVS
                     {
                         conhostKey.SetValue("ScreenColors", screenColors, Microsoft.Win32.RegistryValueKind.DWord);
                         conhostKey.SetValue("PopupColors", popupColors, Microsoft.Win32.RegistryValueKind.DWord);
-                        conhostKey.SetValue("ColorTable00", bgBgr, Microsoft.Win32.RegistryValueKind.DWord);
-                        conhostKey.SetValue("ColorTable07", fgBgr, Microsoft.Win32.RegistryValueKind.DWord);
+                        WriteThemedConsolePalette(conhostKey, bgBgr, fgBgr, bgIsLight);
                         Debug.WriteLine($"Set conhost ScreenColors to: {screenColors:X}");
                     }
                 }
@@ -1812,6 +1808,63 @@ namespace ClaudeCodeVS
             {
                 Debug.WriteLine($"SaveAndSetConsoleColorsRegistry error: {ex.Message}\n{ex.StackTrace}");
             }
+        }
+
+        /// <summary>
+        /// Writes the themed background (ColorTable00) and foreground (ColorTable07) into a console
+        /// registry key. On a LIGHT background the 14 accent slots (ColorTable01-06 and 08-15) ship
+        /// tuned for a dark background and wash out (issue #80), so a light-appropriate full palette
+        /// of darker/saturated accent colors is painted instead. On a dark background the default
+        /// accent slots are left untouched.
+        /// </summary>
+        private void WriteThemedConsolePalette(Microsoft.Win32.RegistryKey key, uint bgBgr, uint fgBgr, bool bgIsLight)
+        {
+            key.SetValue("ColorTable00", bgBgr, Microsoft.Win32.RegistryValueKind.DWord); // themed background
+            key.SetValue("ColorTable07", fgBgr, Microsoft.Win32.RegistryValueKind.DWord); // black/white text
+
+            if (!bgIsLight)
+                return;
+
+            // Accent slots only (skip 00 = background and 07 = foreground, already set above).
+            uint[] palette = GetLightConsolePalette();
+            for (int i = 1; i < 16; i++)
+            {
+                if (i == 7) continue;
+                key.SetValue($"ColorTable{i:D2}", palette[i], Microsoft.Win32.RegistryValueKind.DWord);
+            }
+        }
+
+        /// <summary>
+        /// Returns a 16-entry ANSI palette (BGR, 0x00BBGGRR) with darker/saturated accent colors that
+        /// stay legible on a light console background. The "bright" slots (09-14) mirror their normal
+        /// counterparts so agent TUIs that emit bright accents (e.g. cyan inline code) remain readable.
+        /// Slots 00 (background) and 07 (foreground) are placeholders; callers override them with the
+        /// active theme colors.
+        /// </summary>
+        private static uint[] GetLightConsolePalette()
+        {
+            // Local helper: pack R,G,B into the console's BGR DWORD layout.
+            uint Bgr(byte r, byte g, byte b) => (uint)((b << 16) | (g << 8) | r);
+
+            return new uint[16]
+            {
+                Bgr(0xFF, 0xFF, 0xFF), // 00 black/background (overridden by caller)
+                Bgr(0xC5, 0x0F, 0x1F), // 01 red
+                Bgr(0x0E, 0x7A, 0x0E), // 02 green
+                Bgr(0x94, 0x6A, 0x00), // 03 yellow (dark amber)
+                Bgr(0x00, 0x37, 0xDA), // 04 blue
+                Bgr(0x88, 0x17, 0x98), // 05 magenta
+                Bgr(0x0E, 0x80, 0x80), // 06 cyan (teal)
+                Bgr(0x00, 0x00, 0x00), // 07 white/foreground (overridden by caller)
+                Bgr(0x76, 0x76, 0x76), // 08 bright black (gray)
+                Bgr(0xC5, 0x0F, 0x1F), // 09 bright red
+                Bgr(0x0E, 0x7A, 0x0E), // 10 bright green
+                Bgr(0x94, 0x6A, 0x00), // 11 bright yellow
+                Bgr(0x00, 0x37, 0xDA), // 12 bright blue
+                Bgr(0x88, 0x17, 0x98), // 13 bright magenta
+                Bgr(0x0E, 0x80, 0x80), // 14 bright cyan
+                Bgr(0x26, 0x26, 0x26), // 15 bright white (dark gray on light bg)
+            };
         }
 
         /// <summary>
@@ -1839,16 +1892,15 @@ namespace ClaudeCodeVS
                         else
                             key.DeleteValue("PopupColors", throwOnMissingValue: false);
 
-                        // Restore color table entries (only for light theme which sets them)
-                        if (_savedConsoleColorTable00 != null)
-                            key.SetValue("ColorTable00", _savedConsoleColorTable00, Microsoft.Win32.RegistryValueKind.DWord);
-                        else
-                            key.DeleteValue("ColorTable00", throwOnMissingValue: false);
-
-                        if (_savedConsoleColorTable07 != null)
-                            key.SetValue("ColorTable07", _savedConsoleColorTable07, Microsoft.Win32.RegistryValueKind.DWord);
-                        else
-                            key.DeleteValue("ColorTable07", throwOnMissingValue: false);
+                        // Restore all 16 color table entries to their original state
+                        for (int i = 0; i < 16; i++)
+                        {
+                            string name = $"ColorTable{i:D2}";
+                            if (_savedConsoleColorTable[i] != null)
+                                key.SetValue(name, _savedConsoleColorTable[i], Microsoft.Win32.RegistryValueKind.DWord);
+                            else
+                                key.DeleteValue(name, throwOnMissingValue: false);
+                        }
                     }
                 }
 
@@ -1859,8 +1911,8 @@ namespace ClaudeCodeVS
                     {
                         conhostKey.DeleteValue("ScreenColors", throwOnMissingValue: false);
                         conhostKey.DeleteValue("PopupColors", throwOnMissingValue: false);
-                        conhostKey.DeleteValue("ColorTable00", throwOnMissingValue: false);
-                        conhostKey.DeleteValue("ColorTable07", throwOnMissingValue: false);
+                        for (int i = 0; i < 16; i++)
+                            conhostKey.DeleteValue($"ColorTable{i:D2}", throwOnMissingValue: false);
                     }
                 }
 
