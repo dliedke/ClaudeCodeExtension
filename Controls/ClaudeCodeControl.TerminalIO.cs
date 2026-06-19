@@ -93,26 +93,23 @@ namespace ClaudeCodeVS
         /// <param name="text">The text to send to the terminal</param>
         private async Task SendTextToTerminalAsync(string text)
         {
-            // Mouse-input-mode fallback (issue #76): when a TUI has switched the embedded conhost
-            // into mouse-input mode (QuickEdit disabled), conhost's right-click paste is intercepted
-            // by the running app, so the clipboard paste below silently does nothing. Detect that
-            // state and deliver the text through focus-independent WM_CHAR keystrokes instead. Done
-            // before any clipboard work so the user's clipboard is left untouched. Only for plain
-            // conhost providers — Open Code / PI / Antigravity have their own paste handling and
-            // Windows Terminal isn't conhost. The probe is best-effort: any failure returns false
-            // and falls through to the normal clipboard paste, so the common case is unaffected.
+            // Mouse-input-mode probe (issues #76, #82, #83): when a TUI has switched the embedded
+            // conhost into mouse-input mode (QuickEdit disabled — e.g. Claude Code signed in with an
+            // API key, or PI), conhost's plain right-click paste is swallowed by the running app, so
+            // the normal paste silently does nothing. The previous fix delivered the text through
+            // per-character WM_CHAR keystrokes, but TUIs react to that by flooding the input with
+            // cursor-position responses (the duplicated "[Pasted text]" blocks of #83 and PI's R-loop
+            // crash in #82). Instead we keep the real clipboard paste and, when mouse-input mode is
+            // detected, drive conhost's OWN paste through its context menu (TUI-agnostic, like
+            // Antigravity). Best-effort: any probe failure leaves the flag false so the common
+            // (QuickEdit-on) path is unchanged. Only for plain conhost providers; WT isn't conhost
+            // and Open Code keeps its dedicated Shift+Right-click paste.
+            bool conhostMouseInputMode = false;
             if (terminalHandle != IntPtr.Zero && IsWindow(terminalHandle)
                 && _wtTabBarHeight == 0
-                && _currentRunningProvider != AiProvider.OpenCode
-                && _currentRunningProvider != AiProvider.Pi
-                && _currentRunningProvider != AiProvider.Antigravity)
+                && _currentRunningProvider != AiProvider.OpenCode)
             {
-                bool mouseInputMode = await Task.Run(() => IsTerminalInMouseInputMode());
-                if (mouseInputMode)
-                {
-                    await SendTextViaKeystrokesAsync(text);
-                    return;
-                }
+                conhostMouseInputMode = await Task.Run(() => IsTerminalInMouseInputMode());
             }
 
             // Dictionary to store all original clipboard formats and their data
@@ -177,11 +174,14 @@ namespace ClaudeCodeVS
                     // If no text is selected, right-click pastes from clipboard (which is empty, so harmless).
                     // Antigravity is excluded because it disables QuickEdit at startup, so a plain
                     // right-click would open the conhost context menu instead — the menu navigation
-                    // for Antigravity happens in the dedicated paste branch below.
+                    // for Antigravity happens in the dedicated paste branch below. Likewise skip it when
+                    // mouse-input mode is detected (#82/#83): QuickEdit is off, so there is no selection
+                    // to clear and a right-click would just open the context menu prematurely.
                     bool isCommandPrompt = _wtTabBarHeight == 0
                                            && _currentRunningProvider != AiProvider.OpenCode
                                            && _currentRunningProvider != AiProvider.Pi
-                                           && _currentRunningProvider != AiProvider.Antigravity;
+                                           && _currentRunningProvider != AiProvider.Antigravity
+                                           && !conhostMouseInputMode;
                     if (isCommandPrompt)
                     {
                         await RightClickTerminalCenterAsync();
@@ -574,39 +574,41 @@ namespace ClaudeCodeVS
                 await PasteViaCtrlShiftVAsync();
                 await Task.Delay(500 + extraDelayMs);
             }
-            else if (_currentRunningProvider == AiProvider.OpenCode
-                     || _currentRunningProvider == AiProvider.Pi)
-            {
-                await ShiftRightClickTerminalCenterAsync();
-                await Task.Delay(800 + extraDelayMs);
-            }
-            else if (_currentRunningProvider == AiProvider.Antigravity)
-            {
-                // Antigravity disables conhost QuickEdit mode at startup so its TUI can
-                // capture mouse events. As a result, right-click opens the conhost context
-                // menu instead of pasting. Navigate the menu with the keyboard:
-                //   Down -> highlights "Mark" (first item)
-                //   Down -> highlights "Copy" (disabled, but Windows menus still stop on it)
-                //   Down -> highlights "Paste"
-                //   Enter -> invokes Paste
-                // Menu order is locale-agnostic; only the labels change. The delays are
-                // intentionally generous because rushing the keystrokes drops them.
-                await RightClickTerminalCenterAsync();
-                await Task.Delay(500); // let conhost render the context menu
-                SendKeyDownUp(VK_DOWN);
-                await Task.Delay(150);
-                SendKeyDownUp(VK_DOWN);
-                await Task.Delay(150);
-                SendKeyDownUp(VK_DOWN);
-                await Task.Delay(150);
-                SendKeyDownUp(VK_RETURN);
-                await Task.Delay(800 + extraDelayMs);
-            }
             else
             {
-                await RightClickTerminalCenterAsync();
+                // All Command Prompt (conhost) providers paste through conhost's own Edit→Paste
+                // command posted directly to the terminal window. Because the message is addressed
+                // to a specific window handle, the paste always lands in THIS instance's terminal —
+                // the global mouse_event/keybd_event paths used before (plain right-click,
+                // Shift+Right-click, keyboard menu navigation) could leak the prompt into another
+                // open VS instance's terminal (the dev + F5 experimental instance), and only the
+                // handle-targeted path proved reliable. It also invokes conhost's paste regardless
+                // of QuickEdit/mouse-input mode, so it covers the plain shells (Claude Code, Codex,
+                // Cursor) and the TUIs that capture the mouse (Claude API-key sign-in, PI,
+                // Antigravity, Open Code) without per-character keystroke flooding (issues #82, #83).
+                await PasteViaConhostPasteCommandAsync();
                 await Task.Delay(800 + extraDelayMs);
             }
+        }
+
+        /// <summary>
+        /// Pastes the current clipboard content into the embedded conhost by posting its own
+        /// Edit→Paste menu command (<c>ID_CONSOLE_PASTE</c>) straight to the terminal window.
+        ///
+        /// This is delivered to a specific window handle, so — unlike global <c>mouse_event</c>/
+        /// <c>keybd_event</c> injection (right-click paste, Shift+Right-click, Ctrl+Shift+V, menu
+        /// navigation) — it cannot leak into another Visual Studio instance's terminal when two
+        /// instances run side by side (e.g. the dev + F5 experimental instance). It also invokes
+        /// conhost's clipboard paste regardless of QuickEdit, so it works for plain shells and for
+        /// TUIs that capture the mouse (Antigravity, PI, Claude Code signed in with an API key)
+        /// without the per-character keystroke flooding of issues #82 / #83.
+        /// </summary>
+        private async Task PasteViaConhostPasteCommandAsync()
+        {
+            if (terminalHandle == IntPtr.Zero || !IsWindow(terminalHandle)) return;
+
+            PostMessage(terminalHandle, WM_COMMAND, new IntPtr(ID_CONSOLE_PASTE), IntPtr.Zero);
+            await Task.Delay(50);
         }
 
         /// <summary>
@@ -815,7 +817,12 @@ namespace ClaudeCodeVS
         {
             if (terminalHandle == IntPtr.Zero || !IsWindow(terminalHandle)) return;
 
-            SetForegroundWindow(terminalHandle);
+            // Ctrl+Shift+V is injected with keybd_event, which lands on whatever window owns the
+            // foreground keyboard focus. A plain SetForegroundWindow on the doubly-embedded Windows
+            // Terminal child silently fails when VS isn't the foreground app, so the keystrokes miss
+            // the terminal and the send appears to hang for ~1 minute (issue #82, Path B). Attach our
+            // input queue to the current foreground thread first so the activation is honored.
+            ForceTerminalForeground();
             SetFocus(terminalHandle);
             await Task.Delay(100);
 
@@ -828,6 +835,49 @@ namespace ClaudeCodeVS
             keybd_event(0x56, 0, KEYEVENTF_KEYUP, UIntPtr.Zero);
             keybd_event(VK_SHIFT, 0, KEYEVENTF_KEYUP, UIntPtr.Zero);
             keybd_event(VK_CONTROL, 0, KEYEVENTF_KEYUP, UIntPtr.Zero);
+        }
+
+        /// <summary>
+        /// Brings the embedded terminal window to the foreground reliably. A plain SetForegroundWindow
+        /// is denied when VS isn't the foreground application, which on the doubly-embedded Windows
+        /// Terminal child causes injected keystrokes (Ctrl+Shift+V paste) to miss and the send to hang
+        /// (issue #82). Attaching our input queue to the foreground window's thread for the duration of
+        /// the call makes Windows honor the activation, mirroring <see cref="BringVisualStudioToForegroundIfNeeded"/>.
+        /// </summary>
+        private void ForceTerminalForeground()
+        {
+            if (terminalHandle == IntPtr.Zero || !IsWindow(terminalHandle)) return;
+
+            IntPtr foreground = GetForegroundWindow();
+            if (foreground == terminalHandle)
+            {
+                SetForegroundWindow(terminalHandle);
+                return;
+            }
+
+            uint currentThreadId = GetCurrentThreadId();
+            uint foregroundThreadId = foreground != IntPtr.Zero
+                ? GetWindowThreadProcessId(foreground, out _)
+                : 0;
+
+            bool attached = false;
+            if (foregroundThreadId != 0 && foregroundThreadId != currentThreadId)
+            {
+                attached = AttachThreadInput(currentThreadId, foregroundThreadId, true);
+            }
+
+            try
+            {
+                BringWindowToTop(terminalHandle);
+                SetForegroundWindow(terminalHandle);
+            }
+            finally
+            {
+                if (attached)
+                {
+                    AttachThreadInput(currentThreadId, foregroundThreadId, false);
+                }
+            }
         }
 
         /// <summary>
@@ -899,93 +949,6 @@ namespace ClaudeCodeVS
 
                 SendRightClick(centerX, centerY);
             }
-        }
-
-        /// <summary>
-        /// Performs SHIFT+Right-click on the center of the terminal window (async version)
-        /// Required for Open Code to paste text properly
-        /// For Windows Terminal, adjusts Y coordinate to account for hidden tab bar
-        /// </summary>
-        private async Task ShiftRightClickTerminalCenterAsync()
-        {
-            if (terminalHandle != IntPtr.Zero && IsWindow(terminalHandle))
-            {
-                GetWindowRect(terminalHandle, out RECT rect);
-                int centerX = rect.Left + (rect.Right - rect.Left) / 2;
-                int centerY = rect.Top + (rect.Bottom - rect.Top) / 2;
-
-                // For Windows Terminal with hidden tab bar, adjust Y coordinate
-                if (_wtTabBarHeight > 0)
-                {
-                    centerY += _wtTabBarHeight;
-                }
-
-                // Move cursor to center
-                SetCursorPos(centerX, centerY);
-                await Task.Delay(30); // Reduced from 50ms
-
-                // Hold SHIFT key down
-                keybd_event(VK_SHIFT, 0, 0, UIntPtr.Zero);
-                await Task.Delay(30); // Reduced from 50ms
-
-                // Perform right-click
-                mouse_event(MOUSEEVENTF_RIGHTDOWN, 0, 0, 0, UIntPtr.Zero);
-                await Task.Delay(30); // Reduced from 50ms
-                mouse_event(MOUSEEVENTF_RIGHTUP, 0, 0, 0, UIntPtr.Zero);
-                await Task.Delay(30); // Reduced from 50ms
-
-                // Release SHIFT key
-                keybd_event(VK_SHIFT, 0, KEYEVENTF_KEYUP, UIntPtr.Zero);
-            }
-        }
-
-        /// <summary>
-        /// Performs SHIFT+Right-click on the center of the terminal window (sync version)
-        /// Required for Open Code to paste text properly
-        /// For Windows Terminal, adjusts Y coordinate to account for hidden tab bar
-        /// </summary>
-        private void ShiftRightClickTerminalCenter()
-        {
-            if (terminalHandle != IntPtr.Zero && IsWindow(terminalHandle))
-            {
-                GetWindowRect(terminalHandle, out RECT rect);
-                int centerX = rect.Left + (rect.Right - rect.Left) / 2;
-                int centerY = rect.Top + (rect.Bottom - rect.Top) / 2;
-
-                // For Windows Terminal with hidden tab bar, adjust Y coordinate
-                if (_wtTabBarHeight > 0)
-                {
-                    centerY += _wtTabBarHeight;
-                }
-
-                // Move cursor to center
-                SetCursorPos(centerX, centerY);
-                System.Threading.Thread.Sleep(30);
-
-                // Hold SHIFT key down
-                keybd_event(VK_SHIFT, 0, 0, UIntPtr.Zero);
-                System.Threading.Thread.Sleep(30);
-
-                // Perform right-click
-                mouse_event(MOUSEEVENTF_RIGHTDOWN, 0, 0, 0, UIntPtr.Zero);
-                System.Threading.Thread.Sleep(30);
-                mouse_event(MOUSEEVENTF_RIGHTUP, 0, 0, 0, UIntPtr.Zero);
-                System.Threading.Thread.Sleep(30);
-
-                // Release SHIFT key
-                keybd_event(VK_SHIFT, 0, KEYEVENTF_KEYUP, UIntPtr.Zero);
-            }
-        }
-
-        /// <summary>
-        /// Sends a single virtual-key down+up using keybd_event. Used for keyboard navigation
-        /// of system context menus (e.g. the conhost right-click menu shown by Antigravity).
-        /// </summary>
-        private void SendKeyDownUp(int virtualKey)
-        {
-            keybd_event(virtualKey, 0, 0, UIntPtr.Zero);
-            System.Threading.Thread.Sleep(50);
-            keybd_event(virtualKey, 0, KEYEVENTF_KEYUP, UIntPtr.Zero);
         }
 
         /// <summary>

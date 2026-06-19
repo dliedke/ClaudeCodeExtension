@@ -2860,6 +2860,14 @@ namespace ClaudeCodeVS
             IntPtr handle = terminalHandle;
             if (handle == IntPtr.Zero || !IsWindow(handle)) return false;
 
+            // Ignore programmatically injected right-clicks (LLMHF_INJECTED). The extension's own
+            // deselect right-click (RightClickTerminalCenterAsync) is injected programmatically; if we
+            // treated that as a manual click here we would consume it and fire a per-character
+            // keystroke paste, re-introducing the TUI flood (issues #82, #83). Real user right-clicks
+            // are not injected, so the manual right-click paste fallback still works.
+            const uint LLMHF_INJECTED = 0x00000001;
+            if ((info.flags & LLMHF_INJECTED) != 0) return false;
+
             // Hook-thread-safe hit test: is the cursor over the embedded terminal window?
             if (!GetWindowRect(handle, out RECT rect)) return false;
             if (info.pt.x < rect.Left || info.pt.x >= rect.Right ||

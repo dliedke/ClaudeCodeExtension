@@ -47,9 +47,16 @@ namespace ClaudeCodeVS
 
         // Window messages
         private const uint WM_CLOSE = 0x0010;
+        private const uint WM_COMMAND = 0x0111;
         private const uint WM_KEYDOWN = 0x0100;
         private const uint WM_KEYUP = 0x0101;
         private const uint WM_CHAR = 0x0102;
+
+        // conhost (ConsoleWindowClass) Edit-menu command IDs. Posting these to the console window
+        // invokes conhost's own clipboard handlers regardless of QuickEdit/mouse-input mode, and —
+        // unlike mouse_event/keybd_event — they target a specific window handle, so they can't leak
+        // to another Visual Studio instance's terminal (issues #82/#83 paste, multi-instance fix).
+        private const int ID_CONSOLE_PASTE = 0xFFF1;
         private const uint WM_MOUSEMOVE = 0x0200;
         private const uint WM_LBUTTONDOWN = 0x0201;
         private const uint WM_LBUTTONUP = 0x0202;

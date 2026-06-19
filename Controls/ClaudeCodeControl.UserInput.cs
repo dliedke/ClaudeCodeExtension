@@ -189,18 +189,24 @@ namespace ClaudeCodeVS
                 // an app holding the clipboard can't break the send. Only available with conhost
                 // (Command Prompt) — Windows Terminal (_wtTabBarHeight > 0) doesn't accept the posted
                 // WM_CHAR keystrokes, so fall back to the normal clipboard paste path there.
-                bool clipboardFree = _settings != null
+                // PI is excluded: its TUI reacts to per-character WM_CHAR by flooding the input with
+                // cursor-position responses and crashing (issue #82), so it must use the clipboard
+                // paste path regardless — the prompt is still written to a file so the pasted
+                // reference stays short.
+                bool disableClipboardRequested = _settings != null
                     && _settings.DisableClipboardSend
                     && _wtTabBarHeight == 0;
+                bool isPiProvider = _currentRunningProvider == AiProvider.Pi;
+                bool clipboardFree = disableClipboardRequested && !isPiProvider;
 
                 // Save the prompt to a temp file and send only a short reference when either:
-                //   • "Disable clipboard" is on (always, so the keystroke payload stays short), or
+                //   • "Disable clipboard" is on (always, so the keystroke/paste payload stays short), or
                 //   • "Send large prompts as file" is on and the prompt exceeds the ~1 KB conhost
                 //     paste-buffer threshold (avoids front-truncation of large pastes, see issue #48).
                 // In both cases the "Files attached:" list is preserved by living inside the file.
                 const int LargePromptThresholdChars = 1024;
                 bool writeToFile = !string.IsNullOrEmpty(finalPrompt)
-                    && (clipboardFree
+                    && (disableClipboardRequested
                         || (_settings != null
                             && _settings.SendLargePromptsAsFile
                             && finalPrompt.Length > LargePromptThresholdChars));

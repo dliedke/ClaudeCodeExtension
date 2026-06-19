@@ -102,6 +102,11 @@ This binds a Claude Code skill that shells out to OpenAI Codex to audit pending 
 
 ## Version History
 
+### Version 22.0
+- Fixed prompts being flooded with thousands of duplicated "[Pasted text]" blocks or repeated characters on every send — sending now pastes the real text through the terminal's own paste instead of typing it character by character, which the agent could turn into a runaway loop (issue #83).
+- Fixed the PI agent: sending a prompt no longer fills the terminal with garbage and crashes it (Command Prompt), and no longer freezes Visual Studio for about a minute before the text appears (Windows Terminal) (issue #82).
+- Fixed a prompt sometimes landing in the wrong window's terminal when two Visual Studio instances are open at once — the prompt now always goes to the terminal of the instance you sent it from.
+
 ### Version 21.0
 - Non-English text (such as Chinese, Japanese, or Korean) typed in the prompt box now reaches the terminal correctly instead of arriving as garbled characters (issue #79).
 - Agent output in the terminal is now readable under a light Visual Studio theme — accent colors like cyan and blue are painted in darker, legible tones instead of washing out against the light background (issue #80).
