@@ -102,6 +102,9 @@ This binds a Claude Code skill that shells out to OpenAI Codex to audit pending 
 
 ## Version History
 
+### Version 25.0
+- When "On Agent Finish" skips its action because no files changed, it now stays silent — no notification or sound — instead of announcing the skipped turn.
+
 ### Version 24.0
 - Fixed the agent picker, tool-window title, model menu, and usage controls showing a stale provider after another agent was already running.
 - Fixed WSL provider launches for workspaces with special characters in the path and made custom WSL executable paths safer.

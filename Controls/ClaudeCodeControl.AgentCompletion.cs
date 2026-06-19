@@ -974,28 +974,26 @@ namespace ClaudeCodeVS
             await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
             try
             {
-                if (cfg.PlaySound) PlayFinishSound();
-
                 string summary = "Agent finished · " + FormatDuration(duration)
                     + (tokenDelta > 0 ? $" · +{tokenDelta:N0} tokens" : string.Empty);
 
                 bool hasAction = cfg.Action != AgentFinishActionType.None;
+
+                // Gate the action on the agent having changed files (when requested). When the
+                // action is skipped because nothing changed, the turn produced no actionable
+                // result, so suppress the notification and sound entirely — there is nothing to
+                // alert the user about.
+                if (hasAction && cfg.RequireFileChanges && !await HasWorkingTreeChangesAsync())
+                {
+                    return;
+                }
+
+                if (cfg.PlaySound) PlayFinishSound();
+
                 if (!hasAction)
                 {
                     if (cfg.ShowToast) await ShowAgentFinishNotificationAsync(summary, null, null);
                     return;
-                }
-
-                // Optionally gate the action on the agent having changed files.
-                if (cfg.RequireFileChanges)
-                {
-                    bool changed = await HasWorkingTreeChangesAsync();
-                    if (!changed)
-                    {
-                        if (cfg.ShowToast)
-                            await ShowAgentFinishNotificationAsync(summary + " · no file changes — action skipped", null, null);
-                        return;
-                    }
                 }
 
                 string actionLabel = DescribeAction(cfg);
