@@ -977,7 +977,7 @@ namespace ClaudeCodeVS
                         case AiProvider.CursorAgent:
                             string wslPathCursor = ConvertToWslPath(workspaceDir);
                             string cursorAgentWslCommand = GetCursorAgentWslCommand();
-                            cmdCommand = $"/k chcp 65001 >nul && cls && wsl bash -lic \"cd '{wslPathCursor}' && {cursorAgentWslCommand}\"";
+                            cmdCommand = $"/k chcp 65001 >nul && cls && {BuildWslLaunchCommand(wslPathCursor, cursorAgentWslCommand)}";
                             break;
 
                         case AiProvider.CodexNative:
@@ -988,13 +988,13 @@ namespace ClaudeCodeVS
                         case AiProvider.Codex:
                             string wslPathCodex = ConvertToWslPath(workspaceDir);
                             string codexWslCommand = GetCodexCommand(isWsl: true);
-                            cmdCommand = $"/k chcp 65001 >nul && cls && wsl bash -lic \"cd '{wslPathCodex}' && {codexWslCommand}\"";
+                            cmdCommand = $"/k chcp 65001 >nul && cls && {BuildWslLaunchCommand(wslPathCodex, codexWslCommand)}";
                             break;
 
                         case AiProvider.ClaudeCodeWSL:
                             string wslPathClaude = ConvertToWslPath(workspaceDir);
                             string claudeWslCommand = GetClaudeCommand(isWsl: true);
-                            cmdCommand = $"/k chcp 65001 >nul && cls && wsl bash -lic \"cd '{wslPathClaude}' && {claudeWslCommand}\"";
+                            cmdCommand = $"/k chcp 65001 >nul && cls && {BuildWslLaunchCommand(wslPathClaude, claudeWslCommand)}";
                             break;
 
                         case AiProvider.ClaudeCode:
@@ -1010,7 +1010,7 @@ namespace ClaudeCodeVS
                         case AiProvider.Windsurf:
                             string wslPathWindsurf = ConvertToWslPath(workspaceDir);
                             string windsurfWslCommand = GetWindsurfCommand();
-                            cmdCommand = $"/k chcp 65001 >nul && cls && wsl bash -lic \"cd '{wslPathWindsurf}' && {windsurfWslCommand}\"";
+                            cmdCommand = $"/k chcp 65001 >nul && cls && {BuildWslLaunchCommand(wslPathWindsurf, windsurfWslCommand)}";
                             break;
 
                         case AiProvider.Pi:
@@ -1146,9 +1146,14 @@ namespace ClaudeCodeVS
 
                             // Track the currently running provider
                             _currentRunningProvider = provider;
+                            if (provider.HasValue && _settings != null)
+                            {
+                                _settings.SelectedProvider = provider.Value;
+                            }
 
                             string wtProviderTitle = GetExtensionTitle(provider);
                             UpdateToolWindowTitle(wtProviderTitle);
+                            UpdateProviderSelection();
 
                             // If terminal should be detached, re-parent to detached panel
                             if (_isTerminalDetached && _detachedTerminalPanel != null)
@@ -1194,7 +1199,7 @@ namespace ClaudeCodeVS
                         case AiProvider.CursorAgent:
                             string wslPathCursor = ConvertToWslPath(workspaceDir);
                             string cursorAgentWslCommand = GetCursorAgentWslCommand();
-                            terminalCommand = $"/k chcp 65001 >nul && cls && wsl bash -lic \"cd '{wslPathCursor}' && {cursorAgentWslCommand}\"";
+                            terminalCommand = $"/k chcp 65001 >nul && cls && {BuildWslLaunchCommand(wslPathCursor, cursorAgentWslCommand)}";
                             break;
 
                         case AiProvider.CodexNative:
@@ -1205,13 +1210,13 @@ namespace ClaudeCodeVS
                         case AiProvider.Codex:
                             string wslPathCodex = ConvertToWslPath(workspaceDir);
                             string codexWslCommand = GetCodexCommand(isWsl: true);
-                            terminalCommand = $"/k chcp 65001 >nul && cls && wsl bash -lic \"cd '{wslPathCodex}' && {codexWslCommand}\"";
+                            terminalCommand = $"/k chcp 65001 >nul && cls && {BuildWslLaunchCommand(wslPathCodex, codexWslCommand)}";
                             break;
 
                         case AiProvider.ClaudeCodeWSL:
                             string wslPathClaude = ConvertToWslPath(workspaceDir);
                             string claudeWslCommand = GetClaudeCommand(isWsl: true);
-                            terminalCommand = $"/k chcp 65001 >nul && cls && wsl bash -lic \"cd '{wslPathClaude}' && {claudeWslCommand}\"";
+                            terminalCommand = $"/k chcp 65001 >nul && cls && {BuildWslLaunchCommand(wslPathClaude, claudeWslCommand)}";
                             break;
 
                         case AiProvider.ClaudeCode:
@@ -1227,7 +1232,7 @@ namespace ClaudeCodeVS
                         case AiProvider.Windsurf:
                             string wslPathWindsurf = ConvertToWslPath(workspaceDir);
                             string windsurfCmdCommand = GetWindsurfCommand();
-                            terminalCommand = $"/k chcp 65001 >nul && cls && wsl bash -lic \"cd '{wslPathWindsurf}' && {windsurfCmdCommand}\"";
+                            terminalCommand = $"/k chcp 65001 >nul && cls && {BuildWslLaunchCommand(wslPathWindsurf, windsurfCmdCommand)}";
                             break;
 
                         case AiProvider.Pi:
@@ -1490,9 +1495,14 @@ namespace ClaudeCodeVS
 
                             // Track the currently running provider
                             _currentRunningProvider = provider;
+                            if (provider.HasValue && _settings != null)
+                            {
+                                _settings.SelectedProvider = provider.Value;
+                            }
 
                             string providerTitle = GetExtensionTitle(provider);
                             UpdateToolWindowTitle(providerTitle);
+                            UpdateProviderSelection();
 
                             // If terminal should be detached, re-parent to detached panel
                             if (_isTerminalDetached && _detachedTerminalPanel != null)
@@ -2754,10 +2764,25 @@ namespace ClaudeCodeVS
                         return (IntPtr)1;
                     }
                 }
-                else if (message == WM_RBUTTONUP && _consumeNextRButtonUp)
+                else if (message == WM_RBUTTONUP)
                 {
+                    // Consume the up that pairs with a down we consumed for a terminal paste, but
+                    // ONLY when it is still physically over the terminal. Crucially, clear the flag
+                    // on EVERY right-up regardless: if the flag ever lingered true (a consumed down
+                    // whose matching up the hook didn't pair off — injected paste/deselect clicks,
+                    // a terminal teardown/restart between down and up, or a second control instance),
+                    // a location-blind consume here would swallow WM_RBUTTONUP everywhere and kill
+                    // the right-click context menu across all of VS until restart.
+                    bool consume = _consumeNextRButtonUp;
                     _consumeNextRButtonUp = false;
-                    return (IntPtr)1;
+                    if (consume)
+                    {
+                        var upInfo = (MSLLHOOKSTRUCT)Marshal.PtrToStructure(lParam, typeof(MSLLHOOKSTRUCT));
+                        if (IsScreenPointOverTerminalWindow(upInfo.pt))
+                        {
+                            return (IntPtr)1;
+                        }
+                    }
                 }
 
                 // This runs on the dedicated hook thread, not the UI thread. All the actual
@@ -2846,14 +2871,88 @@ namespace ClaudeCodeVS
         // so the matching right-click-up is consumed too and the agent never sees a stray click.
         private bool _consumeNextRButtonUp;
 
+        // Cached "is the conhost in mouse-input mode (QuickEdit off)?" state, read by the mouse-hook
+        // thread on every right-click. The probe that produces it (IsTerminalInMouseInputMode) does a
+        // blocking AttachConsole round-trip under _consoleSnapshotLock, which can stall for hundreds of
+        // ms when the "On Agent Finish" watcher holds the lock — far too long to run inside the
+        // low-level mouse hook, where exceeding LowLevelHooksTimeout (~300ms) freezes input system-wide
+        // and makes Windows silently drop the hook (right-click dies across all of VS). So the hook only
+        // ever reads this cached value and kicks off an off-thread refresh for the next click.
+        private volatile bool _conhostInMouseInputMode;
+
+        // 1 while a background mouse-input-mode refresh is in flight, so concurrent right-clicks don't
+        // stack up redundant AttachConsole probes.
+        private int _conhostMouseModeRefreshInFlight;
+
+        /// <summary>
+        /// Refreshes <see cref="_conhostInMouseInputMode"/> off the mouse-hook thread. The probe is a
+        /// blocking AttachConsole round-trip, so it must never run on the hook thread (see field
+        /// remarks). Coalesced via <see cref="_conhostMouseModeRefreshInFlight"/> so rapid right-clicks
+        /// issue at most one probe at a time. Safe to call from the hook thread — it returns immediately.
+        /// </summary>
+        private void QueueConhostMouseInputModeRefresh()
+        {
+            if (Interlocked.CompareExchange(ref _conhostMouseModeRefreshInFlight, 1, 0) != 0) return;
+            try
+            {
+#pragma warning disable VSTHRD110
+                _ = Task.Run(() =>
+                {
+                    try { _conhostInMouseInputMode = IsTerminalInMouseInputMode(); }
+                    catch (Exception ex) { Debug.WriteLine($"Mouse-input-mode refresh error: {ex.Message}"); }
+                    finally { Interlocked.Exchange(ref _conhostMouseModeRefreshInFlight, 0); }
+                });
+#pragma warning restore VSTHRD110
+            }
+            catch (Exception ex)
+            {
+                Interlocked.Exchange(ref _conhostMouseModeRefreshInFlight, 0);
+                Debug.WriteLine($"QueueConhostMouseInputModeRefresh dispatch error: {ex.Message}");
+            }
+        }
+
+        /// <summary>
+        /// Hook-thread-safe hit test: is the given screen point actually over the embedded terminal
+        /// window (and not some other window covering it)? Pure Win32 (GetWindowRect / WindowFromPoint),
+        /// so it is safe to call from the low-level mouse-hook callback where touching WPF/WinForms
+        /// state is forbidden. Returns false when there is no live terminal, which keeps the hook from
+        /// ever consuming a right-click away from the terminal.
+        /// </summary>
+        private bool IsScreenPointOverTerminalWindow(POINT pt)
+        {
+            IntPtr handle = terminalHandle;
+            if (handle == IntPtr.Zero || !IsWindow(handle)) return false;
+
+            // Cheap geometric pre-check: is the point inside our terminal's rectangle at all?
+            if (!GetWindowRect(handle, out RECT rect)) return false;
+            if (pt.x < rect.Left || pt.x >= rect.Right ||
+                pt.y < rect.Top || pt.y >= rect.Bottom)
+            {
+                return false;
+            }
+
+            // Occlusion check (multi-instance, F5 dev + experimental): the rectangle test alone is
+            // true even when our terminal is hidden BEHIND another window — including the OTHER VS
+            // instance's window sitting on top at the same screen coordinates. Without this, a
+            // right-click in the foreground (experimental) instance also fell inside the background
+            // (dev) instance's terminal rect, so the dev instance's hook consumed the click and
+            // pasted into its own console. WindowFromPoint is Z-order/hit-test aware and returns the
+            // window genuinely visible at the point, so only the instance whose terminal is actually
+            // on top acts on the click.
+            IntPtr hwndAtPoint = WindowFromPoint(pt);
+            if (hwndAtPoint == IntPtr.Zero) return false;
+            return hwndAtPoint == handle || IsChild(handle, hwndAtPoint);
+        }
+
         /// <summary>
         /// Handles a right-click over the embedded Command Prompt (conhost) as a paste when the
         /// console is in mouse-input mode (QuickEdit off), in which conhost forwards the click to the
-        /// running TUI instead of pasting the clipboard (issue #78). Runs on the mouse-hook thread:
-        /// the hit test is a Win32 GetWindowRect check and the mouse-mode probe is a short AttachConsole
-        /// round-trip (acceptable for a one-off click, unlike the high-frequency wheel). When in
-        /// mouse-input mode it kicks off a keystroke paste of the clipboard text and returns true so
-        /// the caller consumes the click; otherwise returns false to let conhost's native paste run.
+        /// running TUI instead of pasting the clipboard (issue #78). Runs on the mouse-hook thread, so
+        /// everything here is non-blocking: a Win32 GetWindowRect hit test plus a read of the cached
+        /// mouse-input-mode flag (the actual AttachConsole probe is refreshed off the hook thread — see
+        /// <see cref="QueueConhostMouseInputModeRefresh"/>). When in mouse-input mode it kicks off a
+        /// keystroke paste of the clipboard text and returns true so the caller consumes the click;
+        /// otherwise returns false to let conhost's native paste run.
         /// </summary>
         private bool TryConhostRightClickPaste(MSLLHOOKSTRUCT info)
         {
@@ -2869,20 +2968,30 @@ namespace ClaudeCodeVS
             if ((info.flags & LLMHF_INJECTED) != 0) return false;
 
             // Hook-thread-safe hit test: is the cursor over the embedded terminal window?
-            if (!GetWindowRect(handle, out RECT rect)) return false;
-            if (info.pt.x < rect.Left || info.pt.x >= rect.Right ||
-                info.pt.y < rect.Top || info.pt.y >= rect.Bottom)
-            {
-                return false;
-            }
+            if (!IsScreenPointOverTerminalWindow(info.pt)) return false;
+
+            // Decide from the cached flag and never block the hook thread on the AttachConsole probe
+            // (doing so freezes input system-wide and drops the hook). Kick off a refresh so the next
+            // click sees the current state; mouse-input mode is effectively constant for a session, so
+            // the cache is right after the first probe and stays right.
+            bool inMouseInputMode = _conhostInMouseInputMode;
+            QueueConhostMouseInputModeRefresh();
 
             // Only intervene when QuickEdit is off — otherwise conhost's own right-click paste works.
-            if (!IsTerminalInMouseInputMode()) return false;
+            if (!inMouseInputMode) return false;
 
             try
             {
+                // Paste through conhost's own Edit→Paste command posted directly to THIS terminal's
+                // window handle — never global keystrokes or a focus change. Two interferences this
+                // avoids in the F5 dev + experimental-instance scenario: (1) the old keystroke path
+                // focused the terminal (SetForegroundWindow/SetFocus), which yanked focus from the
+                // experimental instance to the dev instance; (2) global WM_CHAR injection landed in
+                // whichever instance held the foreground, leaking the paste into the wrong console.
+                // The handle-targeted post lands in this instance's terminal and pastes regardless of
+                // QuickEdit/mouse-input mode (same primitive the send path uses, issues #82/#83).
 #pragma warning disable VSTHRD110
-                _ = PasteClipboardToTerminalViaKeystrokesAsync();
+                _ = PasteViaConhostPasteCommandAsync();
 #pragma warning restore VSTHRD110
             }
             catch (Exception ex)
@@ -3680,6 +3789,11 @@ namespace ClaudeCodeVS
             return windowsPath.Replace("\\", "/");
         }
 
+        private static string BuildWslLaunchCommand(string wslPath, string providerCommand)
+        {
+            return $"wsl bash -lic \"cd {QuoteForBash(wslPath)} && {providerCommand}\"";
+        }
+
         /// <summary>
         /// Gets the appropriate Claude Code command to use for Windows or WSL.
         /// Prioritizes native Windows installation (%USERPROFILE%\.local\bin\claude.exe);
@@ -3733,11 +3847,16 @@ namespace ClaudeCodeVS
                 }
                 else
                 {
-                    baseCommand = $"{baseCommand} --resume {resumeArg}";
+                    baseCommand = $"{baseCommand} --resume {QuoteProviderArgument(resumeArg, isWsl)}";
                 }
             }
 
             return baseCommand;
+        }
+
+        private static string QuoteProviderArgument(string value, bool isWsl)
+        {
+            return isWsl ? QuoteForBash(value) : QuoteForWindowsCommandArgument(value);
         }
 
         /// <summary>

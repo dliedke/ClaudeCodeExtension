@@ -19,6 +19,8 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
+using System.Security.Cryptography;
+using System.Text;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
@@ -36,6 +38,7 @@ namespace ClaudeCodeVS
     {
         public const string UsageUrl = "https://claude.ai/settings/usage";
         public const string WebView2DownloadUrl = "https://developer.microsoft.com/en-us/microsoft-edge/webview2/";
+        private const string SharedCookieEntropy = "ClaudeCodeExtension.SharedCookies.v1";
 
         private static readonly string SharedCookiePath = Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
@@ -692,6 +695,12 @@ namespace ClaudeCodeVS
         {
             try
             {
+                if (!IsAllowedUsageMessageSource(e.Source))
+                {
+                    Debug.WriteLine("ClaudeUsageControl: ignored WebView message from " + e.Source);
+                    return;
+                }
+
                 string json = e.TryGetWebMessageAsString();
                 if (string.IsNullOrEmpty(json)) return;
                 var snap = JsonConvert.DeserializeObject<UsageSnapshot>(json);
@@ -705,6 +714,17 @@ namespace ClaudeCodeVS
             {
                 Debug.WriteLine("ClaudeUsageControl: scrape parse failed: " + ex);
             }
+        }
+
+        private static bool IsAllowedUsageMessageSource(string source)
+        {
+            if (!Uri.TryCreate(source, UriKind.Absolute, out Uri uri))
+            {
+                return false;
+            }
+
+            return string.Equals(uri.Scheme, Uri.UriSchemeHttps, StringComparison.OrdinalIgnoreCase) &&
+                   string.Equals(uri.Host, "claude.ai", StringComparison.OrdinalIgnoreCase);
         }
 
         private void UpdateStatus()
@@ -885,7 +905,13 @@ namespace ClaudeCodeVS
             try
             {
                 if (!File.Exists(SharedCookiePath)) return;
-                string json = File.ReadAllText(SharedCookiePath);
+                string stored = File.ReadAllText(SharedCookiePath);
+                bool loadedProtectedPayload = TryUnprotectSharedCookieJson(stored, out string json);
+                if (!loadedProtectedPayload)
+                {
+                    json = stored;
+                }
+
                 var dtos = JsonConvert.DeserializeObject<List<CookieDto>>(json);
                 if (dtos == null || dtos.Count == 0) return;
                 var cm = WebView?.CoreWebView2?.CookieManager;
@@ -904,6 +930,11 @@ namespace ClaudeCodeVS
                     }
                     catch { }
                 }
+
+                if (!loadedProtectedPayload)
+                {
+                    await SaveSharedCookiesAsync(force: true);
+                }
             }
             catch (Exception ex)
             {
@@ -911,9 +942,9 @@ namespace ClaudeCodeVS
             }
         }
 
-        private async Task SaveSharedCookiesAsync()
+        private async Task SaveSharedCookiesAsync(bool force = false)
         {
-            if ((DateTime.UtcNow - _lastCookieSaveUtc).TotalSeconds < 60) return;
+            if (!force && (DateTime.UtcNow - _lastCookieSaveUtc).TotalSeconds < 60) return;
             _lastCookieSaveUtc = DateTime.UtcNow;
             try
             {
@@ -933,12 +964,53 @@ namespace ClaudeCodeVS
                     IsSecure = c.IsSecure,
                     SameSite = (int)c.SameSite
                 }).ToList();
-                File.WriteAllText(SharedCookiePath, JsonConvert.SerializeObject(dtos));
+                Directory.CreateDirectory(Path.GetDirectoryName(SharedCookiePath));
+                string cookieJson = JsonConvert.SerializeObject(dtos);
+                File.WriteAllText(SharedCookiePath, ProtectSharedCookieJson(cookieJson));
             }
             catch (Exception ex)
             {
                 Debug.WriteLine("ClaudeUsageControl: SaveSharedCookiesAsync failed: " + ex);
             }
+        }
+
+        private static bool TryUnprotectSharedCookieJson(string stored, out string json)
+        {
+            json = null;
+            try
+            {
+                var payload = JsonConvert.DeserializeObject<ProtectedCookieStore>(stored);
+                if (payload == null || string.IsNullOrEmpty(payload.ProtectedData))
+                {
+                    return false;
+                }
+
+                byte[] protectedBytes = Convert.FromBase64String(payload.ProtectedData);
+                byte[] entropy = Encoding.UTF8.GetBytes(SharedCookieEntropy);
+                byte[] unprotectedBytes = ProtectedData.Unprotect(
+                    protectedBytes, entropy, DataProtectionScope.CurrentUser);
+                json = Encoding.UTF8.GetString(unprotectedBytes);
+                return true;
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine("ClaudeUsageControl: protected cookie payload read failed: " + ex.Message);
+                return false;
+            }
+        }
+
+        private static string ProtectSharedCookieJson(string cookieJson)
+        {
+            byte[] cookieBytes = Encoding.UTF8.GetBytes(cookieJson ?? string.Empty);
+            byte[] entropy = Encoding.UTF8.GetBytes(SharedCookieEntropy);
+            byte[] protectedBytes = ProtectedData.Protect(
+                cookieBytes, entropy, DataProtectionScope.CurrentUser);
+
+            return JsonConvert.SerializeObject(new ProtectedCookieStore
+            {
+                Version = 1,
+                ProtectedData = Convert.ToBase64String(protectedBytes)
+            });
         }
 
         private class CookieDto
@@ -951,6 +1023,12 @@ namespace ClaudeCodeVS
             public bool IsHttpOnly { get; set; }
             public bool IsSecure { get; set; }
             public int SameSite { get; set; }
+        }
+
+        private class ProtectedCookieStore
+        {
+            public int Version { get; set; }
+            public string ProtectedData { get; set; }
         }
 
         // Reclaims legacy per-PID profile folders left by older versions (and by the

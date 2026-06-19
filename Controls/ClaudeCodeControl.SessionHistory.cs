@@ -109,8 +109,25 @@ namespace ClaudeCodeVS
                 using (var p = new Process { StartInfo = psi })
                 {
                     p.Start();
-                    string stdout = await Task.Run(() => p.StandardOutput.ReadToEnd());
-                    p.WaitForExit(5000);
+                    Task<string> stdoutTask = p.StandardOutput.ReadToEndAsync();
+                    Task<string> stderrTask = p.StandardError.ReadToEndAsync();
+                    bool exited = await Task.Run(() => p.WaitForExit(5000));
+                    if (!exited)
+                    {
+                        try
+                        {
+                            p.Kill();
+                        }
+                        catch
+                        {
+                            // Ignore failures on kill; the caller will fall back to no sessions.
+                        }
+
+                        return null;
+                    }
+
+                    string stdout = await stdoutTask;
+                    await stderrTask;
                     stdout = stdout?.Trim();
                     return string.IsNullOrEmpty(stdout) ? null : stdout;
                 }

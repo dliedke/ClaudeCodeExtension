@@ -2,11 +2,11 @@
 
 ## Project Overview
 
-**Visual Studio Extension (VSIX)** for VS 2022/2026 — integrates AI code assistants (Claude Code, OpenAI Codex, Cursor Agent, Open Code, Windsurf, PI) via embedded terminal (Win32 `SetParent` interop).
+**Visual Studio Extension (VSIX)** for VS 2022/2026 — integrates AI code assistants (Claude Code, OpenAI Codex, Cursor Agent, Open Code, Windsurf, PI, and Google Antigravity) via embedded terminal (Win32 `SetParent` interop).
 
 - **Author**: Daniel Carvalho Liedke (dliedke@gmail.com) | **License**: MIT
 - **Repository**: https://github.com/dliedke/ClaudeCodeExtension
-- **Current Version**: 13.0 | **Target Framework**: .NET Framework 4.7.2
+- **Current Version**: 24.0 | **Target Framework**: .NET Framework 4.7.2
 
 ---
 
@@ -14,7 +14,7 @@
 
 **Every development session that modifies code MUST update before finishing:**
 
-**Versioning scheme (since 11.0)**: each release bumps the MAJOR version by one — 11.0 → 12.0 → 13.0 and so on. Always use `.0` as the minor (AssemblyVersion `13.0.0.0`, manifest `13.0`, README `### Version 13.0`). Do not resume 10.x-style minor bumps.
+**Versioning scheme (since 11.0)**: each release bumps the MAJOR version by one — 22.0 → 23.0 → 24.0 and so on. Always use `.0` as the minor (AssemblyVersion `24.0.0.0`, manifest `24.0`, README `### Version 24.0`). Do not resume 10.x-style minor bumps.
 
 1. **`Properties/AssemblyInfo.cs`**: Bump `AssemblyVersion` and `AssemblyFileVersion`
 2. **`source.extension.vsixmanifest`**: Bump `Version` in `<Identity>` tag
@@ -135,6 +135,8 @@ ClaudeCodeExtension/
 Deep per-file gotchas and design decisions live in **`docs/ARCHITECTURE.md`** (kept out of this
 always-loaded file to keep context lean). **Before editing any file below, read its section in that
 doc** — it captures non-obvious behavior that isn't apparent from the code:
+
+**Active provider UI rule (v24.0)**: provider checkmarks, tool-window captions, model/usage menu visibility, detached-tab caption, and visible-agent "active" labels must use `_currentRunningProvider` when a terminal is alive, falling back to `_settings.SelectedProvider` only before launch. Successful provider launches sync `_settings.SelectedProvider` in memory, but `SaveSettings()` still preserves provider/model/effort fields from disk during normal operation so multiple VS instances do not overwrite each other's selections.
 
 | File | `docs/ARCHITECTURE.md` section |
 |------|-------------------------------|

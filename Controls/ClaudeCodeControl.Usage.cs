@@ -94,8 +94,7 @@ namespace ClaudeCodeVS
 
         private bool IsClaudeProviderSelected()
         {
-            return _settings?.SelectedProvider == AiProvider.ClaudeCode ||
-                   _settings?.SelectedProvider == AiProvider.ClaudeCodeWSL;
+            return IsClaudeProvider(GetActiveOrSelectedProvider());
         }
 
         /// <summary>
@@ -494,7 +493,7 @@ namespace ClaudeCodeVS
         private async void ShowUsageViewMenuItem_Click(object sender, RoutedEventArgs e)
 #pragma warning restore VSTHRD100
         {
-            if (_settings?.SelectedProvider == AiProvider.Windsurf)
+            if (GetActiveOrSelectedProvider() == AiProvider.Windsurf)
                 System.Diagnostics.Process.Start("https://windsurf.com/subscription/usage");
             else
                 await ToggleUsageToolWindowAsync();
@@ -508,7 +507,7 @@ namespace ClaudeCodeVS
         private void ViewsContextMenu_Opened(object sender, RoutedEventArgs e)
         {
             if (ShowUsageViewMenuItem == null) return;
-            bool isWindsurf = _settings?.SelectedProvider == AiProvider.Windsurf;
+            bool isWindsurf = GetActiveOrSelectedProvider() == AiProvider.Windsurf;
             ShowUsageViewMenuItem.IsChecked = !isWindsurf && _settings?.UsageWindowOpened == true;
         }
 

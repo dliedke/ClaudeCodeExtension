@@ -10,6 +10,7 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
+using System.Text;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
@@ -61,8 +62,8 @@ namespace ClaudeCodeVS
         /// <summary>
         /// Returns the executable token to launch for a provider: the configured custom path
         /// (properly quoted) when set, otherwise the supplied default command. Native paths are
-        /// double-quoted for cmd.exe; WSL paths are single-quoted only when they contain spaces
-        /// (they are embedded inside a double-quoted bash -lic string).
+        /// quoted for cmd.exe; WSL paths are quoted as a single Bash word because they are later
+        /// embedded inside a <c>bash -lic</c> command.
         /// </summary>
         private string ResolveProviderExecutable(AiProvider provider, string defaultCommand, bool isWsl = false)
         {
@@ -72,14 +73,92 @@ namespace ClaudeCodeVS
                 return defaultCommand;
             }
 
-            custom = custom.Trim().Trim('"');
+            custom = TrimMatchingQuotes(custom.Trim());
 
             if (isWsl)
             {
-                return custom.IndexOf(' ') >= 0 ? $"'{custom}'" : custom;
+                if (ContainsUnsafeWslExecutableCharacter(custom))
+                {
+                    Debug.WriteLine($"Ignoring custom WSL executable for {provider}: unsupported quote/control character.");
+                    return defaultCommand;
+                }
+
+                return QuoteForBash(custom);
             }
 
-            return $"\"{custom}\"";
+            return QuoteForWindowsCommandArgument(custom);
+        }
+
+        private static string TrimMatchingQuotes(string value)
+        {
+            if (value.Length >= 2 &&
+                ((value[0] == '"' && value[value.Length - 1] == '"') ||
+                 (value[0] == '\'' && value[value.Length - 1] == '\'')))
+            {
+                return value.Substring(1, value.Length - 2);
+            }
+
+            return value;
+        }
+
+        private static bool ContainsUnsafeWslExecutableCharacter(string value)
+        {
+            if (string.IsNullOrEmpty(value))
+            {
+                return true;
+            }
+
+            return value.IndexOf('"') >= 0 ||
+                   value.IndexOf('\r') >= 0 ||
+                   value.IndexOf('\n') >= 0 ||
+                   value.IndexOf('\0') >= 0;
+        }
+
+        private static string QuoteForBash(string value)
+        {
+            if (value == null)
+            {
+                return "''";
+            }
+
+            return "'" + value.Replace("'", "'\\''") + "'";
+        }
+
+        private static string QuoteForWindowsCommandArgument(string value)
+        {
+            if (value == null)
+            {
+                return "\"\"";
+            }
+
+            var quoted = new StringBuilder();
+            quoted.Append('"');
+
+            int backslashCount = 0;
+            foreach (char c in value)
+            {
+                if (c == '\\')
+                {
+                    backslashCount++;
+                    continue;
+                }
+
+                if (c == '"')
+                {
+                    quoted.Append('\\', backslashCount * 2 + 1);
+                    quoted.Append('"');
+                    backslashCount = 0;
+                    continue;
+                }
+
+                quoted.Append('\\', backslashCount);
+                backslashCount = 0;
+                quoted.Append(c);
+            }
+
+            quoted.Append('\\', backslashCount * 2);
+            quoted.Append('"');
+            return quoted.ToString();
         }
 
         /// <summary>
@@ -103,7 +182,7 @@ namespace ClaudeCodeVS
 
             try
             {
-                return File.Exists(custom.Trim().Trim('"'));
+                return File.Exists(TrimMatchingQuotes(custom.Trim()));
             }
             catch
             {

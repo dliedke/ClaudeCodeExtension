@@ -1821,23 +1821,25 @@ For more details, visit: https://pi.dev";
 
             if (_settings == null) return;
 
-            // Update menu item checkmarks
-            ClaudeCodeMenuItem.IsChecked = _settings.SelectedProvider == AiProvider.ClaudeCode;
-            ClaudeCodeWSLMenuItem.IsChecked = _settings.SelectedProvider == AiProvider.ClaudeCodeWSL;
-            CodexNativeMenuItem.IsChecked = _settings.SelectedProvider == AiProvider.CodexNative;
-            CodexMenuItem.IsChecked = _settings.SelectedProvider == AiProvider.Codex;
-            CursorAgentNativeMenuItem.IsChecked = _settings.SelectedProvider == AiProvider.CursorAgentNative;
-            CursorAgentMenuItem.IsChecked = _settings.SelectedProvider == AiProvider.CursorAgent;
-            OpenCodeMenuItem.IsChecked = _settings.SelectedProvider == AiProvider.OpenCode;
-            WindsurfMenuItem.IsChecked = _settings.SelectedProvider == AiProvider.Windsurf;
-            PiMenuItem.IsChecked = _settings.SelectedProvider == AiProvider.Pi;
-            AntigravityMenuItem.IsChecked = _settings.SelectedProvider == AiProvider.Antigravity;
+            AiProvider? activeProvider = GetActiveOrSelectedProvider();
 
-            // Update GroupBox header to show selected provider (not necessarily running yet).
+            // Update menu item checkmarks
+            ClaudeCodeMenuItem.IsChecked = activeProvider == AiProvider.ClaudeCode;
+            ClaudeCodeWSLMenuItem.IsChecked = activeProvider == AiProvider.ClaudeCodeWSL;
+            CodexNativeMenuItem.IsChecked = activeProvider == AiProvider.CodexNative;
+            CodexMenuItem.IsChecked = activeProvider == AiProvider.Codex;
+            CursorAgentNativeMenuItem.IsChecked = activeProvider == AiProvider.CursorAgentNative;
+            CursorAgentMenuItem.IsChecked = activeProvider == AiProvider.CursorAgent;
+            OpenCodeMenuItem.IsChecked = activeProvider == AiProvider.OpenCode;
+            WindsurfMenuItem.IsChecked = activeProvider == AiProvider.Windsurf;
+            PiMenuItem.IsChecked = activeProvider == AiProvider.Pi;
+            AntigravityMenuItem.IsChecked = activeProvider == AiProvider.Antigravity;
+
+            // Update GroupBox header to show the running provider when a terminal is active.
             // The header is hidden only when the terminal is on top (inverted horizontal
             // layout), where it is redundant with the tool window title. In a vertical
             // (side-by-side) split the terminal sits beside the prompt, so keep it visible.
-            string providerName = GetProviderDisplayName(_settings.SelectedProvider);
+            string providerName = GetProviderDisplayName(activeProvider);
             bool terminalOnTop = _settings?.InvertLayout == true
                 && _settings?.SelectedLayoutOrientation == LayoutOrientation.Horizontal;
             if (terminalOnTop)
@@ -1850,9 +1852,8 @@ For more details, visit: https://pi.dev";
             }
 
             // Show/hide model selection button based on provider
-            bool isClaudeProvider = _settings.SelectedProvider == AiProvider.ClaudeCode ||
-                                   _settings.SelectedProvider == AiProvider.ClaudeCodeWSL;
-            bool isWindsurfProvider = _settings.SelectedProvider == AiProvider.Windsurf;
+            bool isClaudeProvider = IsClaudeProvider(activeProvider);
+            bool isWindsurfProvider = activeProvider == AiProvider.Windsurf;
             ModelDropdownButton.Visibility = (isClaudeProvider || isWindsurfProvider) ? Visibility.Visible : Visibility.Collapsed;
 
             // Show Usage item in Views dropdown only for Claude and Windsurf providers
@@ -1864,8 +1865,38 @@ For more details, visit: https://pi.dev";
             // transcripts elsewhere or not at all)
             RefreshSessionHistoryButton();
 
-            // Reflect the selected provider/model immediately in the VS tool window title.
-            UpdateToolWindowTitle(GetExtensionTitle(_settings.SelectedProvider));
+            // Reflect the running provider/model immediately in the VS tool window title.
+            UpdateToolWindowTitle(GetExtensionTitle(activeProvider));
+        }
+
+        private AiProvider? GetActiveOrSelectedProvider()
+        {
+            if (_currentRunningProvider.HasValue)
+            {
+                return _currentRunningProvider.Value;
+            }
+
+            if (terminalHandle != IntPtr.Zero && IsWindow(terminalHandle))
+            {
+                return null;
+            }
+
+            return _settings?.SelectedProvider;
+        }
+
+        private static bool IsClaudeProvider(AiProvider? provider)
+        {
+            return provider == AiProvider.ClaudeCode || provider == AiProvider.ClaudeCodeWSL;
+        }
+
+        private static bool IsCodexProvider(AiProvider? provider)
+        {
+            return provider == AiProvider.Codex || provider == AiProvider.CodexNative;
+        }
+
+        private static bool IsCursorAgentProvider(AiProvider? provider)
+        {
+            return provider == AiProvider.CursorAgent || provider == AiProvider.CursorAgentNative;
         }
 
         /// <summary>
@@ -2387,7 +2418,8 @@ For more details, visit: https://pi.dev";
         {
             ThreadHelper.ThrowIfNotOnUIThread();
 
-            bool isWindsurf = _settings?.SelectedProvider == AiProvider.Windsurf;
+            AiProvider? activeProvider = GetActiveOrSelectedProvider();
+            bool isWindsurf = activeProvider == AiProvider.Windsurf;
             bool isClaude = !isWindsurf;
 
             // Claude-specific items
@@ -2505,7 +2537,7 @@ For more details, visit: https://pi.dev";
             // Update effort selection checkmarks
             UpdateEffortSelection();
 
-            UpdateToolWindowTitle(GetExtensionTitle(_settings.SelectedProvider));
+            UpdateToolWindowTitle(GetExtensionTitle(GetActiveOrSelectedProvider()));
         }
 
         #endregion
@@ -2882,21 +2914,13 @@ For more details, visit: https://pi.dev";
             }
 
             // Show/hide menu options based on context
-            bool isClaudeProvider = _settings != null &&
-                                   (_settings.SelectedProvider == AiProvider.ClaudeCode ||
-                                    _settings.SelectedProvider == AiProvider.ClaudeCodeWSL);
-            bool isCodexProvider = _settings != null &&
-                                   (_settings.SelectedProvider == AiProvider.Codex ||
-                                    _settings.SelectedProvider == AiProvider.CodexNative);
-            bool isCursorAgentProvider = _settings != null &&
-                                         (_settings.SelectedProvider == AiProvider.CursorAgent ||
-                                          _settings.SelectedProvider == AiProvider.CursorAgentNative);
-            bool isWindsurfProvider = _settings != null &&
-                                     _settings.SelectedProvider == AiProvider.Windsurf;
-            bool isPiProvider = _settings != null &&
-                               _settings.SelectedProvider == AiProvider.Pi;
-            bool isAntigravityProvider = _settings != null &&
-                               _settings.SelectedProvider == AiProvider.Antigravity;
+            AiProvider? activeProvider = GetActiveOrSelectedProvider();
+            bool isClaudeProvider = IsClaudeProvider(activeProvider);
+            bool isCodexProvider = IsCodexProvider(activeProvider);
+            bool isCursorAgentProvider = IsCursorAgentProvider(activeProvider);
+            bool isWindsurfProvider = activeProvider == AiProvider.Windsurf;
+            bool isPiProvider = activeProvider == AiProvider.Pi;
+            bool isAntigravityProvider = activeProvider == AiProvider.Antigravity;
 
             // Show/hide individual provider menu items based on VisibleProviders.
             // The currently selected provider is always shown so users keep access to it.
@@ -3387,7 +3411,7 @@ For more details, visit: https://pi.dev";
             if (_settings == null) return;
 
             var visible = _settings.VisibleProviders ?? new System.Collections.Generic.List<AiProvider>();
-            var selected = _settings.SelectedProvider;
+            var selected = GetActiveOrSelectedProvider();
             var items = GetProviderMenuItems();
 
             foreach (var pair in items)
@@ -3480,7 +3504,7 @@ For more details, visit: https://pi.dev";
             grid.Children.Add(scroll);
 
             var visible = _settings.VisibleProviders ?? new System.Collections.Generic.List<AiProvider>();
-            var selected = _settings.SelectedProvider;
+            var selected = GetActiveOrSelectedProvider();
 
             // Preserve menu order from the XAML provider list
             var providersInOrder = new[]

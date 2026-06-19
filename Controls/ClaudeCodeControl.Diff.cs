@@ -888,7 +888,8 @@ namespace ClaudeCodeVS
                     if (process == null)
                         return null;
 
-                    string output = process.StandardOutput.ReadToEnd();
+                    Task<string> outputTask = process.StandardOutput.ReadToEndAsync();
+                    Task<string> errorTask = process.StandardError.ReadToEndAsync();
                     bool exited = process.WaitForExit(timeoutMs);
                     if (!exited)
                     {
@@ -905,6 +906,10 @@ namespace ClaudeCodeVS
                     if (process.ExitCode != 0)
                         return null;
 
+#pragma warning disable VSTHRD002 // Synchronous git helper; tasks only drain redirected process output.
+                    string output = outputTask.GetAwaiter().GetResult();
+                    errorTask.GetAwaiter().GetResult();
+#pragma warning restore VSTHRD002
                     return output;
                 }
             }
@@ -1039,7 +1044,7 @@ namespace ClaudeCodeVS
                 return null;
 
             string gitPath = relativePath.Replace("\\", "/");
-            string output = RunGitCommand(repoRoot, $"show HEAD:{gitPath}", GitShowTimeoutMs);
+            string output = RunGitCommand(repoRoot, "show " + QuoteForWindowsCommandArgument($"HEAD:{gitPath}"), GitShowTimeoutMs);
             if (output != null && output.Length > MaxGitFileBytes)
             {
                 return null;
@@ -1087,8 +1092,8 @@ namespace ClaudeCodeVS
                 bool isRenameOrCopy = status.IndexOf('R') >= 0 || status.IndexOf('C') >= 0;
                 if (isRenameOrCopy && i + 1 < parts.Length)
                 {
-                    string newPath = parts[++i];
-                    yield return new GitStatusEntry(status, path, newPath);
+                    string oldPath = parts[++i];
+                    yield return new GitStatusEntry(status, oldPath, path);
                 }
                 else
                 {

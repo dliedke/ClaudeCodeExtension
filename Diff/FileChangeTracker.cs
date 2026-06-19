@@ -230,18 +230,43 @@ namespace ClaudeCodeVS.Diff
             if (string.IsNullOrEmpty(_workspaceDirectory))
                 return fullPath;
 
-            if (fullPath.StartsWith(_workspaceDirectory, StringComparison.OrdinalIgnoreCase))
+            if (TryGetRelativePathUnderDirectory(fullPath, _workspaceDirectory, out string relative))
             {
-                var relative = fullPath.Substring(_workspaceDirectory.Length);
-                if (relative.StartsWith("\\") || relative.StartsWith("/"))
-                    relative = relative.Substring(1);
-
                 // Return directory part only
                 var dir = Path.GetDirectoryName(relative);
                 return string.IsNullOrEmpty(dir) ? "" : dir.Replace("\\", "/") + "/";
             }
 
             return fullPath;
+        }
+
+        private static bool TryGetRelativePathUnderDirectory(string fullPath, string directory, out string relativePath)
+        {
+            relativePath = null;
+            if (string.IsNullOrEmpty(fullPath) || string.IsNullOrEmpty(directory))
+            {
+                return false;
+            }
+
+            try
+            {
+                string normalizedFullPath = Path.GetFullPath(fullPath);
+                string normalizedDirectory = Path.GetFullPath(directory)
+                    .TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar) +
+                    Path.DirectorySeparatorChar;
+
+                if (!normalizedFullPath.StartsWith(normalizedDirectory, StringComparison.OrdinalIgnoreCase))
+                {
+                    return false;
+                }
+
+                relativePath = normalizedFullPath.Substring(normalizedDirectory.Length);
+                return true;
+            }
+            catch
+            {
+                return false;
+            }
         }
 
         private bool ShouldTrackFile(string filePath)

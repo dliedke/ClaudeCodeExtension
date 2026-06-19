@@ -1241,8 +1241,25 @@ namespace ClaudeCodeVS
                         };
                         using (var p = Process.Start(psi))
                         {
-                            string outp = p.StandardOutput.ReadToEnd();
-                            p.WaitForExit(5000);
+                            Task<string> outputTask = p.StandardOutput.ReadToEndAsync();
+                            Task<string> errorTask = p.StandardError.ReadToEndAsync();
+                            bool exited = p.WaitForExit(5000);
+                            if (!exited)
+                            {
+                                try
+                                {
+                                    p.Kill();
+                                }
+                                catch
+                                {
+                                    // Treat an unresponsive git status as changed so the action is not skipped.
+                                }
+
+                                return true;
+                            }
+
+                            string outp = outputTask.GetAwaiter().GetResult();
+                            errorTask.GetAwaiter().GetResult();
                             return !string.IsNullOrWhiteSpace(outp);
                         }
                     }

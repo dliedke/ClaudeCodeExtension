@@ -102,6 +102,17 @@ This binds a Claude Code skill that shells out to OpenAI Codex to audit pending 
 
 ## Version History
 
+### Version 24.0
+- Fixed the agent picker, tool-window title, model menu, and usage controls showing a stale provider after another agent was already running.
+- Fixed WSL provider launches for workspaces with special characters in the path and made custom WSL executable paths safer.
+- Fixed Code Changes diffs for filenames with spaces and Git renames/copies, and prevented same-named attachments from overwriting each other.
+- Protected shared Claude usage cookies on disk and prevented the Claude usage panel from accepting messages from non-Claude pages.
+
+### Version 23.0
+- Fixed Visual Studio hanging intermittently and right-click context menus failing to appear throughout the IDE while the extension was enabled — the embedded terminal's right-click paste no longer blocks or swallows right-clicks outside the terminal.
+- Fixed right-clicking in one Visual Studio instance pasting into another instance's terminal when two instances run side by side and overlap on screen (such as during F5 debugging) — each instance now only responds to right-clicks on its own terminal when that terminal is actually the window on top.
+- Added an opt-in **Send selection as reference only** setting — when enabled, *Send Selection* inserts just the file path and line numbers instead of the selected code, letting the AI agent read the file directly (Settings → Behavior). Thanks to [@iwiwb](https://github.com/iwiwb) for the contribution (issue #84).
+
 ### Version 22.0
 - Fixed prompts being flooded with thousands of duplicated "[Pasted text]" blocks or repeated characters on every send — sending now pastes the real text through the terminal's own paste instead of typing it character by character, which the agent could turn into a runaway loop (issue #83).
 - Fixed the PI agent: sending a prompt no longer fills the terminal with garbage and crashes it (Command Prompt), and no longer freezes Visual Studio for about a minute before the text appears (Windows Terminal) (issue #82).

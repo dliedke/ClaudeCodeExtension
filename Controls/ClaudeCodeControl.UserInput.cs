@@ -127,8 +127,8 @@ namespace ClaudeCodeVS
                             if (promptDirectory != null && File.Exists(filePath))
                             {
                                 string fileName = Path.GetFileName(filePath);
-                                string tempPath = Path.Combine(promptDirectory, fileName);
-                                File.Copy(filePath, tempPath, true);
+                                string tempPath = GetUniquePromptAttachmentPath(promptDirectory, fileName);
+                                File.Copy(filePath, tempPath, false);
                                 displayPath = isWSLProvider ? ConvertToWslPath(tempPath) : tempPath;
                             }
                             else
@@ -490,6 +490,27 @@ namespace ClaudeCodeVS
             PromptTextBox.SelectionStart = PromptTextBox.Text.Length;
         }
 
+        private static string GetUniquePromptAttachmentPath(string promptDirectory, string fileName)
+        {
+            string safeFileName = string.IsNullOrWhiteSpace(fileName) ? "attachment" : fileName;
+            string candidate = Path.Combine(promptDirectory, safeFileName);
+            if (!File.Exists(candidate))
+            {
+                return candidate;
+            }
+
+            string nameWithoutExtension = Path.GetFileNameWithoutExtension(safeFileName);
+            string extension = Path.GetExtension(safeFileName);
+            for (int index = 2; ; index++)
+            {
+                candidate = Path.Combine(promptDirectory, $"{nameWithoutExtension}_{index}{extension}");
+                if (!File.Exists(candidate))
+                {
+                    return candidate;
+                }
+            }
+        }
+
         /// <summary>
         /// Clears the prompt history
         /// </summary>
@@ -557,6 +578,35 @@ namespace ClaudeCodeVS
             return _languageMap.TryGetValue(extension, out string langId) ? langId : string.Empty;
         }
 
+        private static bool TryGetRelativePathUnderDirectory(string fullPath, string directory, out string relativePath)
+        {
+            relativePath = null;
+            if (string.IsNullOrEmpty(fullPath) || string.IsNullOrEmpty(directory))
+            {
+                return false;
+            }
+
+            try
+            {
+                string normalizedFullPath = Path.GetFullPath(fullPath);
+                string normalizedDirectory = Path.GetFullPath(directory)
+                    .TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar) +
+                    Path.DirectorySeparatorChar;
+
+                if (!normalizedFullPath.StartsWith(normalizedDirectory, StringComparison.OrdinalIgnoreCase))
+                {
+                    return false;
+                }
+
+                relativePath = normalizedFullPath.Substring(normalizedDirectory.Length);
+                return true;
+            }
+            catch
+            {
+                return false;
+            }
+        }
+
         /// <summary>
         /// Handles the grab selection toolbar button click.
         /// Gets the current editor selection and inserts it into the prompt.
@@ -606,10 +656,9 @@ namespace ClaudeCodeVS
             {
                 // Make path relative to workspace if possible
                 string displayPath = filePath;
-                if (!string.IsNullOrEmpty(_lastWorkspaceDirectory) &&
-                    filePath.StartsWith(_lastWorkspaceDirectory, StringComparison.OrdinalIgnoreCase))
+                if (TryGetRelativePathUnderDirectory(filePath, _lastWorkspaceDirectory, out string relativePath))
                 {
-                    displayPath = filePath.Substring(_lastWorkspaceDirectory.Length).TrimStart('\\', '/');
+                    displayPath = relativePath;
                 }
 
                 // Get language identifier from file extension

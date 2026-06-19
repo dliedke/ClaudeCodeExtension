@@ -421,7 +421,7 @@ namespace ClaudeCodeVS
         private string GetCurrentProviderName()
         {
             if (_settings == null) return "Claude Code";
-            return GetProviderDisplayName(_settings.SelectedProvider);
+            return GetProviderDisplayName(GetActiveOrSelectedProvider());
         }
 
         #endregion
