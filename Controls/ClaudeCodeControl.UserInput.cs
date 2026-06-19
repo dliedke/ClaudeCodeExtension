@@ -636,11 +636,14 @@ namespace ClaudeCodeVS
                     snippet.AppendLine($"File: {displayPath} (lines {startLine}-{endLine})");
                 }
 
-                // Code fence with language
-                snippet.AppendLine($"```{langId}");
-                snippet.AppendLine(code.TrimEnd('\r', '\n'));
-                snippet.AppendLine("```");
-                snippet.AppendLine();
+                // Code fence with language (skipped when reference-only mode is on)
+                if (_settings?.SendSelectionReferenceOnly != true)
+                {
+                    snippet.AppendLine($"```{langId}");
+                    snippet.AppendLine(code.TrimEnd('\r', '\n'));
+                    snippet.AppendLine("```");
+                    snippet.AppendLine();
+                }
 
                 // Insert at current cursor position or append
                 int caretIndex = PromptTextBox.CaretIndex;
