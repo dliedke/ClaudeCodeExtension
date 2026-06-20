@@ -102,6 +102,9 @@ This binds a Claude Code skill that shells out to OpenAI Codex to audit pending 
 
 ## Version History
 
+### Version 26.0
+- Fixed the embedded terminal sometimes becoming visible but not accepting typing, arrow keys, or pasted prompts after clicking it — terminal focus is now restored reliably for Command Prompt and Windows Terminal (issue #86).
+
 ### Version 25.0
 - When "On Agent Finish" skips its action because no files changed, it now stays silent — no notification or sound — instead of announcing the skipped turn.
 

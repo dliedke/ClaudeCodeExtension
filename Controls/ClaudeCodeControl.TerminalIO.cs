@@ -159,11 +159,8 @@ namespace ClaudeCodeVS
                         await Task.Delay(200);
                     }
 
-                    // Set focus to terminal window
-                    SetForegroundWindow(terminalHandle);
-                    SetFocus(terminalHandle);
-
-                    await Task.Delay(500); // Reduced from 700ms
+                    await FocusTerminalForInputAsync(120);
+                    await Task.Delay(300);
 
                     // TUI-based Node.js providers need extra time to initialize
                     // their interface after receiving focus, otherwise the paste may arrive
@@ -314,25 +311,12 @@ namespace ClaudeCodeVS
                     await Task.Delay(200);
                 }
 
-                // Properly focus the embedded terminal before typing. SetForegroundWindow on the
-                // terminal child window silently fails (it's a child of the VS panel), so SendInput
-                // would otherwise type into whatever VS control currently has keyboard focus. Mirror
-                // the zoom-replay focus sequence: activate the hosting tool window, focus the WinForms
-                // panel, then SetFocus the child terminal window. See issue #61.
-                await ActivateTerminalToolWindowAsync();
-                await Task.Delay(60);
-                await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
-
-                var panel = ActiveTerminalPanel;
-                if (panel == null)
+                if (!await FocusTerminalForInputAsync(120))
                 {
                     MessageBox.Show("Terminal is not available. Please restart the terminal.",
                                   "Terminal Error", MessageBoxButton.OK, MessageBoxImage.Warning);
                     return;
                 }
-
-                FocusTerminalPanel(panel);
-                await Task.Delay(120);
 
                 // TUI-based Node.js providers need extra time to initialize their interface
                 // after receiving focus, otherwise the first keystrokes may arrive too early.
@@ -340,11 +324,6 @@ namespace ClaudeCodeVS
                 {
                     await Task.Delay(400);
                 }
-
-                // Re-assert focus in case VS restored it to another control during the delay.
-                await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
-                SetFocus(terminalHandle);
-                await Task.Delay(50);
 
                 TypeUnicodeText(text);
 
@@ -526,10 +505,6 @@ namespace ClaudeCodeVS
         /// <param name="textLength">Length of the text currently on the clipboard, used to scale the post-paste wait.</param>
         private async Task TriggerPasteAndWaitAsync(int textLength)
         {
-            SetForegroundWindow(terminalHandle);
-            SetFocus(terminalHandle);
-            await Task.Delay(50);
-
             // Scale the post-paste wait with text length, capped at MaxExtraPasteDelayMs.
             // The cap is the safety ceiling for very large prompts; in practice paste rates
             // are faster than 5 KB/s, so the wait is usually shorter than the cap.
@@ -542,6 +517,8 @@ namespace ClaudeCodeVS
             }
             else
             {
+                await FocusTerminalForInputAsync(50);
+
                 // All Command Prompt (conhost) providers paste through conhost's own Edit→Paste
                 // command posted directly to the terminal window. Because the message is addressed
                 // to a specific window handle, the paste always lands in THIS instance's terminal —
@@ -784,13 +761,9 @@ namespace ClaudeCodeVS
             if (terminalHandle == IntPtr.Zero || !IsWindow(terminalHandle)) return;
 
             // Ctrl+Shift+V is injected with keybd_event, which lands on whatever window owns the
-            // foreground keyboard focus. A plain SetForegroundWindow on the doubly-embedded Windows
-            // Terminal child silently fails when VS isn't the foreground app, so the keystrokes miss
-            // the terminal and the send appears to hang for ~1 minute (issue #82, Path B). Attach our
-            // input queue to the current foreground thread first so the activation is honored.
-            ForceTerminalForeground();
-            SetFocus(terminalHandle);
-            await Task.Delay(100);
+            // foreground keyboard focus. Activate the hosting VS tab and focus the embedded child
+            // first so the keystrokes do not land in the prompt/editor.
+            if (!await FocusTerminalForInputAsync(100)) return;
 
             // Ctrl+Shift+V
             keybd_event(VK_CONTROL, 0, 0, UIntPtr.Zero);
@@ -801,49 +774,6 @@ namespace ClaudeCodeVS
             keybd_event(0x56, 0, KEYEVENTF_KEYUP, UIntPtr.Zero);
             keybd_event(VK_SHIFT, 0, KEYEVENTF_KEYUP, UIntPtr.Zero);
             keybd_event(VK_CONTROL, 0, KEYEVENTF_KEYUP, UIntPtr.Zero);
-        }
-
-        /// <summary>
-        /// Brings the embedded terminal window to the foreground reliably. A plain SetForegroundWindow
-        /// is denied when VS isn't the foreground application, which on the doubly-embedded Windows
-        /// Terminal child causes injected keystrokes (Ctrl+Shift+V paste) to miss and the send to hang
-        /// (issue #82). Attaching our input queue to the foreground window's thread for the duration of
-        /// the call makes Windows honor the activation, mirroring <see cref="BringVisualStudioToForegroundIfNeeded"/>.
-        /// </summary>
-        private void ForceTerminalForeground()
-        {
-            if (terminalHandle == IntPtr.Zero || !IsWindow(terminalHandle)) return;
-
-            IntPtr foreground = GetForegroundWindow();
-            if (foreground == terminalHandle)
-            {
-                SetForegroundWindow(terminalHandle);
-                return;
-            }
-
-            uint currentThreadId = GetCurrentThreadId();
-            uint foregroundThreadId = foreground != IntPtr.Zero
-                ? GetWindowThreadProcessId(foreground, out _)
-                : 0;
-
-            bool attached = false;
-            if (foregroundThreadId != 0 && foregroundThreadId != currentThreadId)
-            {
-                attached = AttachThreadInput(currentThreadId, foregroundThreadId, true);
-            }
-
-            try
-            {
-                BringWindowToTop(terminalHandle);
-                SetForegroundWindow(terminalHandle);
-            }
-            finally
-            {
-                if (attached)
-                {
-                    AttachThreadInput(currentThreadId, foregroundThreadId, false);
-                }
-            }
         }
 
         /// <summary>

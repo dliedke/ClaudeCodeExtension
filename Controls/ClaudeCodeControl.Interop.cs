@@ -265,8 +265,8 @@ namespace ClaudeCodeVS
         /// <summary>
         /// Sets keyboard focus to the specified window
         /// </summary>
-        [DllImport("user32.dll")]
-        private static extern bool SetFocus(IntPtr hWnd);
+        [DllImport("user32.dll", SetLastError = true)]
+        private static extern IntPtr SetFocus(IntPtr hWnd);
 
         /// <summary>
         /// Retrieves the handle to the window that has the keyboard focus within the calling thread's

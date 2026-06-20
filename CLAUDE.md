@@ -6,7 +6,7 @@
 
 - **Author**: Daniel Carvalho Liedke (dliedke@gmail.com) | **License**: MIT
 - **Repository**: https://github.com/dliedke/ClaudeCodeExtension
-- **Current Version**: 25.0 | **Target Framework**: .NET Framework 4.7.2
+- **Current Version**: 26.0 | **Target Framework**: .NET Framework 4.7.2
 
 ---
 
@@ -137,6 +137,8 @@ always-loaded file to keep context lean). **Before editing any file below, read 
 doc** — it captures non-obvious behavior that isn't apparent from the code:
 
 **Active provider UI rule (v24.0)**: provider checkmarks, tool-window captions, model/usage menu visibility, detached-tab caption, and visible-agent "active" labels must use `_currentRunningProvider` when a terminal is alive, falling back to `_settings.SelectedProvider` only before launch. Successful provider launches sync `_settings.SelectedProvider` in memory, but `SaveSettings()` still preserves provider/model/effort fields from disk during normal operation so multiple VS instances do not overwrite each other's selections.
+
+**Terminal focus rule (v26.0)**: do not focus the embedded terminal with direct `SetForegroundWindow(terminalHandle)` or bare `SetFocus(terminalHandle)` calls. Use `FocusTerminalForInputAsync()`, `FocusTerminalForInput()`, or `FocusTerminalWindow()` so VS activates the owning tool window, focuses the WinForms host panel, and temporarily joins the VS UI thread with the terminal window thread before setting native focus. Low-level hook focus checks must stay Win32-only and use cached root-window state; do not touch WPF/WinForms controls from the hook thread.
 
 | File | `docs/ARCHITECTURE.md` section |
 |------|-------------------------------|

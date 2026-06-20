@@ -44,6 +44,12 @@ namespace ClaudeCodeVS
         private IntPtr terminalHandle;
 
         /// <summary>
+        /// Cached VS top-level window that owns the active terminal host panel. Read by hook-thread
+        /// focus checks, so those checks do not touch WPF/WinForms controls off the UI thread.
+        /// </summary>
+        private IntPtr _terminalHostRootWindow;
+
+        /// <summary>
         /// Tracks the currently running AI provider (before any new selection)
         /// </summary>
         private AiProvider? _currentRunningProvider = null;
@@ -2038,16 +2044,191 @@ namespace ClaudeCodeVS
         }
 
         /// <summary>
-        /// Focuses the WinForms terminal panel and the embedded terminal child window so that
-        /// keybd_event keystrokes land on the terminal rather than whatever VS tab is active.
-        /// SetForegroundWindow(terminalHandle) silently fails on child windows, so we go through
-        /// the panel's own focus APIs first.
+        /// Focuses the WinForms terminal panel and the embedded terminal window so user keystrokes
+        /// and keybd_event input land in the terminal rather than the last focused VS control.
         /// </summary>
         private void FocusTerminalPanel(System.Windows.Forms.Control panel)
         {
-            panel.Select();
-            panel.Focus();
-            SetFocus(terminalHandle);
+            if (panel == null || panel.IsDisposed || panel.Handle == IntPtr.Zero)
+            {
+                return;
+            }
+
+            try
+            {
+                panel.Select();
+                panel.Focus();
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"FocusTerminalPanel panel focus error: {ex.Message}");
+            }
+
+            FocusTerminalWindow();
+        }
+
+        /// <summary>
+        /// Gives native keyboard focus to the embedded terminal, attaching input queues while
+        /// setting focus because conhost/Windows Terminal live on a different UI thread than VS.
+        /// </summary>
+        private void FocusTerminalWindow()
+        {
+            if (terminalHandle == IntPtr.Zero || !IsWindow(terminalHandle))
+            {
+                return;
+            }
+
+            uint currentThreadId = GetCurrentThreadId();
+            uint terminalThreadId = GetWindowThreadProcessId(terminalHandle, out _);
+            IntPtr foreground = GetForegroundWindow();
+            uint foregroundThreadId = foreground != IntPtr.Zero
+                ? GetWindowThreadProcessId(foreground, out _)
+                : 0;
+
+            bool attachedTerminal = false;
+            bool attachedForeground = false;
+
+            try
+            {
+                if (terminalThreadId != 0 && terminalThreadId != currentThreadId)
+                {
+                    attachedTerminal = AttachThreadInput(currentThreadId, terminalThreadId, true);
+                }
+
+                if (foregroundThreadId != 0 &&
+                    foregroundThreadId != currentThreadId &&
+                    foregroundThreadId != terminalThreadId)
+                {
+                    attachedForeground = AttachThreadInput(currentThreadId, foregroundThreadId, true);
+                }
+
+                SetFocus(terminalHandle);
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"FocusTerminalWindow error: {ex.Message}");
+            }
+            finally
+            {
+                if (attachedForeground)
+                {
+                    AttachThreadInput(currentThreadId, foregroundThreadId, false);
+                }
+
+                if (attachedTerminal)
+                {
+                    AttachThreadInput(currentThreadId, terminalThreadId, false);
+                }
+            }
+        }
+
+        /// <summary>
+        /// Activates the terminal's VS tab and sets native focus to the embedded terminal.
+        /// </summary>
+        private async Task<bool> FocusTerminalForInputAsync(int settleDelayMs = 80)
+        {
+            await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
+
+            if (terminalHandle == IntPtr.Zero || !IsWindow(terminalHandle))
+            {
+                return false;
+            }
+
+            await ActivateTerminalToolWindowAsync();
+            await Task.Delay(60);
+            await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
+
+            var panel = ActiveTerminalPanel;
+            if (panel == null || panel.IsDisposed || panel.Handle == IntPtr.Zero)
+            {
+                return false;
+            }
+
+            FocusTerminalForInput();
+
+            if (settleDelayMs > 0)
+            {
+                await Task.Delay(settleDelayMs);
+                await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
+                FocusTerminalWindow();
+            }
+
+            return true;
+        }
+
+        /// <summary>
+        /// Sets native focus to the current terminal without changing VS tabs.
+        /// </summary>
+        private bool FocusTerminalForInput()
+        {
+            if (terminalHandle == IntPtr.Zero || !IsWindow(terminalHandle))
+            {
+                return false;
+            }
+
+            var panel = ActiveTerminalPanel;
+            if (panel == null || panel.IsDisposed || panel.Handle == IntPtr.Zero)
+            {
+                FocusTerminalWindow();
+                return true;
+            }
+
+            BringVisualStudioToForegroundIfNeeded();
+            FocusTerminalPanel(panel);
+            return true;
+        }
+
+        /// <summary>
+        /// Gets the VS top-level window that owns the current terminal host panel.
+        /// </summary>
+        private IntPtr GetTerminalHostRootWindow()
+        {
+            var panel = ActiveTerminalPanel;
+            if (panel != null && !panel.IsDisposed && panel.Handle != IntPtr.Zero)
+            {
+                IntPtr root = GetAncestor(panel.Handle, GA_ROOT);
+                if (root != IntPtr.Zero && IsWindow(root))
+                {
+                    _terminalHostRootWindow = root;
+                    return root;
+                }
+            }
+
+            if (terminalHandle != IntPtr.Zero && IsWindow(terminalHandle))
+            {
+                IntPtr root = GetAncestor(terminalHandle, GA_ROOT);
+                if (root != IntPtr.Zero && IsWindow(root))
+                {
+                    _terminalHostRootWindow = root;
+                    return root;
+                }
+            }
+
+            _terminalHostRootWindow = IntPtr.Zero;
+            return IntPtr.Zero;
+        }
+
+        /// <summary>
+        /// Returns true when a hit-test HWND belongs to either the terminal window or its host panel.
+        /// </summary>
+        private bool IsTerminalOrHostPanelHit(IntPtr hwndAtPoint, System.Windows.Forms.Control panel)
+        {
+            if (hwndAtPoint == IntPtr.Zero)
+            {
+                return false;
+            }
+
+            if (terminalHandle != IntPtr.Zero &&
+                IsWindow(terminalHandle) &&
+                (hwndAtPoint == terminalHandle || IsChild(terminalHandle, hwndAtPoint)))
+            {
+                return true;
+            }
+
+            return panel != null &&
+                   !panel.IsDisposed &&
+                   panel.Handle != IntPtr.Zero &&
+                   (hwndAtPoint == panel.Handle || IsChild(panel.Handle, hwndAtPoint));
         }
 
         /// <summary>
@@ -2137,7 +2318,7 @@ namespace ClaudeCodeVS
 
                     // Re-assert focus in case VS restored it to another control during the delay
                     await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
-                    SetFocus(terminalHandle);
+                    FocusTerminalWindow();
 
                     SendBatchedCtrlChordToTerminal(delta > 0 ? (ushort)0xBB : (ushort)0xBD, steps);
 
@@ -2385,11 +2566,42 @@ namespace ClaudeCodeVS
                 return false;
             }
 
+            IntPtr foreground = GetForegroundWindow();
+            IntPtr hostRoot = _terminalHostRootWindow;
+            if (hostRoot != IntPtr.Zero && !IsWindow(hostRoot))
+            {
+                hostRoot = IntPtr.Zero;
+            }
+
+            if (hostRoot == IntPtr.Zero)
+            {
+                hostRoot = GetAncestor(terminalHandle, GA_ROOT);
+            }
+
+            if (foreground != terminalHandle &&
+                (hostRoot == IntPtr.Zero || foreground != hostRoot))
+            {
+                return false;
+            }
+
+            if (IsTerminalFocusedOnThread(0))
+            {
+                return true;
+            }
+
+            uint terminalThreadId = GetWindowThreadProcessId(terminalHandle, out _);
+            return terminalThreadId != 0 && IsTerminalFocusedOnThread(terminalThreadId);
+        }
+
+        /// <summary>
+        /// Checks focus for a specific GUI thread. Passing 0 asks Windows for the foreground thread.
+        /// </summary>
+        private bool IsTerminalFocusedOnThread(uint threadId)
+        {
             var guiInfo = new GUITHREADINFO();
             guiInfo.cbSize = (uint)Marshal.SizeOf(guiInfo);
 
-            // Passing 0 retrieves info for the foreground thread
-            if (!GetGUIThreadInfo(0, ref guiInfo))
+            if (!GetGUIThreadInfo(threadId, ref guiInfo))
             {
                 return false;
             }
@@ -2485,16 +2697,17 @@ namespace ClaudeCodeVS
         {
             ThreadHelper.ThrowIfNotOnUIThread();
 
-            if (!IsScreenPointInsideActiveTerminalPanel(screenPoint))
+            var panel = ActiveTerminalPanel;
+            if (panel == null || panel.IsDisposed || !IsScreenPointInsideActiveTerminalPanel(screenPoint))
             {
                 return;
             }
 
-            // Verify the click really hit the terminal (not another app fully covering VS at the
-            // same screen coordinates). Child windows of the terminal count as the terminal.
+            // Verify the click really hit this visible terminal/host panel, not another VS instance
+            // covering the same screen coordinates. Some conhost builds report the WinForms host
+            // panel from WindowFromPoint even though the console is visibly under the pointer.
             IntPtr hwndAtPoint = WindowFromPoint(screenPoint);
-            if (hwndAtPoint != terminalHandle &&
-                (hwndAtPoint == IntPtr.Zero || !IsChild(terminalHandle, hwndAtPoint)))
+            if (!IsTerminalOrHostPanelHit(hwndAtPoint, panel))
             {
                 return;
             }
@@ -2502,7 +2715,7 @@ namespace ClaudeCodeVS
             BringVisualStudioToForegroundIfNeeded();
             bool paneNeedsActivation = !IsTerminalToolWindowActive();
             int clickSequence = _terminalClickSequence;
-            IntPtr vsRootWindow = GetAncestor(terminalHandle, GA_ROOT);
+            IntPtr vsRootWindow = GetTerminalHostRootWindow();
 
 #pragma warning disable VSSDK007 // Fire-and-forget is intentional here
             _ = ThreadHelper.JoinableTaskFactory.RunAsync(async () =>
@@ -2546,8 +2759,12 @@ namespace ClaudeCodeVS
                     return;
                 }
 
-                // The user moved to another application — leave focus alone.
-                if (vsRootWindow != IntPtr.Zero && GetForegroundWindow() != vsRootWindow)
+                // The user moved to another application — leave focus alone. Some conhost builds can
+                // temporarily report the terminal itself as foreground, so accept that as still ours.
+                IntPtr foreground = GetForegroundWindow();
+                if (vsRootWindow != IntPtr.Zero &&
+                    foreground != vsRootWindow &&
+                    foreground != terminalHandle)
                 {
                     return;
                 }
@@ -2574,13 +2791,8 @@ namespace ClaudeCodeVS
         private bool BringVisualStudioToForegroundIfNeeded()
         {
             IntPtr foreground = GetForegroundWindow();
-            if (foreground == terminalHandle)
-            {
-                return false;
-            }
-
-            IntPtr root = GetAncestor(terminalHandle, GA_ROOT);
-            if (root == IntPtr.Zero || !IsWindow(root) || foreground == root)
+            IntPtr root = GetTerminalHostRootWindow();
+            if (root == IntPtr.Zero || !IsWindow(root) || foreground == root || foreground == terminalHandle)
             {
                 return false;
             }
@@ -3496,8 +3708,7 @@ namespace ClaudeCodeVS
         {
             if (terminalHandle != IntPtr.Zero && IsWindow(terminalHandle))
             {
-                SetForegroundWindow(terminalHandle);
-                SetFocus(terminalHandle);
+                FocusTerminalForInput();
                 Thread.Sleep(50); // Reduced from 100ms
 
                 // Clear clipboard before copying new text to prevent stale content
@@ -3525,8 +3736,7 @@ namespace ClaudeCodeVS
         {
             if (terminalHandle != IntPtr.Zero && IsWindow(terminalHandle))
             {
-                SetForegroundWindow(terminalHandle);
-                SetFocus(terminalHandle);
+                FocusTerminalForInput();
                 Thread.Sleep(50);
 
                 keybd_event(VK_CONTROL, 0, 0, UIntPtr.Zero); // CTRL down (hold)
@@ -3552,8 +3762,7 @@ namespace ClaudeCodeVS
         {
             if (terminalHandle != IntPtr.Zero && IsWindow(terminalHandle))
             {
-                SetForegroundWindow(terminalHandle);
-                SetFocus(terminalHandle);
+                FocusTerminalForInput();
                 Thread.Sleep(50);
 
                 keybd_event(VK_ESCAPE, 0, 0, UIntPtr.Zero); // ESC down
@@ -3569,8 +3778,7 @@ namespace ClaudeCodeVS
         {
             if (terminalHandle != IntPtr.Zero && IsWindow(terminalHandle))
             {
-                SetForegroundWindow(terminalHandle);
-                SetFocus(terminalHandle);
+                FocusTerminalForInput();
                 Thread.Sleep(50); // Reduced from 100ms
 
                 // Clear clipboard before copying new text to prevent stale content
@@ -3613,8 +3821,7 @@ namespace ClaudeCodeVS
         {
             if (terminalHandle != IntPtr.Zero && IsWindow(terminalHandle))
             {
-                SetForegroundWindow(terminalHandle);
-                SetFocus(terminalHandle);
+                FocusTerminalForInput();
                 Thread.Sleep(50); // Reduced from 100ms
 
                 // Clear clipboard before copying new text to prevent stale content
