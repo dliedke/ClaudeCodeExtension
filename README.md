@@ -104,6 +104,10 @@ This binds a Claude Code skill that shells out to OpenAI Codex to audit pending 
 
 ## Version History
 
+### Version 28.0
+- Fixed keyboard and mouse input dropping out in the agent terminal while the agent was working — typing, arrow keys, and clicks stopped landing for a while and then recovered on their own. Terminal focus no longer merges an unrelated window's input queue, so input stays responsive even while the agent is busy.
+- Clicking into the terminal or the prompt box no longer pulls focus back and forth for several seconds afterward, so focus settles immediately on whichever one you clicked.
+
 ### Version 27.0
 - NOTE: this is a big release, for both trying to fix the terrible input issue in console and new features.
 - Please be patience and report any issues you find! Also if you don't like the extension, please just do not use and do not give bad review.

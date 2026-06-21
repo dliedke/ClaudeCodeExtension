@@ -2083,8 +2083,17 @@ namespace ClaudeCodeVS
         }
 
         /// <summary>
-        /// Gives native keyboard focus to the embedded terminal, attaching input queues while
-        /// setting focus because conhost/Windows Terminal live on a different UI thread than VS.
+        /// Gives native keyboard focus to the embedded terminal. SetParent already permanently
+        /// joins the terminal thread's input queue with the VS UI thread (issue #65), so a plain
+        /// SetFocus moves native focus without merging any extra queues.
+        ///
+        /// We deliberately do NOT AttachThreadInput the current foreground thread here. Merging an
+        /// arbitrary (possibly busy) foreground thread's input queue with VS's makes those threads
+        /// share one synchronous input queue for the duration; while the conhost thread is busy
+        /// rendering the agent's output, keyboard and mouse events back up for everyone until they
+        /// detach, which froze input in the terminal while the agent worked (v26/v27 regression).
+        /// The terminal thread is attached only as a fallback when SetFocus didn't take, since it is
+        /// already joined to us and so cannot cause the cross-thread stall the foreground attach did.
         /// </summary>
         private void FocusTerminalWindow()
         {
@@ -2093,47 +2102,41 @@ namespace ClaudeCodeVS
                 return;
             }
 
-            uint currentThreadId = GetCurrentThreadId();
-            uint terminalThreadId = GetWindowThreadProcessId(terminalHandle, out _);
-            IntPtr foreground = GetForegroundWindow();
-            uint foregroundThreadId = foreground != IntPtr.Zero
-                ? GetWindowThreadProcessId(foreground, out _)
-                : 0;
-
-            bool attachedTerminal = false;
-            bool attachedForeground = false;
-
             try
             {
-                if (terminalThreadId != 0 && terminalThreadId != currentThreadId)
-                {
-                    attachedTerminal = AttachThreadInput(currentThreadId, terminalThreadId, true);
-                }
-
-                if (foregroundThreadId != 0 &&
-                    foregroundThreadId != currentThreadId &&
-                    foregroundThreadId != terminalThreadId)
-                {
-                    attachedForeground = AttachThreadInput(currentThreadId, foregroundThreadId, true);
-                }
-
+                // SetParent already merged the terminal's input queue with ours, so this usually
+                // takes on its own without any AttachThreadInput.
                 SetFocus(terminalHandle);
+                if (GetFocus() == terminalHandle)
+                {
+                    return;
+                }
+
+                // Fallback: briefly attach ONLY the terminal thread (already joined to us, so this
+                // is cheap and cannot stall on an unrelated busy thread) and retry the focus.
+                uint currentThreadId = GetCurrentThreadId();
+                uint terminalThreadId = GetWindowThreadProcessId(terminalHandle, out _);
+                if (terminalThreadId == 0 || terminalThreadId == currentThreadId)
+                {
+                    return;
+                }
+
+                bool attached = AttachThreadInput(currentThreadId, terminalThreadId, true);
+                try
+                {
+                    SetFocus(terminalHandle);
+                }
+                finally
+                {
+                    if (attached)
+                    {
+                        AttachThreadInput(currentThreadId, terminalThreadId, false);
+                    }
+                }
             }
             catch (Exception ex)
             {
                 Debug.WriteLine($"FocusTerminalWindow error: {ex.Message}");
-            }
-            finally
-            {
-                if (attachedForeground)
-                {
-                    AttachThreadInput(currentThreadId, foregroundThreadId, false);
-                }
-
-                if (attachedTerminal)
-                {
-                    AttachThreadInput(currentThreadId, terminalThreadId, false);
-                }
             }
         }
 
@@ -2299,7 +2302,7 @@ namespace ClaudeCodeVS
         private async Task RunWpfPromptFocusGuardAsync(int seq)
         {
             const int checkIntervalMs = 80;
-            const double idleWindowMs = 2000; // keep guarding until ~2s after the last prompt interaction
+            const double idleWindowMs = 700; // keep guarding until ~0.7s after the last prompt interaction
 
             await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
 
@@ -2716,9 +2719,15 @@ namespace ClaudeCodeVS
             {
                 var info = (KBDLLHOOKSTRUCT)Marshal.PtrToStructure(lParam, typeof(KBDLLHOOKSTRUCT));
 
+                // IsTerminalFocused() is a cross-process call (GetGUIThreadInfo); running it on every
+                // system-wide keystroke added latency to all typing. It is only needed for F5
+                // forwarding and for the "On Agent Finish" typing guard — so compute it only when an
+                // F5 is pressed or a completion watch is actually running, and skip it otherwise.
+                bool needFocus = info.vkCode == VK_F5 || _completionWatchActive;
+                bool terminalFocused = needFocus && IsTerminalFocused();
+
                 // Note when the user is typing into the terminal so the "On Agent Finish" watcher
-                // can pause its console read mid-keystroke (computed once; reused for the F5 branch).
-                bool terminalFocused = IsTerminalFocused();
+                // can pause its console read mid-keystroke (only meaningful while a watch is active).
                 if (terminalFocused) _lastTerminalKeyUtc = DateTime.UtcNow;
 
                 if (info.vkCode == VK_F5 && terminalFocused)
@@ -2836,12 +2845,12 @@ namespace ClaudeCodeVS
         private async Task EnsureTerminalFocusAfterClickAsync(int clickSequence, IntPtr vsRootWindow)
         {
             const int checkIntervalMs = 80;
-            // ~5s of guarding. On Command Prompt the "On Agent Finish" watcher attaches the console
-            // ~once a second while the agent works, each attach bouncing the terminal's keyboard
-            // focus; the original 1.6s window expired while the agent was still crunching, so focus
-            // was stolen back and typing into the terminal stopped landing. Re-asserting for longer
-            // (still aborting instantly on any click elsewhere / app switch) holds focus through that.
-            const int totalChecks = 62;
+            // Short guard (~0.6s): just long enough to cover VS's one deferred focus restore after
+            // the click's activation shuffle. The old ~5s window kept re-asserting terminal focus
+            // long after the click, which fought the WPF-prompt guard and the user when they moved
+            // on — a major part of the v26/v27 input regression. It still aborts instantly on any
+            // click elsewhere / app switch, so a brief guard is enough.
+            const int totalChecks = 8;
 
             for (int check = 0; check < totalChecks; check++)
             {
