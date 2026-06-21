@@ -324,11 +324,11 @@ namespace ClaudeCodeVS
         {
             try
             {
-                if (SessionHistoryViewMenuItem == null) return;
+                ThreadHelper.ThrowIfNotOnUIThread();
 
-                SessionHistoryViewMenuItem.Visibility = IsClaudeCodeSessionHistoryProvider(_settings?.SelectedProvider)
-                    ? Visibility.Visible
-                    : Visibility.Collapsed;
+                // Session History visibility (button vs "⚙" menu entry, gated to Claude Code
+                // providers) is handled centrally so it stays in sync with the other features.
+                RefreshToolbarLayout();
             }
             catch (Exception ex)
             {

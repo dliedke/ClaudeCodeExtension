@@ -1856,17 +1856,168 @@ For more details, visit: https://pi.dev";
             bool isWindsurfProvider = activeProvider == AiProvider.Windsurf;
             ModelDropdownButton.Visibility = (isClaudeProvider || isWindsurfProvider) ? Visibility.Visible : Visibility.Collapsed;
 
-            // Show Usage item in Views dropdown only for Claude and Windsurf providers
-            if (ShowUsageViewMenuItem != null)
-                ShowUsageViewMenuItem.Visibility = (isClaudeProvider || isWindsurfProvider) ? Visibility.Visible : Visibility.Collapsed;
             UpdateInlineUsagePanelVisibility();
 
-            // Session history is only meaningful for Claude Code providers (other agents store
-            // transcripts elsewhere or not at all)
-            RefreshSessionHistoryButton();
+            // Swap the configurable features between dedicated toolbar buttons and the "⚙"
+            // menu, applying provider/git constraints (Show Usage and Session History are
+            // Claude/Windsurf-only; View Changes needs a git repo).
+            RefreshToolbarLayout();
 
             // Reflect the running provider/model immediately in the VS tool window title.
             UpdateToolWindowTitle(GetExtensionTitle(activeProvider));
+        }
+
+        /// <summary>
+        /// Central swap between one-click toolbar buttons and "⚙" menu entries for the
+        /// configurable features. For each feature: when its constraint holds AND the user
+        /// promoted it (Settings → Toolbar), it shows as a toolbar button and is hidden from
+        /// the menu; otherwise it stays in the menu (constraint permitting) and the button is
+        /// hidden. Features whose constraint is not met are hidden from both places.
+        /// See <see cref="ToolbarButton"/> and ClaudeCodeControl.SettingsDialog.cs.
+        /// </summary>
+        private void RefreshToolbarLayout()
+        {
+            ThreadHelper.ThrowIfNotOnUIThread();
+
+            if (_settings == null) return;
+
+            var promoted = _settings.VisibleToolbarButtons
+                ?? new System.Collections.Generic.List<ToolbarButton>();
+
+            AiProvider? activeProvider = GetActiveOrSelectedProvider();
+            bool isUsageProvider = IsClaudeProvider(activeProvider) || activeProvider == AiProvider.Windsurf;
+            bool isSessionHistoryProvider = IsClaudeCodeSessionHistoryProvider(activeProvider);
+
+            // Apply the button/menu swap for one feature.
+            void Apply(ToolbarButton id, bool constraintOk,
+                System.Windows.Controls.Button button, System.Windows.Controls.MenuItem menuItem)
+            {
+                bool asButton = constraintOk && promoted.Contains(id);
+                bool asMenu = constraintOk && !asButton;
+                if (button != null) button.Visibility = asButton ? Visibility.Visible : Visibility.Collapsed;
+                if (menuItem != null) menuItem.Visibility = asMenu ? Visibility.Visible : Visibility.Collapsed;
+            }
+
+            Apply(ToolbarButton.UpdateAgent, true, UpdateAgentToolbarButton, UpdateAgentMenuItem);
+            Apply(ToolbarButton.DetachTerminal, true, DetachToolbarButton, DetachTerminalMenuItem);
+            Apply(ToolbarButton.RestartAgent, true, RestartTerminalButton, RestartTerminalMenuItem);
+            Apply(ToolbarButton.ViewChanges, _isWorkspaceGitRepo, ViewChangesToolbarButton, ViewChangesMenuItem);
+            Apply(ToolbarButton.SessionHistory, isSessionHistoryProvider, SessionHistoryToolbarButton, SessionHistoryViewMenuItem);
+            Apply(ToolbarButton.ShowUsage, isUsageProvider, ShowUsageToolbarButton, ShowUsageViewMenuItem);
+            Apply(ToolbarButton.SetWorkingDirectory, true, SetWorkingDirectoryToolbarButton, SetWorkingDirectoryMenuItem);
+
+            // The Tools dropdown button is shown only when at least one feature is parked in it
+            // (not promoted to its own button, and its constraint allows it). When every feature is
+            // a toolbar button the dropdown is empty, so it collapses instead of showing an empty menu.
+            bool anyInDropdown =
+                IsMenuItemVisible(UpdateAgentMenuItem) ||
+                IsMenuItemVisible(RestartTerminalMenuItem) ||
+                IsMenuItemVisible(DetachTerminalMenuItem) ||
+                IsMenuItemVisible(ViewChangesMenuItem) ||
+                IsMenuItemVisible(SessionHistoryViewMenuItem) ||
+                IsMenuItemVisible(ShowUsageViewMenuItem) ||
+                IsMenuItemVisible(SetWorkingDirectoryMenuItem);
+            if (ToolsDropdownButton != null)
+                ToolsDropdownButton.Visibility = anyInDropdown ? Visibility.Visible : Visibility.Collapsed;
+
+            // Keep the detach control's icon/tooltip in sync with the detached state.
+            UpdateDetachButtonIcon(_isTerminalDetached);
+        }
+
+        private static bool IsMenuItemVisible(System.Windows.Controls.MenuItem item)
+            => item != null && item.Visibility == Visibility.Visible;
+
+        /// <summary>Default left-to-right order of the configurable toolbar features.</summary>
+        private static readonly ToolbarButton[] DefaultToolbarButtonOrder =
+        {
+            ToolbarButton.UpdateAgent, ToolbarButton.DetachTerminal, ToolbarButton.RestartAgent,
+            ToolbarButton.ViewChanges, ToolbarButton.SessionHistory, ToolbarButton.ShowUsage,
+            ToolbarButton.SetWorkingDirectory
+        };
+
+        /// <summary>
+        /// Returns the configured feature order, completed with any features missing from the saved
+        /// list (appended in default order) and stripped of unknowns/duplicates — so it always
+        /// contains exactly the seven features in a valid order.
+        /// </summary>
+        private System.Collections.Generic.List<ToolbarButton> GetEffectiveToolbarOrder()
+        {
+            var order = new System.Collections.Generic.List<ToolbarButton>();
+            var saved = _settings?.ToolbarButtonOrder;
+            if (saved != null)
+            {
+                foreach (var b in saved)
+                    if (System.Array.IndexOf(DefaultToolbarButtonOrder, b) >= 0 && !order.Contains(b))
+                        order.Add(b);
+            }
+            foreach (var b in DefaultToolbarButtonOrder)
+                if (!order.Contains(b)) order.Add(b);
+            return order;
+        }
+
+        private System.Windows.Controls.Button GetToolbarButtonControl(ToolbarButton b)
+        {
+            switch (b)
+            {
+                case ToolbarButton.UpdateAgent: return UpdateAgentToolbarButton;
+                case ToolbarButton.DetachTerminal: return DetachToolbarButton;
+                case ToolbarButton.RestartAgent: return RestartTerminalButton;
+                case ToolbarButton.ViewChanges: return ViewChangesToolbarButton;
+                case ToolbarButton.SessionHistory: return SessionHistoryToolbarButton;
+                case ToolbarButton.ShowUsage: return ShowUsageToolbarButton;
+                case ToolbarButton.SetWorkingDirectory: return SetWorkingDirectoryToolbarButton;
+                default: return null;
+            }
+        }
+
+        private System.Windows.Controls.MenuItem GetToolbarMenuItemControl(ToolbarButton b)
+        {
+            switch (b)
+            {
+                case ToolbarButton.UpdateAgent: return UpdateAgentMenuItem;
+                case ToolbarButton.DetachTerminal: return DetachTerminalMenuItem;
+                case ToolbarButton.RestartAgent: return RestartTerminalMenuItem;
+                case ToolbarButton.ViewChanges: return ViewChangesMenuItem;
+                case ToolbarButton.SessionHistory: return SessionHistoryViewMenuItem;
+                case ToolbarButton.ShowUsage: return ShowUsageViewMenuItem;
+                case ToolbarButton.SetWorkingDirectory: return SetWorkingDirectoryMenuItem;
+                default: return null;
+            }
+        }
+
+        /// <summary>
+        /// Applies the configured feature order to both the toolbar feature buttons (moved to the
+        /// front of the right-hand button panel, ahead of the ☰/🤖/⚙ buttons) and the ☰ Tools
+        /// dropdown items. Called at startup and after the Toolbar settings are applied — not on every
+        /// RefreshToolbarLayout, to avoid reshuffling while a menu is open.
+        /// </summary>
+        private void ReorderToolbarControls()
+        {
+            ThreadHelper.ThrowIfNotOnUIThread();
+
+            var order = GetEffectiveToolbarOrder();
+
+            if (RightButtonsPanel != null)
+            {
+                for (int i = order.Count - 1; i >= 0; i--)
+                {
+                    var btn = GetToolbarButtonControl(order[i]);
+                    if (btn == null || !RightButtonsPanel.Children.Contains(btn)) continue;
+                    RightButtonsPanel.Children.Remove(btn);
+                    RightButtonsPanel.Children.Insert(0, btn);
+                }
+            }
+
+            if (ToolsContextMenu != null)
+            {
+                for (int i = order.Count - 1; i >= 0; i--)
+                {
+                    var item = GetToolbarMenuItemControl(order[i]);
+                    if (item == null || !ToolsContextMenu.Items.Contains(item)) continue;
+                    ToolsContextMenu.Items.Remove(item);
+                    ToolsContextMenu.Items.Insert(0, item);
+                }
+            }
         }
 
         private AiProvider? GetActiveOrSelectedProvider()
@@ -2897,22 +3048,6 @@ For more details, visit: https://pi.dev";
         {
             ThreadHelper.ThrowIfNotOnUIThread();
 
-            // Check if project is in a git repository using cached workspace directory
-            // to avoid blocking the UI thread with async calls during menu open
-            bool isInGitRepo = false;
-            try
-            {
-                string workspaceDir = _lastWorkspaceDirectory;
-                if (!string.IsNullOrEmpty(workspaceDir))
-                {
-                    isInGitRepo = !string.IsNullOrEmpty(FindGitRepositoryRoot(workspaceDir));
-                }
-            }
-            catch
-            {
-                isInGitRepo = false;
-            }
-
             // Show/hide menu options based on context
             AiProvider? activeProvider = GetActiveOrSelectedProvider();
             bool isClaudeProvider = IsClaudeProvider(activeProvider);
@@ -2941,49 +3076,96 @@ For more details, visit: https://pi.dev";
                 CursorAgentAutoRunMenuItem.IsChecked = _settings.CursorAgentAutoRun;
                 WindsurfDangerousModeMenuItem.IsChecked = _settings.WindsurfDangerousMode;
                 AntigravityDangerouslySkipPermissionsMenuItem.IsChecked = _settings.AntigravityDangerouslySkipPermissions;
+            }
+        }
 
-                // Update working directory menu item to show current value, with red text if path doesn't exist
-                if (!string.IsNullOrWhiteSpace(_settings.CustomWorkingDirectory))
-                {
-                    string customDir = _settings.CustomWorkingDirectory.Trim();
-                    bool directoryExists = false;
-                    try
-                    {
-                        if (Path.IsPathRooted(customDir))
-                        {
-                            directoryExists = Directory.Exists(customDir);
-                        }
-                        else
-                        {
-                            // Resolve relative path against cached workspace directory
-                            // to avoid blocking the UI thread during menu open
-                            string baseDir = _lastWorkspaceDirectory ?? Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments);
-                            string resolved = Path.GetFullPath(Path.Combine(baseDir, customDir));
-                            directoryExists = Directory.Exists(resolved);
-                        }
-                    }
-                    catch
-                    {
-                        directoryExists = false;
-                    }
+        /// <summary>
+        /// Opens the Tools dropdown (the configurable features the user did not promote to their own
+        /// toolbar button).
+        /// </summary>
+        private void ToolsDropdownButton_Click(object sender, RoutedEventArgs e)
+        {
+            if (ToolsDropdownButton?.ContextMenu != null)
+            {
+                ToolsDropdownButton.ContextMenu.PlacementTarget = ToolsDropdownButton;
+                ToolsDropdownButton.ContextMenu.IsOpen = true;
+            }
+        }
 
-                    var headerBlock = new System.Windows.Controls.TextBlock();
-                    headerBlock.Inlines.Add("Set Working Directory (");
-                    var pathRun = new System.Windows.Documents.Run(customDir);
-                    if (!directoryExists)
-                    {
-                        pathRun.Foreground = System.Windows.Media.Brushes.Red;
-                    }
-                    headerBlock.Inlines.Add(pathRun);
-                    headerBlock.Inlines.Add(")");
-                    SetWorkingDirectoryMenuItem.Header = headerBlock;
-                }
-                else
-                {
-                    SetWorkingDirectoryMenuItem.Header = "Set Working Directory...";
-                }
+        /// <summary>
+        /// Refreshes the Tools dropdown contents on open: git/usage state, the Set Working Directory
+        /// header, and the button/menu swap so the parked feature entries reflect current context.
+        /// </summary>
+        private void ToolsContextMenu_Opened(object sender, RoutedEventArgs e)
+        {
+            ThreadHelper.ThrowIfNotOnUIThread();
+
+            // Refresh the cached git state (cheap, uses the cached workspace dir) so View Changes
+            // appears only inside a git repo.
+            try
+            {
+                string workspaceDir = _lastWorkspaceDirectory;
+                _isWorkspaceGitRepo = !string.IsNullOrEmpty(workspaceDir)
+                    && !string.IsNullOrEmpty(FindGitRepositoryRoot(workspaceDir));
+            }
+            catch
+            {
+                _isWorkspaceGitRepo = false;
             }
 
+            SyncShowUsageMenuCheckState();
+            UpdateSetWorkingDirectoryMenuHeader();
+            RefreshToolbarLayout();
+        }
+
+        /// <summary>
+        /// Updates the Set Working Directory menu item to show the current custom directory, with the
+        /// path in red when it doesn't exist on disk. Shows the plain "Set Working Directory..." label
+        /// when no custom directory is configured.
+        /// </summary>
+        private void UpdateSetWorkingDirectoryMenuHeader()
+        {
+            if (SetWorkingDirectoryMenuItem == null || _settings == null) return;
+
+            if (!string.IsNullOrWhiteSpace(_settings.CustomWorkingDirectory))
+            {
+                string customDir = _settings.CustomWorkingDirectory.Trim();
+                bool directoryExists = false;
+                try
+                {
+                    if (Path.IsPathRooted(customDir))
+                    {
+                        directoryExists = Directory.Exists(customDir);
+                    }
+                    else
+                    {
+                        // Resolve relative path against cached workspace directory
+                        // to avoid blocking the UI thread during menu open
+                        string baseDir = _lastWorkspaceDirectory ?? Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments);
+                        string resolved = Path.GetFullPath(Path.Combine(baseDir, customDir));
+                        directoryExists = Directory.Exists(resolved);
+                    }
+                }
+                catch
+                {
+                    directoryExists = false;
+                }
+
+                var headerBlock = new System.Windows.Controls.TextBlock();
+                headerBlock.Inlines.Add("📁  Set Working Directory (");
+                var pathRun = new System.Windows.Documents.Run(customDir);
+                if (!directoryExists)
+                {
+                    pathRun.Foreground = System.Windows.Media.Brushes.Red;
+                }
+                headerBlock.Inlines.Add(pathRun);
+                headerBlock.Inlines.Add(")");
+                SetWorkingDirectoryMenuItem.Header = headerBlock;
+            }
+            else
+            {
+                SetWorkingDirectoryMenuItem.Header = "📁  Set Working Directory...";
+            }
         }
 
         /// <summary>

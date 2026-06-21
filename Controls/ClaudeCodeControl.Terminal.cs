@@ -186,6 +186,21 @@ namespace ClaudeCodeVS
         /// </summary>
         private int _terminalClickSequence;
 
+        /// <summary>
+        /// Monotonic counter for the WPF-prompt focus guard. Bumped on every left-click the WPF
+        /// surface receives (so a newer click supersedes an older guard) and whenever a click is
+        /// confirmed on the embedded terminal (so giving the terminal focus aborts a pending prompt
+        /// guard). Lets a click into the prompt box re-assert WPF keyboard focus for a short window
+        /// — symmetric with the terminal guard — without the two guards ever fighting. UI thread only.
+        /// </summary>
+        private int _promptFocusGuardSeq;
+
+        /// <summary>Last time the user clicked or typed in the WPF prompt; keeps the prompt focus guard alive.</summary>
+        private DateTime _lastPromptInteractionUtc = DateTime.MinValue;
+
+        /// <summary>True while a single prompt focus-guard loop is running (prevents stacking loops).</summary>
+        private bool _promptFocusGuardRunning;
+
         #endregion
 
         #region Terminal Initialization
@@ -2246,6 +2261,82 @@ namespace ClaudeCodeVS
         private void ClaudeCodeControl_PreviewMouseLeftButtonDown(object sender, System.Windows.Input.MouseButtonEventArgs e)
         {
             ReclaimWpfKeyboardFocusIfStuck();
+
+            // Single-shot reclaim isn't enough on its own: after the click, a deferred focus steal
+            // (the cross-process terminal grabbing the shared native focus, or — on Command Prompt —
+            // the "On Agent Finish" console attach bouncing focus) can land a moment later and leave
+            // typing into the prompt going nowhere, forcing repeated clicks. Keep the prompt focus
+            // guard alive so WPF keeps native focus while the user works in the prompt.
+            EnsureWpfPromptFocusGuardRunning();
+        }
+
+        /// <summary>
+        /// Starts (or extends) the WPF-prompt focus guard, symmetric with
+        /// <see cref="EnsureTerminalFocusAfterClickAsync"/>. While the user keeps interacting with the
+        /// prompt (clicks or keystrokes refresh <see cref="_lastPromptInteractionUtc"/>), it re-asserts
+        /// native keyboard focus on the WPF host whenever the embedded terminal has stolen it — so
+        /// typing into the prompt lands instead of requiring repeated clicks, even during active
+        /// generation. Only one loop runs at a time. It reclaims ONLY from the terminal (WPF popups /
+        /// the ⚙ menu are left alone), and aborts on a terminal click or an app switch, so it never
+        /// fights the user — only deferred focus steals.
+        /// </summary>
+        private void EnsureWpfPromptFocusGuardRunning()
+        {
+            _lastPromptInteractionUtc = DateTime.UtcNow;
+            if (_promptFocusGuardRunning) return;
+            _promptFocusGuardRunning = true;
+            int seq = _promptFocusGuardSeq;
+
+#pragma warning disable VSSDK007 // Fire-and-forget is intentional here
+            _ = ThreadHelper.JoinableTaskFactory.RunAsync(async () =>
+            {
+                try { await RunWpfPromptFocusGuardAsync(seq); }
+                finally { _promptFocusGuardRunning = false; }
+            });
+#pragma warning restore VSSDK007
+        }
+
+        private async Task RunWpfPromptFocusGuardAsync(int seq)
+        {
+            const int checkIntervalMs = 80;
+            const double idleWindowMs = 2000; // keep guarding until ~2s after the last prompt interaction
+
+            await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
+
+            var source = System.Windows.PresentationSource.FromVisual(this) as System.Windows.Interop.HwndSource;
+            if (source == null || source.Handle == IntPtr.Zero) return;
+            IntPtr wpfHandle = source.Handle;
+            IntPtr wpfRoot = GetAncestor(wpfHandle, GA_ROOT);
+
+            while ((DateTime.UtcNow - _lastPromptInteractionUtc).TotalMilliseconds < idleWindowMs)
+            {
+                await Task.Delay(checkIntervalMs);
+                await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
+
+                // A terminal click supersedes this guard (the user wants the terminal now).
+                if (seq != _promptFocusGuardSeq) return;
+                if (!IsWindow(wpfHandle)) return;
+
+                // The user moved to another application — leave focus alone. While the terminal holds
+                // the shared native focus the foreground window is still the VS root, so that case is
+                // not treated as "left VS" and we keep re-asserting.
+                IntPtr foreground = GetForegroundWindow();
+                if (wpfRoot != IntPtr.Zero && foreground != wpfRoot && foreground != terminalHandle)
+                {
+                    return;
+                }
+
+                // Only reclaim when the embedded terminal specifically holds the shared native focus.
+                // Other native focus owners — a WPF ContextMenu/Popup (e.g. the ⚙ menu) or a child
+                // editor — are legitimate and must be left alone, or menu/arrow navigation would break.
+                IntPtr focusHwnd = GetFocus();
+                bool terminalHasFocus = terminalHandle != IntPtr.Zero && IsWindow(terminalHandle)
+                    && (focusHwnd == terminalHandle || IsChild(terminalHandle, focusHwnd));
+                if (terminalHasFocus)
+                {
+                    SetFocus(wpfHandle);
+                }
+            }
         }
 
         /// <summary>
@@ -2712,6 +2803,10 @@ namespace ClaudeCodeVS
                 return;
             }
 
+            // Giving the terminal focus must cancel any in-flight WPF-prompt focus guard, otherwise
+            // the two would fight over the shared native focus.
+            _promptFocusGuardSeq++;
+
             BringVisualStudioToForegroundIfNeeded();
             bool paneNeedsActivation = !IsTerminalToolWindowActive();
             int clickSequence = _terminalClickSequence;
@@ -2741,7 +2836,12 @@ namespace ClaudeCodeVS
         private async Task EnsureTerminalFocusAfterClickAsync(int clickSequence, IntPtr vsRootWindow)
         {
             const int checkIntervalMs = 80;
-            const int totalChecks = 20; // ~1.6s of guarding
+            // ~5s of guarding. On Command Prompt the "On Agent Finish" watcher attaches the console
+            // ~once a second while the agent works, each attach bouncing the terminal's keyboard
+            // focus; the original 1.6s window expired while the agent was still crunching, so focus
+            // was stolen back and typing into the terminal stopped landing. Re-asserting for longer
+            // (still aborting instantly on any click elsewhere / app switch) holds focus through that.
+            const int totalChecks = 62;
 
             for (int check = 0; check < totalChecks; check++)
             {

@@ -752,6 +752,9 @@ namespace ClaudeCodeVS
             // Update provider selection and title
             UpdateProviderSelection();
 
+            // Apply the user's configured order to the toolbar feature buttons + Tools dropdown.
+            ReorderToolbarControls();
+
             // Apply visible-providers filter to the agent menu (default shows
             // only Claude Code; user-configured providers and the active one
             // also appear).

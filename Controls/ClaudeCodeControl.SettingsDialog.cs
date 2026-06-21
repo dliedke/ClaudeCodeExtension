@@ -15,10 +15,15 @@
  * *******************************************************************************************************************/
 
 using System;
+using System.Collections.Generic;
 using System.Diagnostics;
+using System.Linq;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Documents;
+using System.Windows.Input;
 using System.Windows.Media;
+using System.Windows.Media.Imaging;
 using Microsoft.VisualStudio.Shell;
 
 namespace ClaudeCodeVS
@@ -86,6 +91,9 @@ namespace ClaudeCodeVS
             int  origFontSize                 = (int)Math.Round(PromptTextBox?.FontSize ?? 12.0);
             if (origFontSize < 8) origFontSize = 12;
             if (origFontSize > 24) origFontSize = 24;
+            var origVisibleToolbarButtons = new List<ToolbarButton>(
+                _settings.VisibleToolbarButtons ?? new List<ToolbarButton>());
+            var origToolbarOrder = GetEffectiveToolbarOrder();
 
             var dialog = new Window
             {
@@ -486,7 +494,13 @@ namespace ClaudeCodeVS
                 autoRefreshCombo.SelectedIndex = 0;
             usageStack.Children.Add(autoRefreshCombo);
 
-            // ========================= CLI Paths tab =========================
+            // ========================= Toolbar tab =========================
+            var toolbarStack = AddTab("Toolbar");
+            var toolbarTab = BuildToolbarButtonsTabContent(toolbarStack, themeFg);
+            var toolbarButtonChecks = toolbarTab.Checks;
+            var toolbarRowsPanel = toolbarTab.RowsPanel;
+
+            // ========================= CLI Paths tab (last) =========================
             var cliPathsStack = AddTab("CLI Paths");
             var cliPathEditors = BuildCliPathsTabContent(cliPathsStack, themeBg, themeFg);
 
@@ -590,6 +604,21 @@ namespace ClaudeCodeVS
                 // CLI Paths tab: default is no custom path (use detection) for every provider.
                 foreach (var tb in cliPathEditors.Values)
                     tb.Text = "";
+
+                // Toolbar tab: default promotes only Restart to a one-click button, in default order.
+                foreach (var kv in toolbarButtonChecks)
+                    kv.Value.IsChecked = kv.Key == ToolbarButton.RestartAgent;
+                for (int i = DefaultToolbarButtonOrder.Length - 1; i >= 0; i--)
+                {
+                    var id = DefaultToolbarButtonOrder[i];
+                    var row = toolbarRowsPanel.Children.OfType<Border>()
+                        .FirstOrDefault(b => b.Tag is ToolbarButton tb && tb == id);
+                    if (row != null)
+                    {
+                        toolbarRowsPanel.Children.Remove(row);
+                        toolbarRowsPanel.Children.Insert(0, row);
+                    }
+                }
             };
 
             okCancelPanel.Children.Add(okButton);
@@ -650,6 +679,10 @@ namespace ClaudeCodeVS
             bool newSkipThemePrompt = skipPromptCheck.IsChecked == true;
             bool newShowInlineBars = showBarsCheck.IsChecked == true;
             int newAutoRefresh = (autoRefreshCombo.SelectedItem as ComboBoxItem)?.Tag is int ar ? ar : origAutoRefresh;
+            var newToolbarOrder = ReadToolbarRowOrder(toolbarRowsPanel);
+            var newVisibleToolbarButtons = newToolbarOrder
+                .Where(b => toolbarButtonChecks.TryGetValue(b, out var c) && c.IsChecked == true)
+                .ToList();
 
             // ---- Validate Windows Terminal availability before persisting ----
             if (newTerminalType == TerminalType.WindowsTerminal &&
@@ -689,6 +722,21 @@ namespace ClaudeCodeVS
             _settings.ShowInlineUsageBars     = newShowInlineBars;
             _settings.UsageAutoRefreshSeconds = newAutoRefresh;
             _settings.PromptFontSize          = newFontSize;
+            _settings.VisibleToolbarButtons   = newVisibleToolbarButtons;
+            _settings.ToolbarButtonOrder      = newToolbarOrder;
+
+            // Apply order changes to the live controls, then swap features between buttons and the
+            // ☰ Tools dropdown.
+            bool toolbarOrderChanged = !newToolbarOrder.SequenceEqual(origToolbarOrder);
+            bool toolbarVisibleChanged = !newVisibleToolbarButtons.OrderBy(b => b).SequenceEqual(origVisibleToolbarButtons.OrderBy(b => b));
+            if (toolbarOrderChanged)
+            {
+                ReorderToolbarControls();
+            }
+            if (toolbarOrderChanged || toolbarVisibleChanged)
+            {
+                RefreshToolbarLayout();
+            }
 
             // Custom CLI executable paths (CLI Paths tab). Mutates _settings.CustomExecutablePaths
             // and returns the providers whose path actually changed.
@@ -806,6 +854,262 @@ namespace ClaudeCodeVS
                 Foreground = fg,
                 Margin = new Thickness(0, 12, 0, 6)
             };
+        }
+
+        /// <summary>Display label + tooltip for each configurable toolbar feature.</summary>
+        private static (string Label, string Tip) ToolbarFeatureMeta(ToolbarButton id)
+        {
+            switch (id)
+            {
+                case ToolbarButton.UpdateAgent: return ("🔄️  Update Code Agent", "Update the active code agent's CLI to the latest version.");
+                case ToolbarButton.DetachTerminal: return ("⧉  Detach / Attach Terminal", "Move the terminal to a separate tab and back.");
+                case ToolbarButton.RestartAgent: return ("♻️  Restart Code Agent", "Restart the active code agent.");
+                case ToolbarButton.ViewChanges: return ("📄  View Changes", "Open the Changes (diff) view. Shown only inside a git repository.");
+                case ToolbarButton.SessionHistory: return ("📜  Session History", "Resume a previous session. Claude Code providers only.");
+                case ToolbarButton.ShowUsage: return ("📊  Show Usage", "Toggle the usage window. Claude / Windsurf providers only.");
+                case ToolbarButton.SetWorkingDirectory: return ("📁  Set Working Directory", "Set a custom working directory for the agent.");
+                default: return (id.ToString(), string.Empty);
+            }
+        }
+
+        /// <summary>
+        /// Builds the "Toolbar" settings tab: a drag-and-drop reorderable list of the configurable
+        /// features, each with a checkbox that promotes it to a one-click toolbar button. The row
+        /// order drives both the toolbar button order and the order inside the ☰ Tools dropdown.
+        /// Returns the rows panel (each row's Tag is its <see cref="ToolbarButton"/>) plus the
+        /// checkboxes keyed by feature, for collection on OK. See RefreshToolbarLayout /
+        /// ReorderToolbarControls.
+        /// </summary>
+        private (StackPanel RowsPanel, Dictionary<ToolbarButton, CheckBox> Checks) BuildToolbarButtonsTabContent(StackPanel stack, Brush themeFg)
+        {
+            stack.Children.Add(MakeSectionHeader("One-click toolbar buttons", themeFg));
+            stack.Children.Add(new TextBlock
+            {
+                Text = "Checked features appear as one-click buttons in the toolbar; unchecked features live in the " +
+                       "☰ Tools dropdown (which hides when every feature is a button). Drag rows by the ⠿ handle to " +
+                       "reorder them — the order applies to both the buttons and the dropdown. Some features only " +
+                       "appear when they apply to the current agent or workspace.",
+                FontSize = 11,
+                Opacity = 0.7,
+                Foreground = themeFg,
+                TextWrapping = TextWrapping.Wrap,
+                Margin = new Thickness(4, 0, 0, 6)
+            });
+
+            var current = _settings.VisibleToolbarButtons ?? new List<ToolbarButton>();
+            // Transparent background so the whole panel (incl. gaps) is a hit-testable drop target.
+            var rowsPanel = new StackPanel { Orientation = Orientation.Vertical, Background = Brushes.Transparent, AllowDrop = true };
+            stack.Children.Add(rowsPanel);
+
+            // Shared drag state across all rows.
+            Border draggedRow = null;
+            Point dragStart = default;
+            RowDragAdorner adorner = null;
+            AdornerLayer adornerLayer = null;
+            var lineBrush = new SolidColorBrush(Color.FromRgb(0x3D, 0x7E, 0xFF));
+            lineBrush.Freeze();
+
+            // Computes the insertion index for a drop at point p (relative to rowsPanel) and the Y of
+            // the insertion line (top of the row it would land before, or the bottom of the last row).
+            double ComputeInsertion(Point p, out int index)
+            {
+                index = rowsPanel.Children.Count;
+                double lineY = 0;
+                for (int i = 0; i < rowsPanel.Children.Count; i++)
+                {
+                    if (!(rowsPanel.Children[i] is FrameworkElement el)) continue;
+                    double top = el.TranslatePoint(new Point(0, 0), rowsPanel).Y;
+                    double h = el.ActualHeight;
+                    if (p.Y < top + h / 2) { index = i; return top; }
+                    lineY = top + h;
+                }
+                return lineY;
+            }
+
+            rowsPanel.DragOver += (s, ea) =>
+            {
+                ea.Effects = DragDropEffects.Move;
+                ea.Handled = true;
+                if (adorner == null) return;
+                Point p = ea.GetPosition(rowsPanel);
+                double lineY = ComputeInsertion(p, out _);
+                adorner.Update(p, lineY);
+            };
+            rowsPanel.Drop += (s, ea) =>
+            {
+                if (draggedRow == null) return;
+                Point p = ea.GetPosition(rowsPanel);
+                ComputeInsertion(p, out int index);
+                UIElement target = index < rowsPanel.Children.Count ? rowsPanel.Children[index] : null;
+                rowsPanel.Children.Remove(draggedRow);
+                int insertAt = target != null ? rowsPanel.Children.IndexOf(target) : rowsPanel.Children.Count;
+                if (insertAt < 0) insertAt = rowsPanel.Children.Count;
+                rowsPanel.Children.Insert(insertAt, draggedRow);
+                ea.Handled = true;
+            };
+
+            var checks = new Dictionary<ToolbarButton, CheckBox>();
+            foreach (var id in GetEffectiveToolbarOrder())
+            {
+                var meta = ToolbarFeatureMeta(id);
+                var cb = MakeCheckBox(meta.Label, meta.Tip, current.Contains(id), themeFg);
+                cb.VerticalAlignment = VerticalAlignment.Center;
+                checks[id] = cb;
+
+                var grip = new TextBlock
+                {
+                    Text = "⠿",
+                    FontSize = 14,
+                    Opacity = 0.55,
+                    Foreground = themeFg,
+                    VerticalAlignment = VerticalAlignment.Center,
+                    Margin = new Thickness(2, 0, 8, 0),
+                    Cursor = Cursors.SizeAll,
+                    ToolTip = "Drag to reorder"
+                };
+
+                var grid = new Grid();
+                grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+                grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+                Grid.SetColumn(grip, 0);
+                Grid.SetColumn(cb, 1);
+                grid.Children.Add(grip);
+                grid.Children.Add(cb);
+
+                // Transparent background so the whole row is hit-testable; events bubble to the panel.
+                // No SizeAll cursor here — only the ⠿ grip shows the move cursor and starts a drag, so
+                // the checkbox/label use the regular pointer.
+                var row = new Border
+                {
+                    Tag = id,
+                    Child = grid,
+                    Background = Brushes.Transparent,
+                    Padding = new Thickness(2, 4, 2, 4),
+                    Margin = new Thickness(0, 1, 0, 1)
+                };
+
+                Border thisRow = row; // capture per-iteration
+
+                // Drag starts on the grip only. Capture the mouse on press so we keep getting moves even
+                // if the pointer slips off the grip before the drag threshold is reached.
+                grip.PreviewMouseLeftButtonDown += (s, ea) =>
+                {
+                    dragStart = ea.GetPosition(rowsPanel);
+                    grip.CaptureMouse();
+                };
+                grip.PreviewMouseLeftButtonUp += (s, ea) =>
+                {
+                    if (grip.IsMouseCaptured) grip.ReleaseMouseCapture();
+                };
+                grip.PreviewMouseMove += (s, ea) =>
+                {
+                    if (ea.LeftButton != MouseButtonState.Pressed || draggedRow != null || !grip.IsMouseCaptured) return;
+                    Point pos = ea.GetPosition(rowsPanel);
+                    if (Math.Abs(pos.X - dragStart.X) < SystemParameters.MinimumHorizontalDragDistance &&
+                        Math.Abs(pos.Y - dragStart.Y) < SystemParameters.MinimumVerticalDragDistance)
+                        return;
+
+                    grip.ReleaseMouseCapture();
+                    draggedRow = thisRow;
+
+                    // Ghost = a static snapshot of the row taken before it is dimmed, so the floating
+                    // image stays solid while the in-place row fades to show it's being moved.
+                    Brush ghost = SnapshotBrush(thisRow);
+                    adornerLayer = AdornerLayer.GetAdornerLayer(rowsPanel);
+                    if (adornerLayer != null && ghost != null)
+                    {
+                        adorner = new RowDragAdorner(rowsPanel, ghost, thisRow.RenderSize, rowsPanel.ActualWidth, lineBrush);
+                        adornerLayer.Add(adorner);
+                    }
+                    thisRow.Opacity = 0.4;
+
+                    try { DragDrop.DoDragDrop(thisRow, thisRow, DragDropEffects.Move); }
+                    finally
+                    {
+                        thisRow.Opacity = 1.0;
+                        if (adorner != null && adornerLayer != null) adornerLayer.Remove(adorner);
+                        adorner = null;
+                        draggedRow = null;
+                    }
+                };
+
+                rowsPanel.Children.Add(row);
+            }
+
+            return (rowsPanel, checks);
+        }
+
+        /// <summary>Renders a UIElement to a static image brush (used as the drag ghost).</summary>
+        private static Brush SnapshotBrush(FrameworkElement element)
+        {
+            int w = (int)Math.Ceiling(element.ActualWidth);
+            int h = (int)Math.Ceiling(element.ActualHeight);
+            if (w <= 0 || h <= 0) return null;
+            var rtb = new RenderTargetBitmap(w, h, 96, 96, PixelFormats.Pbgra32);
+            rtb.Render(element);
+            rtb.Freeze();
+            var brush = new ImageBrush(rtb) { Stretch = Stretch.None, AlignmentX = AlignmentX.Left, AlignmentY = AlignmentY.Top };
+            brush.Freeze();
+            return brush;
+        }
+
+        /// <summary>
+        /// Adorner drawn over the Toolbar tab's rows while a row is being dragged: a translucent ghost
+        /// of the row following the cursor plus a blue insertion line showing where it will land.
+        /// Hit-test-invisible so it never intercepts the drop.
+        /// </summary>
+        private sealed class RowDragAdorner : Adorner
+        {
+            private readonly Brush _ghost;
+            private readonly Size _ghostSize;
+            private readonly Pen _linePen;
+            private readonly double _width;
+            private Point _mouse;
+            private double _insertionY = double.NaN;
+
+            public RowDragAdorner(UIElement adorned, Brush ghost, Size ghostSize, double width, Brush lineBrush)
+                : base(adorned)
+            {
+                IsHitTestVisible = false;
+                _ghost = ghost;
+                _ghostSize = ghostSize;
+                _width = width > 0 ? width : ghostSize.Width;
+                _linePen = new Pen(lineBrush, 2);
+                _linePen.Freeze();
+            }
+
+            public void Update(Point mouse, double insertionY)
+            {
+                _mouse = mouse;
+                _insertionY = insertionY;
+                InvalidateVisual();
+            }
+
+            protected override void OnRender(DrawingContext dc)
+            {
+                if (!double.IsNaN(_insertionY))
+                {
+                    dc.DrawLine(_linePen, new Point(0, _insertionY), new Point(_width, _insertionY));
+                    dc.DrawEllipse(_linePen.Brush, null, new Point(3, _insertionY), 3, 3);
+                }
+
+                if (_ghost != null && _ghostSize.Width > 0 && _ghostSize.Height > 0)
+                {
+                    var rect = new Rect(new Point(_mouse.X + 12, _mouse.Y + 4), _ghostSize);
+                    dc.PushOpacity(0.75);
+                    dc.DrawRectangle(_ghost, null, rect);
+                    dc.Pop();
+                }
+            }
+        }
+
+        /// <summary>Reads the current feature order from the Toolbar tab's rows (top to bottom).</summary>
+        private static List<ToolbarButton> ReadToolbarRowOrder(StackPanel rowsPanel)
+        {
+            return rowsPanel.Children.OfType<Border>()
+                .Where(b => b.Tag is ToolbarButton)
+                .Select(b => (ToolbarButton)b.Tag)
+                .ToList();
         }
 
         private static CheckBox MakeCheckBox(string label, string tooltip, bool isChecked, Brush fg)

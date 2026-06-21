@@ -75,10 +75,12 @@ Then choose it via *⚙ → Set Terminal Type...*.
 ## Settings & Menus
 
 **⚙ Settings menu** (gear button, top-right):
-- Pick an AI provider, *Configure Visible Code Agents...*, *Configure Custom Commands...*, *Set Theme...*, *Set Terminal Type...*, *Set Working Directory...*
-- Toggles: *Send with Enter*, *Auto-open Changes on Send*, *Prompt panel position (top/bottom/left/right)*, *Disable Auto Zoom on Startup*, *Send large prompts as file*
+- Pick an AI provider, *Configure Visible Code Agents...*
 - Provider-specific flags: Claude *Skip Permissions*, Codex *Approval Never*, Cursor *Yolo Mode*, Windsurf *Dangerous Mode*, Antigravity *Skip Permissions*
-- Update Agent, Detach/Attach Terminal, About
+- *Configure Custom Commands...*, *Settings...*, About
+- *Settings...* opens the consolidated dialog with tabs for Behavior (send key, large prompts, auto-open Changes, font size), Layout (prompt panel position), Terminal type, Theme, Usage, Toolbar, and CLI Paths
+
+**☰ Tools dropdown**: Holds *Update Code Agent*, *Restart Code Agent*, *Detach/Attach Terminal*, *View Changes*, *Session History*, *Show Usage*, and *Set Working Directory...*. Promote any of these to one-click toolbar buttons — and reorder them by dragging — via *⚙ → Settings... → Toolbar*; promoted features leave the dropdown, which hides once they all become buttons.
 
 **🤖 Model menu** (Claude only): Opus / Sonnet / Haiku, effort level for Opus (Auto / Low / Medium / High / Max), Change Account, Install Caveman plugin.
 
@@ -101,6 +103,14 @@ This binds a Claude Code skill that shells out to OpenAI Codex to audit pending 
 4. **Use it**: ⚡ → *Codex Review*. Claude runs the skill, Codex audits your diff, findings appear inline.
 
 ## Version History
+
+### Version 27.0
+- NOTE: this is a big release, for both trying to fix the terrible input issue in console and new features.
+- Please be patience and report any issues you find! Also if you don't like the extension, please just do not use and do not give bad review.
+- Features/Fixes:
+- You can now promote frequently used features — Update Code Agent, Detach/Attach Terminal, Restart Code Agent, View Changes, Session History, Show Usage, and Set Working Directory — to one-click toolbar buttons from the new "Toolbar" tab in Settings, where you can also reorder them; features you don't promote stay in a compact Tools (☰) dropdown that hides when empty.
+- Fixed "On Agent Finish" sometimes never firing when the agent's final answer ended with a numbered list — such answers are no longer mistaken for a waiting prompt.
+- Clicking into the prompt box now reliably keeps keyboard focus, so typing lands without having to click several times; clicking the terminal also holds focus longer while the agent is working.
 
 ### Version 26.0
 - Fixed the embedded terminal sometimes becoming visible but not accepting typing, arrow keys, or pasted prompts after clicking it — terminal focus is now restored reliably for Command Prompt and Windows Terminal (issue #86).

@@ -302,6 +302,13 @@ namespace ClaudeCodeVS
             // the mouse stationary, WM_SETCURSOR never fires, so we must call SetCursor directly.
             SetCursor(LoadCursor(IntPtr.Zero, new IntPtr(IDC_IBEAM)));
 
+            // Note prompt typing so the "On Agent Finish" watcher pauses its console read (its
+            // AttachConsole can bounce focus out of the prompt mid-keystroke), and keep the WPF
+            // focus guard alive so the cross-process terminal can't steal focus while the user
+            // types the next prompt during active generation.
+            _lastPromptKeyUtc = DateTime.UtcNow;
+            EnsureWpfPromptFocusGuardRunning();
+
             // When the "@" file/folder picker is open, let it consume navigation/commit keys
             // (Up/Down/Enter/Tab/Esc) before history navigation or send-on-Enter runs.
             if (HandleAtMentionKey(e)) return;

@@ -406,8 +406,66 @@ namespace ClaudeCodeVS
             {
                 if (DetachTerminalMenuItem != null)
                     DetachTerminalMenuItem.Header = isDetached
+                        ? "⧉  Attach Terminal Back to Main Panel"
+                        : "⧉  Detach Terminal to Separate Tab";
+
+                // Keep the optional one-click toolbar button in sync: tooltip flips, and the
+                // original vector icon (a box with an arrow) flips direction with the state —
+                // arrow out of the box = detach, arrow into the box = attach.
+                if (DetachToolbarButton != null)
+                {
+                    DetachToolbarButton.ToolTip = isDetached
                         ? "Attach Terminal Back to Main Panel"
                         : "Detach Terminal to Separate Tab";
+                }
+
+                if (DetachButtonIcon != null)
+                {
+                    var canvas = new Canvas { Width = 16, Height = 14 };
+                    var iconBrush = (Brush)FindResource(VsBrushes.ToolWindowTextKey);
+
+                    var rect = new Rectangle
+                    {
+                        Width = 10,
+                        Height = 12,
+                        Stroke = iconBrush,
+                        StrokeThickness = 1.5,
+                        Fill = Brushes.Transparent
+                    };
+
+                    if (isDetached)
+                    {
+                        // Attach icon: box on the left, arrow pointing right into the box.
+                        Canvas.SetLeft(rect, 1);
+                        Canvas.SetTop(rect, 1);
+                        canvas.Children.Add(rect);
+                        canvas.Children.Add(new Line { X1 = 8, Y1 = 7, X2 = 15, Y2 = 7, Stroke = iconBrush, StrokeThickness = 1.5 });
+                        canvas.Children.Add(new Polyline
+                        {
+                            Points = new PointCollection { new Point(12, 4), new Point(15, 7), new Point(12, 10) },
+                            Stroke = iconBrush,
+                            StrokeThickness = 1.5,
+                            Fill = Brushes.Transparent
+                        });
+                    }
+                    else
+                    {
+                        // Detach icon: box on the right, arrow pointing left out of the box.
+                        Canvas.SetLeft(rect, 5);
+                        Canvas.SetTop(rect, 1);
+                        canvas.Children.Add(rect);
+                        canvas.Children.Add(new Line { X1 = 8, Y1 = 7, X2 = 1, Y2 = 7, Stroke = iconBrush, StrokeThickness = 1.5 });
+                        canvas.Children.Add(new Polyline
+                        {
+                            Points = new PointCollection { new Point(4, 4), new Point(1, 7), new Point(4, 10) },
+                            Stroke = iconBrush,
+                            StrokeThickness = 1.5,
+                            Fill = Brushes.Transparent
+                        });
+                    }
+
+                    DetachButtonIcon.Child = canvas;
+                }
             }
             catch (Exception ex)
             {

@@ -50,6 +50,12 @@ namespace ClaudeCodeVS
         private const int TerminalTypingGuardMs = 1500;
         private DateTime _lastTerminalKeyUtc = DateTime.MinValue;
 
+        // Same guard for the WPF prompt box: while the user is typing the next prompt during active
+        // generation, skip the console read so its AttachConsole can't bounce keyboard focus out of
+        // the prompt mid-keystroke (the reported "sometimes I can't type while the agent works").
+        // A recent prompt keystroke is enough (no focus check) — set in PromptTextBox_PreviewKeyDown.
+        internal DateTime _lastPromptKeyUtc = DateTime.MinValue;
+
         // While the settled screen is classified as the agent waiting for the user's reply
         // (a y/n or selection menu), each AttachConsole/FreeConsole on VS can bounce the embedded
         // conhost's keyboard focus, so polling while the user is answering eats arrow keys. In
@@ -434,8 +440,9 @@ namespace ClaudeCodeVS
                     // whole turn and only fire once the user clicked away (the reported ~15s lag).
                     // (We're on the UI thread here, before the Task.Run, which is required for
                     // GetGUIThreadInfo to be meaningful.)
-                    if ((DateTime.UtcNow - _lastTerminalKeyUtc).TotalMilliseconds < TerminalTypingGuardMs
-                        && IsTerminalFocused())
+                    if (((DateTime.UtcNow - _lastTerminalKeyUtc).TotalMilliseconds < TerminalTypingGuardMs
+                            && IsTerminalFocused())
+                        || (DateTime.UtcNow - _lastPromptKeyUtc).TotalMilliseconds < TerminalTypingGuardMs)
                     {
                         _lastConsoleChangeUtc = DateTime.UtcNow;
                         return;
@@ -858,9 +865,14 @@ namespace ClaudeCodeVS
                     menuItems++;
             }
 
-            // An arrow-marked menu, or two-plus numbered options together, is an interactive choice.
+            // An arrow-marked menu (the ❯/›/▶ selection cursor) over at least one numbered option is
+            // an interactive choice. The selection cursor is required: a finished turn whose final
+            // answer happens to contain a numbered list (e.g. "1. … 2. …") has no cursor, and the
+            // earlier "two-plus numbered options ⇒ prompt" rule mis-classified those completions as
+            // a waiting prompt, so the watcher backed off and the finish notification never fired.
+            // Real Claude Code selection/permission boxes always render the ❯ cursor, so gating on it
+            // keeps genuine prompts suppressed while letting list-ending answers complete normally.
             if (sawArrow && menuItems >= 1) return true;
-            if (menuItems >= 2) return true;
 
             return false;
         }

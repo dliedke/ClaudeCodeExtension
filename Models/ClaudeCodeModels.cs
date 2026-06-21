@@ -142,6 +142,24 @@ namespace ClaudeCodeVS
     }
 
     /// <summary>
+    /// Features that the user can promote from the toolbar dropdown menus to a
+    /// dedicated one-click toolbar button. A feature listed in
+    /// <see cref="ClaudeCodeSettings.VisibleToolbarButtons"/> appears as a button and is
+    /// removed from its dropdown menu; otherwise it stays in the "⚙" menu. See
+    /// ClaudeCodeControl.ProviderManagement.cs (RefreshToolbarLayout).
+    /// </summary>
+    public enum ToolbarButton
+    {
+        UpdateAgent,
+        DetachTerminal,
+        RestartAgent,
+        ViewChanges,
+        SessionHistory,
+        ShowUsage,
+        SetWorkingDirectory
+    }
+
+    /// <summary>
     /// User-defined shortcut for a frequently sent prompt or slash command.
     /// Surfaced in a dropdown next to the toolbar so the user can dispatch
     /// canned prompts (e.g. "/codex-review", "explain this file") to the
@@ -343,6 +361,25 @@ namespace ClaudeCodeVS
         /// </summary>
         public System.Collections.Generic.List<AiProvider> VisibleProviders { get; set; }
             = new System.Collections.Generic.List<AiProvider> { AiProvider.ClaudeCode };
+
+        /// <summary>
+        /// Which features are promoted to one-click toolbar buttons. A feature listed here
+        /// appears as a dedicated toolbar button and is removed from its "⚙" dropdown menu;
+        /// features not listed remain in the menu. Defaults to Restart only, preserving the
+        /// historical always-visible Restart button. See ClaudeCodeControl.ProviderManagement.cs
+        /// (RefreshToolbarLayout).
+        /// </summary>
+        public System.Collections.Generic.List<ToolbarButton> VisibleToolbarButtons { get; set; }
+            = new System.Collections.Generic.List<ToolbarButton> { ToolbarButton.RestartAgent };
+
+        /// <summary>
+        /// User-defined display order of the configurable toolbar features. Drives both the toolbar
+        /// button order and the order inside the ☰ Tools dropdown. Empty/partial lists are completed
+        /// with the default order at runtime (see GetEffectiveToolbarOrder). Configured in the
+        /// Settings → Toolbar tab.
+        /// </summary>
+        public System.Collections.Generic.List<ToolbarButton> ToolbarButtonOrder { get; set; }
+            = new System.Collections.Generic.List<ToolbarButton>();
 
         /// <summary>
         /// Currently selected Claude model (for Claude Code and Claude Code WSL providers)

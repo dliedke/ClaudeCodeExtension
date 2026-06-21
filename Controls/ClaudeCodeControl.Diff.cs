@@ -45,6 +45,13 @@ namespace ClaudeCodeVS
         private bool _isDiffTrackingActive;
 
         /// <summary>
+        /// Cached "is the workspace inside a git repository" state, used by
+        /// RefreshToolbarLayout to gate the View Changes button/menu entry.
+        /// Updated by <see cref="UpdateViewChangesButtonVisibilityAsync"/>.
+        /// </summary>
+        private bool _isWorkspaceGitRepo;
+
+        /// <summary>
         /// Guard to prevent auto-reset recursion
         /// </summary>
         private bool _isAutoResetting;
@@ -419,15 +426,6 @@ namespace ClaudeCodeVS
             }
         }
 
-        private void ViewsDropdownButton_Click(object sender, RoutedEventArgs e)
-        {
-            if (ViewsDropdownButton?.ContextMenu != null)
-            {
-                ViewsDropdownButton.ContextMenu.PlacementTarget = ViewsDropdownButton;
-                ViewsDropdownButton.ContextMenu.IsOpen = true;
-            }
-        }
-
         /// <summary>
         /// Handles the View Changes button click
         /// </summary>
@@ -465,10 +463,10 @@ namespace ClaudeCodeVS
 
                 await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
 
-                if (ViewChangesMenuItem != null)
-                {
-                    ViewChangesMenuItem.Visibility = isGitRepo ? Visibility.Visible : Visibility.Collapsed;
-                }
+                // RefreshToolbarLayout decides whether View Changes shows as a button or a
+                // menu entry; it only appears at all when the workspace is a git repo.
+                _isWorkspaceGitRepo = isGitRepo;
+                RefreshToolbarLayout();
             }
             catch (Exception ex)
             {

@@ -259,40 +259,123 @@
 				</StackPanel>
 
                 <!-- Right-aligned buttons (Restart + Model + Settings + Update) -->
-				<StackPanel Grid.Column="2"
+				<StackPanel x:Name="RightButtonsPanel"
+                            Grid.Column="2"
                             Orientation="Horizontal"
                             HorizontalAlignment="Right"
                             VerticalAlignment="Top"
                             Margin="6,0,0,0">
 
 
-					<Button x:Name="ViewsDropdownButton"
+					<!--
+						One-click toolbar buttons. All collapsed by default; RefreshToolbarLayout()
+						shows the ones the user promoted (Settings → Toolbar) and removes the
+						matching entries from the "⚙" menu. See ClaudeCodeControl.ProviderManagement.cs.
+					-->
+					<Button x:Name="UpdateAgentToolbarButton"
+                            Content="🔄️"
+                            Width="30"
+                            MinWidth="30"
+                            FontSize="14"
+                            Style="{StaticResource IconButtonStyle}"
+                            Click="UpdateAgentButton_Click"
+                            ToolTip="Update Code Agent"
+                            Visibility="Collapsed"
+                            Margin="0,0,6,0"/>
+
+					<!-- Detach/attach uses the original vector icon (box + arrow); the arrow
+					     direction flips with state in UpdateDetachButtonIcon. -->
+					<Button x:Name="DetachToolbarButton"
+                            Width="30"
+                            Height="30"
+                            Style="{StaticResource IconButtonStyle}"
+                            Click="DetachTerminalButton_Click"
+                            ToolTip="Detach Terminal to Separate Tab"
+                            Visibility="Collapsed"
+                            Margin="0,0,6,0">
+						<Viewbox x:Name="DetachButtonIcon" Width="16" Height="14" Stretch="Uniform"/>
+					</Button>
+
+					<Button x:Name="RestartTerminalButton"
+                            Content="♻️"
+                            Width="30"
+                            MinWidth="30"
+                            FontSize="14"
+                            Style="{StaticResource IconButtonStyle}"
+                            Click="RestartTerminalButton_Click"
+                            ToolTip="Restart Code Agent"
+                            Visibility="Collapsed"
+                            Margin="0,0,6,0"/>
+
+					<Button x:Name="ViewChangesToolbarButton"
+                            Content="📄"
+                            Width="30"
+                            MinWidth="30"
+                            FontSize="14"
+                            Style="{StaticResource IconButtonStyle}"
+                            Click="ViewChangesButton_Click"
+                            ToolTip="View Changes"
+                            Visibility="Collapsed"
+                            Margin="0,0,6,0"/>
+
+					<Button x:Name="SessionHistoryToolbarButton"
+                            Content="📜"
+                            Width="30"
+                            MinWidth="30"
+                            FontSize="14"
+                            Style="{StaticResource IconButtonStyle}"
+                            Click="SessionHistoryButton_Click"
+                            ToolTip="Session History"
+                            Visibility="Collapsed"
+                            Margin="0,0,6,0"/>
+
+					<Button x:Name="ShowUsageToolbarButton"
                             Content="📊"
                             Width="30"
                             MinWidth="30"
                             FontSize="14"
                             Style="{StaticResource IconButtonStyle}"
-                            ToolTip="Views"
-                            Click="ViewsDropdownButton_Click"
-                            Margin="0,0,6,0">
-							<Button.ContextMenu>
-								<ContextMenu x:Name="ViewsContextMenu" Opened="ViewsContextMenu_Opened">
-									<MenuItem Header="🔀  View Changes" x:Name="ViewChangesMenuItem" Click="ViewChangesButton_Click"/>
-									<MenuItem Header="📜  Session History" x:Name="SessionHistoryViewMenuItem" Click="SessionHistoryButton_Click" Visibility="Collapsed"/>
-									<MenuItem Header="📊  Show Usage" x:Name="ShowUsageViewMenuItem" Click="ShowUsageViewMenuItem_Click" IsCheckable="True" Visibility="Collapsed"/>
-								</ContextMenu>
-							</Button.ContextMenu>
-						</Button>
+                            Click="ShowUsageViewMenuItem_Click"
+                            ToolTip="Show Usage"
+                            Visibility="Collapsed"
+                            Margin="0,0,6,0"/>
 
-					<Button x:Name="RestartTerminalButton"
-                            Content="⟳"
+					<Button x:Name="SetWorkingDirectoryToolbarButton"
+                            Content="📁"
                             Width="30"
                             MinWidth="30"
-                            FontSize="16"
+                            FontSize="14"
                             Style="{StaticResource IconButtonStyle}"
-                            Click="RestartTerminalButton_Click"
-                            ToolTip="Restart Code Agent"
+                            Click="SetWorkingDirectoryMenuItem_Click"
+                            ToolTip="Set Working Directory"
+                            Visibility="Collapsed"
                             Margin="0,0,6,0"/>
+
+					<!-- Tools dropdown: holds the configurable features the user did NOT promote to
+					     their own toolbar button. Auto-hides when every feature is a button
+					     (RefreshToolbarLayout). Keeps these features out of the ⚙ menu. -->
+					<Button x:Name="ToolsDropdownButton"
+                            Content="☰"
+                            Width="30"
+                            MinWidth="30"
+                            FontSize="14"
+                            Style="{StaticResource IconButtonStyle}"
+                            ToolTip="Tools"
+                            Visibility="Collapsed"
+                            Click="ToolsDropdownButton_Click"
+                            Margin="0,0,6,0">
+						<Button.ContextMenu>
+							<ContextMenu x:Name="ToolsContextMenu" Opened="ToolsContextMenu_Opened">
+								<MenuItem Header="🔄️  Update Code Agent" x:Name="UpdateAgentMenuItem" Click="UpdateAgentButton_Click"/>
+								<MenuItem Header="♻️  Restart Code Agent" x:Name="RestartTerminalMenuItem" Click="RestartTerminalButton_Click"/>
+								<MenuItem Header="⧉  Detach Terminal to Separate Tab" x:Name="DetachTerminalMenuItem" Click="DetachTerminalButton_Click"/>
+								<MenuItem Header="📄  View Changes" x:Name="ViewChangesMenuItem" Click="ViewChangesButton_Click"/>
+								<MenuItem Header="📜  Session History" x:Name="SessionHistoryViewMenuItem" Click="SessionHistoryButton_Click" Visibility="Collapsed"/>
+								<MenuItem Header="📊  Show Usage" x:Name="ShowUsageViewMenuItem" Click="ShowUsageViewMenuItem_Click" IsCheckable="True" Visibility="Collapsed"/>
+								<MenuItem Header="📁  Set Working Directory..." x:Name="SetWorkingDirectoryMenuItem" Click="SetWorkingDirectoryMenuItem_Click" ToolTip="Set a custom working directory (absolute or relative to solution). Leave empty for default behavior."/>
+							</ContextMenu>
+						</Button.ContextMenu>
+					</Button>
 
 					<Button x:Name="CustomCommandsButton"
                             Content="⚡"
@@ -357,9 +440,6 @@
                             Margin="0,0,6,0">
 						<Button.ContextMenu>
 							<ContextMenu x:Name="ProviderContextMenu" Opened="ProviderContextMenu_Opened">
-								<MenuItem Header="Update Code Agent" x:Name="UpdateAgentMenuItem" Click="UpdateAgentButton_Click"/>
-								<MenuItem Header="Detach Terminal to Separate Tab" x:Name="DetachTerminalMenuItem" Click="DetachTerminalButton_Click"/>
-								<Separator/>
 								<MenuItem Header="Claude Code" x:Name="ClaudeCodeMenuItem" Click="ClaudeCodeMenuItem_Click" IsCheckable="True" IsChecked="True"/>
 								<MenuItem Header="Claude Code (WSL)" x:Name="ClaudeCodeWSLMenuItem" Click="ClaudeCodeWSLMenuItem_Click" IsCheckable="True"/>
 								<MenuItem Header="Codex" x:Name="CodexNativeMenuItem" Click="CodexNativeMenuItem_Click" IsCheckable="True"/>
@@ -370,6 +450,7 @@
 								<MenuItem Header="Windsurf (WSL)" x:Name="WindsurfMenuItem" Click="WindsurfMenuItem_Click" IsCheckable="True"/>
 								<MenuItem Header="PI" x:Name="PiMenuItem" Click="PiMenuItem_Click" IsCheckable="True"/>
 								<MenuItem Header="Antigravity" x:Name="AntigravityMenuItem" Click="AntigravityMenuItem_Click" IsCheckable="True"/>
+								<Separator/>
 								<MenuItem Header="Configure Visible Code Agents..." x:Name="ConfigureVisibleAgentsMenuItem" Click="ConfigureVisibleAgentsMenuItem_Click" ToolTip="Choose which code agents appear in this menu. The active agent always remains visible."/>
 								<Separator x:Name="AutoOpenChangesSeparator"/>
 								<MenuItem Header="Claude Code: Skip Permissions" x:Name="ClaudeDangerouslySkipPermissionsMenuItem" Click="ClaudeDangerouslySkipPermissionsMenuItem_Click" IsCheckable="True" ToolTip="When enabled, Claude Code starts with --dangerously-skip-permissions"/>
@@ -378,7 +459,6 @@
 								<MenuItem Header="Windsurf: Dangerous Mode" x:Name="WindsurfDangerousModeMenuItem" Click="WindsurfDangerousModeMenuItem_Click" IsCheckable="True" ToolTip="When enabled, Windsurf starts with --permission-mode dangerous"/>
 								<MenuItem Header="Antigravity: Skip Permissions" x:Name="AntigravityDangerouslySkipPermissionsMenuItem" Click="AntigravityDangerouslySkipPermissionsMenuItem_Click" IsCheckable="True" ToolTip="When enabled, Antigravity starts with --dangerously-skip-permissions"/>
 								<Separator/>
-								<MenuItem Header="Set Working Directory..." x:Name="SetWorkingDirectoryMenuItem" Click="SetWorkingDirectoryMenuItem_Click" ToolTip="Set a custom working directory (absolute or relative to solution). Leave empty for default behavior."/>
 								<MenuItem Header="Configure Custom Commands..." x:Name="ConfigureCustomCommandsMenuItem" Click="ConfigureCustomCommandsMenuItem_Click" ToolTip="Add, edit, or remove custom commands surfaced in the toolbar dropdown next to the agent menu."/>
 								<MenuItem Header="Settings..." x:Name="SettingsMenuItem" Click="SettingsMenuItem_Click" ToolTip="Open the consolidated settings dialog (layout, terminal type, theme, send behavior, auto-zoom, auto-open changes)."/>
 								<Separator/>

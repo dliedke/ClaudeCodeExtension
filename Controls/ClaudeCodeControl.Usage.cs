@@ -503,8 +503,9 @@ namespace ClaudeCodeVS
         /// Syncs the Show Usage menu item's checkmark to reflect whether the
         /// usage tool window is currently open. Windsurf is link-only (no
         /// embedded window) so the check is suppressed for that provider.
+        /// Called from ProviderContextMenu_Opened (the "⚙" menu now hosts this item).
         /// </summary>
-        private void ViewsContextMenu_Opened(object sender, RoutedEventArgs e)
+        private void SyncShowUsageMenuCheckState()
         {
             if (ShowUsageViewMenuItem == null) return;
             bool isWindsurf = GetActiveOrSelectedProvider() == AiProvider.Windsurf;
