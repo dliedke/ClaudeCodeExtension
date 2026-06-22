@@ -60,8 +60,6 @@ namespace ClaudeCodeVS
         private const uint WM_MOUSEMOVE = 0x0200;
         private const uint WM_LBUTTONDOWN = 0x0201;
         private const uint WM_LBUTTONUP = 0x0202;
-        private const uint WM_RBUTTONDOWN = 0x0204;
-        private const uint WM_RBUTTONUP = 0x0205;
         private const uint WM_MOUSEWHEEL = 0x020A;
 
         // GetAncestor flags

@@ -430,6 +430,22 @@ namespace ClaudeCodeVS
                     int pid = _watchedConsolePid;
                     if (pid == 0) { StopAgentCompletionTimer(); return; }
 
+                    // Don't run the tick while a modal dialog of ours is open (Settings, the
+                    // On-Agent-Finish config sub-dialog, a MessageBox, …). The watcher rides a
+                    // DispatcherTimer, which keeps ticking inside the modal message loop the open
+                    // dialog is pumping. Doing the process-global AttachConsole/FreeConsole console
+                    // read — or, worse, firing the completion action (which can call DTE Build /
+                    // Debug.Start) or adding the info bar to the now-disabled main window — from
+                    // underneath that nested loop deadlocked Visual Studio. Skip the tick and push the
+                    // idle window forward so the turn is only detected as finished after the dialog
+                    // closes. ComponentDispatcher.IsThreadModal is true on the UI thread while any WPF
+                    // modal is up, so this one check covers every dialog without per-call wiring.
+                    if (System.Windows.Interop.ComponentDispatcher.IsThreadModal)
+                    {
+                        _lastConsoleChangeUtc = DateTime.UtcNow;
+                        return;
+                    }
+
                     // Don't read the console while the user is actively typing in the terminal.
                     // The capture briefly AttachConsole()s VS to the terminal's console, which can
                     // disturb the conhost's keyboard focus/input mid-keystroke (e.g. while the user

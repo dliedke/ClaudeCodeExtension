@@ -110,10 +110,6 @@ namespace ClaudeCodeVS
                 && _currentRunningProvider != AiProvider.OpenCode)
             {
                 conhostMouseInputMode = await Task.Run(() => IsTerminalInMouseInputMode());
-
-                // Warm the cache the mouse hook reads on right-click, so the right-click paste fallback
-                // decision stays accurate without the hook ever running the blocking probe itself.
-                _conhostInMouseInputMode = conhostMouseInputMode;
             }
 
             // Dictionary to store all original clipboard formats and their data
