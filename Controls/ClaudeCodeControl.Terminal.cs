@@ -4002,6 +4002,27 @@ namespace ClaudeCodeVS
                 }
             }
 
+            // Apply the TUI rendering preference via an environment variable so the launched
+            // Claude Code CLI starts directly in the chosen renderer. This must wrap the final
+            // command (env assignment precedes the executable). cmd.exe uses "set X=Y && cmd";
+            // WSL bash uses the "X=Y cmd" prefix-assignment form.
+            string tuiEnv = null;
+            if (_settings?.ClaudeTuiFullscreen == true)
+            {
+                tuiEnv = "CLAUDE_CODE_NO_FLICKER=1";
+            }
+            else if (_settings?.ClaudeTuiFullscreen == false)
+            {
+                tuiEnv = "CLAUDE_CODE_DISABLE_ALTERNATE_SCREEN=1";
+            }
+
+            if (tuiEnv != null)
+            {
+                baseCommand = isWsl
+                    ? $"{tuiEnv} {baseCommand}"
+                    : $"set {tuiEnv} && {baseCommand}";
+            }
+
             return baseCommand;
         }
 

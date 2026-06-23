@@ -409,6 +409,14 @@ namespace ClaudeCodeVS
         public bool ClaudeDangerouslySkipPermissions { get; set; } = false;
 
         /// <summary>
+        /// Claude Code TUI fullscreen rendering preference.
+        /// null = leave the CLI default; true = fullscreen (CLAUDE_CODE_NO_FLICKER=1);
+        /// false = classic renderer (CLAUDE_CODE_DISABLE_ALTERNATE_SCREEN=1).
+        /// Applies to Claude Code (Windows) and Claude Code (WSL).
+        /// </summary>
+        public bool? ClaudeTuiFullscreen { get; set; } = null;
+
+        /// <summary>
         /// Legacy compatibility toggle for Codex startup automation.
         /// If true, starts Codex with --ask-for-approval never.
         /// Applies to Codex (Windows native) and Codex (WSL).

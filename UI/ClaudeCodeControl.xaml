@@ -420,6 +420,10 @@
 								<MenuItem Header="Change Account" x:Name="ChangeAccountMenuItem" Click="ChangeAccountMenuItem_Click"/>
 								<MenuItem Header="Set Language" x:Name="SetLanguageMenuItem" Click="SetLanguageMenuItem_Click"/>
 								<MenuItem Header="Install Caveman" x:Name="InstallCavemanMenuItem" Click="InstallCavemanMenuItem_Click" ToolTip="Install the Caveman plugin (JuliusBrussee/caveman) — ultra-compressed communication mode for Claude Code"/>
+								<MenuItem Header="TUI Fullscreen" x:Name="TuiFullscreenMenuItem" ToolTip="Toggle Claude Code's fullscreen (flicker-free) terminal rendering">
+									<MenuItem Header="Enable Fullscreen" x:Name="TuiFullscreenEnableMenuItem" Click="TuiFullscreenEnableMenuItem_Click" ToolTip="Run /tui fullscreen — flicker-free rendering with mouse support"/>
+									<MenuItem Header="Disable Fullscreen" x:Name="TuiFullscreenDisableMenuItem" Click="TuiFullscreenDisableMenuItem_Click" ToolTip="Run /tui default — classic renderer using native terminal scrollback"/>
+								</MenuItem>
 								<!-- Windsurf-specific items -->
 								<MenuItem Header="Claude Opus" x:Name="WindsurfClaudeOpusMenuItem" Click="WindsurfClaudeOpusMenuItem_Click" IsCheckable="True"/>
 								<MenuItem Header="Claude Sonnet" x:Name="WindsurfClaudeSonnetMenuItem" Click="WindsurfClaudeSonnetMenuItem_Click" IsCheckable="True" IsChecked="True"/>

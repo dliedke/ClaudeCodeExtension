@@ -2588,6 +2588,7 @@ For more details, visit: https://pi.dev";
             ChangeAccountMenuItem.Visibility = isClaude ? Visibility.Visible : Visibility.Collapsed;
             SetLanguageMenuItem.Visibility = isClaude ? Visibility.Visible : Visibility.Collapsed;
             InstallCavemanMenuItem.Visibility = isClaude ? Visibility.Visible : Visibility.Collapsed;
+            TuiFullscreenMenuItem.Visibility = isClaude ? Visibility.Visible : Visibility.Collapsed;
 
             // Windsurf-specific items
             WindsurfClaudeOpusMenuItem.Visibility = isWindsurf ? Visibility.Visible : Visibility.Collapsed;
@@ -3035,6 +3036,69 @@ For more details, visit: https://pi.dev";
             await Task.Delay(2000);
 
             await SendTextToTerminalAsync("yes");
+        }
+
+        /// <summary>
+        /// Handles Enable Fullscreen menu item click - switches Claude Code into fullscreen
+        /// (flicker-free, alternate-screen) rendering via the /tui fullscreen slash command
+        /// </summary>
+#pragma warning disable VSTHRD100 // Avoid async void methods
+        private async void TuiFullscreenEnableMenuItem_Click(object sender, RoutedEventArgs e)
+#pragma warning restore VSTHRD100
+        {
+            await SendTuiModeCommandAsync("fullscreen");
+        }
+
+        /// <summary>
+        /// Handles Disable Fullscreen menu item click - switches Claude Code back to the classic
+        /// renderer (native terminal scrollback) via the /tui default slash command
+        /// </summary>
+#pragma warning disable VSTHRD100 // Avoid async void methods
+        private async void TuiFullscreenDisableMenuItem_Click(object sender, RoutedEventArgs e)
+#pragma warning restore VSTHRD100
+        {
+            await SendTuiModeCommandAsync("default");
+        }
+
+        /// <summary>
+        /// Sets the Claude Code TUI rendering preference ("fullscreen" or "default"), persists it,
+        /// and — after the user confirms — restarts the Code Agent so it relaunches with the matching
+        /// environment variable (CLAUDE_CODE_NO_FLICKER / CLAUDE_CODE_DISABLE_ALTERNATE_SCREEN).
+        /// </summary>
+        private async Task SendTuiModeCommandAsync(string mode)
+        {
+            await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
+
+            if (_currentRunningProvider != AiProvider.ClaudeCode &&
+                _currentRunningProvider != AiProvider.ClaudeCodeWSL)
+            {
+                return;
+            }
+
+            bool enableFullscreen = mode == "fullscreen";
+            string modeLabel = enableFullscreen ? "fullscreen (flicker-free)" : "default (classic)";
+
+            var confirm = MessageBox.Show(
+                "This will switch Claude Code to " + modeLabel + " terminal rendering.\n\n" +
+                "The Code Agent must be restarted to apply the new renderer. Clicking OK will restart it now — " +
+                "the current session will be terminated. Your work in progress in the terminal will be lost.\n\n" +
+                "Continue?",
+                "TUI Fullscreen",
+                MessageBoxButton.OKCancel,
+                MessageBoxImage.Question);
+
+            if (confirm != MessageBoxResult.OK)
+            {
+                return;
+            }
+
+            if (_settings != null)
+            {
+                _settings.ClaudeTuiFullscreen = enableFullscreen;
+                SaveSettings();
+            }
+
+            await RestartTerminalWithSelectedProviderAsync();
         }
 
         #endregion
