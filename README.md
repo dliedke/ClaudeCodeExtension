@@ -104,6 +104,9 @@ This binds a Claude Code skill that shells out to OpenAI Codex to audit pending 
 
 ## Version History
 
+### Version 30.0
+- Fixed the agent terminal gradually stopping accepting keyboard input while "On Agent Finish" was enabled with the Command Prompt terminal — the background check that watches for the agent finishing no longer bounces keyboard focus out of the terminal or prompt, so typing keeps landing throughout a turn.
+
 ### Version 29.0
 - Fixed right-clicking elsewhere in Visual Studio sometimes failing to show the context menu and instead pasting the clipboard into the agent terminal (issue #90). The extension no longer intercepts the right mouse button at all — paste into the agent through the prompt box (Ctrl+V, then Send), which works the same in every terminal mode.
 - Fixed Visual Studio hanging when an agent finished while the Settings dialog was open with "On Agent Finish" enabled — the finish notification and action now wait until the dialog is closed.

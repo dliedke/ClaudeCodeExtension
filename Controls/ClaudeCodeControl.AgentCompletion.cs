@@ -485,7 +485,27 @@ namespace ClaudeCodeVS
                     }
 
                     _lastInputPromptRecheckUtc = DateTime.UtcNow;
+
+                    // The console read does AttachConsole/FreeConsole on VS, which can bounce the
+                    // native keyboard focus off the embedded terminal (or the WPF prompt) — typed
+                    // characters then land nowhere until the user clicks back in. Worse, because the
+                    // lost keystroke never reaches the terminal, the "actively typing" guard above
+                    // can't re-engage, so the poll keeps attaching every second and input stays dead
+                    // for the rest of the turn ("the console stops accepting keyboard input after a
+                    // while"). Snapshot which of our windows owns native focus before the read and
+                    // restore it afterward so the poll is invisible to the user. (We're on the UI
+                    // thread, which SetParent joined to the terminal's input queue, so GetFocus/
+                    // SetFocus see the terminal's focus the same way the focus guards do.)
+                    IntPtr focusBeforeRead = GetFocus();
+                    bool restoreFocusAfterRead = IsOwnedInputFocusWindow(focusBeforeRead);
+
                     string text = await Task.Run(() => TryCaptureConsoleText(pid));
+
+                    if (restoreFocusAfterRead && IsWindow(focusBeforeRead) && GetFocus() != focusBeforeRead)
+                    {
+                        SetFocus(focusBeforeRead);
+                    }
+
                     string hash = text != null ? ComputeStableHash(text) : null;
                     if (hash == null)
                     {
@@ -558,6 +578,26 @@ namespace ClaudeCodeVS
                 }
             }).FileAndForget("claudecode/agentfinish/tick");
 #pragma warning restore VSSDK007, VSTHRD110
+        }
+
+        /// <summary>
+        /// True when <paramref name="hwnd"/> is one of our own input surfaces whose native keyboard
+        /// focus must survive a console read: the embedded terminal (or a child of it) or the WPF
+        /// host window. Used to decide whether the completion poll should restore focus after its
+        /// AttachConsole/FreeConsole, which can otherwise bounce focus off the terminal/prompt.
+        /// </summary>
+        private bool IsOwnedInputFocusWindow(IntPtr hwnd)
+        {
+            if (hwnd == IntPtr.Zero) return false;
+
+            if (terminalHandle != IntPtr.Zero && IsWindow(terminalHandle)
+                && (hwnd == terminalHandle || IsChild(terminalHandle, hwnd)))
+            {
+                return true;
+            }
+
+            var source = System.Windows.PresentationSource.FromVisual(this) as System.Windows.Interop.HwndSource;
+            return source != null && source.Handle != IntPtr.Zero && hwnd == source.Handle;
         }
 
         /// <summary>
