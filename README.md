@@ -105,6 +105,10 @@ This binds a Claude Code skill that shells out to OpenAI Codex to audit pending 
 
 ## Version History
 
+### Version 34.0
+- Fixed "On Agent Finish" sometimes notifying that the agent had finished while it was still working, after clicking inside the terminal — selecting or clicking text in the Command Prompt freezes the screen, which was misread as the agent going idle (issue #94).
+- Raised the default idle time before a turn is detected as finished from 3 to 5 seconds.
+
 ### Version 33.0
 - Added Reasonix (DeepSeek-native coding agent) as a supported AI agent. Install it with `npm i -g reasonix`, then enable it from the agent menu via "Configure Visible Code Agents..." (issue #93).
 

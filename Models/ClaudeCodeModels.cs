@@ -203,7 +203,7 @@ namespace ClaudeCodeVS
         /// considered complete. Guards against firing during brief pauses mid-turn.
         /// Clamped to 2–120 in the UI.
         /// </summary>
-        public int IdleSeconds { get; set; } = 3;
+        public int IdleSeconds { get; set; } = 5;
 
         /// <summary>Action to run when the agent finishes.</summary>
         public AgentFinishActionType Action { get; set; } = AgentFinishActionType.None;

@@ -530,6 +530,37 @@ namespace ClaudeCodeVS
         private const uint ENABLE_QUICK_EDIT_MODE = 0x0040;
 
         /// <summary>
+        /// Retrieves whether the console is currently in a text-selection / mark-mode state. While a
+        /// QuickEdit selection is in progress conhost FREEZES the screen buffer, so the completion
+        /// watcher would read an unchanging buffer while the agent is still working and fire a
+        /// premature "finished" notification (issue #94). Querying this lets the watcher skip those
+        /// ticks until the user clears the selection.
+        /// </summary>
+        [DllImport("kernel32.dll", SetLastError = true)]
+        private static extern bool GetConsoleSelectionInfo(out CONSOLE_SELECTION_INFO lpConsoleSelectionInfo);
+
+        /// <summary>Selection in progress (the user is marking text or has entered mark mode).</summary>
+        private const uint CONSOLE_SELECTION_IN_PROGRESS = 0x0001;
+
+        /// <summary>The selection rectangle is non-empty (text is currently highlighted).</summary>
+        private const uint CONSOLE_SELECTION_NOT_EMPTY = 0x0002;
+
+        /// <summary>The mouse button is held down for a drag-selection.</summary>
+        private const uint CONSOLE_MOUSE_DOWN = 0x0008;
+
+        /// <summary>
+        /// Console selection state returned by <see cref="GetConsoleSelectionInfo"/>. Only
+        /// <c>dwFlags</c> is consulted (whether a selection is active); the anchor/rect are unused.
+        /// </summary>
+        [StructLayout(LayoutKind.Sequential)]
+        private struct CONSOLE_SELECTION_INFO
+        {
+            public uint dwFlags;
+            public COORD dwSelectionAnchor;
+            public SMALL_RECT srSelection;
+        }
+
+        /// <summary>
         /// Copies a number of characters from consecutive cells of a console screen buffer.
         /// </summary>
         [DllImport("kernel32.dll", SetLastError = true, CharSet = CharSet.Unicode, EntryPoint = "ReadConsoleOutputCharacterW")]

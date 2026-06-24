@@ -100,6 +100,13 @@ namespace ClaudeCodeVS
 
         private readonly object _consoleSnapshotLock = new object();
 
+        // Set during each console capture: true when conhost is in a QuickEdit text-selection /
+        // mark-mode state. While a selection is active conhost FREEZES the screen buffer, so the
+        // watcher would see an unchanging screen while the agent is still working and fire a
+        // premature "finished" notification when the user merely clicked into the terminal
+        // (issue #94). The tick skips firing while this is set.
+        private volatile bool _consoleSelectionActive;
+
         // The currently-shown agent-finish info bar, so a newer one can replace it.
         private IVsInfoBarUIElement _activeAgentFinishInfoBar;
 
@@ -235,6 +242,7 @@ namespace ClaudeCodeVS
                 _watchedConsolePid = pid;
                 _lastConsoleHash = initialHash;
                 _consoleSawActivity = false;
+                _consoleSelectionActive = false;
                 _awaitingAgentInputReply = false;
                 _lastInputPromptRecheckUtc = DateTime.MinValue;
                 _promptSentUtc = DateTime.UtcNow;
@@ -506,6 +514,18 @@ namespace ClaudeCodeVS
                         SetFocus(focusBeforeRead);
                     }
 
+                    // The user has a text selection / mark mode open in the terminal, which freezes
+                    // the conhost screen buffer. The captured text is therefore stale and the agent
+                    // may still be working, so treat this as activity (push the idle window forward)
+                    // and don't fire — otherwise a click into the terminal mid-turn reads as idle and
+                    // notifies "finished" prematurely (issue #94). Detection resumes once the user
+                    // clears the selection and conhost unfreezes the buffer.
+                    if (_consoleSelectionActive)
+                    {
+                        _lastConsoleChangeUtc = DateTime.UtcNow;
+                        return;
+                    }
+
                     string hash = text != null ? ComputeStableHash(text) : null;
                     if (hash == null)
                     {
@@ -546,7 +566,7 @@ namespace ClaudeCodeVS
                         return;
                     }
 
-                    int idle = Math.Max(2, Math.Min(120, _watchedAgentFinish?.IdleSeconds ?? 3));
+                    int idle = Math.Max(2, Math.Min(120, _watchedAgentFinish?.IdleSeconds ?? 5));
                     if ((DateTime.UtcNow - _lastConsoleChangeUtc).TotalSeconds < idle) return;
 
                     // Settled — the turn is done.
@@ -660,6 +680,13 @@ namespace ClaudeCodeVS
                         FILE_SHARE_READ_CONSOLE | FILE_SHARE_WRITE_CONSOLE,
                         IntPtr.Zero, OPEN_EXISTING_CONSOLE, 0, IntPtr.Zero);
                     if (handle.ToInt64() == -1 || handle == IntPtr.Zero) return null;
+
+                    // While the user has a QuickEdit selection / mark mode open in the terminal,
+                    // conhost freezes the screen buffer, so the text below is a stale snapshot that
+                    // won't change even though the agent keeps working. Record that so the watcher
+                    // doesn't mistake the frozen screen for a finished turn (issue #94).
+                    _consoleSelectionActive = GetConsoleSelectionInfo(out CONSOLE_SELECTION_INFO sel)
+                        && (sel.dwFlags & (CONSOLE_SELECTION_IN_PROGRESS | CONSOLE_SELECTION_NOT_EMPTY | CONSOLE_MOUSE_DOWN)) != 0;
 
                     if (!GetConsoleScreenBufferInfo(handle, out CONSOLE_SCREEN_BUFFER_INFO csbi)) return null;
 
