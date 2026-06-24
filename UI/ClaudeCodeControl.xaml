@@ -454,6 +454,7 @@
 								<MenuItem Header="Windsurf (WSL)" x:Name="WindsurfMenuItem" Click="WindsurfMenuItem_Click" IsCheckable="True"/>
 								<MenuItem Header="PI" x:Name="PiMenuItem" Click="PiMenuItem_Click" IsCheckable="True"/>
 								<MenuItem Header="Antigravity" x:Name="AntigravityMenuItem" Click="AntigravityMenuItem_Click" IsCheckable="True"/>
+								<MenuItem Header="Reasonix" x:Name="ReasonixMenuItem" Click="ReasonixMenuItem_Click" IsCheckable="True"/>
 								<Separator/>
 								<MenuItem Header="Configure Visible Code Agents..." x:Name="ConfigureVisibleAgentsMenuItem" Click="ConfigureVisibleAgentsMenuItem_Click" ToolTip="Choose which code agents appear in this menu. The active agent always remains visible."/>
 								<Separator x:Name="AutoOpenChangesSeparator"/>

@@ -1,42 +1,42 @@
 <?xml version="1.0" encoding="utf-8"?>
 <PackageManifest Version="2.0.0" xmlns="http://schemas.microsoft.com/developer/vsx-schema/2011" xmlns:d="http://schemas.microsoft.com/developer/vsx-schema-design/2011">
-    <Metadata>
-        <Identity Id="ClaudeCodeExtension.87de5d13-743e-46b3-b05e-24e1cbeca0c3" Version="31.0" Language="en-US" Publisher="Daniel Carvalho Liedke" />
-        <DisplayName>Claude Code Extension for Visual Studio</DisplayName>
-        <Description xml:space="preserve">Embedded terminal for Claude Code, Codex, Cursor Agent, Open Code, Windsurf, PI, and Antigravity inside Visual Studio. Multi-line prompts, image/file attachments, integrated diff viewer.</Description>
-        <MoreInfo>https://github.com/dliedke/ClaudeCodeExtension</MoreInfo>
-        <License>LICENSE.txt</License>
-        <Icon>app.ico</Icon>
-        <PreviewImage>app.ico</PreviewImage>
-        <Tags>claude,codex,cursor,opencode,windsurf,antigravity</Tags>
-    </Metadata>
-    <Installation>
-        <InstallationTarget Id="Microsoft.VisualStudio.Community" Version="[17.0, 19.0)">
-            <ProductArchitecture>amd64</ProductArchitecture>
-        </InstallationTarget>
-        <InstallationTarget Id="Microsoft.VisualStudio.Community" Version="[17.0, 19.0)">
-            <ProductArchitecture>arm64</ProductArchitecture>
-        </InstallationTarget>
-        <InstallationTarget Version="[17.0,19.0)" Id="Microsoft.VisualStudio.Pro">
-            <ProductArchitecture>amd64</ProductArchitecture>
-        </InstallationTarget>
-        <InstallationTarget Version="[17.0,19.0)" Id="Microsoft.VisualStudio.Enterprise">
-            <ProductArchitecture>amd64</ProductArchitecture>
-        </InstallationTarget>
-        <InstallationTarget Version="[17.0,19.0)" Id="Microsoft.VisualStudio.Enterprise">
-            <ProductArchitecture>arm64</ProductArchitecture>
-        </InstallationTarget>
-        <InstallationTarget Version="[17.0,19.0)" Id="Microsoft.VisualStudio.Pro">
-            <ProductArchitecture>arm64</ProductArchitecture>
-        </InstallationTarget>
-    </Installation>
-    <Dependencies>
-        <Dependency Id="Microsoft.Framework.NDP" DisplayName="Microsoft .NET Framework" d:Source="Manual" Version="[4.5,)" />
-    </Dependencies>
-    <Prerequisites>
-        <Prerequisite Id="Microsoft.VisualStudio.Component.CoreEditor" Version="[17.0,19.0)" DisplayName="Visual Studio core editor" />
-    </Prerequisites>
-    <Assets>
-        <Asset Type="Microsoft.VisualStudio.VsPackage" d:Source="Project" d:ProjectName="%CurrentProject%" Path="|%CurrentProject%;PkgdefProjectOutputGroup|" />
-    </Assets>
+  <Metadata>
+    <Identity Id="ClaudeCodeExtension.87de5d13-743e-46b3-b05e-24e1cbeca0c3" Version="33.0" Language="en-US" Publisher="Daniel Carvalho Liedke" />
+    <DisplayName>Claude Code Extension for Visual Studio</DisplayName>
+    <Description xml:space="preserve">Embedded terminal for Claude Code, Codex, Cursor Agent, Open Code, Windsurf, PI, and Antigravity inside Visual Studio. Multi-line prompt, image/file attach, integrated diff viewer.</Description>
+    <MoreInfo>https://github.com/dliedke/ClaudeCodeExtension</MoreInfo>
+    <License>LICENSE.txt</License>
+    <Icon>app.ico</Icon>
+    <PreviewImage>app.ico</PreviewImage>
+    <Tags>claude,codex,cursor,opencode,windsurf,antigravity</Tags>
+  </Metadata>
+  <Installation>
+    <InstallationTarget Id="Microsoft.VisualStudio.Community" Version="[17.0, 19.0)">
+      <ProductArchitecture>amd64</ProductArchitecture>
+    </InstallationTarget>
+    <InstallationTarget Id="Microsoft.VisualStudio.Community" Version="[17.0, 19.0)">
+      <ProductArchitecture>arm64</ProductArchitecture>
+    </InstallationTarget>
+    <InstallationTarget Id="Microsoft.VisualStudio.Pro" Version="[17.0,19.0)">
+      <ProductArchitecture>amd64</ProductArchitecture>
+    </InstallationTarget>
+    <InstallationTarget Id="Microsoft.VisualStudio.Enterprise" Version="[17.0,19.0)">
+      <ProductArchitecture>amd64</ProductArchitecture>
+    </InstallationTarget>
+    <InstallationTarget Id="Microsoft.VisualStudio.Enterprise" Version="[17.0,19.0)">
+      <ProductArchitecture>arm64</ProductArchitecture>
+    </InstallationTarget>
+    <InstallationTarget Id="Microsoft.VisualStudio.Pro" Version="[17.0,19.0)">
+      <ProductArchitecture>arm64</ProductArchitecture>
+    </InstallationTarget>
+  </Installation>
+  <Dependencies>
+    <Dependency Id="Microsoft.Framework.NDP" DisplayName="Microsoft .NET Framework" Version="[4.5,)" d:Source="Manual" />
+  </Dependencies>
+  <Prerequisites>
+    <Prerequisite Id="Microsoft.VisualStudio.Component.CoreEditor" DisplayName="Visual Studio core editor" Version="[17.0,19.0)" />
+  </Prerequisites>
+  <Assets>
+    <Asset Type="Microsoft.VisualStudio.VsPackage" Path="|%CurrentProject%;PkgdefProjectOutputGroup|" d:Source="Project" d:ProjectName="%CurrentProject%" />
+  </Assets>
 </PackageManifest>

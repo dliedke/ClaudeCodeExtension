@@ -38,6 +38,7 @@ namespace ClaudeCodeVS
             (AiProvider.Windsurf,          "Windsurf (WSL)",     true),
             (AiProvider.Pi,                "PI",                 false),
             (AiProvider.Antigravity,       "Antigravity",        false),
+            (AiProvider.Reasonix,          "Reasonix",           false),
         };
 
         #endregion

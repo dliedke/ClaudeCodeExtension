@@ -6,7 +6,7 @@
 
 - **Author**: Daniel Carvalho Liedke (dliedke@gmail.com) | **License**: MIT
 - **Repository**: https://github.com/dliedke/ClaudeCodeExtension
-- **Current Version**: 29.0 | **Target Framework**: .NET Framework 4.7.2
+- **Current Version**: 33.0 | **Target Framework**: .NET Framework 4.7.2
 
 ---
 
@@ -165,7 +165,7 @@ When you add or materially change behavior in one of these files, update its sec
 ## Data Models (ClaudeCodeModels.cs)
 
 ```csharp
-enum AiProvider { ClaudeCode, ClaudeCodeWSL, Codex, CodexNative, CursorAgent, CursorAgentNative, OpenCode, Windsurf, Pi, Antigravity }
+enum AiProvider { ClaudeCode, ClaudeCodeWSL, Codex, CodexNative, CursorAgent, CursorAgentNative, OpenCode, Windsurf, Pi, Antigravity, Reasonix }
 enum ClaudeModel { Opus, Sonnet, Haiku }
 enum WindsurfModel { ClaudeOpus, ClaudeSonnet, Codex, GeminiPro }
 enum EffortLevel { Auto, Low, Medium, High, Max }
@@ -196,6 +196,7 @@ Key settings: `SplitterPosition` (236px default), `SendWithEnter` (default true)
 | Windsurf (WSL) | `Windsurf` | WSL | `devin` | `exit` |
 | PI | `Pi` | Windows | `pi` | CTRL+D twice |
 | Antigravity | `Antigravity` | Windows | `agy` | Double CTRL+D |
+| Reasonix | `Reasonix` | Windows | `reasonix` | CTRL+C |
 
 **Plugin**: Caveman (JuliusBrussee/caveman) — installable into Claude Code sessions via model menu
 

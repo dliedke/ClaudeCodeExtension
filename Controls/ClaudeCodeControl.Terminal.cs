@@ -222,6 +222,7 @@ namespace ClaudeCodeVS
                 bool useWindsurf = _settings?.SelectedProvider == AiProvider.Windsurf;
                 bool usePi = _settings?.SelectedProvider == AiProvider.Pi;
                 bool useAntigravity = _settings?.SelectedProvider == AiProvider.Antigravity;
+                bool useReasonix = _settings?.SelectedProvider == AiProvider.Reasonix;
                 bool providerAvailable = false;
 
 
@@ -268,6 +269,10 @@ namespace ClaudeCodeVS
                 else if (useAntigravity)
                 {
                     providerAvailable = await IsAntigravityAvailableAsync();
+                }
+                else if (useReasonix)
+                {
+                    providerAvailable = await IsReasonixAvailableAsync();
                 }
                 else
                 {
@@ -459,6 +464,22 @@ namespace ClaudeCodeVS
                         {
                             _antigravityNotificationShown = true;
                             ShowAntigravityInstallationInstructions();
+                        }
+                        await StartEmbeddedTerminalAsync(null); // Regular CMD
+                    }
+                }
+                else if (useReasonix)
+                {
+                    if (providerAvailable)
+                    {
+                        await StartEmbeddedTerminalAsync(AiProvider.Reasonix);
+                    }
+                    else
+                    {
+                        if (!_reasonixNotificationShown)
+                        {
+                            _reasonixNotificationShown = true;
+                            ShowReasonixInstallationInstructions();
                         }
                         await StartEmbeddedTerminalAsync(null); // Regular CMD
                     }
@@ -1044,6 +1065,11 @@ namespace ClaudeCodeVS
                             cmdCommand = $"/k chcp 65001 >nul && cd /d \"{workspaceDir}\" && ping localhost -n 3 >nul && cls && {antigravityCommand}";
                             break;
 
+                        case AiProvider.Reasonix:
+                            string reasonixCommand = ResolveProviderExecutable(AiProvider.Reasonix, "reasonix");
+                            cmdCommand = $"/k chcp 65001 >nul && cd /d \"{workspaceDir}\" && ping localhost -n 3 >nul && cls && {reasonixCommand}";
+                            break;
+
                         default: // null or any other value = regular CMD
                             cmdCommand = $"/k chcp 65001 >nul && cd /d \"{workspaceDir}\"";
                             break;
@@ -1264,6 +1290,11 @@ namespace ClaudeCodeVS
                         case AiProvider.Antigravity:
                             string antigravityTerminalCommand = GetAntigravityCommand();
                             terminalCommand = $"/k chcp 65001 >nul && cd /d \"{workspaceDir}\" && ping localhost -n 3 >nul && cls && {antigravityTerminalCommand}";
+                            break;
+
+                        case AiProvider.Reasonix:
+                            string reasonixTerminalCommand = ResolveProviderExecutable(AiProvider.Reasonix, "reasonix");
+                            terminalCommand = $"/k chcp 65001 >nul && cd /d \"{workspaceDir}\" && ping localhost -n 3 >nul && cls && {reasonixTerminalCommand}";
                             break;
 
                         default: // null or any other value = regular CMD
@@ -3632,6 +3663,13 @@ namespace ClaudeCodeVS
                         await SendTextToTerminalAsync("agy update");
                         break;
 
+                    case AiProvider.Reasonix:
+                        // Reasonix: interrupt the TUI with CTRL+C, wait, then update via npm
+                        SendCtrlC();
+                        await Task.Delay(1000);
+                        await SendTextToTerminalAsync("npm i -g reasonix");
+                        break;
+
                     default:
                         // Regular CMD - just try to update Claude if available
                         await SendTextToTerminalAsync("claude update");
@@ -3852,6 +3890,10 @@ namespace ClaudeCodeVS
                     providerAvailable = await IsAntigravityAvailableAsync();
                     break;
 
+                case AiProvider.Reasonix:
+                    providerAvailable = await IsReasonixAvailableAsync();
+                    break;
+
             }
 
             // Start the terminal with the selected provider if available, otherwise regular CMD
@@ -4002,25 +4044,35 @@ namespace ClaudeCodeVS
                 }
             }
 
-            // Apply the TUI rendering preference via an environment variable so the launched
-            // Claude Code CLI starts directly in the chosen renderer. This must wrap the final
+            // Apply the TUI rendering preference via environment variables so the launched
+            // Claude Code CLI starts directly in the chosen renderer. These must wrap the final
             // command (env assignment precedes the executable). cmd.exe uses "set X=Y && cmd";
             // WSL bash uses the "X=Y cmd" prefix-assignment form.
-            string tuiEnv = null;
+            //
+            // Fullscreen rendering enables Claude Code's own mouse capture (terminal mouse
+            // tracking). Inside the embedded terminal — where the extension already runs a global
+            // mouse hook and continuously re-asserts focus — that mouse tracking emits a steady
+            // burst of mouse-input escape sequences that Claude Code's fast-input heuristic
+            // collapses into bracketed-paste blocks, flooding the prompt with
+            // "[Pasted text #N +NNNN lines]" on launch and on every restart (issue #92). The
+            // extension already provides mouse zoom, click-to-focus, and paste, so CLAUDE_CODE_DISABLE_MOUSE
+            // turns off Claude's mouse capture while keeping the flicker-free rendering.
+            var tuiEnvVars = new System.Collections.Generic.List<string>();
             if (_settings?.ClaudeTuiFullscreen == true)
             {
-                tuiEnv = "CLAUDE_CODE_NO_FLICKER=1";
+                tuiEnvVars.Add("CLAUDE_CODE_NO_FLICKER=1");
+                tuiEnvVars.Add("CLAUDE_CODE_DISABLE_MOUSE=1");
             }
             else if (_settings?.ClaudeTuiFullscreen == false)
             {
-                tuiEnv = "CLAUDE_CODE_DISABLE_ALTERNATE_SCREEN=1";
+                tuiEnvVars.Add("CLAUDE_CODE_DISABLE_ALTERNATE_SCREEN=1");
             }
 
-            if (tuiEnv != null)
+            if (tuiEnvVars.Count > 0)
             {
                 baseCommand = isWsl
-                    ? $"{tuiEnv} {baseCommand}"
-                    : $"set {tuiEnv} && {baseCommand}";
+                    ? $"{string.Join(" ", tuiEnvVars)} {baseCommand}"
+                    : $"{string.Join(" && ", tuiEnvVars.ConvertAll(v => "set " + v))} && {baseCommand}";
             }
 
             return baseCommand;

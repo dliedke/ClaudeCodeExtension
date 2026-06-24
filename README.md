@@ -1,6 +1,6 @@
 # Claude Code Extension for Visual Studio
 
-Embedded terminal inside Visual Studio for **Claude Code, OpenAI Codex, Cursor Agent, Open Code, Windsurf, PI, and Google Antigravity** — with multi-line prompts, file attachments, and an integrated diff viewer.
+Embedded terminal inside Visual Studio for **Claude Code, OpenAI Codex, Cursor Agent, Open Code, Windsurf, PI, Google Antigravity, and Reasonix** — with multi-line prompts, file attachments, and an integrated diff viewer.
 
 <center>
 <img src="https://i.ibb.co/mFcsh3nt/BFB9-B830-8122-4091-9-C8-B-869959-B1-B391.png" alt="Claude Code Extension Screenshot" width=350 height=450 />
@@ -41,6 +41,7 @@ By default only **Claude Code** is shown in the agent picker — use *⚙ → Co
 | Windsurf | WSL | `devin` | Windsurf paid plan. Optional `--permission-mode dangerous` toggle |
 | PI | Windows | `pi` | Node.js + Git for Windows |
 | Google Antigravity | Windows | `agy` | Google account. Optional `--dangerously-skip-permissions` toggle |
+| Reasonix | Windows | `reasonix` | DeepSeek API key (`DEEPSEEK_API_KEY`). Install with `npm i -g reasonix` |
 
 If a provider isn't installed, the extension shows the install command automatically when you select it. The **Update Agent** entry in the ⚙ menu runs the right update command for the active provider (e.g. `claude update`, `npm install -g @openai/codex@latest`, `cursor-agent update`).
 
@@ -103,6 +104,12 @@ This binds a Claude Code skill that shells out to OpenAI Codex to audit pending 
 4. **Use it**: ⚡ → *Codex Review*. Claude runs the skill, Codex audits your diff, findings appear inline.
 
 ## Version History
+
+### Version 33.0
+- Added Reasonix (DeepSeek-native coding agent) as a supported AI agent. Install it with `npm i -g reasonix`, then enable it from the agent menu via "Configure Visible Code Agents..." (issue #93).
+
+### Version 32.0
+- Fixed the agent terminal being flooded with "[Pasted text +N lines]" blocks on startup and on every setting change when "TUI Fullscreen" was enabled — fullscreen rendering now keeps its flicker-free drawing without taking over the mouse, which was the source of the flood (issue #92).
 
 ### Version 31.0
 - Added a "TUI Fullscreen" option to the Claude Code model menu to switch the agent between fullscreen (flicker-free) and classic terminal rendering on demand.

@@ -197,7 +197,10 @@ namespace ClaudeCodeVS
                     && _settings.DisableClipboardSend
                     && _wtTabBarHeight == 0;
                 bool isPiProvider = _currentRunningProvider == AiProvider.Pi;
-                bool clipboardFree = disableClipboardRequested && !isPiProvider;
+                // Reasonix is a TUI like PI — per-character keystrokes flood it, so keep it on the
+                // clipboard/WM_COMMAND paste path even when "Disable clipboard" is on.
+                bool isReasonix = _currentRunningProvider == AiProvider.Reasonix;
+                bool clipboardFree = disableClipboardRequested && !isPiProvider && !isReasonix;
 
                 // Save the prompt to a temp file and send only a short reference when either:
                 //   • "Disable clipboard" is on (always, so the keystroke/paste payload stays short), or

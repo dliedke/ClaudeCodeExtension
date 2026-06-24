@@ -29,7 +29,8 @@ namespace ClaudeCodeVS
         OpenCode = 7,
         Windsurf = 8,
         Pi = 9,
-        Antigravity = 10
+        Antigravity = 10,
+        Reasonix = 11
     }
 
     /// <summary>

@@ -422,6 +422,9 @@ namespace ClaudeCodeVS
                         case AiProvider.Antigravity:
                             providerAvailable = await IsAntigravityAvailableAsync();
                             break;
+                        case AiProvider.Reasonix:
+                            providerAvailable = await IsReasonixAvailableAsync();
+                            break;
                     }
 
                     // Switch to main thread for UI operations
@@ -506,6 +509,13 @@ namespace ClaudeCodeVS
                                 {
                                     _antigravityNotificationShown = true;
                                     ShowAntigravityInstallationInstructions();
+                                }
+                                break;
+                            case AiProvider.Reasonix:
+                                if (!_reasonixNotificationShown)
+                                {
+                                    _reasonixNotificationShown = true;
+                                    ShowReasonixInstallationInstructions();
                                 }
                                 break;
                         }

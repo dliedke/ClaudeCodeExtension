@@ -74,6 +74,11 @@ namespace ClaudeCodeVS
         /// </summary>
         private static bool _antigravityNotificationShown = false;
 
+        /// <summary>
+        /// Flag to show Reasonix installation notification only once per session
+        /// </summary>
+        private static bool _reasonixNotificationShown = false;
+
         #endregion
 
         #region Provider Availability Cache
@@ -1154,6 +1159,81 @@ namespace ClaudeCodeVS
         }
 
         /// <summary>
+        /// Checks if Reasonix CLI is available (native Windows installation via 'npm i -g reasonix').
+        /// Uses 'where reasonix' to check if reasonix is in PATH.
+        /// Uses caching to avoid repeated slow checks.
+        /// </summary>
+        /// <param name="cancellationToken">Optional cancellation token</param>
+        /// <returns>True if reasonix is available, false otherwise</returns>
+        private async Task<bool> IsReasonixAvailableAsync(CancellationToken cancellationToken = default)
+        {
+            // A configured custom CLI path means the tool is usable even when it is not on PATH.
+            if (CustomExecutableConfigured(AiProvider.Reasonix, isWsl: false))
+            {
+                return true;
+            }
+
+            // Check cache first
+            lock (_cacheLock)
+            {
+                if (_providerCache.TryGetValue(AiProvider.Reasonix, out var cached) && IsCacheValid(cached))
+                {
+                    return cached.IsAvailable;
+                }
+            }
+
+            try
+            {
+                var startInfo = new ProcessStartInfo
+                {
+                    FileName = "cmd.exe",
+                    Arguments = "/c where reasonix",
+                    UseShellExecute = false,
+                    RedirectStandardOutput = true,
+                    RedirectStandardError = true,
+                    CreateNoWindow = true
+                };
+
+                // Refresh PATH from registry so a freshly installed reasonix is detected without VS restart
+                string freshPath = GetFreshPathFromRegistry();
+                if (!string.IsNullOrEmpty(freshPath))
+                {
+                    startInfo.EnvironmentVariables["PATH"] = freshPath;
+                }
+
+                using (var process = Process.Start(startInfo))
+                {
+                    var completed = await WaitForProcessExitAsync(process, 3000, cancellationToken);
+
+                    if (!completed)
+                    {
+                        try { process.Kill(); } catch { }
+                        CacheProviderResult(AiProvider.Reasonix, false);
+                        return false;
+                    }
+
+                    string output = await process.StandardOutput.ReadToEndAsync();
+                    string error = await process.StandardError.ReadToEndAsync();
+
+                    bool isAvailable = process.ExitCode == 0 && !string.IsNullOrWhiteSpace(output);
+
+                    CacheProviderResult(AiProvider.Reasonix, isAvailable);
+                    return isAvailable;
+                }
+            }
+            catch (OperationCanceledException)
+            {
+                throw;
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"Error checking for Reasonix: {ex.Message}");
+                CacheProviderResult(AiProvider.Reasonix, false);
+                return false;
+            }
+        }
+
+        /// <summary>
         /// Checks if Windows Terminal is installed and available
         /// Checks the PATH (refreshed from registry) for wt.exe executable
         /// </summary>
@@ -1514,6 +1594,30 @@ For more details, visit: https://pi.dev";
                           MessageBoxButton.OK, MessageBoxImage.Information);
         }
 
+        /// <summary>
+        /// Shows installation/configuration instructions for Reasonix when it is not detected on PATH.
+        /// Reasonix is a DeepSeek-native coding agent installed via npm.
+        /// </summary>
+        private void ShowReasonixInstallationInstructions()
+        {
+            string instructions =
+                "Reasonix is not installed. A regular CMD terminal will be used instead.\r\n\r\n" +
+                "(you may click CTRL+C to copy full instructions)\r\n\r\n" +
+                "INSTALLATION\r\n\r\n" +
+                "Open a terminal and run:\r\n\r\n" +
+                "npm i -g reasonix\r\n\r\n" +
+                "(Open a new terminal afterwards so the updated PATH takes effect.)\r\n\r\n" +
+                "CONFIGURATION\r\n\r\n" +
+                "Set your DeepSeek API key before launching, e.g.:\r\n\r\n" +
+                "setx DEEPSEEK_API_KEY sk-...\r\n\r\n" +
+                "(or let the Reasonix setup wizard save it.)\r\n\r\n" +
+                "The agent is launched with the 'reasonix' command.\r\n\r\n" +
+                "For more details, visit: https://github.com/esengine/DeepSeek-Reasonix/releases";
+
+            MessageBox.Show(instructions, "Reasonix Installation",
+                          MessageBoxButton.OK, MessageBoxImage.Information);
+        }
+
         #endregion
 
         #region Provider Switching
@@ -1634,6 +1738,34 @@ For more details, visit: https://pi.dev";
             else
             {
                 await StartEmbeddedTerminalAsync(AiProvider.Antigravity);
+            }
+        }
+
+        /// <summary>
+        /// Handles Reasonix menu item click - switches to Reasonix provider
+        /// </summary>
+#pragma warning disable VSTHRD100 // async void is acceptable for event handlers
+        private async void ReasonixMenuItem_Click(object sender, RoutedEventArgs e)
+#pragma warning restore VSTHRD100
+        {
+            if (_settings == null) return;
+
+            bool reasonixAvailable = await IsReasonixAvailableAsync();
+            await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
+
+            // Always update the selection regardless of availability
+            _settings.SelectedProvider = AiProvider.Reasonix;
+            UpdateProviderSelection();
+            SaveSettings();
+
+            if (!reasonixAvailable)
+            {
+                ShowReasonixInstallationInstructions();
+                await StartEmbeddedTerminalAsync(null); // Regular CMD
+            }
+            else
+            {
+                await StartEmbeddedTerminalAsync(AiProvider.Reasonix);
             }
         }
 
@@ -1834,6 +1966,7 @@ For more details, visit: https://pi.dev";
             WindsurfMenuItem.IsChecked = activeProvider == AiProvider.Windsurf;
             PiMenuItem.IsChecked = activeProvider == AiProvider.Pi;
             AntigravityMenuItem.IsChecked = activeProvider == AiProvider.Antigravity;
+            ReasonixMenuItem.IsChecked = activeProvider == AiProvider.Reasonix;
 
             // Update GroupBox header to show the running provider when a terminal is active.
             // The header is hidden only when the terminal is on top (inverted horizontal
@@ -2097,6 +2230,8 @@ For more details, visit: https://pi.dev";
                     return "PI";
                 case AiProvider.Antigravity:
                     return "Antigravity";
+                case AiProvider.Reasonix:
+                    return "Reasonix";
                 default:
                     return "CMD";
             }
@@ -2526,7 +2661,7 @@ For more details, visit: https://pi.dev";
                                 $"Version: {version}\n" +
                                 $"Author: Daniel Carvalho Liedke\n" +
                                 $"Copyright © Daniel Carvalho Liedke 2026\n\n" +
-                                $"Provides seamless integration with Claude Code, Codex, Cursor Agent, Open Code, Windsurf, PI and Antigravity AI assistants directly within Visual Studio 2022/2026 IDE.";
+                                $"Provides seamless integration with Claude Code, Codex, Cursor Agent, Open Code, Windsurf, PI, Antigravity and Reasonix AI assistants directly within Visual Studio 2022/2026 IDE.";
 
             MessageBox.Show(aboutMessage, "About Claude Code Extension",
                           MessageBoxButton.OK, MessageBoxImage.Information);
@@ -3120,12 +3255,13 @@ For more details, visit: https://pi.dev";
             bool isWindsurfProvider = activeProvider == AiProvider.Windsurf;
             bool isPiProvider = activeProvider == AiProvider.Pi;
             bool isAntigravityProvider = activeProvider == AiProvider.Antigravity;
+            bool isReasonixProvider = activeProvider == AiProvider.Reasonix;
 
             // Show/hide individual provider menu items based on VisibleProviders.
             // The currently selected provider is always shown so users keep access to it.
             ApplyProviderMenuVisibility();
 
-            AutoOpenChangesSeparator.Visibility = (isClaudeProvider || isCodexProvider || isCursorAgentProvider || isWindsurfProvider || isPiProvider || isAntigravityProvider) ? Visibility.Visible : Visibility.Collapsed;
+            AutoOpenChangesSeparator.Visibility = (isClaudeProvider || isCodexProvider || isCursorAgentProvider || isWindsurfProvider || isPiProvider || isAntigravityProvider || isReasonixProvider) ? Visibility.Visible : Visibility.Collapsed;
             ClaudeDangerouslySkipPermissionsMenuItem.Visibility = isClaudeProvider ? Visibility.Visible : Visibility.Collapsed;
             CodexFullAutoMenuItem.Visibility = isCodexProvider ? Visibility.Visible : Visibility.Collapsed;
             CursorAgentAutoRunMenuItem.Visibility = isCursorAgentProvider ? Visibility.Visible : Visibility.Collapsed;
@@ -3619,6 +3755,7 @@ For more details, visit: https://pi.dev";
                     { AiProvider.Windsurf,           WindsurfMenuItem },
                     { AiProvider.Pi,                 PiMenuItem },
                     { AiProvider.Antigravity,        AntigravityMenuItem },
+                    { AiProvider.Reasonix,           ReasonixMenuItem },
                 };
             }
             return _providerMenuItems;
@@ -3641,6 +3778,7 @@ For more details, visit: https://pi.dev";
                 case AiProvider.Windsurf:          return "Windsurf (WSL)";
                 case AiProvider.Pi:                return "PI";
                 case AiProvider.Antigravity:       return "Antigravity";
+                case AiProvider.Reasonix:          return "Reasonix";
                 default:                           return provider.ToString();
             }
         }
@@ -3765,6 +3903,7 @@ For more details, visit: https://pi.dev";
                 AiProvider.Windsurf,
                 AiProvider.Pi,
                 AiProvider.Antigravity,
+                AiProvider.Reasonix,
             };
 
             var checkboxes = new System.Collections.Generic.Dictionary<AiProvider, System.Windows.Controls.CheckBox>();

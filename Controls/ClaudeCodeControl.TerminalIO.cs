@@ -863,6 +863,7 @@ namespace ClaudeCodeVS
 
                 bool isOpenCode = _currentRunningProvider == AiProvider.OpenCode;
                 bool isPi = _currentRunningProvider == AiProvider.Pi;
+                bool isReasonix = _currentRunningProvider == AiProvider.Reasonix;
 
                 // Check if Windows Terminal is active (tab bar height > 0)
                 bool isWindowsTerminal = _wtTabBarHeight > 0;
@@ -887,9 +888,9 @@ namespace ClaudeCodeVS
                     // For other WSL-based providers (Codex, CursorAgent), use KEYDOWN/KEYUP approach
                     SendEnterKeyDownUp();
                 }
-                else if (isOpenCode || isPi)
+                else if (isOpenCode || isPi || isReasonix)
                 {
-                    // For Open Code and PI, use single WM_CHAR (TUI-based Node.js apps)
+                    // For Open Code, PI, and Reasonix, use single WM_CHAR (TUI-based apps)
                     PostMessage(terminalHandle, WM_CHAR, new IntPtr(VK_RETURN), IntPtr.Zero);
                 }
                 else
