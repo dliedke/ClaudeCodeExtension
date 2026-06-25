@@ -105,6 +105,9 @@ This binds a Claude Code skill that shells out to OpenAI Codex to audit pending 
 
 ## Version History
 
+### Version 36.0
+- Restored mouse-wheel scrolling in Claude Code's "TUI Fullscreen" mode — scrolling the wheel over the terminal now moves smoothly through the conversation one line at a time, instead of doing nothing. For native Claude Code, Page Up/Page Down are set to scroll one line and Shift+Page Up/Page Down keep the half-page jump (issue #96).
+
 ### Version 35.0
 - Added the ability to rename past sessions in the Session History window — right-click a session (or select it and press F2), or use the new "Rename" button, to give it a custom title. Renamed sessions stand out with their own highlighted layout, and custom titles persist across Visual Studio restarts; clear the title to restore the auto-generated preview (issue #95).
 - Added a filter box and a "Renamed only" toggle to the Session History window so you can quickly find a session by title, preview text, or date. The "Renamed only" choice is remembered across restarts, and the window layout was tidied up for less clutter.

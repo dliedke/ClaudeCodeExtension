@@ -21,6 +21,7 @@ using System.Windows;
 using System.Windows.Input;
 using Microsoft.VisualStudio.Shell;
 using Microsoft.VisualStudio.Shell.Interop;
+using Newtonsoft.Json.Linq;
 
 namespace ClaudeCodeVS
 {
@@ -3199,7 +3200,10 @@ namespace ClaudeCodeVS
             switch (message)
             {
                 case WM_MOUSEWHEEL:
-                    return (GetAsyncKeyState(VK_CONTROL) & 0x8000) != 0;
+                    // Ctrl+wheel drives zoom; a plain wheel notch is forwarded only when Claude
+                    // fullscreen conhost is active, where it is remapped to PgUp/PgDn (#96).
+                    return (GetAsyncKeyState(VK_CONTROL) & 0x8000) != 0
+                           || IsClaudeFullscreenConhostActive();
                 case WM_LBUTTONDOWN:
                 case WM_LBUTTONUP:
                     return true;
@@ -3222,7 +3226,9 @@ namespace ClaudeCodeVS
 
             if (message == WM_MOUSEWHEEL)
             {
-                if ((GetAsyncKeyState(VK_CONTROL) & 0x8000) != 0 &&
+                bool ctrlDown = (GetAsyncKeyState(VK_CONTROL) & 0x8000) != 0;
+
+                if (ctrlDown &&
                     IsScreenPointInsideActiveTerminalPanel(info.pt) &&
                     _settings != null)
                 {
@@ -3231,6 +3237,25 @@ namespace ClaudeCodeVS
                     _zoomSaveTimer?.Stop();
                     _zoomSaveTimer?.Start();
                     ScheduleManualZoomRefresh();
+                }
+                else if (!ctrlDown &&
+                         IsScreenPointInsideActiveTerminalPanel(info.pt) &&
+                         IsClaudeFullscreenConhostActive())
+                {
+                    // In fullscreen (alternate-screen) rendering, Claude Code's own mouse capture
+                    // is left disabled (CLAUDE_CODE_DISABLE_MOUSE=1) to avoid the issue #92 paste
+                    // flood, which kills mouse-wheel scrolling. Claude still scrolls on PgUp/PgDn,
+                    // so translate a plain wheel notch over the terminal into PgUp/PgDn keystrokes
+                    // — restoring wheel scroll without re-enabling Claude's mouse capture (#96).
+                    // For native Claude a keybinding remaps PgUp/PgDn to single-line scrolls, so a
+                    // notch sends one for a smooth one-line step instead of a half-page jump.
+                    int wheelDelta = (short)((info.mouseData >> 16) & 0xFFFF);
+                    bool scrollUp = wheelDelta > 0;
+                    int keystrokes = GetFullscreenWheelScrollKeystrokeCount();
+                    for (int i = 0; i < keystrokes; i++)
+                    {
+                        SendScrollKeyToTerminal(scrollUp);
+                    }
                 }
             }
             else if (message == WM_LBUTTONDOWN)
@@ -3249,6 +3274,192 @@ namespace ClaudeCodeVS
             {
                 ResetWindowsTerminalSelectionTracking();
             }
+        }
+
+        /// <summary>
+        /// True when the live terminal is Claude Code running in fullscreen (alternate-screen) mode
+        /// inside conhost. In that mode Claude's mouse capture is intentionally disabled, so the
+        /// mouse wheel does nothing; callers translate the wheel into PgUp/PgDn instead (#96).
+        /// Limited to conhost (Command Prompt); Windows Terminal handles wheel forwarding itself.
+        /// </summary>
+        private bool IsClaudeFullscreenConhostActive()
+        {
+            if (_settings?.ClaudeTuiFullscreen != true)
+            {
+                return false;
+            }
+
+            // Windows Terminal embed sets a positive tab-bar height; conhost leaves it at 0.
+            if (_wtTabBarHeight > 0)
+            {
+                return false;
+            }
+
+            // Follow the active-provider rule: trust the running provider while a terminal is alive.
+            AiProvider provider = _currentRunningProvider ?? _settings.SelectedProvider;
+            return provider == AiProvider.ClaudeCode || provider == AiProvider.ClaudeCodeWSL;
+        }
+
+        /// <summary>
+        /// Sends a single PgUp (scroll up) or PgDn (scroll down) keystroke to the embedded conhost
+        /// terminal. Posted directly to the terminal window so it does not depend on foreground
+        /// keyboard focus, mirroring the Enter-key path. Claude Code's fullscreen renderer scrolls
+        /// the conversation on PgUp/PgDn (a half-screen by default, one line when the line-scroll
+        /// keybinding is installed — see <see cref="TryEnsureFullscreenLineScrollKeybinding"/>).
+        /// </summary>
+        /// <param name="up">True to scroll up (PgUp); false to scroll down (PgDn).</param>
+        private void SendScrollKeyToTerminal(bool up)
+        {
+            if (terminalHandle == IntPtr.Zero || !IsWindow(terminalHandle))
+            {
+                return;
+            }
+
+            int vk = up ? VK_PRIOR : VK_NEXT;
+
+            // Build the lParam the way a real key press does so conhost translates the key into
+            // VT input (ESC[5~ / ESC[6~) the same way it does for a physical PgUp/PgDn. PgUp/PgDn
+            // are extended keys, so set the extended-key bit (24). A bare lParam of 0 (no scan
+            // code) is silently dropped by conhost's VT-input translation.
+            uint scan = MapVirtualKey((uint)vk, 0 /* MAPVK_VK_TO_VSC */);
+            const int extended = 1 << 24;
+            int downLParam = 1 /* repeat count */ | ((int)scan << 16) | extended;
+            int upLParam = downLParam | (1 << 30) /* previous key state */ | (1 << 31) /* transition */;
+
+            PostMessage(terminalHandle, WM_KEYDOWN, new IntPtr(vk), new IntPtr(downLParam));
+            PostMessage(terminalHandle, WM_KEYUP, new IntPtr(vk), new IntPtr(upLParam));
+        }
+
+        // Tracks the one-time attempt to install the line-scroll keybinding for native Claude Code,
+        // so we only touch ~/.claude/keybindings.json once per session and cache whether it took.
+        private bool _fullscreenLineScrollBindingChecked;
+        private bool _fullscreenLineScrollBindingActive;
+
+        /// <summary>
+        /// How many PgUp/PgDn keystrokes one wheel notch should send in Claude fullscreen.
+        /// For native Claude Code a keybinding remaps PgUp/PgDn to single-line scrolls, so a notch
+        /// sends one for a smooth one-line step. Without that binding (Claude Code WSL, or if the
+        /// keybinding file could not be written) PgUp is a half-page scroll, so a single keystroke
+        /// is sent either way.
+        /// </summary>
+        private int GetFullscreenWheelScrollKeystrokeCount()
+        {
+            AiProvider provider = _currentRunningProvider ?? _settings?.SelectedProvider ?? AiProvider.ClaudeCode;
+
+            // The line-scroll keybinding is only managed for native Windows Claude Code, whose
+            // config lives at %USERPROFILE%\.claude\keybindings.json. WSL keeps its config in the
+            // WSL filesystem, so it is left on the half-page default.
+            if (provider == AiProvider.ClaudeCode)
+            {
+                if (!_fullscreenLineScrollBindingChecked)
+                {
+                    _fullscreenLineScrollBindingChecked = true;
+                    _fullscreenLineScrollBindingActive = TryEnsureFullscreenLineScrollKeybinding();
+                }
+
+                if (_fullscreenLineScrollBindingActive)
+                {
+                    return 1;
+                }
+            }
+
+            return 1;
+        }
+
+        /// <summary>
+        /// Ensures Claude Code's keybindings file maps the fullscreen scroll keys to single-line
+        /// scrolls (so wheel-synthesized PgUp/PgDn scroll smoothly), while preserving the half-page
+        /// scroll on Shift+PgUp/PgDn. Merges into the existing file without disturbing other
+        /// bindings; existing values for these keys are left untouched. Returns true when the
+        /// binding is in place (already present or newly written), false on any failure.
+        /// </summary>
+        private bool TryEnsureFullscreenLineScrollKeybinding()
+        {
+            try
+            {
+                string userProfile = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+                string claudeDir = Path.Combine(userProfile, ".claude");
+                string path = Path.Combine(claudeDir, "keybindings.json");
+
+                JObject root;
+                if (File.Exists(path))
+                {
+                    string existing = File.ReadAllText(path);
+                    root = string.IsNullOrWhiteSpace(existing) ? new JObject() : JObject.Parse(existing);
+                }
+                else
+                {
+                    if (!Directory.Exists(claudeDir))
+                    {
+                        Directory.CreateDirectory(claudeDir);
+                    }
+                    root = new JObject();
+                }
+
+                if (root["$schema"] == null)
+                {
+                    root["$schema"] = "https://www.schemastore.org/claude-code-keybindings.json";
+                }
+
+                if (!(root["bindings"] is JArray bindings))
+                {
+                    bindings = new JArray();
+                    root["bindings"] = bindings;
+                }
+
+                JObject scrollBlock = null;
+                foreach (var item in bindings)
+                {
+                    if (item is JObject obj &&
+                        string.Equals((string)obj["context"], "Scroll", StringComparison.Ordinal))
+                    {
+                        scrollBlock = obj;
+                        break;
+                    }
+                }
+                if (scrollBlock == null)
+                {
+                    scrollBlock = new JObject { ["context"] = "Scroll", ["bindings"] = new JObject() };
+                    bindings.Add(scrollBlock);
+                }
+                if (!(scrollBlock["bindings"] is JObject scrollBindings))
+                {
+                    scrollBindings = new JObject();
+                    scrollBlock["bindings"] = scrollBindings;
+                }
+
+                bool changed = false;
+                changed |= AddBindingIfAbsent(scrollBindings, "pageup", "scroll:lineUp");
+                changed |= AddBindingIfAbsent(scrollBindings, "pagedown", "scroll:lineDown");
+                changed |= AddBindingIfAbsent(scrollBindings, "shift+pageup", "scroll:halfPageUp");
+                changed |= AddBindingIfAbsent(scrollBindings, "shift+pagedown", "scroll:halfPageDown");
+
+                if (changed)
+                {
+                    File.WriteAllText(path, root.ToString(Newtonsoft.Json.Formatting.Indented));
+                }
+
+                return true;
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"Failed to ensure fullscreen line-scroll keybinding: {ex.Message}");
+                return false;
+            }
+        }
+
+        /// <summary>
+        /// Adds a keystroke-&gt;action mapping only when the keystroke is not already bound, so a
+        /// user's deliberate binding for that key is never overwritten. Returns true if added.
+        /// </summary>
+        private static bool AddBindingIfAbsent(JObject bindings, string keystroke, string action)
+        {
+            if (bindings[keystroke] != null)
+            {
+                return false;
+            }
+            bindings[keystroke] = action;
+            return true;
         }
 
         /// <summary>

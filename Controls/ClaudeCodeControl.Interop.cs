@@ -79,6 +79,8 @@ namespace ClaudeCodeVS
         private const int VK_SHIFT = 0x10;
         private const int VK_CONTROL = 0x11;
         private const int VK_SPACE = 0x20;
+        private const int VK_PRIOR = 0x21;
+        private const int VK_NEXT = 0x22;
         private const int VK_UP = 0x26;
         private const int VK_RIGHT = 0x27;
         private const int VK_DOWN = 0x28;
@@ -325,6 +327,13 @@ namespace ClaudeCodeVS
         /// </summary>
         [DllImport("user32.dll", CharSet = CharSet.Unicode)]
         private static extern bool PostMessage(IntPtr hWnd, uint Msg, IntPtr wParam, IntPtr lParam);
+
+        /// <summary>
+        /// Translates a virtual-key code to a scan code so synthesized key messages carry the
+        /// scan code conhost needs to translate them into VT input (e.g. PgUp -&gt; ESC[5~).
+        /// </summary>
+        [DllImport("user32.dll")]
+        private static extern uint MapVirtualKey(uint uCode, uint uMapType);
 
         /// <summary>
         /// Sends a message to a window and waits for it to be processed
