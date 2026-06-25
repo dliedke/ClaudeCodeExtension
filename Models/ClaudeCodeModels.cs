@@ -260,6 +260,14 @@ namespace ClaudeCodeVS
         /// <summary>First user-typed message in the session, trimmed for the list preview.</summary>
         public string Preview { get; set; } = string.Empty;
 
+        /// <summary>
+        /// User-assigned custom title for this session (issue #95). Empty when the user has
+        /// not renamed the session, in which case <see cref="Preview"/> is shown instead.
+        /// Loaded from <see cref="ClaudeCodeSettings.SessionCustomTitles"/>; not parsed from
+        /// the transcript.
+        /// </summary>
+        public string CustomTitle { get; set; } = string.Empty;
+
         /// <summary>Count of user + assistant turns (skipping system/snapshot/attachment lines).</summary>
         public int MessageCount { get; set; }
 
@@ -586,6 +594,22 @@ namespace ClaudeCodeVS
         /// when scraping fails or the user is not signed in.
         /// </summary>
         public bool ShowInlineUsageBars { get; set; } = true;
+
+        /// <summary>
+        /// User-assigned custom titles for Claude Code sessions, keyed by session UUID
+        /// (the JSONL filename without extension). When an entry exists it replaces the
+        /// auto-generated preview in the session-history list, and it persists across
+        /// Visual Studio restarts (issue #95). Empty/removed entries fall back to the
+        /// transcript's first user message.
+        /// </summary>
+        public System.Collections.Generic.Dictionary<string, string> SessionCustomTitles { get; set; }
+            = new System.Collections.Generic.Dictionary<string, string>(System.StringComparer.OrdinalIgnoreCase);
+
+        /// <summary>
+        /// Remembered state of the "Renamed only" filter toggle in the Session History
+        /// window, so it persists across Visual Studio restarts (issue #95).
+        /// </summary>
+        public bool SessionHistoryRenamedOnly { get; set; } = false;
 
         /// <summary>
         /// Last successfully scraped inline usage payload (JSON serialized

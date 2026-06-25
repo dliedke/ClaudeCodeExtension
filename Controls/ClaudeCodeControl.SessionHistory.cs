@@ -185,6 +185,22 @@ namespace ClaudeCodeVS
                 return bag;
             });
 
+            // Apply any user-assigned custom titles (issue #95) — done on the UI-bound
+            // result rather than in the thread-pool parse so settings access stays simple.
+            var titles = _settings?.SessionCustomTitles;
+            if (titles != null && titles.Count > 0)
+            {
+                foreach (var info in parsed)
+                {
+                    if (info.SessionId != null &&
+                        titles.TryGetValue(info.SessionId, out string title) &&
+                        !string.IsNullOrWhiteSpace(title))
+                    {
+                        info.CustomTitle = title;
+                    }
+                }
+            }
+
             result.AddRange(parsed.OrderByDescending(s => s.LastModified));
             return result;
         }
@@ -346,6 +362,75 @@ namespace ClaudeCodeVS
         }
 
         /// <summary>
+        /// Builds the two-line row content for a session. Renamed sessions (issue #95) get a
+        /// distinct layout: a colored left accent bar plus a bold, accented title line with a
+        /// pencil marker. Un-renamed sessions show the plain auto-generated preview. The dim
+        /// metadata line (date + counts) sits above either way.
+        /// </summary>
+        private static FrameworkElement CreateSessionItemContent(SessionInfo s, Brush themeFg, Brush accentBrush)
+        {
+            bool renamed = !string.IsNullOrWhiteSpace(s.CustomTitle);
+
+            string ts = s.LastModified.ToString("yyyy-MM-dd HH:mm");
+            string tokens = s.TokenCount > 1000
+                ? $"{s.TokenCount / 1000.0:0.#}k tokens"
+                : $"{s.TokenCount} tokens";
+            string meta = $"{ts}   ({s.MessageCount} msgs, {tokens})";
+
+            var root = new Grid();
+            root.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+            root.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+
+            // Left accent bar — colored for renamed rows, transparent otherwise (keeps text aligned).
+            var accentBar = new Border
+            {
+                Width = 3,
+                Background = renamed ? accentBrush : Brushes.Transparent,
+                CornerRadius = new CornerRadius(1.5),
+                Margin = new Thickness(0, 1, 8, 1)
+            };
+            Grid.SetColumn(accentBar, 0);
+            root.Children.Add(accentBar);
+
+            var stack = new StackPanel { Orientation = Orientation.Vertical };
+            Grid.SetColumn(stack, 1);
+
+            stack.Children.Add(new TextBlock
+            {
+                Text = meta,
+                Foreground = themeFg,
+                Opacity = 0.6,
+                FontSize = 11
+            });
+
+            stack.Children.Add(new TextBlock
+            {
+                Text = renamed ? "✎ " + s.CustomTitle : s.Preview,
+                Foreground = renamed ? accentBrush : themeFg,
+                FontWeight = renamed ? FontWeights.SemiBold : FontWeights.Normal,
+                TextWrapping = TextWrapping.Wrap,
+                Margin = new Thickness(0, 1, 0, 0)
+            });
+
+            root.Children.Add(stack);
+            return root;
+        }
+
+        /// <summary>
+        /// Builds the hover tooltip for a session list item. Shows the original auto-generated
+        /// preview alongside the ids when a custom title is in use so it isn't lost.
+        /// </summary>
+        private static string BuildSessionTooltip(SessionInfo s)
+        {
+            string tip = $"Session: {s.SessionId}\nFile: {s.FilePath}\ncwd: {s.Cwd}";
+            if (!string.IsNullOrWhiteSpace(s.CustomTitle))
+            {
+                tip += $"\nOriginal: {s.Preview}";
+            }
+            return tip;
+        }
+
+        /// <summary>
         /// Starts intentional fire-and-forget session-history work from void WPF event handlers.
         /// </summary>
         private static void StartSessionHistoryTask(Func<Task> asyncAction, string errorHandlerName)
@@ -418,29 +503,77 @@ namespace ClaudeCodeVS
             try { dialog.Owner = Application.Current?.MainWindow; } catch { }
 
             var grid = new Grid { Margin = new Thickness(12) };
-            grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
-            grid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
-            grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+            grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });   // filter bar
+            grid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) }); // list
+            grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });   // buttons
 
-            var header = new TextBlock
+            // Accent used to make renamed sessions stand out (a frozen green that reads on
+            // both dark and light themes). Shared by the row layout and the accent bar.
+            var accentBrush = new SolidColorBrush(Color.FromRgb(0x3F, 0xB9, 0x50));
+            accentBrush.Freeze();
+
+            // --- Row 0: filter bar (search + "Renamed only" toggle) ---
+            var filterBar = new Grid { Margin = new Thickness(0, 0, 0, 8) };
+            filterBar.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+            filterBar.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+            filterBar.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+
+            var filterLabel = new TextBlock
             {
-                Text = "Past Claude Code sessions for this workspace. Double-click or Resume to relaunch with " +
-                       "claude --resume <id>; Resume Last Session sends claude --continue (most recent session in cwd). " +
-                       "Active terminal will be restarted.",
-                TextWrapping = TextWrapping.Wrap,
+                Text = "Filter:",
                 Foreground = themeFg,
-                Margin = new Thickness(0, 0, 0, 10)
+                VerticalAlignment = VerticalAlignment.Center,
+                Margin = new Thickness(0, 0, 8, 0)
             };
-            Grid.SetRow(header, 0);
-            grid.Children.Add(header);
+            Grid.SetColumn(filterLabel, 0);
+            filterBar.Children.Add(filterLabel);
 
+            var searchBox = new TextBox
+            {
+                Background = themeBg,
+                Foreground = themeFg,
+                BorderBrush = themeFg,
+                VerticalContentAlignment = VerticalAlignment.Center,
+                Height = 26,
+                Margin = new Thickness(0, 0, 12, 0),
+                ToolTip = "Type to filter by title, preview text, or date. Double-click a session to resume; " +
+                          "right-click or press F2 to rename."
+            };
+            Grid.SetColumn(searchBox, 1);
+            filterBar.Children.Add(searchBox);
+
+            var renamedOnlyCheck = new CheckBox
+            {
+                Content = "Renamed only",
+                Foreground = themeFg,
+                VerticalAlignment = VerticalAlignment.Center,
+                IsChecked = _settings?.SessionHistoryRenamedOnly == true,
+                ToolTip = "Show only sessions you have given a custom title."
+            };
+            Grid.SetColumn(renamedOnlyCheck, 2);
+            filterBar.Children.Add(renamedOnlyCheck);
+
+            Grid.SetRow(filterBar, 0);
+            grid.Children.Add(filterBar);
+
+            // --- Row 1: session list ---
             var listBox = new ListBox
             {
                 Background = themeBg,
                 Foreground = themeFg,
                 BorderBrush = themeFg,
-                FontFamily = new FontFamily("Cascadia Mono, Consolas")
+                FontFamily = new FontFamily("Cascadia Mono, Consolas"),
+                HorizontalContentAlignment = HorizontalAlignment.Stretch
             };
+            // No horizontal scrolling — rows wrap to the panel width instead of overflowing.
+            ScrollViewer.SetHorizontalScrollBarVisibility(listBox, ScrollBarVisibility.Disabled);
+            // Give each entry breathing room and let the row content stretch so long
+            // titles/previews ellipsize instead of overflowing.
+            var itemContainerStyle = new Style(typeof(ListBoxItem));
+            itemContainerStyle.Setters.Add(new Setter(Control.PaddingProperty, new Thickness(6, 5, 6, 6)));
+            itemContainerStyle.Setters.Add(new Setter(FrameworkElement.MarginProperty, new Thickness(0, 0, 0, 4)));
+            itemContainerStyle.Setters.Add(new Setter(Control.HorizontalContentAlignmentProperty, HorizontalAlignment.Stretch));
+            listBox.ItemContainerStyle = itemContainerStyle;
             Grid.SetRow(listBox, 1);
             grid.Children.Add(listBox);
 
@@ -449,6 +582,7 @@ namespace ClaudeCodeVS
                 Text = "Loading sessions…",
                 Foreground = themeFg,
                 FontStyle = FontStyles.Italic,
+                TextAlignment = TextAlignment.Center,
                 HorizontalAlignment = HorizontalAlignment.Center,
                 VerticalAlignment = VerticalAlignment.Center,
                 Opacity = 0.75
@@ -456,24 +590,16 @@ namespace ClaudeCodeVS
             Grid.SetRow(loading, 1);
             grid.Children.Add(loading);
 
-            // Bottom button row
-            var bottomPanel = new StackPanel
-            {
-                Orientation = Orientation.Horizontal,
-                HorizontalAlignment = HorizontalAlignment.Right,
-                Margin = new Thickness(0, 10, 0, 0)
-            };
-            Grid.SetRow(bottomPanel, 2);
-
+            // --- Row 2: button row (Refresh left, actions right) ---
             Style buttonStyle = GetDialogButtonStyle();
             Func<string, Button> mkBtn = (text) =>
             {
                 var b = new Button
                 {
                     Content = text,
-                    MinWidth = 110,
+                    MinWidth = 88,
                     Height = 28,
-                    Margin = new Thickness(0, 0, 8, 0)
+                    Margin = new Thickness(8, 0, 0, 0)
                 };
                 if (buttonStyle != null) b.Style = buttonStyle;
                 else { b.Background = themeBg; b.Foreground = themeFg; b.BorderBrush = themeFg; }
@@ -482,32 +608,96 @@ namespace ClaudeCodeVS
 
             var resumeButton = mkBtn("Resume");
             var continueButton = mkBtn("Resume Last Session");
+            var renameButton = mkBtn("Rename");
             var deleteButton = mkBtn("Delete");
             var refreshButton = mkBtn("Refresh");
             var closeButton = mkBtn("Close");
             closeButton.IsCancel = true;
-            closeButton.Margin = new Thickness(0);
 
-            bottomPanel.Children.Add(refreshButton);
-            bottomPanel.Children.Add(deleteButton);
-            bottomPanel.Children.Add(continueButton);
-            bottomPanel.Children.Add(resumeButton);
-            bottomPanel.Children.Add(closeButton);
-            grid.Children.Add(bottomPanel);
+            var buttonBar = new DockPanel { LastChildFill = false, Margin = new Thickness(0, 10, 0, 0) };
+            Grid.SetRow(buttonBar, 2);
+
+            // Refresh sits apart on the left; the destructive/launch actions group on the right.
+            refreshButton.Margin = new Thickness(0);
+            DockPanel.SetDock(refreshButton, Dock.Left);
+            buttonBar.Children.Add(refreshButton);
+
+            var rightActions = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right };
+            DockPanel.SetDock(rightActions, Dock.Right);
+            rightActions.Children.Add(renameButton);
+            rightActions.Children.Add(deleteButton);
+            rightActions.Children.Add(continueButton);
+            rightActions.Children.Add(resumeButton);
+            rightActions.Children.Add(closeButton);
+            buttonBar.Children.Add(rightActions);
+
+            grid.Children.Add(buttonBar);
 
             dialog.Content = grid;
 
-            // Loader — populates the listbox once parsing finishes.
+            // Full set of sessions for the workspace; the visible list is a filtered view of this.
+            var loadedSessions = new List<SessionInfo>();
+
+            // Rebuilds the visible list from loadedSessions, applying the search text and the
+            // "Renamed only" toggle, and preserves the current selection where possible.
+            Action applyFilter = () =>
+            {
+                string previouslySelectedId = (listBox.SelectedItem as ListBoxItem)?.Tag is SessionInfo psi
+                    ? psi.SessionId : null;
+
+                string query = (searchBox.Text ?? string.Empty).Trim();
+                bool renamedOnly = renamedOnlyCheck.IsChecked == true;
+
+                listBox.Items.Clear();
+
+                int reselectIndex = -1;
+                foreach (var s in loadedSessions)
+                {
+                    bool isRenamed = !string.IsNullOrWhiteSpace(s.CustomTitle);
+                    if (renamedOnly && !isRenamed) continue;
+
+                    if (query.Length > 0)
+                    {
+                        string haystack = $"{s.CustomTitle}\n{s.Preview}\n{s.LastModified:yyyy-MM-dd HH:mm}";
+                        if (haystack.IndexOf(query, StringComparison.OrdinalIgnoreCase) < 0) continue;
+                    }
+
+                    var lbi = new ListBoxItem
+                    {
+                        Content = CreateSessionItemContent(s, themeFg, accentBrush),
+                        Tag = s,
+                        Background = themeBg,
+                        Foreground = themeFg,
+                        ToolTip = BuildSessionTooltip(s)
+                    };
+                    if (s.SessionId == previouslySelectedId) reselectIndex = listBox.Items.Count;
+                    listBox.Items.Add(lbi);
+                }
+
+                if (listBox.Items.Count == 0)
+                {
+                    loading.Visibility = Visibility.Visible;
+                    loading.Text = loadedSessions.Count == 0
+                        ? loading.Text  // keep the "no sessions on disk" message set by the loader
+                        : "No sessions match the current filter.";
+                }
+                else
+                {
+                    loading.Visibility = Visibility.Collapsed;
+                    listBox.SelectedIndex = reselectIndex >= 0 ? reselectIndex : 0;
+                }
+            };
+
+            // Loader — populates loadedSessions once parsing finishes, then renders via the filter.
             Func<Task> loadAsync = async () =>
             {
+                loadedSessions.Clear();
                 listBox.Items.Clear();
                 loading.Visibility = Visibility.Visible;
                 loading.Text = "Loading sessions…";
 
                 string sessionDir = await ResolveSessionDirectoryAsync(selected.Value, workspaceDir);
                 List<SessionInfo> sessions = await LoadSessionsAsync(sessionDir, selected.Value);
-
-                loading.Visibility = Visibility.Collapsed;
 
                 if (sessions.Count == 0)
                 {
@@ -518,37 +708,107 @@ namespace ClaudeCodeVS
                     return;
                 }
 
-                foreach (var s in sessions)
-                {
-                    string ts = s.LastModified.ToString("yyyy-MM-dd HH:mm");
-                    string tokens = s.TokenCount > 1000
-                        ? $"{s.TokenCount / 1000.0:0.#}k tokens"
-                        : $"{s.TokenCount} tokens";
-                    string label = $"{ts}   ({s.MessageCount} msgs, {tokens})\n   {s.Preview}";
-
-                    var lbi = new ListBoxItem
-                    {
-                        Content = label,
-                        Tag = s,
-                        Background = themeBg,
-                        Foreground = themeFg,
-                        ToolTip = $"Session: {s.SessionId}\nFile: {s.FilePath}\ncwd: {s.Cwd}"
-                    };
-                    listBox.Items.Add(lbi);
-                }
-
-                if (listBox.Items.Count > 0)
-                {
-                    listBox.SelectedIndex = 0;
-                }
+                loadedSessions.AddRange(sessions);
+                applyFilter();
             };
+
+            // Persist the "Renamed only" toggle so it survives across sessions (issue #95).
+            Action saveRenamedOnly = () =>
+            {
+                bool on = renamedOnlyCheck.IsChecked == true;
+                if (_settings != null && _settings.SessionHistoryRenamedOnly != on)
+                {
+                    _settings.SessionHistoryRenamedOnly = on;
+                    SaveSettings();
+                }
+                applyFilter();
+            };
+
+            searchBox.TextChanged += (s, args) => applyFilter();
+            renamedOnlyCheck.Checked += (s, args) => saveRenamedOnly();
+            renamedOnlyCheck.Unchecked += (s, args) => saveRenamedOnly();
 
             // Wire up buttons.
-            Func<SessionInfo> currentSelection = () =>
+            Func<ListBoxItem> currentSelectionItem = () => listBox.SelectedItem as ListBoxItem;
+            Func<SessionInfo> currentSelection = () => currentSelectionItem()?.Tag as SessionInfo;
+
+            // Rename the selected session (issue #95). Persisted in settings keyed by
+            // session UUID so it survives restarts; an empty title clears the override.
+            Action renameSelected = () =>
             {
-                var lbi = listBox.SelectedItem as ListBoxItem;
-                return lbi?.Tag as SessionInfo;
+                var sel = currentSelection();
+                if (sel == null) return;
+
+                string newTitle = ShowRenameSessionDialog(sel, dialog);
+                if (newTitle == null) return; // cancelled
+
+                newTitle = newTitle.Trim();
+                if (_settings.SessionCustomTitles == null)
+                {
+                    _settings.SessionCustomTitles =
+                        new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+                }
+
+                if (string.IsNullOrEmpty(newTitle))
+                {
+                    _settings.SessionCustomTitles.Remove(sel.SessionId);
+                    sel.CustomTitle = string.Empty;
+                }
+                else
+                {
+                    _settings.SessionCustomTitles[sel.SessionId] = newTitle;
+                    sel.CustomTitle = newTitle;
+                }
+
+                SaveSettings();
+                applyFilter(); // re-render so the renamed-row layout (and any filter) updates
             };
+
+            // Delete the selected transcript (and any custom title it carried).
+            Action deleteSelected = () =>
+            {
+                var sel = currentSelection();
+                if (sel == null) return;
+
+                var confirm = MessageBox.Show(
+                    $"Delete this session transcript?\n\n{sel.FilePath}\n\nThis cannot be undone.",
+                    "Delete Session", MessageBoxButton.YesNo, MessageBoxImage.Warning);
+                if (confirm != MessageBoxResult.Yes) return;
+
+                try
+                {
+                    File.Delete(sel.FilePath);
+                    if (_settings.SessionCustomTitles != null &&
+                        _settings.SessionCustomTitles.Remove(sel.SessionId))
+                    {
+                        SaveSettings();
+                    }
+                    loadedSessions.Remove(sel);
+                    applyFilter();
+                }
+                catch (Exception ex)
+                {
+                    MessageBox.Show($"Failed to delete: {ex.Message}", "Error",
+                        MessageBoxButton.OK, MessageBoxImage.Error);
+                }
+            };
+
+            // Right-click context menu on the list (issue #95): Rename / Delete.
+            var listContextMenu = new ContextMenu();
+            var renameMenuItem = new MenuItem { Header = "Rename…" };
+            renameMenuItem.Click += (s, args) => renameSelected();
+            var deleteMenuItem = new MenuItem { Header = "Delete" };
+            deleteMenuItem.Click += (s, args) => deleteSelected();
+            listContextMenu.Items.Add(renameMenuItem);
+            listContextMenu.Items.Add(deleteMenuItem);
+            // Only enable the items when a row is selected.
+            listContextMenu.Opened += (s, args) =>
+            {
+                bool hasSel = currentSelection() != null;
+                renameMenuItem.IsEnabled = hasSel;
+                deleteMenuItem.IsEnabled = hasSel;
+            };
+            listBox.ContextMenu = listContextMenu;
 
             // WPF Click handlers must be void-returning, so async work is fired off via
             // JoinableTaskFactory rather than `async (s, args) =>` lambdas (which would
@@ -569,38 +829,25 @@ namespace ClaudeCodeVS
                 StartSessionHistoryTask(() => ResumeSessionAsync(sel), "claudecode/sessionhistory");
             };
 
+            // F2 renames the selected session (issue #95) — the familiar shell rename key.
+            listBox.PreviewKeyDown += (s, args) =>
+            {
+                if (args.Key == Key.F2)
+                {
+                    args.Handled = true;
+                    renameSelected();
+                }
+            };
+
             continueButton.Click += (s, args) =>
             {
                 dialog.DialogResult = true;
                 StartSessionHistoryTask(() => ContinueLastSessionAsync(), "claudecode/sessionhistory");
             };
 
-            deleteButton.Click += (s, args) =>
-            {
-                var sel = currentSelection();
-                if (sel == null) return;
+            renameButton.Click += (s, args) => renameSelected();
 
-                var result = MessageBox.Show(
-                    $"Delete this session transcript?\n\n{sel.FilePath}\n\nThis cannot be undone.",
-                    "Delete Session", MessageBoxButton.YesNo, MessageBoxImage.Warning);
-                if (result != MessageBoxResult.Yes) return;
-
-                try
-                {
-                    File.Delete(sel.FilePath);
-                    int idx = listBox.SelectedIndex;
-                    listBox.Items.RemoveAt(idx);
-                    if (listBox.Items.Count > 0)
-                    {
-                        listBox.SelectedIndex = Math.Min(idx, listBox.Items.Count - 1);
-                    }
-                }
-                catch (Exception ex)
-                {
-                    MessageBox.Show($"Failed to delete: {ex.Message}", "Error",
-                        MessageBoxButton.OK, MessageBoxImage.Error);
-                }
-            };
+            deleteButton.Click += (s, args) => deleteSelected();
 
             refreshButton.Click += (s, args) =>
             {
@@ -613,6 +860,94 @@ namespace ClaudeCodeVS
                 StartSessionHistoryTask(loadAsync, "claudecode/sessionhistory/load");
             };
             dialog.ShowDialog();
+        }
+
+        /// <summary>
+        /// Shows a small themed prompt for renaming a session (issue #95). Returns the new
+        /// title (which may be empty to clear the override) or null if the user cancelled.
+        /// </summary>
+        private string ShowRenameSessionDialog(SessionInfo session, Window owner)
+        {
+            GetThemeBrushes(out Brush themeBg, out Brush themeFg);
+
+            var dialog = new Window
+            {
+                Title = "Rename Session",
+                Width = 480,
+                Height = 180,
+                WindowStartupLocation = WindowStartupLocation.CenterOwner,
+                ResizeMode = ResizeMode.NoResize,
+                Background = themeBg,
+                Foreground = themeFg,
+                ShowInTaskbar = false,
+                Owner = owner
+            };
+
+            var grid = new Grid { Margin = new Thickness(12) };
+            grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+            grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+            grid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
+            grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+
+            var label = new TextBlock
+            {
+                Text = "Custom title (leave empty to restore the auto-generated preview):",
+                Foreground = themeFg,
+                TextWrapping = TextWrapping.Wrap,
+                Margin = new Thickness(0, 0, 0, 6)
+            };
+            Grid.SetRow(label, 0);
+            grid.Children.Add(label);
+
+            var titleBox = new TextBox
+            {
+                Text = session.CustomTitle ?? string.Empty,
+                Background = themeBg,
+                Foreground = themeFg,
+                BorderBrush = themeFg,
+                Margin = new Thickness(0, 0, 0, 10)
+            };
+            Grid.SetRow(titleBox, 1);
+            grid.Children.Add(titleBox);
+
+            var buttonPanel = new StackPanel
+            {
+                Orientation = Orientation.Horizontal,
+                HorizontalAlignment = HorizontalAlignment.Right
+            };
+            Grid.SetRow(buttonPanel, 3);
+
+            Style editorButtonStyle = GetDialogButtonStyle();
+            Func<string, bool, bool, Button> mkBtn = (text, isDefault, isCancel) =>
+            {
+                var b = new Button
+                {
+                    Content = text,
+                    Width = 75,
+                    Height = 25,
+                    Margin = new Thickness(0, 0, 8, 0),
+                    IsDefault = isDefault,
+                    IsCancel = isCancel
+                };
+                if (editorButtonStyle != null) b.Style = editorButtonStyle;
+                else { b.Background = themeBg; b.Foreground = themeFg; b.BorderBrush = themeFg; }
+                return b;
+            };
+
+            var okButton = mkBtn("OK", true, false);
+            var cancelButton = mkBtn("Cancel", false, true);
+            cancelButton.Margin = new Thickness(0);
+            buttonPanel.Children.Add(okButton);
+            buttonPanel.Children.Add(cancelButton);
+            grid.Children.Add(buttonPanel);
+
+            okButton.Click += (s, args) => { dialog.DialogResult = true; };
+
+            dialog.Content = grid;
+            dialog.Loaded += (s, args) => { titleBox.SelectAll(); titleBox.Focus(); };
+
+            bool? ok = dialog.ShowDialog();
+            return ok == true ? (titleBox.Text ?? string.Empty) : null;
         }
 
         #endregion

@@ -105,6 +105,10 @@ This binds a Claude Code skill that shells out to OpenAI Codex to audit pending 
 
 ## Version History
 
+### Version 35.0
+- Added the ability to rename past sessions in the Session History window — right-click a session (or select it and press F2), or use the new "Rename" button, to give it a custom title. Renamed sessions stand out with their own highlighted layout, and custom titles persist across Visual Studio restarts; clear the title to restore the auto-generated preview (issue #95).
+- Added a filter box and a "Renamed only" toggle to the Session History window so you can quickly find a session by title, preview text, or date. The "Renamed only" choice is remembered across restarts, and the window layout was tidied up for less clutter.
+
 ### Version 34.0
 - Fixed "On Agent Finish" sometimes notifying that the agent had finished while it was still working, after clicking inside the terminal — selecting or clicking text in the Command Prompt freezes the screen, which was misread as the agent going idle (issue #94).
 - Raised the default idle time before a turn is detected as finished from 3 to 5 seconds.
