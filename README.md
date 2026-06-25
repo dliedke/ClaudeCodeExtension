@@ -105,6 +105,9 @@ This binds a Claude Code skill that shells out to OpenAI Codex to audit pending 
 
 ## Version History
 
+### Version 37.0
+- Fixed mouse-wheel scrolling in Claude Code's "TUI Fullscreen" mode scrolling the agent even when another window (such as Notepad) was layered over the terminal area — the wheel now only scrolls the agent while the terminal is focused.
+
 ### Version 36.0
 - Restored mouse-wheel scrolling in Claude Code's "TUI Fullscreen" mode — scrolling the wheel over the terminal now moves smoothly through the conversation one line at a time, instead of doing nothing. For native Claude Code, Page Up/Page Down are set to scroll one line and Shift+Page Up/Page Down keep the half-page jump (issue #96).
 

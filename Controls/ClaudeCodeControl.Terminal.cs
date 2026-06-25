@@ -3240,8 +3240,15 @@ namespace ClaudeCodeVS
                 }
                 else if (!ctrlDown &&
                          IsScreenPointInsideActiveTerminalPanel(info.pt) &&
+                         IsTerminalFocused() &&
                          IsClaudeFullscreenConhostActive())
                 {
+                    // Only forward a plain wheel notch when the terminal actually has focus. The
+                    // panel hit test alone passes whenever the cursor sits over the panel's screen
+                    // rectangle — including when another window (e.g. Notepad) is layered on top of
+                    // that area — which wrongly scrolled the agent while scrolling an unrelated
+                    // window. Requiring focus scopes the gesture to the terminal the user is in.
+                    //
                     // In fullscreen (alternate-screen) rendering, Claude Code's own mouse capture
                     // is left disabled (CLAUDE_CODE_DISABLE_MOUSE=1) to avoid the issue #92 paste
                     // flood, which kills mouse-wheel scrolling. Claude still scrolls on PgUp/PgDn,
