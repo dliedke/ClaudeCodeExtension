@@ -2,7 +2,7 @@
 
 ## Project Overview
 
-**Visual Studio Extension (VSIX)** for VS 2022/2026 — integrates AI code assistants (Claude Code, OpenAI Codex, Cursor Agent, Open Code, Windsurf, PI, and Google Antigravity) via embedded terminal (Win32 `SetParent` interop).
+**Visual Studio Extension (VSIX)** for VS 2022/2026 — integrates AI code assistants (Claude Code, OpenAI Codex, Cursor Agent, Open Code, Devin, PI, and Google Antigravity) via embedded terminal (Win32 `SetParent` interop).
 
 - **Author**: Daniel Carvalho Liedke (dliedke@gmail.com) | **License**: MIT
 - **Repository**: https://github.com/dliedke/ClaudeCodeExtension
@@ -165,9 +165,8 @@ When you add or materially change behavior in one of these files, update its sec
 ## Data Models (ClaudeCodeModels.cs)
 
 ```csharp
-enum AiProvider { ClaudeCode, ClaudeCodeWSL, Codex, CodexNative, CursorAgent, CursorAgentNative, OpenCode, Windsurf, Pi, Antigravity, Reasonix }
+enum AiProvider { ClaudeCode, ClaudeCodeWSL, Codex, CodexNative, CursorAgent, CursorAgentNative, OpenCode, Devin, Pi, Antigravity, Reasonix, DevinNative }
 enum ClaudeModel { Opus, Sonnet, Haiku }
-enum WindsurfModel { ClaudeOpus, ClaudeSonnet, Codex, GeminiPro }
 enum EffortLevel { Auto, Low, Medium, High, Max }
 enum TerminalType { CommandPrompt, WindowsTerminal }
 enum AgentFinishActionType { None, BuildSolution, RebuildSolution, Run, RunWithoutDebugging, RunTests, RunScript, SendToAgent }
@@ -178,7 +177,7 @@ class SessionInfo { SessionId, FilePath, Preview, MessageCount, TokenCount, Last
 class UsageSnapshot { SessionLabel, SessionReset, SessionPercent, WeeklyLabel, WeeklyReset, WeeklyPercent, HasExtraUsage, ExtraUsageSpent, ExtraUsageReset, ExtraUsagePercent }
 ```
 
-Key settings: `SplitterPosition` (236px default), `SendWithEnter` (default true), `SendWithCtrlEnter` (default false — when true and `SendWithEnter` false, Ctrl+Enter sends and Enter inserts a newline; issue #70), `SelectedProvider`, `VisibleProviders` (defaults to `[ClaudeCode]` — controls which agents appear in the provider menu; active provider is always shown regardless), `SelectedClaudeModel`, `SelectedWindsurfModel`, `PromptHistory` (max 50), `AutoOpenChangesOnPrompt`, `ClaudeDangerouslySkipPermissions`, `CodexFullAuto`, `CursorAgentAutoRun`, `WindsurfDangerousMode`, `SelectedEffortLevel`, `CustomWorkingDirectory`, `SelectedTerminalType`, `IsTerminalDetached`, `PromptFontSize` (8–24pt), `TerminalZoomDelta`, `InvertLayout`, `SelectedThemePreference` (Automatic/Dark/Light/Custom), `CustomThemeColorArgb` (bg color for Custom, default #F4ECFF), `LastAgentTerminalColorArgb` (agent's launched color, skips redundant restart prompts), `SkipThemeRestartPrompt` (default false), `CustomCommands` (list of `{Name, Command}`), `UsageAutoRefreshSeconds` (0 = manual), `UsageWindowOpened` (auto-reopen on load), `ShowInlineUsageBars` (default true), `LastUsageJson` / `LastUsageTimestamp` (cached snapshot), `SendLargePromptsAsFile` (default false — when true, prompts >1 KB are sent as a file reference instead of inline paste), `AgentFinish` (`AgentFinishConfig` — global "On Agent Finish" default; default disabled), `ProjectAgentFinish` (`Dictionary<string,AgentFinishConfig>` — per-solution overrides keyed by `.sln` name, take precedence over `AgentFinish` when present), `CustomExecutablePaths` (`Dictionary<AiProvider,string>` — per-provider custom CLI executable path override; empty/missing entries fall back to PATH/native detection)
+Key settings: `SplitterPosition` (236px default), `SendWithEnter` (default true), `SendWithCtrlEnter` (default false — when true and `SendWithEnter` false, Ctrl+Enter sends and Enter inserts a newline; issue #70), `SelectedProvider`, `VisibleProviders` (defaults to `[ClaudeCode]` — controls which agents appear in the provider menu; active provider is always shown regardless), `SelectedClaudeModel`, `DevinModels` (user-configurable list of Devin model names shown in the model menu; seeded with a default set) / `SelectedDevinModel` (string — the chosen Devin model name), `PromptHistory` (max 50), `AutoOpenChangesOnPrompt`, `ClaudeDangerouslySkipPermissions`, `CodexFullAuto`, `CursorAgentAutoRun`, `DevinDangerousMode`, `SelectedEffortLevel`, `CustomWorkingDirectory`, `SelectedTerminalType`, `IsTerminalDetached`, `PromptFontSize` (8–24pt), `TerminalZoomDelta`, `InvertLayout`, `SelectedThemePreference` (Automatic/Dark/Light/Custom), `CustomThemeColorArgb` (bg color for Custom, default #F4ECFF), `LastAgentTerminalColorArgb` (agent's launched color, skips redundant restart prompts), `SkipThemeRestartPrompt` (default false), `CustomCommands` (list of `{Name, Command}`), `UsageAutoRefreshSeconds` (0 = manual), `UsageWindowOpened` (auto-reopen on load), `ShowInlineUsageBars` (default true), `LastUsageJson` / `LastUsageTimestamp` (cached snapshot), `SendLargePromptsAsFile` (default false — when true, prompts >1 KB are sent as a file reference instead of inline paste), `AgentFinish` (`AgentFinishConfig` — global "On Agent Finish" default; default disabled), `ProjectAgentFinish` (`Dictionary<string,AgentFinishConfig>` — per-solution overrides keyed by `.sln` name, take precedence over `AgentFinish` when present), `CustomExecutablePaths` (`Dictionary<AiProvider,string>` — per-provider custom CLI executable path override; empty/missing entries fall back to PATH/native detection)
 
 ---
 
@@ -193,7 +192,8 @@ Key settings: `SplitterPosition` (236px default), `SendWithEnter` (default true)
 | Cursor Agent | `CursorAgentNative` | Windows | `agent.exe` / `agent.cmd` | `exit` |
 | Cursor Agent (WSL) | `CursorAgent` | WSL | `cursor-agent` | `exit` |
 | Open Code | `OpenCode` | Windows | `opencode` | `exit` |
-| Windsurf (WSL) | `Windsurf` | WSL | `devin` | `exit` |
+| Devin (WSL) | `Devin` | WSL | `devin` | `exit` |
+| Devin (native) | `DevinNative` | Windows | `devin` | `exit` |
 | PI | `Pi` | Windows | `pi` | CTRL+D twice |
 | Antigravity | `Antigravity` | Windows | `agy` | Double CTRL+D |
 | Reasonix | `Reasonix` | Windows | `reasonix` | CTRL+C |

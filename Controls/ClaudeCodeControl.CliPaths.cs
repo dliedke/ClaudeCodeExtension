@@ -35,10 +35,11 @@ namespace ClaudeCodeVS
             (AiProvider.CursorAgentNative, "Cursor Agent",       false),
             (AiProvider.CursorAgent,       "Cursor Agent (WSL)", true),
             (AiProvider.OpenCode,          "Open Code",          false),
-            (AiProvider.Windsurf,          "Windsurf (WSL)",     true),
+            (AiProvider.Devin,          "Devin (WSL)",     true),
             (AiProvider.Pi,                "PI",                 false),
             (AiProvider.Antigravity,       "Antigravity",        false),
             (AiProvider.Reasonix,          "Reasonix",           false),
+            (AiProvider.DevinNative,       "Devin",              false),
         };
 
         #endregion

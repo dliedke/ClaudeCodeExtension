@@ -60,9 +60,9 @@ namespace ClaudeCodeVS
         private static bool _openCodeNotificationShown = false;
 
         /// <summary>
-        /// Flag to show Windsurf installation notification only once per session
+        /// Flag to show Devin installation notification only once per session
         /// </summary>
-        private static bool _windsurfNotificationShown = false;
+        private static bool _devinNotificationShown = false;
 
         /// <summary>
         /// Flag to show PI installation notification only once per session
@@ -78,6 +78,11 @@ namespace ClaudeCodeVS
         /// Flag to show Reasonix installation notification only once per session
         /// </summary>
         private static bool _reasonixNotificationShown = false;
+
+        /// <summary>
+        /// Flag to show Devin (native) installation notification only once per session
+        /// </summary>
+        private static bool _devinNativeNotificationShown = false;
 
         #endregion
 
@@ -756,16 +761,16 @@ namespace ClaudeCodeVS
         }
 
         /// <summary>
-        /// Checks if Windsurf (devin) is available inside WSL
+        /// Checks if Devin is available inside WSL
         /// Uses 'which devin' command to verify installation
         /// Uses caching to avoid repeated slow checks
         /// </summary>
         /// <param name="cancellationToken">Optional cancellation token</param>
         /// <returns>True if devin is available in WSL, false otherwise</returns>
-        private async Task<bool> IsWindsurfAvailableAsync(CancellationToken cancellationToken = default)
+        private async Task<bool> IsDevinAvailableAsync(CancellationToken cancellationToken = default)
         {
             // A configured custom CLI path means the tool is usable even when it is not on PATH.
-            if (CustomExecutableConfigured(AiProvider.Windsurf, isWsl: true))
+            if (CustomExecutableConfigured(AiProvider.Devin, isWsl: true))
             {
                 return true;
             }
@@ -773,7 +778,7 @@ namespace ClaudeCodeVS
             // Check cache first
             lock (_cacheLock)
             {
-                if (_providerCache.TryGetValue(AiProvider.Windsurf, out var cached) && IsCacheValid(cached))
+                if (_providerCache.TryGetValue(AiProvider.Devin, out var cached) && IsCacheValid(cached))
                 {
                     return cached.IsAvailable;
                 }
@@ -785,7 +790,7 @@ namespace ClaudeCodeVS
                 bool wslInstalled = await IsWslInstalledAsync(cancellationToken);
                 if (!wslInstalled)
                 {
-                    CacheProviderResult(AiProvider.Windsurf, false);
+                    CacheProviderResult(AiProvider.Devin, false);
                     return false;
                 }
 
@@ -820,7 +825,7 @@ namespace ClaudeCodeVS
                                 await Task.Delay(1000, cancellationToken);
                                 continue;
                             }
-                            CacheProviderResult(AiProvider.Windsurf, false);
+                            CacheProviderResult(AiProvider.Devin, false);
                             return false;
                         }
 
@@ -830,14 +835,14 @@ namespace ClaudeCodeVS
 
                         if (isAvailable)
                         {
-                            CacheProviderResult(AiProvider.Windsurf, true);
+                            CacheProviderResult(AiProvider.Devin, true);
                             return true;
                         }
 
                         // If stdout has content, WSL responded -- no need to retry
                         if (!string.IsNullOrEmpty(output))
                         {
-                            CacheProviderResult(AiProvider.Windsurf, false);
+                            CacheProviderResult(AiProvider.Devin, false);
                             return false;
                         }
 
@@ -849,7 +854,7 @@ namespace ClaudeCodeVS
                     }
                 }
 
-                CacheProviderResult(AiProvider.Windsurf, false);
+                CacheProviderResult(AiProvider.Devin, false);
                 return false;
             }
             catch (OperationCanceledException)
@@ -859,7 +864,7 @@ namespace ClaudeCodeVS
             catch (Exception ex)
             {
                 Debug.WriteLine($"Error checking for devin in WSL: {ex.Message}");
-                CacheProviderResult(AiProvider.Windsurf, false);
+                CacheProviderResult(AiProvider.Devin, false);
                 return false;
             }
         }
@@ -1234,6 +1239,81 @@ namespace ClaudeCodeVS
         }
 
         /// <summary>
+        /// Checks if Devin CLI is available natively on Windows (installed via the
+        /// 'irm https://static.devin.ai/cli/setup.ps1 | iex' setup script).
+        /// Uses 'where devin' to check if devin is in PATH. Cached to avoid repeated slow checks.
+        /// </summary>
+        /// <param name="cancellationToken">Optional cancellation token</param>
+        /// <returns>True if devin is available, false otherwise</returns>
+        private async Task<bool> IsDevinNativeAvailableAsync(CancellationToken cancellationToken = default)
+        {
+            // A configured custom CLI path means the tool is usable even when it is not on PATH.
+            if (CustomExecutableConfigured(AiProvider.DevinNative, isWsl: false))
+            {
+                return true;
+            }
+
+            // Check cache first
+            lock (_cacheLock)
+            {
+                if (_providerCache.TryGetValue(AiProvider.DevinNative, out var cached) && IsCacheValid(cached))
+                {
+                    return cached.IsAvailable;
+                }
+            }
+
+            try
+            {
+                var startInfo = new ProcessStartInfo
+                {
+                    FileName = "cmd.exe",
+                    Arguments = "/c where devin",
+                    UseShellExecute = false,
+                    RedirectStandardOutput = true,
+                    RedirectStandardError = true,
+                    CreateNoWindow = true
+                };
+
+                // Refresh PATH from registry so a freshly installed devin is detected without VS restart
+                string freshPath = GetFreshPathFromRegistry();
+                if (!string.IsNullOrEmpty(freshPath))
+                {
+                    startInfo.EnvironmentVariables["PATH"] = freshPath;
+                }
+
+                using (var process = Process.Start(startInfo))
+                {
+                    var completed = await WaitForProcessExitAsync(process, 3000, cancellationToken);
+
+                    if (!completed)
+                    {
+                        try { process.Kill(); } catch { }
+                        CacheProviderResult(AiProvider.DevinNative, false);
+                        return false;
+                    }
+
+                    string output = await process.StandardOutput.ReadToEndAsync();
+                    string error = await process.StandardError.ReadToEndAsync();
+
+                    bool isAvailable = process.ExitCode == 0 && !string.IsNullOrWhiteSpace(output);
+
+                    CacheProviderResult(AiProvider.DevinNative, isAvailable);
+                    return isAvailable;
+                }
+            }
+            catch (OperationCanceledException)
+            {
+                throw;
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"Error checking for Devin (native): {ex.Message}");
+                CacheProviderResult(AiProvider.DevinNative, false);
+                return false;
+            }
+        }
+
+        /// <summary>
         /// Checks if Windows Terminal is installed and available
         /// Checks the PATH (refreshed from registry) for wt.exe executable
         /// </summary>
@@ -1513,11 +1593,11 @@ For more details, visit: https://opencode.ai";
         }
 
         /// <summary>
-        /// Shows installation instructions for Windsurf (devin CLI) in WSL
+        /// Shows installation instructions for the Devin CLI in WSL
         /// </summary>
-        private void ShowWindsurfInstallationInstructions()
+        private void ShowDevinInstallationInstructions()
         {
-            const string instructions = @"To use Windsurf, you need to install WSL and Windsurf (devin) inside WSL.
+            const string instructions = @"To use Devin, you need to install WSL and Devin inside WSL.
 
 (you may click CTRL+C to copy full instructions)
 
@@ -1531,7 +1611,7 @@ dism.exe /online /enable-feature /featurename:VirtualMachinePlatform /all /nores
 
 wsl --install
 
-Install Windsurf (devin) inside WSL:
+Install Devin inside WSL:
 
 wsl
 
@@ -1541,7 +1621,7 @@ Start devin to login:
 
 devin";
 
-            MessageBox.Show(instructions, "Windsurf Installation",
+            MessageBox.Show(instructions, "Devin Installation",
                           MessageBoxButton.OK, MessageBoxImage.Information);
         }
 
@@ -1618,6 +1698,29 @@ For more details, visit: https://pi.dev";
                           MessageBoxButton.OK, MessageBoxImage.Information);
         }
 
+        /// <summary>
+        /// Shows installation/configuration instructions for Devin (native) when it is not
+        /// detected on PATH. Devin's native Windows CLI is installed via a PowerShell setup
+        /// script that requires Windows Terminal.
+        /// </summary>
+        private void ShowDevinNativeInstallationInstructions()
+        {
+            string instructions =
+                "Devin is not installed. A regular CMD terminal will be used instead.\r\n\r\n" +
+                "(you may click CTRL+C to copy full instructions)\r\n\r\n" +
+                "INSTALLATION\r\n\r\n" +
+                "Open Windows Terminal and run:\r\n\r\n" +
+                "irm https://static.devin.ai/cli/setup.ps1 | iex\r\n\r\n" +
+                "(Installation must be done from Windows Terminal. Open a new terminal\r\n" +
+                "afterwards so the updated PATH takes effect.)\r\n\r\n" +
+                "Once installed, the 'devin' command works in both Windows Terminal and the\r\n" +
+                "regular Command Prompt. The agent is launched with the 'devin' command.\r\n\r\n" +
+                "For more details, visit: https://devin.ai";
+
+            MessageBox.Show(instructions, "Devin Installation",
+                          MessageBoxButton.OK, MessageBoxImage.Information);
+        }
+
         #endregion
 
         #region Provider Switching
@@ -1651,37 +1754,37 @@ For more details, visit: https://pi.dev";
         }
 
         /// <summary>
-        /// Handles Windsurf (WSL) menu item click - switches to Windsurf provider
+        /// Handles Devin (WSL) menu item click - switches to Devin provider
         /// </summary>
 #pragma warning disable VSTHRD100 // async void is acceptable for event handlers
-        private async void WindsurfMenuItem_Click(object sender, RoutedEventArgs e)
+        private async void DevinMenuItem_Click(object sender, RoutedEventArgs e)
 #pragma warning restore VSTHRD100
         {
             if (_settings == null) return;
 
             bool wslInstalled = await IsWslInstalledAsync();
-            bool windsurfAvailable = false;
+            bool devinAvailable = false;
 
             if (wslInstalled)
             {
-                windsurfAvailable = await IsWindsurfAvailableAsync();
+                devinAvailable = await IsDevinAvailableAsync();
             }
 
             await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
 
             // Always update the selection regardless of availability
-            _settings.SelectedProvider = AiProvider.Windsurf;
+            _settings.SelectedProvider = AiProvider.Devin;
             UpdateProviderSelection();
             SaveSettings();
 
-            if (!wslInstalled || !windsurfAvailable)
+            if (!wslInstalled || !devinAvailable)
             {
-                ShowWindsurfInstallationInstructions();
+                ShowDevinInstallationInstructions();
                 await StartEmbeddedTerminalAsync(null); // Regular CMD
             }
             else
             {
-                await StartEmbeddedTerminalAsync(AiProvider.Windsurf);
+                await StartEmbeddedTerminalAsync(AiProvider.Devin);
             }
         }
 
@@ -1766,6 +1869,34 @@ For more details, visit: https://pi.dev";
             else
             {
                 await StartEmbeddedTerminalAsync(AiProvider.Reasonix);
+            }
+        }
+
+        /// <summary>
+        /// Handles Devin (native) menu item click - switches to the native Windows Devin provider
+        /// </summary>
+#pragma warning disable VSTHRD100 // async void is acceptable for event handlers
+        private async void DevinNativeMenuItem_Click(object sender, RoutedEventArgs e)
+#pragma warning restore VSTHRD100
+        {
+            if (_settings == null) return;
+
+            bool devinAvailable = await IsDevinNativeAvailableAsync();
+            await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
+
+            // Always update the selection regardless of availability
+            _settings.SelectedProvider = AiProvider.DevinNative;
+            UpdateProviderSelection();
+            SaveSettings();
+
+            if (!devinAvailable)
+            {
+                ShowDevinNativeInstallationInstructions();
+                await StartEmbeddedTerminalAsync(null); // Regular CMD
+            }
+            else
+            {
+                await StartEmbeddedTerminalAsync(AiProvider.DevinNative);
             }
         }
 
@@ -1963,10 +2094,11 @@ For more details, visit: https://pi.dev";
             CursorAgentNativeMenuItem.IsChecked = activeProvider == AiProvider.CursorAgentNative;
             CursorAgentMenuItem.IsChecked = activeProvider == AiProvider.CursorAgent;
             OpenCodeMenuItem.IsChecked = activeProvider == AiProvider.OpenCode;
-            WindsurfMenuItem.IsChecked = activeProvider == AiProvider.Windsurf;
+            DevinMenuItem.IsChecked = activeProvider == AiProvider.Devin;
             PiMenuItem.IsChecked = activeProvider == AiProvider.Pi;
             AntigravityMenuItem.IsChecked = activeProvider == AiProvider.Antigravity;
             ReasonixMenuItem.IsChecked = activeProvider == AiProvider.Reasonix;
+            DevinNativeMenuItem.IsChecked = activeProvider == AiProvider.DevinNative;
 
             // Update GroupBox header to show the running provider when a terminal is active.
             // The header is hidden only when the terminal is on top (inverted horizontal
@@ -1986,14 +2118,14 @@ For more details, visit: https://pi.dev";
 
             // Show/hide model selection button based on provider
             bool isClaudeProvider = IsClaudeProvider(activeProvider);
-            bool isWindsurfProvider = activeProvider == AiProvider.Windsurf;
-            ModelDropdownButton.Visibility = (isClaudeProvider || isWindsurfProvider) ? Visibility.Visible : Visibility.Collapsed;
+            bool isDevinProvider = activeProvider == AiProvider.Devin || activeProvider == AiProvider.DevinNative;
+            ModelDropdownButton.Visibility = (isClaudeProvider || isDevinProvider) ? Visibility.Visible : Visibility.Collapsed;
 
             UpdateInlineUsagePanelVisibility();
 
             // Swap the configurable features between dedicated toolbar buttons and the "⚙"
             // menu, applying provider/git constraints (Show Usage and Session History are
-            // Claude/Windsurf-only; View Changes needs a git repo).
+            // Claude/Devin-only; View Changes needs a git repo).
             RefreshToolbarLayout();
 
             // Reflect the running provider/model immediately in the VS tool window title.
@@ -2018,7 +2150,7 @@ For more details, visit: https://pi.dev";
                 ?? new System.Collections.Generic.List<ToolbarButton>();
 
             AiProvider? activeProvider = GetActiveOrSelectedProvider();
-            bool isUsageProvider = IsClaudeProvider(activeProvider) || activeProvider == AiProvider.Windsurf;
+            bool isUsageProvider = IsClaudeProvider(activeProvider) || activeProvider == AiProvider.Devin || activeProvider == AiProvider.DevinNative;
             bool isSessionHistoryProvider = IsClaudeCodeSessionHistoryProvider(activeProvider);
 
             // Apply the button/menu swap for one feature.
@@ -2224,8 +2356,10 @@ For more details, visit: https://pi.dev";
                     return "Claude Code";
                 case AiProvider.OpenCode:
                     return "Open Code";
-                case AiProvider.Windsurf:
-                    return "Windsurf";
+                case AiProvider.Devin:
+                    return "Devin";
+                case AiProvider.DevinNative:
+                    return "Devin";
                 case AiProvider.Pi:
                     return "PI";
                 case AiProvider.Antigravity:
@@ -2250,8 +2384,10 @@ For more details, visit: https://pi.dev";
                 case AiProvider.ClaudeCode:
                 case AiProvider.ClaudeCodeWSL:
                     return providerName + " - " + GetClaudeModelDisplayName();
-                case AiProvider.Windsurf:
-                    return providerName + " - " + GetWindsurfModelDisplayName();
+                case AiProvider.Devin:
+                case AiProvider.DevinNative:
+                    string devinModel = GetDevinModelDisplayName();
+                    return string.IsNullOrEmpty(devinModel) ? providerName : providerName + " - " + devinModel;
                 default:
                     return providerName;
             }
@@ -2271,20 +2407,26 @@ For more details, visit: https://pi.dev";
             }
         }
 
-        private string GetWindsurfModelDisplayName()
+        /// <summary>
+        /// Returns the currently selected Devin model name, resolving to the first
+        /// configured model when the saved selection is empty or no longer in the list.
+        /// Returns an empty string when no models are configured.
+        /// </summary>
+        private string GetDevinModelDisplayName()
         {
-            switch (_settings?.SelectedWindsurfModel)
+            var models = _settings?.DevinModels;
+            string selected = _settings?.SelectedDevinModel;
+
+            if (models != null && models.Count > 0)
             {
-                case WindsurfModel.ClaudeOpus:
-                    return "Claude Opus";
-                case WindsurfModel.Codex:
-                    return "Codex";
-                case WindsurfModel.GeminiPro:
-                    return "Gemini Pro";
-                case WindsurfModel.ClaudeSonnet:
-                default:
-                    return "Claude Sonnet";
+                if (!string.IsNullOrWhiteSpace(selected) && models.Contains(selected))
+                {
+                    return selected;
+                }
+                return models[0];
             }
+
+            return string.IsNullOrWhiteSpace(selected) ? string.Empty : selected;
         }
 
         #endregion
@@ -2661,7 +2803,7 @@ For more details, visit: https://pi.dev";
                                 $"Version: {version}\n" +
                                 $"Author: Daniel Carvalho Liedke\n" +
                                 $"Copyright © Daniel Carvalho Liedke 2026\n\n" +
-                                $"Provides seamless integration with Claude Code, Codex, Cursor Agent, Open Code, Windsurf, PI, Antigravity and Reasonix AI assistants directly within Visual Studio 2022/2026 IDE.";
+                                $"Provides seamless integration with Claude Code, Codex, Cursor Agent, Open Code, Devin, Devin, PI, Antigravity and Reasonix AI assistants directly within Visual Studio 2022/2026 IDE.";
 
             MessageBox.Show(aboutMessage, "About Claude Code Extension",
                           MessageBoxButton.OK, MessageBoxImage.Information);
@@ -2698,15 +2840,16 @@ For more details, visit: https://pi.dev";
         }
 
         /// <summary>
-        /// Shows Claude-specific or Windsurf-specific model items based on the current provider
+        /// Shows Claude-specific or Devin-specific model items based on the current provider
         /// </summary>
         private void ModelContextMenu_Opened(object sender, RoutedEventArgs e)
         {
             ThreadHelper.ThrowIfNotOnUIThread();
 
             AiProvider? activeProvider = GetActiveOrSelectedProvider();
-            bool isWindsurf = activeProvider == AiProvider.Windsurf;
-            bool isClaude = !isWindsurf;
+            // Devin (WSL) and Devin (native) both run the `devin` CLI and share the model list.
+            bool isDevin = activeProvider == AiProvider.Devin || activeProvider == AiProvider.DevinNative;
+            bool isClaude = !isDevin;
 
             // Claude-specific items
             OpusMenuItem.Visibility = isClaude ? Visibility.Visible : Visibility.Collapsed;
@@ -2725,11 +2868,73 @@ For more details, visit: https://pi.dev";
             InstallCavemanMenuItem.Visibility = isClaude ? Visibility.Visible : Visibility.Collapsed;
             TuiFullscreenMenuItem.Visibility = isClaude ? Visibility.Visible : Visibility.Collapsed;
 
-            // Windsurf-specific items
-            WindsurfClaudeOpusMenuItem.Visibility = isWindsurf ? Visibility.Visible : Visibility.Collapsed;
-            WindsurfClaudeSonnetMenuItem.Visibility = isWindsurf ? Visibility.Visible : Visibility.Collapsed;
-            WindsurfCodexMenuItem.Visibility = isWindsurf ? Visibility.Visible : Visibility.Collapsed;
-            WindsurfGeminiProMenuItem.Visibility = isWindsurf ? Visibility.Visible : Visibility.Collapsed;
+            // Devin-specific items: the model entries are rebuilt dynamically from the
+            // user-configurable _settings.DevinModels list each time the menu opens.
+            RebuildDevinModelMenuItems(isDevin);
+            DevinModelsSeparator.Visibility = isDevin ? Visibility.Visible : Visibility.Collapsed;
+            DevinConfigureModelsMenuItem.Visibility = isDevin ? Visibility.Visible : Visibility.Collapsed;
+        }
+
+        /// <summary>
+        /// Dynamically-inserted Devin model menu items, tracked so they can be removed and
+        /// rebuilt each time the model menu opens (the list is user-configurable).
+        /// </summary>
+        private readonly System.Collections.Generic.List<System.Windows.Controls.MenuItem> _dynamicDevinModelItems
+            = new System.Collections.Generic.List<System.Windows.Controls.MenuItem>();
+
+        /// <summary>
+        /// Rebuilds the Devin model menu items from <c>_settings.DevinModels</c>, inserting one
+        /// checkable item per configured model at the top of the model context menu. Removes any
+        /// previously-inserted dynamic items first. No-op (just clears) when Devin is not active.
+        /// </summary>
+        private void RebuildDevinModelMenuItems(bool show)
+        {
+            ThreadHelper.ThrowIfNotOnUIThread();
+
+            foreach (var item in _dynamicDevinModelItems)
+            {
+                ModelContextMenu.Items.Remove(item);
+            }
+            _dynamicDevinModelItems.Clear();
+
+            if (!show || _settings == null) return;
+
+            EnsureDevinModelDefaults();
+
+            string selected = GetDevinModelDisplayName();
+            int insertIndex = 0;
+            foreach (var model in _settings.DevinModels)
+            {
+                if (string.IsNullOrWhiteSpace(model)) continue;
+                var item = new System.Windows.Controls.MenuItem
+                {
+                    Header = model,
+                    IsCheckable = true,
+                    IsChecked = string.Equals(model, selected, StringComparison.Ordinal),
+                    Tag = model
+                };
+                item.Click += DevinModelMenuItem_Click;
+                ModelContextMenu.Items.Insert(insertIndex++, item);
+                _dynamicDevinModelItems.Add(item);
+            }
+        }
+
+        /// <summary>
+        /// Ensures the Devin model list exists and the saved selection is one of its entries.
+        /// </summary>
+        private void EnsureDevinModelDefaults()
+        {
+            if (_settings == null) return;
+            if (_settings.DevinModels == null)
+            {
+                _settings.DevinModels = new System.Collections.Generic.List<string>();
+            }
+            if (_settings.DevinModels.Count > 0 &&
+                (string.IsNullOrWhiteSpace(_settings.SelectedDevinModel) ||
+                 !_settings.DevinModels.Contains(_settings.SelectedDevinModel)))
+            {
+                _settings.SelectedDevinModel = _settings.DevinModels[0];
+            }
         }
 
         /// <summary>
@@ -2815,11 +3020,12 @@ For more details, visit: https://pi.dev";
             SonnetMenuItem.IsChecked = _settings.SelectedClaudeModel == ClaudeModel.Sonnet;
             HaikuMenuItem.IsChecked = _settings.SelectedClaudeModel == ClaudeModel.Haiku;
 
-            // Update Windsurf menu item checkmarks
-            WindsurfClaudeOpusMenuItem.IsChecked = _settings.SelectedWindsurfModel == WindsurfModel.ClaudeOpus;
-            WindsurfClaudeSonnetMenuItem.IsChecked = _settings.SelectedWindsurfModel == WindsurfModel.ClaudeSonnet;
-            WindsurfCodexMenuItem.IsChecked = _settings.SelectedWindsurfModel == WindsurfModel.Codex;
-            WindsurfGeminiProMenuItem.IsChecked = _settings.SelectedWindsurfModel == WindsurfModel.GeminiPro;
+            // Update Devin dynamic model item checkmarks (items are rebuilt on menu open)
+            string devinSelected = GetDevinModelDisplayName();
+            foreach (var item in _dynamicDevinModelItems)
+            {
+                item.IsChecked = string.Equals(item.Tag as string, devinSelected, StringComparison.Ordinal);
+            }
 
             // Update effort selection checkmarks
             UpdateEffortSelection();
@@ -2829,86 +3035,66 @@ For more details, visit: https://pi.dev";
 
         #endregion
 
-        #region Windsurf Model Selection
+        #region Devin Model Selection
 
         /// <summary>
-        /// Handles Windsurf Claude Opus menu item click - switches to Claude Opus model
+        /// Handles a click on a dynamically-built Devin model menu item. Records the selection
+        /// and, when a Devin terminal is running, switches the model live via
+        /// <c>/model "&lt;name&gt;"</c> (quoted so names with spaces are passed as one argument).
         /// </summary>
-#pragma warning disable VSTHRD100 // Avoid async void methods
-        private async void WindsurfClaudeOpusMenuItem_Click(object sender, RoutedEventArgs e)
+#pragma warning disable VSTHRD100 // Avoid async void methods - WPF event handler
+        private async void DevinModelMenuItem_Click(object sender, RoutedEventArgs e)
 #pragma warning restore VSTHRD100
         {
             if (_settings == null) return;
+
+            var item = sender as System.Windows.Controls.MenuItem;
+            string model = item?.Tag as string;
+            if (string.IsNullOrWhiteSpace(model)) return;
+
             await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
-            _settings.SelectedWindsurfModel = WindsurfModel.ClaudeOpus;
+            _settings.SelectedDevinModel = model;
             UpdateModelSelection();
             SaveSettings();
-            if (_currentRunningProvider == AiProvider.Windsurf)
+            if (_currentRunningProvider == AiProvider.Devin || _currentRunningProvider == AiProvider.DevinNative)
             {
-                await SendTextToTerminalAsync("/model opus");
+                await SendTextToTerminalAsync($"/model \"{model}\"");
             }
         }
 
         /// <summary>
-        /// Handles Windsurf Claude Sonnet menu item click - switches to Claude Sonnet model
+        /// Handles the "Configure Models..." menu item click - opens the editor for the
+        /// user-configurable Devin model list, then rebuilds the menu/title on close.
         /// </summary>
-#pragma warning disable VSTHRD100 // Avoid async void methods
-        private async void WindsurfClaudeSonnetMenuItem_Click(object sender, RoutedEventArgs e)
-#pragma warning restore VSTHRD100
+        private void DevinConfigureModelsMenuItem_Click(object sender, RoutedEventArgs e)
         {
-            if (_settings == null) return;
-            await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
-            _settings.SelectedWindsurfModel = WindsurfModel.ClaudeSonnet;
-            UpdateModelSelection();
-            SaveSettings();
-            if (_currentRunningProvider == AiProvider.Windsurf)
+            try
             {
-                await SendTextToTerminalAsync("/model sonnet");
+                ThreadHelper.ThrowIfNotOnUIThread();
+
+                if (_settings == null) _settings = new ClaudeCodeSettings();
+                if (_settings.DevinModels == null) _settings.DevinModels = new System.Collections.Generic.List<string>();
+
+                ShowDevinModelsDialog();
+
+                EnsureDevinModelDefaults();
+                SaveSettings();
+                UpdateModelSelection();
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"Error configuring Devin models: {ex.Message}");
+                MessageBox.Show($"Error configuring Devin models: {ex.Message}",
+                    "Error", MessageBoxButton.OK, MessageBoxImage.Error);
             }
         }
 
         /// <summary>
-        /// Handles Windsurf Codex menu item click - switches to Codex model
+        /// Handles Devin Show Usage menu item click - opens the Devin usage page in the browser
         /// </summary>
-#pragma warning disable VSTHRD100 // Avoid async void methods
-        private async void WindsurfCodexMenuItem_Click(object sender, RoutedEventArgs e)
-#pragma warning restore VSTHRD100
+        private void DevinShowUsageMenuItem_Click(object sender, RoutedEventArgs e)
         {
-            if (_settings == null) return;
-            await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
-            _settings.SelectedWindsurfModel = WindsurfModel.Codex;
-            UpdateModelSelection();
-            SaveSettings();
-            if (_currentRunningProvider == AiProvider.Windsurf)
-            {
-                await SendTextToTerminalAsync("/model codex");
-            }
-        }
-
-        /// <summary>
-        /// Handles Windsurf Gemini Pro menu item click - switches to Gemini Pro model
-        /// </summary>
-#pragma warning disable VSTHRD100 // Avoid async void methods
-        private async void WindsurfGeminiProMenuItem_Click(object sender, RoutedEventArgs e)
-#pragma warning restore VSTHRD100
-        {
-            if (_settings == null) return;
-            await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
-            _settings.SelectedWindsurfModel = WindsurfModel.GeminiPro;
-            UpdateModelSelection();
-            SaveSettings();
-            if (_currentRunningProvider == AiProvider.Windsurf)
-            {
-                await SendTextToTerminalAsync("/model gemini pro");
-            }
-        }
-
-        /// <summary>
-        /// Handles Windsurf Show Usage menu item click - opens the Windsurf usage page in the browser
-        /// </summary>
-        private void WindsurfShowUsageMenuItem_Click(object sender, RoutedEventArgs e)
-        {
-            System.Diagnostics.Process.Start("https://windsurf.com/subscription/usage");
+            System.Diagnostics.Process.Start("https://windsurf.com/subscription/usage?referrer=windsurf");
         }
 
         #endregion
@@ -3252,20 +3438,21 @@ For more details, visit: https://pi.dev";
             bool isClaudeProvider = IsClaudeProvider(activeProvider);
             bool isCodexProvider = IsCodexProvider(activeProvider);
             bool isCursorAgentProvider = IsCursorAgentProvider(activeProvider);
-            bool isWindsurfProvider = activeProvider == AiProvider.Windsurf;
+            bool isDevinProvider = activeProvider == AiProvider.Devin;
             bool isPiProvider = activeProvider == AiProvider.Pi;
             bool isAntigravityProvider = activeProvider == AiProvider.Antigravity;
             bool isReasonixProvider = activeProvider == AiProvider.Reasonix;
+            bool isDevinNativeProvider = activeProvider == AiProvider.DevinNative;
 
             // Show/hide individual provider menu items based on VisibleProviders.
             // The currently selected provider is always shown so users keep access to it.
             ApplyProviderMenuVisibility();
 
-            AutoOpenChangesSeparator.Visibility = (isClaudeProvider || isCodexProvider || isCursorAgentProvider || isWindsurfProvider || isPiProvider || isAntigravityProvider || isReasonixProvider) ? Visibility.Visible : Visibility.Collapsed;
+            AutoOpenChangesSeparator.Visibility = (isClaudeProvider || isCodexProvider || isCursorAgentProvider || isDevinProvider || isPiProvider || isAntigravityProvider || isReasonixProvider || isDevinNativeProvider) ? Visibility.Visible : Visibility.Collapsed;
             ClaudeDangerouslySkipPermissionsMenuItem.Visibility = isClaudeProvider ? Visibility.Visible : Visibility.Collapsed;
             CodexFullAutoMenuItem.Visibility = isCodexProvider ? Visibility.Visible : Visibility.Collapsed;
             CursorAgentAutoRunMenuItem.Visibility = isCursorAgentProvider ? Visibility.Visible : Visibility.Collapsed;
-            WindsurfDangerousModeMenuItem.Visibility = isWindsurfProvider ? Visibility.Visible : Visibility.Collapsed;
+            DevinDangerousModeMenuItem.Visibility = (isDevinProvider || isDevinNativeProvider) ? Visibility.Visible : Visibility.Collapsed;
             AntigravityDangerouslySkipPermissionsMenuItem.Visibility = isAntigravityProvider ? Visibility.Visible : Visibility.Collapsed;
 
             // Update checkbox state from settings
@@ -3274,7 +3461,7 @@ For more details, visit: https://pi.dev";
                 ClaudeDangerouslySkipPermissionsMenuItem.IsChecked = _settings.ClaudeDangerouslySkipPermissions;
                 CodexFullAutoMenuItem.IsChecked = _settings.CodexFullAuto;
                 CursorAgentAutoRunMenuItem.IsChecked = _settings.CursorAgentAutoRun;
-                WindsurfDangerousModeMenuItem.IsChecked = _settings.WindsurfDangerousMode;
+                DevinDangerousModeMenuItem.IsChecked = _settings.DevinDangerousMode;
                 AntigravityDangerouslySkipPermissionsMenuItem.IsChecked = _settings.AntigravityDangerouslySkipPermissions;
             }
         }
@@ -3462,21 +3649,21 @@ For more details, visit: https://pi.dev";
         }
 
         /// <summary>
-        /// Handles Windsurf dangerous mode menu item click
+        /// Handles Devin dangerous mode menu item click
         /// </summary>
 #pragma warning disable VSTHRD100 // async void is acceptable for event handlers
-        private async void WindsurfDangerousModeMenuItem_Click(object sender, RoutedEventArgs e)
+        private async void DevinDangerousModeMenuItem_Click(object sender, RoutedEventArgs e)
 #pragma warning restore VSTHRD100
         {
             await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
 
             if (_settings == null) return;
 
-            _settings.WindsurfDangerousMode = WindsurfDangerousModeMenuItem.IsChecked;
+            _settings.DevinDangerousMode = DevinDangerousModeMenuItem.IsChecked;
             SaveSettings();
 
-            // Reload Windsurf terminal immediately so the new startup flag is applied.
-            if (_settings.SelectedProvider == AiProvider.Windsurf)
+            // Reload Devin terminal immediately so the new startup flag is applied.
+            if (_settings.SelectedProvider == AiProvider.Devin)
             {
                 try
                 {
@@ -3484,9 +3671,9 @@ For more details, visit: https://pi.dev";
                 }
                 catch (Exception ex)
                 {
-                    Debug.WriteLine($"Error reloading Windsurf after dangerous mode change: {ex.Message}");
+                    Debug.WriteLine($"Error reloading Devin after dangerous mode change: {ex.Message}");
                     await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
-                    MessageBox.Show($"Failed to reload Windsurf: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                    MessageBox.Show($"Failed to reload Devin: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
                 }
             }
         }
@@ -3752,7 +3939,8 @@ For more details, visit: https://pi.dev";
                     { AiProvider.CursorAgentNative,  CursorAgentNativeMenuItem },
                     { AiProvider.CursorAgent,        CursorAgentMenuItem },
                     { AiProvider.OpenCode,           OpenCodeMenuItem },
-                    { AiProvider.Windsurf,           WindsurfMenuItem },
+                    { AiProvider.DevinNative,        DevinNativeMenuItem },
+                    { AiProvider.Devin,           DevinMenuItem },
                     { AiProvider.Pi,                 PiMenuItem },
                     { AiProvider.Antigravity,        AntigravityMenuItem },
                     { AiProvider.Reasonix,           ReasonixMenuItem },
@@ -3775,10 +3963,11 @@ For more details, visit: https://pi.dev";
                 case AiProvider.CursorAgentNative: return "Cursor Agent";
                 case AiProvider.CursorAgent:       return "Cursor Agent (WSL)";
                 case AiProvider.OpenCode:          return "Open Code";
-                case AiProvider.Windsurf:          return "Windsurf (WSL)";
+                case AiProvider.Devin:          return "Devin (WSL)";
                 case AiProvider.Pi:                return "PI";
                 case AiProvider.Antigravity:       return "Antigravity";
                 case AiProvider.Reasonix:          return "Reasonix";
+                case AiProvider.DevinNative:       return "Devin";
                 default:                           return provider.ToString();
             }
         }
@@ -3900,7 +4089,8 @@ For more details, visit: https://pi.dev";
                 AiProvider.CursorAgentNative,
                 AiProvider.CursorAgent,
                 AiProvider.OpenCode,
-                AiProvider.Windsurf,
+                AiProvider.DevinNative,
+                AiProvider.Devin,
                 AiProvider.Pi,
                 AiProvider.Antigravity,
                 AiProvider.Reasonix,

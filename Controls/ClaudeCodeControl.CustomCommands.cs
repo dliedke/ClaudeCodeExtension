@@ -542,5 +542,332 @@ namespace ClaudeCodeVS
         }
 
         #endregion
+
+        #region Configure Devin Models Dialog
+
+        /// <summary>
+        /// Shows the modal dialog for adding, editing, removing, and reordering the Devin model
+        /// list shown in the model menu. Mutates _settings.DevinModels in place; the caller is
+        /// responsible for saving and refreshing the menu.
+        /// </summary>
+        private void ShowDevinModelsDialog()
+        {
+            GetThemeBrushes(out Brush themeBg, out Brush themeFg);
+
+            var dialog = new Window
+            {
+                Title = "Configure Devin Models",
+                Width = 520,
+                Height = 420,
+                WindowStartupLocation = WindowStartupLocation.CenterOwner,
+                ResizeMode = ResizeMode.CanResize,
+                MinWidth = 420,
+                MinHeight = 320,
+                Background = themeBg,
+                Foreground = themeFg,
+                ShowInTaskbar = false
+            };
+
+            try { dialog.Owner = Application.Current?.MainWindow; } catch { }
+
+            var grid = new Grid { Margin = new Thickness(12) };
+            grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+            grid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
+            grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+
+            var label = new TextBlock
+            {
+                Text = "These models appear in the model (🤖) menu when Devin is the active agent. " +
+                       "Selecting one switches the model live via /model \"<name>\". Enter the exact " +
+                       "name Devin expects.",
+                TextWrapping = TextWrapping.Wrap,
+                Foreground = themeFg,
+                Margin = new Thickness(0, 0, 0, 10)
+            };
+            Grid.SetRow(label, 0);
+            grid.Children.Add(label);
+
+            var listGrid = new Grid();
+            listGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+            listGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+            Grid.SetRow(listGrid, 1);
+            grid.Children.Add(listGrid);
+
+            var listBox = new ListBox
+            {
+                Background = themeBg,
+                Foreground = themeFg,
+                BorderBrush = themeFg,
+                Margin = new Thickness(0, 0, 8, 0)
+            };
+            Grid.SetColumn(listBox, 0);
+            listGrid.Children.Add(listBox);
+
+            Action refreshList = () =>
+            {
+                listBox.Items.Clear();
+                foreach (var model in _settings.DevinModels)
+                {
+                    listBox.Items.Add(new ListBoxItem
+                    {
+                        Content = model,
+                        Tag = model,
+                        Background = themeBg,
+                        Foreground = themeFg
+                    });
+                }
+            };
+            refreshList();
+
+            var sideStack = new StackPanel { Orientation = Orientation.Vertical, Width = 90 };
+            Grid.SetColumn(sideStack, 1);
+            listGrid.Children.Add(sideStack);
+
+            Style buttonStyle = GetDialogButtonStyle();
+
+            Func<string, Button> makeSideButton = (text) =>
+            {
+                var b = new Button
+                {
+                    Content = text,
+                    Height = 28,
+                    Margin = new Thickness(0, 0, 0, 6)
+                };
+                if (buttonStyle != null)
+                {
+                    b.Style = buttonStyle;
+                }
+                else
+                {
+                    b.Background = themeBg;
+                    b.Foreground = themeFg;
+                    b.BorderBrush = themeFg;
+                }
+                return b;
+            };
+
+            var addButton = makeSideButton("Add...");
+            var editButton = makeSideButton("Edit...");
+            var removeButton = makeSideButton("Remove");
+            var moveUpButton = makeSideButton("Move Up");
+            var moveDownButton = makeSideButton("Move Down");
+
+            sideStack.Children.Add(addButton);
+            sideStack.Children.Add(editButton);
+            sideStack.Children.Add(removeButton);
+            sideStack.Children.Add(moveUpButton);
+            sideStack.Children.Add(moveDownButton);
+
+            addButton.Click += (s, args) =>
+            {
+                string newModel = ShowDevinModelEditorDialog(null, dialog);
+                if (!string.IsNullOrWhiteSpace(newModel) && !_settings.DevinModels.Contains(newModel))
+                {
+                    _settings.DevinModels.Add(newModel);
+                    refreshList();
+                    listBox.SelectedIndex = _settings.DevinModels.Count - 1;
+                }
+            };
+
+            editButton.Click += (s, args) =>
+            {
+                int idx = listBox.SelectedIndex;
+                if (idx < 0 || idx >= _settings.DevinModels.Count) return;
+                string edited = ShowDevinModelEditorDialog(_settings.DevinModels[idx], dialog);
+                if (!string.IsNullOrWhiteSpace(edited))
+                {
+                    _settings.DevinModels[idx] = edited;
+                    refreshList();
+                    listBox.SelectedIndex = idx;
+                }
+            };
+
+            removeButton.Click += (s, args) =>
+            {
+                int idx = listBox.SelectedIndex;
+                if (idx < 0 || idx >= _settings.DevinModels.Count) return;
+                var result = MessageBox.Show($"Remove model \"{_settings.DevinModels[idx]}\"?",
+                    "Confirm Remove", MessageBoxButton.YesNo, MessageBoxImage.Question);
+                if (result == MessageBoxResult.Yes)
+                {
+                    _settings.DevinModels.RemoveAt(idx);
+                    refreshList();
+                    if (_settings.DevinModels.Count > 0)
+                    {
+                        listBox.SelectedIndex = Math.Min(idx, _settings.DevinModels.Count - 1);
+                    }
+                }
+            };
+
+            moveUpButton.Click += (s, args) =>
+            {
+                int idx = listBox.SelectedIndex;
+                if (idx <= 0) return;
+                var item = _settings.DevinModels[idx];
+                _settings.DevinModels.RemoveAt(idx);
+                _settings.DevinModels.Insert(idx - 1, item);
+                refreshList();
+                listBox.SelectedIndex = idx - 1;
+            };
+
+            moveDownButton.Click += (s, args) =>
+            {
+                int idx = listBox.SelectedIndex;
+                if (idx < 0 || idx >= _settings.DevinModels.Count - 1) return;
+                var item = _settings.DevinModels[idx];
+                _settings.DevinModels.RemoveAt(idx);
+                _settings.DevinModels.Insert(idx + 1, item);
+                refreshList();
+                listBox.SelectedIndex = idx + 1;
+            };
+
+            listBox.MouseDoubleClick += (s, args) => editButton.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+
+            var bottomPanel = new StackPanel
+            {
+                Orientation = Orientation.Horizontal,
+                HorizontalAlignment = HorizontalAlignment.Right,
+                Margin = new Thickness(0, 10, 0, 0)
+            };
+            Grid.SetRow(bottomPanel, 2);
+
+            var closeButton = new Button
+            {
+                Content = "Close",
+                Width = 80,
+                Height = 26,
+                IsDefault = true,
+                IsCancel = true
+            };
+            if (buttonStyle != null)
+            {
+                closeButton.Style = buttonStyle;
+            }
+            else
+            {
+                closeButton.Background = themeBg;
+                closeButton.Foreground = themeFg;
+                closeButton.BorderBrush = themeFg;
+            }
+            closeButton.Click += (s, args) => { dialog.DialogResult = true; };
+            bottomPanel.Children.Add(closeButton);
+            grid.Children.Add(bottomPanel);
+
+            dialog.Content = grid;
+            dialog.ShowDialog();
+        }
+
+        /// <summary>
+        /// Shows the small dialog for adding or editing a single Devin model name.
+        /// </summary>
+        /// <param name="existing">The model name to edit, or null to add a new one.</param>
+        /// <param name="owner">The parent dialog window for centering/modality.</param>
+        /// <returns>The trimmed model name, or null if cancelled or empty.</returns>
+        private string ShowDevinModelEditorDialog(string existing, Window owner)
+        {
+            GetThemeBrushes(out Brush themeBg, out Brush themeFg);
+
+            var dialog = new Window
+            {
+                Title = existing == null ? "Add Devin Model" : "Edit Devin Model",
+                Width = 460,
+                Height = 160,
+                WindowStartupLocation = WindowStartupLocation.CenterOwner,
+                ResizeMode = ResizeMode.NoResize,
+                Background = themeBg,
+                Foreground = themeFg,
+                ShowInTaskbar = false,
+                Owner = owner
+            };
+
+            var grid = new Grid { Margin = new Thickness(12) };
+            grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+            grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+            grid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
+            grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+
+            var nameLabel = new TextBlock
+            {
+                Text = "Model name (sent as /model \"<name>\"):",
+                Foreground = themeFg,
+                Margin = new Thickness(0, 0, 0, 4)
+            };
+            Grid.SetRow(nameLabel, 0);
+            grid.Children.Add(nameLabel);
+
+            var nameBox = new TextBox
+            {
+                Text = existing ?? "",
+                Background = themeBg,
+                Foreground = themeFg,
+                BorderBrush = themeFg,
+                Margin = new Thickness(0, 0, 0, 10)
+            };
+            Grid.SetRow(nameBox, 1);
+            grid.Children.Add(nameBox);
+
+            var buttonPanel = new StackPanel
+            {
+                Orientation = Orientation.Horizontal,
+                HorizontalAlignment = HorizontalAlignment.Right
+            };
+            Grid.SetRow(buttonPanel, 3);
+
+            Style editorButtonStyle = GetDialogButtonStyle();
+
+            var okButton = new Button
+            {
+                Content = "OK",
+                Width = 75,
+                Height = 25,
+                Margin = new Thickness(0, 0, 8, 0),
+                IsDefault = true
+            };
+            var cancelButton = new Button
+            {
+                Content = "Cancel",
+                Width = 75,
+                Height = 25,
+                IsCancel = true
+            };
+            if (editorButtonStyle != null)
+            {
+                okButton.Style = editorButtonStyle;
+                cancelButton.Style = editorButtonStyle;
+            }
+            else
+            {
+                okButton.Background = themeBg;
+                okButton.Foreground = themeFg;
+                okButton.BorderBrush = themeFg;
+                cancelButton.Background = themeBg;
+                cancelButton.Foreground = themeFg;
+                cancelButton.BorderBrush = themeFg;
+            }
+            buttonPanel.Children.Add(okButton);
+            buttonPanel.Children.Add(cancelButton);
+            grid.Children.Add(buttonPanel);
+
+            string result = null;
+            okButton.Click += (s, args) =>
+            {
+                string nm = nameBox.Text?.Trim() ?? "";
+                if (string.IsNullOrEmpty(nm))
+                {
+                    MessageBox.Show("Model name cannot be empty.", "Validation",
+                        MessageBoxButton.OK, MessageBoxImage.Warning);
+                    return;
+                }
+                result = nm;
+                dialog.DialogResult = true;
+            };
+
+            dialog.Content = grid;
+            dialog.Loaded += (s, args) => nameBox.Focus();
+            dialog.ShowDialog();
+            return result;
+        }
+
+        #endregion
     }
 }

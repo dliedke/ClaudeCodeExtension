@@ -493,23 +493,25 @@ namespace ClaudeCodeVS
         private async void ShowUsageViewMenuItem_Click(object sender, RoutedEventArgs e)
 #pragma warning restore VSTHRD100
         {
-            if (GetActiveOrSelectedProvider() == AiProvider.Windsurf)
-                System.Diagnostics.Process.Start("https://windsurf.com/subscription/usage");
+            var usageProvider = GetActiveOrSelectedProvider();
+            if (usageProvider == AiProvider.Devin || usageProvider == AiProvider.DevinNative)
+                System.Diagnostics.Process.Start("https://windsurf.com/subscription/usage?referrer=windsurf");
             else
                 await ToggleUsageToolWindowAsync();
         }
 
         /// <summary>
         /// Syncs the Show Usage menu item's checkmark to reflect whether the
-        /// usage tool window is currently open. Windsurf is link-only (no
-        /// embedded window) so the check is suppressed for that provider.
+        /// usage tool window is currently open. Devin and Devin are link-only
+        /// (no embedded window) so the check is suppressed for those providers.
         /// Called from ProviderContextMenu_Opened (the "⚙" menu now hosts this item).
         /// </summary>
         private void SyncShowUsageMenuCheckState()
         {
             if (ShowUsageViewMenuItem == null) return;
-            bool isWindsurf = GetActiveOrSelectedProvider() == AiProvider.Windsurf;
-            ShowUsageViewMenuItem.IsChecked = !isWindsurf && _settings?.UsageWindowOpened == true;
+            var usageProvider = GetActiveOrSelectedProvider();
+            bool isLinkOnly = usageProvider == AiProvider.Devin || usageProvider == AiProvider.DevinNative;
+            ShowUsageViewMenuItem.IsChecked = !isLinkOnly && _settings?.UsageWindowOpened == true;
         }
 
         /// <summary>

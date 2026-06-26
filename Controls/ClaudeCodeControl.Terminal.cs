@@ -220,10 +220,11 @@ namespace ClaudeCodeVS
                 bool useCursorAgent = _settings?.SelectedProvider == AiProvider.CursorAgent;
                 bool useCursorAgentNative = _settings?.SelectedProvider == AiProvider.CursorAgentNative;
                 bool useOpenCode = _settings?.SelectedProvider == AiProvider.OpenCode;
-                bool useWindsurf = _settings?.SelectedProvider == AiProvider.Windsurf;
+                bool useDevin = _settings?.SelectedProvider == AiProvider.Devin;
                 bool usePi = _settings?.SelectedProvider == AiProvider.Pi;
                 bool useAntigravity = _settings?.SelectedProvider == AiProvider.Antigravity;
                 bool useReasonix = _settings?.SelectedProvider == AiProvider.Reasonix;
+                bool useDevinNative = _settings?.SelectedProvider == AiProvider.DevinNative;
                 bool providerAvailable = false;
 
 
@@ -255,12 +256,12 @@ namespace ClaudeCodeVS
                 {
                     providerAvailable = await IsOpenCodeAvailableAsync();
                 }
-                else if (useWindsurf)
+                else if (useDevin)
                 {
                     bool wslInstalled = await IsWslInstalledAsync();
                     if (wslInstalled)
                     {
-                        providerAvailable = await IsWindsurfAvailableAsync();
+                        providerAvailable = await IsDevinAvailableAsync();
                     }
                 }
                 else if (usePi)
@@ -274,6 +275,10 @@ namespace ClaudeCodeVS
                 else if (useReasonix)
                 {
                     providerAvailable = await IsReasonixAvailableAsync();
+                }
+                else if (useDevinNative)
+                {
+                    providerAvailable = await IsDevinNativeAvailableAsync();
                 }
                 else
                 {
@@ -421,18 +426,18 @@ namespace ClaudeCodeVS
                         await StartEmbeddedTerminalAsync(null); // Regular CMD
                     }
                 }
-                else if (useWindsurf)
+                else if (useDevin)
                 {
                     if (providerAvailable)
                     {
-                        await StartEmbeddedTerminalAsync(AiProvider.Windsurf);
+                        await StartEmbeddedTerminalAsync(AiProvider.Devin);
                     }
                     else
                     {
-                        if (!_windsurfNotificationShown)
+                        if (!_devinNotificationShown)
                         {
-                            _windsurfNotificationShown = true;
-                            ShowWindsurfInstallationInstructions();
+                            _devinNotificationShown = true;
+                            ShowDevinInstallationInstructions();
                         }
                         await StartEmbeddedTerminalAsync(null); // Regular CMD
                     }
@@ -481,6 +486,22 @@ namespace ClaudeCodeVS
                         {
                             _reasonixNotificationShown = true;
                             ShowReasonixInstallationInstructions();
+                        }
+                        await StartEmbeddedTerminalAsync(null); // Regular CMD
+                    }
+                }
+                else if (useDevinNative)
+                {
+                    if (providerAvailable)
+                    {
+                        await StartEmbeddedTerminalAsync(AiProvider.DevinNative);
+                    }
+                    else
+                    {
+                        if (!_devinNativeNotificationShown)
+                        {
+                            _devinNativeNotificationShown = true;
+                            ShowDevinNativeInstallationInstructions();
                         }
                         await StartEmbeddedTerminalAsync(null); // Regular CMD
                     }
@@ -1050,10 +1071,10 @@ namespace ClaudeCodeVS
                             cmdCommand = $"/k chcp 65001 >nul && cd /d \"{workspaceDir}\" && ping localhost -n 3 >nul && cls && {openCodeCommand}";
                             break;
 
-                        case AiProvider.Windsurf:
-                            string wslPathWindsurf = ConvertToWslPath(workspaceDir);
-                            string windsurfWslCommand = GetWindsurfCommand();
-                            cmdCommand = $"/k chcp 65001 >nul && cls && {BuildWslLaunchCommand(wslPathWindsurf, windsurfWslCommand)}";
+                        case AiProvider.Devin:
+                            string wslPathDevin = ConvertToWslPath(workspaceDir);
+                            string devinWslCommand = GetDevinCommand();
+                            cmdCommand = $"/k chcp 65001 >nul && cls && {BuildWslLaunchCommand(wslPathDevin, devinWslCommand)}";
                             break;
 
                         case AiProvider.Pi:
@@ -1069,6 +1090,11 @@ namespace ClaudeCodeVS
                         case AiProvider.Reasonix:
                             string reasonixCommand = ResolveProviderExecutable(AiProvider.Reasonix, "reasonix");
                             cmdCommand = $"/k chcp 65001 >nul && cd /d \"{workspaceDir}\" && ping localhost -n 3 >nul && cls && {reasonixCommand}";
+                            break;
+
+                        case AiProvider.DevinNative:
+                            string devinCommand = GetDevinNativeCommand();
+                            cmdCommand = $"/k chcp 65001 >nul && cd /d \"{workspaceDir}\" && ping localhost -n 3 >nul && cls && {devinCommand}";
                             break;
 
                         default: // null or any other value = regular CMD
@@ -1277,10 +1303,10 @@ namespace ClaudeCodeVS
                             terminalCommand = $"/k chcp 65001 >nul && cd /d \"{workspaceDir}\" && ping localhost -n 3 >nul && cls && {openCodeTerminalCommand}";
                             break;
 
-                        case AiProvider.Windsurf:
-                            string wslPathWindsurf = ConvertToWslPath(workspaceDir);
-                            string windsurfCmdCommand = GetWindsurfCommand();
-                            terminalCommand = $"/k chcp 65001 >nul && cls && {BuildWslLaunchCommand(wslPathWindsurf, windsurfCmdCommand)}";
+                        case AiProvider.Devin:
+                            string wslPathDevin = ConvertToWslPath(workspaceDir);
+                            string devinCmdCommand = GetDevinCommand();
+                            terminalCommand = $"/k chcp 65001 >nul && cls && {BuildWslLaunchCommand(wslPathDevin, devinCmdCommand)}";
                             break;
 
                         case AiProvider.Pi:
@@ -1296,6 +1322,11 @@ namespace ClaudeCodeVS
                         case AiProvider.Reasonix:
                             string reasonixTerminalCommand = ResolveProviderExecutable(AiProvider.Reasonix, "reasonix");
                             terminalCommand = $"/k chcp 65001 >nul && cd /d \"{workspaceDir}\" && ping localhost -n 3 >nul && cls && {reasonixTerminalCommand}";
+                            break;
+
+                        case AiProvider.DevinNative:
+                            string devinTerminalCommand = GetDevinNativeCommand();
+                            terminalCommand = $"/k chcp 65001 >nul && cd /d \"{workspaceDir}\" && ping localhost -n 3 >nul && cls && {devinTerminalCommand}";
                             break;
 
                         default: // null or any other value = regular CMD
@@ -3856,8 +3887,8 @@ namespace ClaudeCodeVS
                         await SendTextToTerminalAsync("npm i -g opencode-ai");
                         break;
 
-                    case AiProvider.Windsurf:
-                        // Windsurf: exit, wait, then update
+                    case AiProvider.Devin:
+                        // Devin: exit, wait, then update
                         await SendTextToTerminalAsync("exit");
                         await Task.Delay(1000);
                         await SendTextToTerminalAsync("wsl bash -lic \"devin update\"");
@@ -3886,6 +3917,13 @@ namespace ClaudeCodeVS
                         SendCtrlC();
                         await Task.Delay(1000);
                         await SendTextToTerminalAsync("npm i -g reasonix");
+                        break;
+
+                    case AiProvider.DevinNative:
+                        // Devin (native): exit, wait, then update via the devin CLI
+                        await SendTextToTerminalAsync("exit");
+                        await Task.Delay(1000);
+                        await SendTextToTerminalAsync("devin update");
                         break;
 
                     default:
@@ -4092,11 +4130,11 @@ namespace ClaudeCodeVS
                     providerAvailable = await IsOpenCodeAvailableAsync();
                     break;
 
-                case AiProvider.Windsurf:
-                    bool wslInstalledForWindsurf = await IsWslInstalledAsync();
-                    if (wslInstalledForWindsurf)
+                case AiProvider.Devin:
+                    bool wslInstalledForDevin = await IsWslInstalledAsync();
+                    if (wslInstalledForDevin)
                     {
-                        providerAvailable = await IsWindsurfAvailableAsync();
+                        providerAvailable = await IsDevinAvailableAsync();
                     }
                     break;
 
@@ -4110,6 +4148,10 @@ namespace ClaudeCodeVS
 
                 case AiProvider.Reasonix:
                     providerAvailable = await IsReasonixAvailableAsync();
+                    break;
+
+                case AiProvider.DevinNative:
+                    providerAvailable = await IsDevinNativeAvailableAsync();
                     break;
 
             }
@@ -4320,15 +4362,34 @@ namespace ClaudeCodeVS
         }
 
         /// <summary>
-        /// Gets the appropriate Windsurf (devin) command.
+        /// Gets the appropriate Devin command.
         /// Uses --permission-mode dangerous when the setting is enabled.
         /// </summary>
         /// <returns>The devin command to execute</returns>
-        private string GetWindsurfCommand()
+        private string GetDevinCommand()
         {
-            string baseCommand = ResolveProviderExecutable(AiProvider.Windsurf, "devin", isWsl: true);
+            string baseCommand = ResolveProviderExecutable(AiProvider.Devin, "devin", isWsl: true);
 
-            if (_settings?.WindsurfDangerousMode == true)
+            if (_settings?.DevinDangerousMode == true)
+            {
+                return $"{baseCommand} --permission-mode dangerous";
+            }
+
+            return baseCommand;
+        }
+
+        /// <summary>
+        /// Gets the appropriate Devin (native) command.
+        /// Runs the same `devin` CLI as Devin (WSL) on native Windows and shares the
+        /// <see cref="ClaudeCodeSettings.DevinDangerousMode"/> toggle, adding
+        /// --permission-mode dangerous when it is enabled.
+        /// </summary>
+        /// <returns>The devin command to execute</returns>
+        private string GetDevinNativeCommand()
+        {
+            string baseCommand = ResolveProviderExecutable(AiProvider.DevinNative, "devin");
+
+            if (_settings?.DevinDangerousMode == true)
             {
                 return $"{baseCommand} --permission-mode dangerous";
             }

@@ -409,11 +409,11 @@ namespace ClaudeCodeVS
                         case AiProvider.OpenCode:
                             providerAvailable = await IsOpenCodeAvailableAsync();
                             break;
-                        case AiProvider.Windsurf:
-                            bool wslInstalledForWindsurf = await IsWslInstalledAsync();
-                            if (wslInstalledForWindsurf)
+                        case AiProvider.Devin:
+                            bool wslInstalledForDevin = await IsWslInstalledAsync();
+                            if (wslInstalledForDevin)
                             {
-                                providerAvailable = await IsWindsurfAvailableAsync();
+                                providerAvailable = await IsDevinAvailableAsync();
                             }
                             break;
                         case AiProvider.Pi:
@@ -424,6 +424,9 @@ namespace ClaudeCodeVS
                             break;
                         case AiProvider.Reasonix:
                             providerAvailable = await IsReasonixAvailableAsync();
+                            break;
+                        case AiProvider.DevinNative:
+                            providerAvailable = await IsDevinNativeAvailableAsync();
                             break;
                     }
 
@@ -490,11 +493,11 @@ namespace ClaudeCodeVS
                                     ShowOpenCodeInstallationInstructions();
                                 }
                                 break;
-                            case AiProvider.Windsurf:
-                                if (!_windsurfNotificationShown)
+                            case AiProvider.Devin:
+                                if (!_devinNotificationShown)
                                 {
-                                    _windsurfNotificationShown = true;
-                                    ShowWindsurfInstallationInstructions();
+                                    _devinNotificationShown = true;
+                                    ShowDevinInstallationInstructions();
                                 }
                                 break;
                             case AiProvider.Pi:
@@ -516,6 +519,13 @@ namespace ClaudeCodeVS
                                 {
                                     _reasonixNotificationShown = true;
                                     ShowReasonixInstallationInstructions();
+                                }
+                                break;
+                            case AiProvider.DevinNative:
+                                if (!_devinNativeNotificationShown)
+                                {
+                                    _devinNativeNotificationShown = true;
+                                    ShowDevinNativeInstallationInstructions();
                                 }
                                 break;
                         }

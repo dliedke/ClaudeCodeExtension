@@ -27,10 +27,11 @@ namespace ClaudeCodeVS
         CursorAgentNative = 5,
         // 6 = QwenCode (removed in v10.12)
         OpenCode = 7,
-        Windsurf = 8,
+        Devin = 8,
         Pi = 9,
         Antigravity = 10,
-        Reasonix = 11
+        Reasonix = 11,
+        DevinNative = 12
     }
 
     /// <summary>
@@ -41,17 +42,6 @@ namespace ClaudeCodeVS
         Opus,
         Sonnet,
         Haiku
-    }
-
-    /// <summary>
-    /// Model types for the Windsurf provider
-    /// </summary>
-    public enum WindsurfModel
-    {
-        ClaudeOpus,
-        ClaudeSonnet,
-        Codex,
-        GeminiPro
     }
 
     /// <summary>
@@ -396,9 +386,25 @@ namespace ClaudeCodeVS
         public ClaudeModel SelectedClaudeModel { get; set; } = ClaudeModel.Sonnet;
 
         /// <summary>
-        /// Currently selected Windsurf model
+        /// User-configurable list of Devin model names shown in the model selection menu.
+        /// Devin (WSL) and Devin (native) share this list (same `devin` CLI). Each entry is
+        /// the model name passed to the CLI as <c>/model "&lt;name&gt;"</c>. Editable via the
+        /// "Configure Models..." item in the model menu. Seeded with a default set.
         /// </summary>
-        public WindsurfModel SelectedWindsurfModel { get; set; } = WindsurfModel.ClaudeSonnet;
+        public System.Collections.Generic.List<string> DevinModels { get; set; } = new System.Collections.Generic.List<string>
+        {
+            "SWE-1.6",
+            "Claude Opus 4.6 Thinking",
+            "Claude Opus 4.8 High",
+            "GPT-5.5 High Thinking",
+            "Gemini 3.1 Pro High Thinking"
+        };
+
+        /// <summary>
+        /// Currently selected Devin model name (must be one of <see cref="DevinModels"/>).
+        /// Empty until the user picks one; resolved to the first available model at runtime.
+        /// </summary>
+        public string SelectedDevinModel { get; set; } = "SWE-1.6";
 
         /// <summary>
         /// List of previously sent prompts with optional file attachments (most recent last)
@@ -433,10 +439,10 @@ namespace ClaudeCodeVS
         public bool CodexFullAuto { get; set; } = false;
 
         /// <summary>
-        /// If true, starts Windsurf with --permission-mode dangerous.
-        /// Applies to Windsurf (WSL).
+        /// If true, starts Devin with --permission-mode dangerous.
+        /// Applies to Devin (WSL).
         /// </summary>
-        public bool WindsurfDangerousMode { get; set; } = false;
+        public bool DevinDangerousMode { get; set; } = false;
 
         /// <summary>
         /// If true, starts Antigravity with the --dangerously-skip-permissions parameter

@@ -64,7 +64,7 @@ namespace ClaudeCodeVS
         {
             nameof(ClaudeCodeSettings.SelectedProvider),
             nameof(ClaudeCodeSettings.SelectedClaudeModel),
-            nameof(ClaudeCodeSettings.SelectedWindsurfModel),
+            nameof(ClaudeCodeSettings.SelectedDevinModel),
             nameof(ClaudeCodeSettings.SelectedEffortLevel)
         };
 

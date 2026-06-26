@@ -424,11 +424,11 @@
 									<MenuItem Header="Enable Fullscreen" x:Name="TuiFullscreenEnableMenuItem" Click="TuiFullscreenEnableMenuItem_Click" ToolTip="Run /tui fullscreen — flicker-free rendering with mouse support"/>
 									<MenuItem Header="Disable Fullscreen" x:Name="TuiFullscreenDisableMenuItem" Click="TuiFullscreenDisableMenuItem_Click" ToolTip="Run /tui default — classic renderer using native terminal scrollback"/>
 								</MenuItem>
-								<!-- Windsurf-specific items -->
-								<MenuItem Header="Claude Opus" x:Name="WindsurfClaudeOpusMenuItem" Click="WindsurfClaudeOpusMenuItem_Click" IsCheckable="True"/>
-								<MenuItem Header="Claude Sonnet" x:Name="WindsurfClaudeSonnetMenuItem" Click="WindsurfClaudeSonnetMenuItem_Click" IsCheckable="True" IsChecked="True"/>
-								<MenuItem Header="Codex" x:Name="WindsurfCodexMenuItem" Click="WindsurfCodexMenuItem_Click" IsCheckable="True"/>
-								<MenuItem Header="Gemini Pro" x:Name="WindsurfGeminiProMenuItem" Click="WindsurfGeminiProMenuItem_Click" IsCheckable="True"/>
+								<!-- Devin-specific items. The model entries are built dynamically from
+								     ClaudeCodeSettings.DevinModels in ModelContextMenu_Opened and inserted
+								     above this separator; the two items below are static. -->
+								<Separator x:Name="DevinModelsSeparator"/>
+								<MenuItem Header="Configure Models..." x:Name="DevinConfigureModelsMenuItem" Click="DevinConfigureModelsMenuItem_Click" ToolTip="Add, edit, remove, or reorder the Devin models shown in this menu."/>
 							</ContextMenu>
 						</Button.ContextMenu>
 					</Button>
@@ -451,7 +451,8 @@
 								<MenuItem Header="Cursor Agent" x:Name="CursorAgentNativeMenuItem" Click="CursorAgentNativeMenuItem_Click" IsCheckable="True"/>
 								<MenuItem Header="Cursor Agent (WSL)" x:Name="CursorAgentMenuItem" Click="CursorAgentMenuItem_Click" IsCheckable="True"/>
 								<MenuItem Header="Open Code" x:Name="OpenCodeMenuItem" Click="OpenCodeMenuItem_Click" IsCheckable="True"/>
-								<MenuItem Header="Windsurf (WSL)" x:Name="WindsurfMenuItem" Click="WindsurfMenuItem_Click" IsCheckable="True"/>
+								<MenuItem Header="Devin" x:Name="DevinNativeMenuItem" Click="DevinNativeMenuItem_Click" IsCheckable="True"/>
+								<MenuItem Header="Devin (WSL)" x:Name="DevinMenuItem" Click="DevinMenuItem_Click" IsCheckable="True"/>
 								<MenuItem Header="PI" x:Name="PiMenuItem" Click="PiMenuItem_Click" IsCheckable="True"/>
 								<MenuItem Header="Antigravity" x:Name="AntigravityMenuItem" Click="AntigravityMenuItem_Click" IsCheckable="True"/>
 								<MenuItem Header="Reasonix" x:Name="ReasonixMenuItem" Click="ReasonixMenuItem_Click" IsCheckable="True"/>
@@ -461,7 +462,7 @@
 								<MenuItem Header="Claude Code: Skip Permissions" x:Name="ClaudeDangerouslySkipPermissionsMenuItem" Click="ClaudeDangerouslySkipPermissionsMenuItem_Click" IsCheckable="True" ToolTip="When enabled, Claude Code starts with --dangerously-skip-permissions"/>
 								<MenuItem Header="Codex: Approval Never" x:Name="CodexFullAutoMenuItem" Click="CodexFullAutoMenuItem_Click" IsCheckable="True" ToolTip="When enabled, Codex starts with --ask-for-approval never"/>
 								<MenuItem Header="Cursor Agent: Yolo Mode" x:Name="CursorAgentAutoRunMenuItem" Click="CursorAgentAutoRunMenuItem_Click" IsCheckable="True" ToolTip="When enabled, Cursor Agent starts with --yolo to skip all approvals"/>
-								<MenuItem Header="Windsurf: Dangerous Mode" x:Name="WindsurfDangerousModeMenuItem" Click="WindsurfDangerousModeMenuItem_Click" IsCheckable="True" ToolTip="When enabled, Windsurf starts with --permission-mode dangerous"/>
+								<MenuItem Header="Devin: Dangerous Mode" x:Name="DevinDangerousModeMenuItem" Click="DevinDangerousModeMenuItem_Click" IsCheckable="True" ToolTip="When enabled, Devin starts with --permission-mode dangerous"/>
 								<MenuItem Header="Antigravity: Skip Permissions" x:Name="AntigravityDangerouslySkipPermissionsMenuItem" Click="AntigravityDangerouslySkipPermissionsMenuItem_Click" IsCheckable="True" ToolTip="When enabled, Antigravity starts with --dangerously-skip-permissions"/>
 								<Separator/>
 								<MenuItem Header="Configure Custom Commands..." x:Name="ConfigureCustomCommandsMenuItem" Click="ConfigureCustomCommandsMenuItem_Click" ToolTip="Add, edit, or remove custom commands surfaced in the toolbar dropdown next to the agent menu."/>

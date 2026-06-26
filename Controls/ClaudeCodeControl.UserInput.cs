@@ -97,7 +97,7 @@ namespace ClaudeCodeVS
                 bool isWSLProvider = _currentRunningProvider == AiProvider.Codex ||
                                      _currentRunningProvider == AiProvider.ClaudeCodeWSL ||
                                      _currentRunningProvider == AiProvider.CursorAgent ||
-                                     _currentRunningProvider == AiProvider.Windsurf;
+                                     _currentRunningProvider == AiProvider.Devin;
 
                 // If files are attached, include their paths in the prompt
                 if (hasFiles)
@@ -200,7 +200,10 @@ namespace ClaudeCodeVS
                 // Reasonix is a TUI like PI — per-character keystrokes flood it, so keep it on the
                 // clipboard/WM_COMMAND paste path even when "Disable clipboard" is on.
                 bool isReasonix = _currentRunningProvider == AiProvider.Reasonix;
-                bool clipboardFree = disableClipboardRequested && !isPiProvider && !isReasonix;
+                // Devin (native) is the same `devin` TUI as Devin — keep it on the clipboard
+                // paste path too so per-character keystrokes don't flood it.
+                bool isDevinNative = _currentRunningProvider == AiProvider.DevinNative;
+                bool clipboardFree = disableClipboardRequested && !isPiProvider && !isReasonix && !isDevinNative;
 
                 // Save the prompt to a temp file and send only a short reference when either:
                 //   • "Disable clipboard" is on (always, so the keystroke/paste payload stays short), or

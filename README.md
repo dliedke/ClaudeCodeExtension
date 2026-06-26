@@ -1,6 +1,6 @@
 # Claude Code Extension for Visual Studio
 
-Embedded terminal inside Visual Studio for **Claude Code, OpenAI Codex, Cursor Agent, Open Code, Windsurf, PI, Google Antigravity, and Reasonix** — with multi-line prompts, file attachments, and an integrated diff viewer.
+Embedded terminal inside Visual Studio for **Claude Code, OpenAI Codex, Cursor Agent, Open Code, Devin, PI, Google Antigravity, and Reasonix** — with multi-line prompts, file attachments, and an integrated diff viewer.
 
 <center>
 <img src="https://i.ibb.co/mFcsh3nt/BFB9-B830-8122-4091-9-C8-B-869959-B1-B391.png" alt="Claude Code Extension Screenshot" width=350 height=450 />
@@ -23,7 +23,7 @@ Enjoying the extension? [Buy me a coffee](https://www.buymeacoffee.com/dliedke) 
 - **Custom commands (⚡)** — Save slash commands or canned prompts and dispatch them to the active agent in one click. Configure via *⚙ → Configure Custom Commands...*.
 - **"@" file picker** — Type **@** in the prompt box to search your solution's files and folders and insert one with the keyboard; keep typing to filter, arrow keys + Enter to insert, pick a folder to drill in.
 - **On Agent Finish** — Optionally play a sound, show a notification (with duration, plus token count for Claude Code), and run an action (build/rebuild, run, tests, a script, or a follow-up command) when the agent goes idle. Global defaults plus per-solution overrides. Configure via *⚙ → Settings...*.
-- **Model selection (Claude)** — 🤖 button to switch between Opus / Sonnet / Haiku and pick an effort level (Auto / Low / Medium / High / Max) for Opus thinking depth.
+- **Model selection** — 🤖 button to switch models: for Claude, Opus / Sonnet / Haiku plus an effort level (Auto / Low / Medium / High / Max) for Opus thinking depth; for Devin, a configurable list of models you can edit via *Configure Models...*.
 - **Detach / attach terminal** — Pop the terminal into a separate VS tab and bring it back at any time. State persists across sessions.
 - **Theme aware** — Follows VS dark/light theme automatically, or force dark, light, or a custom background color via *⚙ → Settings → Theme*. Prompt and terminal zoom (Ctrl+Scroll) are persisted across sessions.
 - **Persistent settings** — Layout, provider choice, model, flags, and zoom level all saved to `%LocalAppData%\ClaudeCodeExtension\claudecode-settings.json`.
@@ -38,7 +38,7 @@ By default only **Claude Code** is shown in the agent picker — use *⚙ → Co
 | OpenAI Codex | Windows / WSL | `codex` | ChatGPT Plus or higher. Optional `--ask-for-approval never` toggle |
 | Cursor Agent | Windows / WSL | `agent` / `cursor-agent` | Cursor account. Optional `--yolo` toggle |
 | Open Code | Windows | `opencode` | Node.js 14+; provider configured via `Ctrl+P` → "connect providers" |
-| Windsurf | WSL | `devin` | Windsurf paid plan. Optional `--permission-mode dangerous` toggle |
+| Devin | Windows / WSL | `devin` | Devin account. Optional `--permission-mode dangerous` toggle. Native install from Windows Terminal: `irm https://static.devin.ai/cli/setup.ps1 \| iex` |
 | PI | Windows | `pi` | Node.js + Git for Windows |
 | Google Antigravity | Windows | `agy` | Google account. Optional `--dangerously-skip-permissions` toggle |
 | Reasonix | Windows | `reasonix` | DeepSeek API key (`DEEPSEEK_API_KEY`). Install with `npm i -g reasonix` |
@@ -77,13 +77,13 @@ Then choose it via *⚙ → Set Terminal Type...*.
 
 **⚙ Settings menu** (gear button, top-right):
 - Pick an AI provider, *Configure Visible Code Agents...*
-- Provider-specific flags: Claude *Skip Permissions*, Codex *Approval Never*, Cursor *Yolo Mode*, Windsurf *Dangerous Mode*, Antigravity *Skip Permissions*
+- Provider-specific flags: Claude *Skip Permissions*, Codex *Approval Never*, Cursor *Yolo Mode*, Devin *Dangerous Mode*, Antigravity *Skip Permissions*
 - *Configure Custom Commands...*, *Settings...*, About
 - *Settings...* opens the consolidated dialog with tabs for Behavior (send key, large prompts, auto-open Changes, font size), Layout (prompt panel position), Terminal type, Theme, Usage, Toolbar, and CLI Paths
 
 **☰ Tools dropdown**: Holds *Update Code Agent*, *Restart Code Agent*, *Detach/Attach Terminal*, *View Changes*, *Session History*, *Show Usage*, and *Set Working Directory...*. Promote any of these to one-click toolbar buttons — and reorder them by dragging — via *⚙ → Settings... → Toolbar*; promoted features leave the dropdown, which hides once they all become buttons.
 
-**🤖 Model menu** (Claude only): Opus / Sonnet / Haiku, effort level for Opus (Auto / Low / Medium / High / Max), Change Account, Install Caveman plugin.
+**🤖 Model menu**: For Claude — Opus / Sonnet / Haiku, effort level for Opus (Auto / Low / Medium / High / Max), Change Account, Install Caveman plugin. For Devin — pick from a configurable model list, edited via *Configure Models...*.
 
 **On Agent Finish**: Configure via *⚙ → Settings... → On Agent Finish...*. For scripts, enable *Close script window when it finishes* to auto-close the script console. For *Run (F5)* and *Run without debugging (Ctrl+F5)*, use *Clean solution before running* and *Rebuild solution before running* to control whether the solution is prepared before launch.
 
@@ -104,6 +104,11 @@ This binds a Claude Code skill that shells out to OpenAI Codex to audit pending 
 4. **Use it**: ⚡ → *Codex Review*. Claude runs the skill, Codex audits your diff, findings appear inline.
 
 ## Version History
+
+### Version 38.0
+- Added **Devin** as a native Windows AI agent — the Windows-native Devin CLI alongside the existing Devin (WSL). Install it from Windows Terminal with `irm https://static.devin.ai/cli/setup.ps1 | iex`, then enable it from the agent menu via "Configure Visible Code Agents...". Once installed it runs in both Windows Terminal and the regular Command Prompt, it honors the Dangerous Mode toggle, and Show Usage opens the Devin usage page.
+- **Configurable Devin models** — the model (🤖) menu now lets you choose from a user-editable list of Devin models, and a new "Configure Models..." entry lets you add, edit, remove, and reorder them. Seeded with SWE-1.6, Claude Opus 4.6 Thinking, Claude Opus 4.8 High, GPT-5.5 High Thinking, and Gemini 3.1 Pro High Thinking. Both Devin (native) and Devin (WSL) share the list.
+- Renamed the former "Windsurf" provider to **Devin** throughout the extension to match the CLI's branding; the WSL provider is now listed as "Devin (WSL)". Existing selections continue to work.
 
 ### Version 37.0
 - Fixed mouse-wheel scrolling in Claude Code's "TUI Fullscreen" mode scrolling the agent even when another window (such as Notepad) was layered over the terminal area — the wheel now only scrolls the agent while the terminal is focused.
@@ -307,7 +312,7 @@ This binds a Claude Code skill that shells out to OpenAI Codex to audit pending 
 - Fixed the Update Agent button for Antigravity — it now exits the agent correctly before updating, so the installer runs instead of being typed into the running agent.
 
 ### Version 10.68
-- Fixed Windsurf not launching when a new solution is opened while the terminal was already running — it would fall back to a plain command prompt until you manually restarted the agent. Windsurf now loads automatically like the other providers.
+- Fixed Devin not launching when a new solution is opened while the terminal was already running — it would fall back to a plain command prompt until you manually restarted the agent. Devin now loads automatically like the other providers.
 
 ### Version 10.67
 - Sending a prompt no longer aborts with a "Clipboard Verification Failed" pop-up when a clipboard manager or background app briefly holds the clipboard — the send now proceeds and a tolerant comparison ignores harmless line-ending differences. Strict abort behavior is still available via a new opt-in toggle in the Settings dialog.
@@ -506,11 +511,11 @@ This binds a Claude Code skill that shells out to OpenAI Codex to audit pending 
 - Fixed floating terminal window on slower machines.
 
 ### Version 10.4
-- **Windsurf model selection** — Opus / Sonnet / Codex / Gemini Pro.
-- Windsurf **Show Usage** menu item.
+- **Devin model selection** — Opus / Sonnet / Codex / Gemini Pro.
+- Devin **Show Usage** menu item.
 
 ### Version 10.3
-- **Windsurf (WSL)** provider added with full integration.
+- **Devin (WSL)** provider added with full integration.
 
 ### Version 10.2
 - Fixed CMake / Open Folder project directory detection.

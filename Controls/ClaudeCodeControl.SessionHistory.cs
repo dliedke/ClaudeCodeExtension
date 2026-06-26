@@ -334,7 +334,7 @@ namespace ClaudeCodeVS
         /// <summary>
         /// Shows or hides the History button based on the currently selected provider.
         /// Only Windows-native Claude Code and WSL Claude Code persist resumable sessions;
-        /// Codex / Cursor / Windsurf use different storage and aren't supported here.
+        /// Codex / Cursor / Devin use different storage and aren't supported here.
         /// </summary>
         private void RefreshSessionHistoryButton()
         {

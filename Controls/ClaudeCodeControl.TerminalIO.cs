@@ -854,12 +854,16 @@ namespace ClaudeCodeVS
                 // Check CURRENTLY RUNNING provider (not the next one being set)
                 bool isClaudeCodeWSL = _currentRunningProvider == AiProvider.ClaudeCodeWSL;
 
-                // Check if we're using other WSL-based providers (Codex WSL, CursorAgent, Windsurf)
+                // Check if we're using other WSL-based providers (Codex WSL, CursorAgent, Devin)
                 bool isOtherWSLProvider = _currentRunningProvider == AiProvider.Codex ||
                                          _currentRunningProvider == AiProvider.CursorAgent ||
-                                         _currentRunningProvider == AiProvider.Windsurf;
+                                         _currentRunningProvider == AiProvider.Devin;
 
                 bool isCodexNative = _currentRunningProvider == AiProvider.CodexNative;
+
+                // Devin (native) runs the same `devin` TUI as Devin (WSL), which uses the
+                // KEYDOWN/KEYUP Enter path; mirror that here.
+                bool isDevinNative = _currentRunningProvider == AiProvider.DevinNative;
 
                 bool isOpenCode = _currentRunningProvider == AiProvider.OpenCode;
                 bool isPi = _currentRunningProvider == AiProvider.Pi;
@@ -881,6 +885,11 @@ namespace ClaudeCodeVS
                 else if (isCodexNative)
                 {
                     // For Codex (Windows native), use KEYDOWN/KEYUP approach (Codex requires double Enter)
+                    SendEnterKeyDownUp();
+                }
+                else if (isDevinNative)
+                {
+                    // For Devin (native), use KEYDOWN/KEYUP approach (same TUI as Devin's devin)
                     SendEnterKeyDownUp();
                 }
                 else if (isOtherWSLProvider)

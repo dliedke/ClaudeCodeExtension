@@ -866,7 +866,7 @@ namespace ClaudeCodeVS
                 case ToolbarButton.RestartAgent: return ("♻️  Restart Code Agent", "Restart the active code agent.");
                 case ToolbarButton.ViewChanges: return ("📄  View Changes", "Open the Changes (diff) view. Shown only inside a git repository.");
                 case ToolbarButton.SessionHistory: return ("📜  Session History", "Resume a previous session. Claude Code providers only.");
-                case ToolbarButton.ShowUsage: return ("📊  Show Usage", "Toggle the usage window. Claude / Windsurf providers only.");
+                case ToolbarButton.ShowUsage: return ("📊  Show Usage", "Toggle the usage window. Claude / Devin providers only.");
                 case ToolbarButton.SetWorkingDirectory: return ("📁  Set Working Directory", "Set a custom working directory for the agent.");
                 default: return (id.ToString(), string.Empty);
             }

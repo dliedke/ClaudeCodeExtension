@@ -1,14 +1,14 @@
 <?xml version="1.0" encoding="utf-8"?>
 <PackageManifest Version="2.0.0" xmlns="http://schemas.microsoft.com/developer/vsx-schema/2011" xmlns:d="http://schemas.microsoft.com/developer/vsx-schema-design/2011">
   <Metadata>
-    <Identity Id="ClaudeCodeExtension.87de5d13-743e-46b3-b05e-24e1cbeca0c3" Version="37.0" Language="en-US" Publisher="Daniel Carvalho Liedke" />
+    <Identity Id="ClaudeCodeExtension.87de5d13-743e-46b3-b05e-24e1cbeca0c3" Version="38.0" Language="en-US" Publisher="Daniel Carvalho Liedke" />
     <DisplayName>Claude Code Extension for Visual Studio</DisplayName>
-    <Description xml:space="preserve">Embedded terminal for Claude Code, Codex, Cursor Agent, Open Code, Windsurf, PI, Antigravity, Reasonix inside Visual Studio. Multi-line prompt, image/file attach, integrated diff viewer.</Description>
+    <Description xml:space="preserve">Embedded terminal for Claude Code, Codex, Cursor Agent, Open Code, Devin, PI, Antigravity, Reasonix inside Visual Studio. Multi-line prompt, image/file attach, integrated diff viewer.</Description>
     <MoreInfo>https://github.com/dliedke/ClaudeCodeExtension</MoreInfo>
     <License>LICENSE.txt</License>
     <Icon>app.ico</Icon>
     <PreviewImage>app.ico</PreviewImage>
-    <Tags>claude,codex,cursor,opencode,windsurf,antigravity</Tags>
+    <Tags>claude,codex,cursor,opencode,devin,antigravity</Tags>
   </Metadata>
   <Installation>
     <InstallationTarget Id="Microsoft.VisualStudio.Community" Version="[17.0, 19.0)">
