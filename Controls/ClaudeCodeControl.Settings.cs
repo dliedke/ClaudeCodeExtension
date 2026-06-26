@@ -23,17 +23,65 @@ namespace ClaudeCodeVS
         #region Settings Fields
 
         /// <summary>
-        /// Configuration file name
+        /// Configuration file name (normal Visual Studio instance)
         /// </summary>
         private const string ConfigurationFileName = "claudecode-settings.json";
 
         /// <summary>
-        /// Full path to the configuration file
+        /// Full path to the configuration file.
+        /// When Visual Studio runs as an experimental instance (devenv /rootsuffix Exp — e.g. an
+        /// F5 debug session of this extension), the file name is suffixed with the root suffix
+        /// ("claudecode-settings.Exp.json"). Both instances otherwise share the single
+        /// %LocalAppData% path, so without this the F5 build and the installed extension would
+        /// read/write the same file and overwrite each other's settings (notably the terminal
+        /// type, which is not in VolatileSettingsFields).
         /// </summary>
         private static readonly string ConfigurationPath = Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
             "ClaudeCodeExtension",
-            ConfigurationFileName);
+            GetConfigurationFileName());
+
+        /// <summary>
+        /// Returns the settings file name, suffixed with the Visual Studio root suffix when
+        /// running under an experimental instance (devenv launched with "/rootsuffix &lt;name&gt;",
+        /// which is how F5 starts this extension). This isolates the F5 debug build's settings from
+        /// the installed extension running in the normal VS instance. Falls back to the plain file
+        /// name for a normal instance or on any error.
+        /// </summary>
+        private static string GetConfigurationFileName()
+        {
+            try
+            {
+                string[] args = Environment.GetCommandLineArgs();
+                for (int i = 0; i < args.Length - 1; i++)
+                {
+                    string a = args[i];
+                    if (!string.IsNullOrEmpty(a) && (a[0] == '/' || a[0] == '-')
+                        && string.Equals(a.Substring(1), "rootsuffix", StringComparison.OrdinalIgnoreCase))
+                    {
+                        string suffix = args[i + 1];
+                        if (!string.IsNullOrWhiteSpace(suffix))
+                        {
+                            // Keep only letters/digits so the suffix is a safe file-name fragment.
+                            var sb = new System.Text.StringBuilder(suffix.Length);
+                            foreach (char c in suffix)
+                            {
+                                if (char.IsLetterOrDigit(c)) sb.Append(c);
+                            }
+                            if (sb.Length > 0)
+                            {
+                                return $"claudecode-settings.{sb}.json";
+                            }
+                        }
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"GetConfigurationFileName error: {ex.Message}");
+            }
+            return ConfigurationFileName;
+        }
 
         /// <summary>
         /// Current settings instance

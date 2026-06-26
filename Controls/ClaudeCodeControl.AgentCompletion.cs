@@ -15,8 +15,12 @@
  *          Console-output quiescence is provider-agnostic: it works for any agent running
  *          in the Command Prompt (conhost) terminal. TUIs that animate a spinner / elapsed
  *          timer while busy read as "changing" and a settled input prompt reads as "idle".
- *          Windows Terminal hosts its buffer in a separate process the console API can't
- *          read, so detection is limited to the Command Prompt terminal type.
+ *
+ *          PROTOTYPE — Windows Terminal support: WT hosts its buffer in a separate process
+ *          (ConPTY) the classic console API can't AttachConsole/read. Instead, when the
+ *          embedded terminal is Windows Terminal, the watcher reads the visible text via UI
+ *          Automation (WT implements the UIA Text pattern for accessibility) and applies the
+ *          exact same quiescence logic. This is a testable prototype of that path.
  *
  * *******************************************************************************************************************/
 
@@ -83,6 +87,13 @@ namespace ClaudeCodeVS
         private bool _completionWatchActive;
         private bool _completionTickBusy;
         private bool _consoleSawActivity;
+
+        // PROTOTYPE: when true the active watch reads the embedded Windows Terminal via UI
+        // Automation instead of the conhost screen buffer (which WT/ConPTY doesn't expose to
+        // AttachConsole). Set when arming in Windows Terminal mode; selects the tick path below.
+        private bool _watchViaUia;
+        private IntPtr _watchedTerminalHandle;
+
         private int _watchedConsolePid;
         private string _lastConsoleHash;
         private DateTime _promptSentUtc;
@@ -193,10 +204,12 @@ namespace ClaudeCodeVS
 
         /// <summary>
         /// Arms the completion watcher after a prompt is sent. No-op unless the feature is
-        /// enabled, the Command Prompt terminal is in use, and a console process is running.
-        /// Captures the console PID and an initial screen snapshot, then starts the poll timer.
-        /// When the running provider is Claude Code, also records a token baseline so the
-        /// notification can show how many tokens the turn used. Re-arming resets everything.
+        /// enabled and a usable terminal is running. In Command Prompt mode it captures the
+        /// console PID and reads the conhost screen buffer; in Windows Terminal mode (PROTOTYPE)
+        /// it captures the WT window handle and reads its visible text via UI Automation. Both
+        /// paths take an initial snapshot, then start the poll timer. When the running provider
+        /// is Claude Code, also records a token baseline so the notification can show how many
+        /// tokens the turn used. Re-arming resets everything.
         /// </summary>
         private async Task ArmAgentCompletionWatcherAsync()
         {
@@ -204,8 +217,9 @@ namespace ClaudeCodeVS
             {
                 if (_settings == null) return;
 
-                // The console screen buffer can only be read for the conhost (Command Prompt).
-                if (_settings.SelectedTerminalType != TerminalType.CommandPrompt) return;
+                // PROTOTYPE: Windows Terminal hosts its buffer in a separate process the classic
+                // console API can't read, so it uses the UI Automation capture path instead.
+                bool useUia = _settings.SelectedTerminalType == TerminalType.WindowsTerminal;
 
                 await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
 
@@ -215,9 +229,18 @@ namespace ClaudeCodeVS
                 if (cfg == null || !cfg.Enabled) return;
 
                 int pid = 0;
-                try { if (cmdProcess != null && !cmdProcess.HasExited) pid = cmdProcess.Id; }
-                catch { pid = 0; }
-                if (pid == 0) return;
+                IntPtr hwnd = IntPtr.Zero;
+                if (useUia)
+                {
+                    hwnd = terminalHandle;
+                    if (hwnd == IntPtr.Zero || !IsWindow(hwnd)) return;
+                }
+                else
+                {
+                    try { if (cmdProcess != null && !cmdProcess.HasExited) pid = cmdProcess.Id; }
+                    catch { pid = 0; }
+                    if (pid == 0) return;
+                }
 
                 // Best-effort token baseline (Claude transcripts only).
                 bool claude = IsClaudeCodeSessionHistoryProvider(_currentRunningProvider);
@@ -234,11 +257,15 @@ namespace ClaudeCodeVS
                     }
                 }
 
-                string initialHash = await Task.Run(() => TryCaptureConsoleHash(pid));
+                string initialHash = useUia
+                    ? await Task.Run(() => { string t = TryCaptureWindowsTerminalText(hwnd); return t != null ? ComputeStableHash(t) : null; })
+                    : await Task.Run(() => TryCaptureConsoleHash(pid));
 
                 await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
                 StopAgentCompletionTimer();
 
+                _watchViaUia = useUia;
+                _watchedTerminalHandle = hwnd;
                 _watchedConsolePid = pid;
                 _lastConsoleHash = initialHash;
                 _consoleSawActivity = false;
@@ -435,6 +462,15 @@ namespace ClaudeCodeVS
                         return;
                     }
 
+                    // PROTOTYPE: Windows Terminal can't be read through the console API, so it
+                    // uses a separate, simpler UI-Automation tick (no AttachConsole / focus-bounce
+                    // mitigation / conhost selection handling needed).
+                    if (_watchViaUia)
+                    {
+                        await OnUiaCompletionTickAsync();
+                        return;
+                    }
+
                     int pid = _watchedConsolePid;
                     if (pid == 0) { StopAgentCompletionTimer(); return; }
 
@@ -526,67 +562,7 @@ namespace ClaudeCodeVS
                         return;
                     }
 
-                    string hash = text != null ? ComputeStableHash(text) : null;
-                    if (hash == null)
-                    {
-                        // Read failed — if the console process is gone, the terminal was
-                        // closed or restarted, so disarm. Otherwise just skip this tick.
-                        if (!IsProcessAlive(pid)) StopAgentCompletionTimer();
-                        return;
-                    }
-
-                    if (_lastConsoleHash == null || !string.Equals(hash, _lastConsoleHash, StringComparison.Ordinal))
-                    {
-                        // Screen changed → agent is still working, the user answered the prompt,
-                        // OR the user is navigating an input prompt (arrow-keying a selection menu
-                        // moves the ❯ cursor, which changes the screen too). Keep the "awaiting
-                        // reply" backoff engaged whenever the changed screen still looks like a
-                        // prompt: clearing it on every keystroke dropped the cadence back to 1 s,
-                        // so the next console attach landed under the user's fingers and ate the
-                        // arrow keys (reported while answering the agent's questions in plan mode).
-                        _lastConsoleHash = hash;
-                        _lastConsoleChangeUtc = DateTime.UtcNow;
-                        _consoleSawActivity = true;
-                        _awaitingAgentInputReply = LooksLikeAgentInputPrompt(text);
-                        return;
-                    }
-
-                    // Don't fire until the agent actually produced output this turn.
-                    if (!_consoleSawActivity) return;
-
-                    // A static y/n or selection prompt also reads as idle, so classify the settled
-                    // screen as soon as it holds still for one tick — before waiting out the full
-                    // idle window. If the agent is waiting for input, this is not a completion:
-                    // don't fire and keep watching, so the notification lands on the real finish
-                    // after the user answers. Entering the waiting state also slows the capture
-                    // cadence (see the gate above) so the user's reply isn't disturbed by reads.
-                    if (LooksLikeAgentInputPrompt(text))
-                    {
-                        _awaitingAgentInputReply = true;
-                        return;
-                    }
-
-                    int idle = Math.Max(2, Math.Min(120, _watchedAgentFinish?.IdleSeconds ?? 5));
-                    if ((DateTime.UtcNow - _lastConsoleChangeUtc).TotalSeconds < idle) return;
-
-                    // Settled — the turn is done.
-                    var cfg = _watchedAgentFinish;
-                    if (cfg == null) { StopAgentCompletionTimer(); return; }
-
-                    int delta = 0;
-                    if (_tokenEnrichmentClaude && !string.IsNullOrEmpty(_watchedSessionDir))
-                    {
-                        string newest = await Task.Run(() => GetNewestJsonl(_watchedSessionDir));
-                        if (newest != null)
-                        {
-                            int final = await Task.Run(() => CountTranscriptTokens(newest));
-                            delta = Math.Max(0, final - _baselineTokenCount);
-                        }
-                    }
-
-                    TimeSpan dur = DateTime.UtcNow - _promptSentUtc;
-                    StopAgentCompletionTimer();
-                    await OnAgentTurnCompletedAsync(cfg, dur, delta);
+                    await EvaluateScreenQuiescenceAsync(text);
                 }
                 catch (Exception ex)
                 {
@@ -598,6 +574,217 @@ namespace ClaudeCodeVS
                 }
             }).FileAndForget("claudecode/agentfinish/tick");
 #pragma warning restore VSSDK007, VSTHRD110
+        }
+
+        /// <summary>
+        /// PROTOTYPE: the Windows Terminal (UI Automation) variant of the per-tick capture. Reads
+        /// the embedded WT window's visible text via UIA and feeds it into the shared quiescence
+        /// evaluation. Unlike the conhost path this needs no AttachConsole, no focus snapshot/restore
+        /// (UIA reads don't bounce keyboard focus), and no QuickEdit-selection handling. The modal
+        /// guard and the waiting-for-input backoff are kept; the backoff here only avoids firing while
+        /// the agent waits for a reply and keeps polling light (there is no focus to protect).
+        /// Must be called on the UI thread (it awaits a background capture and resumes on the UI thread).
+        /// </summary>
+        private async Task OnUiaCompletionTickAsync()
+        {
+            // Don't run while one of our modal dialogs is open (see the conhost tick for rationale).
+            if (System.Windows.Interop.ComponentDispatcher.IsThreadModal)
+            {
+                _lastConsoleChangeUtc = DateTime.UtcNow;
+                return;
+            }
+
+            IntPtr hwnd = _watchedTerminalHandle;
+            if (hwnd == IntPtr.Zero || !IsWindow(hwnd)) { StopAgentCompletionTimer(); return; }
+
+            // A waiting prompt is static and is not a completion; back off polling while the agent
+            // waits for the user's reply (no focus-bounce concern with UIA, so this is purely to
+            // avoid a premature fire and to reduce churn).
+            if (_awaitingAgentInputReply)
+            {
+                if (IsTerminalFocused()) return;
+                if ((DateTime.UtcNow - _lastInputPromptRecheckUtc).TotalMilliseconds < InputPromptRecheckMs) return;
+            }
+            _lastInputPromptRecheckUtc = DateTime.UtcNow;
+
+            string text = await Task.Run(() => TryCaptureWindowsTerminalText(hwnd));
+            await EvaluateScreenQuiescenceAsync(text);
+        }
+
+        /// <summary>
+        /// Shared "has the visible screen settled?" evaluation used by both the conhost and the
+        /// Windows Terminal (UIA) capture paths. Given the freshly captured screen text, updates the
+        /// change/idle bookkeeping and, once the screen has held still past the configured idle
+        /// window (and the agent isn't merely waiting for input), fires the completion notification
+        /// and action. Must be called on the UI thread.
+        /// </summary>
+        private async Task EvaluateScreenQuiescenceAsync(string text)
+        {
+            string hash = text != null ? ComputeStableHash(text) : null;
+            if (hash == null)
+            {
+                // Read failed — if the watched terminal is gone (process exited / window closed),
+                // it was closed or restarted, so disarm. Otherwise just skip this tick.
+                if (!IsWatchedTerminalAlive()) StopAgentCompletionTimer();
+                return;
+            }
+
+            if (_lastConsoleHash == null || !string.Equals(hash, _lastConsoleHash, StringComparison.Ordinal))
+            {
+                // Screen changed → agent is still working, the user answered the prompt, OR the user
+                // is navigating an input prompt (arrow-keying a selection menu moves the ❯ cursor,
+                // which changes the screen too). Keep the "awaiting reply" backoff engaged whenever
+                // the changed screen still looks like a prompt.
+                _lastConsoleHash = hash;
+                _lastConsoleChangeUtc = DateTime.UtcNow;
+                _consoleSawActivity = true;
+                _awaitingAgentInputReply = LooksLikeAgentInputPrompt(text);
+                return;
+            }
+
+            // Don't fire until the agent actually produced output this turn.
+            if (!_consoleSawActivity) return;
+
+            // A static y/n or selection prompt also reads as idle, so classify the settled screen as
+            // soon as it holds still for one tick — before waiting out the full idle window. If the
+            // agent is waiting for input, this is not a completion: don't fire and keep watching.
+            if (LooksLikeAgentInputPrompt(text))
+            {
+                _awaitingAgentInputReply = true;
+                return;
+            }
+
+            int idle = Math.Max(2, Math.Min(120, _watchedAgentFinish?.IdleSeconds ?? 5));
+            if ((DateTime.UtcNow - _lastConsoleChangeUtc).TotalSeconds < idle) return;
+
+            // Settled — the turn is done.
+            var cfg = _watchedAgentFinish;
+            if (cfg == null) { StopAgentCompletionTimer(); return; }
+
+            int delta = 0;
+            if (_tokenEnrichmentClaude && !string.IsNullOrEmpty(_watchedSessionDir))
+            {
+                string newest = await Task.Run(() => GetNewestJsonl(_watchedSessionDir));
+                if (newest != null)
+                {
+                    int final = await Task.Run(() => CountTranscriptTokens(newest));
+                    delta = Math.Max(0, final - _baselineTokenCount);
+                }
+            }
+
+            TimeSpan dur = DateTime.UtcNow - _promptSentUtc;
+            StopAgentCompletionTimer();
+            await OnAgentTurnCompletedAsync(cfg, dur, delta);
+        }
+
+        /// <summary>
+        /// True when the terminal currently being watched is still alive: for the UIA (Windows
+        /// Terminal) path the embedded window still exists; for the conhost path the console
+        /// client process is still running. Used to decide whether a failed capture means the
+        /// terminal was torn down (disarm) or was just a transient read miss (skip the tick).
+        /// </summary>
+        private bool IsWatchedTerminalAlive()
+        {
+            if (_watchViaUia)
+                return _watchedTerminalHandle != IntPtr.Zero && IsWindow(_watchedTerminalHandle);
+            return IsProcessAlive(_watchedConsolePid);
+        }
+
+        /// <summary>
+        /// PROTOTYPE: reads the visible text of the embedded Windows Terminal window via UI
+        /// Automation. WT implements the UIA Text pattern (for screen readers), so we locate the
+        /// text-pattern element under the WT window and concatenate its visible ranges. Returns the
+        /// captured text (or null on any failure, which the watcher treats as a skipped sample).
+        /// Call OFF the UI thread — UIA cross-process calls can block and should run on a pool
+        /// (MTA) thread.
+        /// </summary>
+        private string TryCaptureWindowsTerminalText(IntPtr hwnd)
+        {
+            if (hwnd == IntPtr.Zero) return null;
+
+            try
+            {
+                var root = System.Windows.Automation.AutomationElement.FromHandle(hwnd);
+                if (root == null) return null;
+
+                // Find an element that supports the Text pattern (the WT TermControl). Try the root
+                // first, then search its subtree.
+                var textElement = FindTextPatternElement(root);
+                if (textElement == null) return null;
+
+                if (!(textElement.GetCurrentPattern(System.Windows.Automation.TextPattern.Pattern)
+                        is System.Windows.Automation.TextPattern textPattern))
+                {
+                    return null;
+                }
+
+                var sb = new StringBuilder();
+
+                // Prefer the visible ranges (matches the conhost "visible viewport" semantics and
+                // keeps the captured text bounded regardless of scrollback size).
+                try
+                {
+                    var ranges = textPattern.GetVisibleRanges();
+                    if (ranges != null && ranges.Length > 0)
+                    {
+                        foreach (var range in ranges)
+                        {
+                            if (range == null) continue;
+                            sb.Append(range.GetText(-1));
+                            sb.Append('\n');
+                        }
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Debug.WriteLine($"TryCaptureWindowsTerminalText GetVisibleRanges error: {ex.Message}");
+                }
+
+                // Fallback: if visible ranges yielded nothing, read a bounded slice of the document.
+                if (sb.Length == 0)
+                {
+                    try
+                    {
+                        string doc = textPattern.DocumentRange?.GetText(20000);
+                        if (!string.IsNullOrEmpty(doc)) sb.Append(doc);
+                    }
+                    catch (Exception ex)
+                    {
+                        Debug.WriteLine($"TryCaptureWindowsTerminalText DocumentRange error: {ex.Message}");
+                    }
+                }
+
+                return sb.Length > 0 ? sb.ToString() : null;
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"TryCaptureWindowsTerminalText error: {ex.Message}");
+                return null;
+            }
+        }
+
+        /// <summary>
+        /// Locates the descendant (or the element itself) that supports the UIA Text pattern under
+        /// the given Windows Terminal root element. Returns null when none is found.
+        /// </summary>
+        private static System.Windows.Automation.AutomationElement FindTextPatternElement(
+            System.Windows.Automation.AutomationElement root)
+        {
+            try
+            {
+                var condition = new System.Windows.Automation.PropertyCondition(
+                    System.Windows.Automation.AutomationElement.IsTextPatternAvailableProperty, true);
+
+                // The root WT window itself may not expose the pattern; search descendants.
+                var found = root.FindFirst(System.Windows.Automation.TreeScope.Element, condition)
+                            ?? root.FindFirst(System.Windows.Automation.TreeScope.Descendants, condition);
+                return found;
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"FindTextPatternElement error: {ex.Message}");
+                return null;
+            }
         }
 
         /// <summary>

@@ -3920,10 +3920,15 @@ namespace ClaudeCodeVS
                         break;
 
                     case AiProvider.DevinNative:
-                        // Devin (native): exit, wait, then update via the devin CLI
+                        // Devin (native): exit the TUI, then run the official updater. `devin update`
+                        // does NOT update — it only prints the install command. The installer
+                        // overwrites %LOCALAPPDATA%\devin\cli\bin\devin.exe, which fails with
+                        // "Access is denied" while any devin.exe is still running (self-update lock),
+                        // so force-kill stragglers to release the lock before running the updater
+                        // script via PowerShell (irm https://cli.devin.ai/install.ps1 | iex).
                         await SendTextToTerminalAsync("exit");
                         await Task.Delay(1000);
-                        await SendTextToTerminalAsync("devin update");
+                        await SendTextToTerminalAsync("taskkill /f /im devin.exe >nul 2>&1 & powershell -NoProfile -ExecutionPolicy Bypass -Command \"irm https://cli.devin.ai/install.ps1 | iex\"");
                         break;
 
                     default:

@@ -243,12 +243,12 @@ namespace ClaudeCodeVS
 #pragma warning restore VSTHRD110
             behaviorStack.Children.Add(afOpenButton);
 
-            // Detection reads the conhost screen buffer, which Windows Terminal hosts in a
-            // separate process the console API can't read — so the feature is unavailable
-            // under Windows Terminal. Shown/hidden live by SyncAgentFinishAvailability().
+            // PROTOTYPE: under Windows Terminal the console API can't read the buffer, so detection
+            // falls back to reading the terminal via UI Automation. This is experimental — the hint
+            // below flags it. Shown/hidden live by SyncAgentFinishAvailability().
             var afWtHint = new TextBlock
             {
-                Text = "Unavailable with Windows Terminal — switch the terminal type to Command Prompt (Terminal tab) to use this.",
+                Text = "Experimental with Windows Terminal — detection uses UI Automation instead of the console buffer and may be less reliable.",
                 FontSize = 11,
                 Opacity = 0.7,
                 Foreground = themeFg,
@@ -333,14 +333,14 @@ namespace ClaudeCodeVS
             wtRadio.Checked += (s, e) => SyncDisableClipboardAvailability();
             SyncDisableClipboardAvailability();
 
-            // "On Agent Finish" detection can only read the conhost screen buffer, so it is
-            // disabled for Windows Terminal. Keep the button (on the Behavior tab) and its hint
-            // in sync with the terminal-type radios live, the same way the clipboard toggle is.
+            // PROTOTYPE: "On Agent Finish" now also works under Windows Terminal (via UI Automation),
+            // so the config button stays enabled for both terminal types. Under Windows Terminal an
+            // "experimental" hint is shown. Kept in sync with the terminal-type radios live.
             void SyncAgentFinishAvailability()
             {
                 bool cmdSelected = cmdRadio.IsChecked == true;
-                afOpenButton.IsEnabled = cmdSelected;
-                afOpenButton.Opacity = cmdSelected ? 1.0 : 0.5;
+                afOpenButton.IsEnabled = true;
+                afOpenButton.Opacity = 1.0;
                 afWtHint.Visibility = cmdSelected ? Visibility.Collapsed : Visibility.Visible;
             }
             cmdRadio.Checked += (s, e) => SyncAgentFinishAvailability();

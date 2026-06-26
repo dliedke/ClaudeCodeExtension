@@ -105,6 +105,10 @@ This binds a Claude Code skill that shells out to OpenAI Codex to audit pending 
 
 ## Version History
 
+### Version 39.0
+- Fixed **Update Code Agent** for **Devin (native)** — it now actually updates the CLI to the latest version. The previous `devin update` command only printed instructions, and the installer was blocked while Devin was still running ("Access is denied"); the update now stops any running Devin first so it completes.
+- **On Agent Finish** is now available with **Windows Terminal** (experimental) — previously it worked only with Command Prompt. Enable it as usual via *⚙ → Settings... → On Agent Finish...*; a note in Settings flags the Windows Terminal support as experimental.
+
 ### Version 38.0
 - Added **Devin** as a native Windows AI agent — the Windows-native Devin CLI alongside the existing Devin (WSL). Install it from Windows Terminal with `irm https://static.devin.ai/cli/setup.ps1 | iex`, then enable it from the agent menu via "Configure Visible Code Agents...". Once installed it runs in both Windows Terminal and the regular Command Prompt, it honors the Dangerous Mode toggle, and Show Usage opens the Devin usage page.
 - **Configurable Devin models** — the model (🤖) menu now lets you choose from a user-editable list of Devin models, and a new "Configure Models..." entry lets you add, edit, remove, and reorder them. Seeded with SWE-1.6, Claude Opus 4.6 Thinking, Claude Opus 4.8 High, GPT-5.5 High Thinking, and Gemini 3.1 Pro High Thinking. Both Devin (native) and Devin (WSL) share the list.
