@@ -342,8 +342,9 @@ namespace ClaudeCodeVS
             {
                 ThreadHelper.ThrowIfNotOnUIThread();
 
-                // Session History visibility (button vs "⚙" menu entry, gated to Claude Code
-                // providers) is handled centrally so it stays in sync with the other features.
+                // Session History placement (button vs Tools-menu entry) is handled centrally so it
+                // stays in sync with the other features. It's always offered now; the click handler
+                // explains when the active agent doesn't support resumable sessions.
                 RefreshToolbarLayout();
             }
             catch (Exception ex)

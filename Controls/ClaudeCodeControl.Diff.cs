@@ -45,13 +45,6 @@ namespace ClaudeCodeVS
         private bool _isDiffTrackingActive;
 
         /// <summary>
-        /// Cached "is the workspace inside a git repository" state, used by
-        /// RefreshToolbarLayout to gate the View Changes button/menu entry.
-        /// Updated by <see cref="UpdateViewChangesButtonVisibilityAsync"/>.
-        /// </summary>
-        private bool _isWorkspaceGitRepo;
-
-        /// <summary>
         /// Guard to prevent auto-reset recursion
         /// </summary>
         private bool _isAutoResetting;
@@ -435,6 +428,24 @@ namespace ClaudeCodeVS
             {
                 try
                 {
+                    // The diff engine only supports git repositories. When the current
+                    // workspace isn't inside one, explain why instead of opening an empty
+                    // view (issue #97).
+                    string workspaceDir = await GetWorkspaceDirectoryAsync();
+                    if (string.IsNullOrEmpty(FindGitRepositoryRoot(workspaceDir)))
+                    {
+                        await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
+                        MessageBox.Show(
+                            "View Changes requires a Git repository.\n\n" +
+                            "The current working directory is not inside a Git repository, so there are " +
+                            "no tracked changes to display. Open a solution or folder that is under Git " +
+                            "version control to use this feature.",
+                            "View Changes",
+                            MessageBoxButton.OK,
+                            MessageBoxImage.Information);
+                        return;
+                    }
+
                     await EnsureDiffTrackingStartedAsync(true);
 
                     // If tracking is active, refresh the view
@@ -451,21 +462,15 @@ namespace ClaudeCodeVS
         }
 
         /// <summary>
-        /// Updates the visibility of the View Changes button based on git availability
+        /// Refreshes the toolbar/menu layout on a workspace change. View Changes is always
+        /// offered now (non-git workspaces are handled at click time), so this just keeps the
+        /// provider-gated entries and button/menu placement in sync.
         /// </summary>
         private async Task UpdateViewChangesButtonVisibilityAsync()
         {
             try
             {
-                string workspaceDir = await GetWorkspaceDirectoryAsync();
-                string repoRoot = FindGitRepositoryRoot(workspaceDir);
-                bool isGitRepo = !string.IsNullOrEmpty(repoRoot);
-
                 await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
-
-                // RefreshToolbarLayout decides whether View Changes shows as a button or a
-                // menu entry; it only appears at all when the workspace is a git repo.
-                _isWorkspaceGitRepo = isGitRepo;
                 RefreshToolbarLayout();
             }
             catch (Exception ex)

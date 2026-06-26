@@ -494,7 +494,23 @@ namespace ClaudeCodeVS
 #pragma warning restore VSTHRD100
         {
             var usageProvider = GetActiveOrSelectedProvider();
-            if (usageProvider == AiProvider.Devin || usageProvider == AiProvider.DevinNative)
+            bool isDevin = usageProvider == AiProvider.Devin || usageProvider == AiProvider.DevinNative;
+
+            // Usage reporting is only available for Claude Code (embedded window) and Devin (web
+            // link). For any other agent, explain instead of opening an empty/irrelevant view
+            // (issue #97). Re-sync the checkable menu item so the stray click doesn't leave a check.
+            if (!IsClaudeProvider(usageProvider) && !isDevin)
+            {
+                SyncShowUsageMenuCheckState();
+                MessageBox.Show(
+                    "Usage information is only available for Claude Code and Devin.\n\n" +
+                    "Switch the active code agent to Claude Code or Devin to view usage.",
+                    "Show Usage",
+                    MessageBoxButton.OK, MessageBoxImage.Information);
+                return;
+            }
+
+            if (isDevin)
                 System.Diagnostics.Process.Start("https://windsurf.com/subscription/usage?referrer=windsurf");
             else
                 await ToggleUsageToolWindowAsync();

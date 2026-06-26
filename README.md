@@ -105,6 +105,10 @@ This binds a Claude Code skill that shells out to OpenAI Codex to audit pending 
 
 ## Version History
 
+### Version 40.0
+- Fixed the **Devin** model menu showing the model list repeated many times — the saved model list grew on every Visual Studio start. Existing duplicated lists are cleaned up automatically.
+- Fixed **View Changes**, **Session History**, and **Show Usage** disappearing entirely (from both the ☰ Tools menu and the toolbar) when they didn't apply to the current agent or folder — they are now always available, and clicking one when it isn't applicable explains why (View Changes needs a Git repository; Session History is Claude Code only; Show Usage is Claude Code and Devin only) (issue #97).
+
 ### Version 39.0
 - Fixed **Update Code Agent** for **Devin (native)** — it now actually updates the CLI to the latest version. The previous `devin update` command only printed instructions, and the installer was blocked while Devin was still running ("Access is denied"); the update now stops any running Devin first so it completes.
 - **On Agent Finish** is now available with **Windows Terminal** (experimental) — previously it worked only with Command Prompt. Enable it as usual via *⚙ → Settings... → On Agent Finish...*; a note in Settings flags the Windows Terminal support as experimental.

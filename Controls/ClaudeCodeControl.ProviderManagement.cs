@@ -2124,8 +2124,8 @@ For more details, visit: https://pi.dev";
             UpdateInlineUsagePanelVisibility();
 
             // Swap the configurable features between dedicated toolbar buttons and the "⚙"
-            // menu, applying provider/git constraints (Show Usage and Session History are
-            // Claude/Devin-only; View Changes needs a git repo).
+            // menu, applying provider constraints (Show Usage and Session History are
+            // Claude/Devin-only).
             RefreshToolbarLayout();
 
             // Reflect the running provider/model immediately in the VS tool window title.
@@ -2149,10 +2149,6 @@ For more details, visit: https://pi.dev";
             var promoted = _settings.VisibleToolbarButtons
                 ?? new System.Collections.Generic.List<ToolbarButton>();
 
-            AiProvider? activeProvider = GetActiveOrSelectedProvider();
-            bool isUsageProvider = IsClaudeProvider(activeProvider) || activeProvider == AiProvider.Devin || activeProvider == AiProvider.DevinNative;
-            bool isSessionHistoryProvider = IsClaudeCodeSessionHistoryProvider(activeProvider);
-
             // Apply the button/menu swap for one feature.
             void Apply(ToolbarButton id, bool constraintOk,
                 System.Windows.Controls.Button button, System.Windows.Controls.MenuItem menuItem)
@@ -2163,12 +2159,17 @@ For more details, visit: https://pi.dev";
                 if (menuItem != null) menuItem.Visibility = asMenu ? Visibility.Visible : Visibility.Collapsed;
             }
 
+            // Every configurable feature is always offered (button when promoted, otherwise menu
+            // entry). Features that only apply to certain providers or workspaces — View Changes
+            // (git repo only), Session History (Claude Code only), Show Usage (Claude/Devin only) —
+            // are no longer hidden for the active agent; instead each shows a friendly explanation
+            // at click time when it isn't applicable (issue #97).
             Apply(ToolbarButton.UpdateAgent, true, UpdateAgentToolbarButton, UpdateAgentMenuItem);
             Apply(ToolbarButton.DetachTerminal, true, DetachToolbarButton, DetachTerminalMenuItem);
             Apply(ToolbarButton.RestartAgent, true, RestartTerminalButton, RestartTerminalMenuItem);
-            Apply(ToolbarButton.ViewChanges, _isWorkspaceGitRepo, ViewChangesToolbarButton, ViewChangesMenuItem);
-            Apply(ToolbarButton.SessionHistory, isSessionHistoryProvider, SessionHistoryToolbarButton, SessionHistoryViewMenuItem);
-            Apply(ToolbarButton.ShowUsage, isUsageProvider, ShowUsageToolbarButton, ShowUsageViewMenuItem);
+            Apply(ToolbarButton.ViewChanges, true, ViewChangesToolbarButton, ViewChangesMenuItem);
+            Apply(ToolbarButton.SessionHistory, true, SessionHistoryToolbarButton, SessionHistoryViewMenuItem);
+            Apply(ToolbarButton.ShowUsage, true, ShowUsageToolbarButton, ShowUsageViewMenuItem);
             Apply(ToolbarButton.SetWorkingDirectory, true, SetWorkingDirectoryToolbarButton, SetWorkingDirectoryMenuItem);
 
             // The Tools dropdown button is shown only when at least one feature is parked in it
@@ -3480,25 +3481,12 @@ For more details, visit: https://pi.dev";
         }
 
         /// <summary>
-        /// Refreshes the Tools dropdown contents on open: git/usage state, the Set Working Directory
+        /// Refreshes the Tools dropdown contents on open: usage state, the Set Working Directory
         /// header, and the button/menu swap so the parked feature entries reflect current context.
         /// </summary>
         private void ToolsContextMenu_Opened(object sender, RoutedEventArgs e)
         {
             ThreadHelper.ThrowIfNotOnUIThread();
-
-            // Refresh the cached git state (cheap, uses the cached workspace dir) so View Changes
-            // appears only inside a git repo.
-            try
-            {
-                string workspaceDir = _lastWorkspaceDirectory;
-                _isWorkspaceGitRepo = !string.IsNullOrEmpty(workspaceDir)
-                    && !string.IsNullOrEmpty(FindGitRepositoryRoot(workspaceDir));
-            }
-            catch
-            {
-                _isWorkspaceGitRepo = false;
-            }
 
             SyncShowUsageMenuCheckState();
             UpdateSetWorkingDirectoryMenuHeader();

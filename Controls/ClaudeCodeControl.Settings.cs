@@ -130,7 +130,24 @@ namespace ClaudeCodeVS
                 if (File.Exists(ConfigurationPath))
                 {
                     var json = File.ReadAllText(ConfigurationPath);
-                    _settings = JsonConvert.DeserializeObject<ClaudeCodeSettings>(json) ?? new ClaudeCodeSettings();
+
+                    // ObjectCreationHandling.Replace: properties seeded with a non-empty
+                    // default list (e.g. DevinModels, VisibleProviders) must be REPLACED by
+                    // the saved values, not appended to. With the default (Auto) handling,
+                    // Newtonsoft adds the deserialized items on top of the initializer items,
+                    // so the list grows by the seed size on every load — which made the Devin
+                    // model menu show the model list repeated over and over.
+                    var loadSettings = new JsonSerializerSettings
+                    {
+                        ObjectCreationHandling = ObjectCreationHandling.Replace
+                    };
+                    _settings = JsonConvert.DeserializeObject<ClaudeCodeSettings>(json, loadSettings) ?? new ClaudeCodeSettings();
+
+                    // Heal settings files already corrupted by the append-on-load bug above:
+                    // collapse accumulated duplicate entries while preserving order.
+                    DedupePreservingOrder(_settings.DevinModels);
+                    DedupePreservingOrder(_settings.VisibleProviders);
+                    DedupePreservingOrder(_settings.VisibleToolbarButtons);
 
                     // Retired providers (e.g. QwenCode ordinal 6) deserialize into
                     // a numeric value that is no longer a declared enum member.
@@ -181,6 +198,30 @@ namespace ClaudeCodeVS
             {
                 Debug.WriteLine($"Error loading settings: {ex.Message}");
                 _settings = new ClaudeCodeSettings();
+            }
+        }
+
+        /// <summary>
+        /// Removes duplicate entries from a list in place, keeping the first occurrence of each
+        /// value. Used to repair settings files that accumulated repeated entries from the
+        /// earlier append-on-deserialize bug (see LoadSettings).
+        /// </summary>
+        private static void DedupePreservingOrder<T>(System.Collections.Generic.List<T> list)
+        {
+            if (list == null || list.Count < 2) return;
+
+            var seen = new System.Collections.Generic.HashSet<T>();
+            int writeIndex = 0;
+            for (int readIndex = 0; readIndex < list.Count; readIndex++)
+            {
+                if (seen.Add(list[readIndex]))
+                {
+                    list[writeIndex++] = list[readIndex];
+                }
+            }
+            if (writeIndex < list.Count)
+            {
+                list.RemoveRange(writeIndex, list.Count - writeIndex);
             }
         }
 
