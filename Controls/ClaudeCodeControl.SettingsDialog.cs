@@ -243,12 +243,12 @@ namespace ClaudeCodeVS
 #pragma warning restore VSTHRD110
             behaviorStack.Children.Add(afOpenButton);
 
-            // PROTOTYPE: under Windows Terminal the console API can't read the buffer, so detection
-            // falls back to reading the terminal via UI Automation. This is experimental — the hint
-            // below flags it. Shown/hidden live by SyncAgentFinishAvailability().
+            // Under Windows Terminal the watcher attaches to the ConPTY console client resolved at
+            // launch and reads the real screen buffer (UI Automation is only a fallback). The hint
+            // below notes the WT support. Shown/hidden live by SyncAgentFinishAvailability().
             var afWtHint = new TextBlock
             {
-                Text = "Experimental with Windows Terminal — detection uses UI Automation instead of the console buffer and may be less reliable.",
+                Text = "Windows Terminal is supported — detection reads the terminal's console buffer (with a UI Automation fallback) and may be slightly less reliable than Command Prompt.",
                 FontSize = 11,
                 Opacity = 0.7,
                 Foreground = themeFg,
@@ -333,9 +333,9 @@ namespace ClaudeCodeVS
             wtRadio.Checked += (s, e) => SyncDisableClipboardAvailability();
             SyncDisableClipboardAvailability();
 
-            // PROTOTYPE: "On Agent Finish" now also works under Windows Terminal (via UI Automation),
-            // so the config button stays enabled for both terminal types. Under Windows Terminal an
-            // "experimental" hint is shown. Kept in sync with the terminal-type radios live.
+            // "On Agent Finish" works under Windows Terminal (ConPTY console-buffer read, UIA
+            // fallback), so the config button stays enabled for both terminal types. Under Windows
+            // Terminal an informational hint is shown. Kept in sync with the terminal-type radios live.
             void SyncAgentFinishAvailability()
             {
                 bool cmdSelected = cmdRadio.IsChecked == true;

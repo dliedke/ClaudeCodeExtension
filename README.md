@@ -105,6 +105,9 @@ This binds a Claude Code skill that shells out to OpenAI Codex to audit pending 
 
 ## Version History
 
+### Version 41.0
+- **On Agent Finish** now works reliably with **Windows Terminal**, including full-screen agents like **Devin** — it reads the terminal's console buffer directly instead of relying on the previous accessibility-based reading, which often never detected completion. Enable it as usual via *⚙ → Settings... → On Agent Finish...*.
+
 ### Version 40.0
 - Fixed the **Devin** model menu showing the model list repeated many times — the saved model list grew on every Visual Studio start. Existing duplicated lists are cleaned up automatically.
 - Fixed **View Changes**, **Session History**, and **Show Usage** disappearing entirely (from both the ☰ Tools menu and the toolbar) when they didn't apply to the current agent or folder — they are now always available, and clicking one when it isn't applicable explains why (View Changes needs a Git repository; Session History is Claude Code only; Show Usage is Claude Code and Devin only) (issue #97).

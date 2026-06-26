@@ -16,15 +16,19 @@
  *          in the Command Prompt (conhost) terminal. TUIs that animate a spinner / elapsed
  *          timer while busy read as "changing" and a settled input prompt reads as "idle".
  *
- *          PROTOTYPE — Windows Terminal support: WT hosts its buffer in a separate process
- *          (ConPTY) the classic console API can't AttachConsole/read. Instead, when the
- *          embedded terminal is Windows Terminal, the watcher reads the visible text via UI
- *          Automation (WT implements the UIA Text pattern for accessibility) and applies the
- *          exact same quiescence logic. This is a testable prototype of that path.
+ *          Windows Terminal support: the embedded WT window belongs to WindowsTerminal.exe, not
+ *          the cmd.exe running inside its ConPTY, so the classic window-based client resolution
+ *          can't find the console to read. The ConPTY client (cmd.exe) is resolved at launch
+ *          (ResolveWtConsoleClientPid) and the watcher AttachConsole's to it directly, reading the
+ *          real screen buffer through the exact same path as Command Prompt — so alternate-screen
+ *          TUIs (e.g. Devin) are detected and the read is cursor-blink independent. If that client
+ *          can't be resolved/read, the watcher falls back to reading the visible text via UI
+ *          Automation (WT implements the UIA Text pattern for accessibility).
  *
  * *******************************************************************************************************************/
 
 using System;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
@@ -88,13 +92,26 @@ namespace ClaudeCodeVS
         private bool _completionTickBusy;
         private bool _consoleSawActivity;
 
-        // PROTOTYPE: when true the active watch reads the embedded Windows Terminal via UI
-        // Automation instead of the conhost screen buffer (which WT/ConPTY doesn't expose to
-        // AttachConsole). Set when arming in Windows Terminal mode; selects the tick path below.
+        // When true the active watch reads the embedded Windows Terminal via UI Automation. This is
+        // now only a FALLBACK for Windows Terminal: the preferred WT path attaches to the ConPTY
+        // console client (see _watchedClientPidDirect) and reads the real screen buffer, which the
+        // UIA path can't see reliably for alternate-screen TUIs (e.g. Devin). Set when arming.
         private bool _watchViaUia;
         private IntPtr _watchedTerminalHandle;
 
         private int _watchedConsolePid;
+
+        // When > 0 the console capture attaches directly to this client PID instead of resolving
+        // the client from the terminal window. Used for Windows Terminal, where the embedded window
+        // belongs to WindowsTerminal.exe (not the cmd.exe ConPTY client), so the window-based
+        // resolution used for classic conhost can't find the client. 0 = resolve from the window.
+        private int _watchedClientPidDirect;
+
+        // The ConPTY console client (the cmd.exe Windows Terminal spawned inside its pseudoconsole)
+        // for the currently embedded WT window, resolved at launch (ResolveWtConsoleClientPid). 0
+        // when no WT terminal is running or it couldn't be identified. Lets the WT watch read the
+        // real screen buffer via AttachConsole instead of the UI Automation fallback.
+        internal int _wtConsoleClientPid;
         private string _lastConsoleHash;
         private DateTime _promptSentUtc;
         private DateTime _watchStartedUtc;
@@ -217,9 +234,7 @@ namespace ClaudeCodeVS
             {
                 if (_settings == null) return;
 
-                // PROTOTYPE: Windows Terminal hosts its buffer in a separate process the classic
-                // console API can't read, so it uses the UI Automation capture path instead.
-                bool useUia = _settings.SelectedTerminalType == TerminalType.WindowsTerminal;
+                bool windowsTerminal = _settings.SelectedTerminalType == TerminalType.WindowsTerminal;
 
                 await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
 
@@ -228,12 +243,31 @@ namespace ClaudeCodeVS
                 var cfg = GetEffectiveAgentFinish();
                 if (cfg == null || !cfg.Enabled) return;
 
+                // Decide the capture mode:
+                //  • Command Prompt → attach to the conhost client resolved from the terminal window.
+                //  • Windows Terminal → prefer attaching directly to the ConPTY console client we
+                //    resolved at launch (reads the real screen buffer, incl. alternate-screen TUIs
+                //    like Devin, and is cursor-blink independent). If that client isn't available,
+                //    fall back to the UI Automation prototype below.
                 int pid = 0;
+                int directClient = 0;
                 IntPtr hwnd = IntPtr.Zero;
-                if (useUia)
+                bool useUia = false;
+
+                if (windowsTerminal)
                 {
-                    hwnd = terminalHandle;
-                    if (hwnd == IntPtr.Zero || !IsWindow(hwnd)) return;
+                    int wtClient = _wtConsoleClientPid;
+                    if (wtClient > 0 && IsProcessAlive(wtClient))
+                    {
+                        pid = wtClient;
+                        directClient = wtClient;
+                    }
+                    else
+                    {
+                        useUia = true;
+                        hwnd = terminalHandle;
+                        if (hwnd == IntPtr.Zero || !IsWindow(hwnd)) return;
+                    }
                 }
                 else
                 {
@@ -257,9 +291,30 @@ namespace ClaudeCodeVS
                     }
                 }
 
-                string initialHash = useUia
-                    ? await Task.Run(() => { string t = TryCaptureWindowsTerminalText(hwnd); return t != null ? ComputeStableHash(t) : null; })
-                    : await Task.Run(() => TryCaptureConsoleHash(pid));
+                string initialHash;
+                if (useUia)
+                {
+                    initialHash = await Task.Run(() => { string t = TryCaptureWindowsTerminalText(hwnd); return t != null ? ComputeStableHash(t) : null; });
+                }
+                else
+                {
+                    int capPid = pid, capDirect = directClient;
+                    initialHash = await Task.Run(() => TryCaptureConsoleHash(capPid, capDirect));
+
+                    // Windows Terminal: if attaching to the ConPTY console client yielded no buffer
+                    // on this machine, fall back to the UI Automation prototype so the feature still
+                    // works (just less reliably) instead of silently never firing.
+                    if (directClient > 0 && initialHash == null)
+                    {
+                        Debug.WriteLine("Agent completion: WT ConPTY console attach yielded no buffer; falling back to UI Automation.");
+                        useUia = true;
+                        pid = 0;
+                        directClient = 0;
+                        hwnd = terminalHandle;
+                        if (hwnd != IntPtr.Zero && IsWindow(hwnd))
+                            initialHash = await Task.Run(() => { string t = TryCaptureWindowsTerminalText(hwnd); return t != null ? ComputeStableHash(t) : null; });
+                    }
+                }
 
                 await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
                 StopAgentCompletionTimer();
@@ -267,6 +322,7 @@ namespace ClaudeCodeVS
                 _watchViaUia = useUia;
                 _watchedTerminalHandle = hwnd;
                 _watchedConsolePid = pid;
+                _watchedClientPidDirect = directClient;
                 _lastConsoleHash = initialHash;
                 _consoleSawActivity = false;
                 _consoleSelectionActive = false;
@@ -472,6 +528,7 @@ namespace ClaudeCodeVS
                     }
 
                     int pid = _watchedConsolePid;
+                    int directClient = _watchedClientPidDirect;
                     if (pid == 0) { StopAgentCompletionTimer(); return; }
 
                     // Don't run the tick while a modal dialog of ours is open (Settings, the
@@ -543,7 +600,7 @@ namespace ClaudeCodeVS
                     IntPtr focusBeforeRead = GetFocus();
                     bool restoreFocusAfterRead = IsOwnedInputFocusWindow(focusBeforeRead);
 
-                    string text = await Task.Run(() => TryCaptureConsoleText(pid));
+                    string text = await Task.Run(() => TryCaptureConsoleText(pid, directClient));
 
                     if (restoreFocusAfterRead && IsWindow(focusBeforeRead) && GetFocus() != focusBeforeRead)
                     {
@@ -811,9 +868,9 @@ namespace ClaudeCodeVS
         /// Convenience wrapper: captures the console text and returns its stable hash
         /// (or null on any failure). Used by the arm path which only needs a baseline hash.
         /// </summary>
-        private string TryCaptureConsoleHash(int conhostPid)
+        private string TryCaptureConsoleHash(int conhostPid, int directClientPid = 0)
         {
-            string text = TryCaptureConsoleText(conhostPid);
+            string text = TryCaptureConsoleText(conhostPid, directClientPid);
             return text != null ? ComputeStableHash(text) : null;
         }
 
@@ -825,14 +882,17 @@ namespace ClaudeCodeVS
         /// a moving cursor changes the position, so "busy" always differs from a settled prompt.
         /// The trailing "|cursorX,cursorY" marker lets cursor movement count as activity.
         /// </summary>
-        private string TryCaptureConsoleText(int conhostPid)
+        private string TryCaptureConsoleText(int conhostPid, int directClientPid = 0)
         {
-            if (conhostPid <= 0) return null;
+            if (conhostPid <= 0 && directClientPid <= 0) return null;
 
             // The terminal is launched as conhost.exe; AttachConsole needs a console *client*
             // (the cmd.exe running inside it), not the conhost host PID. Resolve it fresh each
-            // sample so a terminal restart can't leave us pinned to a dead PID.
-            int clientPid = ResolveConsoleClientPid(conhostPid);
+            // sample so a terminal restart can't leave us pinned to a dead PID. For Windows
+            // Terminal the client is the ConPTY cmd.exe resolved at launch and passed in directly
+            // (the embedded window belongs to WindowsTerminal.exe, so window-based resolution can't
+            // find it).
+            int clientPid = directClientPid > 0 ? directClientPid : ResolveConsoleClientPid(conhostPid);
             if (clientPid <= 0) return null;
 
             lock (_consoleSnapshotLock)
@@ -1172,6 +1232,87 @@ namespace ClaudeCodeVS
                 Debug.WriteLine($"ResolveConsoleClientPid error: {ex.Message}");
             }
             return 0;
+        }
+
+        /// <summary>
+        /// Snapshot of all running cmd.exe PIDs, taken just before a Windows Terminal launch so the
+        /// console client (the cmd.exe WT spawns inside its ConPTY) can be identified afterwards as
+        /// the new cmd.exe that appeared under a WindowsTerminal.exe process.
+        /// </summary>
+        internal static HashSet<uint> SnapshotCmdProcessIds()
+        {
+            var set = new HashSet<uint>();
+            try
+            {
+                foreach (var p in Process.GetProcessesByName("cmd"))
+                {
+                    try { set.Add((uint)p.Id); }
+                    finally { p.Dispose(); }
+                }
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"SnapshotCmdProcessIds error: {ex.Message}");
+            }
+            return set;
+        }
+
+        /// <summary>
+        /// Resolves the ConPTY console-client PID (the cmd.exe Windows Terminal spawned inside its
+        /// pseudoconsole) for the just-launched embedded WT window: the cmd.exe that is a descendant
+        /// of some WindowsTerminal.exe process and was not running before the launch
+        /// (<paramref name="preExistingCmdPids"/>). Returns 0 when it can't be identified. Lets
+        /// "On Agent Finish" AttachConsole to the real screen buffer under Windows Terminal instead
+        /// of the less-reliable UI Automation fallback.
+        /// </summary>
+        internal static int ResolveWtConsoleClientPid(HashSet<uint> preExistingCmdPids)
+        {
+            try
+            {
+                // All cmd.exe processes that appeared since the pre-launch snapshot.
+                var newCmd = new HashSet<uint>();
+                foreach (var p in Process.GetProcessesByName("cmd"))
+                {
+                    try { if (preExistingCmdPids == null || !preExistingCmdPids.Contains((uint)p.Id)) newCmd.Add((uint)p.Id); }
+                    finally { p.Dispose(); }
+                }
+                if (newCmd.Count == 0) return 0;
+
+                // Descendants of every WindowsTerminal.exe host, so the new cmd.exe is matched to a
+                // WT instance (disambiguates other unrelated cmd.exe windows opened meanwhile).
+                var wtDescendants = new HashSet<uint>();
+                foreach (var wt in Process.GetProcessesByName("WindowsTerminal"))
+                {
+                    try { CollectDescendantPids((uint)wt.Id, wtDescendants); }
+                    finally { wt.Dispose(); }
+                }
+
+                foreach (uint pid in newCmd)
+                {
+                    if (wtDescendants.Contains(pid)) return (int)pid;
+                }
+
+                // If exactly one new cmd.exe appeared, use it even if the WT ancestry walk missed it
+                // (the process tree can lag right after launch).
+                if (newCmd.Count == 1)
+                {
+                    foreach (uint pid in newCmd) return (int)pid;
+                }
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"ResolveWtConsoleClientPid error: {ex.Message}");
+            }
+            return 0;
+        }
+
+        /// <summary>Recursively collects all descendant PIDs of <paramref name="root"/> into <paramref name="into"/>.</summary>
+        private static void CollectDescendantPids(uint root, HashSet<uint> into)
+        {
+            foreach (uint child in GetChildProcessIds(root))
+            {
+                if (into.Add(child)) CollectDescendantPids(child, into);
+            }
         }
 
         /// <summary>FNV-1a 64-bit — process-independent and collision-resistant enough for snapshot comparison.</summary>

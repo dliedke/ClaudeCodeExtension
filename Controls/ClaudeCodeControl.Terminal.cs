@@ -542,6 +542,9 @@ namespace ClaudeCodeVS
             int existingTerminalWindowProcessId = 0;
             bool isWindowsTerminal = false;
 
+            // The resolved WT ConPTY console client belongs to the terminal we're tearing down.
+            _wtConsoleClientPid = 0;
+
             if (existingTerminalHandle != IntPtr.Zero && IsWindow(existingTerminalHandle))
             {
                 GetWindowThreadProcessId(existingTerminalHandle, out uint existingTerminalWindowPid);
@@ -1105,6 +1108,12 @@ namespace ClaudeCodeVS
                     // Snapshot existing WT windows before launching a new one
                     var existingWtWindows = SnapshotExistingWtWindows();
 
+                    // Snapshot existing cmd.exe PIDs so the ConPTY console client (the cmd.exe WT
+                    // spawns inside its pseudoconsole) can be identified afterwards — used by
+                    // "On Agent Finish" to read the real screen buffer under Windows Terminal.
+                    _wtConsoleClientPid = 0;
+                    var preExistingCmdPids = SnapshotCmdProcessIds();
+
                     // Resolve wt.exe path if not already cached
                     if (string.IsNullOrEmpty(_wtExePath))
                     {
@@ -1241,6 +1250,18 @@ namespace ClaudeCodeVS
                             // Snapshot the color the agent just launched with --
                             // theme-change prompts compare against this.
                             RecordTerminalAgentColor();
+
+                            // Resolve the ConPTY console client (cmd.exe) so "On Agent Finish" can
+                            // read the real screen buffer under Windows Terminal (works for
+                            // alternate-screen TUIs like Devin). Harmless if the feature is off; a
+                            // short retry covers the process tree lagging just after launch.
+                            for (int clientAttempt = 0; clientAttempt < 10; clientAttempt++)
+                            {
+                                _wtConsoleClientPid = ResolveWtConsoleClientPid(preExistingCmdPids);
+                                if (_wtConsoleClientPid > 0) break;
+                                await Task.Delay(150);
+                            }
+                            LogTerminalLaunch($"WT console client pid={_wtConsoleClientPid}");
 
                             SchedulePostStartupTerminalAdjustments();
                         }
