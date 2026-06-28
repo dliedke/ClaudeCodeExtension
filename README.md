@@ -105,6 +105,9 @@ This binds a Claude Code skill that shells out to OpenAI Codex to audit pending 
 
 ## Version History
 
+### Version 43.0
+- The **Max** and **Ultracode** effort levels now apply to the current session only and are no longer remembered between Visual Studio restarts — the next launch starts from your last durable level (Low, Medium, High, or Extra High), matching how Claude Code treats these levels.
+
 ### Version 42.0
 - The **Effort** setting for **Claude Code** (native and WSL) is now a slider in the model (🤖) menu — drag between Low, Medium, High, Extra High, Max, and Ultracode instead of picking from a list, with the current level shown above it. Ultracode needs dynamic workflows enabled (see `/config`).
 

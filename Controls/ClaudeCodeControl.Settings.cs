@@ -156,6 +156,18 @@ namespace ClaudeCodeVS
                     {
                         _settings.SelectedProvider = AiProvider.ClaudeCode;
                     }
+
+                    // Seed the durable effort baseline from disk. Max/Ultracode are
+                    // session-only and should never have been persisted; if an older
+                    // config still carries one, fall back to High so the slider starts
+                    // from a durable level rather than re-entering a transient mode.
+                    _lastPersistableEffortLevel = IsSessionOnlyEffort(_settings.SelectedEffortLevel)
+                        ? EffortLevel.High
+                        : _settings.SelectedEffortLevel;
+                    if (IsSessionOnlyEffort(_settings.SelectedEffortLevel))
+                    {
+                        _settings.SelectedEffortLevel = EffortLevel.High;
+                    }
                 }
                 else
                 {
@@ -313,6 +325,17 @@ namespace ClaudeCodeVS
                         // everything — better than losing all settings.
                         Debug.WriteLine($"Could not read disk settings for merge: {diskEx.Message}");
                     }
+                }
+
+                // Max and Ultracode are session-only. Whenever the live level is one of
+                // them, persist the last durable level instead so the next VS launch does
+                // not re-enter a transient effort mode. This matters on shutdown, where
+                // volatile fields above are NOT preserved from disk and the in-memory
+                // (possibly session-only) value would otherwise be written.
+                if (IsSessionOnlyEffort(_settings.SelectedEffortLevel))
+                {
+                    toSave[nameof(ClaudeCodeSettings.SelectedEffortLevel)] =
+                        (int)_lastPersistableEffortLevel;
                 }
 
                 var json = toSave.ToString(Formatting.Indented);

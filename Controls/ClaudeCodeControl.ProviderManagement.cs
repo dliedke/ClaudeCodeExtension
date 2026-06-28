@@ -3115,6 +3115,10 @@ For more details, visit: https://pi.dev";
             await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
 
             _settings.SelectedEffortLevel = level;
+            if (!IsSessionOnlyEffort(level))
+            {
+                _lastPersistableEffortLevel = level;
+            }
             UpdateEffortSelection();
             SaveSettings();
 
@@ -3138,6 +3142,19 @@ For more details, visit: https://pi.dev";
         private bool _suppressEffortSliderChange;
         private bool _effortSliderDragging;
         private EffortLevel _pendingEffortLevel = EffortLevel.High;
+
+        // Max and Ultracode are session-only, mirroring the Claude Code CLI where
+        // "/effort max" is applied for "this session only" and Ultracode (xhigh +
+        // dynamic workflows) is likewise transient. They apply live to the running
+        // session but are never persisted, so the next VS launch starts from the
+        // last durable level (Low/Medium/High/Extra High) instead.
+        private static bool IsSessionOnlyEffort(EffortLevel level)
+            => level == EffortLevel.Max || level == EffortLevel.Ultracode;
+
+        // The last durable (non-session-only) effort level the user selected. This is
+        // what SaveSettings writes when the live level is a session-only one, so config
+        // never carries Max/Ultracode across sessions.
+        private EffortLevel _lastPersistableEffortLevel = EffortLevel.High;
 
         private static EffortLevel EffortFromSliderIndex(double value)
         {
