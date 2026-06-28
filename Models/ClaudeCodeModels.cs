@@ -53,7 +53,13 @@ namespace ClaudeCodeVS
         Low,
         Medium,
         High,
-        Max
+        Max,
+        // Appended after Max to keep the existing persisted integer values stable
+        // (Auto=0..Max=4). The slider order (see _effortSliderOrder) drops Auto and
+        // presents: Low, Medium, High, XHigh ("Extra High"), Max, Ultracode.
+        // Ultracode maps to /effort ultracode (xhigh effort + dynamic workflows).
+        XHigh,
+        Ultracode
     }
 
 

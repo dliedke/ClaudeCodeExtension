@@ -124,6 +124,100 @@
 		<Style x:Key="IconButtonStyle" TargetType="Button" BasedOn="{StaticResource AdaptiveButtonStyle}">
 			<Setter Property="Opacity" Value="0.93"/>
 		</Style>
+
+		<!-- ============ Effort pill slider (VS Code-like) ============ -->
+		<!-- Filled (left of thumb) portion: blue, turns purple at the Max stop -->
+		<Style x:Key="EffortFillButtonStyle" TargetType="RepeatButton">
+			<Setter Property="OverridesDefaultStyle" Value="True"/>
+			<Setter Property="Focusable" Value="False"/>
+			<Setter Property="IsTabStop" Value="False"/>
+			<Setter Property="Background" Value="#1C8AE0"/>
+			<Setter Property="Template">
+				<Setter.Value>
+					<ControlTemplate TargetType="RepeatButton">
+						<Border Background="{TemplateBinding Background}" CornerRadius="9"/>
+					</ControlTemplate>
+				</Setter.Value>
+			</Setter>
+			<Style.Triggers>
+				<!-- Top (Max) stop turns purple, like the VS Code "ultracode" cap -->
+				<DataTrigger Binding="{Binding Value, RelativeSource={RelativeSource AncestorType={x:Type Slider}}}" Value="5">
+					<Setter Property="Background" Value="#9B7BD4"/>
+				</DataTrigger>
+			</Style.Triggers>
+		</Style>
+
+		<!-- Unfilled (right of thumb) portion: transparent so the gray track shows through -->
+		<Style x:Key="EffortTransparentButtonStyle" TargetType="RepeatButton">
+			<Setter Property="OverridesDefaultStyle" Value="True"/>
+			<Setter Property="Focusable" Value="False"/>
+			<Setter Property="IsTabStop" Value="False"/>
+			<Setter Property="Template">
+				<Setter.Value>
+					<ControlTemplate TargetType="RepeatButton">
+						<Border Background="Transparent"/>
+					</ControlTemplate>
+				</Setter.Value>
+			</Setter>
+		</Style>
+
+		<!-- White circular thumb -->
+		<Style x:Key="EffortThumbStyle" TargetType="Thumb">
+			<Setter Property="OverridesDefaultStyle" Value="True"/>
+			<Setter Property="Focusable" Value="False"/>
+			<Setter Property="Width" Value="16"/>
+			<Setter Property="Height" Value="16"/>
+			<Setter Property="Template">
+				<Setter.Value>
+					<ControlTemplate TargetType="Thumb">
+						<Ellipse Fill="#F5F5F5" Stroke="#33000000" StrokeThickness="1"/>
+					</ControlTemplate>
+				</Setter.Value>
+			</Setter>
+		</Style>
+
+		<Style x:Key="EffortSliderStyle" TargetType="Slider">
+			<Setter Property="Minimum" Value="0"/>
+			<Setter Property="Maximum" Value="5"/>
+			<Setter Property="SmallChange" Value="1"/>
+			<Setter Property="LargeChange" Value="1"/>
+			<Setter Property="TickFrequency" Value="1"/>
+			<Setter Property="IsSnapToTickEnabled" Value="True"/>
+			<Setter Property="Width" Value="175"/>
+			<Setter Property="Height" Value="22"/>
+			<Setter Property="Cursor" Value="Hand"/>
+			<Setter Property="Template">
+				<Setter.Value>
+					<ControlTemplate TargetType="Slider">
+						<Grid VerticalAlignment="Center" Height="18">
+							<!-- Track background pill. Semi-transparent gray so it reads as a
+							     subtle groove on both light and dark menu backgrounds. -->
+							<Border CornerRadius="9" Background="#80808080"/>
+							<!-- Six position dots (sit under the fill/thumb) -->
+							<UniformGrid Rows="1" Columns="6" Margin="11,0">
+								<Ellipse Width="4" Height="4" Fill="#80606060" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+								<Ellipse Width="4" Height="4" Fill="#80606060" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+								<Ellipse Width="4" Height="4" Fill="#80606060" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+								<Ellipse Width="4" Height="4" Fill="#80606060" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+								<Ellipse Width="4" Height="4" Fill="#80606060" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+								<Ellipse Width="4" Height="4" Fill="#80606060" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+							</UniformGrid>
+							<Track x:Name="PART_Track">
+								<Track.DecreaseRepeatButton>
+									<RepeatButton Style="{StaticResource EffortFillButtonStyle}" Command="Slider.DecreaseLarge"/>
+								</Track.DecreaseRepeatButton>
+								<Track.Thumb>
+									<Thumb Style="{StaticResource EffortThumbStyle}"/>
+								</Track.Thumb>
+								<Track.IncreaseRepeatButton>
+									<RepeatButton Style="{StaticResource EffortTransparentButtonStyle}" Command="Slider.IncreaseLarge"/>
+								</Track.IncreaseRepeatButton>
+							</Track>
+						</Grid>
+					</ControlTemplate>
+				</Setter.Value>
+			</Setter>
+		</Style>
 	</UserControl.Resources>
 
 	<Grid x:Name="MainGrid">
@@ -410,12 +504,18 @@
 								<MenuItem Header="Sonnet - Everyday tasks" x:Name="SonnetMenuItem" Click="SonnetMenuItem_Click" IsCheckable="True" IsChecked="True"/>
 								<MenuItem Header="Haiku - Easy tasks" x:Name="HaikuMenuItem" Click="HaikuMenuItem_Click" IsCheckable="True"/>
 								<Separator x:Name="EffortSeparator"/>
-								<MenuItem Header="Effort:" x:Name="EffortLabelMenuItem" IsEnabled="False" FontWeight="SemiBold"/>
-								<MenuItem Header="Auto" x:Name="EffortAutoMenuItem" Click="EffortAutoMenuItem_Click" IsCheckable="True" IsChecked="True"/>
-								<MenuItem Header="Low" x:Name="EffortLowMenuItem" Click="EffortLowMenuItem_Click" IsCheckable="True"/>
-								<MenuItem Header="Medium" x:Name="EffortMediumMenuItem" Click="EffortMediumMenuItem_Click" IsCheckable="True"/>
-								<MenuItem Header="High" x:Name="EffortHighMenuItem" Click="EffortHighMenuItem_Click" IsCheckable="True"/>
-								<MenuItem Header="Max" x:Name="EffortMaxMenuItem" Click="EffortMaxMenuItem_Click" IsCheckable="True"/>
+								<MenuItem x:Name="EffortSliderMenuItem" StaysOpenOnClick="True">
+									<MenuItem.Header>
+										<StackPanel Margin="2,3" MinWidth="190">
+											<TextBlock x:Name="EffortSliderLabel" Text="Effort (Auto)" Margin="0,0,0,5" FontWeight="SemiBold"/>
+											<Slider x:Name="EffortSlider" Style="{StaticResource EffortSliderStyle}"
+											        HorizontalAlignment="Left"
+											        ValueChanged="EffortSlider_ValueChanged"
+											        Thumb.DragStarted="EffortSlider_DragStarted"
+											        Thumb.DragCompleted="EffortSlider_DragCompleted"/>
+										</StackPanel>
+									</MenuItem.Header>
+								</MenuItem>
 								<Separator x:Name="ClaudeAccountSeparator"/>
 								<MenuItem Header="Change Account" x:Name="ChangeAccountMenuItem" Click="ChangeAccountMenuItem_Click"/>
 								<MenuItem Header="Set Language" x:Name="SetLanguageMenuItem" Click="SetLanguageMenuItem_Click"/>

@@ -105,6 +105,9 @@ This binds a Claude Code skill that shells out to OpenAI Codex to audit pending 
 
 ## Version History
 
+### Version 42.0
+- The **Effort** setting for **Claude Code** (native and WSL) is now a slider in the model (🤖) menu — drag between Low, Medium, High, Extra High, Max, and Ultracode instead of picking from a list, with the current level shown above it. Ultracode needs dynamic workflows enabled (see `/config`).
+
 ### Version 41.0
 - **On Agent Finish** now works reliably with **Windows Terminal**, including full-screen agents like **Devin** — it reads the terminal's console buffer directly instead of relying on the previous accessibility-based reading, which often never detected completion. Enable it as usual via *⚙ → Settings... → On Agent Finish...*.
 

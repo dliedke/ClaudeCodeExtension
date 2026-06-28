@@ -16,6 +16,8 @@ using System.Diagnostics;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
+using System.Windows.Controls;
+using System.Windows.Controls.Primitives;
 using Microsoft.VisualStudio.Shell;
 
 namespace ClaudeCodeVS
@@ -2857,12 +2859,13 @@ For more details, visit: https://pi.dev";
             SonnetMenuItem.Visibility = isClaude ? Visibility.Visible : Visibility.Collapsed;
             HaikuMenuItem.Visibility = isClaude ? Visibility.Visible : Visibility.Collapsed;
             EffortSeparator.Visibility = isClaude ? Visibility.Visible : Visibility.Collapsed;
-            EffortLabelMenuItem.Visibility = isClaude ? Visibility.Visible : Visibility.Collapsed;
-            EffortAutoMenuItem.Visibility = isClaude ? Visibility.Visible : Visibility.Collapsed;
-            EffortLowMenuItem.Visibility = isClaude ? Visibility.Visible : Visibility.Collapsed;
-            EffortMediumMenuItem.Visibility = isClaude ? Visibility.Visible : Visibility.Collapsed;
-            EffortHighMenuItem.Visibility = isClaude ? Visibility.Visible : Visibility.Collapsed;
-            EffortMaxMenuItem.Visibility = isClaude ? Visibility.Visible : Visibility.Collapsed;
+            EffortSliderMenuItem.Visibility = isClaude ? Visibility.Visible : Visibility.Collapsed;
+
+            // Keep the slider in sync with the persisted effort level whenever the menu opens.
+            if (isClaude)
+            {
+                UpdateEffortSelection();
+            }
             ClaudeAccountSeparator.Visibility = isClaude ? Visibility.Visible : Visibility.Collapsed;
             ChangeAccountMenuItem.Visibility = isClaude ? Visibility.Visible : Visibility.Collapsed;
             SetLanguageMenuItem.Visibility = isClaude ? Visibility.Visible : Visibility.Collapsed;
@@ -3123,47 +3126,109 @@ For more details, visit: https://pi.dev";
             }
         }
 
+        // Effort slider state. The slider's left-to-right order is defined explicitly so it
+        // is independent of the EffortLevel enum's integer values — that keeps persisted
+        // settings stable as new levels are appended. Mirrors the VS Code effort slider:
+        // Low, Medium, High, Extra High (xhigh), Max, Ultracode (xhigh + workflows).
+        private static readonly EffortLevel[] _effortSliderOrder =
+        {
+            EffortLevel.Low, EffortLevel.Medium, EffortLevel.High,
+            EffortLevel.XHigh, EffortLevel.Max, EffortLevel.Ultracode
+        };
+        private bool _suppressEffortSliderChange;
+        private bool _effortSliderDragging;
+        private EffortLevel _pendingEffortLevel = EffortLevel.High;
+
+        private static EffortLevel EffortFromSliderIndex(double value)
+        {
+            int idx = (int)Math.Round(value);
+            if (idx < 0) idx = 0;
+            if (idx >= _effortSliderOrder.Length) idx = _effortSliderOrder.Length - 1;
+            return _effortSliderOrder[idx];
+        }
+
+        private static int EffortToSliderIndex(EffortLevel level)
+        {
+            int idx = Array.IndexOf(_effortSliderOrder, level);
+            // Levels not on the slider (e.g. legacy Auto) fall back to High.
+            if (idx < 0) idx = Array.IndexOf(_effortSliderOrder, EffortLevel.High);
+            return idx < 0 ? 0 : idx;
+        }
+
+        /// <summary>
+        /// Slider value changed. Updates the label live; commits the new level immediately
+        /// for click/keyboard changes, but defers commits made while dragging until release
+        /// (see <see cref="EffortSlider_DragCompleted"/>) so we don't spam /effort commands.
+        /// </summary>
+        private void EffortSlider_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
+        {
+            if (_settings == null) return;
+
+            EffortLevel level = EffortFromSliderIndex(e.NewValue);
+            UpdateEffortLabel(level);
+
+            if (_suppressEffortSliderChange) return;
+
+            if (_effortSliderDragging)
+            {
+                _pendingEffortLevel = level;
+                return;
+            }
+
+            _ = SetEffortLevelAsync(level);
+        }
+
+        private void EffortSlider_DragStarted(object sender, DragStartedEventArgs e)
+        {
+            _effortSliderDragging = true;
+            _pendingEffortLevel = EffortFromSliderIndex(EffortSlider.Value);
+        }
+
 #pragma warning disable VSTHRD100 // Avoid async void methods
-        private async void EffortAutoMenuItem_Click(object sender, RoutedEventArgs e)
+        private async void EffortSlider_DragCompleted(object sender, DragCompletedEventArgs e)
         {
-            await SetEffortLevelAsync(EffortLevel.Auto);
-        }
-
-        private async void EffortLowMenuItem_Click(object sender, RoutedEventArgs e)
-        {
-            await SetEffortLevelAsync(EffortLevel.Low);
-        }
-
-        private async void EffortMediumMenuItem_Click(object sender, RoutedEventArgs e)
-        {
-            await SetEffortLevelAsync(EffortLevel.Medium);
-        }
-
-        private async void EffortHighMenuItem_Click(object sender, RoutedEventArgs e)
-        {
-            await SetEffortLevelAsync(EffortLevel.High);
-        }
-
-        private async void EffortMaxMenuItem_Click(object sender, RoutedEventArgs e)
-        {
-            await SetEffortLevelAsync(EffortLevel.Max);
+            _effortSliderDragging = false;
+            await SetEffortLevelAsync(_pendingEffortLevel);
         }
 #pragma warning restore VSTHRD100
 
         /// <summary>
-        /// Updates the effort selection UI checkmarks
+        /// Updates the effort slider position and label to match the persisted selection.
         /// </summary>
         private void UpdateEffortSelection()
         {
             ThreadHelper.ThrowIfNotOnUIThread();
 
-            if (_settings == null) return;
+            if (_settings == null || EffortSlider == null) return;
 
-            EffortAutoMenuItem.IsChecked = _settings.SelectedEffortLevel == EffortLevel.Auto;
-            EffortLowMenuItem.IsChecked = _settings.SelectedEffortLevel == EffortLevel.Low;
-            EffortMediumMenuItem.IsChecked = _settings.SelectedEffortLevel == EffortLevel.Medium;
-            EffortHighMenuItem.IsChecked = _settings.SelectedEffortLevel == EffortLevel.High;
-            EffortMaxMenuItem.IsChecked = _settings.SelectedEffortLevel == EffortLevel.Max;
+            _suppressEffortSliderChange = true;
+            try
+            {
+                EffortSlider.Value = EffortToSliderIndex(_settings.SelectedEffortLevel);
+            }
+            finally
+            {
+                _suppressEffortSliderChange = false;
+            }
+
+            UpdateEffortLabel(_settings.SelectedEffortLevel);
+        }
+
+        /// <summary>
+        /// Updates the "Effort (Level)" caption above the slider.
+        /// </summary>
+        private void UpdateEffortLabel(EffortLevel level)
+        {
+            if (EffortSliderLabel == null) return;
+
+            string name;
+            switch (level)
+            {
+                case EffortLevel.XHigh: name = "Extra High"; break;
+                case EffortLevel.Ultracode: name = "Ultracode - xhigh + workflows"; break;
+                default: name = level.ToString(); break;
+            }
+            EffortSliderLabel.Text = $"Effort ({name})";
         }
 
         #endregion
