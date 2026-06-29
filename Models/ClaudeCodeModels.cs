@@ -493,6 +493,16 @@ namespace ClaudeCodeVS
         public TerminalType SelectedTerminalType { get; set; } = TerminalType.CommandPrompt;
 
         /// <summary>
+        /// Console font face name applied to the embedded terminal. Defaults to "Cascadia Mono". Users on
+        /// systems whose scripts need glyphs Cascadia Mono lacks (Chinese, Japanese, Korean, etc.) can set a
+        /// font that renders those scripts crisply (e.g. "MS Gothic", "NSimSun", "Malgun Gothic"). Empty falls
+        /// back to "Cascadia Mono". For Command Prompt the font is written to the console registry before
+        /// conhost launches; for Windows Terminal a dedicated profile carrying the font is launched via wt -p
+        /// (only when a non-default font is chosen).
+        /// </summary>
+        public string ConsoleFontFaceName { get; set; } = "Cascadia Mono";
+
+        /// <summary>
         /// Whether the terminal is currently detached into a separate tool window tab
         /// </summary>
         public bool IsTerminalDetached { get; set; } = false;

@@ -1121,11 +1121,16 @@ namespace ClaudeCodeVS
                     }
                     string wtFileName = !string.IsNullOrEmpty(_wtExePath) ? _wtExePath : "wt.exe";
 
+                    // When a non-default console font is configured, launch our dedicated profile (which
+                    // carries that font) via -p; the trailing "-- cmd.exe {cmd}" still overrides the
+                    // profile's command line. Empty when the font is default or the profile can't be set up.
+                    string wtFontProfileArg = GetWindowsTerminalFontProfileArg();
+
                     // Start Windows Terminal with embedded cmd.exe
                     var wtStartInfo = new ProcessStartInfo
                     {
                         FileName = wtFileName,
-                        Arguments = $"--window new -- cmd.exe {cmdCommand}",
+                        Arguments = $"--window new {wtFontProfileArg}-- cmd.exe {cmdCommand}",
                         UseShellExecute = false,
                         CreateNoWindow = false,
                         WindowStyle = ProcessWindowStyle.Hidden,
@@ -1725,7 +1730,8 @@ namespace ClaudeCodeVS
         private bool _consoleColorsSaved;
 
         /// <summary>
-        /// Temporarily sets the console default font in the registry to "Cascadia Mono".
+        /// Temporarily sets the console default font in the registry to the configured face name
+        /// (Settings → Terminal; defaults to "Cascadia Mono").
         /// Conhost reads HKCU\Console when creating a new console window, so setting
         /// the font before starting conhost ensures the correct font is used.
         /// CodePage must be written to the conhost.exe-specific subkey
@@ -1745,7 +1751,12 @@ namespace ClaudeCodeVS
                     _savedConsoleFontFamily = key.GetValue("FontFamily");
                     _consoleFontSaved = true;
 
-                    key.SetValue("FaceName", "Cascadia Mono", Microsoft.Win32.RegistryValueKind.String);
+                    // User-configurable console font (Settings → Terminal). Defaults to "Cascadia Mono";
+                    // users on CJK and other non-Latin systems can pick a font that renders their script.
+                    string faceName = _settings?.ConsoleFontFaceName;
+                    if (string.IsNullOrWhiteSpace(faceName)) faceName = "Cascadia Mono";
+
+                    key.SetValue("FaceName", faceName, Microsoft.Win32.RegistryValueKind.String);
                     key.SetValue("FontFamily", 54, Microsoft.Win32.RegistryValueKind.DWord);
                 }
 
@@ -1818,6 +1829,139 @@ namespace ClaudeCodeVS
             {
                 Debug.WriteLine($"RestoreConsoleFontRegistry: {ex.Message}");
             }
+        }
+
+        /// <summary>
+        /// Fixed name/GUID of the dedicated Windows Terminal profile the extension manages to carry the
+        /// user's chosen console font. Windows Terminal ignores the HKCU\Console registry font, and
+        /// wt.exe has no command-line flag for the font face, so the only lever is settings.json.
+        /// </summary>
+        private const string WtFontProfileName = "Claude Code Extension";
+        private const string WtFontProfileGuid = "{b9a3c7e2-4d1f-4c8a-9e6b-1a2b3c4d5e6f}";
+
+        /// <summary>
+        /// Locates the active Windows Terminal settings.json (Store, Preview, or unpackaged install),
+        /// or null if none exists yet.
+        /// </summary>
+        private static string FindWindowsTerminalSettingsPath()
+        {
+            try
+            {
+                string localAppData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
+                string[] candidates =
+                {
+                    Path.Combine(localAppData, @"Packages\Microsoft.WindowsTerminal_8wekyb3d8bbwe\LocalState\settings.json"),
+                    Path.Combine(localAppData, @"Packages\Microsoft.WindowsTerminalPreview_8wekyb3d8bbwe\LocalState\settings.json"),
+                    Path.Combine(localAppData, @"Microsoft\Windows Terminal\settings.json"),
+                };
+                foreach (string c in candidates)
+                {
+                    if (File.Exists(c)) return c;
+                }
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"FindWindowsTerminalSettingsPath: {ex.Message}");
+            }
+            return null;
+        }
+
+        /// <summary>
+        /// Ensures a dedicated Windows Terminal profile exists in settings.json carrying <paramref name="faceName"/>
+        /// as its font face, and returns the profile name to launch with <c>wt -p</c>. The profile inherits
+        /// everything else (colors, cursor, etc.) from <c>profiles.defaults</c>, so only the font is overridden.
+        /// settings.json is only touched when the profile is missing or its font differs, which keeps the user's
+        /// other Windows Terminal windows untouched. Returns null when settings.json can't be found or written
+        /// (the caller then launches without a profile, i.e. the previous behavior). Note: rewriting settings.json
+        /// via JSON serialization drops any // comments the user added — accepted because we write rarely and only
+        /// when a non-default font is selected.
+        /// </summary>
+        private string EnsureWindowsTerminalFontProfile(string faceName)
+        {
+            try
+            {
+                if (string.IsNullOrWhiteSpace(faceName)) return null;
+
+                string settingsPath = FindWindowsTerminalSettingsPath();
+                if (settingsPath == null) return null;
+
+                JObject root = JObject.Parse(File.ReadAllText(settingsPath));
+
+                // "profiles" is either an object with a "list" array (current schema) or a bare array (legacy).
+                JArray list = null;
+                if (root["profiles"] is JObject profilesObj)
+                {
+                    list = profilesObj["list"] as JArray;
+                    if (list == null) { list = new JArray(); profilesObj["list"] = list; }
+                }
+                else if (root["profiles"] is JArray profilesArr)
+                {
+                    list = profilesArr;
+                }
+                else
+                {
+                    var po = new JObject();
+                    list = new JArray();
+                    po["list"] = list;
+                    root["profiles"] = po;
+                }
+
+                JObject ours = null;
+                foreach (var p in list)
+                {
+                    if (p is JObject po && string.Equals((string)po["guid"], WtFontProfileGuid, StringComparison.OrdinalIgnoreCase))
+                    {
+                        ours = po;
+                        break;
+                    }
+                }
+
+                bool changed = false;
+                if (ours == null)
+                {
+                    ours = new JObject
+                    {
+                        ["guid"] = WtFontProfileGuid,
+                        ["name"] = WtFontProfileName,
+                        ["hidden"] = false
+                    };
+                    list.Add(ours);
+                    changed = true;
+                }
+                if ((string)ours["name"] != WtFontProfileName) { ours["name"] = WtFontProfileName; changed = true; }
+
+                JObject font = ours["font"] as JObject;
+                if (font == null) { font = new JObject(); ours["font"] = font; changed = true; }
+                if ((string)font["face"] != faceName) { font["face"] = faceName; changed = true; }
+
+                if (changed)
+                {
+                    File.WriteAllText(settingsPath, root.ToString(Newtonsoft.Json.Formatting.Indented));
+                }
+                return WtFontProfileName;
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"EnsureWindowsTerminalFontProfile: {ex.Message}");
+                return null;
+            }
+        }
+
+        /// <summary>
+        /// Resolves the configured console font and, for Windows Terminal, returns the
+        /// <c>-p "profile" </c> argument fragment (with trailing space) needed to apply it; returns an
+        /// empty string when the font is default/blank or the profile can't be set up, so the launch
+        /// falls back to Windows Terminal's normal default-profile behavior.
+        /// </summary>
+        private string GetWindowsTerminalFontProfileArg()
+        {
+            string face = _settings?.ConsoleFontFaceName;
+            // "Cascadia Mono" is Windows Terminal's own default, so there's nothing to override.
+            if (string.IsNullOrWhiteSpace(face) || face.Trim().Equals("Cascadia Mono", StringComparison.OrdinalIgnoreCase))
+                return string.Empty;
+
+            string profileName = EnsureWindowsTerminalFontProfile(face.Trim());
+            return string.IsNullOrEmpty(profileName) ? string.Empty : $"-p \"{profileName}\" ";
         }
 
         /// <summary>

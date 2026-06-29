@@ -83,6 +83,8 @@ namespace ClaudeCodeVS
             LayoutOrientation origOrientation = _settings.SelectedLayoutOrientation;
             bool origDisableAutoZoom          = _settings.DisableStartupAutoZoom;
             TerminalType origTerminalType     = _settings.SelectedTerminalType;
+            string origConsoleFont            = string.IsNullOrWhiteSpace(_settings.ConsoleFontFaceName)
+                                                ? "Cascadia Mono" : _settings.ConsoleFontFaceName;
             ThemePreference origThemePref     = _settings.SelectedThemePreference;
             int  origCustomColorArgb          = _settings.CustomThemeColorArgb;
             bool origSkipThemePrompt          = _settings.SkipThemeRestartPrompt;
@@ -313,6 +315,120 @@ namespace ClaudeCodeVS
                 TextWrapping = TextWrapping.Wrap,
                 Margin = new Thickness(20, 2, 0, 0)
             });
+
+            // ---- Console font (searchable picker with live preview) ----
+            terminalStack.Children.Add(MakeSectionHeader("Console font", themeFg));
+            terminalStack.Children.Add(new TextBlock
+            {
+                Text = "Font applied to the embedded terminal (Command Prompt and Windows Terminal). " +
+                       "Defaults to Cascadia Mono. On systems whose scripts Cascadia Mono can't render " +
+                       "(Chinese, Japanese, Korean, etc.), pick a font that covers your script — for example " +
+                       "MS Gothic, NSimSun, or Malgun Gothic. Search by name; the list and preview render in " +
+                       "each font.",
+                FontSize = 11,
+                Opacity = 0.7,
+                Foreground = themeFg,
+                TextWrapping = TextWrapping.Wrap,
+                Margin = new Thickness(4, 0, 0, 4)
+            });
+
+            // chosenFont holds the picker's current value, read on OK. The search box filters the list;
+            // selecting an item updates chosenFont and the live preview below.
+            string chosenFont = origConsoleFont;
+
+            var fontSearchBox = new TextBox
+            {
+                Width = 300,
+                Height = 24,
+                HorizontalAlignment = HorizontalAlignment.Left,
+                VerticalContentAlignment = VerticalAlignment.Center,
+                Background = themeBg,
+                Foreground = themeFg,
+                BorderBrush = themeFg,
+                Margin = new Thickness(4, 0, 0, 4)
+            };
+            terminalStack.Children.Add(fontSearchBox);
+
+            var fontList = new ListBox
+            {
+                Width = 300,
+                MaxHeight = 150,
+                HorizontalAlignment = HorizontalAlignment.Left,
+                Background = themeBg,
+                Foreground = themeFg,
+                BorderBrush = themeFg,
+                Margin = new Thickness(4, 0, 0, 4)
+            };
+            terminalStack.Children.Add(fontList);
+
+            var fontPreview = new TextBlock
+            {
+                Text = "AaBbCc 0123  你好世界  こんにちは  안녕하세요",
+                FontSize = 16,
+                Foreground = themeFg,
+                TextWrapping = TextWrapping.Wrap,
+                Margin = new Thickness(4, 2, 0, 4)
+            };
+            terminalStack.Children.Add(fontPreview);
+
+            // Populate with installed font families (sorted, distinct). Each item renders its own name in
+            // its own face so the dropdown doubles as a preview; Segoe UI is a fallback for name glyphs.
+            var installedFonts = System.Windows.Media.Fonts.SystemFontFamilies
+                .Select(f => f.Source)
+                .Where(s => !string.IsNullOrWhiteSpace(s))
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .OrderBy(s => s, StringComparer.OrdinalIgnoreCase)
+                .ToList();
+
+            void ApplyPreviewFont(string face)
+            {
+                try { fontPreview.FontFamily = new FontFamily(face + ", Segoe UI"); }
+                catch { fontPreview.FontFamily = new FontFamily("Segoe UI"); }
+            }
+
+            foreach (string face in installedFonts)
+            {
+                var item = new ListBoxItem
+                {
+                    Content = new TextBlock { Text = face, FontFamily = new FontFamily(face + ", Segoe UI") },
+                    Tag = face,
+                    Foreground = themeFg,
+                    Background = Brushes.Transparent
+                };
+                fontList.Items.Add(item);
+                if (string.Equals(face, chosenFont, StringComparison.OrdinalIgnoreCase))
+                {
+                    item.IsSelected = true;
+                }
+            }
+            ApplyPreviewFont(chosenFont);
+
+            fontList.SelectionChanged += (s, e) =>
+            {
+                if (fontList.SelectedItem is ListBoxItem li && li.Tag is string face)
+                {
+                    chosenFont = face;
+                    ApplyPreviewFont(face);
+                }
+            };
+
+            // Live filter: show only items whose name contains the search text (case-insensitive).
+            fontSearchBox.TextChanged += (s, e) =>
+            {
+                string q = fontSearchBox.Text?.Trim() ?? string.Empty;
+                foreach (ListBoxItem li in fontList.Items)
+                {
+                    bool match = q.Length == 0 ||
+                        (li.Tag as string)?.IndexOf(q, StringComparison.OrdinalIgnoreCase) >= 0;
+                    li.Visibility = match ? Visibility.Visible : Visibility.Collapsed;
+                }
+            };
+
+            // Scroll the current selection into view once the dialog is laid out.
+            fontList.Loaded += (s, e) =>
+            {
+                if (fontList.SelectedItem != null) fontList.ScrollIntoView(fontList.SelectedItem);
+            };
 
             // "Disable clipboard" relies on simulated keystrokes that only conhost (Command Prompt)
             // accepts, so the toggle is enabled only while Command Prompt is selected. Keep it in sync
@@ -653,6 +769,8 @@ namespace ClaudeCodeVS
             TerminalType newTerminalType = wtRadio.IsChecked == true
                 ? TerminalType.WindowsTerminal
                 : TerminalType.CommandPrompt;
+            string newConsoleFont = string.IsNullOrWhiteSpace(chosenFont)
+                ? "Cascadia Mono" : chosenFont.Trim();
             ThemePreference newThemePref =
                 darkRadio.IsChecked   == true ? ThemePreference.Dark   :
                 lightRadio.IsChecked  == true ? ThemePreference.Light  :
@@ -716,6 +834,7 @@ namespace ClaudeCodeVS
             _settings.SelectedLayoutOrientation = newOrientation;
             _settings.DisableStartupAutoZoom  = newDisableAutoZoom;
             _settings.SelectedTerminalType    = newTerminalType;
+            _settings.ConsoleFontFaceName     = newConsoleFont;
             _settings.SelectedThemePreference = newThemePref;
             _settings.CustomThemeColorArgb    = newCustomColorArgb;
             _settings.SkipThemeRestartPrompt  = newSkipThemePrompt;
@@ -799,7 +918,10 @@ namespace ClaudeCodeVS
 
             // ---- Restart-requiring changes ----
             bool terminalTypeChanged = newTerminalType != origTerminalType;
-            bool needsRestart = terminalTypeChanged || activeCliPathChanged;
+            // A console font change takes effect only when the terminal next launches (conhost reads the
+            // registry at creation; Windows Terminal is launched with the dedicated -p profile), so relaunch.
+            bool consoleFontChanged = newConsoleFont != origConsoleFont;
+            bool needsRestart = terminalTypeChanged || activeCliPathChanged || consoleFontChanged;
 
             // For theme changes, ask the user (respecting the skip-prompt opt-out
             // and the same "agent color already matches" short-circuit used elsewhere)

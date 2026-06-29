@@ -105,6 +105,9 @@ This binds a Claude Code skill that shells out to OpenAI Codex to audit pending 
 
 ## Version History
 
+### Version 44.0
+- Added a **Console font** picker (*⚙ → Settings... → Terminal*) — search your installed fonts with a live preview and choose one that renders your language's characters (Chinese, Japanese, Korean, etc.) instead of the default Cascadia Mono. Applies to both Command Prompt and Windows Terminal.
+
 ### Version 43.0
 - The **Max** and **Ultracode** effort levels now apply to the current session only and are no longer remembered between Visual Studio restarts — the next launch starts from your last durable level (Low, Medium, High, or Extra High), matching how Claude Code treats these levels.
 
