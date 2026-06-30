@@ -59,6 +59,24 @@ namespace ClaudeCodeVS
         }
 
         /// <summary>
+        /// Resolves the native Claude Code config directory (the <c>.claude</c> root that holds
+        /// <c>projects/</c>, <c>todos/</c>, etc.). Honors the <c>CLAUDE_CONFIG_DIR</c> environment
+        /// variable that the CLI itself reads, so a relocated store (e.g. on another drive) is found.
+        /// Falls back to <c>%UserProfile%\.claude</c> when the variable is unset or blank.
+        /// </summary>
+        private static string GetClaudeConfigDir()
+        {
+            string configDir = Environment.GetEnvironmentVariable("CLAUDE_CONFIG_DIR");
+            if (!string.IsNullOrWhiteSpace(configDir))
+            {
+                return Environment.ExpandEnvironmentVariables(configDir.Trim());
+            }
+
+            string userProfile = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+            return Path.Combine(userProfile, ".claude");
+        }
+
+        /// <summary>
         /// Resolves the Claude Code projects directory for the active provider and workspace.
         /// For Windows-native Claude Code returns a direct local path; for the WSL provider
         /// shells out to <c>wslpath -w</c> so the directory can still be enumerated through
@@ -70,9 +88,9 @@ namespace ClaudeCodeVS
 
             if (provider == AiProvider.ClaudeCode)
             {
-                string userProfile = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+                string configDir = GetClaudeConfigDir();
                 string encoded = EncodeClaudeProjectPath(workspaceDir);
-                return Path.Combine(userProfile, ".claude", "projects", encoded);
+                return Path.Combine(configDir, "projects", encoded);
             }
 
             if (provider == AiProvider.ClaudeCodeWSL)
@@ -86,15 +104,16 @@ namespace ClaudeCodeVS
         }
 
         /// <summary>
-        /// Runs <c>wslpath -w "$HOME/.claude/projects/&lt;encoded&gt;"</c> so the WSL session
-        /// folder is reachable from native .NET file IO. Returns null on any failure (no WSL,
+        /// Runs <c>wslpath -w "${CLAUDE_CONFIG_DIR:-$HOME/.claude}/projects/&lt;encoded&gt;"</c> so the
+        /// WSL session folder is reachable from native .NET file IO, honoring a relocated config dir
+        /// inside WSL. Returns null on any failure (no WSL,
         /// command not found, empty stdout) and the dialog falls back to "no sessions found".
         /// </summary>
         private async Task<string> ResolveWslSessionDirectoryAsync(string encoded)
         {
             try
             {
-                string args = $"bash -lic \"wslpath -w \\\"$HOME/.claude/projects/{encoded}\\\"\"";
+                string args = $"bash -lic \"wslpath -w \\\"${{CLAUDE_CONFIG_DIR:-$HOME/.claude}}/projects/{encoded}\\\"\"";
                 var psi = new ProcessStartInfo
                 {
                     FileName = "wsl",

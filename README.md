@@ -105,6 +105,9 @@ This binds a Claude Code skill that shells out to OpenAI Codex to audit pending 
 
 ## Version History
 
+### Version 45.0
+- **Session History** now honors a relocated Claude Code data folder — if you set the `CLAUDE_CONFIG_DIR` environment variable (e.g. to another drive), it lists and resumes sessions from there instead of the default `~/.claude` location.
+
 ### Version 44.0
 - Added a **Console font** picker (*⚙ → Settings... → Terminal*) — search your installed fonts with a live preview and choose one that renders your language's characters (Chinese, Japanese, Korean, etc.) instead of the default Cascadia Mono. Applies to both Command Prompt and Windows Terminal.
 

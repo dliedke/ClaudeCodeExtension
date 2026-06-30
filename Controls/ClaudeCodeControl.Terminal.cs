@@ -3580,8 +3580,7 @@ namespace ClaudeCodeVS
         {
             try
             {
-                string userProfile = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
-                string claudeDir = Path.Combine(userProfile, ".claude");
+                string claudeDir = GetClaudeConfigDir();
                 string path = Path.Combine(claudeDir, "keybindings.json");
 
                 JObject root;
