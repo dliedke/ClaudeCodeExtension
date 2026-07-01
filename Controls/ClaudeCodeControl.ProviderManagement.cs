@@ -2404,6 +2404,10 @@ For more details, visit: https://pi.dev";
                     return "Opus";
                 case ClaudeModel.Haiku:
                     return "Haiku";
+                case ClaudeModel.Best:
+                    return "Best";
+                case ClaudeModel.OpusPlan:
+                    return "Opus Plan";
                 case ClaudeModel.Sonnet:
                 default:
                     return "Sonnet";
@@ -3011,6 +3015,54 @@ For more details, visit: https://pi.dev";
         }
 
         /// <summary>
+        /// Handles Best menu item click - switches to the "best" model alias
+        /// (Fable 5 where available, otherwise the latest Opus model)
+        /// </summary>
+#pragma warning disable VSTHRD100 // Avoid async void methods
+        private async void BestMenuItem_Click(object sender, RoutedEventArgs e)
+#pragma warning restore VSTHRD100
+        {
+            if (_settings == null) return;
+
+            await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
+
+            _settings.SelectedClaudeModel = ClaudeModel.Best;
+            UpdateModelSelection();
+            SaveSettings();
+
+            // Send /model command directly without restarting terminal
+            if (_currentRunningProvider == AiProvider.ClaudeCode ||
+                _currentRunningProvider == AiProvider.ClaudeCodeWSL)
+            {
+                await SendTextToTerminalAsync("/model best");
+            }
+        }
+
+        /// <summary>
+        /// Handles Opus Plan menu item click - switches to the "opusplan" mode
+        /// (Opus during plan mode, Sonnet during execution)
+        /// </summary>
+#pragma warning disable VSTHRD100 // Avoid async void methods
+        private async void OpusPlanMenuItem_Click(object sender, RoutedEventArgs e)
+#pragma warning restore VSTHRD100
+        {
+            if (_settings == null) return;
+
+            await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
+
+            _settings.SelectedClaudeModel = ClaudeModel.OpusPlan;
+            UpdateModelSelection();
+            SaveSettings();
+
+            // Send /model command directly without restarting terminal
+            if (_currentRunningProvider == AiProvider.ClaudeCode ||
+                _currentRunningProvider == AiProvider.ClaudeCodeWSL)
+            {
+                await SendTextToTerminalAsync("/model opusplan");
+            }
+        }
+
+        /// <summary>
         /// Updates the model selection UI checkmarks
         /// </summary>
         private void UpdateModelSelection()
@@ -3023,6 +3075,8 @@ For more details, visit: https://pi.dev";
             OpusMenuItem.IsChecked = _settings.SelectedClaudeModel == ClaudeModel.Opus;
             SonnetMenuItem.IsChecked = _settings.SelectedClaudeModel == ClaudeModel.Sonnet;
             HaikuMenuItem.IsChecked = _settings.SelectedClaudeModel == ClaudeModel.Haiku;
+            BestMenuItem.IsChecked = _settings.SelectedClaudeModel == ClaudeModel.Best;
+            OpusPlanMenuItem.IsChecked = _settings.SelectedClaudeModel == ClaudeModel.OpusPlan;
 
             // Update Devin dynamic model item checkmarks (items are rebuilt on menu open)
             string devinSelected = GetDevinModelDisplayName();

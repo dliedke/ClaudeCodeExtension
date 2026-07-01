@@ -500,9 +500,12 @@
 						<Button.ContextMenu>
 							<ContextMenu x:Name="ModelContextMenu" Opened="ModelContextMenu_Opened">
 								<!-- Claude-specific items -->
+								<MenuItem Header="Best - Fable 5, else latest Opus" x:Name="BestMenuItem" Click="BestMenuItem_Click" IsCheckable="True"/>
 								<MenuItem Header="Opus - Complex tasks" x:Name="OpusMenuItem" Click="OpusMenuItem_Click" IsCheckable="True"/>
 								<MenuItem Header="Sonnet - Everyday tasks" x:Name="SonnetMenuItem" Click="SonnetMenuItem_Click" IsCheckable="True" IsChecked="True"/>
 								<MenuItem Header="Haiku - Easy tasks" x:Name="HaikuMenuItem" Click="HaikuMenuItem_Click" IsCheckable="True"/>
+								<Separator/>
+								<MenuItem Header="Opus Plan - Opus for planning, Sonnet for execution" x:Name="OpusPlanMenuItem" Click="OpusPlanMenuItem_Click" IsCheckable="True"/>
 								<Separator x:Name="EffortSeparator"/>
 								<MenuItem x:Name="EffortSliderMenuItem" StaysOpenOnClick="True">
 									<MenuItem.Header>

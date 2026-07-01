@@ -2947,15 +2947,16 @@ namespace ClaudeCodeVS
             {
                 var info = (KBDLLHOOKSTRUCT)Marshal.PtrToStructure(lParam, typeof(KBDLLHOOKSTRUCT));
 
-                // IsTerminalFocused() is a cross-process call (GetGUIThreadInfo); running it on every
-                // system-wide keystroke added latency to all typing. It is only needed for F5
-                // forwarding and for the "On Agent Finish" typing guard — so compute it only when an
-                // F5 is pressed or a completion watch is actually running, and skip it otherwise.
-                bool needFocus = info.vkCode == VK_F5 || _completionWatchActive;
-                bool terminalFocused = needFocus && IsTerminalFocused();
-
-                // Note when the user is typing into the terminal so the "On Agent Finish" watcher
-                // can pause its console read mid-keystroke (only meaningful while a watch is active).
+                // Note when the user is typing into the terminal. This drives both the "On Agent
+                // Finish" typing guard AND the terminal-click focus guard's self-extension (so
+                // answering an agent question in the terminal keeps native focus there instead of
+                // losing it to a late VS focus-restore). It must therefore be tracked whenever a
+                // terminal exists, not only while a completion watch is active — that OAF-gated
+                // tracking was the reason the "can't type an answer" hang persisted with OAF off.
+                // IsTerminalFocused() short-circuits cheaply via GetForegroundWindow when VS isn't
+                // the foreground app (GetGUIThreadInfo only runs when our window is foreground), so
+                // this stays inexpensive at keyboard rates.
+                bool terminalFocused = terminalHandle != IntPtr.Zero && IsTerminalFocused();
                 if (terminalFocused) _lastTerminalKeyUtc = DateTime.UtcNow;
 
                 if (info.vkCode == VK_F5 && terminalFocused)
@@ -3073,14 +3074,19 @@ namespace ClaudeCodeVS
         private async Task EnsureTerminalFocusAfterClickAsync(int clickSequence, IntPtr vsRootWindow)
         {
             const int checkIntervalMs = 80;
-            // Short guard (~0.6s): just long enough to cover VS's one deferred focus restore after
-            // the click's activation shuffle. The old ~5s window kept re-asserting terminal focus
-            // long after the click, which fought the WPF-prompt guard and the user when they moved
-            // on — a major part of the v26/v27 input regression. It still aborts instantly on any
-            // click elsewhere / app switch, so a brief guard is enough.
-            const int totalChecks = 8;
+            // Base window (~1.6s): covers VS's deferred focus restore after the click's activation
+            // shuffle. The guard then SELF-EXTENDS while the user is actively typing into the
+            // terminal (a terminal keystroke within typingExtendMs), so answering an agent question
+            // holds native focus on the terminal for the whole reply instead of losing it to a late
+            // restore after a short fixed window (the "can't type when the AI asks a question" hang).
+            // It still aborts instantly on any click elsewhere / app switch (so it can't fight the
+            // WPF-prompt guard or the user — the v26/v27 regression came from the old ~5s
+            // UNCONDITIONAL window plus a foreground-thread AttachThreadInput that no longer runs).
+            const int baseChecks = 20;
+            const double typingExtendMs = 700;   // keep guarding up to ~0.7s after each terminal keystroke
+            const int absoluteMaxChecks = 100;   // hard safety cap (~8s) so it can never loop forever
 
-            for (int check = 0; check < totalChecks; check++)
+            for (int check = 0; check < absoluteMaxChecks; check++)
             {
                 await Task.Delay(checkIntervalMs);
                 await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
@@ -3115,6 +3121,15 @@ namespace ClaudeCodeVS
                 if (!IsTerminalFocused())
                 {
                     FocusTerminalPanel(panel);
+                }
+
+                // Past the base window, keep guarding only while the user is still actively typing
+                // an answer into the terminal; otherwise release so the guard never lingers idle.
+                bool recentTerminalTyping =
+                    (DateTime.UtcNow - _lastTerminalKeyUtc).TotalMilliseconds < typingExtendMs;
+                if (check + 1 >= baseChecks && !recentTerminalTyping)
+                {
+                    return;
                 }
             }
         }

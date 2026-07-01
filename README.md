@@ -23,7 +23,7 @@ Enjoying the extension? [Buy me a coffee](https://www.buymeacoffee.com/dliedke) 
 - **Custom commands (⚡)** — Save slash commands or canned prompts and dispatch them to the active agent in one click. Configure via *⚙ → Configure Custom Commands...*.
 - **"@" file picker** — Type **@** in the prompt box to search your solution's files and folders and insert one with the keyboard; keep typing to filter, arrow keys + Enter to insert, pick a folder to drill in.
 - **On Agent Finish** — Optionally play a sound, show a notification (with duration, plus token count for Claude Code), and run an action (build/rebuild, run, tests, a script, or a follow-up command) when the agent goes idle. Global defaults plus per-solution overrides. Configure via *⚙ → Settings...*.
-- **Model selection** — 🤖 button to switch models: for Claude, Opus / Sonnet / Haiku plus an effort level (Auto / Low / Medium / High / Max) for Opus thinking depth; for Devin, a configurable list of models you can edit via *Configure Models...*.
+- **Model selection** — 🤖 button to switch models: for Claude, Best / Opus / Sonnet / Haiku / Opus Plan plus an effort level (Auto / Low / Medium / High / Max) for Opus thinking depth; for Devin, a configurable list of models you can edit via *Configure Models...*.
 - **Detach / attach terminal** — Pop the terminal into a separate VS tab and bring it back at any time. State persists across sessions.
 - **Theme aware** — Follows VS dark/light theme automatically, or force dark, light, or a custom background color via *⚙ → Settings → Theme*. Prompt and terminal zoom (Ctrl+Scroll) are persisted across sessions.
 - **Persistent settings** — Layout, provider choice, model, flags, and zoom level all saved to `%LocalAppData%\ClaudeCodeExtension\claudecode-settings.json`.
@@ -104,6 +104,11 @@ This binds a Claude Code skill that shells out to OpenAI Codex to audit pending 
 4. **Use it**: ⚡ → *Codex Review*. Claude runs the skill, Codex audits your diff, findings appear inline.
 
 ## Version History
+
+### Version 46.0
+- The Claude Code model menu now offers two more picks alongside Opus/Sonnet/Haiku: **Best** (Fable 5 where available, otherwise the latest Opus) and **Opus Plan** (Opus while planning, Sonnet during execution).
+- Fixed the keyboard occasionally not reaching the terminal when the agent asks a question — clicking into the terminal now reliably keeps focus there while you type your answer, even if you pause before replying.
+- **On Agent Finish** no longer stays silent when the agent ends its turn with a question in its reply (e.g. "Do you want me to also update the tests?") — the finish notification now fires for those turns instead of mistaking the finished reply for a prompt still waiting on you.
 
 ### Version 45.0
 - **Session History** now honors a relocated Claude Code data folder — if you set the `CLAUDE_CONFIG_DIR` environment variable (e.g. to another drive), it lists and resumes sessions from there instead of the default `~/.claude` location.

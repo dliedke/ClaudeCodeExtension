@@ -41,7 +41,9 @@ namespace ClaudeCodeVS
     {
         Opus,
         Sonnet,
-        Haiku
+        Haiku,
+        Best,
+        OpusPlan
     }
 
     /// <summary>

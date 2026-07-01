@@ -1146,10 +1146,15 @@ namespace ClaudeCodeVS
         // High-precision markers that the agent is waiting on a yes/no or "press key" prompt.
         // Kept deliberately strong to avoid mis-classifying a genuine completion (which would
         // silently skip its notification). Compared case-insensitively against trimmed tail lines.
+        // Only phrases specific to a *waiting* state that do NOT also render the ❯ selection cursor
+        // belong here. Broad prose like "do you want to" / "do you trust" / "allow this" was removed
+        // (v46.0): real Claude Code permission/choice boxes that use those phrases always draw the ❯
+        // cursor + numbered options, so the structural `sawArrow && menuItems >= 1` rule below already
+        // suppresses them — while a *finished* turn whose prose answer merely contained "do you want
+        // to …" was being mis-classified as a waiting prompt, so the finish notification never fired.
         private static readonly string[] AgentPromptKeywords =
         {
             "(y/n)", "[y/n]", "y/n]", "(yes/no)", "[yes/no]",
-            "do you want to", "do you trust", "allow this", "allow command",
             "press enter to continue", "press any key",
         };
 
