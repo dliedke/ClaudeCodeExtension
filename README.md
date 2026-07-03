@@ -105,6 +105,10 @@ This binds a Claude Code skill that shells out to OpenAI Codex to audit pending 
 
 ## Version History
 
+### Version 47.0
+- Updating the **PI** or **Antigravity** CLI from the model menu now exits the agent with its `/quit` command before running the update, for a cleaner and more reliable handoff.
+- **Session History** now finds your transcripts even when `CLAUDE_CONFIG_DIR` is pointed directly at the `projects` folder instead of the `.claude` root.
+
 ### Version 46.0
 - The Claude Code model menu now offers two more picks alongside Opus/Sonnet/Haiku: **Best** (Fable 5 where available, otherwise the latest Opus) and **Opus Plan** (Opus while planning, Sonnet during execution).
 - Fixed the keyboard occasionally not reaching the terminal when the agent asks a question — clicking into the terminal now reliably keeps focus there while you type your answer, even if you pause before replying.

@@ -4074,19 +4074,15 @@ namespace ClaudeCodeVS
                         break;
 
                     case AiProvider.Pi:
-                        // PI: exit by holding CTRL and tapping D twice. PI quits on the first
-                        // CTRL+D, so the second leaks into cmd as a stray ^D — press Escape to
-                        // discard that input line before typing the update command.
-                        SendCtrlDD();
+                        // PI: exit with the /quit slash command, wait, then update
+                        await SendTextToTerminalAsync("/quit");
                         await Task.Delay(1000);
-                        SendEscapeKey();
-                        await Task.Delay(300);
                         await SendTextToTerminalAsync("npm install -g @earendil-works/pi-coding-agent@latest");
                         break;
 
                     case AiProvider.Antigravity:
-                        // Antigravity: exit by holding CTRL and tapping D twice, wait, then update
-                        SendCtrlDD();
+                        // Antigravity: exit with the /quit slash command, wait, then update
+                        await SendTextToTerminalAsync("/quit");
                         await Task.Delay(3000);
                         await SendTextToTerminalAsync("agy update");
                         break;
@@ -4147,49 +4143,6 @@ namespace ClaudeCodeVS
                 keybd_event(VK_C, 0, KEYEVENTF_KEYUP, UIntPtr.Zero); // C up
                 Thread.Sleep(30); // Reduced from 50ms
                 keybd_event(VK_CONTROL, 0, KEYEVENTF_KEYUP, UIntPtr.Zero); // CTRL up
-            }
-        }
-
-        /// <summary>
-        /// Exits the Antigravity agent: holds CTRL down, taps D twice, then releases CTRL
-        /// (Antigravity requires CTRL+D twice to quit instead of an "exit" command)
-        /// </summary>
-        private void SendCtrlDD()
-        {
-            if (terminalHandle != IntPtr.Zero && IsWindow(terminalHandle))
-            {
-                FocusTerminalForInput();
-                Thread.Sleep(50);
-
-                keybd_event(VK_CONTROL, 0, 0, UIntPtr.Zero); // CTRL down (hold)
-                Thread.Sleep(50);
-                keybd_event(VK_D, 0, 0, UIntPtr.Zero); // first D down
-                Thread.Sleep(50);
-                keybd_event(VK_D, 0, KEYEVENTF_KEYUP, UIntPtr.Zero); // first D up
-                Thread.Sleep(150);
-                keybd_event(VK_D, 0, 0, UIntPtr.Zero); // second D down
-                Thread.Sleep(50);
-                keybd_event(VK_D, 0, KEYEVENTF_KEYUP, UIntPtr.Zero); // second D up
-                Thread.Sleep(50);
-                keybd_event(VK_CONTROL, 0, KEYEVENTF_KEYUP, UIntPtr.Zero); // CTRL up (release)
-            }
-        }
-
-        /// <summary>
-        /// Sends an Escape keypress to the terminal. In cmd.exe this discards the current
-        /// input line, clearing any stray character (e.g. a leftover ^D after exiting PI)
-        /// before the next command is typed.
-        /// </summary>
-        private void SendEscapeKey()
-        {
-            if (terminalHandle != IntPtr.Zero && IsWindow(terminalHandle))
-            {
-                FocusTerminalForInput();
-                Thread.Sleep(50);
-
-                keybd_event(VK_ESCAPE, 0, 0, UIntPtr.Zero); // ESC down
-                Thread.Sleep(30);
-                keybd_event(VK_ESCAPE, 0, KEYEVENTF_KEYUP, UIntPtr.Zero); // ESC up
             }
         }
 

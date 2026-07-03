@@ -77,6 +77,38 @@ namespace ClaudeCodeVS
         }
 
         /// <summary>
+        /// Builds the per-workspace session directory under a native <c>.claude</c> config root,
+        /// tolerating a <c>CLAUDE_CONFIG_DIR</c> that was pointed at the <c>projects</c> subfolder
+        /// itself instead of the <c>.claude</c> root. The canonical layout is
+        /// <c>&lt;configDir&gt;\projects\&lt;encoded&gt;</c>; if that folder is missing but the
+        /// config dir already ends in <c>projects</c> and <c>&lt;configDir&gt;\&lt;encoded&gt;</c>
+        /// exists, that direct path is returned instead. Falls back to the canonical path when
+        /// neither exists so downstream behavior/logging is unchanged.
+        /// </summary>
+        private static string ResolveNativeProjectsSessionDir(string configDir, string encoded)
+        {
+            string canonical = Path.Combine(configDir, "projects", encoded);
+            if (Directory.Exists(canonical))
+            {
+                return canonical;
+            }
+
+            // User set CLAUDE_CONFIG_DIR to "...\.claude\projects" (one level too deep):
+            // treat the config dir itself as the projects root.
+            if (string.Equals(Path.GetFileName(configDir.TrimEnd(Path.DirectorySeparatorChar,
+                    Path.AltDirectorySeparatorChar)), "projects", StringComparison.OrdinalIgnoreCase))
+            {
+                string direct = Path.Combine(configDir, encoded);
+                if (Directory.Exists(direct))
+                {
+                    return direct;
+                }
+            }
+
+            return canonical;
+        }
+
+        /// <summary>
         /// Resolves the Claude Code projects directory for the active provider and workspace.
         /// For Windows-native Claude Code returns a direct local path; for the WSL provider
         /// shells out to <c>wslpath -w</c> so the directory can still be enumerated through
@@ -90,7 +122,7 @@ namespace ClaudeCodeVS
             {
                 string configDir = GetClaudeConfigDir();
                 string encoded = EncodeClaudeProjectPath(workspaceDir);
-                return Path.Combine(configDir, "projects", encoded);
+                return ResolveNativeProjectsSessionDir(configDir, encoded);
             }
 
             if (provider == AiProvider.ClaudeCodeWSL)
