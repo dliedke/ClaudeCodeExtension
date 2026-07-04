@@ -105,6 +105,9 @@ This binds a Claude Code skill that shells out to OpenAI Codex to audit pending 
 
 ## Version History
 
+### Version 48.0
+- **Session History** now has a **View** button (also on the right-click menu) that opens the selected conversation as readable text in your default editor, so you can skim a past session before resuming it.
+
 ### Version 47.0
 - Updating the **PI** or **Antigravity** CLI from the model menu now exits the agent with its `/quit` command before running the update, for a cleaner and more reliable handoff.
 - **Session History** now finds your transcripts even when `CLAUDE_CONFIG_DIR` is pointed directly at the `projects` folder instead of the `.claude` root.

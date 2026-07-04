@@ -660,6 +660,7 @@ namespace ClaudeCodeVS
 
             var resumeButton = mkBtn("Resume");
             var continueButton = mkBtn("Resume Last Session");
+            var viewButton = mkBtn("View");
             var renameButton = mkBtn("Rename");
             var deleteButton = mkBtn("Delete");
             var refreshButton = mkBtn("Refresh");
@@ -676,6 +677,7 @@ namespace ClaudeCodeVS
 
             var rightActions = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right };
             DockPanel.SetDock(rightActions, Dock.Right);
+            rightActions.Children.Add(viewButton);
             rightActions.Children.Add(renameButton);
             rightActions.Children.Add(deleteButton);
             rightActions.Children.Add(continueButton);
@@ -845,18 +847,31 @@ namespace ClaudeCodeVS
                 }
             };
 
-            // Right-click context menu on the list (issue #95): Rename / Delete.
+            // Open the selected transcript, rendered as a readable conversation, in the
+            // default text editor (Notepad). Purely a viewer — nothing is modified.
+            Action viewSelected = () =>
+            {
+                var sel = currentSelection();
+                if (sel == null) return;
+                ViewSessionTranscript(sel);
+            };
+
+            // Right-click context menu on the list (issue #95): View / Rename / Delete.
             var listContextMenu = new ContextMenu();
+            var viewMenuItem = new MenuItem { Header = "View…" };
+            viewMenuItem.Click += (s, args) => viewSelected();
             var renameMenuItem = new MenuItem { Header = "Rename…" };
             renameMenuItem.Click += (s, args) => renameSelected();
             var deleteMenuItem = new MenuItem { Header = "Delete" };
             deleteMenuItem.Click += (s, args) => deleteSelected();
+            listContextMenu.Items.Add(viewMenuItem);
             listContextMenu.Items.Add(renameMenuItem);
             listContextMenu.Items.Add(deleteMenuItem);
             // Only enable the items when a row is selected.
             listContextMenu.Opened += (s, args) =>
             {
                 bool hasSel = currentSelection() != null;
+                viewMenuItem.IsEnabled = hasSel;
                 renameMenuItem.IsEnabled = hasSel;
                 deleteMenuItem.IsEnabled = hasSel;
             };
@@ -896,6 +911,8 @@ namespace ClaudeCodeVS
                 dialog.DialogResult = true;
                 StartSessionHistoryTask(() => ContinueLastSessionAsync(), "claudecode/sessionhistory");
             };
+
+            viewButton.Click += (s, args) => viewSelected();
 
             renameButton.Click += (s, args) => renameSelected();
 
@@ -1000,6 +1017,169 @@ namespace ClaudeCodeVS
 
             bool? ok = dialog.ShowDialog();
             return ok == true ? (titleBox.Text ?? string.Empty) : null;
+        }
+
+        #endregion
+
+        #region Transcript Viewer
+
+        /// <summary>
+        /// Renders the selected session's JSONL transcript as a readable, plain-text
+        /// conversation, writes it to a temp file, and opens it in the default text
+        /// editor (Notepad). Read-only — the original transcript is never modified.
+        /// </summary>
+        private void ViewSessionTranscript(SessionInfo session)
+        {
+            if (session == null) return;
+
+            try
+            {
+                string transcript = BuildReadableTranscript(session);
+
+                string tempDir = Path.Combine(Path.GetTempPath(), "ClaudeCodeExtension", "SessionView");
+                Directory.CreateDirectory(tempDir);
+
+                // SessionId is a UUID, so it's already filesystem-safe.
+                string outPath = Path.Combine(tempDir, $"session-{session.SessionId}.txt");
+                File.WriteAllText(outPath, transcript, new UTF8Encoding(false));
+
+                Process.Start(new ProcessStartInfo(outPath) { UseShellExecute = true });
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"ViewSessionTranscript error: {ex.Message}");
+                MessageBox.Show($"Could not open the session transcript:\n{ex.Message}",
+                    "View Session", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+        }
+
+        /// <summary>
+        /// Walks the JSONL transcript and produces a readable conversation: a short header
+        /// followed by each user/assistant turn in order. Assistant tool calls are shown as
+        /// compact <c>[tool: Name]</c> markers; tool-result re-injections and system/snapshot
+        /// lines are skipped so the output reads like the actual dialog rather than raw JSON.
+        /// </summary>
+        private static string BuildReadableTranscript(SessionInfo session)
+        {
+            var sb = new StringBuilder();
+
+            sb.AppendLine($"Session:   {session.SessionId}");
+            if (!string.IsNullOrWhiteSpace(session.CustomTitle))
+            {
+                sb.AppendLine($"Title:     {session.CustomTitle}");
+            }
+            sb.AppendLine($"Directory: {session.Cwd}");
+            sb.AppendLine($"Modified:  {session.LastModified:yyyy-MM-dd HH:mm:ss}");
+            sb.AppendLine($"Messages:  {session.MessageCount}   Tokens: {session.TokenCount}");
+            sb.AppendLine($"File:      {session.FilePath}");
+            sb.AppendLine(new string('=', 80));
+            sb.AppendLine();
+
+            using (var fs = new FileStream(session.FilePath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite))
+            using (var sr = new StreamReader(fs, Encoding.UTF8))
+            {
+                string line;
+                while ((line = sr.ReadLine()) != null)
+                {
+                    if (string.IsNullOrWhiteSpace(line)) continue;
+
+                    JObject obj;
+                    try { obj = JObject.Parse(line); }
+                    catch { continue; }
+
+                    string type = (string)obj["type"];
+                    if (type != "user" && type != "assistant") continue;
+
+                    string stamp = FormatTranscriptTimestamp((string)obj["timestamp"]);
+                    var msg = obj["message"];
+                    if (msg == null) continue;
+
+                    if (type == "user")
+                    {
+                        string text = ExtractUserText(msg["content"]);
+                        if (string.IsNullOrWhiteSpace(text)) continue; // tool_result re-injection
+
+                        sb.AppendLine($"USER{stamp}:");
+                        sb.AppendLine(text.TrimEnd());
+                        sb.AppendLine();
+                    }
+                    else
+                    {
+                        string text = ExtractAssistantText(msg["content"]);
+                        if (string.IsNullOrWhiteSpace(text)) continue;
+
+                        sb.AppendLine($"ASSISTANT{stamp}:");
+                        sb.AppendLine(text.TrimEnd());
+                        sb.AppendLine();
+                    }
+                }
+            }
+
+            return sb.ToString();
+        }
+
+        /// <summary>
+        /// Collapses an assistant message's content (string or typed-parts array) to readable
+        /// text, turning <c>tool_use</c> parts into a one-line <c>[tool: Name]</c> marker so the
+        /// flow of actions stays visible without dumping raw tool arguments.
+        /// </summary>
+        private static string ExtractAssistantText(JToken content)
+        {
+            if (content == null) return string.Empty;
+
+            if (content.Type == JTokenType.String)
+            {
+                return ((string)content) ?? string.Empty;
+            }
+
+            if (content.Type == JTokenType.Array)
+            {
+                var sb = new StringBuilder();
+                foreach (var part in content.Children())
+                {
+                    string partType = (string)part["type"];
+                    if (partType == "text")
+                    {
+                        string text = (string)part["text"];
+                        if (!string.IsNullOrEmpty(text)) sb.AppendLine(text);
+                    }
+                    else if (partType == "thinking")
+                    {
+                        string thinking = (string)part["thinking"];
+                        if (!string.IsNullOrWhiteSpace(thinking))
+                        {
+                            sb.AppendLine("[thinking]");
+                            sb.AppendLine(thinking);
+                        }
+                    }
+                    else if (partType == "tool_use")
+                    {
+                        string toolName = (string)part["name"];
+                        sb.AppendLine($"[tool: {(string.IsNullOrEmpty(toolName) ? "?" : toolName)}]");
+                    }
+                }
+                return sb.ToString();
+            }
+
+            return string.Empty;
+        }
+
+        /// <summary>
+        /// Formats a transcript ISO timestamp as <c> [yyyy-MM-dd HH:mm]</c> in local time.
+        /// Returns an empty string when the stamp is missing or unparseable so the caller
+        /// still gets a clean "USER:" / "ASSISTANT:" header.
+        /// </summary>
+        private static string FormatTranscriptTimestamp(string iso)
+        {
+            if (string.IsNullOrWhiteSpace(iso)) return string.Empty;
+
+            if (DateTimeOffset.TryParse(iso, System.Globalization.CultureInfo.InvariantCulture,
+                    System.Globalization.DateTimeStyles.AssumeUniversal, out DateTimeOffset dto))
+            {
+                return $" [{dto.LocalDateTime:yyyy-MM-dd HH:mm}]";
+            }
+
+            return string.Empty;
         }
 
         #endregion
