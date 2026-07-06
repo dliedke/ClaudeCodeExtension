@@ -29,6 +29,18 @@ namespace ClaudeCodeVS
         #region On Agent Finish Dialog
 
         /// <summary>
+        /// Canned texts offered by the follow-up field's "Preset" button (label, text sent to the
+        /// agent). Picking one overwrites the field rather than appending, since a follow-up is a
+        /// single message.
+        /// </summary>
+        private static readonly (string, string)[] FollowUpPresets =
+        {
+            ("Commit and push", "Commit and push the changes"),
+            ("Commit and push (no AI credit)",
+                "Commit and push code changes but keep only the human author and no references to AI model"),
+        };
+
+        /// <summary>
         /// Builds and shows the dedicated "On Agent Finish" settings window. Persists the
         /// global default and, when the per-solution override box is checked, the current
         /// solution's override on OK. Returns after the modal closes.
@@ -61,7 +73,7 @@ namespace ClaudeCodeVS
             {
                 Title = "On Agent Finish",
                 Width = 520,
-                Height = 620,
+                Height = 700,
                 WindowStartupLocation = WindowStartupLocation.CenterOwner,
                 ResizeMode = ResizeMode.NoResize,
                 Background = themeBg,
@@ -223,6 +235,73 @@ namespace ClaudeCodeVS
             }
             afActionCombo.SelectionChanged += (s, e) => SyncRunActionOptions();
 
+            stack.Children.Add(new TextBlock
+            {
+                Text = "Also send to agent after the action succeeds (optional):",
+                Foreground = themeFg,
+                Margin = new Thickness(20, 6, 0, 2)
+            });
+            var afFollowUpBox = new TextBox
+            {
+                Background = themeBg,
+                Foreground = themeFg,
+                BorderBrush = themeFg,
+                VerticalContentAlignment = VerticalAlignment.Center
+            };
+
+            var afFollowUpPresetButton = new Button
+            {
+                Content = "Preset ▾",
+                Width = 90,
+                Height = 24,
+                Margin = new Thickness(6, 0, 0, 0)
+            };
+            Style afPresetButtonStyle = GetDialogButtonStyle();
+            if (afPresetButtonStyle != null) afFollowUpPresetButton.Style = afPresetButtonStyle;
+            else { afFollowUpPresetButton.Background = themeBg; afFollowUpPresetButton.Foreground = themeFg; afFollowUpPresetButton.BorderBrush = themeFg; }
+
+            var afFollowUpPresetMenu = new ContextMenu();
+            foreach (var preset in FollowUpPresets)
+            {
+                var item = new MenuItem { Header = preset.Item1 };
+                item.Click += (s, ea) => { afFollowUpBox.Text = preset.Item2; };
+                afFollowUpPresetMenu.Items.Add(item);
+            }
+            afFollowUpPresetButton.Click += (s, ea) =>
+            {
+                afFollowUpPresetMenu.PlacementTarget = afFollowUpPresetButton;
+                afFollowUpPresetMenu.IsOpen = true;
+            };
+
+            var afFollowUpRow = new Grid { Margin = new Thickness(20, 0, 0, 4) };
+            afFollowUpRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+            afFollowUpRow.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+            Grid.SetColumn(afFollowUpBox, 0);
+            Grid.SetColumn(afFollowUpPresetButton, 1);
+            afFollowUpRow.Children.Add(afFollowUpBox);
+            afFollowUpRow.Children.Add(afFollowUpPresetButton);
+            stack.Children.Add(afFollowUpRow);
+
+            stack.Children.Add(new TextBlock
+            {
+                Text = "e.g. \"Commit and push the changes\", or pick a preset. Skipped if the action fails (build/rebuild errors) or is skipped. Not available for \"Send a command to the agent\", which already sends text.",
+                FontSize = 11,
+                Opacity = 0.7,
+                Foreground = themeFg,
+                TextWrapping = TextWrapping.Wrap,
+                Margin = new Thickness(20, 0, 0, 4)
+            });
+
+            void SyncFollowUpOptions()
+            {
+                bool canFollowUp = (afActionCombo.SelectedItem as ComboBoxItem)?.Tag is AgentFinishActionType act
+                    && act != AgentFinishActionType.None && act != AgentFinishActionType.SendToAgent;
+                afFollowUpBox.IsEnabled = canFollowUp;
+                afFollowUpBox.Opacity = canFollowUp ? 1.0 : 0.5;
+                afFollowUpPresetButton.IsEnabled = canFollowUp;
+            }
+            afActionCombo.SelectionChanged += (s, e) => SyncFollowUpOptions();
+
             var afConfirmCheck = MakeCheckBox("Ask before running the action",
                 "When enabled, the action appears as a button on the notification and runs only when you click it. When disabled, the action runs automatically. Recommended on for scripts, run, and rebuild.",
                 false, themeFg);
@@ -270,6 +349,7 @@ namespace ClaudeCodeVS
                 afCleanBeforeRunCheck.IsChecked = cfg.CleanBeforeRun;
                 afRebuildBeforeRunCheck.IsChecked = cfg.RebuildBeforeRun;
                 afScriptBox.Text            = cfg.ScriptOrCommand ?? string.Empty;
+                afFollowUpBox.Text          = cfg.FollowUpSendToAgent ?? string.Empty;
                 afIdleBox.Text              = cfg.IdleSeconds.ToString();
                 afActionCombo.SelectedItem  = null;
                 foreach (ComboBoxItem it in afActionCombo.Items)
@@ -279,6 +359,7 @@ namespace ClaudeCodeVS
                 if (afActionCombo.SelectedItem == null) afActionCombo.SelectedIndex = 0;
                 SyncScriptActionOptions();
                 SyncRunActionOptions();
+                SyncFollowUpOptions();
             }
 
             void ReadInto(AgentFinishConfig cfg)
@@ -292,6 +373,7 @@ namespace ClaudeCodeVS
                 cfg.CleanBeforeRun     = afCleanBeforeRunCheck.IsChecked == true;
                 cfg.RebuildBeforeRun   = afRebuildBeforeRunCheck.IsChecked == true;
                 cfg.ScriptOrCommand    = afScriptBox.Text?.Trim() ?? string.Empty;
+                cfg.FollowUpSendToAgent = afFollowUpBox.Text?.Trim() ?? string.Empty;
                 if ((afActionCombo.SelectedItem as ComboBoxItem)?.Tag is AgentFinishActionType act)
                     cfg.Action = act;
                 if (int.TryParse(afIdleBox.Text?.Trim(), out int idleVal))
@@ -415,7 +497,8 @@ namespace ClaudeCodeVS
                 CleanBeforeRun     = src.CleanBeforeRun,
                 RebuildBeforeRun   = src.RebuildBeforeRun,
                 RequireFileChanges = src.RequireFileChanges,
-                Confirm            = src.Confirm
+                Confirm            = src.Confirm,
+                FollowUpSendToAgent = src.FollowUpSendToAgent
             };
         }
 

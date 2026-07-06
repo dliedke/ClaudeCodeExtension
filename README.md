@@ -105,6 +105,16 @@ This binds a Claude Code skill that shells out to OpenAI Codex to audit pending 
 
 ## Version History
 
+### Version 50.0
+- Fixed the **On Agent Finish** dialog showing an unwanted scrollbar after the new follow-up field was added.
+- Fixed **On Agent Finish** sometimes watching the wrong terminal's console under **Windows Terminal** when more than one agent terminal was running at once, so completion detection now reliably tracks the terminal you're actually using.
+- The **On Agent Finish** follow-up field now has a **Preset** picker with ready-to-use texts, including one that asks the agent to commit and push while keeping only the human author and no AI references in the commit.
+- Notification buttons for "send to agent" actions and follow-ups now show much more of the command text instead of cutting it off after a couple of words.
+
+### Version 49.0
+- New installs now come with a **Commit & Push** custom command pre-added to the toolbar dropdown, ready to send to the agent.
+- **On Agent Finish** actions can now have a follow-up: after the action succeeds (e.g. Build solution), optionally also send a message to the agent (e.g. "Commit and push the changes"). When "Ask before running the action" is on, the follow-up gets its own confirmation notification instead of running silently.
+
 ### Version 48.0
 - **Session History** now has a **View** button (also on the right-click menu) that opens the selected conversation as readable text in your default editor, so you can skim a past session before resuming it.
 

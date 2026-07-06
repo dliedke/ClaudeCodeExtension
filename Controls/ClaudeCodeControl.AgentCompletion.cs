@@ -1270,7 +1270,17 @@ namespace ClaudeCodeVS
         /// "On Agent Finish" AttachConsole to the real screen buffer under Windows Terminal instead
         /// of the less-reliable UI Automation fallback.
         /// </summary>
-        internal static int ResolveWtConsoleClientPid(HashSet<uint> preExistingCmdPids)
+        /// <param name="preExistingCmdPids">cmd.exe PIDs snapshotted before this launch.</param>
+        /// <param name="wtWindowHandle">
+        /// The HWND of the WT window that was just embedded. Used to scope the descendant walk to
+        /// the exact process hosting THIS window: with two VS instances (or a quick restart before
+        /// the old shell fully exits) both launching a WT terminal around the same time, scanning
+        /// every WindowsTerminal.exe process and returning the first descendant match could resolve
+        /// to a different session's shell, silently attaching the watcher to the wrong console (it
+        /// would then never see this session's own buffer settle/change). Pass IntPtr.Zero to fall
+        /// back to the old unscoped scan.
+        /// </param>
+        internal static int ResolveWtConsoleClientPid(HashSet<uint> preExistingCmdPids, IntPtr wtWindowHandle = default(IntPtr))
         {
             try
             {
@@ -1283,8 +1293,27 @@ namespace ClaudeCodeVS
                 }
                 if (newCmd.Count == 0) return 0;
 
+                // Prefer scoping to the exact process that owns the window we just embedded, so a
+                // concurrent WT launch elsewhere (another VS instance, or a fast restart) can't steal
+                // the match.
+                if (wtWindowHandle != IntPtr.Zero && IsWindow(wtWindowHandle))
+                {
+                    GetWindowThreadProcessId(wtWindowHandle, out uint ownerPid);
+                    if (ownerPid != 0)
+                    {
+                        var ownerDescendants = new HashSet<uint>();
+                        CollectDescendantPids(ownerPid, ownerDescendants);
+
+                        foreach (uint pid in newCmd)
+                        {
+                            if (ownerDescendants.Contains(pid)) return (int)pid;
+                        }
+                    }
+                }
+
                 // Descendants of every WindowsTerminal.exe host, so the new cmd.exe is matched to a
-                // WT instance (disambiguates other unrelated cmd.exe windows opened meanwhile).
+                // WT instance (disambiguates other unrelated cmd.exe windows opened meanwhile). Only
+                // reached when the window-scoped lookup above wasn't available or came up empty.
                 var wtDescendants = new HashSet<uint>();
                 foreach (var wt in Process.GetProcessesByName("WindowsTerminal"))
                 {
@@ -1428,7 +1457,26 @@ namespace ClaudeCodeVS
                 if (cfg.Confirm)
                 {
                     // Confirmation needed → always surface the button (regardless of ShowToast).
-                    await ShowAgentFinishNotificationAsync(summary, actionLabel, () => ExecuteAgentFinishActionAsync(cfg));
+                    // When a follow-up is also configured, don't chain it silently behind this
+                    // one click: gate it behind its own notification/button, shown only after
+                    // the main action is confirmed and succeeds, so the user approves each step.
+                    if (HasFollowUp(cfg))
+                    {
+                        await ShowAgentFinishNotificationAsync(summary, actionLabel, async () =>
+                        {
+                            bool ranOk = await ExecuteMainActionAsync(cfg);
+                            if (ranOk)
+                            {
+                                string followLabel = DescribeSendCommand(cfg.FollowUpSendToAgent);
+                                await ShowAgentFinishNotificationAsync("Agent finish · next step", followLabel,
+                                    () => SendTextToTerminalAsync(cfg.FollowUpSendToAgent));
+                            }
+                        });
+                    }
+                    else
+                    {
+                        await ShowAgentFinishNotificationAsync(summary, actionLabel, () => ExecuteMainActionAsync(cfg));
+                    }
                 }
                 else
                 {
@@ -1443,7 +1491,42 @@ namespace ClaudeCodeVS
             }
         }
 
+        /// <summary>
+        /// True when <paramref name="cfg"/> has a follow-up worth firing: a non-empty
+        /// <see cref="AgentFinishConfig.FollowUpSendToAgent"/> paired with an action other
+        /// than <see cref="AgentFinishActionType.None"/> (nothing ran) or
+        /// <see cref="AgentFinishActionType.SendToAgent"/> (which already sends text itself —
+        /// stacking a second send has no success signal to gate on and could race the
+        /// agent's next turn).
+        /// </summary>
+        private static bool HasFollowUp(AgentFinishConfig cfg)
+        {
+            return cfg.Action != AgentFinishActionType.None
+                && cfg.Action != AgentFinishActionType.SendToAgent
+                && !string.IsNullOrWhiteSpace(cfg.FollowUpSendToAgent);
+        }
+
+        /// <summary>
+        /// Runs the main action and, only if it succeeded, its follow-up (when configured).
+        /// Used for the non-confirm ("runs automatically") path, where both steps fire in
+        /// one uninterrupted sequence. The confirm path instead gates each step behind its
+        /// own notification button — see <see cref="ExecuteMainActionAsync"/>.
+        /// </summary>
         private async Task ExecuteAgentFinishActionAsync(AgentFinishConfig cfg)
+        {
+            bool ranOk = await ExecuteMainActionAsync(cfg);
+            if (ranOk && HasFollowUp(cfg))
+            {
+                await SendTextToTerminalAsync(cfg.FollowUpSendToAgent);
+            }
+        }
+
+        /// <summary>
+        /// Runs only <see cref="AgentFinishConfig.Action"/> and reports whether it
+        /// succeeded (built with no failed projects, or ran with nothing to fail).
+        /// Callers decide separately whether/when to fire the follow-up.
+        /// </summary>
+        private async Task<bool> ExecuteMainActionAsync(AgentFinishConfig cfg)
         {
             await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
 
@@ -1456,25 +1539,43 @@ namespace ClaudeCodeVS
             {
                 switch (cfg.Action)
                 {
-                    case AgentFinishActionType.BuildSolution:       ExecuteDteCommand("Build.BuildSolution"); break;
-                    case AgentFinishActionType.RebuildSolution:     ExecuteDteCommand("Build.RebuildSolution"); break;
-                    case AgentFinishActionType.Run:                 await PrepareAndRunAsync("Debug.Start", cfg.CleanBeforeRun, cfg.RebuildBeforeRun); break;
-                    case AgentFinishActionType.RunWithoutDebugging: await PrepareAndRunAsync("Debug.StartWithoutDebugging", cfg.CleanBeforeRun, cfg.RebuildBeforeRun); break;
-                    case AgentFinishActionType.RunTests:            ExecuteDteCommand("TestExplorer.RunAllTests"); break;
-                    case AgentFinishActionType.RunScript:           await RunFinishScriptAsync(cfg.ScriptOrCommand, cfg.AutoCloseScript); break;
+                    case AgentFinishActionType.BuildSolution:
+                        return await BuildAndCheckSuccessAsync("Build.BuildSolution",
+                            "The build did not finish in time.", "The build failed.");
+                    case AgentFinishActionType.RebuildSolution:
+                        return await BuildAndCheckSuccessAsync("Build.RebuildSolution",
+                            "The rebuild did not finish in time.", "The rebuild failed.");
+                    case AgentFinishActionType.Run:
+                        return await PrepareAndRunAsync("Debug.Start", cfg.CleanBeforeRun, cfg.RebuildBeforeRun);
+                    case AgentFinishActionType.RunWithoutDebugging:
+                        return await PrepareAndRunAsync("Debug.StartWithoutDebugging", cfg.CleanBeforeRun, cfg.RebuildBeforeRun);
+                    case AgentFinishActionType.RunTests:
+                        ExecuteDteCommand("TestExplorer.RunAllTests");
+                        return true;
+                    case AgentFinishActionType.RunScript:
+                        await RunFinishScriptAsync(cfg.ScriptOrCommand, cfg.AutoCloseScript);
+                        return true;
                     case AgentFinishActionType.SendToAgent:
                         if (!string.IsNullOrWhiteSpace(cfg.ScriptOrCommand))
                             await SendTextToTerminalAsync(cfg.ScriptOrCommand);
-                        break;
+                        return true;
+                    default:
+                        return true;
                 }
             }
             catch (Exception ex)
             {
-                Debug.WriteLine($"ExecuteAgentFinishActionAsync error: {ex.Message}");
+                Debug.WriteLine($"ExecuteMainActionAsync error: {ex.Message}");
+                return false;
             }
         }
 
-        private async Task PrepareAndRunAsync(string runCommand, bool cleanBeforeRun, bool rebuildBeforeRun)
+        /// <summary>
+        /// Returns true only if <paramref name="runCommand"/> was actually issued (the
+        /// clean/rebuild gates, if enabled, both succeeded) — used to decide whether a
+        /// configured follow-up ("also send to agent") is allowed to fire.
+        /// </summary>
+        private async Task<bool> PrepareAndRunAsync(string runCommand, bool cleanBeforeRun, bool rebuildBeforeRun)
         {
             await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
 
@@ -1484,39 +1585,59 @@ namespace ClaudeCodeVS
                 if (!await WaitForDteBuildToFinishAsync())
                 {
                     ShowAgentFinishActionWarning("The solution clean did not finish in time. The run action was skipped.");
-                    return;
+                    return false;
                 }
             }
 
             if (rebuildBeforeRun)
             {
-                ExecuteDteCommand("Build.RebuildSolution");
-                if (!await WaitForDteBuildToFinishAsync())
+                if (!await BuildAndCheckSuccessAsync("Build.RebuildSolution",
+                        "The solution rebuild did not finish in time. The run action was skipped.",
+                        "The solution rebuild failed. The run action was skipped."))
                 {
-                    ShowAgentFinishActionWarning("The solution rebuild did not finish in time. The run action was skipped.");
-                    return;
-                }
-
-                await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
-                int failedProjects = 0;
-                try
-                {
-                    var dte = Package.GetGlobalService(typeof(EnvDTE.DTE)) as EnvDTE.DTE;
-                    failedProjects = dte?.Solution?.SolutionBuild?.LastBuildInfo ?? 0;
-                }
-                catch (Exception ex)
-                {
-                    Debug.WriteLine($"Unable to read LastBuildInfo before run action: {ex.Message}");
-                }
-
-                if (failedProjects > 0)
-                {
-                    ShowAgentFinishActionWarning("The solution rebuild failed. The run action was skipped.");
-                    return;
+                    return false;
                 }
             }
 
             ExecuteDteCommand(runCommand);
+            return true;
+        }
+
+        /// <summary>
+        /// Issues <paramref name="buildCommand"/>, waits for it to finish, and reports
+        /// whether it succeeded (no failed projects). Shows <paramref name="timeoutMessage"/>
+        /// if the build never settles, or <paramref name="failureMessage"/> if it settles
+        /// with failed projects. Shared by the direct Build/Rebuild actions and the
+        /// pre-Run rebuild gate so both use the same success signal.
+        /// </summary>
+        private async Task<bool> BuildAndCheckSuccessAsync(string buildCommand, string timeoutMessage, string failureMessage)
+        {
+            ExecuteDteCommand(buildCommand);
+            if (!await WaitForDteBuildToFinishAsync())
+            {
+                ShowAgentFinishActionWarning(timeoutMessage);
+                return false;
+            }
+
+            await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
+            int failedProjects = 0;
+            try
+            {
+                var dte = Package.GetGlobalService(typeof(EnvDTE.DTE)) as EnvDTE.DTE;
+                failedProjects = dte?.Solution?.SolutionBuild?.LastBuildInfo ?? 0;
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"Unable to read LastBuildInfo: {ex.Message}");
+                return true; // Can't tell — don't block on an unreadable build result.
+            }
+
+            if (failedProjects > 0)
+            {
+                ShowAgentFinishActionWarning(failureMessage);
+                return false;
+            }
+            return true;
         }
 
         private static async Task<bool> WaitForDteBuildToFinishAsync()
@@ -1714,12 +1835,24 @@ namespace ClaudeCodeVS
                     string s = cfg.ScriptOrCommand?.Trim().Trim('"');
                     return string.IsNullOrEmpty(s) ? "Run script" : $"Run {Path.GetFileName(s)}";
                 case AgentFinishActionType.SendToAgent:
-                    string c = cfg.ScriptOrCommand?.Trim();
-                    return string.IsNullOrEmpty(c)
-                        ? "Send command"
-                        : $"Send {(c.Length > 24 ? c.Substring(0, 24) + "…" : c)}";
+                    return DescribeSendCommand(cfg.ScriptOrCommand);
                 default: return string.Empty;
             }
+        }
+
+        /// <summary>
+        /// Formats a "Send …" notification-button label from literal command text, truncating
+        /// long text so the button stays readable. Shared by <see cref="DescribeAction"/>'s
+        /// SendToAgent case and the follow-up ("also send to agent") notification.
+        /// </summary>
+        private const int SendCommandLabelMaxChars = 100;
+
+        private static string DescribeSendCommand(string text)
+        {
+            string c = text?.Trim();
+            return string.IsNullOrEmpty(c)
+                ? "Send command"
+                : $"Send {(c.Length > SendCommandLabelMaxChars ? c.Substring(0, SendCommandLabelMaxChars) + "…" : c)}";
         }
 
         private static string DescribeRunAction(string runLabel, AgentFinishConfig cfg)

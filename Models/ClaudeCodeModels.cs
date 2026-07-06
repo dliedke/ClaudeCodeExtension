@@ -240,6 +240,18 @@ namespace ClaudeCodeVS
         /// only if the user clicks it. When false it runs automatically.
         /// </summary>
         public bool Confirm { get; set; } = true;
+
+        /// <summary>
+        /// Optional text sent to the agent after <see cref="Action"/> completes
+        /// successfully (e.g. "Commit and push the changes"). Ignored when empty, or
+        /// when <see cref="Action"/> is <see cref="AgentFinishActionType.None"/> or
+        /// <see cref="AgentFinishActionType.SendToAgent"/> (that action already sends
+        /// text, so a second one would race the agent's next turn). When
+        /// <see cref="Confirm"/> is true, this fires from its own follow-up
+        /// notification/button shown after the main action's button is confirmed,
+        /// rather than silently chaining behind the first click.
+        /// </summary>
+        public string FollowUpSendToAgent { get; set; } = string.Empty;
     }
 
     /// <summary>

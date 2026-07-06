@@ -1262,7 +1262,7 @@ namespace ClaudeCodeVS
                             // short retry covers the process tree lagging just after launch.
                             for (int clientAttempt = 0; clientAttempt < 10; clientAttempt++)
                             {
-                                _wtConsoleClientPid = ResolveWtConsoleClientPid(preExistingCmdPids);
+                                _wtConsoleClientPid = ResolveWtConsoleClientPid(preExistingCmdPids, terminalHandle);
                                 if (_wtConsoleClientPid > 0) break;
                                 await Task.Delay(150);
                             }

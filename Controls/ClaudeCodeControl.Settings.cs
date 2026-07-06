@@ -173,6 +173,15 @@ namespace ClaudeCodeVS
                 {
                     _settings = new ClaudeCodeSettings();
 
+                    // Seed a starter custom command for fresh installs only — existing
+                    // settings files are never touched, so a user's own list is never
+                    // silently appended to on upgrade.
+                    _settings.CustomCommands.Add(new CustomCommand
+                    {
+                        Name = "Commit & Push",
+                        Command = "Commit and push the changes"
+                    });
+
                     // Save the default settings to create the file
                     SaveDefaultSettings();
                 }
