@@ -146,6 +146,12 @@ namespace ClaudeCodeVS
             afSoundCheck.Margin = new Thickness(20, 4, 0, 4);
             stack.Children.Add(afSoundCheck);
 
+            var afQuestionSoundCheck = MakeCheckBox("Play a different sound when the agent asks a question",
+                "Play a distinct sound when the agent stops and waits for your answer (a yes/no confirmation or a selection menu) instead of finishing. Uses a different tone than the finish sound so you can tell them apart.",
+                false, themeFg);
+            afQuestionSoundCheck.Margin = new Thickness(20, 4, 0, 4);
+            stack.Children.Add(afQuestionSoundCheck);
+
             var afToastCheck = MakeCheckBox("Show a notification",
                 "Show a Visual Studio info bar with the turn's duration and token count when the agent finishes.",
                 false, themeFg);
@@ -342,6 +348,7 @@ namespace ClaudeCodeVS
             {
                 afEnabledCheck.IsChecked    = cfg.Enabled;
                 afSoundCheck.IsChecked      = cfg.PlaySound;
+                afQuestionSoundCheck.IsChecked = cfg.PlayQuestionSound;
                 afToastCheck.IsChecked      = cfg.ShowToast;
                 afConfirmCheck.IsChecked    = cfg.Confirm;
                 afReqChangesCheck.IsChecked = cfg.RequireFileChanges;
@@ -366,6 +373,7 @@ namespace ClaudeCodeVS
             {
                 cfg.Enabled            = afEnabledCheck.IsChecked == true;
                 cfg.PlaySound          = afSoundCheck.IsChecked == true;
+                cfg.PlayQuestionSound  = afQuestionSoundCheck.IsChecked == true;
                 cfg.ShowToast          = afToastCheck.IsChecked == true;
                 cfg.Confirm            = afConfirmCheck.IsChecked == true;
                 cfg.RequireFileChanges = afReqChangesCheck.IsChecked == true;
@@ -489,6 +497,7 @@ namespace ClaudeCodeVS
             {
                 Enabled            = src.Enabled,
                 PlaySound          = src.PlaySound,
+                PlayQuestionSound  = src.PlayQuestionSound,
                 ShowToast          = src.ShowToast,
                 IdleSeconds        = src.IdleSeconds,
                 Action             = src.Action,

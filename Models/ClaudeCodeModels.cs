@@ -193,6 +193,14 @@ namespace ClaudeCodeVS
         /// <summary>Play a system sound when the agent finishes.</summary>
         public bool PlaySound { get; set; } = true;
 
+        /// <summary>
+        /// Play a distinct sound when the agent stops and waits for the user's answer
+        /// (a yes/no confirmation or a selection menu) instead of finishing the turn.
+        /// Uses a different tone than <see cref="PlaySound"/> so the two are audibly
+        /// distinguishable. Independent of <see cref="PlaySound"/>. Default false.
+        /// </summary>
+        public bool PlayQuestionSound { get; set; } = false;
+
         /// <summary>Show a Visual Studio info bar when the agent finishes.</summary>
         public bool ShowToast { get; set; } = true;
 

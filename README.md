@@ -105,6 +105,9 @@ This binds a Claude Code skill that shells out to OpenAI Codex to audit pending 
 
 ## Version History
 
+### Version 52.0
+- **On Agent Finish** can now play a distinct sound when the agent stops and waits for your answer (a yes/no or selection prompt) instead of finishing — so you can tell "the agent needs me" apart from "the agent is done" without looking. Opt-in from the **On Agent Finish** settings.
+
 ### Version 51.0
 - Fixed **Ctrl+Scroll** (zoom) not working in other apps while the extension's terminal panel occupied the same screen area — the extension no longer hijacks the gesture unless Visual Studio is actually the foreground window.
 

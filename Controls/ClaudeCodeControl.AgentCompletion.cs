@@ -75,6 +75,12 @@ namespace ClaudeCodeVS
         private bool _awaitingAgentInputReply;
         private DateTime _lastInputPromptRecheckUtc = DateTime.MinValue;
 
+        // Guards the "agent stopped at a question" sound (AgentFinishConfig.PlayQuestionSound) so it
+        // fires once per waiting episode, not on every poll while the prompt stays on screen. Set when
+        // the sound plays as the screen settles into a question; cleared when the screen changes back
+        // to something that is no longer a prompt (the agent resumed), so the next question fires again.
+        private bool _questionSoundPlayed;
+
         // devenv's standard handles as they were before this extension ever attached to a
         // console. AttachConsole REPLACES the process's std handles and FreeConsole leaves
         // them dangling; if they are not restored, the dead handle values poison every later
@@ -327,6 +333,7 @@ namespace ClaudeCodeVS
                 _consoleSawActivity = false;
                 _consoleSelectionActive = false;
                 _awaitingAgentInputReply = false;
+                _questionSoundPlayed = false;
                 _lastInputPromptRecheckUtc = DateTime.MinValue;
                 _promptSentUtc = DateTime.UtcNow;
                 _watchStartedUtc = DateTime.UtcNow;
@@ -695,7 +702,9 @@ namespace ClaudeCodeVS
                 _lastConsoleHash = hash;
                 _lastConsoleChangeUtc = DateTime.UtcNow;
                 _consoleSawActivity = true;
-                _awaitingAgentInputReply = LooksLikeAgentInputPrompt(text);
+                bool nowPrompt = LooksLikeAgentInputPrompt(text);
+                MaybePlayQuestionSound(nowPrompt);
+                _awaitingAgentInputReply = nowPrompt;
                 return;
             }
 
@@ -707,6 +716,7 @@ namespace ClaudeCodeVS
             // agent is waiting for input, this is not a completion: don't fire and keep watching.
             if (LooksLikeAgentInputPrompt(text))
             {
+                MaybePlayQuestionSound(true);
                 _awaitingAgentInputReply = true;
                 return;
             }
@@ -1156,6 +1166,12 @@ namespace ClaudeCodeVS
         {
             "(y/n)", "[y/n]", "y/n]", "(yes/no)", "[yes/no]",
             "press enter to continue", "press any key",
+            // Claude Code selection-menu footer ("Enter to select · ↑/↓ to navigate · Esc to
+            // cancel"). These are highly specific to an interactive menu that is waiting for a
+            // choice — a finished turn's prose answer essentially never contains them — and they
+            // fire even when the selection cursor is a plain ASCII '>' that the structural rule
+            // below doesn't recognize (v52.0: menu with '>' cursor was mis-read as a finished turn).
+            "esc to cancel", "enter to select", "to navigate",
         };
 
         /// <summary>
@@ -1191,12 +1207,17 @@ namespace ClaudeCodeVS
                     if (lower.IndexOf(kw, StringComparison.Ordinal) >= 0) return true;
                 }
 
-                // Selection cursor used by Claude Code's permission / choice prompts.
-                if (raw.IndexOf('❯') >= 0 || raw.IndexOf('›') >= 0 || raw.IndexOf('▶') >= 0)
+                // Selection cursor used by Claude Code's permission / choice prompts. The
+                // fullscreen renderer draws ❯/›/▶; the classic (non-alternate-screen) renderer
+                // draws a plain ASCII '>' cursor instead (v52.0). Only treat a leading '>' that
+                // sits directly on a numbered option ("> 1. …") as a cursor, so a stray '>' in
+                // prose or on the input prompt line ("> /model …") isn't mistaken for one.
+                if (raw.IndexOf('❯') >= 0 || raw.IndexOf('›') >= 0 || raw.IndexOf('▶') >= 0
+                    || System.Text.RegularExpressions.Regex.IsMatch(trimmed, @"^>\s+\d+[\.\)]\s"))
                     sawArrow = true;
 
-                // Numbered option line: "1. Yes", "❯ 2. No", "3) ...".
-                if (System.Text.RegularExpressions.Regex.IsMatch(trimmed, @"^[❯›▶\s]*\d+[\.\)]\s+\S"))
+                // Numbered option line: "1. Yes", "❯ 2. No", "> 1. …", "3) ...".
+                if (System.Text.RegularExpressions.Regex.IsMatch(trimmed, @"^[❯›▶>\s]*\d+[\.\)]\s+\S"))
                     menuItems++;
             }
 
@@ -1900,6 +1921,55 @@ namespace ClaudeCodeVS
                 catch (Exception ex)
                 {
                     Debug.WriteLine($"PlayFinishSound error: {ex.Message}");
+                }
+            });
+#pragma warning restore VSTHRD110
+        }
+
+        /// <summary>
+        /// Plays the "agent is waiting for your answer" sound once per waiting episode, when
+        /// <paramref name="isPrompt"/> shows the settled screen is a question / selection prompt
+        /// and <see cref="AgentFinishConfig.PlayQuestionSound"/> is enabled. When the screen is no
+        /// longer a prompt (the agent resumed) the played-guard is cleared so the next question can
+        /// sound again. Call on the UI thread — the tone itself plays on a background thread.
+        /// </summary>
+        private void MaybePlayQuestionSound(bool isPrompt)
+        {
+            if (!isPrompt)
+            {
+                _questionSoundPlayed = false;
+                return;
+            }
+
+            if (_questionSoundPlayed) return;
+            _questionSoundPlayed = true;
+
+            if (_watchedAgentFinish?.PlayQuestionSound == true)
+            {
+                PlayQuestionSound();
+            }
+        }
+
+        /// <summary>
+        /// Plays a distinct descending two-tone via Win32 Beep on a background thread, used when the
+        /// agent stops and waits for the user's answer. Deliberately different from the rising
+        /// <see cref="PlayFinishSound"/> chime so the "waiting for you" and "finished" states are
+        /// audibly distinguishable. See <see cref="PlayFinishSound"/> for why Beep is used.
+        /// </summary>
+        private static void PlayQuestionSound()
+        {
+#pragma warning disable VSTHRD110 // Intentional fire-and-forget; the chime must not block the caller
+            _ = Task.Run(() =>
+            {
+                try
+                {
+                    Beep(1047, 120);  // C6
+                    Beep(784, 120);   // G5
+                    Beep(587, 200);   // D5
+                }
+                catch (Exception ex)
+                {
+                    Debug.WriteLine($"PlayQuestionSound error: {ex.Message}");
                 }
             });
 #pragma warning restore VSTHRD110
