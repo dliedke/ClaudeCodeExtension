@@ -105,6 +105,9 @@ This binds a Claude Code skill that shells out to OpenAI Codex to audit pending 
 
 ## Version History
 
+### Version 51.0
+- Fixed **Ctrl+Scroll** (zoom) not working in other apps while the extension's terminal panel occupied the same screen area — the extension no longer hijacks the gesture unless Visual Studio is actually the foreground window.
+
 ### Version 50.0
 - Fixed the **On Agent Finish** dialog showing an unwanted scrollbar after the new follow-up field was added.
 - Fixed **On Agent Finish** sometimes watching the wrong terminal's console under **Windows Terminal** when more than one agent terminal was running at once, so completion detection now reliably tracks the terminal you're actually using.

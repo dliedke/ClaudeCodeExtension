@@ -2883,6 +2883,30 @@ namespace ClaudeCodeVS
         /// </summary>
         private bool IsTerminalFocused()
         {
+            if (!IsTerminalHostForeground())
+            {
+                return false;
+            }
+
+            if (IsTerminalFocusedOnThread(0))
+            {
+                return true;
+            }
+
+            uint terminalThreadId = GetWindowThreadProcessId(terminalHandle, out _);
+            return terminalThreadId != 0 && IsTerminalFocusedOnThread(terminalThreadId);
+        }
+
+        /// <summary>
+        /// Cheap foreground-only check: true when Visual Studio (or the terminal window itself) is
+        /// the foreground app, regardless of which control inside it currently has keyboard focus.
+        /// Used to gate global low-level hook gestures (e.g. Ctrl+Scroll zoom) that hit-test purely
+        /// on screen coordinates — coordinates alone can't tell that another maximized window is now
+        /// layered on top of the same screen region the docked terminal panel occupies, which would
+        /// otherwise hijack Ctrl+Scroll meant for that other app.
+        /// </summary>
+        private bool IsTerminalHostForeground()
+        {
             if (terminalHandle == IntPtr.Zero || !IsWindow(terminalHandle))
             {
                 return false;
@@ -2900,19 +2924,7 @@ namespace ClaudeCodeVS
                 hostRoot = GetAncestor(terminalHandle, GA_ROOT);
             }
 
-            if (foreground != terminalHandle &&
-                (hostRoot == IntPtr.Zero || foreground != hostRoot))
-            {
-                return false;
-            }
-
-            if (IsTerminalFocusedOnThread(0))
-            {
-                return true;
-            }
-
-            uint terminalThreadId = GetWindowThreadProcessId(terminalHandle, out _);
-            return terminalThreadId != 0 && IsTerminalFocusedOnThread(terminalThreadId);
+            return foreground == terminalHandle || (hostRoot != IntPtr.Zero && foreground == hostRoot);
         }
 
         /// <summary>
@@ -3360,6 +3372,13 @@ namespace ClaudeCodeVS
             IntPtr handle = terminalHandle;
             if (handle == IntPtr.Zero || !IsWindow(handle)) return false;
 
+            // Require VS (or the terminal) to actually be the foreground app first — the rect hit
+            // test below only knows the terminal's screen coordinates, not whether another window
+            // (e.g. a maximized browser) is currently layered on top of that same screen region.
+            // Without this, Ctrl+Scroll in that other app would be wrongly hijacked to zoom the
+            // (invisible) embedded terminal underneath it instead of reaching the app the user sees.
+            if (!IsTerminalHostForeground()) return false;
+
             // Hook-thread-safe hit test: is the cursor over the embedded terminal window?
             if (!GetWindowRect(handle, out RECT rect)) return false;
             if (info.pt.x < rect.Left || info.pt.x >= rect.Right ||
@@ -3441,6 +3460,7 @@ namespace ClaudeCodeVS
 
                 if (ctrlDown &&
                     IsScreenPointInsideActiveTerminalPanel(info.pt) &&
+                    IsTerminalHostForeground() &&
                     _settings != null)
                 {
                     int wheelDelta = (short)((info.mouseData >> 16) & 0xFFFF);
