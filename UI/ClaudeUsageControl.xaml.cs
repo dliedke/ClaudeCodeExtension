@@ -171,8 +171,17 @@ namespace ClaudeCodeVS
   const TRIM = " + trimFlag + @";
   let styleInjected = false;
   let lastJson = '';
+  // The usage bars used to be [role=progressbar]; claude.ai switched them to
+  // [role=meter] (data-cds=Meter). Match both so a future revert doesn't
+  // break us, and so older cached pages still parse.
+  const BAR_SEL = '[role=\""meter\""][aria-valuenow], [role=\""progressbar\""][aria-valuenow]';
+  const BAR_ROLE_SEL = '[role=\""meter\""], [role=\""progressbar\""]';
+  function isBarRole(el){
+    const r = el && el.getAttribute && el.getAttribute('role');
+    return r === 'meter' || r === 'progressbar';
+  }
   function findSection(){
-    const bar = document.querySelector('[role=\""progressbar\""][aria-valuenow]');
+    const bar = document.querySelector(BAR_SEL);
     if (!bar) return null;
     return bar.closest('section') || bar.parentElement;
   }
@@ -189,8 +198,8 @@ namespace ClaudeCodeVS
   // pass, so newly-mounted siblings get re-marked the next cycle.
   function findIsolationTarget(){
     let node = document.querySelector('div[tabindex=\""-1\""].outline-none');
-    if (node && node.querySelector('[role=\""progressbar\""]')) return node;
-    const bar = document.querySelector('[role=\""progressbar\""][aria-valuenow]');
+    if (node && node.querySelector(BAR_ROLE_SEL)) return node;
+    const bar = document.querySelector(BAR_SEL);
     if (!bar) return null;
     let n = bar.parentElement;
     while (n && n !== document.body) {
@@ -273,7 +282,7 @@ namespace ClaudeCodeVS
       '}' +
       // Bar element fills its column; clear any residual min-width clamp
       // and fixed flex-basis the page might have stamped previously.
-      '[role=\""progressbar\""] { width: 100% !important; min-width: 0 !important; flex: 1 1 auto !important; }';
+      '[role=\""progressbar\""], [role=\""meter\""] { width: 100% !important; min-width: 0 !important; flex: 1 1 auto !important; }';
     (document.head || document.documentElement).appendChild(style);
     styleInjected = true;
   }
@@ -320,16 +329,16 @@ namespace ClaudeCodeVS
     const divs = target.querySelectorAll('div');
     for (const d of divs) {
       if (!d.style) continue;
-      if (d.getAttribute && d.getAttribute('role') === 'progressbar') continue;
-      // Skip children of progressbar containers — they hold the inline fill width (e.g. 18%).
-      if (d.closest && d.closest('[role=\""progressbar\""]')) continue;
+      if (isBarRole(d)) continue;
+      // Skip children of bar containers — they hold the inline fill width (e.g. 18%).
+      if (d.closest && d.closest(BAR_ROLE_SEL)) continue;
       d.style.width = '';
       d.style.minWidth = '';
       d.style.maxWidth = '';
       d.style.flex = '';
       d.style.flexBasis = '';
     }
-    const bars = target.querySelectorAll('[role=\""progressbar\""]');
+    const bars = target.querySelectorAll(BAR_ROLE_SEL);
     for (const bar of bars) {
       if (bar.style) {
         bar.style.width = '100%';
@@ -378,13 +387,32 @@ namespace ClaudeCodeVS
     }
     return { label: label, reset: reset };
   }
+  // Language-independent label: the bar carries aria-labelledby pointing at
+  // the label element, so we don't rely on class names or English text.
+  function readBarLabelAndReset(bar){
+    const lc = findLabelColumn(bar);
+    const li = readLabelAndReset(lc);
+    if (!li.label) {
+      const id = bar.getAttribute('aria-labelledby');
+      if (id) {
+        const el = document.getElementById(id);
+        if (el) li.label = (el.textContent || '').trim();
+      }
+    }
+    return li;
+  }
   // Reads the displayed `X% used` text near the bar — used for extra usage
   // which can exceed 100% (aria-valuenow caps at 100, display shows actual).
   function readUsedPercent(bar){
+    // Prefer aria-valuetext (\""63% usado\"" / \""63% used\"") — language-independent
+    // and can exceed 100 for extra usage where aria-valuenow caps at 100.
+    const vt = bar.getAttribute('aria-valuetext') || '';
+    let m = vt.match(/(\d+)\s*%/);
+    if (m) return parseInt(m[1], 10);
     let n = bar.parentElement;
     for (let d = 0; d < 5 && n; d++) {
       const txt = (n.textContent || '');
-      const m = txt.match(/(\d+)\s*%\s*used/i);
+      m = txt.match(/(\d+)\s*%/);
       if (m) return parseInt(m[1], 10);
       n = n.parentElement;
     }
@@ -401,13 +429,12 @@ namespace ClaudeCodeVS
       // actual extra-usage bar and to filter that bar from the main rows.
       const extraMarker = document.querySelector('[data-testid=extra-usage-section]');
       const extraContainer = extraMarker ? (extraMarker.closest('section') || extraMarker.parentElement) : null;
-      const allBars = document.querySelectorAll('[role=\""progressbar\""][aria-valuenow]');
+      const allBars = document.querySelectorAll(BAR_SEL);
       if (!allBars.length) return null;
       const rows = [];
       for (const bar of allBars) {
         if (extraContainer && extraContainer.contains(bar)) continue;
-        const lc = findLabelColumn(bar);
-        const li = readLabelAndReset(lc);
+        const li = readBarLabelAndReset(bar);
         rows.push({
           label: li.label,
           reset: li.reset,
@@ -419,10 +446,16 @@ namespace ClaudeCodeVS
         for (const r of rows) if (predicate(r)) return r;
         return null;
       }
-      const sessionRow = pick(r => /session/i.test(r.label)) || rows[0];
+      // Identify by label when possible (multi-language keywords), but fall
+      // back to document order — session is always first, the aggregate
+      // \""all models\"" weekly bar always precedes the per-model bars (Fable,
+      // etc.). Order-based fallback keeps working when the account language
+      // isn't one we listed. Per-model weekly bars must never be picked as
+      // the weekly row, so weekly falls back to \""first row after session\"".
+      const sessionRow = pick(r => /session|sess[aã]o/i.test(r.label)) || rows[0];
       const weeklyRow =
-        pick(r => /^all models$/i.test(r.label)) ||
-        pick(r => /weekly|all models/i.test(r.label)) ||
+        pick(r => /^all models$|todos os modelos|tous les mod|alle modelle|todos los modelos/i.test(r.label)) ||
+        pick(r => /weekly|semanal|semaine|w[oö]chent/i.test(r.label)) ||
         pick(r => r !== sessionRow);
       if (!sessionRow || !weeklyRow) return null;
       const result = {
@@ -438,10 +471,9 @@ namespace ClaudeCodeVS
         ExtraUsagePercent: 0
       };
       if (extraContainer) {
-        const extraBar = extraContainer.querySelector('[role=\""progressbar\""][aria-valuenow]');
+        const extraBar = extraContainer.querySelector(BAR_SEL);
         if (extraBar) {
-          const lc = findLabelColumn(extraBar);
-          const li = readLabelAndReset(lc);
+          const li = readBarLabelAndReset(extraBar);
           if (li.label) {
             const usedPct = readUsedPercent(extraBar);
             result.HasExtraUsage = true;

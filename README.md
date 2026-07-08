@@ -105,6 +105,9 @@ This binds a Claude Code skill that shells out to OpenAI Codex to audit pending 
 
 ## Version History
 
+### Version 54.0
+- Fixed **Claude Usage** showing outdated numbers and no longer trimming to just the usage bars after a recent Claude.ai layout change — the session and weekly percentages now read correctly again, and the view works regardless of your account's display language.
+
 ### Version 53.0
 - **Working directory** can now be set per solution — switching between solutions no longer carries over a custom working directory from a different one (issue #100).
 - Fixed selecting and copying text from the agent's replies under **Windows Terminal** — the selection assist now engages instantly instead of racing a busy Visual Studio, and right-click now copies the selection and pastes when nothing is selected, matching Command Prompt (issue #99).
