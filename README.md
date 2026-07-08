@@ -105,6 +105,11 @@ This binds a Claude Code skill that shells out to OpenAI Codex to audit pending 
 
 ## Version History
 
+### Version 53.0
+- **Working directory** can now be set per solution — switching between solutions no longer carries over a custom working directory from a different one (issue #100).
+- Fixed selecting and copying text from the agent's replies under **Windows Terminal** — the selection assist now engages instantly instead of racing a busy Visual Studio, and right-click now copies the selection and pastes when nothing is selected, matching Command Prompt (issue #99).
+- Removed the **TUI Fullscreen** menu option — Claude Code now always launches in its classic (non-fullscreen) terminal renderer.
+
 ### Version 52.0
 - **On Agent Finish** can now play a distinct sound when the agent stops and waits for your answer (a yes/no or selection prompt) instead of finishing — so you can tell "the agent needs me" apart from "the agent is done" without looking. Opt-in from the **On Agent Finish** settings.
 

@@ -106,12 +106,14 @@ namespace ClaudeCodeVS
         {
             string baseDir = await GetBaseWorkspaceDirectoryAsync();
 
-            // Apply custom working directory if configured
-            if (_settings != null && !string.IsNullOrWhiteSpace(_settings.CustomWorkingDirectory))
+            // Apply custom working directory if configured (per-solution override, else global default)
+            await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
+            string effectiveCustomDir = GetEffectiveCustomWorkingDirectory();
+            if (_settings != null && !string.IsNullOrWhiteSpace(effectiveCustomDir))
             {
                 try
                 {
-                    string customDir = _settings.CustomWorkingDirectory.Trim();
+                    string customDir = effectiveCustomDir.Trim();
 
                     if (Path.IsPathRooted(customDir))
                     {
@@ -146,6 +148,31 @@ namespace ClaudeCodeVS
             }
 
             return baseDir;
+        }
+
+        /// <summary>
+        /// Returns the custom working directory that applies to the currently open solution:
+        /// the per-solution override in <see cref="ClaudeCodeSettings.ProjectWorkingDirectories"/>
+        /// when one exists for the solution name, otherwise the global
+        /// <see cref="ClaudeCodeSettings.CustomWorkingDirectory"/> default. Never returns null.
+        /// See issue #100.
+        /// </summary>
+        private string GetEffectiveCustomWorkingDirectory()
+        {
+            ThreadHelper.ThrowIfNotOnUIThread();
+
+            if (_settings == null) return string.Empty;
+
+            string name = GetCurrentSolutionName();
+            if (!string.IsNullOrEmpty(name)
+                && _settings.ProjectWorkingDirectories != null
+                && _settings.ProjectWorkingDirectories.TryGetValue(name, out var projectDir)
+                && !string.IsNullOrWhiteSpace(projectDir))
+            {
+                return projectDir;
+            }
+
+            return _settings.CustomWorkingDirectory ?? string.Empty;
         }
 
         /// <summary>

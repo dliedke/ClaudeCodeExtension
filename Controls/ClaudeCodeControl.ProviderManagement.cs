@@ -2874,7 +2874,6 @@ For more details, visit: https://pi.dev";
             ChangeAccountMenuItem.Visibility = isClaude ? Visibility.Visible : Visibility.Collapsed;
             SetLanguageMenuItem.Visibility = isClaude ? Visibility.Visible : Visibility.Collapsed;
             InstallCavemanMenuItem.Visibility = isClaude ? Visibility.Visible : Visibility.Collapsed;
-            TuiFullscreenMenuItem.Visibility = isClaude ? Visibility.Visible : Visibility.Collapsed;
 
             // Devin-specific items: the model entries are rebuilt dynamically from the
             // user-configurable _settings.DevinModels list each time the menu opens.
@@ -3496,69 +3495,6 @@ For more details, visit: https://pi.dev";
             await SendTextToTerminalAsync("yes");
         }
 
-        /// <summary>
-        /// Handles Enable Fullscreen menu item click - switches Claude Code into fullscreen
-        /// (flicker-free, alternate-screen) rendering via the /tui fullscreen slash command
-        /// </summary>
-#pragma warning disable VSTHRD100 // Avoid async void methods
-        private async void TuiFullscreenEnableMenuItem_Click(object sender, RoutedEventArgs e)
-#pragma warning restore VSTHRD100
-        {
-            await SendTuiModeCommandAsync("fullscreen");
-        }
-
-        /// <summary>
-        /// Handles Disable Fullscreen menu item click - switches Claude Code back to the classic
-        /// renderer (native terminal scrollback) via the /tui default slash command
-        /// </summary>
-#pragma warning disable VSTHRD100 // Avoid async void methods
-        private async void TuiFullscreenDisableMenuItem_Click(object sender, RoutedEventArgs e)
-#pragma warning restore VSTHRD100
-        {
-            await SendTuiModeCommandAsync("default");
-        }
-
-        /// <summary>
-        /// Sets the Claude Code TUI rendering preference ("fullscreen" or "default"), persists it,
-        /// and — after the user confirms — restarts the Code Agent so it relaunches with the matching
-        /// environment variable (CLAUDE_CODE_NO_FLICKER / CLAUDE_CODE_DISABLE_ALTERNATE_SCREEN).
-        /// </summary>
-        private async Task SendTuiModeCommandAsync(string mode)
-        {
-            await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
-
-            if (_currentRunningProvider != AiProvider.ClaudeCode &&
-                _currentRunningProvider != AiProvider.ClaudeCodeWSL)
-            {
-                return;
-            }
-
-            bool enableFullscreen = mode == "fullscreen";
-            string modeLabel = enableFullscreen ? "fullscreen (flicker-free)" : "default (classic)";
-
-            var confirm = MessageBox.Show(
-                "This will switch Claude Code to " + modeLabel + " terminal rendering.\n\n" +
-                "The Code Agent must be restarted to apply the new renderer. Clicking OK will restart it now — " +
-                "the current session will be terminated. Your work in progress in the terminal will be lost.\n\n" +
-                "Continue?",
-                "TUI Fullscreen",
-                MessageBoxButton.OKCancel,
-                MessageBoxImage.Question);
-
-            if (confirm != MessageBoxResult.OK)
-            {
-                return;
-            }
-
-            if (_settings != null)
-            {
-                _settings.ClaudeTuiFullscreen = enableFullscreen;
-                SaveSettings();
-            }
-
-            await RestartTerminalWithSelectedProviderAsync();
-        }
-
         #endregion
 
         #region Provider Context Menu
@@ -3636,11 +3572,14 @@ For more details, visit: https://pi.dev";
         /// </summary>
         private void UpdateSetWorkingDirectoryMenuHeader()
         {
+            ThreadHelper.ThrowIfNotOnUIThread();
+
             if (SetWorkingDirectoryMenuItem == null || _settings == null) return;
 
-            if (!string.IsNullOrWhiteSpace(_settings.CustomWorkingDirectory))
+            string effectiveCustomDir = GetEffectiveCustomWorkingDirectory();
+            if (!string.IsNullOrWhiteSpace(effectiveCustomDir))
             {
-                string customDir = _settings.CustomWorkingDirectory.Trim();
+                string customDir = effectiveCustomDir.Trim();
                 bool directoryExists = false;
                 try
                 {
@@ -3843,7 +3782,7 @@ For more details, visit: https://pi.dev";
 
             if (_settings == null) return;
 
-            string currentValue = _settings.CustomWorkingDirectory ?? "";
+            string currentValue = GetEffectiveCustomWorkingDirectory() ?? "";
 
             // Resolve base workspace directory for relative path validation in the dialog
             string baseDir = await GetBaseWorkspaceDirectoryAsync();
@@ -3859,7 +3798,31 @@ For more details, visit: https://pi.dev";
             string trimmed = input.Trim();
             if (trimmed != currentValue)
             {
-                _settings.CustomWorkingDirectory = trimmed;
+                // Tie the value to the currently open solution so switching solutions doesn't
+                // carry over a working directory set for a different one (issue #100). Falls
+                // back to the global setting only when no solution is open (e.g. Open Folder mode).
+                string solutionName = GetCurrentSolutionName();
+                if (!string.IsNullOrEmpty(solutionName))
+                {
+                    if (_settings.ProjectWorkingDirectories == null)
+                    {
+                        _settings.ProjectWorkingDirectories = new System.Collections.Generic.Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+                    }
+
+                    if (string.IsNullOrEmpty(trimmed))
+                    {
+                        _settings.ProjectWorkingDirectories.Remove(solutionName);
+                    }
+                    else
+                    {
+                        _settings.ProjectWorkingDirectories[solutionName] = trimmed;
+                    }
+                }
+                else
+                {
+                    _settings.CustomWorkingDirectory = trimmed;
+                }
+
                 SaveSettings();
 
                 // Restart terminal to apply the new working directory

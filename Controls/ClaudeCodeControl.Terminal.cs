@@ -1126,6 +1126,9 @@ namespace ClaudeCodeVS
                     // profile's command line. Empty when the font is default or the profile can't be set up.
                     string wtFontProfileArg = GetWindowsTerminalFontProfileArg();
 
+                    // Global (not per-profile) setting, so it applies regardless of the font profile above.
+                    EnsureWindowsTerminalRightClickCopyPaste();
+
                     // Start Windows Terminal with embedded cmd.exe
                     var wtStartInfo = new ProcessStartInfo
                     {
@@ -1962,6 +1965,34 @@ namespace ClaudeCodeVS
 
             string profileName = EnsureWindowsTerminalFontProfile(face.Trim());
             return string.IsNullOrEmpty(profileName) ? string.Empty : $"-p \"{profileName}\" ";
+        }
+
+        /// <summary>
+        /// Ensures Windows Terminal's global <c>rightClickAction</c> setting is <c>"copyPaste"</c> —
+        /// right-click copies the current selection (clearing it) or, with no selection, pastes the
+        /// clipboard — matching Command Prompt's QuickEdit right-click behavior (issue #99). This is
+        /// a global (not per-profile) setting, so it is only written when it differs from the desired
+        /// value, same as <see cref="EnsureWindowsTerminalFontProfile"/>, to avoid needless rewrites of
+        /// the user's settings.json. No-ops (silently) when settings.json can't be found or written.
+        /// </summary>
+        private void EnsureWindowsTerminalRightClickCopyPaste()
+        {
+            try
+            {
+                string settingsPath = FindWindowsTerminalSettingsPath();
+                if (settingsPath == null) return;
+
+                JObject root = JObject.Parse(File.ReadAllText(settingsPath));
+
+                if ((string)root["rightClickAction"] == "copyPaste") return;
+
+                root["rightClickAction"] = "copyPaste";
+                File.WriteAllText(settingsPath, root.ToString(Newtonsoft.Json.Formatting.Indented));
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"EnsureWindowsTerminalRightClickCopyPaste: {ex.Message}");
+            }
         }
 
         /// <summary>
@@ -3237,11 +3268,29 @@ namespace ClaudeCodeVS
         }
 
         /// <summary>
-        /// Starts tracking a possible Windows Terminal text-selection drag.
+        /// Hook-thread-safe equivalent of <see cref="IsScreenPointInsideActiveTerminalPanel"/>: a
+        /// plain Win32 GetWindowRect hit test against the embedded terminal handle itself, with no
+        /// WPF/WinForms access. Used by the selection-assist tracking below, which must run inline
+        /// on the mouse-hook thread (see <see cref="BeginWindowsTerminalSelectionTracking"/>).
+        /// </summary>
+        private bool IsScreenPointInsideTerminalWindow(POINT screenPoint)
+        {
+            IntPtr handle = terminalHandle;
+            if (handle == IntPtr.Zero || !IsWindow(handle)) return false;
+            if (!GetWindowRect(handle, out RECT rect)) return false;
+
+            return screenPoint.x >= rect.Left && screenPoint.x < rect.Right &&
+                   screenPoint.y >= rect.Top && screenPoint.y < rect.Bottom;
+        }
+
+        /// <summary>
+        /// Starts tracking a possible Windows Terminal text-selection drag. Must be called inline
+        /// from <see cref="LowLevelMouseHookCallback"/> (hook thread), not marshaled to the UI
+        /// thread — see the timing note on <see cref="UpdateWindowsTerminalSelectionTracking"/>.
         /// </summary>
         private void BeginWindowsTerminalSelectionTracking(POINT screenPoint)
         {
-            if (_wtTabBarHeight <= 0 || !IsScreenPointInsideActiveTerminalPanel(screenPoint))
+            if (_wtTabBarHeight <= 0 || !IsScreenPointInsideTerminalWindow(screenPoint))
             {
                 return;
             }
@@ -3253,7 +3302,16 @@ namespace ClaudeCodeVS
 
         /// <summary>
         /// Converts a plain left-drag into SHIFT+drag so Windows Terminal enters selection mode
-        /// even when the running TUI has mouse reporting enabled.
+        /// even when the running TUI has mouse reporting enabled. Windows Terminal (and the app's
+        /// own VT mouse tracking underneath it) decides whether a drag is a local text selection or
+        /// input forwarded to the app based on whether SHIFT is already down as each mouse message
+        /// arrives — so this has to run inline on the mouse-hook thread, right where the real mouse
+        /// messages are observed. It previously ran marshaled onto the UI thread via
+        /// Dispatcher.BeginInvoke, same as the click-activation handling; that queuing delay (which
+        /// can be arbitrarily long whenever the VS UI thread is busy — the exact scenario the
+        /// dedicated hook thread in issue #61 exists to route around) meant SHIFT was frequently
+        /// injected too late for Windows Terminal to see it before committing the drag to the app,
+        /// silently breaking selection (issue #99).
         /// </summary>
         private void UpdateWindowsTerminalSelectionTracking(POINT screenPoint)
         {
@@ -3280,7 +3338,13 @@ namespace ClaudeCodeVS
         }
 
         /// <summary>
-        /// Clears the temporary Windows Terminal selection tracking state.
+        /// Clears the temporary Windows Terminal selection tracking state, releasing the SHIFT key
+        /// if this drag injected it. Copying the finished selection is left entirely to Windows
+        /// Terminal's own <c>rightClickAction: copyPaste</c> behavior (see
+        /// <see cref="EnsureWindowsTerminalRightClickCopyPaste"/>) rather than done here — a prior
+        /// attempt to auto-copy on mouse-up copied (and cleared) the selection the instant the button
+        /// was released, before the user had a chance to see or extend it, which did not match
+        /// Command Prompt's model of "drag to select, right-click to copy" (issue #99).
         /// </summary>
         private void ResetWindowsTerminalSelectionTracking()
         {
@@ -3331,10 +3395,29 @@ namespace ClaudeCodeVS
                 // a terminal right-click paste fallback isn't needed — and the global interception it
                 // required was the source of right-click context menus failing elsewhere in VS (#90).
 
-                // This runs on the dedicated hook thread, not the UI thread. All the actual
+                // Windows Terminal SHIFT+drag selection assist (#99): must run inline, right here on
+                // the hook thread, not marshaled to the UI thread — see the timing note on
+                // UpdateWindowsTerminalSelectionTracking. keybd_event and GetWindowRect are plain
+                // Win32 calls, safe off the UI thread.
+                if (message == WM_LBUTTONDOWN)
+                {
+                    var downInfo = (MSLLHOOKSTRUCT)Marshal.PtrToStructure(lParam, typeof(MSLLHOOKSTRUCT));
+                    BeginWindowsTerminalSelectionTracking(downInfo.pt);
+                }
+                else if (message == WM_MOUSEMOVE && _windowsTerminalSelectionPending && !_windowsTerminalSelectionActive)
+                {
+                    var moveInfo = (MSLLHOOKSTRUCT)Marshal.PtrToStructure(lParam, typeof(MSLLHOOKSTRUCT));
+                    UpdateWindowsTerminalSelectionTracking(moveInfo.pt);
+                }
+                else if (message == WM_LBUTTONUP)
+                {
+                    ResetWindowsTerminalSelectionTracking();
+                }
+
+                // This runs on the dedicated hook thread, not the UI thread. All the remaining
                 // handling touches WPF/WinForms state, so marshal it to the UI thread without
                 // blocking this callback. A cheap inline filter keeps us from flooding the
-                // dispatcher with the high-frequency WM_MOUSEMOVE/plain-wheel events.
+                // dispatcher with the high-frequency plain-wheel events.
                 if (ShouldDispatchMouseHookMessage(message))
                 {
                     var info = (MSLLHOOKSTRUCT)Marshal.PtrToStructure(lParam, typeof(MSLLHOOKSTRUCT));
@@ -3422,25 +3505,19 @@ namespace ClaudeCodeVS
 
         /// <summary>
         /// Cheap, thread-safe pre-filter run on the hook thread to decide whether a mouse event
-        /// is worth marshaling to the UI thread. Only the Ctrl+Scroll zoom gesture, left-button
-        /// clicks, and in-progress Windows Terminal selection drags need handling.
+        /// is worth marshaling to the UI thread. Only the Ctrl+Scroll zoom gesture and left-button
+        /// down (for click-to-activate) need UI-thread handling; WM_MOUSEMOVE/WM_LBUTTONUP are
+        /// handled entirely inline on the hook thread (see <see cref="LowLevelMouseHookCallback"/>)
+        /// and never marshaled.
         /// </summary>
         private bool ShouldDispatchMouseHookMessage(uint message)
         {
             switch (message)
             {
                 case WM_MOUSEWHEEL:
-                    // Ctrl+wheel drives zoom; a plain wheel notch is forwarded only when Claude
-                    // fullscreen conhost is active, where it is remapped to PgUp/PgDn (#96).
-                    return (GetAsyncKeyState(VK_CONTROL) & 0x8000) != 0
-                           || IsClaudeFullscreenConhostActive();
+                    return (GetAsyncKeyState(VK_CONTROL) & 0x8000) != 0;
                 case WM_LBUTTONDOWN:
-                case WM_LBUTTONUP:
                     return true;
-                case WM_MOUSEMOVE:
-                    return _wtTabBarHeight > 0
-                           && _windowsTerminalSelectionPending
-                           && !_windowsTerminalSelectionActive;
                 default:
                     return false;
             }
@@ -3469,32 +3546,6 @@ namespace ClaudeCodeVS
                     _zoomSaveTimer?.Start();
                     ScheduleManualZoomRefresh();
                 }
-                else if (!ctrlDown &&
-                         IsScreenPointInsideActiveTerminalPanel(info.pt) &&
-                         IsTerminalFocused() &&
-                         IsClaudeFullscreenConhostActive())
-                {
-                    // Only forward a plain wheel notch when the terminal actually has focus. The
-                    // panel hit test alone passes whenever the cursor sits over the panel's screen
-                    // rectangle — including when another window (e.g. Notepad) is layered on top of
-                    // that area — which wrongly scrolled the agent while scrolling an unrelated
-                    // window. Requiring focus scopes the gesture to the terminal the user is in.
-                    //
-                    // In fullscreen (alternate-screen) rendering, Claude Code's own mouse capture
-                    // is left disabled (CLAUDE_CODE_DISABLE_MOUSE=1) to avoid the issue #92 paste
-                    // flood, which kills mouse-wheel scrolling. Claude still scrolls on PgUp/PgDn,
-                    // so translate a plain wheel notch over the terminal into PgUp/PgDn keystrokes
-                    // — restoring wheel scroll without re-enabling Claude's mouse capture (#96).
-                    // For native Claude a keybinding remaps PgUp/PgDn to single-line scrolls, so a
-                    // notch sends one for a smooth one-line step instead of a half-page jump.
-                    int wheelDelta = (short)((info.mouseData >> 16) & 0xFFFF);
-                    bool scrollUp = wheelDelta > 0;
-                    int keystrokes = GetFullscreenWheelScrollKeystrokeCount();
-                    for (int i = 0; i < keystrokes; i++)
-                    {
-                        SendScrollKeyToTerminal(scrollUp);
-                    }
-                }
             }
             else if (message == WM_LBUTTONDOWN)
             {
@@ -3502,201 +3553,7 @@ namespace ClaudeCodeVS
                 // terminal click — increment before starting this click's guard.
                 _terminalClickSequence++;
                 ActivateEmbeddedTerminalOnClick(info.pt);
-                BeginWindowsTerminalSelectionTracking(info.pt);
             }
-            else if (message == WM_MOUSEMOVE)
-            {
-                UpdateWindowsTerminalSelectionTracking(info.pt);
-            }
-            else if (message == WM_LBUTTONUP)
-            {
-                ResetWindowsTerminalSelectionTracking();
-            }
-        }
-
-        /// <summary>
-        /// True when the live terminal is Claude Code running in fullscreen (alternate-screen) mode
-        /// inside conhost. In that mode Claude's mouse capture is intentionally disabled, so the
-        /// mouse wheel does nothing; callers translate the wheel into PgUp/PgDn instead (#96).
-        /// Limited to conhost (Command Prompt); Windows Terminal handles wheel forwarding itself.
-        /// </summary>
-        private bool IsClaudeFullscreenConhostActive()
-        {
-            if (_settings?.ClaudeTuiFullscreen != true)
-            {
-                return false;
-            }
-
-            // Windows Terminal embed sets a positive tab-bar height; conhost leaves it at 0.
-            if (_wtTabBarHeight > 0)
-            {
-                return false;
-            }
-
-            // Follow the active-provider rule: trust the running provider while a terminal is alive.
-            AiProvider provider = _currentRunningProvider ?? _settings.SelectedProvider;
-            return provider == AiProvider.ClaudeCode || provider == AiProvider.ClaudeCodeWSL;
-        }
-
-        /// <summary>
-        /// Sends a single PgUp (scroll up) or PgDn (scroll down) keystroke to the embedded conhost
-        /// terminal. Posted directly to the terminal window so it does not depend on foreground
-        /// keyboard focus, mirroring the Enter-key path. Claude Code's fullscreen renderer scrolls
-        /// the conversation on PgUp/PgDn (a half-screen by default, one line when the line-scroll
-        /// keybinding is installed — see <see cref="TryEnsureFullscreenLineScrollKeybinding"/>).
-        /// </summary>
-        /// <param name="up">True to scroll up (PgUp); false to scroll down (PgDn).</param>
-        private void SendScrollKeyToTerminal(bool up)
-        {
-            if (terminalHandle == IntPtr.Zero || !IsWindow(terminalHandle))
-            {
-                return;
-            }
-
-            int vk = up ? VK_PRIOR : VK_NEXT;
-
-            // Build the lParam the way a real key press does so conhost translates the key into
-            // VT input (ESC[5~ / ESC[6~) the same way it does for a physical PgUp/PgDn. PgUp/PgDn
-            // are extended keys, so set the extended-key bit (24). A bare lParam of 0 (no scan
-            // code) is silently dropped by conhost's VT-input translation.
-            uint scan = MapVirtualKey((uint)vk, 0 /* MAPVK_VK_TO_VSC */);
-            const int extended = 1 << 24;
-            int downLParam = 1 /* repeat count */ | ((int)scan << 16) | extended;
-            int upLParam = downLParam | (1 << 30) /* previous key state */ | (1 << 31) /* transition */;
-
-            PostMessage(terminalHandle, WM_KEYDOWN, new IntPtr(vk), new IntPtr(downLParam));
-            PostMessage(terminalHandle, WM_KEYUP, new IntPtr(vk), new IntPtr(upLParam));
-        }
-
-        // Tracks the one-time attempt to install the line-scroll keybinding for native Claude Code,
-        // so we only touch ~/.claude/keybindings.json once per session and cache whether it took.
-        private bool _fullscreenLineScrollBindingChecked;
-        private bool _fullscreenLineScrollBindingActive;
-
-        /// <summary>
-        /// How many PgUp/PgDn keystrokes one wheel notch should send in Claude fullscreen.
-        /// For native Claude Code a keybinding remaps PgUp/PgDn to single-line scrolls, so a notch
-        /// sends one for a smooth one-line step. Without that binding (Claude Code WSL, or if the
-        /// keybinding file could not be written) PgUp is a half-page scroll, so a single keystroke
-        /// is sent either way.
-        /// </summary>
-        private int GetFullscreenWheelScrollKeystrokeCount()
-        {
-            AiProvider provider = _currentRunningProvider ?? _settings?.SelectedProvider ?? AiProvider.ClaudeCode;
-
-            // The line-scroll keybinding is only managed for native Windows Claude Code, whose
-            // config lives at %USERPROFILE%\.claude\keybindings.json. WSL keeps its config in the
-            // WSL filesystem, so it is left on the half-page default.
-            if (provider == AiProvider.ClaudeCode)
-            {
-                if (!_fullscreenLineScrollBindingChecked)
-                {
-                    _fullscreenLineScrollBindingChecked = true;
-                    _fullscreenLineScrollBindingActive = TryEnsureFullscreenLineScrollKeybinding();
-                }
-
-                if (_fullscreenLineScrollBindingActive)
-                {
-                    return 1;
-                }
-            }
-
-            return 1;
-        }
-
-        /// <summary>
-        /// Ensures Claude Code's keybindings file maps the fullscreen scroll keys to single-line
-        /// scrolls (so wheel-synthesized PgUp/PgDn scroll smoothly), while preserving the half-page
-        /// scroll on Shift+PgUp/PgDn. Merges into the existing file without disturbing other
-        /// bindings; existing values for these keys are left untouched. Returns true when the
-        /// binding is in place (already present or newly written), false on any failure.
-        /// </summary>
-        private bool TryEnsureFullscreenLineScrollKeybinding()
-        {
-            try
-            {
-                string claudeDir = GetClaudeConfigDir();
-                string path = Path.Combine(claudeDir, "keybindings.json");
-
-                JObject root;
-                if (File.Exists(path))
-                {
-                    string existing = File.ReadAllText(path);
-                    root = string.IsNullOrWhiteSpace(existing) ? new JObject() : JObject.Parse(existing);
-                }
-                else
-                {
-                    if (!Directory.Exists(claudeDir))
-                    {
-                        Directory.CreateDirectory(claudeDir);
-                    }
-                    root = new JObject();
-                }
-
-                if (root["$schema"] == null)
-                {
-                    root["$schema"] = "https://www.schemastore.org/claude-code-keybindings.json";
-                }
-
-                if (!(root["bindings"] is JArray bindings))
-                {
-                    bindings = new JArray();
-                    root["bindings"] = bindings;
-                }
-
-                JObject scrollBlock = null;
-                foreach (var item in bindings)
-                {
-                    if (item is JObject obj &&
-                        string.Equals((string)obj["context"], "Scroll", StringComparison.Ordinal))
-                    {
-                        scrollBlock = obj;
-                        break;
-                    }
-                }
-                if (scrollBlock == null)
-                {
-                    scrollBlock = new JObject { ["context"] = "Scroll", ["bindings"] = new JObject() };
-                    bindings.Add(scrollBlock);
-                }
-                if (!(scrollBlock["bindings"] is JObject scrollBindings))
-                {
-                    scrollBindings = new JObject();
-                    scrollBlock["bindings"] = scrollBindings;
-                }
-
-                bool changed = false;
-                changed |= AddBindingIfAbsent(scrollBindings, "pageup", "scroll:lineUp");
-                changed |= AddBindingIfAbsent(scrollBindings, "pagedown", "scroll:lineDown");
-                changed |= AddBindingIfAbsent(scrollBindings, "shift+pageup", "scroll:halfPageUp");
-                changed |= AddBindingIfAbsent(scrollBindings, "shift+pagedown", "scroll:halfPageDown");
-
-                if (changed)
-                {
-                    File.WriteAllText(path, root.ToString(Newtonsoft.Json.Formatting.Indented));
-                }
-
-                return true;
-            }
-            catch (Exception ex)
-            {
-                Debug.WriteLine($"Failed to ensure fullscreen line-scroll keybinding: {ex.Message}");
-                return false;
-            }
-        }
-
-        /// <summary>
-        /// Adds a keystroke-&gt;action mapping only when the keystroke is not already bound, so a
-        /// user's deliberate binding for that key is never overwritten. Returns true if added.
-        /// </summary>
-        private static bool AddBindingIfAbsent(JObject bindings, string keystroke, string action)
-        {
-            if (bindings[keystroke] != null)
-            {
-                return false;
-            }
-            bindings[keystroke] = action;
-            return true;
         }
 
         /// <summary>
@@ -4461,36 +4318,18 @@ namespace ClaudeCodeVS
                 }
             }
 
-            // Apply the TUI rendering preference via environment variables so the launched
-            // Claude Code CLI starts directly in the chosen renderer. These must wrap the final
-            // command (env assignment precedes the executable). cmd.exe uses "set X=Y && cmd";
-            // WSL bash uses the "X=Y cmd" prefix-assignment form.
-            //
-            // Fullscreen rendering enables Claude Code's own mouse capture (terminal mouse
-            // tracking). Inside the embedded terminal — where the extension already runs a global
-            // mouse hook and continuously re-asserts focus — that mouse tracking emits a steady
-            // burst of mouse-input escape sequences that Claude Code's fast-input heuristic
-            // collapses into bracketed-paste blocks, flooding the prompt with
-            // "[Pasted text #N +NNNN lines]" on launch and on every restart (issue #92). The
-            // extension already provides mouse zoom, click-to-focus, and paste, so CLAUDE_CODE_DISABLE_MOUSE
-            // turns off Claude's mouse capture while keeping the flicker-free rendering.
-            var tuiEnvVars = new System.Collections.Generic.List<string>();
-            if (_settings?.ClaudeTuiFullscreen == true)
-            {
-                tuiEnvVars.Add("CLAUDE_CODE_NO_FLICKER=1");
-                tuiEnvVars.Add("CLAUDE_CODE_DISABLE_MOUSE=1");
-            }
-            else if (_settings?.ClaudeTuiFullscreen == false)
-            {
-                tuiEnvVars.Add("CLAUDE_CODE_DISABLE_ALTERNATE_SCREEN=1");
-            }
-
-            if (tuiEnvVars.Count > 0)
-            {
-                baseCommand = isWsl
-                    ? $"{string.Join(" ", tuiEnvVars)} {baseCommand}"
-                    : $"{string.Join(" && ", tuiEnvVars.ConvertAll(v => "set " + v))} && {baseCommand}";
-            }
+            // Always launch in Claude Code's classic (non-alternate-screen) renderer. Fullscreen
+            // rendering enables Claude's own mouse capture (terminal mouse tracking), and inside the
+            // embedded terminal — where the extension already runs a global mouse hook and
+            // continuously re-asserts focus — that mouse tracking emits a steady burst of
+            // mouse-input escape sequences that Claude Code's fast-input heuristic collapses into
+            // bracketed-paste blocks, flooding the prompt with "[Pasted text #N +NNNN lines]" on
+            // launch and on every restart (issue #92). This must wrap the final command (env
+            // assignment precedes the executable). cmd.exe uses "set X=Y && cmd"; WSL bash uses the
+            // "X=Y cmd" prefix-assignment form.
+            baseCommand = isWsl
+                ? $"CLAUDE_CODE_DISABLE_ALTERNATE_SCREEN=1 {baseCommand}"
+                : $"set CLAUDE_CODE_DISABLE_ALTERNATE_SCREEN=1 && {baseCommand}";
 
             return baseCommand;
         }

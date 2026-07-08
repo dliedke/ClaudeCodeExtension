@@ -523,10 +523,6 @@
 								<MenuItem Header="Change Account" x:Name="ChangeAccountMenuItem" Click="ChangeAccountMenuItem_Click"/>
 								<MenuItem Header="Set Language" x:Name="SetLanguageMenuItem" Click="SetLanguageMenuItem_Click"/>
 								<MenuItem Header="Install Caveman" x:Name="InstallCavemanMenuItem" Click="InstallCavemanMenuItem_Click" ToolTip="Install the Caveman plugin (JuliusBrussee/caveman) — ultra-compressed communication mode for Claude Code"/>
-								<MenuItem Header="TUI Fullscreen" x:Name="TuiFullscreenMenuItem" ToolTip="Toggle Claude Code's fullscreen (flicker-free) terminal rendering">
-									<MenuItem Header="Enable Fullscreen" x:Name="TuiFullscreenEnableMenuItem" Click="TuiFullscreenEnableMenuItem_Click" ToolTip="Run /tui fullscreen — flicker-free rendering with mouse support"/>
-									<MenuItem Header="Disable Fullscreen" x:Name="TuiFullscreenDisableMenuItem" Click="TuiFullscreenDisableMenuItem_Click" ToolTip="Run /tui default — classic renderer using native terminal scrollback"/>
-								</MenuItem>
 								<!-- Devin-specific items. The model entries are built dynamically from
 								     ClaudeCodeSettings.DevinModels in ModelContextMenu_Opened and inserted
 								     above this separator; the two items below are static. -->

@@ -452,14 +452,6 @@ namespace ClaudeCodeVS
         public bool ClaudeDangerouslySkipPermissions { get; set; } = false;
 
         /// <summary>
-        /// Claude Code TUI fullscreen rendering preference.
-        /// null = leave the CLI default; true = fullscreen (CLAUDE_CODE_NO_FLICKER=1);
-        /// false = classic renderer (CLAUDE_CODE_DISABLE_ALTERNATE_SCREEN=1).
-        /// Applies to Claude Code (Windows) and Claude Code (WSL).
-        /// </summary>
-        public bool? ClaudeTuiFullscreen { get; set; } = null;
-
-        /// <summary>
         /// Legacy compatibility toggle for Codex startup automation.
         /// If true, starts Codex with --ask-for-approval never.
         /// Applies to Codex (Windows native) and Codex (WSL).
@@ -493,8 +485,21 @@ namespace ClaudeCodeVS
         /// Custom working directory for the terminal.
         /// Can be an absolute path or a path relative to the solution directory.
         /// When empty or null, the default solution/project directory is used.
+        /// Acts as the fallback for any solution without an entry in
+        /// <see cref="ProjectWorkingDirectories"/> (and for "Open Folder" workspaces,
+        /// which have no solution name to key an override by).
         /// </summary>
         public string CustomWorkingDirectory { get; set; } = "";
+
+        /// <summary>
+        /// Per-solution custom working directory overrides, keyed by solution name
+        /// (the .sln file name without extension). When the current solution name
+        /// has an entry here it takes precedence over <see cref="CustomWorkingDirectory"/>;
+        /// otherwise the global default is used. Lets each solution remember its own
+        /// working directory instead of sharing one extension-wide value. See issue #100.
+        /// </summary>
+        public System.Collections.Generic.Dictionary<string, string> ProjectWorkingDirectories { get; set; }
+            = new System.Collections.Generic.Dictionary<string, string>(System.StringComparer.OrdinalIgnoreCase);
 
         /// <summary>
         /// Per-provider custom CLI executable paths, keyed by <see cref="AiProvider"/>.
