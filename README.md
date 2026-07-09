@@ -105,6 +105,9 @@ This binds a Claude Code skill that shells out to OpenAI Codex to audit pending 
 
 ## Version History
 
+### Version 55.0
+- Fixed **On Agent Finish** firing prematurely while Claude Code was still waiting on its own background agents to finish — the completion notification now holds until the whole turn, background agents included, is actually done.
+
 ### Version 54.0
 - Fixed **Claude Usage** showing outdated numbers and no longer trimming to just the usage bars after a recent Claude.ai layout change — the session and weekly percentages now read correctly again, and the view works regardless of your account's display language.
 

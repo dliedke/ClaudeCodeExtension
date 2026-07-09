@@ -711,6 +711,19 @@ namespace ClaudeCodeVS
             // Don't fire until the agent actually produced output this turn.
             if (!_consoleSawActivity) return;
 
+            // Claude Code parks the main turn while its own background/sub-agents keep running
+            // ("✳ Waiting for N background agents to finish"). The main screen holds still, so
+            // without this the watcher would read it as idle and fire a premature "finished"
+            // notification while the turn is really still in progress — the sub-agents haven't
+            // reported back yet and the main agent resumes once they do. Treat it as activity and
+            // keep watching; when the background agents finish, the screen changes to the final
+            // answer and settles normally, so the notification fires at the true end of the turn.
+            if (LooksLikeWaitingForBackgroundAgents(text))
+            {
+                _lastConsoleChangeUtc = DateTime.UtcNow;
+                return;
+            }
+
             // A static y/n or selection prompt also reads as idle, so classify the settled screen as
             // soon as it holds still for one tick — before waiting out the full idle window. If the
             // agent is waiting for input, this is not a completion: don't fire and keep watching.
@@ -1231,6 +1244,37 @@ namespace ClaudeCodeVS
             if (sawArrow && menuItems >= 1) return true;
 
             return false;
+        }
+
+        // Marker that Claude Code's main turn is parked waiting on its own background/sub-agents
+        // (the "✳ Waiting for N background agents to finish" status line). While this is on screen
+        // the turn is NOT finished — the sub-agents are still running and the main agent resumes
+        // once they report back — but the main screen holds still, so it must not be read as a
+        // settled/finished turn. Deliberately specific to Claude Code's exact status wording so a
+        // finished turn's prose can't match it.
+        private static readonly System.Text.RegularExpressions.Regex WaitingForBackgroundAgentsRegex =
+            new System.Text.RegularExpressions.Regex(
+                @"waiting for\s+\d+\s+background agents?\s+to finish",
+                System.Text.RegularExpressions.RegexOptions.IgnoreCase
+                | System.Text.RegularExpressions.RegexOptions.CultureInvariant);
+
+        /// <summary>
+        /// True when the settled console screen shows Claude Code's main turn parked waiting for its
+        /// own background/sub-agents to finish ("✳ Waiting for N background agents to finish"). This
+        /// is a still-working state, not a completion: the main screen holds still while the
+        /// sub-agents run, so the watcher must keep watching instead of firing the finish
+        /// notification prematurely (the "On Agent Finish doesn't apply with background agents"
+        /// report). Kept specific to Claude Code's exact status wording so a finished turn's prose
+        /// answer can't be mistaken for it.
+        /// </summary>
+        private static bool LooksLikeWaitingForBackgroundAgents(string screenText)
+        {
+            if (string.IsNullOrEmpty(screenText)) return false;
+
+            // Drop the trailing "|cursorX,cursorY" marker the capture appends.
+            int bar = screenText.LastIndexOf('|');
+            string body = bar >= 0 ? screenText.Substring(0, bar) : screenText;
+            return WaitingForBackgroundAgentsRegex.IsMatch(body);
         }
 
         /// <summary>
