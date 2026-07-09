@@ -932,10 +932,122 @@ namespace ClaudeCodeVS
                 // The first slot's Min size just changed; refresh the Max cap so
                 // the splitter can't be pushed out of view in the new layout.
                 UpdateSplitterBoundaries();
+
+                // Layer the "Hide prompt input box" state on top of the base layout.
+                ApplyPromptPanelHiddenState();
             }
             catch (Exception ex)
             {
                 Debug.WriteLine($"Error applying layout: {ex.Message}");
+            }
+        }
+
+        /// <summary>
+        /// Applies the "Hide prompt input box" state (<see cref="ClaudeCodeSettings.HidePromptPanel"/>):
+        /// collapses just the multi-line text box so the terminal reclaims the space it
+        /// occupied. The controls row (Send/Attach, Restart, Model, "⚙" menu), file chips,
+        /// and inline usage bars stay visible and reachable so the user can always turn the
+        /// box back on. Called at the end of <see cref="ApplyLayout"/>, so it runs after
+        /// every layout rebuild (startup, orientation/position change).
+        /// </summary>
+        private void ApplyPromptPanelHiddenState()
+        {
+            try
+            {
+                if (_settings == null || PromptGroupBox == null || PromptSectionGrid == null || MainGrid == null)
+                {
+                    return;
+                }
+
+                bool hidden = _settings.HidePromptPanel;
+
+                PromptGroupBox.Visibility = hidden ? Visibility.Collapsed : Visibility.Visible;
+                MainGridSplitter.Visibility = hidden ? Visibility.Collapsed : Visibility.Visible;
+                if (hidden)
+                {
+                    SetPromptResizeGripVisible(false);
+                }
+
+                bool vertical = LayoutGridIsVertical;
+                int promptSlot = vertical
+                    ? System.Windows.Controls.Grid.GetColumn(PromptSectionGrid)
+                    : System.Windows.Controls.Grid.GetRow(PromptSectionGrid);
+                int terminalSlot = vertical
+                    ? System.Windows.Controls.Grid.GetColumn(TerminalGroupBox)
+                    : System.Windows.Controls.Grid.GetRow(TerminalGroupBox);
+
+                if (hidden)
+                {
+                    // Collapse the box's own row inside PromptSectionGrid so its
+                    // MinHeight (80px) doesn't reserve dead space above the controls row.
+                    int boxRow = System.Windows.Controls.Grid.GetRow(PromptGroupBox);
+                    if (boxRow >= 0 && boxRow < PromptSectionGrid.RowDefinitions.Count)
+                    {
+                        PromptSectionGrid.RowDefinitions[boxRow].MinHeight = 0;
+                        PromptSectionGrid.RowDefinitions[boxRow].Height = new GridLength(0);
+                    }
+
+                    // Shrink the outer slot to fit the remaining controls/chips/usage
+                    // rows, and let the terminal fill everything freed up.
+                    if (vertical)
+                    {
+                        MainGrid.ColumnDefinitions[promptSlot].Width = GridLength.Auto;
+                        MainGrid.ColumnDefinitions[terminalSlot].Width = new GridLength(1, GridUnitType.Star);
+                    }
+                    else
+                    {
+                        MainGrid.RowDefinitions[promptSlot].Height = GridLength.Auto;
+                        MainGrid.RowDefinitions[terminalSlot].Height = new GridLength(1, GridUnitType.Star);
+                    }
+                    return;
+                }
+
+                // Not hidden: restore the box's own row inside PromptSectionGrid — it was
+                // zeroed out above while collapsed, and a stale 0-height row would keep the
+                // now-Visible GroupBox invisible even though its own Visibility is restored.
+                int boxRowRestore = System.Windows.Controls.Grid.GetRow(PromptGroupBox);
+                if (boxRowRestore >= 0 && boxRowRestore < PromptSectionGrid.RowDefinitions.Count)
+                {
+                    PromptSectionGrid.RowDefinitions[boxRowRestore].MinHeight = 80;
+                    PromptSectionGrid.RowDefinitions[boxRowRestore].Height = new GridLength(1, GridUnitType.Star);
+                }
+
+                // Restore the resize grip (only meaningful in the default top/bottom
+                // layout) — it was force-hidden above while collapsed, and a direct
+                // un-hide toggle doesn't otherwise go through ApplyLayout's order
+                // functions, which are what normally set this.
+                SetPromptResizeGripVisible(!vertical && _settings.InvertLayout != true);
+
+                // Only restore sizing if the outer slot is still the Auto size we
+                // collapsed it to (i.e. we're transitioning back from hidden).
+                // Otherwise leave whatever ApplyLayout/ApplyLayoutSettingsChange just
+                // configured (proportional split or saved pixel position) untouched.
+                bool wasAutoCollapsed = vertical
+                    ? MainGrid.ColumnDefinitions[promptSlot].Width.GridUnitType == GridUnitType.Auto
+                    : MainGrid.RowDefinitions[promptSlot].Height.GridUnitType == GridUnitType.Auto;
+                if (!wasAutoCollapsed)
+                {
+                    return;
+                }
+
+                if (_settings.SplitterPosition > 0)
+                {
+                    SetSplitterPosition(_settings.SplitterPosition);
+                }
+                else if (vertical)
+                {
+                    MainGrid.ColumnDefinitions[promptSlot].Width = new GridLength(1, GridUnitType.Star);
+                    MainGrid.ColumnDefinitions[terminalSlot].Width = new GridLength(2, GridUnitType.Star);
+                }
+                else
+                {
+                    MainGrid.RowDefinitions[promptSlot].Height = new GridLength(1, GridUnitType.Star);
+                    MainGrid.RowDefinitions[terminalSlot].Height = new GridLength(2, GridUnitType.Star);
+                }
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"Error applying prompt panel hidden state: {ex.Message}");
             }
         }
 
@@ -1206,6 +1318,12 @@ namespace ClaudeCodeVS
                 MainGrid.RowDefinitions[0].Height = new System.Windows.GridLength(invert ? 2 : 1, System.Windows.GridUnitType.Star);
                 MainGrid.RowDefinitions[2].Height = new System.Windows.GridLength(invert ? 1 : 2, System.Windows.GridUnitType.Star);
             }
+
+            // The proportional reset above always targets a Star split; re-collapse
+            // the prompt box if "Hide prompt input box" is on, since ApplyLayout's
+            // own hidden-state pass (already run above) would otherwise be
+            // overwritten by the reset just performed.
+            ApplyPromptPanelHiddenState();
         }
 
         #endregion

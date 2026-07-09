@@ -573,6 +573,14 @@ namespace ClaudeCodeVS
         public LayoutOrientation SelectedLayoutOrientation { get; set; } = LayoutOrientation.Horizontal;
 
         /// <summary>
+        /// When true, collapses the multi-line prompt text box so only the
+        /// terminal (plus the always-reachable controls row: Send/Attach,
+        /// Restart, Model, and the "⚙" menu) is shown, freeing the space the
+        /// box occupied for the terminal. Default is false.
+        /// </summary>
+        public bool HidePromptPanel { get; set; } = false;
+
+        /// <summary>
         /// Theme preference for the terminal panel.
         /// Automatic = follow VS IDE theme (default), Dark = always dark, Light = always light.
         /// </summary>

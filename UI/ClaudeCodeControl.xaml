@@ -565,6 +565,7 @@
 								<MenuItem Header="Antigravity: Skip Permissions" x:Name="AntigravityDangerouslySkipPermissionsMenuItem" Click="AntigravityDangerouslySkipPermissionsMenuItem_Click" IsCheckable="True" ToolTip="When enabled, Antigravity starts with --dangerously-skip-permissions"/>
 								<Separator/>
 								<MenuItem Header="Configure Custom Commands..." x:Name="ConfigureCustomCommandsMenuItem" Click="ConfigureCustomCommandsMenuItem_Click" ToolTip="Add, edit, or remove custom commands surfaced in the toolbar dropdown next to the agent menu."/>
+								<MenuItem Header="Hide Prompt Input Box" x:Name="HidePromptPanelMenuItem" Click="HidePromptPanelMenuItem_Click" IsCheckable="True" ToolTip="Collapse the multi-line prompt box to give the terminal more vertical space. This menu, the model and provider buttons, and file chips stay reachable so you can turn it back on."/>
 								<MenuItem Header="Settings..." x:Name="SettingsMenuItem" Click="SettingsMenuItem_Click" ToolTip="Open the consolidated settings dialog (layout, terminal type, theme, send behavior, auto-zoom, auto-open changes)."/>
 								<Separator/>
 								<MenuItem Header="About" x:Name="AboutMenuItem" Click="AboutMenuItem_Click"/>

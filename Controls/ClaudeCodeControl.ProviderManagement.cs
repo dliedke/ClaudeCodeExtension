@@ -3536,6 +3536,7 @@ For more details, visit: https://pi.dev";
                 CursorAgentAutoRunMenuItem.IsChecked = _settings.CursorAgentAutoRun;
                 DevinDangerousModeMenuItem.IsChecked = _settings.DevinDangerousMode;
                 AntigravityDangerouslySkipPermissionsMenuItem.IsChecked = _settings.AntigravityDangerouslySkipPermissions;
+                HidePromptPanelMenuItem.IsChecked = _settings.HidePromptPanel;
             }
         }
 
@@ -3769,6 +3770,22 @@ For more details, visit: https://pi.dev";
                     MessageBox.Show($"Failed to reload Antigravity: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
                 }
             }
+        }
+
+        /// <summary>
+        /// Toggles <see cref="ClaudeCodeSettings.HidePromptPanel"/>: collapses (or restores)
+        /// the multi-line prompt text box, keeping the controls row, file chips, and usage
+        /// bars reachable so the box can always be turned back on from this same menu.
+        /// </summary>
+        private void HidePromptPanelMenuItem_Click(object sender, RoutedEventArgs e)
+        {
+            ThreadHelper.ThrowIfNotOnUIThread();
+
+            if (_settings == null) return;
+
+            _settings.HidePromptPanel = HidePromptPanelMenuItem.IsChecked;
+            ApplyPromptPanelHiddenState();
+            SaveSettings();
         }
 
         /// <summary>

@@ -82,6 +82,7 @@ namespace ClaudeCodeVS
             bool origInvertLayout             = _settings.InvertLayout;
             LayoutOrientation origOrientation = _settings.SelectedLayoutOrientation;
             bool origDisableAutoZoom          = _settings.DisableStartupAutoZoom;
+            bool origHidePromptPanel          = _settings.HidePromptPanel;
             TerminalType origTerminalType     = _settings.SelectedTerminalType;
             string origConsoleFont            = string.IsNullOrWhiteSpace(_settings.ConsoleFontFaceName)
                                                 ? "Cascadia Mono" : _settings.ConsoleFontFaceName;
@@ -288,6 +289,15 @@ namespace ClaudeCodeVS
             layoutStack.Children.Add(bottomRadio);
             layoutStack.Children.Add(leftRadio);
             layoutStack.Children.Add(rightRadio);
+
+            layoutStack.Children.Add(MakeSectionHeader("Prompt input box", themeFg));
+            var hidePromptPanelCheck = MakeCheckBox(
+                "Hide prompt input box (terminal only)",
+                "Collapses the multi-line prompt text box so the terminal fills the space it occupied. " +
+                "The controls row (Send/Attach, Restart, Model, and this ⚙ menu), file chips, and usage bars " +
+                "stay visible so you can turn it back on here or from the ⚙ menu.",
+                origHidePromptPanel, themeFg);
+            layoutStack.Children.Add(hidePromptPanelCheck);
 
             layoutStack.Children.Add(MakeSectionHeader("Terminal zoom", themeFg));
             var disableAutoZoomCheck = MakeCheckBox(
@@ -766,6 +776,7 @@ namespace ClaudeCodeVS
                 ? LayoutOrientation.Vertical
                 : LayoutOrientation.Horizontal;
             bool newDisableAutoZoom = disableAutoZoomCheck.IsChecked == true;
+            bool newHidePromptPanel = hidePromptPanelCheck.IsChecked == true;
             TerminalType newTerminalType = wtRadio.IsChecked == true
                 ? TerminalType.WindowsTerminal
                 : TerminalType.CommandPrompt;
@@ -833,6 +844,7 @@ namespace ClaudeCodeVS
             _settings.InvertLayout            = newInvertLayout;
             _settings.SelectedLayoutOrientation = newOrientation;
             _settings.DisableStartupAutoZoom  = newDisableAutoZoom;
+            _settings.HidePromptPanel         = newHidePromptPanel;
             _settings.SelectedTerminalType    = newTerminalType;
             _settings.ConsoleFontFaceName     = newConsoleFont;
             _settings.SelectedThemePreference = newThemePref;
@@ -879,6 +891,12 @@ namespace ClaudeCodeVS
             if (newInvertLayout != origInvertLayout || newOrientation != origOrientation)
             {
                 ApplyLayoutSettingsChange();
+            }
+
+            // Hide/show the prompt input box
+            if (newHidePromptPanel != origHidePromptPanel)
+            {
+                ApplyPromptPanelHiddenState();
             }
 
             // Theme change: re-paint panel and inline bars immediately.

@@ -105,6 +105,9 @@ This binds a Claude Code skill that shells out to OpenAI Codex to audit pending 
 
 ## Version History
 
+### Version 56.0
+- **Terminal-only mode**: hide the prompt input box to give the terminal more vertical space, while keeping the Send/Attach, Restart, Model, and ⚙ buttons reachable to turn it back on. Toggle from *⚙ → Hide Prompt Input Box* or *⚙ → Settings → Layout* (issue #101).
+
 ### Version 55.0
 - Fixed **On Agent Finish** firing prematurely while Claude Code was still waiting on its own background agents to finish — the completion notification now holds until the whole turn, background agents included, is actually done.
 
