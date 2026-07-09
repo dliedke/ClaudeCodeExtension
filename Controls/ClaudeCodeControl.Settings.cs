@@ -286,8 +286,11 @@ namespace ClaudeCodeVS
 
                 // Only update splitter position if we can get a valid value (not 0.0)
                 // Skip when terminal is detached because the grid layout is collapsed
-                // and FindSplitterPosition would return the full control height
-                if (!_isTerminalDetached)
+                // and FindSplitterPosition would return the full control height.
+                // Skip when the prompt panel is hidden for the same reason: the prompt
+                // slot is Auto-collapsed to the controls row, so saving here would
+                // replace the user's real split size with the collapsed height.
+                if (!_isTerminalDetached && !_settings.HidePromptPanel)
                 {
                     var splitterPosition = FindSplitterPosition();
                     if (splitterPosition.HasValue && splitterPosition.Value > 0)
@@ -427,6 +430,17 @@ namespace ClaudeCodeVS
             {
                 var grid = MainGrid;
                 if (grid == null || position <= 0)
+                {
+                    return;
+                }
+
+                // While the prompt panel is hidden its slot must stay Auto-collapsed
+                // (see ApplyPromptPanelHiddenState). LoadSettings re-runs on every
+                // tool-window tab activation and re-applies the saved splitter position
+                // through a deferred dispatcher call, which would resize the collapsed
+                // slot back to the saved pixel height and leave a dead blank strip
+                // where the prompt box used to be (issue #101).
+                if (_settings?.HidePromptPanel == true)
                 {
                     return;
                 }

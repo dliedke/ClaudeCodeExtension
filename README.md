@@ -105,6 +105,9 @@ This binds a Claude Code skill that shells out to OpenAI Codex to audit pending 
 
 ## Version History
 
+### Version 57.0
+- Fixed the hidden prompt input box leaving a blank gap where the box used to be after switching to another window (like Solution Explorer) and back (issue #101). Hiding the box also no longer overwrites the saved prompt/terminal split size, so it comes back at its previous height when re-enabled.
+
 ### Version 56.0
 - **Terminal-only mode**: hide the prompt input box to give the terminal more vertical space, while keeping the Send/Attach, Restart, Model, and ⚙ buttons reachable to turn it back on. Toggle from *⚙ → Hide Prompt Input Box* or *⚙ → Settings → Layout* (issue #101).
 
