@@ -24,6 +24,7 @@ using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
+using System.Windows.Data;
 using System.Windows.Input;
 using System.Windows.Media;
 using Microsoft.VisualStudio.Shell;
@@ -412,14 +413,18 @@ namespace ClaudeCodeVS
                 Foreground = fg,
                 BorderThickness = new Thickness(0),
                 MaxHeight = 240,
-                FontFamily = new FontFamily("Cascadia Mono, Consolas")
+                FontFamily = new FontFamily("Cascadia Mono, Consolas"),
+                HorizontalContentAlignment = HorizontalAlignment.Left
             };
-            ScrollViewer.SetHorizontalScrollBarVisibility(_atListBox, ScrollBarVisibility.Disabled);
+            ScrollViewer.SetHorizontalScrollBarVisibility(_atListBox, ScrollBarVisibility.Auto);
+            ScrollViewer.SetCanContentScroll(_atListBox, false);
 
             var itemStyle = new Style(typeof(ListBoxItem));
             itemStyle.Setters.Add(new Setter(Control.ForegroundProperty, fg));
             itemStyle.Setters.Add(new Setter(Control.BackgroundProperty, Brushes.Transparent));
             itemStyle.Setters.Add(new Setter(Control.PaddingProperty, new Thickness(6, 2, 6, 2)));
+            itemStyle.Setters.Add(new Setter(Control.HorizontalContentAlignmentProperty, HorizontalAlignment.Left));
+            itemStyle.Setters.Add(new Setter(FrameworkElement.ToolTipProperty, new Binding(".")));
             var selTrigger = new Trigger { Property = ListBoxItem.IsSelectedProperty, Value = true };
             selTrigger.Setters.Add(new Setter(Control.BackgroundProperty, hover));
             selTrigger.Setters.Add(new Setter(Control.ForegroundProperty, fg));
@@ -431,7 +436,11 @@ namespace ClaudeCodeVS
 
             _atListBox.PreviewMouseLeftButtonUp += (s, e) =>
             {
-                if (_atEntries != null && _atListBox.SelectedItem is string)
+                // The scrollbar added for horizontal scrolling lives inside the ListBox's visual
+                // tree too, so a plain "click landed inside the ListBox" check would also fire when
+                // dragging/clicking the scrollbar. Only commit when the click actually hit a row.
+                if (_atEntries != null && _atListBox.SelectedItem is string
+                    && FindVisualAncestor<ListBoxItem>(e.OriginalSource as DependencyObject) != null)
                 {
                     CommitAtSelection();
                     e.Handled = true;
@@ -487,6 +496,22 @@ namespace ClaudeCodeVS
 
             _atPopup.HorizontalOffset = 0;
             _atPopup.VerticalOffset = PromptTextBox.ActualHeight;
+        }
+
+        private static T FindVisualAncestor<T>(DependencyObject node) where T : DependencyObject
+        {
+            try
+            {
+                while (node != null)
+                {
+                    if (node is T match) return match;
+                    node = (node is Visual || node is System.Windows.Media.Media3D.Visual3D)
+                        ? VisualTreeHelper.GetParent(node)
+                        : null;
+                }
+            }
+            catch { }
+            return null;
         }
 
         private bool IsInsideAtPopup(DependencyObject node)

@@ -105,6 +105,9 @@ This binds a Claude Code skill that shells out to OpenAI Codex to audit pending 
 
 ## Version History
 
+### Version 58.0
+- Fixed the **@ file/folder picker** cutting off long file paths with no way to see the rest — the popup now scrolls horizontally and shows the full path in a tooltip on hover (issue #103).
+
 ### Version 57.0
 - Fixed the hidden prompt input box leaving a blank gap where the box used to be after switching to another window (like Solution Explorer) and back (issue #101). Hiding the box also no longer overwrites the saved prompt/terminal split size, so it comes back at its previous height when re-enabled.
 
