@@ -504,7 +504,7 @@
 								<MenuItem Header="Opus - Complex tasks" x:Name="OpusMenuItem" Click="OpusMenuItem_Click" IsCheckable="True"/>
 								<MenuItem Header="Sonnet - Everyday tasks" x:Name="SonnetMenuItem" Click="SonnetMenuItem_Click" IsCheckable="True" IsChecked="True"/>
 								<MenuItem Header="Haiku - Easy tasks" x:Name="HaikuMenuItem" Click="HaikuMenuItem_Click" IsCheckable="True"/>
-								<Separator/>
+								<Separator x:Name="OpusPlanSeparator"/>
 								<MenuItem Header="Opus Plan - Opus for planning, Sonnet for execution" x:Name="OpusPlanMenuItem" Click="OpusPlanMenuItem_Click" IsCheckable="True"/>
 								<Separator x:Name="EffortSeparator"/>
 								<MenuItem x:Name="EffortSliderMenuItem" StaysOpenOnClick="True">

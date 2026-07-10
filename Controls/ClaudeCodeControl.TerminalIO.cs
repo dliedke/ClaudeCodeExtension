@@ -91,7 +91,7 @@ namespace ClaudeCodeVS
         /// Preserves the original clipboard content and restores it after sending
         /// </summary>
         /// <param name="text">The text to send to the terminal</param>
-        private async Task SendTextToTerminalAsync(string text)
+        private async Task SendTextToTerminalAsync(string text, bool singleEnterEvent = false)
         {
             // Mouse-input-mode probe (issues #76, #82, #83): when a TUI has switched the embedded
             // conhost into mouse-input mode (QuickEdit disabled — e.g. Claude Code signed in with an
@@ -245,7 +245,21 @@ namespace ClaudeCodeVS
                         await TriggerPasteAndWaitAsync(len);
                     }
 
-                    SendEnterKey();
+                    // Interactive slash-command pickers (e.g. Codex's /model) need exactly ONE
+                    // Enter event to submit the command and open the picker on its first item.
+                    // Codex reads raw key events (it ignores the translated WM_CHAR) and counts
+                    // BOTH the key-down and the key-up as an Enter, so a normal KEYDOWN/KEYUP pair
+                    // registers as a double Enter and advances past the first selection step
+                    // (the /model picker jumps into the effort sub-menu). Posting a lone WM_KEYDOWN
+                    // delivers a single Enter event that submits without over-advancing.
+                    if (singleEnterEvent)
+                    {
+                        PostMessage(terminalHandle, WM_KEYDOWN, new IntPtr(VK_RETURN), IntPtr.Zero);
+                    }
+                    else
+                    {
+                        SendEnterKey();
+                    }
                 }
                 else
                 {

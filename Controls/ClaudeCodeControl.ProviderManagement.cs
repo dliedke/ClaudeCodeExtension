@@ -2121,7 +2121,8 @@ For more details, visit: https://pi.dev";
             // Show/hide model selection button based on provider
             bool isClaudeProvider = IsClaudeProvider(activeProvider);
             bool isDevinProvider = activeProvider == AiProvider.Devin || activeProvider == AiProvider.DevinNative;
-            ModelDropdownButton.Visibility = (isClaudeProvider || isDevinProvider) ? Visibility.Visible : Visibility.Collapsed;
+            bool hasSimpleModelCommand = GetSimpleModelCommand(activeProvider) != null;
+            ModelDropdownButton.Visibility = (isClaudeProvider || isDevinProvider || hasSimpleModelCommand) ? Visibility.Visible : Visibility.Collapsed;
 
             UpdateInlineUsagePanelVisibility();
 
@@ -2834,15 +2835,62 @@ For more details, visit: https://pi.dev";
         /// <summary>
         /// Handles model dropdown button click - shows the model selection menu
         /// </summary>
-        private void ModelDropdownButton_Click(object sender, RoutedEventArgs e)
+#pragma warning disable VSTHRD100 // Avoid async void methods - WPF event handler
+        private async void ModelDropdownButton_Click(object sender, RoutedEventArgs e)
+#pragma warning restore VSTHRD100
         {
-            // Show the context menu when the model dropdown button is clicked
+            // Providers without an extension-managed model list (Codex, Cursor, PI, Antigravity,
+            // Reasonix, Open Code) don't get a menu — the robot icon just sends the CLI's own
+            // model-selection command so the user picks in the agent's native UI.
+            AiProvider? activeProvider = GetActiveOrSelectedProvider();
+            string simpleCommand = GetSimpleModelCommand(activeProvider);
+            if (simpleCommand != null)
+            {
+                await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
+                if (_currentRunningProvider == activeProvider)
+                {
+                    // Codex's /model picker is two-stage (model then effort) and its TUI counts
+                    // both the Enter key-down and key-up, so the normal Enter over-submits and
+                    // jumps past the model list. Send it a single Enter event (lone WM_KEYDOWN).
+                    // The other providers open a single-stage picker fine with the normal Enter.
+                    bool isCodex = activeProvider == AiProvider.Codex || activeProvider == AiProvider.CodexNative;
+                    await SendTextToTerminalAsync(simpleCommand, singleEnterEvent: isCodex);
+                }
+                return;
+            }
+
+            // Claude / Devin: show the full model context menu.
             var button = sender as System.Windows.Controls.Button;
             if (button?.ContextMenu != null)
             {
                 button.ContextMenu.PlacementTarget = button;
                 button.ContextMenu.Placement = System.Windows.Controls.Primitives.PlacementMode.Bottom;
                 button.ContextMenu.IsOpen = true;
+            }
+        }
+
+        /// <summary>
+        /// Returns the CLI's native model-selection command for providers that do not have an
+        /// extension-managed model list, or null for providers that use the full model menu
+        /// (Claude, Devin). Codex, Cursor, PI, Antigravity and Reasonix use <c>/model</c>;
+        /// Open Code uses <c>/models</c>.
+        /// </summary>
+        private static string GetSimpleModelCommand(AiProvider? provider)
+        {
+            switch (provider)
+            {
+                case AiProvider.Codex:
+                case AiProvider.CodexNative:
+                case AiProvider.CursorAgent:
+                case AiProvider.CursorAgentNative:
+                case AiProvider.Pi:
+                case AiProvider.Antigravity:
+                case AiProvider.Reasonix:
+                    return "/model";
+                case AiProvider.OpenCode:
+                    return "/models";
+                default:
+                    return null;
             }
         }
 
@@ -2859,9 +2907,12 @@ For more details, visit: https://pi.dev";
             bool isClaude = !isDevin;
 
             // Claude-specific items
+            BestMenuItem.Visibility = isClaude ? Visibility.Visible : Visibility.Collapsed;
             OpusMenuItem.Visibility = isClaude ? Visibility.Visible : Visibility.Collapsed;
             SonnetMenuItem.Visibility = isClaude ? Visibility.Visible : Visibility.Collapsed;
             HaikuMenuItem.Visibility = isClaude ? Visibility.Visible : Visibility.Collapsed;
+            OpusPlanSeparator.Visibility = isClaude ? Visibility.Visible : Visibility.Collapsed;
+            OpusPlanMenuItem.Visibility = isClaude ? Visibility.Visible : Visibility.Collapsed;
             EffortSeparator.Visibility = isClaude ? Visibility.Visible : Visibility.Collapsed;
             EffortSliderMenuItem.Visibility = isClaude ? Visibility.Visible : Visibility.Collapsed;
 
