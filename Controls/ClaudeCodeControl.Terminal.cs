@@ -2570,6 +2570,13 @@ namespace ClaudeCodeVS
             IntPtr wpfHandle = source.Handle;
             IntPtr wpfRoot = GetAncestor(wpfHandle, GA_ROOT);
 
+            // Same anti-hammering rule as the terminal click guard: every reclaim costs the
+            // terminal a focus kill that conhost forwards to the agent as a FOCUS_EVENT (a
+            // re-render trigger). If several reclaims in a row don't stick, stop instead of
+            // pumping focus churn into a possibly-saturated agent (issue #89).
+            int consecutiveFailedReclaims = 0;
+            const int maxConsecutiveFailedReclaims = 4;
+
             while ((DateTime.UtcNow - _lastPromptInteractionUtc).TotalMilliseconds < idleWindowMs)
             {
                 await Task.Delay(checkIntervalMs);
@@ -2596,7 +2603,17 @@ namespace ClaudeCodeVS
                     && (focusHwnd == terminalHandle || IsChild(terminalHandle, focusHwnd));
                 if (terminalHasFocus)
                 {
+                    consecutiveFailedReclaims++;
+                    if (consecutiveFailedReclaims > maxConsecutiveFailedReclaims)
+                    {
+                        LogTerminalLaunch($"prompt focus guard gave up after {maxConsecutiveFailedReclaims} consecutive reclaims that did not take");
+                        return;
+                    }
                     SetFocus(wpfHandle);
+                }
+                else
+                {
+                    consecutiveFailedReclaims = 0;
                 }
             }
         }
@@ -3129,6 +3146,17 @@ namespace ClaudeCodeVS
             const double typingExtendMs = 700;   // keep guarding up to ~0.7s after each terminal keystroke
             const int absoluteMaxChecks = 100;   // hard safety cap (~8s) so it can never loop forever
 
+            // Consecutive re-asserts that did not take. Each assert costs the terminal a native
+            // kill/set focus pair, which conhost forwards to the agent as FOCUS_EVENT input records
+            // — and the agent's TUI re-renders on those. With a very long turn on screen a
+            // re-render is expensive (Windows CLI input-loop starvation), so a guard that keeps
+            // hammering an assert that never takes actively feeds the "keyboard locked" state it
+            // is trying to prevent (issue #89). If several asserts in a row don't stick, something
+            // legitimately owns focus (or focus reads are unreliable under load) — stop instead of
+            // flooding the agent with focus churn.
+            int consecutiveFailedAsserts = 0;
+            const int maxConsecutiveFailedAsserts = 4;
+
             for (int check = 0; check < absoluteMaxChecks; check++)
             {
                 await Task.Delay(checkIntervalMs);
@@ -3163,7 +3191,33 @@ namespace ClaudeCodeVS
 
                 if (!IsTerminalFocused())
                 {
-                    FocusTerminalPanel(panel);
+                    consecutiveFailedAsserts++;
+                    if (consecutiveFailedAsserts > maxConsecutiveFailedAsserts)
+                    {
+                        bool terminalResponsive = IsTerminalWindowResponsive();
+                        LogTerminalLaunch($"click focus guard gave up after {maxConsecutiveFailedAsserts} consecutive asserts that did not take (terminalResponsive={terminalResponsive})");
+                        if (!terminalResponsive)
+                        {
+                            NotifyTerminalBusyCatchingUp();
+                        }
+                        return;
+                    }
+
+                    // The first assert does the full panel dance (VS pane bookkeeping included);
+                    // retries go straight to the native SetFocus — one focus transition instead of
+                    // the panel.Focus()+SetFocus pair, i.e. half the FOCUS_EVENT noise per retry.
+                    if (consecutiveFailedAsserts == 1)
+                    {
+                        FocusTerminalPanel(panel);
+                    }
+                    else
+                    {
+                        FocusTerminalWindow();
+                    }
+                }
+                else
+                {
+                    consecutiveFailedAsserts = 0;
                 }
 
                 // Past the base window, keep guarding only while the user is still actively typing
@@ -3175,6 +3229,54 @@ namespace ClaudeCodeVS
                     return;
                 }
             }
+        }
+
+        /// <summary>
+        /// True when the embedded terminal's window thread answers a WM_NULL within 250ms.
+        /// A conhost that is saturated repainting a very large agent turn stops pumping its
+        /// message queue for a while — clicks land nowhere, SetFocus doesn't take, and text
+        /// can't be selected until it catches up (issue #89, plan-mode repro).
+        /// </summary>
+        private bool IsTerminalWindowResponsive()
+        {
+            if (terminalHandle == IntPtr.Zero || !IsWindow(terminalHandle))
+            {
+                return false;
+            }
+
+            IntPtr ok = SendMessageTimeout(terminalHandle, WM_NULL, IntPtr.Zero, IntPtr.Zero,
+                SMTO_ABORTIFHUNG, 250, out _);
+            return ok != IntPtr.Zero;
+        }
+
+        // Throttles the "terminal is catching up" notice so a long busy episode shows it once,
+        // not on every click the user retries during it.
+        private DateTime _lastTerminalBusyNoticeUtc = DateTime.MinValue;
+
+        /// <summary>
+        /// Tells the user (via the main-window info bar) that the agent terminal is temporarily
+        /// not accepting input because it is still catching up on a very large response — so a
+        /// dead-feeling keyboard reads as "busy, will recover", not "broken, restart VS".
+        /// Fired only when a click on the terminal could not take focus AND the terminal window
+        /// thread failed the WM_NULL responsiveness probe, so it cannot misfire on ordinary
+        /// focus races. At most once per minute.
+        /// </summary>
+        private void NotifyTerminalBusyCatchingUp()
+        {
+            if ((DateTime.UtcNow - _lastTerminalBusyNoticeUtc).TotalSeconds < 60)
+            {
+                return;
+            }
+            _lastTerminalBusyNoticeUtc = DateTime.UtcNow;
+
+#pragma warning disable VSSDK007 // Fire-and-forget is intentional here
+            _ = ThreadHelper.JoinableTaskFactory.RunAsync(async () =>
+            {
+                await ShowAgentFinishNotificationAsync(
+                    "The agent terminal is busy catching up on a large response — typing and clicks will start landing again in a moment. No restart is needed.",
+                    null, null);
+            });
+#pragma warning restore VSSDK007
         }
 
         /// <summary>

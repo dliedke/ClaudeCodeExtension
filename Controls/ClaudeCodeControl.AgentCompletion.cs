@@ -572,6 +572,25 @@ namespace ClaudeCodeVS
                         return;
                     }
 
+                    // While the user keeps the terminal focused DURING active generation (the screen
+                    // changed within the last few seconds), throttle the capture from every 1s to
+                    // every ~3s. Every AttachConsole can bounce the conhost's keyboard focus, and
+                    // each bounce feeds a FOCUS_EVENT into the agent's stdin that makes its TUI
+                    // re-render — with a very long turn on screen (a big plan) each re-render is
+                    // expensive on Windows, so a per-second bounce storm starves the agent's input
+                    // loop and the keyboard "locks" right when the agent asks its question
+                    // (issue #89, plan-mode repro). Nothing needs 1s precision while output is still
+                    // flowing, and the throttle self-releases: once the agent stops writing, the
+                    // screen stops changing, the 3s window lapses for good and captures resume at
+                    // the 1s cadence — so the idle countdown (>= 5s) still starts on time and the
+                    // finish notification is not delayed. Deliberately does NOT push
+                    // _lastConsoleChangeUtc forward (that would keep this gate closed forever).
+                    if ((DateTime.UtcNow - _lastConsoleChangeUtc).TotalMilliseconds < 3000
+                        && IsTerminalFocused())
+                    {
+                        return;
+                    }
+
                     // While the agent is waiting for the user's reply (y/n box, selection menu),
                     // the screen is static and there is nothing to detect until the user answers.
                     // Each console attach can bounce the embedded terminal's keyboard focus, so the

@@ -309,6 +309,17 @@ namespace ClaudeCodeVS
         private static extern bool AttachThreadInput(uint idAttach, uint idAttachTo, bool fAttach);
 
         /// <summary>
+        /// Sends a message with a timeout. Used with WM_NULL to probe whether the embedded
+        /// terminal's window thread is currently pumping messages (a saturated conhost stops
+        /// answering, which is why clicks/typing appear dead during heavy agent output).
+        /// </summary>
+        [DllImport("user32.dll", SetLastError = true)]
+        private static extern IntPtr SendMessageTimeout(IntPtr hWnd, uint msg, IntPtr wParam, IntPtr lParam, uint fuFlags, uint uTimeout, out IntPtr lpdwResult);
+
+        private const uint WM_NULL = 0x0000;
+        private const uint SMTO_ABORTIFHUNG = 0x0002;
+
+        /// <summary>
         /// Returns the calling thread's ID. Paired with AttachThreadInput.
         /// </summary>
         [DllImport("kernel32.dll")]

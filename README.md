@@ -103,7 +103,18 @@ This binds a Claude Code skill that shells out to OpenAI Codex to audit pending 
 3. **Bind it as a custom command**: ⚙ → *Configure Custom Commands...* → Add... → Name: `Codex Review`, Command: `/codex-review`.
 4. **Use it**: ⚡ → *Codex Review*. Claude runs the skill, Codex audits your diff, findings appear inline.
 
+## Known Issues
+
+- I know it is a pain, but sometimes in plan mode when there is an AI question after a lot of text, the keyboard does not work to select answer.
+After some time it will work again. Very hard to fix issue even with advanced models like Fable 5. Probably related to Claude Code itself.
+https://github.com/anthropics/claude-code/issues/63504
+https://github.com/anthropics/claude-code/issues/41501
+
 ## Version History
+
+### Version 59.0
+- Improved the long-standing "keyboard stops working when the agent asks a question" problem after very long answers (e.g. plan mode) — the extension no longer bombards the busy agent with focus changes and console reads that amplified the lock-ups (issue #89).
+- When the agent's terminal is genuinely frozen catching up on a huge response, a notification now explains that typing and clicks will recover by themselves in a moment, instead of leaving the keyboard silently dead. Note: the remaining pause after very long answers comes from the Claude Code CLI itself and clears on its own.
 
 ### Version 58.0
 - Fixed the **@ file/folder picker** cutting off long file paths with no way to see the rest — the popup now scrolls horizontally and shows the full path in a tooltip on hover (issue #103).
