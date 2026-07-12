@@ -1242,7 +1242,7 @@ namespace ClaudeCodeVS
                                 _settings.SelectedProvider = provider.Value;
                             }
 
-                            string wtProviderTitle = GetExtensionTitle(provider);
+                            string wtProviderTitle = GetProviderDisplayName(provider);
                             UpdateToolWindowTitle(wtProviderTitle);
                             UpdateProviderSelection();
 
@@ -1613,7 +1613,7 @@ namespace ClaudeCodeVS
                                 _settings.SelectedProvider = provider.Value;
                             }
 
-                            string providerTitle = GetExtensionTitle(provider);
+                            string providerTitle = GetProviderDisplayName(provider);
                             UpdateToolWindowTitle(providerTitle);
                             UpdateProviderSelection();
 

@@ -112,6 +112,10 @@ https://github.com/anthropics/claude-code/issues/41501
 
 ## Version History
 
+### Version 62.0
+- The tool window title no longer shows a model name for Claude Code and Devin — it now shows just the agent name, since the model can be changed from inside the terminal at any time.
+- The model menu no longer marks any model as selected for Claude Code and Devin; picking one still switches the model in the running agent.
+
 ### Version 61.0
 - The model (🤖) button now also appears for Codex, Cursor Agent, PI, Antigravity, Reasonix, and Open Code — clicking it opens the agent's own model picker so you can switch models without leaving the terminal.
 

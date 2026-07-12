@@ -2131,8 +2131,8 @@ For more details, visit: https://pi.dev";
             // Claude/Devin-only).
             RefreshToolbarLayout();
 
-            // Reflect the running provider/model immediately in the VS tool window title.
-            UpdateToolWindowTitle(GetExtensionTitle(activeProvider));
+            // Reflect the running provider immediately in the VS tool window title.
+            UpdateToolWindowTitle(GetProviderDisplayName(activeProvider));
         }
 
         /// <summary>
@@ -2373,68 +2373,6 @@ For more details, visit: https://pi.dev";
                 default:
                     return "CMD";
             }
-        }
-
-        /// <summary>
-        /// Gets the Visual Studio tool window title for the selected/running provider.
-        /// Includes model detail for providers where the model can be changed.
-        /// </summary>
-        private string GetExtensionTitle(AiProvider? provider)
-        {
-            string providerName = GetProviderDisplayName(provider);
-
-            switch (provider)
-            {
-                case AiProvider.ClaudeCode:
-                case AiProvider.ClaudeCodeWSL:
-                    return providerName + " - " + GetClaudeModelDisplayName();
-                case AiProvider.Devin:
-                case AiProvider.DevinNative:
-                    string devinModel = GetDevinModelDisplayName();
-                    return string.IsNullOrEmpty(devinModel) ? providerName : providerName + " - " + devinModel;
-                default:
-                    return providerName;
-            }
-        }
-
-        private string GetClaudeModelDisplayName()
-        {
-            switch (_settings?.SelectedClaudeModel)
-            {
-                case ClaudeModel.Opus:
-                    return "Opus";
-                case ClaudeModel.Haiku:
-                    return "Haiku";
-                case ClaudeModel.Best:
-                    return "Best";
-                case ClaudeModel.OpusPlan:
-                    return "Opus Plan";
-                case ClaudeModel.Sonnet:
-                default:
-                    return "Sonnet";
-            }
-        }
-
-        /// <summary>
-        /// Returns the currently selected Devin model name, resolving to the first
-        /// configured model when the saved selection is empty or no longer in the list.
-        /// Returns an empty string when no models are configured.
-        /// </summary>
-        private string GetDevinModelDisplayName()
-        {
-            var models = _settings?.DevinModels;
-            string selected = _settings?.SelectedDevinModel;
-
-            if (models != null && models.Count > 0)
-            {
-                if (!string.IsNullOrWhiteSpace(selected) && models.Contains(selected))
-                {
-                    return selected;
-                }
-                return models[0];
-            }
-
-            return string.IsNullOrWhiteSpace(selected) ? string.Empty : selected;
         }
 
         #endregion
@@ -2942,8 +2880,10 @@ For more details, visit: https://pi.dev";
 
         /// <summary>
         /// Rebuilds the Devin model menu items from <c>_settings.DevinModels</c>, inserting one
-        /// checkable item per configured model at the top of the model context menu. Removes any
+        /// item per configured model at the top of the model context menu. Removes any
         /// previously-inserted dynamic items first. No-op (just clears) when Devin is not active.
+        /// The items are never checked: the CLI owns the active model (the user can change it with
+        /// /model inside the terminal), so the extension does not claim to know the current one.
         /// </summary>
         private void RebuildDevinModelMenuItems(bool show)
         {
@@ -2959,7 +2899,6 @@ For more details, visit: https://pi.dev";
 
             EnsureDevinModelDefaults();
 
-            string selected = GetDevinModelDisplayName();
             int insertIndex = 0;
             foreach (var model in _settings.DevinModels)
             {
@@ -2967,8 +2906,6 @@ For more details, visit: https://pi.dev";
                 var item = new System.Windows.Controls.MenuItem
                 {
                     Header = model,
-                    IsCheckable = true,
-                    IsChecked = string.Equals(model, selected, StringComparison.Ordinal),
                     Tag = model
                 };
                 item.Click += DevinModelMenuItem_Click;
@@ -3113,7 +3050,9 @@ For more details, visit: https://pi.dev";
         }
 
         /// <summary>
-        /// Updates the model selection UI checkmarks
+        /// Refreshes the model menu UI after a model change. Model items are never shown as
+        /// selected - the CLI owns the active model and it can be changed from inside the
+        /// terminal - so only the effort slider and the tool window title are updated here.
         /// </summary>
         private void UpdateModelSelection()
         {
@@ -3121,24 +3060,10 @@ For more details, visit: https://pi.dev";
 
             if (_settings == null) return;
 
-            // Update Claude menu item checkmarks
-            OpusMenuItem.IsChecked = _settings.SelectedClaudeModel == ClaudeModel.Opus;
-            SonnetMenuItem.IsChecked = _settings.SelectedClaudeModel == ClaudeModel.Sonnet;
-            HaikuMenuItem.IsChecked = _settings.SelectedClaudeModel == ClaudeModel.Haiku;
-            BestMenuItem.IsChecked = _settings.SelectedClaudeModel == ClaudeModel.Best;
-            OpusPlanMenuItem.IsChecked = _settings.SelectedClaudeModel == ClaudeModel.OpusPlan;
-
-            // Update Devin dynamic model item checkmarks (items are rebuilt on menu open)
-            string devinSelected = GetDevinModelDisplayName();
-            foreach (var item in _dynamicDevinModelItems)
-            {
-                item.IsChecked = string.Equals(item.Tag as string, devinSelected, StringComparison.Ordinal);
-            }
-
             // Update effort selection checkmarks
             UpdateEffortSelection();
 
-            UpdateToolWindowTitle(GetExtensionTitle(GetActiveOrSelectedProvider()));
+            UpdateToolWindowTitle(GetProviderDisplayName(GetActiveOrSelectedProvider()));
         }
 
         #endregion

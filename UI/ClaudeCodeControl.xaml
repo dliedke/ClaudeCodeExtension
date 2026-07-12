@@ -499,13 +499,14 @@
                             Margin="0,0,6,0">
 						<Button.ContextMenu>
 							<ContextMenu x:Name="ModelContextMenu" Opened="ModelContextMenu_Opened">
-								<!-- Claude-specific items -->
-								<MenuItem Header="Best - Fable 5, else latest Opus" x:Name="BestMenuItem" Click="BestMenuItem_Click" IsCheckable="True"/>
-								<MenuItem Header="Opus - Complex tasks" x:Name="OpusMenuItem" Click="OpusMenuItem_Click" IsCheckable="True"/>
-								<MenuItem Header="Sonnet - Everyday tasks" x:Name="SonnetMenuItem" Click="SonnetMenuItem_Click" IsCheckable="True" IsChecked="True"/>
-								<MenuItem Header="Haiku - Easy tasks" x:Name="HaikuMenuItem" Click="HaikuMenuItem_Click" IsCheckable="True"/>
+								<!-- Claude-specific items. Not checkable: the CLI owns the active model
+									     (it can be changed with /model in the terminal), so no item is ever shown as selected. -->
+								<MenuItem Header="Best - Fable 5, else latest Opus" x:Name="BestMenuItem" Click="BestMenuItem_Click"/>
+								<MenuItem Header="Opus - Complex tasks" x:Name="OpusMenuItem" Click="OpusMenuItem_Click"/>
+								<MenuItem Header="Sonnet - Everyday tasks" x:Name="SonnetMenuItem" Click="SonnetMenuItem_Click"/>
+								<MenuItem Header="Haiku - Easy tasks" x:Name="HaikuMenuItem" Click="HaikuMenuItem_Click"/>
 								<Separator x:Name="OpusPlanSeparator"/>
-								<MenuItem Header="Opus Plan - Opus for planning, Sonnet for execution" x:Name="OpusPlanMenuItem" Click="OpusPlanMenuItem_Click" IsCheckable="True"/>
+								<MenuItem Header="Opus Plan - Opus for planning, Sonnet for execution" x:Name="OpusPlanMenuItem" Click="OpusPlanMenuItem_Click"/>
 								<Separator x:Name="EffortSeparator"/>
 								<MenuItem x:Name="EffortSliderMenuItem" StaysOpenOnClick="True">
 									<MenuItem.Header>
