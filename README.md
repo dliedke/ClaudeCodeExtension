@@ -112,6 +112,9 @@ https://github.com/anthropics/claude-code/issues/41501
 
 ## Version History
 
+### Version 63.0
+- The extension now detects when Windows "legacy console" mode is enabled, which prevented the terminal from ever attaching to the panel, and offers to fix it with one click (no administrator rights needed) followed by a Visual Studio restart (issue #104).
+
 ### Version 62.0
 - The tool window title no longer shows a model name for Claude Code and Devin — it now shows just the agent name, since the model can be changed from inside the terminal at any time.
 - The model menu no longer marks any model as selected for Claude Code and Devin; picking one still switches the model in the running agent.

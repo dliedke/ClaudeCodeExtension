@@ -1290,6 +1290,14 @@ namespace ClaudeCodeVS
                     // Command Prompt mode (original code path)
                     _wtTabBarHeight = 0;
 
+                    // Legacy console mode makes conhost reject the embed handshake outright, so the
+                    // panel can never come up. Offer the one-click fix before wasting a launch on it
+                    // (issue #104).
+                    if (await HandleLegacyConsoleModeAsync())
+                    {
+                        return; // Visual Studio is restarting
+                    }
+
                     // Build the terminal command based on provider
                     string terminalCommand;
                     switch (provider)
@@ -1652,11 +1660,26 @@ namespace ClaudeCodeVS
                         // where the launch log is so the failure can be reported with details.
                         Debug.WriteLine("Could not embed CMD window after relaunch attempts. Terminal may not be available.");
                         LogTerminalLaunch("FAILED: panel left blank after all relaunch attempts — " + lastFailureReason);
-                        MessageBox.Show(
-                            "The terminal could not be attached to the panel.\n\n" +
-                            "Please try \"Restart code agent\" again. If the problem persists, report it with the log file:\n" +
-                            TerminalLaunchLogPath,
-                            "Claude Code Extension", MessageBoxButton.OK, MessageBoxImage.Warning);
+
+                        if (IsLegacyConsoleForced())
+                        {
+                            // The user declined the fix earlier (or it did not take effect yet):
+                            // point straight at the known cause instead of the generic message.
+                            LogTerminalLaunch("failure cause: legacy console mode is still enabled (issue #104)");
+                            MessageBox.Show(
+                                "The terminal could not be attached to the panel because legacy console mode is enabled on this machine (HKCU\\Console\\ForceV2 = 0).\n\n" +
+                                "Run this command in a Command Prompt and restart Visual Studio:\n\n" +
+                                LegacyConsoleFixCommand,
+                                "Claude Code Extension", MessageBoxButton.OK, MessageBoxImage.Warning);
+                        }
+                        else
+                        {
+                            MessageBox.Show(
+                                "The terminal could not be attached to the panel.\n\n" +
+                                "Please try \"Restart code agent\" again. If the problem persists, report it with the log file:\n" +
+                                TerminalLaunchLogPath,
+                                "Claude Code Extension", MessageBoxButton.OK, MessageBoxImage.Warning);
+                        }
                     }
                 }
             }
@@ -1675,6 +1698,167 @@ namespace ClaudeCodeVS
                 }
             }
         }
+
+        #region Legacy Console Mode (issue #104)
+
+        /// <summary>
+        /// Windows-10-era "Use legacy console" switch. When present and zero, conhost creates a
+        /// legacy (pre-ConPTY) console that rejects the embed handshake, so every launch fails with
+        /// E_INVALIDARG and the panel stays blank. Machines upgraded from Windows 10 keep the value
+        /// because in-place upgrades preserve HKCU (issue #104).
+        /// </summary>
+        private const string LegacyConsoleValueName = "ForceV2";
+
+        /// <summary>
+        /// Manual equivalent of the automatic fix, shown to the user when the registry write fails.
+        /// </summary>
+        private const string LegacyConsoleFixCommand = "reg add \"HKCU\\Console\" /v ForceV2 /t REG_DWORD /d 1 /f";
+
+        /// <summary>
+        /// Set once the user declines the fix, so the prompt is not repeated on every relaunch
+        /// within the same Visual Studio session.
+        /// </summary>
+        private bool _legacyConsoleFixDeclined;
+
+        /// <summary>
+        /// True when HKCU\Console\ForceV2 exists and is 0 (legacy console forced). A missing value
+        /// means the modern V2 console is in use, which is the Windows 11 default.
+        /// </summary>
+        private static bool IsLegacyConsoleForced()
+        {
+            try
+            {
+                using (var key = Microsoft.Win32.Registry.CurrentUser.OpenSubKey("Console", writable: false))
+                {
+                    object value = key?.GetValue(LegacyConsoleValueName);
+                    if (value == null)
+                        return false;
+
+                    return Convert.ToInt32(value) == 0;
+                }
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"IsLegacyConsoleForced: {ex.Message}");
+                return false;
+            }
+        }
+
+        /// <summary>
+        /// Re-enables the modern console by setting HKCU\Console\ForceV2 to 1. HKCU is per-user,
+        /// so no elevation is required.
+        /// </summary>
+        private static bool TryEnableV2Console(out string error)
+        {
+            error = null;
+            try
+            {
+                using (var key = Microsoft.Win32.Registry.CurrentUser.CreateSubKey("Console"))
+                {
+                    if (key == null)
+                    {
+                        error = "Could not open HKCU\\Console for writing.";
+                        return false;
+                    }
+
+                    key.SetValue(LegacyConsoleValueName, 1, Microsoft.Win32.RegistryValueKind.DWord);
+                    return true;
+                }
+            }
+            catch (Exception ex)
+            {
+                error = ex.Message;
+                return false;
+            }
+        }
+
+        /// <summary>
+        /// Detects legacy console mode before a conhost launch and offers to fix it. Returns true
+        /// when the caller must abandon the launch (Visual Studio is restarting).
+        /// </summary>
+        private async Task<bool> HandleLegacyConsoleModeAsync()
+        {
+            if (_legacyConsoleFixDeclined || !IsLegacyConsoleForced())
+                return false;
+
+            LogTerminalLaunch("legacy console mode detected (HKCU\\Console\\ForceV2 = 0) — embedding cannot work until it is re-enabled (issue #104)");
+
+            await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
+
+            var choice = MessageBox.Show(
+                "Legacy console mode is enabled on this machine (HKCU\\Console\\ForceV2 = 0).\n\n" +
+                "Windows needs the modern console to attach the terminal to the panel, so the terminal will stay blank until this is changed.\n\n" +
+                "Re-enable the modern console now? This only changes your own user settings and does not require administrator rights.",
+                "Claude Code Extension", MessageBoxButton.YesNo, MessageBoxImage.Warning);
+
+            if (choice != MessageBoxResult.Yes)
+            {
+                _legacyConsoleFixDeclined = true;
+                LogTerminalLaunch("user declined the legacy console fix — terminal will keep failing to embed");
+                return false;
+            }
+
+            if (!TryEnableV2Console(out string error))
+            {
+                LogTerminalLaunch($"legacy console fix FAILED: {error}");
+                MessageBox.Show(
+                    "The modern console could not be re-enabled automatically.\n\n" +
+                    $"Error: {error}\n\n" +
+                    "Please run this command in a Command Prompt and restart Visual Studio:\n\n" +
+                    LegacyConsoleFixCommand,
+                    "Claude Code Extension", MessageBoxButton.OK, MessageBoxImage.Error);
+                return false;
+            }
+
+            LogTerminalLaunch("legacy console fix applied (ForceV2 = 1)");
+
+            var restart = MessageBox.Show(
+                "The modern console has been re-enabled.\n\n" +
+                "Visual Studio must be restarted for the terminal to attach correctly. Restart now?",
+                "Claude Code Extension", MessageBoxButton.YesNo, MessageBoxImage.Information);
+
+            if (restart != MessageBoxResult.Yes)
+            {
+                LogTerminalLaunch("user postponed the Visual Studio restart after the legacy console fix");
+                return false;
+            }
+
+            if (TryRestartVisualStudio())
+            {
+                LogTerminalLaunch("restarting Visual Studio after the legacy console fix");
+                return true;
+            }
+
+            MessageBox.Show(
+                "Visual Studio could not be restarted automatically. Please close and reopen it so the terminal can attach.",
+                "Claude Code Extension", MessageBoxButton.OK, MessageBoxImage.Information);
+            return false;
+        }
+
+        /// <summary>
+        /// Asks the shell to restart Visual Studio (prompting the user to save any pending changes).
+        /// </summary>
+        private static bool TryRestartVisualStudio()
+        {
+            ThreadHelper.ThrowIfNotOnUIThread();
+
+            try
+            {
+                var shell = Package.GetGlobalService(typeof(SVsShell)) as IVsShell4;
+                if (shell == null)
+                    return false;
+
+                int hr = shell.Restart((uint)__VSRESTARTTYPE.RESTART_Normal);
+                return hr == Microsoft.VisualStudio.VSConstants.S_OK;
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"TryRestartVisualStudio: {ex.Message}");
+                return false;
+            }
+        }
+
+        #endregion
 
         /// <summary>
         /// Saved original console FaceName from registry, for restoration after conhost starts
