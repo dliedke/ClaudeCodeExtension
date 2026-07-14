@@ -331,10 +331,11 @@ namespace ClaudeCodeVS
             terminalStack.Children.Add(new TextBlock
             {
                 Text = "Font applied to the embedded terminal (Command Prompt and Windows Terminal). " +
-                       "Defaults to Cascadia Mono. On systems whose scripts Cascadia Mono can't render " +
-                       "(Chinese, Japanese, Korean, etc.), pick a font that covers your script — for example " +
-                       "MS Gothic, NSimSun, or Malgun Gothic. Search by name; the list and preview render in " +
-                       "each font.",
+                       "Defaults to Cascadia Mono. Only monospaced fonts are listed — consoles draw text on a " +
+                       "fixed cell grid, so a proportional font comes out jumbled. On systems whose scripts " +
+                       "Cascadia Mono can't render (Chinese, Japanese, Korean, etc.), pick a monospaced font " +
+                       "that covers your script — for example MS Gothic or NSimSun. Search by name; the list " +
+                       "and preview render in each font.",
                 FontSize = 11,
                 Opacity = 0.7,
                 Foreground = themeFg,
@@ -371,6 +372,13 @@ namespace ClaudeCodeVS
             };
             terminalStack.Children.Add(fontList);
 
+            var showAllFontsCheck = MakeCheckBox(
+                "Show all fonts (including proportional ones)",
+                "Proportional fonts are hidden by default because the terminal renders them jumbled. " +
+                "Check this only if you need a face the monospace filter misses.",
+                !IsMonospaceFont(origConsoleFont), themeFg);
+            terminalStack.Children.Add(showAllFontsCheck);
+
             var fontPreview = new TextBlock
             {
                 Text = "AaBbCc 0123  你好世界  こんにちは  안녕하세요",
@@ -380,6 +388,21 @@ namespace ClaudeCodeVS
                 Margin = new Thickness(4, 2, 0, 4)
             };
             terminalStack.Children.Add(fontPreview);
+
+            // Shown only while a proportional face is selected: that is exactly the state that produces the
+            // jumbled terminal text of issue #105, so say so where the user can still change their mind.
+            var fontWarning = new TextBlock
+            {
+                Text = "⚠ This font is not monospaced. The terminal will render its text jumbled, with gaps " +
+                       "after narrow letters and overlapping wide ones.",
+                FontSize = 11,
+                FontWeight = FontWeights.SemiBold,
+                Foreground = new SolidColorBrush(Color.FromRgb(0xE8, 0x9B, 0x2B)),
+                TextWrapping = TextWrapping.Wrap,
+                Visibility = Visibility.Collapsed,
+                Margin = new Thickness(4, 0, 0, 4)
+            };
+            terminalStack.Children.Add(fontWarning);
 
             // Populate with installed font families (sorted, distinct). Each item renders its own name in
             // its own face so the dropdown doubles as a preview; Segoe UI is a fallback for name glyphs.
@@ -394,16 +417,23 @@ namespace ClaudeCodeVS
             {
                 try { fontPreview.FontFamily = new FontFamily(face + ", Segoe UI"); }
                 catch { fontPreview.FontFamily = new FontFamily("Segoe UI"); }
+                fontWarning.Visibility = IsMonospaceFont(face) ? Visibility.Collapsed : Visibility.Visible;
             }
 
             foreach (string face in installedFonts)
             {
+                bool isMono = IsMonospaceFont(face);
                 var item = new ListBoxItem
                 {
-                    Content = new TextBlock { Text = face, FontFamily = new FontFamily(face + ", Segoe UI") },
+                    Content = new TextBlock
+                    {
+                        Text = isMono ? face : face + "  ⚠",
+                        FontFamily = new FontFamily(face + ", Segoe UI")
+                    },
                     Tag = face,
                     Foreground = themeFg,
-                    Background = Brushes.Transparent
+                    Background = Brushes.Transparent,
+                    ToolTip = isMono ? null : "Not monospaced — the terminal will render this font jumbled."
                 };
                 fontList.Items.Add(item);
                 if (string.Equals(face, chosenFont, StringComparison.OrdinalIgnoreCase))
@@ -422,17 +452,27 @@ namespace ClaudeCodeVS
                 }
             };
 
-            // Live filter: show only items whose name contains the search text (case-insensitive).
-            fontSearchBox.TextChanged += (s, e) =>
+            // Live filter: an item shows when its name contains the search text (case-insensitive) AND it is
+            // either monospaced, explicitly allowed by the "show all" toggle, or the currently selected face
+            // (which must stay visible so a proportional font already in the settings can be seen and changed).
+            void RefreshFontFilter()
             {
                 string q = fontSearchBox.Text?.Trim() ?? string.Empty;
+                bool showAll = showAllFontsCheck.IsChecked == true;
                 foreach (ListBoxItem li in fontList.Items)
                 {
-                    bool match = q.Length == 0 ||
-                        (li.Tag as string)?.IndexOf(q, StringComparison.OrdinalIgnoreCase) >= 0;
-                    li.Visibility = match ? Visibility.Visible : Visibility.Collapsed;
+                    string face = li.Tag as string;
+                    bool matchesSearch = q.Length == 0 ||
+                        face?.IndexOf(q, StringComparison.OrdinalIgnoreCase) >= 0;
+                    bool allowed = showAll || IsMonospaceFont(face) ||
+                        string.Equals(face, chosenFont, StringComparison.OrdinalIgnoreCase);
+                    li.Visibility = matchesSearch && allowed ? Visibility.Visible : Visibility.Collapsed;
                 }
-            };
+            }
+            fontSearchBox.TextChanged += (s, e) => RefreshFontFilter();
+            showAllFontsCheck.Checked += (s, e) => RefreshFontFilter();
+            showAllFontsCheck.Unchecked += (s, e) => RefreshFontFilter();
+            RefreshFontFilter();
 
             // Scroll the current selection into view once the dialog is laid out.
             fontList.Loaded += (s, e) =>
@@ -1274,6 +1314,51 @@ namespace ClaudeCodeVS
                 Foreground = fg,
                 Margin = new Thickness(4, 3, 0, 3)
             };
+        }
+
+        /// <summary>
+        /// Face name -> monospaced verdict, so the font picker measures each installed family's glyphs only
+        /// once per VS session instead of on every Settings dialog open.
+        /// </summary>
+        private static readonly Dictionary<string, bool> _monospaceFontCache =
+            new Dictionary<string, bool>(StringComparer.OrdinalIgnoreCase);
+
+        /// <summary>
+        /// True when the probe characters of <paramref name="face"/> all share the same advance width, i.e.
+        /// the family is monospaced. Consoles place every glyph on a fixed cell grid, so a proportional face
+        /// renders as jumbled text — gaps after narrow letters, overlap on wide ones (issue #105). Faces whose
+        /// glyph metrics can't be read are reported as monospaced, so an unreadable font is never flagged
+        /// wrongly; the worst case is that it stays listed as it was before the filter existed.
+        /// </summary>
+        private static bool IsMonospaceFont(string face)
+        {
+            if (string.IsNullOrWhiteSpace(face)) return true;
+            if (_monospaceFontCache.TryGetValue(face, out bool cached)) return cached;
+
+            bool isMono = true;
+            try
+            {
+                var typeface = new Typeface(new FontFamily(face), FontStyles.Normal,
+                                            FontWeights.Normal, FontStretches.Normal);
+                if (typeface.TryGetGlyphTypeface(out GlyphTypeface glyphs))
+                {
+                    double reference = -1;
+                    foreach (char probe in new[] { 'i', 'l', 'M', 'W', '0', 'x' })
+                    {
+                        if (!glyphs.CharacterToGlyphMap.TryGetValue(probe, out ushort glyphIndex)) continue;
+                        if (!glyphs.AdvanceWidths.TryGetValue(glyphIndex, out double width) || width <= 0) continue;
+                        if (reference < 0) { reference = width; continue; }
+                        if (Math.Abs(width - reference) > 0.01) { isMono = false; break; }
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"IsMonospaceFont({face}): {ex.Message}");
+            }
+
+            _monospaceFontCache[face] = isMono;
+            return isMono;
         }
 
         /// <summary>

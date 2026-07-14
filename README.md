@@ -112,6 +112,9 @@ https://github.com/anthropics/claude-code/issues/41501
 
 ## Version History
 
+### Version 64.0
+- The Settings console font list now shows only monospaced fonts, preventing the jumbled terminal text that appears when a proportional font is picked (issue #105). A "Show all fonts" option is available for anyone who needs a font the filter leaves out, and the picker warns whenever the selected font is not monospaced.
+
 ### Version 63.0
 - The extension now detects when Windows "legacy console" mode is enabled, which prevented the terminal from ever attaching to the panel, and offers to fix it with one click (no administrator rights needed) followed by a Visual Studio restart (issue #104).
 
