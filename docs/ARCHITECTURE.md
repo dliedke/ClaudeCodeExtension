@@ -212,6 +212,16 @@ Re-parents terminal to/from `DetachedTerminalToolWindow` via `SetParent()`. Auto
 - **Notification label length (v50.0)**: `DescribeSendCommand()` (used for both the `SendToAgent` action's button label and the follow-up's second-notification label) truncates at `SendCommandLabelMaxChars` (100, was 24) — the VS info-bar hyperlink can render much more than a button-sized label, and 24 chars cut off canned follow-ups like the presets above well before the meaningful part
 - **Console interop** (Interop.cs): reuses `AttachConsole`/`FreeConsole`/`CloseHandle`/`COORD`; adds `CreateFile`, `GetConsoleScreenBufferInfo`, `ReadConsoleOutputCharacterW`, `SetConsoleCtrlHandler`, `Beep`, and `SMALL_RECT`/`CONSOLE_SCREEN_BUFFER_INFO`; `GetConsoleMode` + `ENABLE_QUICK_EDIT_MODE` (0x40) back `IsTerminalInMouseInputMode()`, the paste/zoom QuickEdit probe for issue #76/#78 (reads CONIN$ mode under the same guarded attach as the screen capture); `GetConsoleSelectionInfo` + `CONSOLE_SELECTION_INFO` back the v34.0 selection-freeze guard (issue #94 — see Completion detection above); `GetCurrentConsoleFontEx`/`SetCurrentConsoleFontEx` + `CONSOLE_FONT_INFOEX` back `TryAdjustConhostFontSize()` (changes the conhost cell height on CONOUT$ for the input-mode-independent Ctrl+Scroll zoom, issue #78)
 
+## Auto-Send Build Errors (BuildErrors.cs)
+
+- **Opt-in**: gated by `_settings.AutoSendBuildErrorsToAgent` (default false; toggled on the Settings → Behavior tab). The build-event subscription itself is always established at load — the setting is only checked at fire time, so toggling it doesn't require re-subscribing
+- **Subscription lifetime**: `InitializeBuildErrorAutoSend()` (called from `ClaudeCodeControl_Loaded`, idempotent via the `_buildEvents != null` guard since Loaded re-fires on tab switches) grabs `dte.Events.BuildEvents` and stores it in the `_buildEvents` **field** — DTE event sink objects are collectible, so dropping the reference would silently unsubscribe. `DisposeBuildErrorAutoSend()` unsubscribes in `CleanupResources()`
+- **Trigger**: `OnBuildDone(scope, action)` fires on the UI thread after any build. It acts only on `vsBuildActionBuild` / `vsBuildActionRebuildAll` (Clean/Deploy ignored), only when the setting is on, and only when no send is already in flight (`_autoSendBuildErrorsInProgress`). The real work runs fire-and-forget via `HandleBuildDoneAndMaybeSendAsync`
+- **Error List read**: `TryCollectBuildErrors` casts the DTE to `EnvDTE80.DTE2` and reads `ToolWindows.ErrorList.ErrorItems` (1-based). `vsBuildErrorLevelHigh` → errors, `vsBuildErrorLevelMedium` → warnings; lower levels ignored. A **250 ms delay** after `OnBuildDone` lets the Error List finish populating before the read. Each item is formatted as `relPath(line,col): description` with a **solution-relative, forward-slash** path (`MakeSolutionRelativePath`, portable across native/WSL agents); file-less items fall back to just the description
+- **Send conditions**: only sends when there is **≥1 error** (warnings-only builds don't fire — matches "when it shows errors"; warnings ride along as context) **and** an agent terminal is live (`terminalHandle`/`IsWindow`). No terminal ⇒ skip silently
+- **Loop/spam guard** (important): `_lastAutoSentBuildErrorSignature` holds the newline-joined error set of the last send; an identical set is skipped so an "On Agent Finish → Build" cycle where the agent makes no progress can't spam the terminal forever. A build that produces **zero** errors clears the signature, so a later identical failure (fixed then reintroduced) is sent again
+- **Prompt**: `FormatBuildErrorPrompt` writes a summary line + numbered Errors list (cap 40) and, when present, a Warnings list (cap 20), each with an "... and N more" tail, ending with a "rebuild to confirm" instruction. Delivered through the normal `SendTextToTerminalAsync` paste path
+
 ## "@" File/Folder Picker (AtMention.cs)
 
 - **Trigger**: `PromptTextBox`'s `TextChanged` (wired in XAML) calls `UpdateAtMentionPopup()`, which detects an `@` token under the caret (`@` at text start or after whitespace, followed by non-whitespace). Always on; no setting
@@ -220,3 +230,62 @@ Re-parents terminal to/from `DetachedTerminalToolWindow` via `SetParent()`. Auto
 - **Keys**: `HandleAtMentionKey()` runs at the top of `PromptTextBox_PreviewKeyDown` (before history nav / send-on-Enter) and consumes Up/Down/Enter/Tab/Esc while the popup is open
 - **Ranking** (`RankAtEntries`): a query may contain `/` for folder drill-down — the part after the last `/` matches the entry name and the prefix constrains the subtree; name prefix-matches rank above name/path substring matches
 - **Insert** (`CommitAtSelection`): replaces the typed `@query` with `@<relative-path>`; a file appends a space and closes, a folder leaves the caret in place and re-opens the picker to drill in. Relative paths resolve for every provider (terminal cwd = workspace), so no WSL conversion. `_atSuppressTextChanged` guards the programmatic edit
+
+## Cross-Cutting Rules
+
+These two rules apply across many files — keep them in mind before editing provider selection, UI captions, or terminal focus code.
+
+**Active provider UI rule (v24.0)**: provider checkmarks, tool-window captions, model/usage menu visibility, detached-tab caption, and visible-agent "active" labels must use `_currentRunningProvider` when a terminal is alive, falling back to `_settings.SelectedProvider` only before launch. Successful provider launches sync `_settings.SelectedProvider` in memory, but `SaveSettings()` still preserves provider/model/effort fields from disk during normal operation so multiple VS instances do not overwrite each other's selections.
+
+**Terminal focus rule (v26.0)**: do not focus the embedded terminal with direct `SetForegroundWindow(terminalHandle)` or bare `SetFocus(terminalHandle)` calls. Use `FocusTerminalForInputAsync()`, `FocusTerminalForInput()`, or `FocusTerminalWindow()` so VS activates the owning tool window, focuses the WinForms host panel, and temporarily joins the VS UI thread with the terminal window thread before setting native focus. Low-level hook focus checks must stay Win32-only and use cached root-window state; do not touch WPF/WinForms controls from the hook thread.
+
+## Data Models & Settings (ClaudeCodeModels.cs)
+
+```csharp
+enum AiProvider { ClaudeCode=0, ClaudeCodeWSL=1, Codex=2, CodexNative=3, CursorAgent=4, CursorAgentNative=5, /* 6=QwenCode removed */ OpenCode=7, Devin=8, Pi=9, Antigravity=10, Reasonix=11, DevinNative=12 }
+enum ClaudeModel { Opus, Sonnet, Haiku, Best, OpusPlan }
+enum EffortLevel { Auto, Low, Medium, High, Max, XHigh, Ultracode }   // slider order drops Auto: Low, Medium, High, XHigh, Max, Ultracode
+enum TerminalType { CommandPrompt, WindowsTerminal }
+enum AgentFinishActionType { None, BuildSolution, RebuildSolution, Run, RunWithoutDebugging, RunTests, RunScript, SendToAgent }
+class CustomCommand { Name, Command }
+class AgentFinishConfig { Enabled, PlaySound, ShowToast, IdleSeconds, Action, ScriptOrCommand, RequireFileChanges, Confirm }
+class PromptHistoryEntry { Text, FilePaths }
+class SessionInfo { SessionId, FilePath, Preview, MessageCount, TokenCount, LastModified, Cwd, Provider }
+class UsageSnapshot { SessionLabel, SessionReset, SessionPercent, WeeklyLabel, WeeklyReset, WeeklyPercent, HasExtraUsage, ExtraUsageSpent, ExtraUsageReset, ExtraUsagePercent }
+```
+
+**Note**: `AiProvider` ordinals are stable across removals (ordinal 6 was `QwenCode`, now retired) so persisted user settings survive.
+
+Key settings: `SplitterPosition` (236px default), `SendWithEnter` (default true), `SendWithCtrlEnter` (default false — when true and `SendWithEnter` false, Ctrl+Enter sends and Enter inserts a newline; issue #70), `SelectedProvider`, `VisibleProviders` (defaults to `[ClaudeCode]` — controls which agents appear in the provider menu; active provider is always shown regardless), `SelectedClaudeModel`, `DevinModels` (user-configurable list of Devin model names shown in the model menu; seeded with a default set) / `SelectedDevinModel` (string — the chosen Devin model name), `PromptHistory` (max 50), `AutoOpenChangesOnPrompt`, `ClaudeDangerouslySkipPermissions`, `CodexFullAuto`, `CursorAgentAutoRun`, `DevinDangerousMode`, `SelectedEffortLevel`, `CustomWorkingDirectory`, `SelectedTerminalType`, `IsTerminalDetached`, `PromptFontSize` (8–24pt), `TerminalZoomDelta`, `InvertLayout`, `HidePromptPanel` (default false — collapses the prompt text box, terminal reclaims the space; controls row/⚙ menu stay reachable to toggle back), `SelectedThemePreference` (Automatic/Dark/Light/Custom), `CustomThemeColorArgb` (bg color for Custom, default #F4ECFF), `LastAgentTerminalColorArgb` (agent's launched color, skips redundant restart prompts), `SkipThemeRestartPrompt` (default false), `CustomCommands` (list of `{Name, Command}`), `UsageAutoRefreshSeconds` (0 = manual), `UsageWindowOpened` (auto-reopen on load), `ShowInlineUsageBars` (default true), `LastUsageJson` / `LastUsageTimestamp` (cached snapshot), `SendLargePromptsAsFile` (default false — when true, prompts >1 KB are sent as a file reference instead of inline paste), `AgentFinish` (`AgentFinishConfig` — global "On Agent Finish" default; default disabled), `ProjectAgentFinish` (`Dictionary<string,AgentFinishConfig>` — per-solution overrides keyed by `.sln` name, take precedence over `AgentFinish` when present), `CustomExecutablePaths` (`Dictionary<AiProvider,string>` — per-provider custom CLI executable path override; empty/missing entries fall back to PATH/native detection), `AutoSendBuildErrorsToAgent` (default false — when true, a VS build finishing with errors auto-sends the errors + warnings to the running agent; see *Auto-Send Build Errors*)
+
+## Key GUIDs
+
+| Identifier | GUID |
+|-----------|------|
+| Package | `3fa29425-3add-418f-82f6-0c9b7419b2ca` |
+| VSIX Identity | `87de5d13-743e-46b3-b05e-24e1cbeca0c3` |
+| Command Set | `11111111-2222-3333-4444-555555555555` |
+| Detached Terminal Window | `B2C3D4E5-F6A7-8901-BCDE-FA2345678901` |
+| Claude Usage Tool Window | `C3D4E5F6-A7B8-9012-CDEF-123456789AB1` |
+| Tool Window Command ID | `0x0100` |
+
+## Key Dependencies
+
+| Package | Version | Purpose |
+|---------|---------|---------|
+| Microsoft.VisualStudio.SDK | 17.0.32112.339 | VS extensibility APIs |
+| Microsoft.VSSDK.BuildTools | 17.14.2101 | VSIX build tools |
+| Newtonsoft.Json | 13.0.3 | Settings serialization |
+| DiffPlex | 1.7.2 | Diff computation |
+
+## Adding a New AI Provider (Checklist)
+
+1. **`ClaudeCodeModels.cs`**: Add to `AiProvider` enum; add settings property if needed
+2. **`ProviderManagement.cs`**: Add detection method, cache logic, install instructions, notification flag, menu handlers, `UpdateProviderSelection()`, `ProviderContextMenu_Opened()`
+3. **`Terminal.cs`**: Add command building in `StartEmbeddedTerminalAsync()` (both CMD and WT paths), `providerTitle` switch, `InitializeTerminalAsync()`, `RestartTerminalWithSelectedProviderAsync()`, `UpdateAgentButton_Click()`, `Get{Provider}Command()`
+4. **`TerminalIO.cs`**: Add Enter key behavior in `SendEnterKey()`; add to `isOtherWSLProvider` if WSL
+5. **`UserInput.cs`**: Add to `isWSLProvider` check for WSL path conversion
+6. **`Detach.cs`**: Add to `GetCurrentProviderName()` switch
+7. **`ClaudeCodeControl.xaml`**: Add context menu item; add settings item if provider has flags
+8. **`SessionHistory.cs`**: Update `IsClaudeCodeSessionHistoryProvider()` if the new provider supports JSONL session transcripts; call `RefreshSessionHistoryButton()` from `UpdateProviderSelection()`
+9. **`README.md`**: Document in Features, System Requirements, AI Provider Menu, Updating sections

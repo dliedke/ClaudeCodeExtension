@@ -163,6 +163,9 @@ namespace ClaudeCodeVS
                 // Stop the "On Agent Finish" completion watcher timer
                 StopAgentCompletionTimer();
 
+                // Unsubscribe from VS build events (auto-send build errors feature)
+                DisposeBuildErrorAutoSend();
+
                 // Cleanup detached terminal window
                 if (_isTerminalDetached && _detachedTerminalWindow != null)
                 {

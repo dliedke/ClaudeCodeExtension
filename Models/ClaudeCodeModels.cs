@@ -370,6 +370,15 @@ namespace ClaudeCodeVS
         public bool SendSelectionReferenceOnly { get; set; } = false;
 
         /// <summary>
+        /// When true, whenever a Visual Studio build finishes with one or more errors, the
+        /// errors (and warnings, for context) are automatically formatted and sent to the
+        /// active code agent's prompt so it can fix them. Opt-in, default false. Only sends
+        /// when an agent terminal is running and at least one error is present. See
+        /// ClaudeCodeControl.BuildErrors.cs.
+        /// </summary>
+        public bool AutoSendBuildErrorsToAgent { get; set; } = false;
+
+        /// <summary>
         /// Saved position of the grid splitter (in pixels)
         /// </summary>
         public double SplitterPosition { get; set; } = 236.0; // Default pixel height for first row

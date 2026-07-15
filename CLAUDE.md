@@ -2,11 +2,11 @@
 
 ## Project Overview
 
-**Visual Studio Extension (VSIX)** for VS 2022/2026 — integrates AI code assistants (Claude Code, OpenAI Codex, Cursor Agent, Open Code, Devin, PI, and Google Antigravity) via embedded terminal (Win32 `SetParent` interop).
+**Visual Studio Extension (VSIX)** for VS 2022/2026 — integrates AI code assistants (Claude Code, OpenAI Codex, Cursor Agent, Open Code, Devin, PI, Google Antigravity, and Reasonix) via embedded terminal (Win32 `SetParent` interop).
 
 - **Author**: Daniel Carvalho Liedke (dliedke@gmail.com) | **License**: MIT
 - **Repository**: https://github.com/dliedke/ClaudeCodeExtension
-- **Current Version**: 41.0 | **Target Framework**: .NET Framework 4.7.2
+- **Current Version**: 65.0 | **Target Framework**: .NET Framework 4.7.2
 
 ---
 
@@ -22,7 +22,7 @@
    - **Style**: Short, business-focused. One sentence per bullet (two max). Describe the user-visible feature or fix, not the implementation.
    - **Avoid**: code/file/class/method names, internal selectors, file paths, constants, line numbers, JS snippets, framework jargon (`CoreWebView2`, `INPUT_RECORD`, `NavigationCompleted`, etc.), step-by-step "how it works" explanations, and PR-description-style root-cause analysis.
    - **Keep**: what the user gets ("auto-confirms proxy block screens"), opt-in/opt-out status, and the menu/setting name they interact with.
-   - Technical details belong in commit messages and `CLAUDE.md` Architecture section, not in release notes.
+   - Technical details belong in commit messages and `docs/ARCHITECTURE.md`, not in release notes.
    - **Other README sections (Features, System Requirements, Provider Menu, Updating, etc.)**: Edits MUST be minimal. Update only the exact line/bullet affected by the change. Do not rewrite paragraphs, expand explanations, add subsections, reorder content, or restructure tables. If a new provider/setting needs a row, add one row. If a feature description needs a word change, change the word. README is reference doc — keep it slim to avoid file bloat.
 
 ---
@@ -67,6 +67,7 @@ ClaudeCodeExtension/
 │   ├── ClaudeCodeControl.SettingsDialog.cs # Consolidated Settings dialog: behavior, layout, terminal type, theme
 │   ├── ClaudeCodeControl.Cleanup.cs     # Resource cleanup, temp dir management
 │   ├── ClaudeCodeControl.AgentCompletion.cs # "On Agent Finish": console-idle completion watcher, notify (info bar) + actions
+│   ├── ClaudeCodeControl.BuildErrors.cs # "Auto-send build errors": VS build-event hook, Error List collection, format + send to agent
 │   ├── ClaudeCodeControl.AtMention.cs   # "@" file/folder picker in the prompt box (workspace index + popup)
 │   ├── ClaudeCodeControl.CustomCommands.cs # User-defined custom commands: configure dialog, toolbar dropdown, dispatch
 │   ├── ClaudeCodeControl.CliPaths.cs    # Per-provider custom CLI executable path: Settings "CLI Paths" tab content, resolution/validation helpers
@@ -136,9 +137,9 @@ Deep per-file gotchas and design decisions live in **`docs/ARCHITECTURE.md`** (k
 always-loaded file to keep context lean). **Before editing any file below, read its section in that
 doc** — it captures non-obvious behavior that isn't apparent from the code:
 
-**Active provider UI rule (v24.0)**: provider checkmarks, tool-window captions, model/usage menu visibility, detached-tab caption, and visible-agent "active" labels must use `_currentRunningProvider` when a terminal is alive, falling back to `_settings.SelectedProvider` only before launch. Successful provider launches sync `_settings.SelectedProvider` in memory, but `SaveSettings()` still preserves provider/model/effort fields from disk during normal operation so multiple VS instances do not overwrite each other's selections.
-
-**Terminal focus rule (v26.0)**: do not focus the embedded terminal with direct `SetForegroundWindow(terminalHandle)` or bare `SetFocus(terminalHandle)` calls. Use `FocusTerminalForInputAsync()`, `FocusTerminalForInput()`, or `FocusTerminalWindow()` so VS activates the owning tool window, focuses the WinForms host panel, and temporarily joins the VS UI thread with the terminal window thread before setting native focus. Low-level hook focus checks must stay Win32-only and use cached root-window state; do not touch WPF/WinForms controls from the hook thread.
+**Two cross-cutting rules** (full text in `docs/ARCHITECTURE.md` → *Cross-Cutting Rules*) — read before touching provider selection, UI captions, or terminal focus:
+- **Active provider UI rule (v24.0)**: provider-dependent UI (checkmarks, captions, menu visibility, active labels) must use `_currentRunningProvider` when a terminal is alive, falling back to `_settings.SelectedProvider` only before launch.
+- **Terminal focus rule (v26.0)**: never focus the embedded terminal with direct `SetForegroundWindow`/`SetFocus`; use `FocusTerminalForInputAsync()`/`FocusTerminalForInput()`/`FocusTerminalWindow()`. Hook focus checks stay Win32-only.
 
 | File | `docs/ARCHITECTURE.md` section |
 |------|-------------------------------|
@@ -155,6 +156,7 @@ doc** — it captures non-obvious behavior that isn't apparent from the code:
 | `Controls/ClaudeCodeControl.SettingsDialog.cs` | Consolidated Settings Dialog — six tabs, batched apply, themed templates |
 | `Controls/ClaudeCodeControl.SessionHistory.cs` | Session History — JSONL parsing, path encoding, resume flow |
 | `Controls/ClaudeCodeControl.AgentCompletion.cs` | On Agent Finish — console-buffer idle detection, console-attach leak guard |
+| `Controls/ClaudeCodeControl.BuildErrors.cs` | Auto-Send Build Errors — build-event hook, Error List collection, dedupe/loop guard |
 | `Controls/ClaudeCodeControl.AtMention.cs` | "@" File/Folder Picker — index, popup, ranking, insert |
 
 When you add or materially change behavior in one of these files, update its section in
@@ -164,20 +166,7 @@ When you add or materially change behavior in one of these files, update its sec
 
 ## Data Models (ClaudeCodeModels.cs)
 
-```csharp
-enum AiProvider { ClaudeCode, ClaudeCodeWSL, Codex, CodexNative, CursorAgent, CursorAgentNative, OpenCode, Devin, Pi, Antigravity, Reasonix, DevinNative }
-enum ClaudeModel { Opus, Sonnet, Haiku }
-enum EffortLevel { Auto, Low, Medium, High, Max }
-enum TerminalType { CommandPrompt, WindowsTerminal }
-enum AgentFinishActionType { None, BuildSolution, RebuildSolution, Run, RunWithoutDebugging, RunTests, RunScript, SendToAgent }
-class CustomCommand { Name, Command }
-class AgentFinishConfig { Enabled, PlaySound, ShowToast, IdleSeconds, Action, ScriptOrCommand, RequireFileChanges, Confirm }
-class PromptHistoryEntry { Text, FilePaths }
-class SessionInfo { SessionId, FilePath, Preview, MessageCount, TokenCount, LastModified, Cwd, Provider }
-class UsageSnapshot { SessionLabel, SessionReset, SessionPercent, WeeklyLabel, WeeklyReset, WeeklyPercent, HasExtraUsage, ExtraUsageSpent, ExtraUsageReset, ExtraUsagePercent }
-```
-
-Key settings: `SplitterPosition` (236px default), `SendWithEnter` (default true), `SendWithCtrlEnter` (default false — when true and `SendWithEnter` false, Ctrl+Enter sends and Enter inserts a newline; issue #70), `SelectedProvider`, `VisibleProviders` (defaults to `[ClaudeCode]` — controls which agents appear in the provider menu; active provider is always shown regardless), `SelectedClaudeModel`, `DevinModels` (user-configurable list of Devin model names shown in the model menu; seeded with a default set) / `SelectedDevinModel` (string — the chosen Devin model name), `PromptHistory` (max 50), `AutoOpenChangesOnPrompt`, `ClaudeDangerouslySkipPermissions`, `CodexFullAuto`, `CursorAgentAutoRun`, `DevinDangerousMode`, `SelectedEffortLevel`, `CustomWorkingDirectory`, `SelectedTerminalType`, `IsTerminalDetached`, `PromptFontSize` (8–24pt), `TerminalZoomDelta`, `InvertLayout`, `HidePromptPanel` (default false — collapses the prompt text box, terminal reclaims the space; controls row/⚙ menu stay reachable to toggle back), `SelectedThemePreference` (Automatic/Dark/Light/Custom), `CustomThemeColorArgb` (bg color for Custom, default #F4ECFF), `LastAgentTerminalColorArgb` (agent's launched color, skips redundant restart prompts), `SkipThemeRestartPrompt` (default false), `CustomCommands` (list of `{Name, Command}`), `UsageAutoRefreshSeconds` (0 = manual), `UsageWindowOpened` (auto-reopen on load), `ShowInlineUsageBars` (default true), `LastUsageJson` / `LastUsageTimestamp` (cached snapshot), `SendLargePromptsAsFile` (default false — when true, prompts >1 KB are sent as a file reference instead of inline paste), `AgentFinish` (`AgentFinishConfig` — global "On Agent Finish" default; default disabled), `ProjectAgentFinish` (`Dictionary<string,AgentFinishConfig>` — per-solution overrides keyed by `.sln` name, take precedence over `AgentFinish` when present), `CustomExecutablePaths` (`Dictionary<AiProvider,string>` — per-provider custom CLI executable path override; empty/missing entries fall back to PATH/native detection)
+Enums (`AiProvider`, `ClaudeModel`, `EffortLevel`, `TerminalType`, `AgentFinishActionType`), settings/DTO classes, and the full annotated `Settings` field reference live in **`docs/ARCHITECTURE.md`** → *Data Models & Settings*. Update that section when adding or changing a model, enum value, or setting.
 
 ---
 
@@ -202,38 +191,10 @@ Key settings: `SplitterPosition` (236px default), `SendWithEnter` (default true)
 
 ---
 
-## Key GUIDs
+## Reference (in docs/ARCHITECTURE.md)
 
-| Identifier | GUID |
-|-----------|------|
-| Package | `3fa29425-3add-418f-82f6-0c9b7419b2ca` |
-| VSIX Identity | `87de5d13-743e-46b3-b05e-24e1cbeca0c3` |
-| Command Set | `11111111-2222-3333-4444-555555555555` |
-| Detached Terminal Window | `B2C3D4E5-F6A7-8901-BCDE-FA2345678901` |
-| Claude Usage Tool Window | `C3D4E5F6-A7B8-9012-CDEF-123456789AB1` |
-| Tool Window Command ID | `0x0100` |
+To keep this always-loaded file lean, the following reference material lives in **`docs/ARCHITECTURE.md`**:
 
----
-
-## Key Dependencies
-
-| Package | Version | Purpose |
-|---------|---------|---------|
-| Microsoft.VisualStudio.SDK | 17.0.32112.339 | VS extensibility APIs |
-| Microsoft.VSSDK.BuildTools | 17.14.2101 | VSIX build tools |
-| Newtonsoft.Json | 13.0.3 | Settings serialization |
-| DiffPlex | 1.7.2 | Diff computation |
-
----
-
-## Adding a New AI Provider (Checklist)
-
-1. **`ClaudeCodeModels.cs`**: Add to `AiProvider` enum; add settings property if needed
-2. **`ProviderManagement.cs`**: Add detection method, cache logic, install instructions, notification flag, menu handlers, `UpdateProviderSelection()`, `ProviderContextMenu_Opened()`
-3. **`Terminal.cs`**: Add command building in `StartEmbeddedTerminalAsync()` (both CMD and WT paths), `providerTitle` switch, `InitializeTerminalAsync()`, `RestartTerminalWithSelectedProviderAsync()`, `UpdateAgentButton_Click()`, `Get{Provider}Command()`
-4. **`TerminalIO.cs`**: Add Enter key behavior in `SendEnterKey()`; add to `isOtherWSLProvider` if WSL
-5. **`UserInput.cs`**: Add to `isWSLProvider` check for WSL path conversion
-6. **`Detach.cs`**: Add to `GetCurrentProviderName()` switch
-7. **`ClaudeCodeControl.xaml`**: Add context menu item; add settings item if provider has flags
-8. **`SessionHistory.cs`**: Update `IsClaudeCodeSessionHistoryProvider()` if the new provider supports JSONL session transcripts; call `RefreshSessionHistoryButton()` from `UpdateProviderSelection()`
-9. **`README.md`**: Document in Features, System Requirements, AI Provider Menu, Updating sections
+- **Key GUIDs** — package, VSIX identity, command set, tool window IDs
+- **Key Dependencies** — SDK / build-tools / Newtonsoft.Json / DiffPlex versions
+- **Adding a New AI Provider (Checklist)** — the per-file steps to wire up a new provider

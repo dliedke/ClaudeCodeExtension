@@ -23,6 +23,7 @@ Enjoying the extension? [Buy me a coffee](https://www.buymeacoffee.com/dliedke) 
 - **Custom commands (⚡)** — Save slash commands or canned prompts and dispatch them to the active agent in one click. Configure via *⚙ → Configure Custom Commands...*.
 - **"@" file picker** — Type **@** in the prompt box to search your solution's files and folders and insert one with the keyboard; keep typing to filter, arrow keys + Enter to insert, pick a folder to drill in.
 - **On Agent Finish** — Optionally play a sound, show a notification (with duration, plus token count for Claude Code), and run an action (build/rebuild, run, tests, a script, or a follow-up command) when the agent goes idle. Global defaults plus per-solution overrides. Configure via *⚙ → Settings...*.
+- **Auto-send build errors** — Optionally send build errors (with warnings for context) to the active agent automatically whenever a Visual Studio build finishes with errors, so it can fix them. Opt-in via *⚙ → Settings... → Behavior*.
 - **Model selection** — 🤖 button to switch models: for Claude, Best / Opus / Sonnet / Haiku / Opus Plan plus an effort level (Auto / Low / Medium / High / Max) for Opus thinking depth; for Devin, a configurable list of models you can edit via *Configure Models...*; for Codex, Cursor Agent, PI, Antigravity, Reasonix, and Open Code, it opens the agent's own model picker in the terminal.
 - **Detach / attach terminal** — Pop the terminal into a separate VS tab and bring it back at any time. State persists across sessions.
 - **Theme aware** — Follows VS dark/light theme automatically, or force dark, light, or a custom background color via *⚙ → Settings → Theme*. Prompt and terminal zoom (Ctrl+Scroll) are persisted across sessions.
@@ -79,7 +80,7 @@ Then choose it via *⚙ → Set Terminal Type...*.
 - Pick an AI provider, *Configure Visible Code Agents...*
 - Provider-specific flags: Claude *Skip Permissions*, Codex *Approval Never*, Cursor *Yolo Mode*, Devin *Dangerous Mode*, Antigravity *Skip Permissions*
 - *Configure Custom Commands...*, *Settings...*, About
-- *Settings...* opens the consolidated dialog with tabs for Behavior (send key, large prompts, auto-open Changes, font size), Layout (prompt panel position), Terminal type, Theme, Usage, Toolbar, and CLI Paths
+- *Settings...* opens the consolidated dialog with tabs for Behavior (send key, large prompts, auto-open Changes, auto-send build errors, font size), Layout (prompt panel position), Terminal type, Theme, Usage, Toolbar, and CLI Paths
 
 **☰ Tools dropdown**: Holds *Update Code Agent*, *Restart Code Agent*, *Detach/Attach Terminal*, *View Changes*, *Session History*, *Show Usage*, and *Set Working Directory...*. Promote any of these to one-click toolbar buttons — and reorder them by dragging — via *⚙ → Settings... → Toolbar*; promoted features leave the dropdown, which hides once they all become buttons.
 
@@ -111,6 +112,9 @@ https://github.com/anthropics/claude-code/issues/63504
 https://github.com/anthropics/claude-code/issues/41501
 
 ## Version History
+
+### Version 65.0
+- **Auto-send build errors to the agent**: an opt-in setting that, whenever a Visual Studio build finishes with errors, automatically sends the errors (plus warnings for context) to the active agent so it can fix them. Enable it via *⚙ → Settings... → Behavior*.
 
 ### Version 64.0
 - The Settings console font list now shows only monospaced fonts, preventing the jumbled terminal text that appears when a proportional font is picked (issue #105). A "Show all fonts" option is available for anyone who needs a font the filter leaves out, and the picker warns whenever the selected font is not monospaced.
@@ -908,6 +912,10 @@ This extension is provided free of charge under the MIT License.
   - [OpenAI/Codex](https://platform.openai.com/docs/guides/your-data)
   - [Cursor](https://cursor.com/privacy)
   - [Open Code](https://opencode.ai/legal/privacy-policy)
+  - [Devin/Cognition](https://cognition.com/legal/privacy-policy)
+  - [PI](https://pi.dev/)
+  - [Google Antigravity](https://policies.google.com/privacy)
+  - [Reasonix](https://reasonix.io/)
 - **No Third-Party Access**: Data is only accessible to the configured model provider
 
 ### Contact
@@ -917,4 +925,4 @@ For licensing inquiries or permission requests, please contact the author at dli
 
 *Claude Code Extension for Visual Studio - Enhancing your AI-assisted development workflow*
 
-*Build with the help of Claude Opus 4.5, Claude Code, GPT-5, Codex, Qwen Code and Antigravity*
+*Build 100% Vibe Coding with Claude Opus/Sonnet, Claude Code, GPT, Codex, Qwen Code and Antigravity*
