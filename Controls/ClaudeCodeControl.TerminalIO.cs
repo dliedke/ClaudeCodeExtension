@@ -165,6 +165,13 @@ namespace ClaudeCodeVS
                     {
                         await Task.Delay(400);
                     }
+                    else if (_currentRunningProvider == AiProvider.Devin || _currentRunningProvider == AiProvider.DevinNative)
+                    {
+                        // Devin's Node.js TUI is slow to attach its input handler after focus;
+                        // without this, an Enter sent shortly after can land before the TUI is
+                        // listening and gets silently dropped even though the pasted text renders.
+                        await Task.Delay(400);
+                    }
 
                     // For Command Prompt (conhost): right-click first to cancel any active text selection.
                     // If text is selected, right-click copies it to clipboard and deselects.
@@ -330,7 +337,8 @@ namespace ClaudeCodeVS
 
                 // TUI-based Node.js providers need extra time to initialize their interface
                 // after receiving focus, otherwise the first keystrokes may arrive too early.
-                if (_currentRunningProvider == AiProvider.Pi)
+                bool isDevinFamilyKeystrokes = _currentRunningProvider == AiProvider.Devin || _currentRunningProvider == AiProvider.DevinNative;
+                if (_currentRunningProvider == AiProvider.Pi || isDevinFamilyKeystrokes)
                 {
                     await Task.Delay(400);
                 }
@@ -338,7 +346,8 @@ namespace ClaudeCodeVS
                 TypeUnicodeText(text);
 
                 // Brief settle so the typed text is fully rendered before Enter is sent.
-                await Task.Delay(150);
+                // Devin's TUI needs extra settle time here too — see TriggerPasteAndWaitAsync.
+                await Task.Delay(isDevinFamilyKeystrokes ? 650 : 150);
                 SendEnterKey();
             }
             catch (Exception ex)
@@ -540,7 +549,15 @@ namespace ClaudeCodeVS
                 // Cursor) and the TUIs that capture the mouse (Claude API-key sign-in, PI,
                 // Antigravity, Open Code) without per-character keystroke flooding (issues #82, #83).
                 await PasteViaConhostPasteCommandAsync();
-                await Task.Delay(800 + extraDelayMs);
+
+                // Devin's TUI streams the paste into its own input buffer slower than the
+                // generic 5 KB/s estimate assumes, so the Enter that follows can arrive before
+                // the buffer is committed — the text shows up but the submit is dropped. Give it
+                // extra settle time on top of the standard wait.
+                bool isDevinFamily = _currentRunningProvider == AiProvider.Devin || _currentRunningProvider == AiProvider.DevinNative;
+                int devinExtraMs = isDevinFamily ? 500 : 0;
+
+                await Task.Delay(800 + extraDelayMs + devinExtraMs);
             }
         }
 
