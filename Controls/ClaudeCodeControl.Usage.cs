@@ -326,10 +326,11 @@ namespace ClaudeCodeVS
             if (_settings?.ShowInlineUsageBars != true || !IsClaudeProviderSelected()) return;
             if (_settings?.UsageWindowOpened == true) return; // tab is visible, no timer needed
 
-            // Combo "Off" (0) → 60s background floor; otherwise honor user's interval (min 60s).
+            // Combo "Off" (0) → 60s background floor; otherwise honor user's interval (min 2m —
+            // 30s/1m are no longer selectable, so a legacy JSON value below 2m floors to it).
             int intervalSeconds = (_settings?.UsageAutoRefreshSeconds ?? 0) <= 0
                 ? 60
-                : Math.Max(60, _settings.UsageAutoRefreshSeconds);
+                : Math.Max(120, _settings.UsageAutoRefreshSeconds);
 
             _usageBackgroundRefreshTimer = new DispatcherTimer
             {

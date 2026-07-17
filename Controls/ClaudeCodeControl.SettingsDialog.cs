@@ -91,7 +91,9 @@ namespace ClaudeCodeVS
             int  origCustomColorArgb          = _settings.CustomThemeColorArgb;
             bool origSkipThemePrompt          = _settings.SkipThemeRestartPrompt;
             bool origShowInlineBars           = _settings.ShowInlineUsageBars;
+            // 30s/1m are no longer selectable; a legacy JSON value below 2m floors to it.
             int  origAutoRefresh              = _settings.UsageAutoRefreshSeconds;
+            if (origAutoRefresh > 0 && origAutoRefresh < 120) origAutoRefresh = 120;
             int  origFontSize                 = (int)Math.Round(PromptTextBox?.FontSize ?? 12.0);
             if (origFontSize < 8) origFontSize = 12;
             if (origFontSize > 24) origFontSize = 24;
@@ -644,30 +646,11 @@ namespace ClaudeCodeVS
             usageStack.Children.Add(showBarsCheck);
 
             usageStack.Children.Add(MakeSectionHeader("Auto-refresh", themeFg));
-            usageStack.Children.Add(new TextBlock
-            {
-                Text = "How often to refresh usage data in the background. \"Off\" refreshes only when the usage window is open or refreshed manually.",
-                FontSize = 11,
-                Opacity = 0.7,
-                Foreground = themeFg,
-                TextWrapping = TextWrapping.Wrap,
-                Margin = new Thickness(4, 0, 0, 4)
-            });
-            var autoRefreshCombo = MakeThemedComboBox(comboRes, themeFg);
-            autoRefreshCombo.Width = 110;
-            autoRefreshCombo.HorizontalAlignment = HorizontalAlignment.Left;
-            autoRefreshCombo.Margin = new Thickness(4, 0, 0, 4);
-            (string, int)[] refreshOpts = { ("Off", 0), ("30 sec", 30), ("1 min", 60), ("2 min", 120) };
-            foreach (var (label, secs) in refreshOpts)
-            {
-                var item = new ComboBoxItem { Content = label, Tag = secs };
-                if (comboRes["cbi"] is Style cbiStyle) item.Style = cbiStyle;
-                if (secs == origAutoRefresh) item.IsSelected = true;
-                autoRefreshCombo.Items.Add(item);
-            }
-            if (autoRefreshCombo.SelectedItem == null && autoRefreshCombo.Items.Count > 0)
-                autoRefreshCombo.SelectedIndex = 0;
-            usageStack.Children.Add(autoRefreshCombo);
+            var autoRefreshCheck = MakeCheckBox(
+                "Auto-refresh",
+                "Refresh usage data every 2 minutes in the background. Off refreshes only when the usage window is open or refreshed manually.",
+                origAutoRefresh > 0, themeFg);
+            usageStack.Children.Add(autoRefreshCheck);
 
             // ========================= Toolbar tab =========================
             var toolbarStack = AddTab("Toolbar");
@@ -774,7 +757,7 @@ namespace ClaudeCodeVS
                 hexBox.Text = "#F4ECFF";                  // default custom color
                 skipPromptCheck.IsChecked = false;
                 showBarsCheck.IsChecked = true;
-                SelectComboByTag(autoRefreshCombo, 0);    // Off
+                autoRefreshCheck.IsChecked = false;       // Off
 
                 // CLI Paths tab: default is no custom path (use detection) for every provider.
                 foreach (var tb in cliPathEditors.Values)
@@ -857,7 +840,7 @@ namespace ClaudeCodeVS
             }
             bool newSkipThemePrompt = skipPromptCheck.IsChecked == true;
             bool newShowInlineBars = showBarsCheck.IsChecked == true;
-            int newAutoRefresh = (autoRefreshCombo.SelectedItem as ComboBoxItem)?.Tag is int ar ? ar : origAutoRefresh;
+            int newAutoRefresh = autoRefreshCheck.IsChecked == true ? 120 : 0;
             var newToolbarOrder = ReadToolbarRowOrder(toolbarRowsPanel);
             var newVisibleToolbarButtons = newToolbarOrder
                 .Where(b => toolbarButtonChecks.TryGetValue(b, out var c) && c.IsChecked == true)

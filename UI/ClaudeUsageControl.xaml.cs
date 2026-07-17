@@ -46,7 +46,7 @@ namespace ClaudeCodeVS
 
         private DispatcherTimer _autoRefreshTimer;
         private bool _initialized;
-        private bool _suppressComboEvent;
+        private bool _suppressAutoRefreshEvent;
         private DateTime _lastRedirectAttemptUtc = DateTime.MinValue;
         private DateTime _lastCookieSaveUtc = DateTime.MinValue;
         private DateTime _lastUrlBlockClickUtc = DateTime.MinValue;
@@ -57,7 +57,7 @@ namespace ClaudeCodeVS
         public event EventHandler<UsageSnapshot> UsageDataReceived;
 
         /// <summary>
-        /// Fires when the auto-refresh combo box value changes. Hosts persist
+        /// Fires when the auto-refresh checkbox value changes. Hosts persist
         /// the new value to settings.
         /// </summary>
         public event EventHandler<int> AutoRefreshChanged;
@@ -130,6 +130,18 @@ namespace ClaudeCodeVS
                 WebView.CoreWebView2.SourceChanged += OnSourceChanged;
                 WebView.CoreWebView2.NewWindowRequested += OnNewWindowRequested;
 
+                // claude.ai's client detection reads the "Microsoft Edge WebView2" brand
+                // that Chromium adds to Sec-Ch-Ua / Sec-Ch-Ua-Full-Version-List for every
+                // request when running hosted (not present in a standalone Edge browser),
+                // and treats the page as blocked instead of serving normal content. Strip
+                // that brand from outgoing requests so the page is scraped exactly like a
+                // regular browser would see it.
+                WebView.CoreWebView2.AddWebResourceRequestedFilter("*", CoreWebView2WebResourceContext.All);
+                WebView.CoreWebView2.WebResourceRequested += OnWebResourceRequested;
+
+                // Same brand also leaks to page JS via navigator.userAgentData; patch it
+                // out before any other script runs so client-side checks see a normal browser too.
+                await WebView.CoreWebView2.AddScriptToExecuteOnDocumentCreatedAsync(BuildUserAgentDataPatchScript());
                 await WebView.CoreWebView2.AddScriptToExecuteOnDocumentCreatedAsync(BuildInjectedScript(trim: true));
 
                 WebView.CoreWebView2.Navigate(UsageUrl);
@@ -140,6 +152,72 @@ namespace ClaudeCodeVS
                 ShowError("WebView2 runtime is required to display the Claude usage page. " +
                           "Click below to install it, then reopen this window.");
             }
+        }
+
+        /// <summary>
+        /// Strips the "Microsoft Edge WebView2" brand that Chromium appends to
+        /// Sec-Ch-Ua / Sec-Ch-Ua-Full-Version-List when running hosted in WebView2.
+        /// claude.ai uses that brand to identify (and block) the embedded browser;
+        /// removing it makes every request look like it came from standalone Edge.
+        /// </summary>
+        private void OnWebResourceRequested(object sender, CoreWebView2WebResourceRequestedEventArgs e)
+        {
+            try
+            {
+                var headers = e.Request.Headers;
+                RewriteClientHintsHeader(headers, "Sec-Ch-Ua");
+                RewriteClientHintsHeader(headers, "Sec-Ch-Ua-Full-Version-List");
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine("ClaudeUsageControl: OnWebResourceRequested failed: " + ex);
+            }
+        }
+
+        private static void RewriteClientHintsHeader(CoreWebView2HttpRequestHeaders headers, string headerName)
+        {
+            if (!headers.Contains(headerName)) return;
+            string value = headers.GetHeader(headerName);
+            if (string.IsNullOrEmpty(value) || value.IndexOf("WebView2", StringComparison.OrdinalIgnoreCase) < 0) return;
+
+            string cleaned = string.Join(", ", value
+                .Split(',')
+                .Select(p => p.Trim())
+                .Where(p => p.IndexOf("WebView2", StringComparison.OrdinalIgnoreCase) < 0));
+            headers.SetHeader(headerName, cleaned);
+        }
+
+        /// <summary>
+        /// Patches navigator.userAgentData so the "Microsoft Edge WebView2" brand
+        /// (added to brands/fullVersionList and getHighEntropyValues() results only
+        /// when hosted in WebView2) is invisible to page JS, mirroring the header
+        /// rewrite done for network requests in <see cref="OnWebResourceRequested"/>.
+        /// </summary>
+        private static string BuildUserAgentDataPatchScript()
+        {
+            return @"
+(function(){
+  try {
+    var uad = navigator.userAgentData;
+    if (!uad) return;
+    function strip(list){ return list ? list.filter(function(b){ return (b.brand || '').indexOf('WebView2') === -1; }) : list; }
+    var brands = strip(uad.brands);
+    if (brands) Object.defineProperty(uad, 'brands', { get: function(){ return brands; }, configurable: true });
+    var fullVersionList = strip(uad.fullVersionList);
+    if (fullVersionList) Object.defineProperty(uad, 'fullVersionList', { get: function(){ return fullVersionList; }, configurable: true });
+    var origGetHighEntropyValues = uad.getHighEntropyValues ? uad.getHighEntropyValues.bind(uad) : null;
+    if (origGetHighEntropyValues) {
+      uad.getHighEntropyValues = function(hints){
+        return origGetHighEntropyValues(hints).then(function(result){
+          if (result.brands) result.brands = strip(result.brands);
+          if (result.fullVersionList) result.fullVersionList = strip(result.fullVersionList);
+          return result;
+        });
+      };
+    }
+  } catch (e) {}
+})();
+";
         }
 
         /// <summary>
@@ -767,18 +845,16 @@ namespace ClaudeCodeVS
 
         public void ApplyAutoRefreshSeconds(int seconds)
         {
-            _suppressComboEvent = true;
+            // Only Off/2m exist now; any legacy setting holding some other value
+            // (from an older release's JSON) is treated as 2m.
+            int normalized = seconds <= 0 ? 0 : Math.Max(120, seconds);
+            _suppressAutoRefreshEvent = true;
             try
             {
-                int idx = 0;
-                if (seconds >= 300) idx = 4;
-                else if (seconds >= 120) idx = 3;
-                else if (seconds >= 60) idx = 2;
-                else if (seconds >= 30) idx = 1;
-                if (AutoRefreshCombo != null) AutoRefreshCombo.SelectedIndex = idx;
+                if (AutoRefreshCheck != null) AutoRefreshCheck.IsChecked = normalized > 0;
             }
-            finally { _suppressComboEvent = false; }
-            RestartAutoRefreshTimer(seconds);
+            finally { _suppressAutoRefreshEvent = false; }
+            RestartAutoRefreshTimer(normalized);
         }
 
         private void RestartAutoRefreshTimer(int seconds)
@@ -821,15 +897,12 @@ namespace ClaudeCodeVS
 
         private void RefreshButton_Click(object sender, RoutedEventArgs e) => Reload();
 
-        private void AutoRefreshCombo_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        private void AutoRefreshCheck_CheckedChanged(object sender, RoutedEventArgs e)
         {
-            if (_suppressComboEvent) return;
-            var item = AutoRefreshCombo?.SelectedItem as ComboBoxItem;
-            if (item?.Tag is string tag && int.TryParse(tag, out int seconds))
-            {
-                RestartAutoRefreshTimer(seconds);
-                AutoRefreshChanged?.Invoke(this, seconds);
-            }
+            if (_suppressAutoRefreshEvent) return;
+            int seconds = AutoRefreshCheck?.IsChecked == true ? 120 : 0;
+            RestartAutoRefreshTimer(seconds);
+            AutoRefreshChanged?.Invoke(this, seconds);
         }
 
         private void OpenInBrowserButton_Click(object sender, RoutedEventArgs e)
@@ -1100,6 +1173,7 @@ namespace ClaudeCodeVS
                     WebView.CoreWebView2.NavigationCompleted -= OnNavigationCompleted;
                     WebView.CoreWebView2.SourceChanged -= OnSourceChanged;
                     WebView.CoreWebView2.NewWindowRequested -= OnNewWindowRequested;
+                    WebView.CoreWebView2.WebResourceRequested -= OnWebResourceRequested;
                 }
                 WebView?.Dispose();
             }

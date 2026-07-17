@@ -59,17 +59,11 @@
                     <TextBlock Text="↻ Refresh" FontSize="12"/>
                 </Button>
 
-                <TextBlock Text="Auto-refresh:" VerticalAlignment="Center" Margin="6,0,4,0"
-                           Foreground="{DynamicResource {x:Static vsshell:VsBrushes.ToolWindowTextKey}}"
-                           FontSize="11"/>
-                <ComboBox x:Name="AutoRefreshCombo" Width="80" Height="28"
-                          SelectionChanged="AutoRefreshCombo_SelectionChanged"
-                          VerticalContentAlignment="Center" FontSize="11" Margin="0,0,8,0">
-                    <ComboBoxItem Content="Off" Tag="0"/>
-                    <ComboBoxItem Content="30s" Tag="30"/>
-                    <ComboBoxItem Content="1m"  Tag="60"/>
-                    <ComboBoxItem Content="2m"  Tag="120"/>
-                </ComboBox>
+                <CheckBox x:Name="AutoRefreshCheck" Content="Auto-refresh"
+                          VerticalAlignment="Center" Margin="6,0,8,0" FontSize="11"
+                          Foreground="{DynamicResource {x:Static vsshell:VsBrushes.ToolWindowTextKey}}"
+                          ToolTip="Refresh usage data every 2 minutes"
+                          Checked="AutoRefreshCheck_CheckedChanged" Unchecked="AutoRefreshCheck_CheckedChanged"/>
 
                 <Button x:Name="SwitchAccountButton" Style="{StaticResource UsageButtonStyle}"
                         ToolTip="Show the claude.ai account switcher (e.g. swap between Team and Personal accounts)"

@@ -113,6 +113,9 @@ https://github.com/anthropics/claude-code/issues/41501
 
 ## Version History
 
+### Version 67.0
+- Fix issues.
+
 ### Version 66.0
 - **More reliable sending for Devin**: fixed an intermittent issue where the prompt would appear typed into Devin's session but Enter wouldn't submit it. The terminal now waits a bit longer for Devin's interface to catch up before pressing Enter.
 
