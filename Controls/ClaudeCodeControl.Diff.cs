@@ -436,11 +436,11 @@ namespace ClaudeCodeVS
                     {
                         await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
                         MessageBox.Show(
-                            "View Changes requires a Git repository.\n\n" +
+                            "View Code Changes requires a Git repository.\n\n" +
                             "The current working directory is not inside a Git repository, so there are " +
                             "no tracked changes to display. Open a solution or folder that is under Git " +
                             "version control to use this feature.",
-                            "View Changes",
+                            "View Code Changes",
                             MessageBoxButton.OK,
                             MessageBoxImage.Information);
                         return;

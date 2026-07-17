@@ -155,7 +155,8 @@ namespace ClaudeCodeVS
         ViewChanges,
         SessionHistory,
         ShowUsage,
-        SetWorkingDirectory
+        SetWorkingDirectory,
+        SendBuildErrors
     }
 
     /// <summary>

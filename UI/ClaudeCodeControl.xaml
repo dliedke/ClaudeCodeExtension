@@ -408,7 +408,7 @@
                             FontSize="14"
                             Style="{StaticResource IconButtonStyle}"
                             Click="ViewChangesButton_Click"
-                            ToolTip="View Changes"
+                            ToolTip="View Code Changes"
                             Visibility="Collapsed"
                             Margin="0,0,6,0"/>
 
@@ -445,6 +445,17 @@
                             Visibility="Collapsed"
                             Margin="0,0,6,0"/>
 
+					<Button x:Name="SendBuildErrorsToolbarButton"
+                            Content="🛠️"
+                            Width="30"
+                            MinWidth="30"
+                            FontSize="14"
+                            Style="{StaticResource IconButtonStyle}"
+                            Click="SendBuildErrorsButton_Click"
+                            ToolTip="Send Build Errors to Agent"
+                            Visibility="Collapsed"
+                            Margin="0,0,6,0"/>
+
 					<!-- Tools dropdown: holds the configurable features the user did NOT promote to
 					     their own toolbar button. Auto-hides when every feature is a button
 					     (RefreshToolbarLayout). Keeps these features out of the ⚙ menu. -->
@@ -463,10 +474,11 @@
 								<MenuItem Header="🔄️  Update Code Agent" x:Name="UpdateAgentMenuItem" Click="UpdateAgentButton_Click"/>
 								<MenuItem Header="♻️  Restart Code Agent" x:Name="RestartTerminalMenuItem" Click="RestartTerminalButton_Click"/>
 								<MenuItem Header="⧉  Detach Terminal to Separate Tab" x:Name="DetachTerminalMenuItem" Click="DetachTerminalButton_Click"/>
-								<MenuItem Header="📄  View Changes" x:Name="ViewChangesMenuItem" Click="ViewChangesButton_Click"/>
+								<MenuItem Header="📄  View Code Changes" x:Name="ViewChangesMenuItem" Click="ViewChangesButton_Click"/>
 								<MenuItem Header="📜  Session History" x:Name="SessionHistoryViewMenuItem" Click="SessionHistoryButton_Click" Visibility="Collapsed"/>
 								<MenuItem Header="📊  Show Usage" x:Name="ShowUsageViewMenuItem" Click="ShowUsageViewMenuItem_Click" IsCheckable="True" Visibility="Collapsed"/>
 								<MenuItem Header="📁  Set Working Directory..." x:Name="SetWorkingDirectoryMenuItem" Click="SetWorkingDirectoryMenuItem_Click" ToolTip="Set a custom working directory (absolute or relative to solution). Leave empty for default behavior."/>
+								<MenuItem Header="🛠️  Send Build Errors to Agent" x:Name="SendBuildErrorsMenuItem" Click="SendBuildErrorsButton_Click" ToolTip="Collect the current build errors and send them to the agent to fix, regardless of the auto-send setting."/>
 							</ContextMenu>
 						</Button.ContextMenu>
 					</Button>

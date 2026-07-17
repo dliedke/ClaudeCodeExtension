@@ -20,6 +20,7 @@ using System.Diagnostics;
 using System.IO;
 using System.Text;
 using System.Threading.Tasks;
+using System.Windows;
 using Microsoft.VisualStudio.Shell;
 
 namespace ClaudeCodeVS
@@ -178,7 +179,7 @@ namespace ClaudeCodeVS
                 _lastAutoSentBuildErrorSignature = signature;
 
                 string prompt = FormatBuildErrorPrompt(errors, warnings);
-                await SendTextToTerminalAsync(prompt);
+                await SendBuildErrorPromptAsync(prompt);
             }
             catch (Exception ex)
             {
@@ -188,6 +189,116 @@ namespace ClaudeCodeVS
             {
                 _autoSendBuildErrorsInProgress = false;
             }
+        }
+
+        #endregion
+
+        #region Manual send (toolbar button)
+
+        /// <summary>
+        /// Toolbar/menu handler for the "Send Build Errors to Agent" one-click feature. Collects
+        /// the current Error List contents and sends them to the running agent, regardless of the
+        /// "Auto-send build errors to agent" setting — this is an explicit, on-demand action.
+        /// Plain <c>async void</c> (like <c>CustomCommandMenuItem_Click</c>) rather than a blocking
+        /// <c>JoinableTaskFactory.Run</c> wrapper: Windows Terminal's paste is delivered via a
+        /// foreground-focus-stealing Ctrl+Shift+V <c>keybd_event</c> (see
+        /// <c>PasteViaCtrlShiftVAsync</c>), and running that inside a nested, reentrant message pump
+        /// was found to disrupt the focus/activation timing it depends on — Command Prompt's
+        /// window-handle-targeted <c>PostMessage</c> paste isn't affected, which is why the button
+        /// worked there but silently did nothing under Windows Terminal.
+        /// </summary>
+#pragma warning disable VSTHRD100 // Avoid async void methods - WPF event handler
+        private async void SendBuildErrorsButton_Click(object sender, RoutedEventArgs e)
+#pragma warning restore VSTHRD100
+        {
+            try
+            {
+                await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
+
+                var errors = new List<string>();
+                var warnings = new List<string>();
+                TryCollectBuildErrors(errors, warnings);
+
+                if (errors.Count == 0)
+                {
+                    MessageBox.Show(
+                        "There are no build errors in the Error List to send.",
+                        "Send Build Errors to Agent",
+                        MessageBoxButton.OK,
+                        MessageBoxImage.Information);
+                    return;
+                }
+
+                if (terminalHandle == IntPtr.Zero || !IsWindow(terminalHandle))
+                {
+                    MessageBox.Show(
+                        "No agent terminal is running. Start an agent session before sending build errors.",
+                        "Send Build Errors to Agent",
+                        MessageBoxButton.OK,
+                        MessageBoxImage.Warning);
+                    return;
+                }
+
+                string signature = string.Join("\n", errors);
+                _lastAutoSentBuildErrorSignature = signature;
+
+                string prompt = FormatBuildErrorPrompt(errors, warnings);
+                await SendBuildErrorPromptAsync(prompt);
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"SendBuildErrorsButton_Click error: {ex.Message}");
+            }
+        }
+
+        /// <summary>Same threshold the prompt box uses for its "Send large prompts as file" opt-in (see UserInput.cs).</summary>
+        private const int LargeBuildErrorPromptThresholdChars = 1024;
+
+        /// <summary>
+        /// Delivers a build-error prompt to the terminal. Unlike a typed prompt, this text is
+        /// generated, not authored, and a handful of errors with full relative paths easily clears a
+        /// couple KB — pasting that much in one raw clipboard paste risks leaving the CLI's
+        /// bracketed-paste state stuck mid-transfer (the terminal shows "Pasting..." and never
+        /// receives the rest). There's no downside to a file reference for generated text, so this
+        /// path always writes prompts over the threshold to a temp file and sends a short
+        /// "Read and follow: &lt;path&gt;" reference instead — the same mechanism the prompt box uses when
+        /// the user opts into "Send large prompts as file", but unconditional here since the user
+        /// never sees or edits this text directly. Also arms the "On Agent Finish" completion
+        /// watcher (same as a normal typed prompt via SendButton_Click) so the notify/action
+        /// configured there fires once the agent finishes fixing these errors — this send bypasses
+        /// SendButton_Click entirely, so without this call the watcher would never arm.
+        /// </summary>
+        private async Task SendBuildErrorPromptAsync(string prompt)
+        {
+            string textToSend = prompt;
+
+            if (prompt.Length > LargeBuildErrorPromptThresholdChars)
+            {
+                try
+                {
+                    string sessionDir = Path.Combine(Path.GetTempPath(), "ClaudeCodeVS_Session", Guid.NewGuid().ToString());
+                    Directory.CreateDirectory(sessionDir);
+                    string promptFile = Path.Combine(sessionDir, $"build-errors-{DateTime.Now:yyyyMMdd-HHmmss}.md");
+                    File.WriteAllText(promptFile, prompt, new UTF8Encoding(false));
+
+                    bool isWSLProvider = _currentRunningProvider == AiProvider.Codex ||
+                                         _currentRunningProvider == AiProvider.ClaudeCodeWSL ||
+                                         _currentRunningProvider == AiProvider.CursorAgent ||
+                                         _currentRunningProvider == AiProvider.Devin;
+                    string displayPath = isWSLProvider ? ConvertToWslPath(promptFile) : promptFile;
+                    textToSend = $"Read and follow: {displayPath}";
+                }
+                catch (Exception ex)
+                {
+                    Debug.WriteLine($"Failed to save build-error prompt to file, falling back to inline send: {ex.Message}");
+                }
+            }
+
+            await SendTextToTerminalAsync(textToSend);
+
+            // Arm the "On Agent Finish" watcher, mirroring the typed-prompt send path
+            // (SendButton_Click). Without this the feature never fires for a build-error send.
+            _ = ArmAgentCompletionWatcherAsync();
         }
 
         #endregion

@@ -82,7 +82,7 @@ Then choose it via *⚙ → Set Terminal Type...*.
 - *Configure Custom Commands...*, *Settings...*, About
 - *Settings...* opens the consolidated dialog with tabs for Behavior (send key, large prompts, auto-open Changes, auto-send build errors, font size), Layout (prompt panel position), Terminal type, Theme, Usage, Toolbar, and CLI Paths
 
-**☰ Tools dropdown**: Holds *Update Code Agent*, *Restart Code Agent*, *Detach/Attach Terminal*, *View Changes*, *Session History*, *Show Usage*, and *Set Working Directory...*. Promote any of these to one-click toolbar buttons — and reorder them by dragging — via *⚙ → Settings... → Toolbar*; promoted features leave the dropdown, which hides once they all become buttons.
+**☰ Tools dropdown**: Holds *Update Code Agent*, *Restart Code Agent*, *Detach/Attach Terminal*, *View Code Changes*, *Session History*, *Show Usage*, *Set Working Directory...*, and *Send Build Errors to Agent*. Promote any of these to one-click toolbar buttons — and reorder them by dragging — via *⚙ → Settings... → Toolbar*; promoted features leave the dropdown, which hides once they all become buttons.
 
 **🤖 Model menu**: For Claude — Opus / Sonnet / Haiku, effort level for Opus (Auto / Low / Medium / High / Max), Change Account, Install Caveman plugin. For Devin — pick from a configurable model list, edited via *Configure Models...*.
 
@@ -112,6 +112,13 @@ https://github.com/anthropics/claude-code/issues/63504
 https://github.com/anthropics/claude-code/issues/41501
 
 ## Version History
+
+### Version 68.0
+- Added a **Send Build Errors to Agent** toolbar button that sends the current build errors to the agent on demand, even when auto-send is turned off. Promote it to a one-click button (or find it in the ☰ Tools dropdown) via *⚙ → Settings... → Toolbar*.
+- Fixed build-error prompts getting stuck mid-paste in the agent terminal ("Pasting..." never completing) when there were several errors — they're now delivered as a file reference instead of a raw paste.
+- Fixed the **Send Build Errors to Agent** button silently doing nothing under the Windows Terminal terminal type (it worked fine under Command Prompt).
+- Fixed **On Agent Finish** not triggering after a build-error send (button or auto-send) — it now arms the same as after a normal prompt.
+- Renamed the **View Changes** button/menu item to **View Code Changes** for clarity.
 
 ### Version 67.0
 - Fix issues.

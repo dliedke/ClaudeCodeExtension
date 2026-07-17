@@ -1038,10 +1038,11 @@ namespace ClaudeCodeVS
                 case ToolbarButton.UpdateAgent: return ("🔄️  Update Code Agent", "Update the active code agent's CLI to the latest version.");
                 case ToolbarButton.DetachTerminal: return ("⧉  Detach / Attach Terminal", "Move the terminal to a separate tab and back.");
                 case ToolbarButton.RestartAgent: return ("♻️  Restart Code Agent", "Restart the active code agent.");
-                case ToolbarButton.ViewChanges: return ("📄  View Changes", "Open the Changes (diff) view. Shown only inside a git repository.");
+                case ToolbarButton.ViewChanges: return ("📄  View Code Changes", "Open the Changes (diff) view. Shown only inside a git repository.");
                 case ToolbarButton.SessionHistory: return ("📜  Session History", "Resume a previous session. Claude Code providers only.");
                 case ToolbarButton.ShowUsage: return ("📊  Show Usage", "Toggle the usage window. Claude / Devin providers only.");
                 case ToolbarButton.SetWorkingDirectory: return ("📁  Set Working Directory", "Set a custom working directory for the agent.");
+                case ToolbarButton.SendBuildErrors: return ("🛠️  Send Build Errors to Agent", "Collect the current build errors and send them to the agent to fix, regardless of the auto-send setting.");
                 default: return (id.ToString(), string.Empty);
             }
         }

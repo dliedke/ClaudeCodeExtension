@@ -2174,6 +2174,7 @@ For more details, visit: https://pi.dev";
             Apply(ToolbarButton.SessionHistory, true, SessionHistoryToolbarButton, SessionHistoryViewMenuItem);
             Apply(ToolbarButton.ShowUsage, true, ShowUsageToolbarButton, ShowUsageViewMenuItem);
             Apply(ToolbarButton.SetWorkingDirectory, true, SetWorkingDirectoryToolbarButton, SetWorkingDirectoryMenuItem);
+            Apply(ToolbarButton.SendBuildErrors, true, SendBuildErrorsToolbarButton, SendBuildErrorsMenuItem);
 
             // The Tools dropdown button is shown only when at least one feature is parked in it
             // (not promoted to its own button, and its constraint allows it). When every feature is
@@ -2185,7 +2186,8 @@ For more details, visit: https://pi.dev";
                 IsMenuItemVisible(ViewChangesMenuItem) ||
                 IsMenuItemVisible(SessionHistoryViewMenuItem) ||
                 IsMenuItemVisible(ShowUsageViewMenuItem) ||
-                IsMenuItemVisible(SetWorkingDirectoryMenuItem);
+                IsMenuItemVisible(SetWorkingDirectoryMenuItem) ||
+                IsMenuItemVisible(SendBuildErrorsMenuItem);
             if (ToolsDropdownButton != null)
                 ToolsDropdownButton.Visibility = anyInDropdown ? Visibility.Visible : Visibility.Collapsed;
 
@@ -2201,7 +2203,7 @@ For more details, visit: https://pi.dev";
         {
             ToolbarButton.UpdateAgent, ToolbarButton.DetachTerminal, ToolbarButton.RestartAgent,
             ToolbarButton.ViewChanges, ToolbarButton.SessionHistory, ToolbarButton.ShowUsage,
-            ToolbarButton.SetWorkingDirectory
+            ToolbarButton.SetWorkingDirectory, ToolbarButton.SendBuildErrors
         };
 
         /// <summary>
@@ -2235,6 +2237,7 @@ For more details, visit: https://pi.dev";
                 case ToolbarButton.SessionHistory: return SessionHistoryToolbarButton;
                 case ToolbarButton.ShowUsage: return ShowUsageToolbarButton;
                 case ToolbarButton.SetWorkingDirectory: return SetWorkingDirectoryToolbarButton;
+                case ToolbarButton.SendBuildErrors: return SendBuildErrorsToolbarButton;
                 default: return null;
             }
         }
@@ -2250,6 +2253,7 @@ For more details, visit: https://pi.dev";
                 case ToolbarButton.SessionHistory: return SessionHistoryViewMenuItem;
                 case ToolbarButton.ShowUsage: return ShowUsageViewMenuItem;
                 case ToolbarButton.SetWorkingDirectory: return SetWorkingDirectoryMenuItem;
+                case ToolbarButton.SendBuildErrors: return SendBuildErrorsMenuItem;
                 default: return null;
             }
         }
