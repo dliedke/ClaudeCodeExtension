@@ -113,6 +113,9 @@ https://github.com/anthropics/claude-code/issues/41501
 
 ## Version History
 
+### Version 69.0
+- Fixed the terminal failing to launch ("The system cannot find the file specified") when the solution/workspace folder path contains " - ", such as `MS-059 - ZZZZ-EC16` (issue #106).
+
 ### Version 68.0
 - Added a **Send Build Errors to Agent** toolbar button that sends the current build errors to the agent on demand, even when auto-send is turned off. Promote it to a one-click button (or find it in the ☰ Tools dropdown) via *⚙ → Settings... → Toolbar*.
 - Fixed build-error prompts getting stuck mid-paste in the agent terminal ("Pasting..." never completing) when there were several errors — they're now delivered as a file reference instead of a raw paste.

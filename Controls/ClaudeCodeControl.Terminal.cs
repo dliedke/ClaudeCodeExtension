@@ -15,6 +15,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Diagnostics;
 using System.Runtime.InteropServices;
+using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
@@ -970,6 +971,30 @@ namespace ClaudeCodeVS
         }
 
         /// <summary>
+        /// Writes a cmd.exe launch command (as built for the "/k ..." switch) to a temp .cmd
+        /// script and returns its path. Both embed paths (Windows Terminal and Command Prompt)
+        /// hand the launch command to an intermediate process — wt.exe or conhost.exe — that
+        /// re-parses the whole argument string before it reaches cmd.exe. A workspace path
+        /// containing " - " (e.g. "MS-059 - ZZZZ-EC16\Source") can come out of that re-parse
+        /// with stray quotes injected around the dash, breaking "cd /d" (issue #106). Routing
+        /// the command through a script file keeps the fragile path out of every argument
+        /// string those intermediates tokenize — only the script's own path (no spaces or
+        /// dashes, since it lives under our GUID-named session temp folder) has to survive it.
+        /// </summary>
+        private string WriteLaunchScript(string cmdKArguments)
+        {
+            string body = cmdKArguments.StartsWith("/k ", StringComparison.Ordinal)
+                ? cmdKArguments.Substring(3)
+                : cmdKArguments;
+
+            string scriptDir = !string.IsNullOrEmpty(tempImageDirectory) ? tempImageDirectory : Path.GetTempPath();
+            Directory.CreateDirectory(scriptDir);
+            string scriptPath = Path.Combine(scriptDir, $"launch_{Guid.NewGuid():N}.cmd");
+            File.WriteAllText(scriptPath, body, Encoding.UTF8);
+            return scriptPath;
+        }
+
+        /// <summary>
         /// Starts and embeds the terminal process (Claude Code, Claude Code WSL, Codex, Cursor Agent, or regular CMD)
         /// </summary>
         /// <param name="provider">The AI provider to start (null for regular CMD)</param>
@@ -1129,11 +1154,15 @@ namespace ClaudeCodeVS
                     // Global (not per-profile) setting, so it applies regardless of the font profile above.
                     EnsureWindowsTerminalRightClickCopyPaste();
 
+                    // Route the launch command through a temp script rather than embedding it
+                    // directly in wt.exe's argument string (issue #106).
+                    string wtLaunchScriptPath = WriteLaunchScript(cmdCommand);
+
                     // Start Windows Terminal with embedded cmd.exe
                     var wtStartInfo = new ProcessStartInfo
                     {
                         FileName = wtFileName,
-                        Arguments = $"--window new {wtFontProfileArg}-- cmd.exe {cmdCommand}",
+                        Arguments = $"--window new {wtFontProfileArg}-- cmd.exe /k call \"{wtLaunchScriptPath}\"",
                         UseShellExecute = false,
                         CreateNoWindow = false,
                         WindowStyle = ProcessWindowStyle.Hidden,
@@ -1147,7 +1176,7 @@ namespace ClaudeCodeVS
                         wtStartInfo.EnvironmentVariables["PATH"] = freshPath;
                     }
 
-                    LogTerminalLaunch($"Launching Windows Terminal: provider={(provider?.ToString() ?? "CMD")}, workspace={workspaceDir}");
+                    LogTerminalLaunch($"Launching Windows Terminal: provider={(provider?.ToString() ?? "CMD")}, workspace={workspaceDir}, launchScript={wtLaunchScriptPath}");
 
                     await Task.Run(() =>
                     {
@@ -1371,12 +1400,16 @@ namespace ClaudeCodeVS
                             break;
                     }
 
+                    // Route the launch command through a temp script rather than embedding it
+                    // directly in conhost.exe's argument string (issue #106).
+                    string conhostLaunchScriptPath = WriteLaunchScript(terminalCommand);
+
                     // Configure and start the process.
                     // Use conhost.exe explicitly to bypass Windows Terminal delegation.
                     var startInfo = new ProcessStartInfo
                     {
                         FileName = "conhost.exe",
-                        Arguments = "-- cmd.exe " + terminalCommand,
+                        Arguments = $"-- cmd.exe /k call \"{conhostLaunchScriptPath}\"",
                         UseShellExecute = false,
                         CreateNoWindow = false,
                         WindowStyle = ProcessWindowStyle.Minimized,
@@ -1399,7 +1432,7 @@ namespace ClaudeCodeVS
                     SaveAndSetConsoleColorsRegistry();
                     SaveAndSetConsoleFontRegistry();
 
-                    LogTerminalLaunch($"Launching conhost terminal: provider={(provider?.ToString() ?? "CMD")}, workspace={workspaceDir}");
+                    LogTerminalLaunch($"Launching conhost terminal: provider={(provider?.ToString() ?? "CMD")}, workspace={workspaceDir}, launchScript={conhostLaunchScriptPath}");
 
                     // The freshly-launched conhost/cmd can die within a few hundred ms when WSL is
                     // still tearing down a just-stopped session (issue #73): the console window
