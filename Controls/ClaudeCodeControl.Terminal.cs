@@ -990,7 +990,7 @@ namespace ClaudeCodeVS
             string scriptDir = !string.IsNullOrEmpty(tempImageDirectory) ? tempImageDirectory : Path.GetTempPath();
             Directory.CreateDirectory(scriptDir);
             string scriptPath = Path.Combine(scriptDir, $"launch_{Guid.NewGuid():N}.cmd");
-            File.WriteAllText(scriptPath, body, Encoding.UTF8);
+            File.WriteAllText(scriptPath, body, new UTF8Encoding(false));
             return scriptPath;
         }
 

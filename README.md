@@ -113,6 +113,9 @@ https://github.com/anthropics/claude-code/issues/41501
 
 ## Version History
 
+### Version 70.0
+- Fixed the v69.0 launch-script fix itself breaking terminal startup on some machines ("'chcp' is not recognized") — the temp launch script is now written without a UTF-8 byte-order mark, which `cmd.exe` couldn't parse (issue #107).
+
 ### Version 69.0
 - Fixed the terminal failing to launch ("The system cannot find the file specified") when the solution/workspace folder path contains " - ", such as `MS-059 - ZZZZ-EC16` (issue #106).
 
