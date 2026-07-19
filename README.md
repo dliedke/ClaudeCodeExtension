@@ -113,6 +113,9 @@ https://github.com/anthropics/claude-code/issues/41501
 
 ## Version History
 
+### Version 71.0
+- Fixed messages sent to the agent getting prefixed with a growing block of blank lines that accumulated in the agent's input box over a session (issue #108).
+
 ### Version 70.0
 - Fixed the v69.0 launch-script fix itself breaking terminal startup on some machines ("'chcp' is not recognized") — the temp launch script is now written without a UTF-8 byte-order mark, which `cmd.exe` couldn't parse (issue #107).
 

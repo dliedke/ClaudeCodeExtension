@@ -93,6 +93,18 @@ namespace ClaudeCodeVS
         /// <param name="text">The text to send to the terminal</param>
         private async Task SendTextToTerminalAsync(string text, bool singleEnterEvent = false)
         {
+            // Never deliver a trailing newline with the payload. Claude Code's TUI inserts a
+            // literal blank line into its input box for every LF that reaches it outside a paste
+            // burst (a lone LF is Ctrl+J = insert-newline), and such blank lines persist in the
+            // input box until they ride along with the next submitted message. The prompt built by
+            // SendButton_Click ended in "\r\n" (AppendLine); on machines where conhost streams the
+            // paste keystrokes slowly the final LF landed outside the CLI's paste-burst window and
+            // left one permanent blank line behind per send, accumulating over a session into a
+            // huge blank prefix on every message (issue #108). Submission is always driven by
+            // SendEnterKey below, so the trailing newline served no purpose. Interior newlines
+            // (multi-line prompts) are preserved.
+            text = text?.TrimEnd('\r', '\n');
+
             // Mouse-input-mode probe (issues #76, #82, #83): when a TUI has switched the embedded
             // conhost into mouse-input mode (QuickEdit disabled — e.g. Claude Code signed in with an
             // API key, or PI), conhost's plain right-click paste is swallowed by the running app, so
@@ -308,6 +320,11 @@ namespace ClaudeCodeVS
         /// <param name="text">The text to type into the terminal (no clipboard is used)</param>
         private async Task SendTextViaKeystrokesAsync(string text)
         {
+            // Same trailing-newline hygiene as SendTextToTerminalAsync: a trailing LF typed as a
+            // keystroke inserts a permanent blank line into Claude Code's input box (issue #108).
+            // SendEnterKey below is what submits.
+            text = text?.TrimEnd('\r', '\n');
+
             try
             {
                 if (terminalHandle == IntPtr.Zero || !IsWindow(terminalHandle))
