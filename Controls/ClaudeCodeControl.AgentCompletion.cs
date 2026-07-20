@@ -1029,16 +1029,22 @@ namespace ClaudeCodeVS
         /// own right-click paste and Ctrl+Scroll zoom are swallowed by the app (issue #76), so the
         /// paste path should deliver text through keystrokes instead of the clipboard right-click.
         /// Reuses the same guarded AttachConsole machinery as the completion watcher (serialized by
-        /// <see cref="_consoleSnapshotLock"/>, std-handle hygiene restored in the finally); returns
-        /// false on any failure so callers fall back to the normal paste path. Call off the UI
-        /// thread — it briefly attaches VS's process to the agent's console.
+        /// <see cref="_consoleSnapshotLock"/>, std-handle hygiene restored in the finally). Call off
+        /// the UI thread — it briefly attaches VS's process to the agent's console.
+        ///
+        /// Tri-state on purpose: <c>null</c> means "could not determine" (the console attach or the
+        /// mode query failed), which is NOT the same as "QuickEdit is on". Reporting an unknown mode
+        /// as false made the paste path fire its deselect right-click into a TUI that actually owns
+        /// the mouse, and every synthetic mouse event then came back as a mouse-report escape
+        /// sequence on the agent's stdin — the input flood of issue #83. Callers must treat null as
+        /// "assume the mouse may be captured" and skip synthetic mouse input.
         /// </summary>
-        private bool IsTerminalInMouseInputMode()
+        private bool? IsTerminalInMouseInputMode()
         {
             // Resolve the console *client* (cmd.exe) from the terminal window; conhostPid 0 just
             // means "derive it from terminalHandle" inside ResolveConsoleClientPid.
             int clientPid = ResolveConsoleClientPid(0);
-            if (clientPid <= 0) return false;
+            if (clientPid <= 0) return null;
 
             lock (_consoleSnapshotLock)
             {
@@ -1058,7 +1064,7 @@ namespace ClaudeCodeVS
                     if (!AttachConsole((uint)clientPid))
                     {
                         Debug.WriteLine($"IsTerminalInMouseInputMode: AttachConsole({clientPid}) failed, Win32={Marshal.GetLastWin32Error()}");
-                        return false;
+                        return null;
                     }
                     attached = true;
 
@@ -1066,9 +1072,9 @@ namespace ClaudeCodeVS
                         GENERIC_READ_CONSOLE | GENERIC_WRITE_CONSOLE,
                         FILE_SHARE_READ_CONSOLE | FILE_SHARE_WRITE_CONSOLE,
                         IntPtr.Zero, OPEN_EXISTING_CONSOLE, 0, IntPtr.Zero);
-                    if (handle.ToInt64() == -1 || handle == IntPtr.Zero) return false;
+                    if (handle.ToInt64() == -1 || handle == IntPtr.Zero) return null;
 
-                    if (!GetConsoleMode(handle, out uint mode)) return false;
+                    if (!GetConsoleMode(handle, out uint mode)) return null;
 
                     // QuickEdit cleared ⇒ a TUI holds the console in mouse-input mode, so conhost's
                     // native right-click paste / Ctrl+Scroll zoom won't work for this session.
@@ -1077,7 +1083,7 @@ namespace ClaudeCodeVS
                 catch (Exception ex)
                 {
                     Debug.WriteLine($"IsTerminalInMouseInputMode error: {ex.Message}");
-                    return false;
+                    return null;
                 }
                 finally
                 {

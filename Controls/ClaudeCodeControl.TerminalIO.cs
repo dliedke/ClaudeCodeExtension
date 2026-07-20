@@ -72,6 +72,54 @@ namespace ClaudeCodeVS
         private const int PasteChunkSize = 24576;
 
         /// <summary>
+        /// First Windows build number that ships the Windows 11 console host. Anything below this
+        /// is the legacy Windows 10 conhost.
+        /// </summary>
+        private const int Windows11FirstBuild = 22000;
+
+        /// <summary>
+        /// Cached result of <see cref="IsLegacyWindows10Console"/> (the OS build never changes
+        /// while VS is running). Null until first evaluated.
+        /// </summary>
+        private static bool? _isLegacyWindows10Console;
+
+        /// <summary>
+        /// True when running on Windows 10 (build &lt; 22000), whose console host streams a paste
+        /// into the attached app differently from the Windows 11 host: it has no bracketed-paste
+        /// support, so the pasted characters reach a TUI as ordinary keystrokes instead of one
+        /// delimited block. Claude Code's input layer reacts to that by generating a runaway
+        /// series of "[Pasted text #N]" placeholders — the flood of issue #83, which reproduces
+        /// only on Windows 10 (the same extension build is clean on Windows 11).
+        ///
+        /// Read from the registry rather than <c>Environment.OSVersion</c> because the latter is
+        /// subject to the host process's compatibility manifest.
+        /// </summary>
+        private static bool IsLegacyWindows10Console()
+        {
+            if (_isLegacyWindows10Console.HasValue)
+                return _isLegacyWindows10Console.Value;
+
+            bool legacy = false;
+            try
+            {
+                using (var key = Microsoft.Win32.Registry.LocalMachine.OpenSubKey(
+                    @"SOFTWARE\Microsoft\Windows NT\CurrentVersion"))
+                {
+                    string build = key?.GetValue("CurrentBuildNumber") as string;
+                    if (int.TryParse(build, out int buildNumber) && buildNumber > 0)
+                        legacy = buildNumber < Windows11FirstBuild;
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"IsLegacyWindows10Console: registry read failed: {ex.Message}");
+            }
+
+            _isLegacyWindows10Console = legacy;
+            return legacy;
+        }
+
+        /// <summary>
         /// Sends text to the embedded terminal by copying to clipboard and simulating paste
         /// Preserves the original clipboard content and restores it after sending
         /// This is the synchronous wrapper for backward compatibility
@@ -116,12 +164,35 @@ namespace ClaudeCodeVS
             // Antigravity). Best-effort: any probe failure leaves the flag false so the common
             // (QuickEdit-on) path is unchanged. Only for plain conhost providers; WT isn't conhost
             // and Open Code keeps its dedicated Shift+Right-click paste.
-            bool conhostMouseInputMode = false;
+            //
+            // The probe is tri-state: null = "could not determine". An unknown mode is treated the
+            // same as "mouse captured", because guessing wrong in that direction is what floods the
+            // agent's input on Windows 10 (issue #83): the deselect right-click below is injected as
+            // a real mouse event, and a TUI holding the mouse answers every one of them with a
+            // mouse-report escape sequence on stdin, which the CLI renders as a runaway series of
+            // pasted-text blocks. Skipping the deselect costs nothing — it only clears a stale
+            // conhost selection — so "unknown" errs toward skipping it.
+            bool conhostMouseInputMode = true;
             if (terminalHandle != IntPtr.Zero && IsWindow(terminalHandle)
                 && _wtTabBarHeight == 0
                 && _currentRunningProvider != AiProvider.OpenCode)
             {
-                conhostMouseInputMode = await Task.Run(() => IsTerminalInMouseInputMode());
+                bool? probed = await Task.Run(() => IsTerminalInMouseInputMode());
+                if (probed.HasValue)
+                {
+                    conhostMouseInputMode = probed.Value;
+                }
+                else
+                {
+                    System.Diagnostics.Debug.WriteLine(
+                        "[Paste] Mouse-input mode undetermined; assuming captured and skipping the deselect right-click.");
+                }
+            }
+            else
+            {
+                // Not a plain-conhost provider: the deselect right-click never applied here anyway
+                // (WT and Open Code have their own paste paths), so keep the pre-existing behaviour.
+                conhostMouseInputMode = false;
             }
 
             // Dictionary to store all original clipboard formats and their data

@@ -203,16 +203,29 @@ namespace ClaudeCodeVS
                 // Devin (native) is the same `devin` TUI as Devin — keep it on the clipboard
                 // paste path too so per-character keystrokes don't flood it.
                 bool isDevinNative = _currentRunningProvider == AiProvider.DevinNative;
-                bool clipboardFree = disableClipboardRequested && !isPiProvider && !isReasonix && !isDevinNative;
+                // Windows 10's console host has no bracketed-paste support, so a TUI receives the
+                // delivered text as ordinary keystrokes. Under that host the per-character WM_CHAR
+                // path floods the agent's input the same way it did before the issue #83 fix — the
+                // reporter saw the flood persist with "Disable clipboard" enabled. Keep Windows 10
+                // on the handle-targeted conhost paste (one WM_COMMAND, no synthetic keystrokes),
+                // and send the prompt as a short file reference so the burst stays minimal.
+                bool legacyWin10Conhost = _wtTabBarHeight == 0 && IsLegacyWindows10Console();
+                bool clipboardFree = disableClipboardRequested && !isPiProvider && !isReasonix
+                                     && !isDevinNative && !legacyWin10Conhost;
 
                 // Save the prompt to a temp file and send only a short reference when either:
                 //   • "Disable clipboard" is on (always, so the keystroke/paste payload stays short), or
                 //   • "Send large prompts as file" is on and the prompt exceeds the ~1 KB conhost
-                //     paste-buffer threshold (avoids front-truncation of large pastes, see issue #48).
-                // In both cases the "Files attached:" list is preserved by living inside the file.
+                //     paste-buffer threshold (avoids front-truncation of large pastes, see issue #48), or
+                //   • the prompt is over that same threshold and the legacy Windows 10 console host
+                //     is in use — there a paste reaches the agent as plain keystrokes, and a long
+                //     one is what the CLI turns into a runaway series of pasted-text blocks
+                //     (issue #83), so the file reference is forced regardless of the setting.
+                // In all cases the "Files attached:" list is preserved by living inside the file.
                 const int LargePromptThresholdChars = 1024;
                 bool writeToFile = !string.IsNullOrEmpty(finalPrompt)
                     && (disableClipboardRequested
+                        || (legacyWin10Conhost && finalPrompt.Length > LargePromptThresholdChars)
                         || (_settings != null
                             && _settings.SendLargePromptsAsFile
                             && finalPrompt.Length > LargePromptThresholdChars));

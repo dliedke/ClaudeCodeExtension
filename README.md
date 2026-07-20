@@ -113,6 +113,9 @@ https://github.com/anthropics/claude-code/issues/41501
 
 ## Version History
 
+### Version 72.0
+- Fixed the agent's input box flooding with thousands of repeated pasted-text blocks on Windows 10 right after sending a prompt (issue #83).
+
 ### Version 71.0
 - Fixed messages sent to the agent getting prefixed with a growing block of blank lines that accumulated in the agent's input box over a session (issue #108).
 
