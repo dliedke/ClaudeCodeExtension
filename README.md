@@ -113,6 +113,9 @@ https://github.com/anthropics/claude-code/issues/41501
 
 ## Version History
 
+### Version 73.0
+- Fixed the Claude Usage panel cutting off content (like usage credits, balance, and buy-credits) instead of letting you scroll down to it.
+
 ### Version 72.0
 - Fixed the agent's input box flooding with thousands of repeated pasted-text blocks on Windows 10 right after sending a prompt (issue #83).
 

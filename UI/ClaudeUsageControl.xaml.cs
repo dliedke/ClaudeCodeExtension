@@ -334,14 +334,42 @@ namespace ClaudeCodeVS
       '  height: auto !important;' +
       '  min-height: 0 !important;' +
       '}' +
-      // Target wrapper: same baseline as the path so its content reaches
-      // the full panel width.
+      // The page's own internal scroll pane (and every ancestor above it,
+      // up to <body>) — deliberately left out of the `path` collapse above.
+      // The real claude.ai settings dialog scrolls via a flex-column chain
+      // (h-screen/flex-1/min-h-0 wrappers around an `overflow-y: auto`
+      // pane); forcing `display: block` + `height: auto` + `overflow:
+      // visible` on any link in that chain (as the path rule does) collapses
+      // the pane to its content height and silently deletes the native
+      // scrollbar, leaving anything past the fold (e.g. the usage-credits
+      // spend/balance rows) unreachable. Only strip width caps and the
+      // sidebar's grid column here so the pane still spans the full panel
+      // width — its own display/height/overflow-y stay exactly as claude.ai
+      // authored them, so the browser keeps producing a real scrollbar.
+      '[data-claude-usage-scrollbox=\""1\""] {' +
+      '  width: 100% !important;' +
+      '  max-width: none !important;' +
+      '  min-width: 0 !important;' +
+      '  margin: 0 !important;' +
+      '  box-sizing: border-box !important;' +
+      '  grid-template-columns: unset !important;' +
+      '  grid-template-rows: unset !important;' +
+      '}' +
+      // Target wrapper: only widen it — do NOT touch display/height/overflow.
+      // `findIsolationTarget()` sometimes resolves to a `tabindex=-1` dialog
+      // shell rather than the small `div.pb-8` content block, and that shell
+      // commonly uses `display:flex; flex-direction:column` to stack a
+      // header above an internally-scrolling body (`flex-1 min-h-0
+      // overflow-y-auto`). Forcing `display:block` here (as an earlier build
+      // did) collapses that flex-column, so the scrollable child loses its
+      // bounded height and stops scrolling entirely — the shell's own
+      // (untouched) `overflow:hidden` then just clips the excess with no
+      // scrollbar. Leaving display/height/overflow alone preserves whatever
+      // native scroll mechanism the target already had.
       '[data-claude-usage-keep=\""1\""] {' +
-      '  display: block !important;' +
       '  width: 100% !important;' +
       '  max-width: none !important;' +
       '  margin: 0 !important;' +
-      '  padding: 0 !important;' +
       '  box-sizing: border-box !important;' +
       '}' +
       // Inside the kept content, strip every max-width cap (Tailwind
@@ -370,6 +398,13 @@ namespace ClaudeCodeVS
     target.setAttribute('data-claude-usage-keep', '1');
     let node = target;
     let depth = 0;
+    // Once we walk past the real scroll pane (see below), every further
+    // ancestor is part of its height-bounding chain and must get the same
+    // hands-off (`scrollbox`) treatment instead of the destructive `path`
+    // collapse — otherwise a level just above the pane forcing `display:
+    // block` would strip the `flex-1`/`min-h-0` sizing the pane relies on
+    // to stay bounded, breaking its scroll all the same.
+    let pastScrollbox = false;
     while (node && node !== document.body && depth < 30) {
       const parent = node.parentElement;
       if (!parent) break;
@@ -379,7 +414,18 @@ namespace ClaudeCodeVS
       // padding/margin styling from the rule above so the bars and
       // labels have breathing room from the WebView2 panel edges.
       if (parent !== document.body) {
-        parent.setAttribute('data-claude-usage-path', '1');
+        if (parent.hasAttribute('data-claude-usage-scrollbox')) {
+          pastScrollbox = true;
+        } else if (!parent.hasAttribute('data-claude-usage-path')) {
+          const isNativeScrollPane = !pastScrollbox &&
+            (window.getComputedStyle(parent).overflowY || '').match(/^(auto|scroll)$/);
+          if (isNativeScrollPane || pastScrollbox) {
+            parent.setAttribute('data-claude-usage-scrollbox', '1');
+            pastScrollbox = true;
+          } else {
+            parent.setAttribute('data-claude-usage-path', '1');
+          }
+        }
       }
       // Hide every sibling on this level except STYLE/SCRIPT and anything
       // we've already marked as part of the path or as the target. This
@@ -392,6 +438,7 @@ namespace ClaudeCodeVS
         if (tag === 'STYLE' || tag === 'SCRIPT') continue;
         if (sibling.hasAttribute('data-claude-usage-keep')) continue;
         if (sibling.hasAttribute('data-claude-usage-path')) continue;
+        if (sibling.hasAttribute('data-claude-usage-scrollbox')) continue;
         sibling.setAttribute('data-claude-usage-hide', '1');
       }
       node = parent;
