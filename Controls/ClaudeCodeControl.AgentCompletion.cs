@@ -1113,15 +1113,17 @@ namespace ClaudeCodeVS
         /// swallows, killing native Ctrl+Scroll zoom (issue #76/#78) — this sets the font directly via
         /// SetCurrentConsoleFontEx, so it works whether QuickEdit is on or off. Reuses the same guarded
         /// AttachConsole machinery as the completion watcher (serialized by <see cref="_consoleSnapshotLock"/>,
-        /// std-handle hygiene restored in the finally). Returns false on any failure. Call off the UI
-        /// thread — it briefly attaches VS's process to the agent's console.
+        /// std-handle hygiene restored in the finally). Returns the number of notches actually applied
+        /// (signed; 0 when nothing changed or on failure) so callers can keep the persisted zoom delta
+        /// accurate even when the size is clamped at the min/max bound. Call off the UI thread — it
+        /// briefly attaches VS's process to the agent's console.
         /// </summary>
-        private bool TryAdjustConhostFontSize(int stepUnits)
+        private int TryAdjustConhostFontSize(int stepUnits)
         {
-            if (stepUnits == 0) return false;
+            if (stepUnits == 0) return 0;
 
             int clientPid = ResolveConsoleClientPid(0);
-            if (clientPid <= 0) return false;
+            if (clientPid <= 0) return 0;
 
             lock (_consoleSnapshotLock)
             {
@@ -1141,7 +1143,7 @@ namespace ClaudeCodeVS
                     if (!AttachConsole((uint)clientPid))
                     {
                         Debug.WriteLine($"TryAdjustConhostFontSize: AttachConsole({clientPid}) failed, Win32={Marshal.GetLastWin32Error()}");
-                        return false;
+                        return 0;
                     }
                     attached = true;
 
@@ -1150,15 +1152,16 @@ namespace ClaudeCodeVS
                         GENERIC_READ_CONSOLE | GENERIC_WRITE_CONSOLE,
                         FILE_SHARE_READ_CONSOLE | FILE_SHARE_WRITE_CONSOLE,
                         IntPtr.Zero, OPEN_EXISTING_CONSOLE, 0, IntPtr.Zero);
-                    if (handle.ToInt64() == -1 || handle == IntPtr.Zero) return false;
+                    if (handle.ToInt64() == -1 || handle == IntPtr.Zero) return 0;
 
                     var font = new CONSOLE_FONT_INFOEX { cbSize = (uint)Marshal.SizeOf(typeof(CONSOLE_FONT_INFOEX)) };
-                    if (!GetCurrentConsoleFontEx(handle, false, ref font)) return false;
+                    if (!GetCurrentConsoleFontEx(handle, false, ref font)) return 0;
 
-                    int newHeight = font.dwFontSize.Y + stepUnits * ConhostZoomStepPx;
+                    int oldHeight = font.dwFontSize.Y;
+                    int newHeight = oldHeight + stepUnits * ConhostZoomStepPx;
                     if (newHeight < ConhostZoomMinPx) newHeight = ConhostZoomMinPx;
                     if (newHeight > ConhostZoomMaxPx) newHeight = ConhostZoomMaxPx;
-                    if (newHeight == font.dwFontSize.Y) return false;
+                    if (newHeight == oldHeight) return 0;
 
                     font.dwFontSize.Y = (short)newHeight;
                     // For TrueType fonts (conhost's default — Cascadia/Consolas), zero the width so
@@ -1169,12 +1172,16 @@ namespace ClaudeCodeVS
                         font.dwFontSize.X = 0;
                     }
 
-                    return SetCurrentConsoleFontEx(handle, false, ref font);
+                    if (!SetCurrentConsoleFontEx(handle, false, ref font)) return 0;
+
+                    // Report the notches actually applied (may be fewer than requested at the clamp bound)
+                    // so the caller's persisted zoom delta stays in sync with the real font size.
+                    return (newHeight - oldHeight) / ConhostZoomStepPx;
                 }
                 catch (Exception ex)
                 {
                     Debug.WriteLine($"TryAdjustConhostFontSize error: {ex.Message}");
-                    return false;
+                    return 0;
                 }
                 finally
                 {

@@ -540,6 +540,14 @@ namespace ClaudeCodeVS
         public string ConsoleFontFaceName { get; set; } = "Cascadia Mono";
 
         /// <summary>
+        /// Console font size (in points) applied to the embedded terminal. 0 means "use the terminal's own
+        /// default size". For Command Prompt the point size is converted to a pixel cell height and written to
+        /// the console registry before conhost launches; for Windows Terminal it is written as font.size (points)
+        /// on the dedicated profile. Ctrl+Scroll still adjusts the size live from this base.
+        /// </summary>
+        public int ConsoleFontSizePt { get; set; } = 0;
+
+        /// <summary>
         /// Whether the terminal is currently detached into a separate tool window tab
         /// </summary>
         public bool IsTerminalDetached { get; set; } = false;
@@ -549,21 +557,6 @@ namespace ClaudeCodeVS
         /// 0 means "use VS default" (not yet changed by user).
         /// </summary>
         public double PromptFontSize { get; set; } = 0.0;
-
-        /// <summary>
-        /// Net zoom delta applied by the user to the embedded terminal via Ctrl+Scroll.
-        /// Positive = zoomed in, negative = zoomed out. Replayed on each terminal restart.
-        /// </summary>
-        public int TerminalZoomDelta { get; set; } = 0;
-
-        /// <summary>
-        /// When true, the extension skips the automatic terminal zoom-out and saved
-        /// zoom-delta replay that runs after each terminal start. Manual Ctrl+Scroll
-        /// zoom remains available. Useful on high-DPI displays where the default
-        /// auto-zoom produces fonts that are too small, or to avoid the brief input
-        /// freeze caused by the synthesized keystrokes during startup.
-        /// </summary>
-        public bool DisableStartupAutoZoom { get; set; } = false;
 
         /// <summary>
         /// If true, the layout is inverted, swapping the prompt and terminal slots

@@ -654,8 +654,10 @@ namespace ClaudeCodeVS
         /// Returns a Task that completes when the first page navigation finishes (or timeoutMs elapses).
         /// Used by the host to know when it is safe to hide the frame after a background-init show.
         /// </summary>
+#pragma warning disable VSTHRD003 // _firstNavTcs is completed by this control's own navigation event on the UI thread; no cross-context deadlock
         public Task WaitForFirstNavigationAsync(int timeoutMs = 15000)
             => Task.WhenAny(_firstNavTcs.Task, Task.Delay(timeoutMs));
+#pragma warning restore VSTHRD003
 
         /// <summary>
         /// Set true before a background-init show so OnWindowBecameVisible skips Focus() and

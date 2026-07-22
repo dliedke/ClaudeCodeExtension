@@ -281,7 +281,9 @@ namespace ClaudeCodeVS
                 {
                     _backgroundScrapeCompletionTcs = new TaskCompletionSource<bool>();
                     _usageToolWindow.UsageControl?.Reload();
+#pragma warning disable VSTHRD003 // _backgroundScrapeCompletionTcs is completed by our own data-received handler on the UI thread; no cross-context deadlock
                     await Task.WhenAny(_backgroundScrapeCompletionTcs.Task, Task.Delay(10000));
+#pragma warning restore VSTHRD003
                     _backgroundScrapeCompletionTcs = null;
                     // Mark so the rendering surface is rebuilt when the user explicitly opens the tab.
                     _usageToolWindow.UsageControl?.MarkNeedsReloadOnShow();
@@ -297,7 +299,9 @@ namespace ClaudeCodeVS
                 _backgroundScrapeCompletionTcs = new TaskCompletionSource<bool>();
                 _usageToolWindow.UsageControl?.Reload();
                 // Wait for the JS scraper to post real data (max 10 s)
+#pragma warning disable VSTHRD003 // _backgroundScrapeCompletionTcs is completed by our own data-received handler on the UI thread; no cross-context deadlock
                 await Task.WhenAny(_backgroundScrapeCompletionTcs.Task, Task.Delay(10000));
+#pragma warning restore VSTHRD003
                 _backgroundScrapeCompletionTcs = null;
 
                 _usageToolWindow.UsageControl?.SetBackgroundInitMode(false);
@@ -423,7 +427,9 @@ namespace ClaudeCodeVS
 
                     _backgroundScrapeCompletionTcs = new TaskCompletionSource<bool>();
                     // Wait up to 10 s for the React components to render and the JS scraper to fire.
+#pragma warning disable VSTHRD003 // _backgroundScrapeCompletionTcs is completed by our own data-received handler on the UI thread; no cross-context deadlock
                     await Task.WhenAny(_backgroundScrapeCompletionTcs.Task, Task.Delay(10000));
+#pragma warning restore VSTHRD003
                     _backgroundScrapeCompletionTcs = null;
 
                     _usageToolWindow.UsageControl.SetBackgroundInitMode(false);

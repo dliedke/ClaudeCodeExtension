@@ -116,9 +116,18 @@ namespace ClaudeCodeVS
         private ManualResetEventSlim _hookThreadReady;
 
         /// <summary>
-        /// Debounce timer for saving zoom delta to settings after Ctrl+Scroll
+        /// Accumulated, not-yet-applied conhost Ctrl+Scroll zoom notches. Each wheel notch adds to this
+        /// (signed) instead of spawning its own console-attach font change. A single drain worker
+        /// (<see cref="_conhostZoomWorkerActive"/>) applies the accumulated total, so a fast scroll
+        /// collapses into one AttachConsole cycle rather than a flood of them — the flood was what froze
+        /// / made the zoom uncontrollable, since every attach briefly bounces the conhost's keyboard focus.
         /// </summary>
-        private System.Windows.Threading.DispatcherTimer _zoomSaveTimer;
+        private int _pendingConhostZoomSteps;
+
+        /// <summary>
+        /// 0/1 flag guarding a single conhost zoom drain worker (see <see cref="_pendingConhostZoomSteps"/>).
+        /// </summary>
+        private int _conhostZoomWorkerActive;
 
         /// <summary>
         /// Mouse drag distance in pixels before Windows Terminal selection assist kicks in
@@ -173,12 +182,6 @@ namespace ClaudeCodeVS
         /// Monotonic request identifier used to debounce repaint passes after manual Ctrl+Scroll zoom.
         /// </summary>
         private int _manualZoomRefreshRequestId = 0;
-
-        /// <summary>
-        /// Enables automatic terminal zoom behavior after startup has settled.
-        /// Manual Ctrl+Scroll zoom remains available regardless of this setting.
-        /// </summary>
-        private static readonly bool EnableStartupTerminalAutoZoom = true;
 
         /// <summary>
         /// Incremented for every left-button-down the mouse hook sees (anywhere on screen).
@@ -918,12 +921,6 @@ namespace ClaudeCodeVS
                 {
                     await StabilizeEmbeddedTerminalLayoutAsync(expectedSessionId, expectedHandle);
 
-                    if (!EnableStartupTerminalAutoZoom || _settings?.DisableStartupAutoZoom == true)
-                    {
-                        return;
-                    }
-
-                    await Task.Delay(1200);
                     await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
 
                     if (!IsCurrentTerminalSession(expectedSessionId, expectedHandle))
@@ -931,36 +928,18 @@ namespace ClaudeCodeVS
                         return;
                     }
 
-                    // Batch the WT zoom-out and the saved-delta replay into a single
-                    // focus+SendInput pass so the synthesized keystrokes block input
-                    // for tens of milliseconds rather than the better part of a second.
-                    int defaultWtZoomOutSteps = _wtTabBarHeight > 0 ? 3 : 0;
-                    int savedDelta = _settings?.TerminalZoomDelta ?? 0;
-                    int netDelta = savedDelta - defaultWtZoomOutSteps;
-
-                    if (netDelta != 0)
-                    {
-                        await ApplyTerminalZoomDeltaAsync(netDelta, initialDelayMs: 0);
-                    }
-
-                    if (!IsCurrentTerminalSession(expectedSessionId, expectedHandle))
-                    {
-                        return;
-                    }
-
-                    ResizeEmbeddedTerminal();
-                    await Task.Delay(250);
-                    await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
-
-                    if (!IsCurrentTerminalSession(expectedSessionId, expectedHandle))
-                    {
-                        return;
-                    }
-
-                    ResizeEmbeddedTerminal();
-
-                    // Return focus to the prompt input after all zoom adjustments are done
+                    // Startup no longer replays any terminal zoom: the console font size setting is the
+                    // persistent size control now, and Ctrl+Scroll zoom stays live-only for the session.
+                    // Removing the old auto-zoom also removes its root-cause side effect — the console-attach
+                    // font change / synthesized Ctrl+- keystrokes it fired a moment after embedding used to
+                    // bounce the shared native keyboard focus onto the just-embedded terminal, leaving the
+                    // prompt dead until the user clicked into it twice ("no input at the start of the
+                    // session"). We still return focus to the prompt and keep a short focus guard alive as
+                    // belt-and-suspenders: it re-asserts prompt focus for ~0.7s only while the terminal is the
+                    // one holding it, and aborts the instant the user clicks the terminal, so it never fights
+                    // a user who actually wants to type in the terminal.
                     PromptTextBox?.Focus();
+                    EnsureWpfPromptFocusGuardRunning();
                 }
                 catch (Exception ex)
                 {
@@ -1904,6 +1883,17 @@ namespace ClaudeCodeVS
         private object _savedConsoleFontFamily;
 
         /// <summary>
+        /// Saved original console FontSize from registry, for restoration after conhost starts.
+        /// Only touched when the user has configured an explicit console font size.
+        /// </summary>
+        private object _savedConsoleFontSize;
+
+        /// <summary>
+        /// Whether we overwrote the console FontSize registry value (so restore knows to put it back).
+        /// </summary>
+        private bool _consoleFontSizeSaved;
+
+        /// <summary>
         /// Saved original console CodePage from registry, for restoration after conhost starts.
         /// Stored in the conhost.exe-specific subkey (HKCU\Console\%SystemRoot%_System32_conhost.exe),
         /// because the parent HKCU\Console CodePage value is ignored in practice.
@@ -1978,6 +1968,24 @@ namespace ClaudeCodeVS
 
                     key.SetValue("FaceName", faceName, Microsoft.Win32.RegistryValueKind.String);
                     key.SetValue("FontFamily", 54, Microsoft.Win32.RegistryValueKind.DWord);
+
+                    // User-configurable console font size (Settings → Terminal). 0 = leave conhost's own
+                    // default. The HKCU\Console FontSize DWORD encodes the cell size as (heightPx << 16 | widthPx);
+                    // for TrueType fonts width is left 0 so conhost derives it from the height. The point size
+                    // is converted to a pixel cell height (px = pt * 96 / 72). Only touched when a size is set,
+                    // so users who never configure one keep conhost's default sizing behavior.
+                    int fontSizePt = _settings?.ConsoleFontSizePt ?? 0;
+                    if (fontSizePt > 0)
+                    {
+                        _savedConsoleFontSize = key.GetValue("FontSize");
+                        _consoleFontSizeSaved = true;
+
+                        int heightPx = (int)Math.Round(fontSizePt * 96.0 / 72.0);
+                        if (heightPx < 4) heightPx = 4;
+                        if (heightPx > 200) heightPx = 200;
+                        int fontSizeValue = (heightPx & 0xFFFF) << 16;
+                        key.SetValue("FontSize", fontSizeValue, Microsoft.Win32.RegistryValueKind.DWord);
+                    }
                 }
 
                 // CodePage lives in the per-executable conhost.exe subkey; the parent Console\CodePage is ignored by conhost.exe.
@@ -2021,6 +2029,17 @@ namespace ClaudeCodeVS
                             key.SetValue("FontFamily", _savedConsoleFontFamily, Microsoft.Win32.RegistryValueKind.DWord);
                         else
                             key.DeleteValue("FontFamily", throwOnMissingValue: false);
+
+                        // Restore FontSize only if we overwrote it (an explicit size was configured).
+                        if (_consoleFontSizeSaved)
+                        {
+                            if (_savedConsoleFontSize != null)
+                                key.SetValue("FontSize", _savedConsoleFontSize, Microsoft.Win32.RegistryValueKind.DWord);
+                            else
+                                key.DeleteValue("FontSize", throwOnMissingValue: false);
+                            _consoleFontSizeSaved = false;
+                            _savedConsoleFontSize = null;
+                        }
                     }
                 }
 
@@ -2096,11 +2115,14 @@ namespace ClaudeCodeVS
         /// via JSON serialization drops any // comments the user added — accepted because we write rarely and only
         /// when a non-default font is selected.
         /// </summary>
-        private string EnsureWindowsTerminalFontProfile(string faceName)
+        private string EnsureWindowsTerminalFontProfile(string faceName, int fontSizePt)
         {
             try
             {
-                if (string.IsNullOrWhiteSpace(faceName)) return null;
+                bool hasFace = !string.IsNullOrWhiteSpace(faceName)
+                    && !faceName.Trim().Equals("Cascadia Mono", StringComparison.OrdinalIgnoreCase);
+                bool hasSize = fontSizePt > 0;
+                if (!hasFace && !hasSize) return null;
 
                 string settingsPath = FindWindowsTerminalSettingsPath();
                 if (settingsPath == null) return null;
@@ -2152,7 +2174,22 @@ namespace ClaudeCodeVS
 
                 JObject font = ours["font"] as JObject;
                 if (font == null) { font = new JObject(); ours["font"] = font; changed = true; }
-                if ((string)font["face"] != faceName) { font["face"] = faceName; changed = true; }
+
+                // Face: apply the chosen face, or fall back to Cascadia Mono when only a size is set
+                // (so the profile still carries a valid, monospaced face).
+                string effectiveFace = hasFace ? faceName : "Cascadia Mono";
+                if ((string)font["face"] != effectiveFace) { font["face"] = effectiveFace; changed = true; }
+
+                // Size (points): set when configured, remove when cleared.
+                if (hasSize)
+                {
+                    if ((int?)font["size"] != fontSizePt) { font["size"] = fontSizePt; changed = true; }
+                }
+                else if (font["size"] != null)
+                {
+                    font.Remove("size");
+                    changed = true;
+                }
 
                 if (changed)
                 {
@@ -2176,11 +2213,15 @@ namespace ClaudeCodeVS
         private string GetWindowsTerminalFontProfileArg()
         {
             string face = _settings?.ConsoleFontFaceName;
-            // "Cascadia Mono" is Windows Terminal's own default, so there's nothing to override.
-            if (string.IsNullOrWhiteSpace(face) || face.Trim().Equals("Cascadia Mono", StringComparison.OrdinalIgnoreCase))
+            int sizePt = _settings?.ConsoleFontSizePt ?? 0;
+
+            bool hasFace = !string.IsNullOrWhiteSpace(face)
+                && !face.Trim().Equals("Cascadia Mono", StringComparison.OrdinalIgnoreCase);
+            // "Cascadia Mono" at the default size is Windows Terminal's own default, so there's nothing to override.
+            if (!hasFace && sizePt <= 0)
                 return string.Empty;
 
-            string profileName = EnsureWindowsTerminalFontProfile(face.Trim());
+            string profileName = EnsureWindowsTerminalFontProfile(hasFace ? face.Trim() : "Cascadia Mono", sizePt);
             return string.IsNullOrEmpty(profileName) ? string.Empty : $"-p \"{profileName}\" ";
         }
 
@@ -2864,110 +2905,6 @@ namespace ClaudeCodeVS
         }
 
         /// <summary>
-        /// Replays the saved terminal zoom delta.
-        /// Windows Terminal: batches Ctrl+= / Ctrl+- keystrokes through a single SendInput
-        /// syscall. This is dramatically faster than the previous keybd_event loop (which
-        /// took ~250 ms per step and suppressed the cursor between every press), so the
-        /// startup auto-zoom no longer produces a visible input freeze.
-        /// Command Prompt: uses PostMessage WM_MOUSEWHEEL+MK_CONTROL — same mechanism as Ctrl+Scroll forwarding.
-        /// </summary>
-        private async Task ApplyTerminalZoomDeltaAsync(int delta, int initialDelayMs = 1500)
-        {
-            if (delta == 0 || terminalHandle == IntPtr.Zero || !IsWindow(terminalHandle))
-                return;
-
-            try
-            {
-                if (initialDelayMs > 0)
-                {
-                    // Give the terminal extra time to finish initializing before replaying zoom.
-                    await Task.Delay(initialDelayMs);
-                }
-
-                if (!IsWindow(terminalHandle)) return;
-
-                int steps = Math.Abs(delta);
-
-                await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
-                var panel = ActiveTerminalPanel;
-                if (panel == null) return;
-
-                if (_wtTabBarHeight > 0)
-                {
-                    // Activate the VS tab hosting the terminal before sending keystrokes,
-                    // then re-acquire the main thread (Task.Delay inside may have left it).
-                    await ActivateTerminalToolWindowAsync();
-                    await Task.Delay(60);
-                    await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
-
-                    FocusTerminalPanel(panel);
-                    await Task.Delay(80);
-
-                    // Re-assert focus in case VS restored it to another control during the delay
-                    await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
-                    FocusTerminalWindow();
-
-                    SendBatchedCtrlChordToTerminal(delta > 0 ? (ushort)0xBB : (ushort)0xBD, steps);
-
-                    // Trigger a WM_MOUSEMOVE so Windows re-shows the cursor after the
-                    // synthesized keystrokes briefly suppressed it.
-                    var curPos = System.Windows.Forms.Cursor.Position;
-                    System.Windows.Forms.Cursor.Position = curPos;
-                }
-                else
-                {
-                    // Command Prompt: set the console font size directly (issue #76/#78). Posting
-                    // WM_MOUSEWHEEL would be swallowed if the agent's TUI is already in mouse-input
-                    // mode by the time the replay fires, so apply the saved delta the same
-                    // input-mode-independent way the interactive zoom now does.
-                    await Task.Run(() => TryAdjustConhostFontSize(delta));
-                }
-
-                await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
-                ResizeEmbeddedTerminal();
-            }
-            catch (Exception ex)
-            {
-                Debug.WriteLine($"Error applying terminal zoom delta: {ex.Message}");
-            }
-        }
-
-        /// <summary>
-        /// Synthesizes <paramref name="repeats"/> Ctrl+<paramref name="vkKey"/> presses
-        /// through a single SendInput call. Replaces a loop of keybd_event + Task.Delay
-        /// that was the dominant cost of the Windows Terminal zoom replay.
-        /// </summary>
-        private static void SendBatchedCtrlChordToTerminal(ushort vkKey, int repeats)
-        {
-            if (repeats <= 0) return;
-
-            // Per repeat: Ctrl down, key down, key up, Ctrl up
-            INPUT[] inputs = new INPUT[repeats * 4];
-            for (int i = 0; i < repeats; i++)
-            {
-                int b = i * 4;
-
-                inputs[b].type = INPUT_KEYBOARD;
-                inputs[b].u.ki.wVk = (ushort)VK_CONTROL;
-                inputs[b].u.ki.dwFlags = 0;
-
-                inputs[b + 1].type = INPUT_KEYBOARD;
-                inputs[b + 1].u.ki.wVk = vkKey;
-                inputs[b + 1].u.ki.dwFlags = 0;
-
-                inputs[b + 2].type = INPUT_KEYBOARD;
-                inputs[b + 2].u.ki.wVk = vkKey;
-                inputs[b + 2].u.ki.dwFlags = KEYEVENTF_KEYUP;
-
-                inputs[b + 3].type = INPUT_KEYBOARD;
-                inputs[b + 3].u.ki.wVk = (ushort)VK_CONTROL;
-                inputs[b + 3].u.ki.dwFlags = KEYEVENTF_KEYUP;
-            }
-
-            SendInput((uint)inputs.Length, inputs, Marshal.SizeOf(typeof(INPUT)));
-        }
-
-        /// <summary>
         /// Calculates the Windows Terminal tab bar height scaled by DPI
         /// </summary>
         private int GetWtTabBarHeight()
@@ -2994,22 +2931,6 @@ namespace ClaudeCodeVS
         /// </summary>
         private void InstallMouseHook()
         {
-            // Debounce timer: saves settings 500ms after last scroll tick.
-            // Created on the UI thread (here) since DispatcherTimer is UI-thread-affined; the
-            // mouse hook callback marshals back to the UI thread before touching it.
-            if (_zoomSaveTimer == null)
-            {
-                _zoomSaveTimer = new System.Windows.Threading.DispatcherTimer
-                {
-                    Interval = TimeSpan.FromMilliseconds(500)
-                };
-                _zoomSaveTimer.Tick += (s, e) =>
-                {
-                    _zoomSaveTimer.Stop();
-                    SaveSettings();
-                };
-            }
-
             StartHookThread();
         }
 
@@ -3020,8 +2941,6 @@ namespace ClaudeCodeVS
         {
             ResetWindowsTerminalSelectionTracking();
             StopHookThread();
-            _zoomSaveTimer?.Stop();
-            _zoomSaveTimer = null;
         }
 
         /// <summary>
@@ -3794,32 +3713,74 @@ namespace ClaudeCodeVS
 
             int step = wheelDelta > 0 ? 1 : -1;
 
-            // Apply the font change off the hook thread (AttachConsole is too heavy for a low-level
-            // hook callback), then persist the delta (for restart replay) and run the deferred
-            // repaint passes on the UI thread, mirroring the native Ctrl+Scroll handling.
+            // Coalesce this notch into the pending total and make sure a single drain worker is running.
+            // Spawning a font-change task per notch (the previous design) meant a fast scroll queued many
+            // AttachConsole/FreeConsole cycles on _consoleSnapshotLock — each one bounces the conhost's
+            // keyboard focus, which is what made the zoom freeze or run away. Now N notches collapse into
+            // one attach cycle. The physical wheel is still consumed by the caller (return true) so conhost
+            // never also processes it (double zoom when QuickEdit is on).
+            Interlocked.Add(ref _pendingConhostZoomSteps, step);
+            StartConhostZoomDrainWorker();
+
+            return true;
+        }
+
+        /// <summary>
+        /// Ensures a single background worker is draining <see cref="_pendingConhostZoomSteps"/>. The worker
+        /// applies the accumulated notches in one <see cref="TryAdjustConhostFontSize"/> call (one console
+        /// attach), schedules the repaint, then loops if more notches arrived while it worked. A short pause
+        /// between passes lets further notches coalesce and gives the conhost a beat to settle its focus after
+        /// the attach. The applied zoom is live-only — it is not persisted, so it resets to the configured
+        /// console font size on the next terminal restart.
+        /// </summary>
+        private void StartConhostZoomDrainWorker()
+        {
+            // Only one worker at a time; the accumulator holds anything that arrives while it runs.
+            if (Interlocked.CompareExchange(ref _conhostZoomWorkerActive, 1, 0) != 0) return;
+
             try
             {
 #pragma warning disable VSTHRD110
                 _ = Task.Run(async () =>
                 {
-                    bool applied = TryAdjustConhostFontSize(step);
-                    if (!applied) return;
+                    try
+                    {
+                        while (true)
+                        {
+                            int steps = Interlocked.Exchange(ref _pendingConhostZoomSteps, 0);
+                            if (steps != 0)
+                            {
+                                int applied = TryAdjustConhostFontSize(steps);
+                                if (applied != 0)
+                                {
+                                    await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
+                                    ScheduleManualZoomRefresh();
+                                }
 
-                    await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
-                    if (_settings == null) return;
-                    _settings.TerminalZoomDelta += step;
-                    _zoomSaveTimer?.Stop();
-                    _zoomSaveTimer?.Start();
-                    ScheduleManualZoomRefresh();
+                                // Let more notches accumulate before the next (heavy) attach cycle.
+                                await Task.Delay(25);
+                            }
+
+                            // Release the flag, then re-check: if a notch landed between the Exchange
+                            // above and here, re-acquire and keep draining so nothing is stranded.
+                            Interlocked.Exchange(ref _conhostZoomWorkerActive, 0);
+                            if (Volatile.Read(ref _pendingConhostZoomSteps) == 0) break;
+                            if (Interlocked.CompareExchange(ref _conhostZoomWorkerActive, 1, 0) != 0) break;
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        Debug.WriteLine($"Conhost zoom drain worker error: {ex.Message}");
+                        Interlocked.Exchange(ref _conhostZoomWorkerActive, 0);
+                    }
                 });
 #pragma warning restore VSTHRD110
             }
             catch (Exception ex)
             {
-                Debug.WriteLine($"TryForwardConhostCtrlZoom dispatch error: {ex.Message}");
+                Debug.WriteLine($"StartConhostZoomDrainWorker dispatch error: {ex.Message}");
+                Interlocked.Exchange(ref _conhostZoomWorkerActive, 0);
             }
-
-            return true;
         }
 
         /// <summary>
@@ -3856,13 +3817,11 @@ namespace ClaudeCodeVS
 
                 if (ctrlDown &&
                     IsScreenPointInsideActiveTerminalPanel(info.pt) &&
-                    IsTerminalHostForeground() &&
-                    _settings != null)
+                    IsTerminalHostForeground())
                 {
-                    int wheelDelta = (short)((info.mouseData >> 16) & 0xFFFF);
-                    _settings.TerminalZoomDelta += wheelDelta > 0 ? 1 : -1;
-                    _zoomSaveTimer?.Stop();
-                    _zoomSaveTimer?.Start();
+                    // Windows Terminal zooms natively from the physical wheel; just repaint the embedded
+                    // panel so the new cell grid fills it. (Conhost zoom is applied by the drain worker.)
+                    // The zoom is live-only and not persisted across restarts.
                     ScheduleManualZoomRefresh();
                 }
             }

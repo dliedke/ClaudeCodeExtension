@@ -8,7 +8,7 @@
  *
  * Purpose: Consolidated Settings dialog. Groups the previously scattered toggles
  *          (Send with Enter, Send large prompts as file, Auto-open Changes,
- *          Invert Layout, Disable Auto Zoom, Terminal Type, Theme, plus the
+ *          Invert Layout, Terminal Type, Theme, plus the
  *          new "skip theme restart prompt" opt-out) under a single screen
  *          accessible from the ⚙ menu's "Settings..." entry.
  *
@@ -82,11 +82,11 @@ namespace ClaudeCodeVS
             bool origAutoOpenChanges          = _settings.AutoOpenChangesOnPrompt;
             bool origInvertLayout             = _settings.InvertLayout;
             LayoutOrientation origOrientation = _settings.SelectedLayoutOrientation;
-            bool origDisableAutoZoom          = _settings.DisableStartupAutoZoom;
             bool origHidePromptPanel          = _settings.HidePromptPanel;
             TerminalType origTerminalType     = _settings.SelectedTerminalType;
             string origConsoleFont            = string.IsNullOrWhiteSpace(_settings.ConsoleFontFaceName)
                                                 ? "Cascadia Mono" : _settings.ConsoleFontFaceName;
+            int  origConsoleFontSize          = _settings.ConsoleFontSizePt;
             ThemePreference origThemePref     = _settings.SelectedThemePreference;
             int  origCustomColorArgb          = _settings.CustomThemeColorArgb;
             bool origSkipThemePrompt          = _settings.SkipThemeRestartPrompt;
@@ -310,13 +310,6 @@ namespace ClaudeCodeVS
                 origHidePromptPanel, themeFg);
             layoutStack.Children.Add(hidePromptPanelCheck);
 
-            layoutStack.Children.Add(MakeSectionHeader("Terminal zoom", themeFg));
-            var disableAutoZoomCheck = MakeCheckBox(
-                "Disable Auto Zoom on Startup",
-                "Skip the automatic terminal zoom-out and saved zoom-delta replay performed after each terminal start. Manual Ctrl+Scroll zoom still works.",
-                origDisableAutoZoom, themeFg);
-            layoutStack.Children.Add(disableAutoZoomCheck);
-
             // ========================= Terminal tab =========================
             var terminalStack = AddTab("Terminal");
 
@@ -490,6 +483,38 @@ namespace ClaudeCodeVS
             {
                 if (fontList.SelectedItem != null) fontList.ScrollIntoView(fontList.SelectedItem);
             };
+
+            // ---- Console font size ----
+            terminalStack.Children.Add(MakeSectionHeader("Console font size", themeFg));
+            terminalStack.Children.Add(new TextBlock
+            {
+                Text = "Font size (in points) of the embedded terminal. \"Default\" keeps the terminal's own " +
+                       "sizing. Ctrl+Scroll over the terminal still adjusts the size live; picking a size here " +
+                       "makes it the starting point and clears any accumulated Ctrl+Scroll zoom.",
+                FontSize = 11,
+                Opacity = 0.7,
+                Foreground = themeFg,
+                TextWrapping = TextWrapping.Wrap,
+                Margin = new Thickness(4, 0, 0, 4)
+            });
+            var consoleFontSizeCombo = MakeThemedComboBox(comboRes, themeFg);
+            consoleFontSizeCombo.Width = 110;
+            consoleFontSizeCombo.HorizontalAlignment = HorizontalAlignment.Left;
+            consoleFontSizeCombo.Margin = new Thickness(4, 0, 0, 4);
+            {
+                var defaultItem = new ComboBoxItem { Content = "Default", Tag = 0 };
+                if (comboRes["cbi"] is Style cbiStyle) defaultItem.Style = cbiStyle;
+                if (origConsoleFontSize <= 0) defaultItem.IsSelected = true;
+                consoleFontSizeCombo.Items.Add(defaultItem);
+                for (int pt = 6; pt <= 36; pt++)
+                {
+                    var item = new ComboBoxItem { Content = pt + " pt", Tag = pt };
+                    if (comboRes["cbi"] is Style cbiStyle2) item.Style = cbiStyle2;
+                    if (pt == origConsoleFontSize) item.IsSelected = true;
+                    consoleFontSizeCombo.Items.Add(item);
+                }
+            }
+            terminalStack.Children.Add(consoleFontSizeCombo);
 
             // "Disable clipboard" relies on simulated keystrokes that only conhost (Command Prompt)
             // accepts, so the toggle is enabled only while Command Prompt is selected. Keep it in sync
@@ -751,7 +776,6 @@ namespace ClaudeCodeVS
                 autoOpenCheck.IsChecked = false;
                 SelectComboByTag(fontSizeCombo, 12);
                 topRadio.IsChecked = true;                // Top layout
-                disableAutoZoomCheck.IsChecked = false;
                 cmdRadio.IsChecked = true;                // Command Prompt
                 autoRadio.IsChecked = true;               // Automatic theme
                 hexBox.Text = "#F4ECFF";                  // default custom color
@@ -808,13 +832,13 @@ namespace ClaudeCodeVS
             LayoutOrientation newOrientation = newVertical
                 ? LayoutOrientation.Vertical
                 : LayoutOrientation.Horizontal;
-            bool newDisableAutoZoom = disableAutoZoomCheck.IsChecked == true;
             bool newHidePromptPanel = hidePromptPanelCheck.IsChecked == true;
             TerminalType newTerminalType = wtRadio.IsChecked == true
                 ? TerminalType.WindowsTerminal
                 : TerminalType.CommandPrompt;
             string newConsoleFont = string.IsNullOrWhiteSpace(chosenFont)
                 ? "Cascadia Mono" : chosenFont.Trim();
+            int newConsoleFontSize = (consoleFontSizeCombo.SelectedItem as ComboBoxItem)?.Tag is int cfs ? cfs : origConsoleFontSize;
             ThemePreference newThemePref =
                 darkRadio.IsChecked   == true ? ThemePreference.Dark   :
                 lightRadio.IsChecked  == true ? ThemePreference.Light  :
@@ -877,10 +901,10 @@ namespace ClaudeCodeVS
             _settings.AutoOpenChangesOnPrompt = newAutoOpenChanges;
             _settings.InvertLayout            = newInvertLayout;
             _settings.SelectedLayoutOrientation = newOrientation;
-            _settings.DisableStartupAutoZoom  = newDisableAutoZoom;
             _settings.HidePromptPanel         = newHidePromptPanel;
             _settings.SelectedTerminalType    = newTerminalType;
             _settings.ConsoleFontFaceName     = newConsoleFont;
+            _settings.ConsoleFontSizePt       = newConsoleFontSize;
             _settings.SelectedThemePreference = newThemePref;
             _settings.CustomThemeColorArgb    = newCustomColorArgb;
             _settings.SkipThemeRestartPrompt  = newSkipThemePrompt;
@@ -972,7 +996,7 @@ namespace ClaudeCodeVS
             bool terminalTypeChanged = newTerminalType != origTerminalType;
             // A console font change takes effect only when the terminal next launches (conhost reads the
             // registry at creation; Windows Terminal is launched with the dedicated -p profile), so relaunch.
-            bool consoleFontChanged = newConsoleFont != origConsoleFont;
+            bool consoleFontChanged = newConsoleFont != origConsoleFont || newConsoleFontSize != origConsoleFontSize;
             bool needsRestart = terminalTypeChanged || activeCliPathChanged || consoleFontChanged;
 
             // For theme changes, ask the user (respecting the skip-prompt opt-out
