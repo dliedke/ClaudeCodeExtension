@@ -113,6 +113,9 @@ https://github.com/anthropics/claude-code/issues/41501
 
 ## Version History
 
+### Version 75.0
+- Fixed the extension failing with "Error sending prompt: Method not found: ...JToken.ToString..." when submitting a prompt or opening the Settings dialog on version 74 (issue #112).
+
 ### Version 74.0
 - Added a **Console font size** setting (⚙ → Settings... → Terminal) to set the embedded terminal's text size directly, for both Command Prompt and Windows Terminal.
 - The terminal no longer auto-zooms at startup, and Ctrl+Scroll zoom now applies only for the current session — use the new Console font size setting for a size that persists across restarts.

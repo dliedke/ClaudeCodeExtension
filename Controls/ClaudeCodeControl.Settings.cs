@@ -350,7 +350,13 @@ namespace ClaudeCodeVS
                         (int)_lastPersistableEffortLevel;
                 }
 
-                var json = toSave.ToString(Formatting.Indented);
+                // Use JsonConvert.SerializeObject instead of JToken.ToString(Formatting)
+                // so serialization does not depend on a member that only exists in a
+                // specific Newtonsoft.Json build. Visual Studio pre-loads its own
+                // Newtonsoft.Json (all 13.0.x share AssemblyVersion 13.0.0.0), which
+                // wins assembly resolution over the one shipped with the extension; a
+                // mismatched overload otherwise threw "Method not found" at runtime.
+                var json = JsonConvert.SerializeObject(toSave, Formatting.Indented);
                 File.WriteAllText(ConfigurationPath, json);
             }
             catch (Exception ex)
