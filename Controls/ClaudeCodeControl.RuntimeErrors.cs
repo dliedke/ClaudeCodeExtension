@@ -316,7 +316,7 @@ namespace ClaudeCodeVS
         /// <summary>
         /// Builds the prompt sent to the agent for a runtime exception.
         /// </summary>
-        private static string FormatRuntimeErrorPrompt(string details)
+        internal static string FormatRuntimeErrorPrompt(string details)
         {
             var sb = new StringBuilder();
             sb.AppendLine("While running under the Visual Studio debugger, the application hit an " +

@@ -116,7 +116,7 @@ namespace ClaudeCodeVS
                    value.IndexOf('\0') >= 0;
         }
 
-        private static string QuoteForBash(string value)
+        internal static string QuoteForBash(string value)
         {
             if (value == null)
             {

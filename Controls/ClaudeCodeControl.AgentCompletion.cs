@@ -1115,11 +1115,15 @@ namespace ClaudeCodeVS
         /// AttachConsole machinery as the completion watcher (serialized by <see cref="_consoleSnapshotLock"/>,
         /// std-handle hygiene restored in the finally). Returns the number of notches actually applied
         /// (signed; 0 when nothing changed or on failure) so callers can keep the persisted zoom delta
-        /// accurate even when the size is clamped at the min/max bound. Call off the UI thread — it
-        /// briefly attaches VS's process to the agent's console.
+        /// accurate even when the size is clamped at the min/max bound, and reports the resulting cell
+        /// height in <paramref name="newCellHeightPx"/> (0 when nothing changed) so the caller can
+        /// persist the size the user settled on. Call off the UI thread — it briefly attaches VS's
+        /// process to the agent's console.
         /// </summary>
-        private int TryAdjustConhostFontSize(int stepUnits)
+        private int TryAdjustConhostFontSize(int stepUnits, out int newCellHeightPx)
         {
+            newCellHeightPx = 0;
+
             if (stepUnits == 0) return 0;
 
             int clientPid = ResolveConsoleClientPid(0);
@@ -1176,6 +1180,7 @@ namespace ClaudeCodeVS
 
                     // Report the notches actually applied (may be fewer than requested at the clamp bound)
                     // so the caller's persisted zoom delta stays in sync with the real font size.
+                    newCellHeightPx = newHeight;
                     return (newHeight - oldHeight) / ConhostZoomStepPx;
                 }
                 catch (Exception ex)

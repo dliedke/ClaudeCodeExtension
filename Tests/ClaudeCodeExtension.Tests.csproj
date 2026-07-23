@@ -1,0 +1,48 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net472</TargetFramework>
+    <AssemblyName>ClaudeCodeExtension.Tests</AssemblyName>
+    <RootNamespace>ClaudeCodeExtension.Tests</RootNamespace>
+    <IsPackable>false</IsPackable>
+    <LangVersion>latest</LangVersion>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.12.0" />
+    <PackageReference Include="MSTest.TestAdapter" Version="3.6.4" />
+    <PackageReference Include="MSTest.TestFramework" Version="3.6.4" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Unlike the VSIX project, the SDK runtime assets are NOT excluded here. Loading the
+         ClaudeCodeControl type runs the static field initializers of every partial, and
+         ClaudeCodeControl.Theme.cs initializes _themeResourceKeys from VsBrushes — so
+         Microsoft.VisualStudio.Shell must be resolvable in the test host even though no live
+         shell is involved. -->
+    <PackageReference Include="Microsoft.VisualStudio.SDK" Version="17.14.40265" NoWarn="NU1604">
+      <IncludeAssets>compile; build; native; contentfiles; analyzers; buildtransitive; runtime</IncludeAssets>
+    </PackageReference>
+    <PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
+    <PackageReference Include="DiffPlex" Version="1.9.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- ClaudeCodeControl derives from UserControl, so resolving the type requires the WPF
+         assemblies even though no UI is ever instantiated by these tests. -->
+    <Reference Include="PresentationCore" />
+    <Reference Include="PresentationFramework" />
+    <Reference Include="System.Xaml" />
+    <Reference Include="WindowsBase" />
+    <Reference Include="System.Drawing" />
+    <Reference Include="System.Windows.Forms" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Referenced for its output assembly only; the VSIX packaging targets are irrelevant here. -->
+    <ProjectReference Include="..\ClaudeCodeExtension.csproj">
+      <Private>true</Private>
+    </ProjectReference>
+  </ItemGroup>
+
+</Project>

@@ -1074,7 +1074,7 @@ namespace ClaudeCodeVS
             return fullPath.StartsWith(fullDirectory, StringComparison.OrdinalIgnoreCase);
         }
 
-        private static IEnumerable<GitStatusEntry> ParseGitStatusEntries(string output)
+        internal static IEnumerable<GitStatusEntry> ParseGitStatusEntries(string output)
         {
             if (string.IsNullOrEmpty(output))
                 yield break;
@@ -1105,7 +1105,7 @@ namespace ClaudeCodeVS
             }
         }
 
-        private sealed class GitStatusEntry
+        internal sealed class GitStatusEntry
         {
             public GitStatusEntry(string status, string path, string newPath)
             {

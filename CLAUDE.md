@@ -38,7 +38,29 @@
 ```
 
 - **Debug**: F5 in Visual Studio → experimental instance with `/rootsuffix Exp`
-- **No automated tests** — manual testing via F5 in VS 2022/2026
+
+### Debugging in the Exp hive (`deploy-exp.cmd`)
+
+The VSSDK targets default `DeployExtension` to **false**, so the csproj sets `VSSDKTargetPlatformRegRootSuffix=Exp` and turns `DeployExtension` on for Debug builds inside Visual Studio. Without those two properties F5 opens an Exp instance with no extension in it. Command-line builds (`test.cmd`, `publish.cmd`) keep the default and deploy nothing.
+
+```bash
+./deploy-exp.cmd        # build Debug + deploy to the Exp hive
+./deploy-exp.cmd -run   # the above, then start devenv /rootsuffix Exp with the solution
+```
+
+- Close the Exp instance before deploying — otherwise it keeps running the previous build.
+- A first deploy into a hive that never had the extension fails with `VSSDK1031 ... could not be found`; the script recovers by running `devenv /rootsuffix Exp /updateconfiguration` and retrying.
+
+### Tests (`test.cmd`)
+
+```bash
+./test.cmd    # build Tests/ + run the unit suite (seconds, no VS)
+```
+
+- Runs `Tests/ClaudeCodeExtension.Tests.csproj` under `vstest.console.exe`: version/package guards (the Newtonsoft pin that would have caught #112, version consistency across the three sources) plus unit tests of the pure helpers.
+- **`publish.cmd` calls `test.cmd`** before the Release rebuild. `SKIP_TESTS=1` bypasses the gate.
+- The test project is in the solution **without** a `Release|Any CPU.Build.0` entry, so the Release rebuild in `publish.cmd` does not build it.
+- Everything that needs a running Visual Studio (terminal embedding, provider round-trip, settings dialog) is tested manually with F5.
 
 ### Publishing
 

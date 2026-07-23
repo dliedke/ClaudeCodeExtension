@@ -496,8 +496,9 @@ namespace ClaudeCodeVS
             terminalStack.Children.Add(new TextBlock
             {
                 Text = "Font size (in points) of the embedded terminal. \"Default\" keeps the terminal's own " +
-                       "sizing. Ctrl+Scroll over the terminal still adjusts the size live; picking a size here " +
-                       "makes it the starting point and clears any accumulated Ctrl+Scroll zoom.",
+                       "sizing. In Command Prompt, Ctrl+Scroll over the terminal updates this size " +
+                       "automatically, so the zoom you settle on is kept for the next session. In Windows " +
+                       "Terminal, Ctrl+Scroll only lasts for the current session — set the size here.",
                 FontSize = 11,
                 Opacity = 0.7,
                 Foreground = themeFg,
@@ -513,7 +514,7 @@ namespace ClaudeCodeVS
                 if (comboRes["cbi"] is Style cbiStyle) defaultItem.Style = cbiStyle;
                 if (origConsoleFontSize <= 0) defaultItem.IsSelected = true;
                 consoleFontSizeCombo.Items.Add(defaultItem);
-                for (int pt = 6; pt <= 36; pt++)
+                for (int pt = ConsoleFontSizeMinPt; pt <= ConsoleFontSizeMaxPt; pt++)
                 {
                     var item = new ComboBoxItem { Content = pt + " pt", Tag = pt };
                     if (comboRes["cbi"] is Style cbiStyle2) item.Style = cbiStyle2;

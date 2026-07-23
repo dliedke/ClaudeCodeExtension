@@ -250,7 +250,7 @@ namespace ClaudeCodeVS
         /// <summary>
         /// Normalizes a workspace path for stable comparisons across DTE/IVsSolution sources.
         /// </summary>
-        private static string NormalizeWorkspaceDirectory(string directory)
+        internal static string NormalizeWorkspaceDirectory(string directory)
         {
             if (string.IsNullOrWhiteSpace(directory))
             {
@@ -271,7 +271,7 @@ namespace ClaudeCodeVS
         /// <summary>
         /// Compares workspace paths using Windows path semantics.
         /// </summary>
-        private static bool WorkspaceDirectoriesEqual(string left, string right)
+        internal static bool WorkspaceDirectoriesEqual(string left, string right)
         {
             return string.Equals(
                 NormalizeWorkspaceDirectory(left),

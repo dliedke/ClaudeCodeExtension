@@ -1894,6 +1894,14 @@ namespace ClaudeCodeVS
         private bool _consoleFontSizeSaved;
 
         /// <summary>
+        /// Bounds of the configurable console font size, in points. Used both by the Settings drop-down
+        /// and by <see cref="PersistConhostZoomFontSize"/>, so a size captured from a Ctrl+Scroll zoom is
+        /// always a value the drop-down can display back.
+        /// </summary>
+        private const int ConsoleFontSizeMinPt = 6;
+        private const int ConsoleFontSizeMaxPt = 36;
+
+        /// <summary>
         /// Saved original console CodePage from registry, for restoration after conhost starts.
         /// Stored in the conhost.exe-specific subkey (HKCU\Console\%SystemRoot%_System32_conhost.exe),
         /// because the parent HKCU\Console CodePage value is ignored in practice.
@@ -1980,9 +1988,7 @@ namespace ClaudeCodeVS
                         _savedConsoleFontSize = key.GetValue("FontSize");
                         _consoleFontSizeSaved = true;
 
-                        int heightPx = (int)Math.Round(fontSizePt * 96.0 / 72.0);
-                        if (heightPx < 4) heightPx = 4;
-                        if (heightPx > 200) heightPx = 200;
+                        int heightPx = ConsoleFontPtToCellHeightPx(fontSizePt);
                         int fontSizeValue = (heightPx & 0xFFFF) << 16;
                         key.SetValue("FontSize", fontSizeValue, Microsoft.Win32.RegistryValueKind.DWord);
                     }
@@ -2193,7 +2199,7 @@ namespace ClaudeCodeVS
 
                 if (changed)
                 {
-                    File.WriteAllText(settingsPath, root.ToString(Newtonsoft.Json.Formatting.Indented));
+                    File.WriteAllText(settingsPath, SerializeJsonIndented(root));
                 }
                 return WtFontProfileName;
             }
@@ -2245,7 +2251,7 @@ namespace ClaudeCodeVS
                 if ((string)root["rightClickAction"] == "copyPaste") return;
 
                 root["rightClickAction"] = "copyPaste";
-                File.WriteAllText(settingsPath, root.ToString(Newtonsoft.Json.Formatting.Indented));
+                File.WriteAllText(settingsPath, SerializeJsonIndented(root));
             }
             catch (Exception ex)
             {
@@ -3730,8 +3736,10 @@ namespace ClaudeCodeVS
         /// applies the accumulated notches in one <see cref="TryAdjustConhostFontSize"/> call (one console
         /// attach), schedules the repaint, then loops if more notches arrived while it worked. A short pause
         /// between passes lets further notches coalesce and gives the conhost a beat to settle its focus after
-        /// the attach. The applied zoom is live-only — it is not persisted, so it resets to the configured
-        /// console font size on the next terminal restart.
+        /// the attach. Once the burst has fully drained, the size the user settled on is written to
+        /// <see cref="ClaudeCodeSettings.ConsoleFontSizePt"/> (see <see cref="PersistConhostZoomFontSize"/>)
+        /// so the next session opens at that size. Persisting only after the drain keeps a fast scroll from
+        /// writing the settings file once per notch.
         /// </summary>
         private void StartConhostZoomDrainWorker()
         {
@@ -3745,14 +3753,18 @@ namespace ClaudeCodeVS
                 {
                     try
                     {
+                        // Cell height the zoom last landed on, persisted once the burst has drained.
+                        int settledCellHeightPx = 0;
+
                         while (true)
                         {
                             int steps = Interlocked.Exchange(ref _pendingConhostZoomSteps, 0);
                             if (steps != 0)
                             {
-                                int applied = TryAdjustConhostFontSize(steps);
+                                int applied = TryAdjustConhostFontSize(steps, out int newCellHeightPx);
                                 if (applied != 0)
                                 {
+                                    settledCellHeightPx = newCellHeightPx;
                                     await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
                                     ScheduleManualZoomRefresh();
                                 }
@@ -3766,6 +3778,13 @@ namespace ClaudeCodeVS
                             Interlocked.Exchange(ref _conhostZoomWorkerActive, 0);
                             if (Volatile.Read(ref _pendingConhostZoomSteps) == 0) break;
                             if (Interlocked.CompareExchange(ref _conhostZoomWorkerActive, 1, 0) != 0) break;
+                        }
+
+                        // The burst is over — remember the size the user settled on for the next session.
+                        if (settledCellHeightPx > 0)
+                        {
+                            await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
+                            PersistConhostZoomFontSize(settledCellHeightPx);
                         }
                     }
                     catch (Exception ex)
@@ -3781,6 +3800,68 @@ namespace ClaudeCodeVS
                 Debug.WriteLine($"StartConhostZoomDrainWorker dispatch error: {ex.Message}");
                 Interlocked.Exchange(ref _conhostZoomWorkerActive, 0);
             }
+        }
+
+        /// <summary>
+        /// Records the size a Ctrl+Scroll zoom settled on as the configured console font size, so the
+        /// next terminal starts there instead of resetting. Command Prompt only: Windows Terminal
+        /// handles Ctrl+Scroll internally and the gesture never reaches the extension, so there is no
+        /// size to capture there — that mode still needs Settings → Terminal → Console font size.
+        ///
+        /// The conhost font is a cell height in pixels while the setting is in points; the conversion
+        /// is the exact inverse of the one <see cref="SaveAndSetConsoleFontRegistry"/> applies on
+        /// launch (px = pt * 96 / 72), so a saved size re-applies to the same cell height. The result
+        /// is clamped to the range the Settings drop-down offers, keeping the two in agreement even
+        /// when the zoom is pushed to its own (wider) pixel bounds.
+        ///
+        /// Call on the UI thread — <see cref="SaveSettings"/> reads WPF layout. The usual
+        /// <c>ThrowIfNotOnUIThread</c> guard is deliberately omitted: it would mark this method
+        /// UI-thread-only for the analyzer, which then propagates the requirement all the way up
+        /// through the drain worker to the mouse-hook callback that legitimately runs off-thread.
+        /// </summary>
+        private void PersistConhostZoomFontSize(int cellHeightPx)
+        {
+            try
+            {
+                if (_settings == null || cellHeightPx <= 0) return;
+
+                int pt = ConsoleCellHeightPxToFontPt(cellHeightPx);
+                if (_settings.ConsoleFontSizePt == pt) return;
+
+                _settings.ConsoleFontSizePt = pt;
+                SaveSettings();
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"PersistConhostZoomFontSize error: {ex.Message}");
+            }
+        }
+
+        /// <summary>
+        /// Converts a console font size in points to the cell height in pixels that
+        /// <c>HKCU\Console\FontSize</c> encodes (96 DPI is what conhost assumes for that value).
+        /// Inverse of <see cref="ConsoleCellHeightPxToFontPt"/>.
+        /// </summary>
+        internal static int ConsoleFontPtToCellHeightPx(int fontSizePt)
+        {
+            int heightPx = (int)Math.Round(fontSizePt * 96.0 / 72.0);
+            if (heightPx < 4) heightPx = 4;
+            if (heightPx > 200) heightPx = 200;
+            return heightPx;
+        }
+
+        /// <summary>
+        /// Converts a console cell height in pixels (what a Ctrl+Scroll zoom leaves the conhost at)
+        /// back to a font size in points, clamped to the range the Settings drop-down offers so the
+        /// value can always be displayed back to the user. Inverse of
+        /// <see cref="ConsoleFontPtToCellHeightPx"/> over that range.
+        /// </summary>
+        internal static int ConsoleCellHeightPxToFontPt(int cellHeightPx)
+        {
+            int pt = (int)Math.Round(cellHeightPx * 72.0 / 96.0);
+            if (pt < ConsoleFontSizeMinPt) pt = ConsoleFontSizeMinPt;
+            if (pt > ConsoleFontSizeMaxPt) pt = ConsoleFontSizeMaxPt;
+            return pt;
         }
 
         /// <summary>
@@ -4487,7 +4568,7 @@ namespace ClaudeCodeVS
         /// </summary>
         /// <param name="windowsPath">Windows path to convert</param>
         /// <returns>WSL-formatted path</returns>
-        private string ConvertToWslPath(string windowsPath)
+        internal static string ConvertToWslPath(string windowsPath)
         {
             if (string.IsNullOrEmpty(windowsPath))
                 return string.Empty;
@@ -4534,7 +4615,7 @@ namespace ClaudeCodeVS
             return windowsPath.Replace("\\", "/");
         }
 
-        private static string BuildWslLaunchCommand(string wslPath, string providerCommand)
+        internal static string BuildWslLaunchCommand(string wslPath, string providerCommand)
         {
             return $"wsl bash -lic \"cd {QuoteForBash(wslPath)} && {providerCommand}\"";
         }

@@ -39,7 +39,7 @@ namespace ClaudeCodeVS
         /// Non-ASCII letters/digits (e.g. Japanese) are also turned into dashes, matching
         /// the CLI — so <c>char.IsLetterOrDigit</c> (Unicode-aware) must NOT be used here.
         /// </summary>
-        private static string EncodeClaudeProjectPath(string workspacePath)
+        internal static string EncodeClaudeProjectPath(string workspacePath)
         {
             if (string.IsNullOrEmpty(workspacePath)) return string.Empty;
 

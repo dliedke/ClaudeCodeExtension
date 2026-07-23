@@ -141,17 +141,7 @@ namespace ClaudeCodeVS
         /// <param name="text">The text to send to the terminal</param>
         private async Task SendTextToTerminalAsync(string text, bool singleEnterEvent = false)
         {
-            // Never deliver a trailing newline with the payload. Claude Code's TUI inserts a
-            // literal blank line into its input box for every LF that reaches it outside a paste
-            // burst (a lone LF is Ctrl+J = insert-newline), and such blank lines persist in the
-            // input box until they ride along with the next submitted message. The prompt built by
-            // SendButton_Click ended in "\r\n" (AppendLine); on machines where conhost streams the
-            // paste keystrokes slowly the final LF landed outside the CLI's paste-burst window and
-            // left one permanent blank line behind per send, accumulating over a session into a
-            // huge blank prefix on every message (issue #108). Submission is always driven by
-            // SendEnterKey below, so the trailing newline served no purpose. Interior newlines
-            // (multi-line prompts) are preserved.
-            text = text?.TrimEnd('\r', '\n');
+            text = StripTrailingNewlines(text);
 
             // Mouse-input-mode probe (issues #76, #82, #83): when a TUI has switched the embedded
             // conhost into mouse-input mode (QuickEdit disabled — e.g. Claude Code signed in with an
@@ -575,6 +565,26 @@ namespace ClaudeCodeVS
         }
 
         /// <summary>
+        /// Removes trailing carriage returns and line feeds from a payload bound for the terminal,
+        /// preserving interior newlines (multi-line prompts).
+        /// </summary>
+        /// <remarks>
+        /// Never deliver a trailing newline with the payload. Claude Code's TUI inserts a literal
+        /// blank line into its input box for every LF that reaches it outside a paste burst (a lone
+        /// LF is Ctrl+J = insert-newline), and such blank lines persist in the input box until they
+        /// ride along with the next submitted message. The prompt built by SendButton_Click ended in
+        /// "\r\n" (AppendLine); on machines where conhost streams the paste keystrokes slowly the
+        /// final LF landed outside the CLI's paste-burst window and left one permanent blank line
+        /// behind per send, accumulating over a session into a huge blank prefix on every message
+        /// (issue #108). Submission is always driven by SendEnterKey, so the trailing newline served
+        /// no purpose.
+        /// </remarks>
+        internal static string StripTrailingNewlines(string text)
+        {
+            return text?.TrimEnd('\r', '\n');
+        }
+
+        /// <summary>
         /// Compares a clipboard read-back against the original text. Tolerates the
         /// well-known cases where the round-tripped string differs harmlessly from
         /// the source: line endings normalized to <c>\r\n</c>, a trailing newline
@@ -582,7 +592,7 @@ namespace ClaudeCodeVS
         /// Without this leniency the verify step rejects content that would have
         /// pasted correctly. See issue #59.
         /// </summary>
-        private static bool ClipboardTextMatches(string actual, string expected)
+        internal static bool ClipboardTextMatches(string actual, string expected)
         {
             if (actual == null || expected == null) return false;
             if (string.Equals(actual, expected, StringComparison.Ordinal)) return true;

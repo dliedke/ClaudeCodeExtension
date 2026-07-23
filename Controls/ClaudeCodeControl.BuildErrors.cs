@@ -424,7 +424,7 @@ namespace ClaudeCodeVS
         /// (when present) a numbered warnings list, each capped so a build with hundreds of
         /// issues doesn't flood the terminal.
         /// </summary>
-        private string FormatBuildErrorPrompt(List<string> errors, List<string> warnings)
+        internal static string FormatBuildErrorPrompt(List<string> errors, List<string> warnings)
         {
             var sb = new StringBuilder();
 

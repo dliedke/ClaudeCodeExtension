@@ -26,6 +26,12 @@
     <StartAction>Program</StartAction>
     <StartProgram Condition="'$(DevEnvDir)' != ''">$(DevEnvDir)devenv.exe</StartProgram>
     <StartArguments>/rootsuffix Exp</StartArguments>
+    <!-- F5 debugging: the VSSDK targets default DeployExtension to false, so without these two the
+         experimental hive never receives the extension and the Exp instance comes up empty.
+         Deploy only when building inside Visual Studio, so command-line builds (test.cmd, publish.cmd)
+         stay side-effect free; deploy-exp.cmd passes -p:DeployExtension=true explicitly. -->
+    <VSSDKTargetPlatformRegRootSuffix>Exp</VSSDKTargetPlatformRegRootSuffix>
+    <DeployExtension Condition="'$(DeployExtension)' == '' and '$(Configuration)' == 'Debug' and '$(BuildingInsideVisualStudio)' == 'true'">true</DeployExtension>
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|AnyCPU' ">
     <DebugSymbols>true</DebugSymbols>
@@ -87,7 +93,9 @@
     <Compile Include="Package\SolutionEventsHandler.cs" />
   </ItemGroup>
   <ItemGroup>
+    <None Include="AGENTS.md" />
     <None Include="CLAUDE.md" />
+    <None Include="deploy-exp.cmd" />
     <None Include="docs\ARCHITECTURE.md" />
     <None Include="publish.cmd" />
     <None Include="publishManifest.json" />
@@ -95,6 +103,7 @@
     <None Include="source.extension.vsixmanifest">
       <SubType>Designer</SubType>
     </None>
+    <None Include="test.cmd" />
   </ItemGroup>
   <ItemGroup>
     <Reference Include="PresentationCore" />

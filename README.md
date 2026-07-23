@@ -113,6 +113,9 @@ https://github.com/anthropics/claude-code/issues/41501
 
 ## Version History
 
+### Version 78.0
+- Ctrl+Scroll zoom in the Command Prompt terminal is now remembered: the size you settle on becomes the Console font size setting, so the next session opens at that size without any manual step. In Windows Terminal the zoom still applies only to the current session — use Settings > Terminal > Console font size there.
+
 ### Version 77.0
 - Fixed the new Session History sort selector's drop-down being unreadable in dark mode (light text on a white popup); it now follows the current theme.
 

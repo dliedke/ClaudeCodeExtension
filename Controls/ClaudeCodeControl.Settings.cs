@@ -319,16 +319,7 @@ namespace ClaudeCodeVS
                     {
                         if (File.Exists(ConfigurationPath))
                         {
-                            var diskJson = File.ReadAllText(ConfigurationPath);
-                            var diskObj = Newtonsoft.Json.Linq.JObject.Parse(diskJson);
-
-                            foreach (var field in VolatileSettingsFields)
-                            {
-                                if (diskObj.TryGetValue(field, out var diskValue))
-                                {
-                                    toSave[field] = diskValue;
-                                }
-                            }
+                            PreserveVolatileFieldsFromDisk(toSave, File.ReadAllText(ConfigurationPath));
                         }
                     }
                     catch (Exception diskEx)
@@ -350,19 +341,57 @@ namespace ClaudeCodeVS
                         (int)_lastPersistableEffortLevel;
                 }
 
-                // Use JsonConvert.SerializeObject instead of JToken.ToString(Formatting)
-                // so serialization does not depend on a member that only exists in a
-                // specific Newtonsoft.Json build. Visual Studio pre-loads its own
-                // Newtonsoft.Json (all 13.0.x share AssemblyVersion 13.0.0.0), which
-                // wins assembly resolution over the one shipped with the extension; a
-                // mismatched overload otherwise threw "Method not found" at runtime.
-                var json = JsonConvert.SerializeObject(toSave, Formatting.Indented);
+                var json = SerializeJsonIndented(toSave);
                 File.WriteAllText(ConfigurationPath, json);
             }
             catch (Exception ex)
             {
                 Debug.WriteLine($"Error saving settings: {ex.Message}");
             }
+        }
+
+        /// <summary>
+        /// Copies the volatile per-instance fields (provider, model, effort) from the settings
+        /// already on disk over the values about to be written, so a second Visual Studio window
+        /// does not clobber the selections made in the first one. Unreadable or corrupt disk
+        /// content leaves <paramref name="toSave"/> untouched — writing this instance's values is
+        /// better than losing every setting.
+        /// </summary>
+        internal static void PreserveVolatileFieldsFromDisk(Newtonsoft.Json.Linq.JObject toSave, string diskJson)
+        {
+            if (toSave == null || string.IsNullOrWhiteSpace(diskJson))
+                return;
+
+            try
+            {
+                var diskObj = Newtonsoft.Json.Linq.JObject.Parse(diskJson);
+
+                foreach (var field in VolatileSettingsFields)
+                {
+                    if (diskObj.TryGetValue(field, out var diskValue))
+                    {
+                        toSave[field] = diskValue;
+                    }
+                }
+            }
+            catch (Exception diskEx)
+            {
+                Debug.WriteLine($"Could not read disk settings for merge: {diskEx.Message}");
+            }
+        }
+
+        /// <summary>
+        /// Serializes any object (including a <see cref="Newtonsoft.Json.Linq.JToken"/>) to indented
+        /// JSON. Always route JSON writes through here rather than calling
+        /// <c>JToken.ToString(Formatting)</c>: serialization must not depend on a member that only
+        /// exists in a specific Newtonsoft.Json build. Visual Studio pre-loads its own
+        /// Newtonsoft.Json (all 13.0.x share AssemblyVersion 13.0.0.0), which wins assembly
+        /// resolution over the one shipped with the extension; a mismatched overload otherwise
+        /// threw "Method not found" at runtime (issue #112).
+        /// </summary>
+        internal static string SerializeJsonIndented(object value)
+        {
+            return JsonConvert.SerializeObject(value, Formatting.Indented);
         }
 
         #endregion
