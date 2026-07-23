@@ -594,6 +594,50 @@ namespace ClaudeCodeVS
             Grid.SetColumn(searchBox, 1);
             filterBar.Children.Add(searchBox);
 
+            // Sort selector (issue #114) — lets the user reliably order the list instead of
+            // relying on the implicit last-modified ordering. Tag holds the persisted key.
+            var sortLabel = new TextBlock
+            {
+                Text = "Sort:",
+                Foreground = themeFg,
+                VerticalAlignment = VerticalAlignment.Center,
+                Margin = new Thickness(0, 0, 6, 0)
+            };
+            var sortCombo = new ComboBox
+            {
+                Background = themeBg,
+                Foreground = themeFg,
+                BorderBrush = themeFg,
+                VerticalContentAlignment = VerticalAlignment.Center,
+                Height = 26,
+                MinWidth = 150,
+                Margin = new Thickness(0, 0, 12, 0),
+                ToolTip = "Choose how sessions are ordered. Your choice is remembered across restarts."
+            };
+            var sortOptions = new[]
+            {
+                new { Key = "modified", Label = "Last modified" },
+                new { Key = "oldest",   Label = "Oldest first" },
+                new { Key = "tokens",   Label = "Most tokens" },
+                new { Key = "messages", Label = "Most messages" },
+                new { Key = "title",    Label = "Title (A–Z)" }
+            };
+            string savedSort = string.IsNullOrWhiteSpace(_settings?.SessionHistorySortMode)
+                ? "modified" : _settings.SessionHistorySortMode;
+            foreach (var opt in sortOptions)
+            {
+                var item = new ComboBoxItem { Content = opt.Label, Tag = opt.Key, Foreground = themeFg };
+                sortCombo.Items.Add(item);
+                if (string.Equals(opt.Key, savedSort, StringComparison.OrdinalIgnoreCase))
+                {
+                    sortCombo.SelectedItem = item;
+                }
+            }
+            if (sortCombo.SelectedItem == null && sortCombo.Items.Count > 0)
+            {
+                sortCombo.SelectedIndex = 0;
+            }
+
             var renamedOnlyCheck = new CheckBox
             {
                 Content = "Renamed only",
@@ -602,8 +646,17 @@ namespace ClaudeCodeVS
                 IsChecked = _settings?.SessionHistoryRenamedOnly == true,
                 ToolTip = "Show only sessions you have given a custom title."
             };
-            Grid.SetColumn(renamedOnlyCheck, 2);
-            filterBar.Children.Add(renamedOnlyCheck);
+
+            var rightFilterPanel = new StackPanel
+            {
+                Orientation = Orientation.Horizontal,
+                VerticalAlignment = VerticalAlignment.Center
+            };
+            rightFilterPanel.Children.Add(sortLabel);
+            rightFilterPanel.Children.Add(sortCombo);
+            rightFilterPanel.Children.Add(renamedOnlyCheck);
+            Grid.SetColumn(rightFilterPanel, 2);
+            filterBar.Children.Add(rightFilterPanel);
 
             Grid.SetRow(filterBar, 0);
             grid.Children.Add(filterBar);
@@ -704,8 +757,35 @@ namespace ClaudeCodeVS
 
                 listBox.Items.Clear();
 
+                string sortKey = (sortCombo.SelectedItem as ComboBoxItem)?.Tag as string ?? "modified";
+                IEnumerable<SessionInfo> orderedSessions;
+                switch (sortKey)
+                {
+                    case "oldest":
+                        orderedSessions = loadedSessions.OrderBy(s => s.LastModified);
+                        break;
+                    case "tokens":
+                        orderedSessions = loadedSessions.OrderByDescending(s => s.TokenCount)
+                                                        .ThenByDescending(s => s.LastModified);
+                        break;
+                    case "messages":
+                        orderedSessions = loadedSessions.OrderByDescending(s => s.MessageCount)
+                                                        .ThenByDescending(s => s.LastModified);
+                        break;
+                    case "title":
+                        // Named sessions first, alphabetical; unnamed fall to the bottom by recency.
+                        orderedSessions = loadedSessions
+                            .OrderBy(s => string.IsNullOrWhiteSpace(s.CustomTitle) ? 1 : 0)
+                            .ThenBy(s => s.CustomTitle, StringComparer.OrdinalIgnoreCase)
+                            .ThenByDescending(s => s.LastModified);
+                        break;
+                    default: // "modified"
+                        orderedSessions = loadedSessions.OrderByDescending(s => s.LastModified);
+                        break;
+                }
+
                 int reselectIndex = -1;
-                foreach (var s in loadedSessions)
+                foreach (var s in orderedSessions)
                 {
                     bool isRenamed = !string.IsNullOrWhiteSpace(s.CustomTitle);
                     if (renamedOnly && !isRenamed) continue;
@@ -778,9 +858,22 @@ namespace ClaudeCodeVS
                 applyFilter();
             };
 
+            // Persist the chosen sort order so it survives across sessions (issue #114).
+            Action saveSortMode = () =>
+            {
+                string key = (sortCombo.SelectedItem as ComboBoxItem)?.Tag as string ?? "modified";
+                if (_settings != null && !string.Equals(_settings.SessionHistorySortMode, key, StringComparison.Ordinal))
+                {
+                    _settings.SessionHistorySortMode = key;
+                    SaveSettings();
+                }
+                applyFilter();
+            };
+
             searchBox.TextChanged += (s, args) => applyFilter();
             renamedOnlyCheck.Checked += (s, args) => saveRenamedOnly();
             renamedOnlyCheck.Unchecked += (s, args) => saveRenamedOnly();
+            sortCombo.SelectionChanged += (s, args) => saveSortMode();
 
             // Wire up buttons.
             Func<ListBoxItem> currentSelectionItem = () => listBox.SelectedItem as ListBoxItem;

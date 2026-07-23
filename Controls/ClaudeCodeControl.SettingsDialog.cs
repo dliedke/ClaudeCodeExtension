@@ -79,6 +79,7 @@ namespace ClaudeCodeVS
             bool origDisableClipboardSend     = _settings.DisableClipboardSend;
             bool origSendSelectionRefOnly     = _settings.SendSelectionReferenceOnly;
             bool origAutoSendBuildErrors      = _settings.AutoSendBuildErrorsToAgent;
+            bool origAutoSendRuntimeErrors    = _settings.AutoSendRuntimeErrorsToAgent;
             bool origAutoOpenChanges          = _settings.AutoOpenChangesOnPrompt;
             bool origInvertLayout             = _settings.InvertLayout;
             LayoutOrientation origOrientation = _settings.SelectedLayoutOrientation;
@@ -205,6 +206,12 @@ namespace ClaudeCodeVS
                 "When a Visual Studio build finishes with errors, automatically send the errors (and warnings, for context) to the active code agent so it can fix them. Only sends when an agent terminal is running and the build actually has errors.",
                 origAutoSendBuildErrors, themeFg);
             behaviorStack.Children.Add(autoSendBuildErrorsCheck);
+
+            var autoSendRuntimeErrorsCheck = MakeCheckBox(
+                "Auto-send runtime errors to the agent",
+                "While debugging, when the application hits an unhandled runtime exception, automatically send the exception (type, message, and stack trace) to the active code agent so it can fix it. Only sends when an agent terminal is running.",
+                origAutoSendRuntimeErrors, themeFg);
+            behaviorStack.Children.Add(autoSendRuntimeErrorsCheck);
 
             // Prompt font size
             behaviorStack.Children.Add(MakeSectionHeader("Prompt font size", themeFg));
@@ -824,6 +831,7 @@ namespace ClaudeCodeVS
             bool newDisableClipboardSend = disableClipboardCheck.IsChecked == true;
             bool newSendSelectionRefOnly = sendSelectionRefOnlyCheck.IsChecked == true;
             bool newAutoSendBuildErrors = autoSendBuildErrorsCheck.IsChecked == true;
+            bool newAutoSendRuntimeErrors = autoSendRuntimeErrorsCheck.IsChecked == true;
             bool newAutoOpenChanges = autoOpenCheck.IsChecked == true;
             int newFontSize = (fontSizeCombo.SelectedItem as ComboBoxItem)?.Tag is int fs ? fs : origFontSize;
             // Map the selected position back to orientation + invert.
@@ -898,6 +906,7 @@ namespace ClaudeCodeVS
             _settings.DisableClipboardSend    = newDisableClipboardSend;
             _settings.SendSelectionReferenceOnly = newSendSelectionRefOnly;
             _settings.AutoSendBuildErrorsToAgent = newAutoSendBuildErrors;
+            _settings.AutoSendRuntimeErrorsToAgent = newAutoSendRuntimeErrors;
             _settings.AutoOpenChangesOnPrompt = newAutoOpenChanges;
             _settings.InvertLayout            = newInvertLayout;
             _settings.SelectedLayoutOrientation = newOrientation;

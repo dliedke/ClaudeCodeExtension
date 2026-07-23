@@ -380,6 +380,15 @@ namespace ClaudeCodeVS
         public bool AutoSendBuildErrorsToAgent { get; set; } = false;
 
         /// <summary>
+        /// When true, unhandled runtime exceptions caught by the Visual Studio debugger are
+        /// automatically formatted (type, message, stack trace) and sent to the active code
+        /// agent's prompt so it can fix them. Opt-in, default false. Only sends when an agent
+        /// terminal is running and the break is an unhandled exception. See
+        /// ClaudeCodeControl.RuntimeErrors.cs.
+        /// </summary>
+        public bool AutoSendRuntimeErrorsToAgent { get; set; } = false;
+
+        /// <summary>
         /// Saved position of the grid splitter (in pixels)
         /// </summary>
         public double SplitterPosition { get; set; } = 236.0; // Default pixel height for first row
@@ -670,6 +679,14 @@ namespace ClaudeCodeVS
         /// window, so it persists across Visual Studio restarts (issue #95).
         /// </summary>
         public bool SessionHistoryRenamedOnly { get; set; } = false;
+
+        /// <summary>
+        /// Remembered sort order for the Session History list, so the chosen ordering persists
+        /// across Visual Studio restarts (issue #114). One of: "modified" (newest activity first,
+        /// the default), "oldest" (oldest activity first), "tokens" (most tokens first),
+        /// "messages" (most messages first), "title" (custom title A–Z).
+        /// </summary>
+        public string SessionHistorySortMode { get; set; } = "modified";
 
         /// <summary>
         /// Last successfully scraped inline usage payload (JSON serialized

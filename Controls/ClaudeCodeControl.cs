@@ -131,6 +131,9 @@ namespace ClaudeCodeVS
                 // Subscribe to VS build events for the opt-in "auto-send build errors" feature.
                 InitializeBuildErrorAutoSend();
 
+                // Subscribe to VS debugger events for the opt-in "auto-send runtime errors" feature.
+                InitializeRuntimeErrorAutoSend();
+
                 // Only initialize terminal once - prevent re-initialization on tab switches
                 if (_hasInitialized)
                 {

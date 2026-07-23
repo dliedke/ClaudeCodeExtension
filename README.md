@@ -113,6 +113,10 @@ https://github.com/anthropics/claude-code/issues/41501
 
 ## Version History
 
+### Version 76.0
+- Added an opt-in "Auto-send runtime errors to the agent" setting (Settings > Behavior): while debugging, when the app hits an unhandled runtime exception, the exception and its stack trace are sent to the active agent so it can fix it.
+- Added a sort selector to the Session History window (last modified, oldest, most tokens, most messages, or title) so you can reliably find a session to resume; your choice is remembered (issue #114).
+
 ### Version 75.0
 - Fixed the extension failing with "Error sending prompt: Method not found: ...JToken.ToString..." when submitting a prompt or opening the Settings dialog on version 74 (issue #112).
 
