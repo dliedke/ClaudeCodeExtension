@@ -113,6 +113,9 @@ https://github.com/anthropics/claude-code/issues/41501
 
 ## Version History
 
+### Version 77.0
+- Fixed the new Session History sort selector's drop-down being unreadable in dark mode (light text on a white popup); it now follows the current theme.
+
 ### Version 76.0
 - Added an opt-in "Auto-send runtime errors to the agent" setting (Settings > Behavior): while debugging, when the app hits an unhandled runtime exception, the exception and its stack trace are sent to the active agent so it can fix it.
 - Added a sort selector to the Session History window (last modified, oldest, most tokens, most messages, or title) so you can reliably find a session to resume; your choice is remembered (issue #114).

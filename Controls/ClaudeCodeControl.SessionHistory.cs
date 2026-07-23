@@ -603,17 +603,15 @@ namespace ClaudeCodeVS
                 VerticalAlignment = VerticalAlignment.Center,
                 Margin = new Thickness(0, 0, 6, 0)
             };
-            var sortCombo = new ComboBox
-            {
-                Background = themeBg,
-                Foreground = themeFg,
-                BorderBrush = themeFg,
-                VerticalContentAlignment = VerticalAlignment.Center,
-                Height = 26,
-                MinWidth = 150,
-                Margin = new Thickness(0, 0, 12, 0),
-                ToolTip = "Choose how sessions are ordered. Your choice is remembered across restarts."
-            };
+            // Use the shared flat themed ComboBox templates so the dropdown popup honors the
+            // dark/light theme (the default WPF popup paints a hardcoded white background, which
+            // left the light-on-white items unreadable in dark mode).
+            var comboRes = BuildThemedComboResources(themeBg, themeFg);
+            var sortCombo = MakeThemedComboBox(comboRes, themeFg);
+            sortCombo.MinWidth = 150;
+            sortCombo.Margin = new Thickness(0, 0, 12, 0);
+            sortCombo.ToolTip = "Choose how sessions are ordered. Your choice is remembered across restarts.";
+
             var sortOptions = new[]
             {
                 new { Key = "modified", Label = "Last modified" },
@@ -627,6 +625,7 @@ namespace ClaudeCodeVS
             foreach (var opt in sortOptions)
             {
                 var item = new ComboBoxItem { Content = opt.Label, Tag = opt.Key, Foreground = themeFg };
+                if (comboRes["cbi"] is Style cbiStyle) item.Style = cbiStyle;
                 sortCombo.Items.Add(item);
                 if (string.Equals(opt.Key, savedSort, StringComparison.OrdinalIgnoreCase))
                 {
