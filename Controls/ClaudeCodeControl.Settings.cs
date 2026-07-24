@@ -168,6 +168,15 @@ namespace ClaudeCodeVS
                     {
                         _settings.SelectedEffortLevel = EffortLevel.High;
                     }
+
+                    // One-time migration (issue #115): versions <= 73 stored the user's Ctrl+Scroll
+                    // zoom as TerminalZoomDelta and replayed it on every launch, keeping the terminal
+                    // text small enough that long CLI lists (e.g. Claude Code's session/background
+                    // list) fit without the selected row scrolling out of view. v74 replaced that with
+                    // the explicit "Console font size" setting and stopped replaying the old delta, so
+                    // on upgrade those users silently lost their smaller text and the list navigation
+                    // regressed. Carry a saved delta over to the equivalent console font size once.
+                    MigrateLegacyTerminalZoomDelta(json);
                 }
                 else
                 {
@@ -244,6 +253,78 @@ namespace ClaudeCodeVS
             {
                 list.RemoveRange(writeIndex, list.Count - writeIndex);
             }
+        }
+
+        /// <summary>
+        /// Migrates the retired <c>TerminalZoomDelta</c> setting (versions &lt;= 73) to the current
+        /// <see cref="ClaudeCodeSettings.ConsoleFontSizePt"/> (issue #115). The old delta was a signed
+        /// count of Ctrl+Scroll notches replayed on every launch; adopting the equivalent console font
+        /// size keeps the terminal opening at the smaller text those users relied on so long CLI lists
+        /// still fit. Only applies when the user has not already chosen an explicit console font size.
+        /// The retired fields are stripped from the on-disk file (preserving every other value verbatim,
+        /// so multi-instance volatile fields are untouched) so the migration runs exactly once.
+        /// </summary>
+        private void MigrateLegacyTerminalZoomDelta(string diskJson)
+        {
+            try
+            {
+                if (_settings == null || string.IsNullOrWhiteSpace(diskJson))
+                {
+                    return;
+                }
+
+                var obj = Newtonsoft.Json.Linq.JObject.Parse(diskJson);
+
+                // Retired fields — referenced by literal name since they no longer exist on the model.
+                const string legacyZoomDeltaField = "TerminalZoomDelta";
+                const string legacyAutoZoomField = "DisableStartupAutoZoom";
+
+                // Absent field => already migrated (or a fresh file) — nothing to do.
+                if (!obj.TryGetValue(legacyZoomDeltaField,
+                        StringComparison.OrdinalIgnoreCase, out var deltaToken))
+                {
+                    return;
+                }
+
+                int delta = deltaToken.Type == Newtonsoft.Json.Linq.JTokenType.Integer
+                    ? (int)deltaToken
+                    : 0;
+                int currentPt = obj.Value<int?>(nameof(ClaudeCodeSettings.ConsoleFontSizePt)) ?? 0;
+
+                // Only adopt the old zoom when the user has no explicit console font size yet;
+                // an explicit choice (including a deliberate reset to default) always wins.
+                if (delta != 0 && currentPt == 0)
+                {
+                    int pt = LegacyZoomDeltaToConsoleFontPt(delta);
+                    _settings.ConsoleFontSizePt = pt;
+                    obj[nameof(ClaudeCodeSettings.ConsoleFontSizePt)] = pt;
+                }
+
+                // Drop the retired fields so the migration is one-shot and a later "use default"
+                // choice can never be re-overwritten by re-running this on the next load.
+                obj.Remove(legacyZoomDeltaField);
+                obj.Remove(legacyAutoZoomField);
+
+                File.WriteAllText(ConfigurationPath, SerializeJsonIndented(obj));
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"TerminalZoomDelta migration error: {ex.Message}");
+            }
+        }
+
+        /// <summary>
+        /// Converts a legacy persisted Ctrl+Scroll zoom (signed notch count) to the equivalent console
+        /// font size in points. Each notch changed the conhost cell height by 2px (ConhostZoomStepPx)
+        /// from the ~16px (12pt) default, so <c>cellHeightPx = 16 + delta * 2</c>; the px-to-pt
+        /// conversion (and its [6..36] clamp) is reused from <see cref="ConsoleCellHeightPxToFontPt"/>.
+        /// </summary>
+        internal static int LegacyZoomDeltaToConsoleFontPt(int delta)
+        {
+            const int defaultCellHeightPx = 16;   // conhost's default Cascadia Mono cell height (~12pt)
+            const int conhostZoomStepPx = 2;       // must match ConhostZoomStepPx
+            int cellHeightPx = defaultCellHeightPx + delta * conhostZoomStepPx;
+            return ConsoleCellHeightPxToFontPt(cellHeightPx);
         }
 
         /// <summary>

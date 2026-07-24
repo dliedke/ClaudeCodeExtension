@@ -53,5 +53,29 @@ namespace ClaudeCodeExtension.Tests
             Assert.AreEqual(6, ClaudeCodeControl.ConsoleCellHeightPxToFontPt(6));
             Assert.AreEqual(36, ClaudeCodeControl.ConsoleCellHeightPxToFontPt(60));
         }
+
+        /// <summary>
+        /// Issue #115: the retired TerminalZoomDelta (a Ctrl+Scroll notch count, 2px per notch from the
+        /// 16px/12pt default) migrates to the equivalent Console font size. A zero delta must map to the
+        /// default 12pt, a zoom-out to a smaller size, and a zoom-in to a larger one.
+        /// </summary>
+        [TestMethod]
+        public void LegacyZoomDeltaToConsoleFontPt_MapsNotchesToPoints()
+        {
+            Assert.AreEqual(12, ClaudeCodeControl.LegacyZoomDeltaToConsoleFontPt(0), "default (no zoom) should be 12pt");
+            Assert.AreEqual(8, ClaudeCodeControl.LegacyZoomDeltaToConsoleFontPt(-3), "zoom-out 3 notches → 10px → 8pt");
+            Assert.AreEqual(15, ClaudeCodeControl.LegacyZoomDeltaToConsoleFontPt(2), "zoom-in 2 notches → 20px → 15pt");
+        }
+
+        /// <summary>
+        /// An extreme saved delta must still land inside the [6..36]pt range the Settings drop-down offers,
+        /// so the migrated value is always displayable and usable.
+        /// </summary>
+        [TestMethod]
+        public void LegacyZoomDeltaToConsoleFontPt_ClampsExtremes()
+        {
+            Assert.AreEqual(6, ClaudeCodeControl.LegacyZoomDeltaToConsoleFontPt(-100));
+            Assert.AreEqual(36, ClaudeCodeControl.LegacyZoomDeltaToConsoleFontPt(100));
+        }
     }
 }

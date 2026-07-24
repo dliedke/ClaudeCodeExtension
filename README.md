@@ -113,6 +113,9 @@ https://github.com/anthropics/claude-code/issues/41501
 
 ## Version History
 
+### Version 79.0
+- Fixed the terminal opening with larger text after upgrading from an older version, which made long lists (like the session picker) overflow so the selected row scrolled out of view and couldn't be seen while navigating with the arrow keys. Your previous zoom is now carried over to the Console font size setting so the terminal keeps opening at the smaller size you had (issue #115).
+
 ### Version 78.0
 - Ctrl+Scroll zoom in the Command Prompt terminal is now remembered: the size you settle on becomes the Console font size setting, so the next session opens at that size without any manual step. In Windows Terminal the zoom still applies only to the current session — use Settings > Terminal > Console font size there.
 
