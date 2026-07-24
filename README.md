@@ -113,6 +113,9 @@ https://github.com/anthropics/claude-code/issues/41501
 
 ## Version History
 
+### Version 80.0
+- Fixed the "On Agent Finish" notification and action sometimes not firing: it now also works for prompts typed directly into the terminal (not only ones sent from the prompt box), no longer gives up on long agent turns that run past 30 minutes, and no longer stays silent when the agent's final answer happens to contain the phrase "to navigate".
+
 ### Version 79.0
 - Fixed the terminal opening with larger text after upgrading from an older version, which made long lists (like the session picker) overflow so the selected row scrolled out of view and couldn't be seen while navigating with the arrow keys. Your previous zoom is now carried over to the Console font size setting so the terminal keeps opening at the smaller size you had (issue #115).
 

@@ -3161,6 +3161,26 @@ namespace ClaudeCodeVS
                 bool terminalFocused = terminalHandle != IntPtr.Zero && IsTerminalFocused();
                 if (terminalFocused) _lastTerminalKeyUtc = DateTime.UtcNow;
 
+                // Arm "On Agent Finish" for prompts submitted by typing DIRECTLY into the embedded
+                // terminal. The watcher is otherwise armed only by the Send button (and the build/
+                // runtime-error sends), so a turn started from inside the terminal never got a
+                // watch and its finish notification/action silently didn't fire — the feature
+                // looked flaky depending on how the prompt was sent. Enter while a watch is
+                // already active is a reply to the running turn (menu choice, y/n answer), not a
+                // new prompt, so it must not re-arm — re-arming would reset the turn's start time
+                // and baselines mid-flight. ArmAgentCompletionWatcherAsync itself no-ops when the
+                // feature is disabled, so this stays cheap for users who never enabled it.
+                if (terminalFocused && info.vkCode == VK_RETURN && !_completionWatchActive)
+                {
+#pragma warning disable VSSDK007, VSTHRD110
+                    _ = ThreadHelper.JoinableTaskFactory.RunAsync(async () =>
+                    {
+                        await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
+                        await ArmAgentCompletionWatcherAsync();
+                    });
+#pragma warning restore VSSDK007, VSTHRD110
+                }
+
                 if (info.vkCode == VK_F5 && terminalFocused)
                 {
                     bool ctrlHeld = (GetAsyncKeyState(VK_CONTROL) & 0x8000) != 0;

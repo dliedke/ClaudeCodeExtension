@@ -49,7 +49,12 @@ namespace ClaudeCodeVS
         #region Agent Completion Fields
 
         private const int AgentCompletionPollIntervalMs = 1000;
-        private const int AgentCompletionMaxWatchMinutes = 30;
+
+        // Disarm only after the screen has been COMPLETELY static this long. Measured from the
+        // last observed change (not from arm time): an agent that keeps producing output for an
+        // hour is still working and must stay watched — the old total-watch-time cap silently
+        // disarmed long turns, so their finish notification/action never fired ("flaky").
+        private const int AgentCompletionMaxIdleMinutes = 30;
 
         // While the user is actively typing in the terminal we skip the console read (the brief
         // AttachConsole can disturb keystrokes). "Actively typing" means a key was pressed in the
@@ -120,7 +125,6 @@ namespace ClaudeCodeVS
         internal int _wtConsoleClientPid;
         private string _lastConsoleHash;
         private DateTime _promptSentUtc;
-        private DateTime _watchStartedUtc;
         private DateTime _lastConsoleChangeUtc;
 
         // Optional token enrichment — only meaningful for Claude Code transcripts.
@@ -336,7 +340,6 @@ namespace ClaudeCodeVS
                 _questionSoundPlayed = false;
                 _lastInputPromptRecheckUtc = DateTime.MinValue;
                 _promptSentUtc = DateTime.UtcNow;
-                _watchStartedUtc = DateTime.UtcNow;
                 _lastConsoleChangeUtc = DateTime.UtcNow;
                 _tokenEnrichmentClaude = claude;
                 _watchedSessionDir = dir;
@@ -517,8 +520,14 @@ namespace ClaudeCodeVS
             {
                 try
                 {
-                    // Hard timeout so a never-settling watch can't poll forever.
-                    if ((DateTime.UtcNow - _watchStartedUtc).TotalMinutes >= AgentCompletionMaxWatchMinutes)
+                    // Hard timeout so a never-settling watch can't poll forever. Keyed on time
+                    // since the LAST screen change, not since arming: an agent actively producing
+                    // output keeps pushing _lastConsoleChangeUtc forward and stays watched no
+                    // matter how long its turn runs (the old fixed 30-min total cap silently
+                    // disarmed long turns, so their notification never fired). Only a screen that
+                    // has been completely static for this long — a dead CLI or an abandoned
+                    // session — gives up the watch.
+                    if ((DateTime.UtcNow - _lastConsoleChangeUtc).TotalMinutes >= AgentCompletionMaxIdleMinutes)
                     {
                         Debug.WriteLine("Agent completion watch timed out.");
                         StopAgentCompletionTimer();
@@ -1221,7 +1230,12 @@ namespace ClaudeCodeVS
             // choice — a finished turn's prose answer essentially never contains them — and they
             // fire even when the selection cursor is a plain ASCII '>' that the structural rule
             // below doesn't recognize (v52.0: menu with '>' cursor was mis-read as a finished turn).
-            "esc to cancel", "enter to select", "to navigate",
+            // "to navigate" is NOT here: bare, it also matches ordinary prose in a finished answer
+            // ("added a sidebar to navigate between pages"), which mis-classified the settled turn
+            // as a waiting menu and silently suppressed the finish notification. It is matched
+            // separately below, gated on the ↑/↓ arrows that Claude Code's real footer renders
+            // on the same line.
+            "esc to cancel", "enter to select",
         };
 
         /// <summary>
@@ -1255,6 +1269,16 @@ namespace ClaudeCodeVS
                 foreach (string kw in AgentPromptKeywords)
                 {
                     if (lower.IndexOf(kw, StringComparison.Ordinal) >= 0) return true;
+                }
+
+                // Menu-footer "to navigate" (from "↑/↓ to navigate"): only counts when the ↑/↓
+                // arrow glyphs are on the same line, so a finished answer whose prose merely
+                // contains "to navigate" isn't mis-read as a waiting menu (which suppressed the
+                // finish notification). Real footers always render the arrows next to the phrase.
+                if (lower.IndexOf("to navigate", StringComparison.Ordinal) >= 0
+                    && (raw.IndexOf('↑') >= 0 || raw.IndexOf('↓') >= 0))
+                {
+                    return true;
                 }
 
                 // Selection cursor used by Claude Code's permission / choice prompts. The
