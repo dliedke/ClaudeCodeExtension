@@ -1,5 +1,8 @@
 # Claude Code Extension for Visual Studio
 
+Note: Eventually this extension will be decomissioned. 
+Please use [Claude Code Studio from wluisdev](https://marketplace.visualstudio.com/items?itemName=wluisdev.ClaudeCodeStudio)
+
 Embedded terminal inside Visual Studio for **Claude Code, OpenAI Codex, Cursor Agent, Open Code, Devin, PI, Google Antigravity, and Reasonix** — with multi-line prompts, file attachments, and an integrated diff viewer.
 
 <center>
@@ -112,6 +115,9 @@ https://github.com/anthropics/claude-code/issues/63504
 https://github.com/anthropics/claude-code/issues/41501
 
 ## Version History
+
+### Version 81.0
+- Added a notice that this extension will eventually be decommissioned, pointing to Claude Code Studio as the recommended replacement.
 
 ### Version 80.0
 - Fixed the "On Agent Finish" notification and action sometimes not firing: it now also works for prompts typed directly into the terminal (not only ones sent from the prompt box), no longer gives up on long agent turns that run past 30 minutes, and no longer stays silent when the agent's final answer happens to contain the phrase "to navigate".
