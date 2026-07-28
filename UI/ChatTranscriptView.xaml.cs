@@ -372,6 +372,18 @@ namespace ClaudeCodeVS.UI
             }
 
             RenderActivity();
+
+            // Piggyback on the same tick to animate any still-running tool row (e.g. a subagent Task
+            // card, which can sit for minutes) instead of a static "still running" glyph. Every tool
+            // call happens within a BeginActivity/EndActivity window, so this timer is always live
+            // whenever a row can be running.
+            foreach (var message in Messages)
+            {
+                if (message.IsRunning)
+                {
+                    message.AdvanceSpinner();
+                }
+            }
         }
 
         private void RenderActivity()

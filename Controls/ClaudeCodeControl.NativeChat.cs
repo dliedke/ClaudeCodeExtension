@@ -1532,6 +1532,11 @@ namespace ClaudeCodeVS
                 await RestartTerminalWithSelectedProviderAsync();
 
                 await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
+
+                // Refresh again now that the new session is actually running: the call above ran
+                // before the restart, so it still read the outgoing provider off
+                // _currentRunningProvider and left the tool window caption on the old name.
+                UpdateProviderSelection();
                 UpdateChatComposerState();
                 UpdateChatTabCaption();
                 AddNativeMessage(ChatMessageKind.Notice,

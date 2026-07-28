@@ -136,6 +136,11 @@ https://github.com/anthropics/claude-code/issues/41501
 
 ## Version History
 
+### Version 94.0
+- Fixed an issue where the embedded Windows Terminal font could grow runaway-large for a few seconds after load; a safety limit now prevents it.
+- Native mode still in alpha phase. It will be improved and stabilized in next releases. Please do not use for real work yet.
+- Native mode's chat now shows an animated indicator on tool calls that are still running, including subagent tasks, instead of a static marker.
+
 ### Version 93.0
 - Native mode still in alpha phase. It will be improved and stabilized in next releases. Please do not use for real work yet.
 - The **@** file/folder picker now also works in native mode's chat composer, not just the terminal-mode prompt box.

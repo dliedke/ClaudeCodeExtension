@@ -184,6 +184,27 @@ namespace ClaudeCodeVS.UI
             set { Set(ref _isRunning, value, nameof(IsRunning)); }
         }
 
+        /// <summary>Same glyph set as the global status spinner, kept here so a long-running row (most
+        /// visibly a subagent Task, which can sit for minutes) reads as busy rather than frozen.</summary>
+        private static readonly string[] SpinnerFrames = { "◐", "◓", "◑", "◒" };
+        private int _spinnerFrame;
+        private string _spinnerGlyph = SpinnerFrames[0];
+
+        /// <summary>Animated glyph shown while <see cref="IsRunning"/> is true. Advanced by the
+        /// transcript view's activity timer, one frame per tick, for every row still running.</summary>
+        public string SpinnerGlyph
+        {
+            get { return _spinnerGlyph; }
+            private set { Set(ref _spinnerGlyph, value, nameof(SpinnerGlyph)); }
+        }
+
+        /// <summary>Moves to the next spinner frame.</summary>
+        public void AdvanceSpinner()
+        {
+            _spinnerFrame = (_spinnerFrame + 1) % SpinnerFrames.Length;
+            SpinnerGlyph = SpinnerFrames[_spinnerFrame];
+        }
+
         /// <summary>Glyph shown before the tool name, chosen from the tool's family.</summary>
         public string ToolIcon
         {

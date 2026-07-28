@@ -130,6 +130,18 @@ namespace ClaudeCodeVS
         private int _conhostZoomWorkerActive;
 
         /// <summary>
+        /// Rolling-window burst guard for Windows Terminal's native Ctrl+Scroll zoom (issue #117): WT
+        /// handles its own zoom entirely and has no ceiling, unlike conhost's clamped
+        /// SetCurrentConsoleFontEx path. If a burst of Ctrl+Scroll notches (real or spuriously
+        /// synthesized) arrives faster than a human could produce, further notches within the window
+        /// are swallowed before reaching WT so the font can't run away.
+        /// </summary>
+        private const int WtZoomBurstWindowMs = 1500;
+        private const int WtZoomBurstMaxNotches = 30;
+        private int _wtZoomBurstWindowStartTick;
+        private int _wtZoomBurstNotchCount;
+
+        /// <summary>
         /// Mouse drag distance in pixels before Windows Terminal selection assist kicks in
         /// </summary>
         private const int WindowsTerminalSelectionDragThreshold = 4;
@@ -3661,6 +3673,20 @@ namespace ClaudeCodeVS
                     }
                 }
 
+                // Windows Terminal Ctrl+Scroll zoom (issue #117): WT handles the zoom itself on its own
+                // native path with no ceiling. Swallow notches once a burst runs well past what a human
+                // scroll could produce, so the font can't grow unbounded regardless of what triggers it.
+                if (message == WM_MOUSEWHEEL
+                    && _wtTabBarHeight > 0
+                    && (GetAsyncKeyState(VK_CONTROL) & 0x8000) != 0)
+                {
+                    var wheelInfo = (MSLLHOOKSTRUCT)Marshal.PtrToStructure(lParam, typeof(MSLLHOOKSTRUCT));
+                    if (IsRunawayWtZoomBurst(wheelInfo))
+                    {
+                        return (IntPtr)1;
+                    }
+                }
+
                 // Right-click is left entirely to conhost/Windows: the extension no longer intercepts
                 // the right mouse button. Pasting into the agent goes through the prompt box (which
                 // delivers via conhost's own Edit→Paste regardless of QuickEdit/mouse-input mode), so
@@ -3756,6 +3782,45 @@ namespace ClaudeCodeVS
             Interlocked.Add(ref _pendingConhostZoomSteps, step);
             StartConhostZoomDrainWorker();
 
+            return true;
+        }
+
+        /// <summary>
+        /// Issue #117 defensive guard: Windows Terminal handles Ctrl+Scroll zoom entirely on its own,
+        /// native path — the extension never intercepts or clamps it there (unlike conhost, which is
+        /// hard-clamped via <see cref="TryAdjustConhostFontSize"/>). Reports describe the font
+        /// "progressively growing till it is huge" shortly after load, self-resolving after a while,
+        /// consistent with a burst of Ctrl+Scroll notches (real or spuriously synthesized) arriving
+        /// far faster than a human could scroll. Rather than trying to read/reset WT's own zoom level
+        /// (no simple API for that), this counts notches over the terminal in a rolling window and,
+        /// once a burst exceeds a generous ceiling, swallows further notches so WT's native zoom can't
+        /// run away — regardless of what originally triggered the burst.
+        /// </summary>
+        private bool IsRunawayWtZoomBurst(MSLLHOOKSTRUCT info)
+        {
+            IntPtr handle = terminalHandle;
+            if (handle == IntPtr.Zero || !IsWindow(handle)) return false;
+            if (!IsTerminalHostForeground()) return false;
+
+            if (!GetWindowRect(handle, out RECT rect)) return false;
+            if (info.pt.x < rect.Left || info.pt.x >= rect.Right ||
+                info.pt.y < rect.Top || info.pt.y >= rect.Bottom)
+            {
+                return false;
+            }
+
+            int nowTick = Environment.TickCount;
+            int windowStart = Volatile.Read(ref _wtZoomBurstWindowStartTick);
+            if (windowStart == 0 || unchecked(nowTick - windowStart) > WtZoomBurstWindowMs)
+            {
+                Volatile.Write(ref _wtZoomBurstWindowStartTick, nowTick);
+                Volatile.Write(ref _wtZoomBurstNotchCount, 0);
+            }
+
+            int count = Interlocked.Increment(ref _wtZoomBurstNotchCount);
+            if (count <= WtZoomBurstMaxNotches) return false;
+
+            Debug.WriteLine($"Suppressing Windows Terminal Ctrl+Scroll: {count} notches within {WtZoomBurstWindowMs}ms (issue #117 runaway-zoom guard)");
             return true;
         }
 

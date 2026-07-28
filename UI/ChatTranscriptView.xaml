@@ -270,8 +270,10 @@
 								           ToolTip="{Binding ToolTarget}"/>
 
 								<!-- Still running: the card is already in the transcript, so without this it
-								     looks like a tool that finished and returned nothing. -->
-								<TextBlock Grid.Column="3" Text="⋯" Margin="0,0,6,0"
+								     looks like a tool that finished and returned nothing. Animated (not a
+								     static glyph) so a long-running tool, most visibly a subagent Task, reads
+								     as busy rather than stuck. -->
+								<TextBlock Grid.Column="3" Text="{Binding SpinnerGlyph}" Margin="0,0,6,0"
 								           FontSize="{DynamicResource ChatFontSize}"
 								           VerticalAlignment="Center" Opacity="0.6"
 								           Visibility="{Binding IsRunning, Converter={StaticResource BoolToVis}}"/>
