@@ -305,7 +305,55 @@ namespace ClaudeCodeVS
             ChatTranscript.NewChatRequested += OnComposerNewChatRequested;
             ChatTranscript.ZoomChanged += OnComposerZoomChanged;
             ChatTranscript.ComposerHeightChanged += OnComposerHeightChanged;
+            ChatTranscript.PasteRequested += OnComposerPasteRequested;
+            ChatTranscript.HistoryPreviousRequested += OnComposerHistoryPreviousRequested;
+            ChatTranscript.HistoryNextRequested += OnComposerHistoryNextRequested;
             _composerWired = true;
+        }
+
+        /// <summary>
+        /// Applies the persisted look of the chat: font, Ctrl+Scroll zoom and composer height. Called
+        /// wherever the transcript becomes visible — in the tab and in the panel — so the conversation
+        /// always comes back the size the user left it, and again when the settings dialog changes it.
+        /// </summary>
+        private void ApplyChatAppearance()
+        {
+            ThreadHelper.ThrowIfNotOnUIThread();
+
+            if (ChatTranscript == null || _settings == null)
+            {
+                return;
+            }
+
+            ChatTranscript.SetChatFont(_settings.NativeChatFontFaceName, _settings.NativeChatFontSizePt);
+            ChatTranscript.Zoom = _settings.NativeChatZoom;
+            ChatTranscript.ComposerHeight = _settings.NativeChatComposerHeight;
+        }
+
+        /// <summary>
+        /// Ctrl+V in the composer: an image on the clipboard becomes an attachment, exactly as it does
+        /// in the panel's prompt box. Anything else falls through to the text box's own paste.
+        /// </summary>
+        private void OnComposerPasteRequested(object sender, ChatPasteEventArgs e)
+        {
+            ThreadHelper.ThrowIfNotOnUIThread();
+
+            if (TryPasteImage())
+            {
+                e.Handled = true;
+            }
+        }
+
+        private void OnComposerHistoryPreviousRequested(object sender, EventArgs e)
+        {
+            ThreadHelper.ThrowIfNotOnUIThread();
+            NavigateHistoryUp();
+        }
+
+        private void OnComposerHistoryNextRequested(object sender, EventArgs e)
+        {
+            ThreadHelper.ThrowIfNotOnUIThread();
+            NavigateHistoryDown();
         }
 
         /// <summary>Ctrl+Scroll zoom and the composer height are per-user layout, so both are persisted.</summary>
@@ -399,12 +447,7 @@ namespace ClaudeCodeVS
                 EffortToSliderIndex(_settings != null ? _settings.SelectedEffortLevel : EffortLevel.High),
                 GetChatEffortLabel());
 
-            if (_settings != null)
-            {
-                ChatTranscript.Zoom = _settings.NativeChatZoom;
-                ChatTranscript.ComposerHeight = _settings.NativeChatComposerHeight;
-            }
-
+            ApplyChatAppearance();
             UpdateComposerAttachmentChips();
         }
 
@@ -1064,6 +1107,7 @@ namespace ClaudeCodeVS
                 _streamingAssistantMessage = null;
                 _streamingThinkingMessage = null;
                 _nativeTurnFinishConfig = null;
+                _nativeTurnInFlight = false;
 
                 await session.StartAsync(workspace, _nativeSessionCts.Token);
 

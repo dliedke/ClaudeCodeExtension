@@ -3,6 +3,7 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:sys="clr-namespace:System;assembly=mscorlib"
              xmlns:local="clr-namespace:ClaudeCodeVS.UI"
              xmlns:vsshell="clr-namespace:Microsoft.VisualStudio.Shell;assembly=Microsoft.VisualStudio.Shell.15.0"
              mc:Ignorable="d"
@@ -16,6 +17,24 @@
 				<!-- Effort pill slider + themed dropdown chrome, shared with the panel -->
 				<ResourceDictionary Source="/ClaudeCodeExtension;component/UI/ChatStyles.xaml"/>
 			</ResourceDictionary.MergedDictionaries>
+
+		<!-- Chat font. Replaced at runtime by SetChatFont from the settings, which is why every
+		     style below takes it as a DynamicResource instead of hard-coding a face. -->
+		<FontFamily x:Key="ChatFontFamily">Segoe UI</FontFamily>
+		<FontFamily x:Key="ChatCodeFontFamily">Cascadia Mono, Consolas</FontFamily>
+		<sys:Double x:Key="ChatFontSize">12</sys:Double>
+		<sys:Double x:Key="ChatSmallFontSize">11</sys:Double>
+		<sys:Double x:Key="ChatTinyFontSize">10</sys:Double>
+
+		<!-- Accents. Deliberately literal colours rather than theme brushes: these have to mean the
+		     same thing ("this was added", "this ran a command") in both the dark and the light theme,
+		     and the VS palette has no stable key for either. -->
+		<SolidColorBrush x:Key="ChatAccentBrush" Color="#1C8AE0"/>
+		<SolidColorBrush x:Key="DiffAddedForeground" Color="#2EA043"/>
+		<SolidColorBrush x:Key="DiffRemovedForeground" Color="#D1242F"/>
+		<SolidColorBrush x:Key="DiffAddedBackground" Color="#242EA043"/>
+		<SolidColorBrush x:Key="DiffRemovedBackground" Color="#24D1242F"/>
+		<SolidColorBrush x:Key="ChatErrorBrush" Color="#E51400"/>
 
 		<local:InverseBooleanToVisibilityConverter x:Key="InverseBoolToVis"/>
 		<BooleanToVisibilityConverter x:Key="BoolToVis"/>
@@ -32,63 +51,50 @@
 			<Setter Property="TextWrapping" Value="Wrap"/>
 			<Setter Property="HorizontalScrollBarVisibility" Value="Disabled"/>
 			<Setter Property="VerticalScrollBarVisibility" Value="Disabled"/>
+			<Setter Property="FontFamily" Value="{DynamicResource ChatFontFamily}"/>
+			<Setter Property="FontSize" Value="{DynamicResource ChatFontSize}"/>
 			<Setter Property="Foreground" Value="{DynamicResource {x:Static vsshell:VsBrushes.WindowTextKey}}"/>
 			<Setter Property="SelectionBrush" Value="{DynamicResource {x:Static vsshell:VsBrushes.HighlightKey}}"/>
 		</Style>
 
 		<Style x:Key="CodeTextStyle" TargetType="TextBox" BasedOn="{StaticResource SelectableTextStyle}">
-			<Setter Property="FontFamily" Value="Consolas"/>
+			<Setter Property="FontFamily" Value="{DynamicResource ChatCodeFontFamily}"/>
+			<Setter Property="FontSize" Value="{DynamicResource ChatSmallFontSize}"/>
 			<Setter Property="TextWrapping" Value="NoWrap"/>
 			<Setter Property="HorizontalScrollBarVisibility" Value="Auto"/>
 		</Style>
 
-		<!-- One prose or code run inside a message -->
-		<DataTemplate x:Key="SegmentTemplate" DataType="{x:Type local:ChatSegment}">
-			<Grid Margin="0,2,0,2">
-				<TextBox Style="{StaticResource SelectableTextStyle}"
-				         Text="{Binding Text, Mode=OneWay}"
-				         Visibility="{Binding IsCode, Converter={StaticResource InverseBoolToVis}}"/>
-				<Border Visibility="{Binding IsCode, Converter={StaticResource BoolToVis}}"
-				        Margin="0,4,0,4"
-				        Padding="8,6,8,6"
-				        CornerRadius="3"
-				        Background="{DynamicResource {x:Static vsshell:VsBrushes.WindowKey}}"
-				        BorderBrush="{DynamicResource {x:Static vsshell:VsBrushes.ToolWindowBorderKey}}"
-				        BorderThickness="1">
-					<Grid>
-						<Grid.RowDefinitions>
-							<RowDefinition Height="Auto"/>
-							<RowDefinition Height="*"/>
-						</Grid.RowDefinitions>
-						<DockPanel Grid.Row="0" Margin="0,0,0,4"
-						           Visibility="{Binding Language, Converter={StaticResource EmptyToVis}}">
-							<TextBlock Text="{Binding Language}" Opacity="0.6" FontSize="10"/>
-						</DockPanel>
-						<TextBox Grid.Row="1" Style="{StaticResource CodeTextStyle}"
-						         Text="{Binding Text, Mode=OneWay}"/>
-					</Grid>
-				</Border>
-			</Grid>
-		</DataTemplate>
+		<!-- Rendered markdown: headings, lists, tables, emphasis and fenced code. -->
+		<Style x:Key="MarkdownBodyStyle" TargetType="local:MarkdownBlock">
+			<Setter Property="FontFamily" Value="{DynamicResource ChatFontFamily}"/>
+			<Setter Property="FontSize" Value="{DynamicResource ChatFontSize}"/>
+			<Setter Property="CodeFontFamily" Value="{DynamicResource ChatCodeFontFamily}"/>
+			<Setter Property="AccentBrush" Value="{StaticResource ChatAccentBrush}"/>
+			<Setter Property="CodeBackground" Value="{DynamicResource {x:Static vsshell:VsBrushes.WindowKey}}"/>
+			<Setter Property="CodeBorderBrush" Value="{DynamicResource {x:Static vsshell:VsBrushes.ToolWindowBorderKey}}"/>
+			<Setter Property="Foreground" Value="{DynamicResource {x:Static vsshell:VsBrushes.WindowTextKey}}"/>
+			<Setter Property="SelectionBrush" Value="{DynamicResource {x:Static vsshell:VsBrushes.HighlightKey}}"/>
+		</Style>
 
-		<!-- Message body: raw text while streaming, parsed segments once the turn ends -->
+		<!-- Message body: raw text while streaming, rendered markdown once the turn ends. Splitting
+		     markdown on every token delta would re-layout the list dozens of times a second. -->
 		<DataTemplate x:Key="MessageBodyTemplate">
 			<Grid>
 				<TextBox Style="{StaticResource SelectableTextStyle}"
 				         Text="{Binding Text, Mode=OneWay}"
 				         Visibility="{Binding IsStreaming, Converter={StaticResource BoolToVis}}"/>
-				<ItemsControl ItemsSource="{Binding Segments}"
-				              ItemTemplate="{StaticResource SegmentTemplate}"
-				              Visibility="{Binding IsStreaming, Converter={StaticResource InverseBoolToVis}}"/>
+				<local:MarkdownBlock Style="{StaticResource MarkdownBodyStyle}"
+				                     Markdown="{Binding RenderedText, Mode=OneWay}"
+				                     Visibility="{Binding IsStreaming, Converter={StaticResource InverseBoolToVis}}"/>
 			</Grid>
 		</DataTemplate>
 
 		<!-- User prompt -->
 		<DataTemplate x:Key="UserTemplate">
-			<Border Margin="24,6,0,6" Padding="10,7,10,7" CornerRadius="6"
+			<Border Margin="30,8,0,8" Padding="11,8,11,8" CornerRadius="7,7,2,7"
 			        HorizontalAlignment="Right"
 			        Background="{DynamicResource {x:Static vsshell:VsBrushes.CommandBarMenuBackgroundGradientKey}}"
-			        BorderBrush="{DynamicResource {x:Static vsshell:VsBrushes.ToolWindowBorderKey}}"
+			        BorderBrush="{StaticResource ChatAccentBrush}"
 			        BorderThickness="1">
 				<TextBox Style="{StaticResource SelectableTextStyle}" Text="{Binding Text, Mode=OneWay}"/>
 			</Border>
@@ -96,68 +102,250 @@
 
 		<!-- Agent answer -->
 		<DataTemplate x:Key="AssistantTemplate">
-			<ContentControl Margin="0,6,24,6" Content="{Binding}"
+			<ContentControl Margin="2,6,24,8" Content="{Binding}"
 			                ContentTemplate="{StaticResource MessageBodyTemplate}"/>
 		</DataTemplate>
 
+		<!-- Collapsible row whose whole header is the click target, chevron included. The stock
+		     Expander puts a tiny arrow on the left and leaves the rest of the row dead, which makes a
+		     one-line tool card annoying to open. -->
+		<Style x:Key="RowExpanderStyle" TargetType="Expander">
+			<Setter Property="Template">
+				<Setter.Value>
+					<ControlTemplate TargetType="Expander">
+						<Grid>
+							<Grid.RowDefinitions>
+								<RowDefinition Height="Auto"/>
+								<RowDefinition Height="Auto"/>
+							</Grid.RowDefinitions>
+							<ToggleButton x:Name="Toggle" Grid.Row="0"
+							              Focusable="False"
+							              Cursor="Hand"
+							              IsChecked="{Binding IsExpanded, RelativeSource={RelativeSource TemplatedParent}, Mode=TwoWay}">
+								<ToggleButton.Template>
+									<ControlTemplate TargetType="ToggleButton">
+										<Border x:Name="HeaderShell" Background="Transparent" Padding="4,4,4,4">
+											<DockPanel LastChildFill="True">
+												<TextBlock x:Name="Chevron" DockPanel.Dock="Left"
+												           Text="›" FontSize="13" Opacity="0.55"
+												           Width="14" TextAlignment="Center"
+												           VerticalAlignment="Center"
+												           RenderTransformOrigin="0.5,0.5">
+													<TextBlock.RenderTransform>
+														<RotateTransform Angle="0"/>
+													</TextBlock.RenderTransform>
+												</TextBlock>
+												<ContentPresenter ContentSource="Content"/>
+											</DockPanel>
+										</Border>
+										<ControlTemplate.Triggers>
+											<Trigger Property="IsMouseOver" Value="True">
+												<Setter TargetName="HeaderShell" Property="Background"
+												        Value="{DynamicResource {x:Static vsshell:VsBrushes.CommandBarHoverOverSelectedKey}}"/>
+											</Trigger>
+											<Trigger Property="IsChecked" Value="True">
+												<Setter TargetName="Chevron" Property="RenderTransform">
+													<Setter.Value>
+														<RotateTransform Angle="90"/>
+													</Setter.Value>
+												</Setter>
+											</Trigger>
+										</ControlTemplate.Triggers>
+									</ControlTemplate>
+								</ToggleButton.Template>
+								<ContentPresenter ContentSource="Header"/>
+							</ToggleButton>
+							<ContentPresenter x:Name="Body" Grid.Row="1" Visibility="Collapsed"/>
+						</Grid>
+						<ControlTemplate.Triggers>
+							<Trigger Property="IsExpanded" Value="True">
+								<Setter TargetName="Body" Property="Visibility" Value="Visible"/>
+							</Trigger>
+						</ControlTemplate.Triggers>
+					</ControlTemplate>
+				</Setter.Value>
+			</Setter>
+		</Style>
+
 		<!-- Extended thinking, collapsed by default -->
 		<DataTemplate x:Key="ThinkingTemplate">
-			<Expander Margin="0,4,24,4" IsExpanded="{Binding IsExpanded, Mode=TwoWay}"
-			          Foreground="{DynamicResource {x:Static vsshell:VsBrushes.WindowTextKey}}"
-			          Opacity="0.75">
+			<Expander Margin="2,3,24,3" Style="{StaticResource RowExpanderStyle}"
+			          IsExpanded="{Binding IsExpanded, Mode=TwoWay}"
+			          Foreground="{DynamicResource {x:Static vsshell:VsBrushes.WindowTextKey}}">
 				<Expander.Header>
-					<TextBlock Text="{Binding Header}" FontStyle="Italic" FontSize="11"/>
+					<StackPanel Orientation="Horizontal" Opacity="0.7">
+						<TextBlock Text="✷" FontSize="{DynamicResource ChatSmallFontSize}" Margin="2,0,6,0"
+						           VerticalAlignment="Center"/>
+						<TextBlock Text="{Binding Header}" FontStyle="Italic"
+						           FontSize="{DynamicResource ChatSmallFontSize}"
+						           VerticalAlignment="Center"/>
+					</StackPanel>
 				</Expander.Header>
-				<Border Margin="18,4,0,4" Padding="8,6,8,6" CornerRadius="3"
+				<Border Margin="18,2,0,6" Padding="9,7,9,7" CornerRadius="4"
+				        Opacity="0.8"
 				        Background="{DynamicResource {x:Static vsshell:VsBrushes.WindowKey}}">
-					<TextBox Style="{StaticResource SelectableTextStyle}"
-					         FontStyle="Italic"
-					         Text="{Binding Text, Mode=OneWay}"/>
+					<local:MarkdownBlock Style="{StaticResource MarkdownBodyStyle}"
+					                     FontStyle="Italic"
+					                     Markdown="{Binding RenderedText, Mode=OneWay}"/>
 				</Border>
 			</Expander>
 		</DataTemplate>
 
-		<!-- Tool call, collapsed by default -->
+		<!-- One line of a rendered diff -->
+		<DataTemplate x:Key="DiffLineTemplate" DataType="{x:Type local:ChatDiffLine}">
+			<Border x:Name="Row" Padding="8,0,10,0">
+				<StackPanel Orientation="Horizontal">
+					<TextBlock x:Name="Marker" Text="{Binding Marker}"
+					           FontFamily="{DynamicResource ChatCodeFontFamily}"
+					           FontSize="{DynamicResource ChatSmallFontSize}"
+					           Width="12" Opacity="0.9"/>
+					<TextBlock x:Name="Body" Text="{Binding Text}"
+					           FontFamily="{DynamicResource ChatCodeFontFamily}"
+					           FontSize="{DynamicResource ChatSmallFontSize}"
+					           Foreground="{DynamicResource {x:Static vsshell:VsBrushes.WindowTextKey}}"/>
+				</StackPanel>
+			</Border>
+			<DataTemplate.Triggers>
+				<DataTrigger Binding="{Binding IsAdded}" Value="True">
+					<Setter TargetName="Row" Property="Background" Value="{StaticResource DiffAddedBackground}"/>
+					<Setter TargetName="Marker" Property="Foreground" Value="{StaticResource DiffAddedForeground}"/>
+				</DataTrigger>
+				<DataTrigger Binding="{Binding IsRemoved}" Value="True">
+					<Setter TargetName="Row" Property="Background" Value="{StaticResource DiffRemovedBackground}"/>
+					<Setter TargetName="Marker" Property="Foreground" Value="{StaticResource DiffRemovedForeground}"/>
+				</DataTrigger>
+				<DataTrigger Binding="{Binding IsSeparator}" Value="True">
+					<Setter TargetName="Body" Property="Opacity" Value="0.5"/>
+					<Setter TargetName="Body" Property="FontStyle" Value="Italic"/>
+				</DataTrigger>
+			</DataTemplate.Triggers>
+		</DataTemplate>
+
+		<!-- Tool call. Collapsed it is one informative line — the tool, what it touched and how much
+		     changed — because a column of bare "Read"/"Edit" labels says nothing about the turn. -->
 		<DataTemplate x:Key="ToolTemplate">
-			<Expander Margin="0,4,24,4" IsExpanded="{Binding IsExpanded, Mode=TwoWay}"
-			          Foreground="{DynamicResource {x:Static vsshell:VsBrushes.WindowTextKey}}">
-				<Expander.Header>
-					<StackPanel Orientation="Horizontal">
-						<TextBlock Text="{Binding Header}" FontSize="11" Opacity="0.85"/>
-						<TextBlock Text="  ✕" FontSize="11" Foreground="#E51400"
-						           Visibility="{Binding IsError, Converter={StaticResource BoolToVis}}"/>
-					</StackPanel>
-				</Expander.Header>
-				<Border Margin="18,4,0,4" Padding="8,6,8,6" CornerRadius="3"
-				        Background="{DynamicResource {x:Static vsshell:VsBrushes.WindowKey}}"
-				        BorderBrush="{DynamicResource {x:Static vsshell:VsBrushes.ToolWindowBorderKey}}"
-				        BorderThickness="1">
-					<StackPanel>
-						<TextBox Style="{StaticResource CodeTextStyle}" FontSize="11"
-						         Text="{Binding ToolInputJson, Mode=OneWay}"
-						         Visibility="{Binding ToolInputJson, Converter={StaticResource EmptyToVis}}"/>
-						<Separator Margin="0,6,0,6" Opacity="0.3"
-						           Visibility="{Binding ToolResult, Converter={StaticResource EmptyToVis}}"/>
-						<TextBox Style="{StaticResource CodeTextStyle}" FontSize="11"
-						         Text="{Binding ToolResult, Mode=OneWay}"
-						         Visibility="{Binding ToolResult, Converter={StaticResource EmptyToVis}}"/>
-					</StackPanel>
-				</Border>
-			</Expander>
+			<Border Margin="2,3,24,3" CornerRadius="4" ClipToBounds="True"
+			        Background="{DynamicResource {x:Static vsshell:VsBrushes.WindowKey}}"
+			        BorderBrush="{DynamicResource {x:Static vsshell:VsBrushes.ToolWindowBorderKey}}"
+			        BorderThickness="1">
+				<Grid>
+					<Grid.ColumnDefinitions>
+						<ColumnDefinition Width="3"/>
+						<ColumnDefinition Width="*"/>
+					</Grid.ColumnDefinitions>
+
+					<Rectangle Grid.Column="0" Fill="{Binding ToolAccent}"/>
+
+					<Expander Grid.Column="1" Style="{StaticResource RowExpanderStyle}"
+					          IsExpanded="{Binding IsExpanded, Mode=TwoWay}"
+					          Foreground="{DynamicResource {x:Static vsshell:VsBrushes.WindowTextKey}}">
+						<Expander.Header>
+							<Grid>
+								<Grid.ColumnDefinitions>
+									<ColumnDefinition Width="Auto"/>
+									<ColumnDefinition Width="Auto"/>
+									<ColumnDefinition Width="*"/>
+									<ColumnDefinition Width="Auto"/>
+									<ColumnDefinition Width="Auto"/>
+									<ColumnDefinition Width="Auto"/>
+								</Grid.ColumnDefinitions>
+
+								<TextBlock Grid.Column="0" Text="{Binding ToolIcon}"
+								           Foreground="{Binding ToolAccent}"
+								           FontSize="{DynamicResource ChatFontSize}"
+								           Margin="2,0,7,0" VerticalAlignment="Center"/>
+
+								<TextBlock Grid.Column="1" Text="{Binding Header}"
+								           FontSize="{DynamicResource ChatSmallFontSize}"
+								           FontWeight="SemiBold"
+								           VerticalAlignment="Center"/>
+
+								<TextBlock Grid.Column="2" Text="{Binding ToolTarget}"
+								           FontFamily="{DynamicResource ChatCodeFontFamily}"
+								           FontSize="{DynamicResource ChatSmallFontSize}"
+								           Opacity="0.72"
+								           Margin="9,0,9,0"
+								           VerticalAlignment="Center"
+								           TextTrimming="CharacterEllipsis"
+								           ToolTip="{Binding ToolTarget}"/>
+
+								<!-- Still running: the card is already in the transcript, so without this it
+								     looks like a tool that finished and returned nothing. -->
+								<TextBlock Grid.Column="3" Text="⋯" Margin="0,0,6,0"
+								           FontSize="{DynamicResource ChatFontSize}"
+								           VerticalAlignment="Center" Opacity="0.6"
+								           Visibility="{Binding IsRunning, Converter={StaticResource BoolToVis}}"/>
+
+								<Border Grid.Column="4" CornerRadius="3" Padding="5,1,5,1"
+								        VerticalAlignment="Center"
+								        Background="{DynamicResource {x:Static vsshell:VsBrushes.ToolWindowBackgroundKey}}"
+								        Visibility="{Binding ToolBadge, Converter={StaticResource EmptyToVis}}">
+									<TextBlock Text="{Binding ToolBadge}"
+									           FontFamily="{DynamicResource ChatCodeFontFamily}"
+									           FontSize="{DynamicResource ChatTinyFontSize}"
+									           Foreground="{Binding ToolAccent}"/>
+								</Border>
+
+								<TextBlock Grid.Column="5" Text="✕" Margin="6,0,0,0"
+								           FontSize="{DynamicResource ChatSmallFontSize}"
+								           VerticalAlignment="Center"
+								           Foreground="{StaticResource ChatErrorBrush}"
+								           Visibility="{Binding IsError, Converter={StaticResource BoolToVis}}"/>
+							</Grid>
+						</Expander.Header>
+
+						<StackPanel Margin="22,0,8,8">
+							<!-- Diff for the editing tools: what actually changed, in the shape the CLI
+							     shows it, instead of the same strings twice as JSON. -->
+							<Border Visibility="{Binding HasDiff, Converter={StaticResource BoolToVis}}"
+							        CornerRadius="3" Margin="0,2,0,2"
+							        Background="{DynamicResource {x:Static vsshell:VsBrushes.ToolWindowBackgroundKey}}"
+							        BorderBrush="{DynamicResource {x:Static vsshell:VsBrushes.ToolWindowBorderKey}}"
+							        BorderThickness="1">
+								<ScrollViewer MaxHeight="340"
+								              VerticalScrollBarVisibility="Auto"
+								              HorizontalScrollBarVisibility="Auto">
+									<ItemsControl ItemsSource="{Binding Diff}"
+									              ItemTemplate="{StaticResource DiffLineTemplate}"
+									              Margin="0,4,0,4"/>
+								</ScrollViewer>
+							</Border>
+
+							<TextBox Style="{StaticResource CodeTextStyle}"
+							         Text="{Binding ToolInputJson, Mode=OneWay}"
+							         Visibility="{Binding ShowRawInput, Converter={StaticResource BoolToVis}}"/>
+
+							<Separator Margin="0,6,0,6" Opacity="0.3"
+							           Visibility="{Binding ToolResult, Converter={StaticResource EmptyToVis}}"/>
+							<TextBox Style="{StaticResource CodeTextStyle}"
+							         Text="{Binding ToolResult, Mode=OneWay}"
+							         Visibility="{Binding ToolResult, Converter={StaticResource EmptyToVis}}"/>
+						</StackPanel>
+					</Expander>
+				</Grid>
+			</Border>
 		</DataTemplate>
 
 		<!-- Session failure -->
 		<DataTemplate x:Key="ErrorTemplate">
-			<Border Margin="0,6,24,6" Padding="9,7,9,7" CornerRadius="4"
+			<Border Margin="2,6,24,6" Padding="10,8,10,8" CornerRadius="4"
 			        Background="#22E51400" BorderBrush="#88E51400" BorderThickness="1">
-				<TextBox Style="{StaticResource SelectableTextStyle}" Text="{Binding Text, Mode=OneWay}"/>
+				<StackPanel Orientation="Horizontal">
+					<TextBlock Text="✕" Margin="0,0,8,0" FontWeight="Bold"
+					           Foreground="{StaticResource ChatErrorBrush}"/>
+					<TextBox Style="{StaticResource SelectableTextStyle}" Text="{Binding Text, Mode=OneWay}"/>
+				</StackPanel>
 			</Border>
 		</DataTemplate>
 
 		<!-- Neutral status line -->
 		<DataTemplate x:Key="NoticeTemplate">
-			<TextBlock Margin="0,6,24,6" Text="{Binding Text}" TextWrapping="Wrap"
-			           FontStyle="Italic" FontSize="11" Opacity="0.7"/>
+			<Border Margin="2,5,24,5" Padding="9,5,9,5" CornerRadius="4"
+			        HorizontalAlignment="Left"
+			        Background="{DynamicResource {x:Static vsshell:VsBrushes.WindowKey}}">
+				<TextBlock Text="{Binding Text}" TextWrapping="Wrap"
+				           FontSize="{DynamicResource ChatSmallFontSize}" Opacity="0.75"/>
+			</Border>
 		</DataTemplate>
 
 		<!-- One answer button. The selected state has to be obvious at a glance, so it takes the
@@ -199,7 +387,7 @@
 			<Setter Property="Foreground" Value="White"/>
 			<Setter Property="BorderThickness" Value="0"/>
 			<Setter Property="FontWeight" Value="SemiBold"/>
-			<Setter Property="FontSize" Value="11"/>
+			<Setter Property="FontSize" Value="{DynamicResource ChatSmallFontSize}"/>
 			<Setter Property="Padding" Value="14,4,14,4"/>
 			<Setter Property="Margin" Value="6,0,0,0"/>
 			<Setter Property="Cursor" Value="Hand"/>
@@ -237,7 +425,7 @@
 				        HorizontalAlignment="Left"
 				        Margin="0,0,0,4" Padding="6,1,6,1" CornerRadius="3"
 				        Background="#331C8AE0">
-					<TextBlock Text="{Binding Header}" FontSize="9" FontWeight="SemiBold"
+					<TextBlock Text="{Binding Header}" FontSize="{DynamicResource ChatTinyFontSize}" FontWeight="SemiBold"
 					           Opacity="0.9"
 					           Foreground="{DynamicResource {x:Static vsshell:VsBrushes.WindowTextKey}}"/>
 				</Border>
@@ -256,7 +444,7 @@
 								<StackPanel>
 									<TextBlock Text="{Binding Label}" TextWrapping="Wrap"/>
 									<TextBlock Text="{Binding Description}" TextWrapping="Wrap"
-									           FontSize="10" Opacity="0.65" Margin="0,2,0,0"
+									           FontSize="{DynamicResource ChatTinyFontSize}" Opacity="0.65" Margin="0,2,0,0"
 									           Visibility="{Binding HasDescription, Converter={StaticResource BoolToVis}}"/>
 								</StackPanel>
 							</Button>
@@ -276,7 +464,7 @@
 					         BorderThickness="1"/>
 					<TextBlock Text="Other — type your own answer…"
 					           IsHitTestVisible="False"
-					           Margin="8,5,0,0" Opacity="0.5" FontSize="11"
+					           Margin="8,5,0,0" Opacity="0.5" FontSize="{DynamicResource ChatSmallFontSize}"
 					           VerticalAlignment="Top"
 					           Foreground="{DynamicResource {x:Static vsshell:VsBrushes.WindowTextKey}}"
 					           Visibility="{Binding OtherAnswer, Converter={StaticResource EmptyToVis}, ConverterParameter=invert}"/>
@@ -287,7 +475,7 @@
 		<!-- Question / plan / tool-permission card. Stays in the transcript once answered, showing
 		     what was decided, so scrolling back still explains why the agent did what it did. -->
 		<DataTemplate x:Key="InteractionTemplate" DataType="{x:Type local:ChatInteractionViewModel}">
-			<Border Margin="0,8,24,8" Padding="12,10,12,10" CornerRadius="5"
+			<Border Margin="2,8,24,8" Padding="12,10,12,10" CornerRadius="5"
 			        Background="{DynamicResource {x:Static vsshell:VsBrushes.WindowKey}}"
 			        BorderBrush="#881C8AE0" BorderThickness="1">
 				<StackPanel>
@@ -303,14 +491,14 @@
 						<Border Visibility="{Binding IsPlanReview, Converter={StaticResource BoolToVis}}"
 						        Padding="8,6,8,6" CornerRadius="3" Margin="0,0,0,4"
 						        Background="{DynamicResource {x:Static vsshell:VsBrushes.ToolWindowBackgroundKey}}">
-							<ScrollViewer MaxHeight="300" VerticalScrollBarVisibility="Auto">
-								<TextBox Style="{StaticResource SelectableTextStyle}"
-								         Text="{Binding PlanText, Mode=OneWay}"/>
+							<ScrollViewer MaxHeight="360" VerticalScrollBarVisibility="Auto">
+								<local:MarkdownBlock Style="{StaticResource MarkdownBodyStyle}"
+								                     Markdown="{Binding PlanText, Mode=OneWay}"/>
 							</ScrollViewer>
 						</Border>
 
 						<StackPanel Visibility="{Binding IsToolApproval, Converter={StaticResource BoolToVis}}">
-							<TextBox Style="{StaticResource CodeTextStyle}" FontSize="11"
+							<TextBox Style="{StaticResource CodeTextStyle}"
 							         Text="{Binding ToolInputJson, Mode=OneWay}"
 							         Visibility="{Binding ToolInputJson, Converter={StaticResource EmptyToVis}}"/>
 						</StackPanel>
@@ -329,7 +517,7 @@
 
 					<!-- Answered: one line saying what happened -->
 					<TextBlock Text="{Binding Outcome}" TextWrapping="Wrap"
-					           FontSize="11" Opacity="0.75" FontStyle="Italic"
+					           FontSize="{DynamicResource ChatSmallFontSize}" Opacity="0.75" FontStyle="Italic"
 					           Visibility="{Binding IsResolved, Converter={StaticResource BoolToVis}}"/>
 				</StackPanel>
 			</Border>
@@ -344,7 +532,7 @@
 			<Setter Property="BorderThickness" Value="1"/>
 			<Setter Property="Padding" Value="7,2,7,2"/>
 			<Setter Property="Margin" Value="0,0,2,0"/>
-			<Setter Property="FontSize" Value="11"/>
+			<Setter Property="FontSize" Value="{DynamicResource ChatSmallFontSize}"/>
 			<Setter Property="Height" Value="22"/>
 			<Setter Property="Cursor" Value="Hand"/>
 			<Setter Property="Focusable" Value="False"/>
@@ -386,7 +574,9 @@
 
 	<!-- LayoutTransform (not RenderTransform) so Ctrl+Scroll zoom re-flows the text at the new
 	     scale instead of blurring a bitmap, and the scroll bars keep matching the content. -->
-	<Grid x:Name="RootGrid" PreviewMouseWheel="Root_PreviewMouseWheel">
+	<Grid x:Name="RootGrid" PreviewMouseWheel="Root_PreviewMouseWheel"
+	      TextElement.FontFamily="{DynamicResource ChatFontFamily}"
+	      TextElement.FontSize="{DynamicResource ChatFontSize}">
 		<Grid.LayoutTransform>
 			<ScaleTransform x:Name="ZoomTransform" ScaleX="1" ScaleY="1"/>
 		</Grid.LayoutTransform>
@@ -441,12 +631,20 @@
 				<Button x:Name="StopButton" DockPanel.Dock="Right"
 				        Content="■ Stop"
 				        Padding="8,1,8,1"
-				        FontSize="11"
+				        FontSize="{DynamicResource ChatSmallFontSize}"
 				        Margin="8,0,0,0"
 				        Visibility="Collapsed"
 				        ToolTip="Stop the turn in progress"
 				        Click="StopButton_Click"/>
-				<TextBlock x:Name="StatusText" FontSize="11" Opacity="0.75"
+				<!-- Its own element so the spinner can carry the accent colour while the text stays
+				     muted; a single TextBlock would need inline runs rebuilt on every frame. -->
+				<TextBlock x:Name="StatusSpinner" DockPanel.Dock="Left"
+				           FontSize="{DynamicResource ChatFontSize}"
+				           Margin="0,0,7,0"
+				           Visibility="Collapsed"
+				           VerticalAlignment="Center"
+				           Foreground="{StaticResource ChatAccentBrush}"/>
+				<TextBlock x:Name="StatusText" FontSize="{DynamicResource ChatSmallFontSize}" Opacity="0.75"
 				           VerticalAlignment="Center" TextTrimming="CharacterEllipsis"/>
 			</DockPanel>
 		</Border>
@@ -505,18 +703,19 @@
 						         VerticalScrollBarVisibility="Auto"
 						         BorderThickness="0"
 						         Background="Transparent"
-						         FontFamily="Cascadia Mono"
+						         FontFamily="{DynamicResource ChatFontFamily}"
+						         FontSize="{DynamicResource ChatFontSize}"
 						         CaretBrush="{DynamicResource {x:Static vsshell:VsBrushes.WindowTextKey}}"
 						         SelectionBrush="{DynamicResource {x:Static vsshell:VsBrushes.HighlightKey}}"
 						         Foreground="{DynamicResource {x:Static vsshell:VsBrushes.WindowTextKey}}"
 						         PreviewKeyDown="ComposerInput_PreviewKeyDown"
 						         TextChanged="ComposerInput_TextChanged"/>
 						<TextBlock x:Name="ComposerPlaceholder"
-						           Text="Ask anything · Esc to unfocus"
+						           Text="Ask anything · ↑ for earlier prompts · Esc to unfocus"
 						           IsHitTestVisible="False"
 						           Margin="2,1,0,0"
 						           Opacity="0.5"
-						           FontSize="12"
+						           FontSize="{DynamicResource ChatFontSize}"
 						           VerticalAlignment="Top"
 						           Foreground="{DynamicResource {x:Static vsshell:VsBrushes.WindowTextKey}}"/>
 					</Grid>
@@ -533,7 +732,7 @@
 					<Button x:Name="ComposerAttachButton" DockPanel.Dock="Left"
 					        Style="{StaticResource ComposerSelectorStyle}"
 					        Content="📎"
-					        ToolTip="Attach a file to the next prompt"
+					        ToolTip="Attach a file to the next prompt (Ctrl+V pastes an image)"
 					        Click="ComposerAttachButton_Click"/>
 
 					<Rectangle DockPanel.Dock="Left" Width="1" Margin="4,4,6,4" Opacity="0.25"
@@ -587,7 +786,8 @@
 					<DropShadowEffect BlurRadius="10" ShadowDepth="2" Opacity="0.35"/>
 				</Border.Effect>
 				<StackPanel>
-					<TextBlock x:Name="EffortPopupLabel" Text="Effort" Margin="1,0,0,6" FontSize="11"
+					<TextBlock x:Name="EffortPopupLabel" Text="Effort" Margin="1,0,0,6"
+					           FontSize="{DynamicResource ChatSmallFontSize}"
 					           Foreground="{DynamicResource {x:Static vsshell:VsBrushes.CommandBarTextActiveKey}}"/>
 					<Slider x:Name="EffortPopupSlider"
 					        Style="{StaticResource EffortSliderStyle}"

@@ -6,7 +6,7 @@
 
 - **Author**: Daniel Carvalho Liedke (dliedke@gmail.com) | **License**: MIT
 - **Repository**: https://github.com/dliedke/ClaudeCodeExtension
-- **Current Version**: 85.0 | **Target Framework**: .NET Framework 4.7.2
+- **Current Version**: 87.0 | **Target Framework**: .NET Framework 4.7.2
 
 ---
 
@@ -119,6 +119,8 @@ ClaudeCodeExtension/
 │   ├── ClaudeUsageControl.xaml(.cs)
 │   ├── ChatTranscriptView.xaml(.cs)     # Native mode chat transcript
 │   ├── ChatMessages.cs                  # Chat message view-models
+│   ├── ChatToolPresentation.cs          # Tool call → header line + rendered diff (pure, unit-tested)
+│   ├── MarkdownFlowRenderer.cs          # Markdown → FlowDocument + the MarkdownBlock control
 │   └── DiffViewerControl.xaml(.cs)
 ├── ToolWindows/                         # VS tool window hosts
 │   ├── ClaudeCodeToolWindow.cs

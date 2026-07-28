@@ -94,6 +94,8 @@
     <Compile Include="Models\ClaudeCodeModels.cs" />
     <Compile Include="UI\ChatMessages.cs" />
     <Compile Include="UI\ChatInteractionViewModels.cs" />
+    <Compile Include="UI\ChatToolPresentation.cs" />
+    <Compile Include="UI\MarkdownFlowRenderer.cs" />
     <Compile Include="UI\ChatTranscriptView.xaml.cs">
       <DependentUpon>ChatTranscriptView.xaml</DependentUpon>
     </Compile>

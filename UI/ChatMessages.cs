@@ -15,6 +15,7 @@ using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Text;
+using System.Windows.Media;
 
 namespace ClaudeCodeVS.UI
 {
@@ -38,42 +39,80 @@ namespace ClaudeCodeVS.UI
     }
 
     /// <summary>
-    /// A run of message text that is either prose or a fenced code block.
+    /// Formatting shared by the live status line and the end-of-turn summary, so a turn is never
+    /// described one way while it runs and another way once it ends.
     /// </summary>
-    public class ChatSegment
+    public static class ChatFormatting
     {
-        public bool IsCode { get; set; }
+        /// <summary>
+        /// Human-readable elapsed time. Seconds keep a decimal because most turns are short; minutes
+        /// and hours drop it, since "19m 15.4s" is false precision on a twenty-minute turn.
+        /// </summary>
+        public static string Duration(TimeSpan elapsed)
+        {
+            if (elapsed < TimeSpan.Zero)
+            {
+                elapsed = TimeSpan.Zero;
+            }
 
-        /// <summary>Language tag from the opening fence, empty when none was given.</summary>
-        public string Language { get; set; } = string.Empty;
+            if (elapsed.TotalHours >= 1)
+            {
+                return string.Format("{0}h {1:00}m {2:00}s",
+                    (int)elapsed.TotalHours, elapsed.Minutes, elapsed.Seconds);
+            }
 
-        public string Text { get; set; } = string.Empty;
+            if (elapsed.TotalMinutes >= 1)
+            {
+                return string.Format("{0}m {1:00}s", (int)elapsed.TotalMinutes, elapsed.Seconds);
+            }
+
+            return string.Format(System.Globalization.CultureInfo.CurrentCulture, "{0:0.0}s", elapsed.TotalSeconds);
+        }
+
+        /// <summary>
+        /// One token figure for the status line and the turn footer.
+        /// <para>
+        /// Deliberately a single number rather than an in/out/cached breakdown: with prompt caching the
+        /// input count is almost always a handful of tokens, so "1 in · 577 out · 25,750 cached" reads
+        /// as a bug rather than as information. Cache reads are excluded — they are context the model
+        /// did not have to process again.
+        /// </para>
+        /// </summary>
+        public static string Tokens(int inputTokens, int outputTokens)
+        {
+            return string.Format("{0:N0} tokens", Math.Max(0, inputTokens) + Math.Max(0, outputTokens));
+        }
     }
 
     /// <summary>
     /// One row of the chat transcript.
     /// <para>
-    /// Streaming appends into <see cref="Text"/> and the row renders as plain text; splitting markdown
-    /// on every token delta would re-layout the list dozens of times a second. <see cref="Complete"/>
-    /// is called when the turn ends and swaps in the parsed <see cref="Segments"/>. That is why the
-    /// object is mutated rather than replaced — recreating the item makes the list flicker and drops
-    /// the user's text selection.
+    /// Streaming appends into <see cref="Text"/> and the row renders as plain text; building a
+    /// <c>FlowDocument</c> on every token delta would re-layout the list dozens of times a second.
+    /// <see cref="Complete"/> is called when the turn ends and publishes <see cref="RenderedText"/>,
+    /// which is what the markdown view binds to. That is why the object is mutated rather than
+    /// replaced — recreating the item makes the list flicker and drops the user's text selection.
     /// </para>
     /// </summary>
     public class ChatMessageViewModel : INotifyPropertyChanged
     {
         private readonly StringBuilder _buffer = new StringBuilder();
         private string _text = string.Empty;
+        private string _renderedText = string.Empty;
         private bool _isStreaming;
         private bool _isExpanded;
         private string _header = string.Empty;
         private string _toolResult = string.Empty;
         private bool _isError;
+        private bool _isRunning;
+        private string _toolIcon = string.Empty;
+        private string _toolTarget = string.Empty;
+        private string _toolBadge = string.Empty;
+        private Brush _toolAccent;
 
         public ChatMessageViewModel(ChatMessageKind kind)
         {
             Kind = kind;
-            Segments = new ObservableCollection<ChatSegment>();
         }
 
         public ChatMessageKind Kind { get; }
@@ -86,8 +125,16 @@ namespace ClaudeCodeVS.UI
             set { Set(ref _text, value ?? string.Empty, nameof(Text)); }
         }
 
-        /// <summary>Parsed prose/code runs. Populated by <see cref="Complete"/>.</summary>
-        public ObservableCollection<ChatSegment> Segments { get; }
+        /// <summary>
+        /// The finished text, published by <see cref="Complete"/> and bound by the markdown view. Kept
+        /// apart from <see cref="Text"/> so that rendering happens once per message instead of once per
+        /// streamed token.
+        /// </summary>
+        public string RenderedText
+        {
+            get { return _renderedText; }
+            private set { Set(ref _renderedText, value ?? string.Empty, nameof(RenderedText)); }
+        }
 
         /// <summary>True while text is still arriving; the row shows raw text and a caret cue.</summary>
         public bool IsStreaming
@@ -130,6 +177,75 @@ namespace ClaudeCodeVS.UI
             set { Set(ref _isError, value, nameof(IsError)); }
         }
 
+        /// <summary>True while the tool is still running, so the row can show that it has not answered.</summary>
+        public bool IsRunning
+        {
+            get { return _isRunning; }
+            set { Set(ref _isRunning, value, nameof(IsRunning)); }
+        }
+
+        /// <summary>Glyph shown before the tool name, chosen from the tool's family.</summary>
+        public string ToolIcon
+        {
+            get { return _toolIcon; }
+            set { Set(ref _toolIcon, value ?? string.Empty, nameof(ToolIcon)); }
+        }
+
+        /// <summary>What the tool acted on: a file, a command, a pattern.</summary>
+        public string ToolTarget
+        {
+            get { return _toolTarget; }
+            set { Set(ref _toolTarget, value ?? string.Empty, nameof(ToolTarget)); }
+        }
+
+        /// <summary>Right-aligned counter, e.g. <c>+12 -3</c>.</summary>
+        public string ToolBadge
+        {
+            get { return _toolBadge; }
+            set { Set(ref _toolBadge, value ?? string.Empty, nameof(ToolBadge)); }
+        }
+
+        /// <summary>Accent colour of the row, derived from the tool's family.</summary>
+        public Brush ToolAccent
+        {
+            get { return _toolAccent; }
+            set { Set(ref _toolAccent, value, nameof(ToolAccent)); }
+        }
+
+        /// <summary>
+        /// Rendered diff of an editing tool. Empty for every other tool, which is what
+        /// <see cref="HasDiff"/> hides the diff pane on.
+        /// </summary>
+        public ObservableCollection<ChatDiffLine> Diff { get; } = new ObservableCollection<ChatDiffLine>();
+
+        public bool HasDiff { get { return Diff.Count > 0; } }
+
+        /// <summary>
+        /// True when the card falls back to showing the raw input payload — a diff already says what an
+        /// editing tool did, and printing the same strings again as JSON underneath it is pure noise.
+        /// </summary>
+        public bool ShowRawInput
+        {
+            get { return Diff.Count == 0 && !string.IsNullOrWhiteSpace(ToolInputJson); }
+        }
+
+        /// <summary>Replaces the diff rows and notifies, so a card can be filled after it is on screen.</summary>
+        public void SetDiff(IEnumerable<ChatDiffLine> lines)
+        {
+            Diff.Clear();
+
+            if (lines != null)
+            {
+                foreach (ChatDiffLine line in lines)
+                {
+                    Diff.Add(line);
+                }
+            }
+
+            RaisePropertyChanged(nameof(HasDiff));
+            RaisePropertyChanged(nameof(ShowRawInput));
+        }
+
         /// <summary>Appends a streamed chunk.</summary>
         public void Append(string chunk)
         {
@@ -143,17 +259,12 @@ namespace ClaudeCodeVS.UI
         }
 
         /// <summary>
-        /// Marks the row finished and parses its markdown once.
+        /// Marks the row finished and hands its text to the markdown view, which renders it once.
         /// </summary>
         public void Complete()
         {
             IsStreaming = false;
-
-            Segments.Clear();
-            foreach (ChatSegment segment in MarkdownSplitter.Split(Text))
-            {
-                Segments.Add(segment);
-            }
+            RenderedText = Text;
         }
 
         public event PropertyChangedEventHandler PropertyChanged;
@@ -182,86 +293,6 @@ namespace ClaudeCodeVS.UI
             {
                 handler(this, new PropertyChangedEventArgs(propertyName));
             }
-        }
-    }
-
-    /// <summary>
-    /// Splits agent output into prose and fenced code blocks.
-    /// <para>
-    /// Deliberately not a markdown engine: code fences are the only construct whose loss actually hurts
-    /// readability in a chat panel, and they are the one thing a plain <c>TextBlock</c> renders badly.
-    /// If full fidelity is ever needed, the upgrade path is WebView2, already a project dependency.
-    /// </para>
-    /// </summary>
-    public static class MarkdownSplitter
-    {
-        public static IReadOnlyList<ChatSegment> Split(string text)
-        {
-            var segments = new List<ChatSegment>();
-            if (string.IsNullOrEmpty(text))
-            {
-                return segments;
-            }
-
-            string[] lines = text.Replace("\r\n", "\n").Replace('\r', '\n').Split('\n');
-
-            var current = new StringBuilder();
-            bool inCode = false;
-            string language = string.Empty;
-
-            foreach (string line in lines)
-            {
-                string trimmed = line.TrimStart();
-
-                if (trimmed.StartsWith("```", StringComparison.Ordinal))
-                {
-                    Flush(segments, current, inCode, language);
-
-                    if (inCode)
-                    {
-                        inCode = false;
-                        language = string.Empty;
-                    }
-                    else
-                    {
-                        inCode = true;
-                        language = trimmed.Substring(3).Trim();
-                    }
-
-                    continue;
-                }
-
-                if (current.Length > 0)
-                {
-                    current.Append('\n');
-                }
-                current.Append(line);
-            }
-
-            // An unterminated fence is normal when a turn is interrupted mid-code-block; emit what we
-            // have rather than dropping it.
-            Flush(segments, current, inCode, language);
-
-            return segments;
-        }
-
-        private static void Flush(List<ChatSegment> segments, StringBuilder buffer, bool isCode, string language)
-        {
-            string content = buffer.ToString();
-            buffer.Clear();
-
-            // Blank prose between two fences is layout noise; blank lines inside code are meaningful.
-            if (!isCode && string.IsNullOrWhiteSpace(content))
-            {
-                return;
-            }
-
-            segments.Add(new ChatSegment
-            {
-                IsCode = isCode,
-                Language = language ?? string.Empty,
-                Text = isCode ? content.TrimEnd('\n') : content.Trim('\n')
-            });
         }
     }
 }

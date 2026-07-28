@@ -15,7 +15,7 @@ Enjoying the extension? [Buy me a coffee](https://www.buymeacoffee.com/dliedke) 
 ## Features
 
 - **Embedded AI terminal** — Run any supported AI coding agent inside a Visual Studio tool window. Auto-detects the solution directory; restarts when you switch solutions. Optionally use Windows Terminal instead of Command Prompt for better emoji/Unicode rendering.
-- **Native mode (optional)** — Show the conversation as a chat in its own document tab instead of an embedded terminal: answers stream in, thinking and tool steps appear as collapsible cards, and each turn ends with its token count and cost. The tab has its own message box with file attachments plus agent, model, effort and permission selectors you can change mid-conversation. Opt-in via *⚙ → Settings... → Behavior*; agents that can't run this way keep using the terminal.
+- **Native mode (optional)** — Show the conversation as a chat in its own document tab instead of an embedded terminal: answers arrive as formatted text, file edits open into a colored diff, and each turn ends with how long it took and what it cost. The tab has its own message box with image paste and file attachments, plus agent, model, effort and permission selectors you can change mid-conversation. Opt-in via *⚙ → Settings... → Terminal*; agents that can't run this way keep using the terminal.
 - **Multi-line prompts** — Press **Enter** to send, **Shift+Enter** or **Ctrl+Enter** for a new line. Toggle "Send with Enter" off in the ⚙ menu to make Enter insert a newline and reveal a Send button.
 - **File and image attachments** — Paste images with **Ctrl+V**, drag & drop files onto the prompt area, or use the 📎 button. Any file type is accepted (no limit). Text content like Excel cells pastes as text, not as an image.
 - **Editor selection → prompt** — Click 📋 or right-click selected code → *Send Selection to Claude Code* to insert a formatted snippet (file path + line numbers + syntax-highlighted code fence) into the prompt.
@@ -31,6 +31,26 @@ Enjoying the extension? [Buy me a coffee](https://www.buymeacoffee.com/dliedke) 
 - **Detach / attach terminal** — Pop the terminal into a separate VS tab and bring it back at any time. State persists across sessions.
 - **Theme aware** — Follows VS dark/light theme automatically, or force dark, light, or a custom background color via *⚙ → Settings → Theme*. Prompt zoom is persisted across sessions; set the terminal's console font and size via *⚙ → Settings → Terminal* (Ctrl+Scroll zoom applies for the current session).
 - **Persistent settings** — Layout, provider choice, model, flags, and font sizes all saved to `%LocalAppData%\ClaudeCodeExtension\claudecode-settings.json`.
+
+## Native Mode
+
+Currently in alpha — turn it on via *⚙ → Settings... → Terminal → Use native mode*.
+
+<!-- Images are served from this repository's raw URLs, which the VS Marketplace can also reach — the
+     overview is rendered from this file with no repo context, so relative paths would not resolve there.
+     The links go live once docs/images/ is pushed to master. -->
+
+**Questions answered in the chat** — the agent's multiple-choice questions become clickable cards, each with a free-text answer of your own.
+
+<img src="https://raw.githubusercontent.com/dliedke/ClaudeCodeExtension/master/docs/images/native-mode-question.png" alt="Native mode: answering an agent question in the chat" width="900" />
+
+**Plan review** — in plan mode the agent proposes a plan first; approve it or send it back for changes without leaving the transcript.
+
+<img src="https://raw.githubusercontent.com/dliedke/ClaudeCodeExtension/master/docs/images/native-mode-plan.png" alt="Native mode: reviewing and approving a plan" width="900" />
+
+**Real diffs for file edits** — every edit opens into a colored diff with a line count, so you can see what changed without switching tabs.
+
+<img src="https://raw.githubusercontent.com/dliedke/ClaudeCodeExtension/master/docs/images/native-mode-diff.png" alt="Native mode: a file edit shown as a colored diff" width="900" />
 
 ## Supported AI Providers
 
@@ -115,6 +135,16 @@ https://github.com/anthropics/claude-code/issues/63504
 https://github.com/anthropics/claude-code/issues/41501
 
 ## Version History
+
+### Version 87.0
+- Native mode still in alpha phase. It will be improved and stabilized in next releases. Please do not use for real work yet.
+- Chat answers are now formatted: headings, lists, tables, emphasis and code blocks instead of a single block of plain text.
+- Tool cards say what the agent did at a glance — the file it read, the command it ran, how many lines changed — and file edits open into a colored diff.
+- Ctrl+V in the chat pastes an image from the clipboard as an attachment.
+- The chat font and size can be chosen in Settings → Terminal, with every installed font available, and the Ctrl+Scroll zoom is remembered between sessions.
+- Pressing ↑ at the top of the chat message box brings back earlier prompts.
+- While the agent works the chat shows a spinner with a changing caption, the elapsed time and the tokens used so far, and each turn ends with a line saying how long it took.
+- Turning native mode on keeps the terminal type on Command Prompt and drops the agent-finish idle wait to one second, since the agent reports when it is done.
 
 ### Version 86.0
 - Native mode still in alpha phase. It will be improved and stabilized in next releases. Please do not use for real work yet.

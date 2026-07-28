@@ -208,7 +208,8 @@ namespace ClaudeCodeVS
         /// <summary>
         /// Seconds the terminal must stay idle (no on-screen change) before a turn is
         /// considered complete. Guards against firing during brief pauses mid-turn.
-        /// Clamped to 2–120 in the UI.
+        /// Clamped to 2–120 in the UI. Native mode has no console to watch — the agent's
+        /// protocol says when the turn ended — so it forces this to 1.
         /// </summary>
         public int IdleSeconds { get; set; } = 5;
 
@@ -415,6 +416,17 @@ namespace ClaudeCodeVS
         /// Height in pixels of the chat tab's prompt box, set by dragging its top edge.
         /// </summary>
         public double NativeChatComposerHeight { get; set; } = 72;
+
+        /// <summary>
+        /// Font family of the native-mode chat. Unlike the console font this may be proportional —
+        /// the chat is laid out by WPF, not on a fixed character grid.
+        /// </summary>
+        public string NativeChatFontFaceName { get; set; } = "Segoe UI";
+
+        /// <summary>
+        /// Font size (points) of the native-mode chat. Ctrl+Scroll zoom applies on top of it.
+        /// </summary>
+        public double NativeChatFontSizePt { get; set; } = 12.0;
 
         /// <summary>
         /// If true, Claude Code starts in plan mode: it researches and proposes a plan, and only makes

@@ -343,6 +343,29 @@ namespace ClaudeCodeVS
             afIdlePanel.Children.Add(afIdleBox);
             stack.Children.Add(afIdlePanel);
 
+            // Native mode learns the turn ended from the agent's own protocol, so there is no console
+            // to watch and no idle window to wait out: the value is pinned to 1 and the box is closed.
+            bool nativeMode = _settings?.UseNativeMode == true;
+
+            var afIdleNativeHint = new TextBlock
+            {
+                Text = "Native mode is on: the agent reports the end of a turn itself, so nothing waits for the " +
+                       "console to go idle.",
+                FontSize = 11,
+                Opacity = 0.7,
+                Foreground = themeFg,
+                TextWrapping = TextWrapping.Wrap,
+                Visibility = nativeMode ? Visibility.Visible : Visibility.Collapsed,
+                Margin = new Thickness(20, 0, 0, 4)
+            };
+            stack.Children.Add(afIdleNativeHint);
+
+            if (nativeMode)
+            {
+                afIdleBox.IsEnabled = false;
+                afIdleBox.Opacity = 0.5;
+            }
+
             // ---- Field <-> config helpers ----
             void WriteFrom(AgentFinishConfig cfg)
             {
@@ -357,7 +380,7 @@ namespace ClaudeCodeVS
                 afRebuildBeforeRunCheck.IsChecked = cfg.RebuildBeforeRun;
                 afScriptBox.Text            = cfg.ScriptOrCommand ?? string.Empty;
                 afFollowUpBox.Text          = cfg.FollowUpSendToAgent ?? string.Empty;
-                afIdleBox.Text              = cfg.IdleSeconds.ToString();
+                afIdleBox.Text              = (nativeMode ? 1 : cfg.IdleSeconds).ToString();
                 afActionCombo.SelectedItem  = null;
                 foreach (ComboBoxItem it in afActionCombo.Items)
                 {
@@ -384,7 +407,9 @@ namespace ClaudeCodeVS
                 cfg.FollowUpSendToAgent = afFollowUpBox.Text?.Trim() ?? string.Empty;
                 if ((afActionCombo.SelectedItem as ComboBoxItem)?.Tag is AgentFinishActionType act)
                     cfg.Action = act;
-                if (int.TryParse(afIdleBox.Text?.Trim(), out int idleVal))
+                if (nativeMode)
+                    cfg.IdleSeconds = 1;
+                else if (int.TryParse(afIdleBox.Text?.Trim(), out int idleVal))
                     cfg.IdleSeconds = Math.Max(2, Math.Min(120, idleVal));
             }
 

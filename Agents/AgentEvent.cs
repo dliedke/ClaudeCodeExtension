@@ -62,6 +62,13 @@ namespace ClaudeCodeVS.Agents
         /// <summary>The turn ended. Carries usage, cost and any permission denials.</summary>
         TurnCompleted,
 
+        /// <summary>
+        /// Token counts reported <b>during</b> a turn, so the status line can count up live instead of
+        /// only settling once at the end. Providers whose protocol says nothing until the turn is over
+        /// simply never raise it — the elapsed clock still runs.
+        /// </summary>
+        UsageUpdated,
+
         /// <summary>Fresh rate-limit/quota data reported by the CLI mid-stream.</summary>
         RateLimitUpdated,
 
@@ -412,6 +419,15 @@ namespace ClaudeCodeVS.Agents
                 PermissionDenials = denials,
                 WasInterrupted = wasInterrupted
             };
+        }
+
+        /// <summary>
+        /// A mid-turn usage snapshot. <see cref="AgentUsage.OutputTokens"/> is what the caller
+        /// accumulates; the input and cache counts describe the request that produced this message.
+        /// </summary>
+        public static AgentEvent UsageUpdated(AgentUsage usage)
+        {
+            return new AgentEvent { Kind = AgentEventKind.UsageUpdated, Usage = usage };
         }
 
         public static AgentEvent RateLimitUpdated(AgentRateLimit rateLimit)

@@ -208,7 +208,36 @@ namespace ClaudeCodeVS.Agents
                 }
             }
 
+            // Each assistant message carries the usage of the request that produced it. A turn with
+            // tool calls is many such requests, which is what lets the status line count up live rather
+            // than sitting at zero until the final result arrives.
+            AgentUsage usage = ReadUsage(root["message"]?["usage"] as JObject);
+            if (usage != null)
+            {
+                events.Add(AgentEvent.UsageUpdated(usage));
+            }
+
             return events;
+        }
+
+        /// <summary>
+        /// Reads a <c>usage</c> node. Returns null when the node is missing — not a zeroed instance,
+        /// which the UI would render as "0 tokens" and look like a bug.
+        /// </summary>
+        private static AgentUsage ReadUsage(JObject usageNode)
+        {
+            if (usageNode == null)
+            {
+                return null;
+            }
+
+            return new AgentUsage
+            {
+                InputTokens = (int?)usageNode["input_tokens"] ?? 0,
+                OutputTokens = (int?)usageNode["output_tokens"] ?? 0,
+                CacheReadTokens = (int?)usageNode["cache_read_input_tokens"] ?? 0,
+                CacheCreationTokens = (int?)usageNode["cache_creation_input_tokens"] ?? 0
+            };
         }
 
         private IReadOnlyList<AgentEvent> ParseUser(JObject root)

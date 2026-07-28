@@ -42,6 +42,16 @@ namespace ClaudeCodeVS.UI
         private bool _autoScroll = true;
         private bool _suppressEffortEvent;
 
+        private System.Windows.Threading.DispatcherTimer _activityTimer;
+        private DateTime _activityStartedUtc;
+        private DateTime _lastVerbChangeUtc;
+        private int _spinnerFrame;
+        private int _verbIndex;
+
+        /// <summary>Fixed caption, or empty while the rotating verbs are in charge.</summary>
+        private string _activityLabel = string.Empty;
+        private string _activityDetail = string.Empty;
+
         public ChatTranscriptView()
         {
             InitializeComponent();
@@ -85,6 +95,19 @@ namespace ClaudeCodeVS.UI
         /// <summary>Raised when Ctrl+Scroll changes the zoom, so the parent can persist it.</summary>
         public event EventHandler<double> ZoomChanged;
 
+        /// <summary>
+        /// Raised on Ctrl+V in the composer. The parent owns the clipboard image pipeline (it also owns
+        /// the attachment list), and sets <see cref="ChatPasteEventArgs.Handled"/> when it consumed the
+        /// clipboard as an image — otherwise the text box performs its normal text paste.
+        /// </summary>
+        public event EventHandler<ChatPasteEventArgs> PasteRequested;
+
+        /// <summary>Raised by ↑ on the first line of the composer: show the previous prompt.</summary>
+        public event EventHandler HistoryPreviousRequested;
+
+        /// <summary>Raised by ↓ on the last line of the composer: back towards the newest prompt.</summary>
+        public event EventHandler HistoryNextRequested;
+
         /// <summary>Raised when the composer is resized by dragging, so the parent can persist the height.</summary>
         public event EventHandler<double> ComposerHeightChanged;
 
@@ -99,6 +122,15 @@ namespace ClaudeCodeVS.UI
         public System.Windows.Controls.Panel ComposerAttachmentsPanel
         {
             get { return ComposerAttachments; }
+        }
+
+        /// <summary>
+        /// True while the user is typing in the composer. Prompt history writes to whichever prompt box
+        /// has the keyboard, so the panel and the chat tab never overwrite each other's text.
+        /// </summary>
+        public bool ComposerHasFocus
+        {
+            get { return ComposerBar.Visibility == Visibility.Visible && ComposerInput.IsKeyboardFocusWithin; }
         }
 
         /// <summary>Mirrors the panel's send-key preference so Enter behaves the same in both places.</summary>
@@ -152,9 +184,15 @@ namespace ClaudeCodeVS.UI
 
         /// <summary>
         /// Text on the footer line (token counts, cost, "working…"). Empty hides the bar.
+        /// <para>
+        /// Stops the live clock: this is the "here is a fixed sentence" entry point, and leaving the
+        /// timer running would overwrite that sentence a second later.
+        /// </para>
         /// </summary>
         public void SetStatus(string text)
         {
+            StopActivityTimer();
+
             if (string.IsNullOrEmpty(text))
             {
                 StatusBar.Visibility = Visibility.Collapsed;
@@ -166,9 +204,154 @@ namespace ClaudeCodeVS.UI
             StatusBar.Visibility = Visibility.Visible;
         }
 
+        #region Live turn clock
+
+        /// <summary>
+        /// Spinner frames. Geometric Shapes rather than the braille cells most CLI spinners use: braille
+        /// is absent from Segoe UI and only renders through a fallback font, which lands at a different
+        /// size and baseline than the text beside it.
+        /// </summary>
+        private static readonly string[] SpinnerFrames = { "◐", "◓", "◑", "◒" };
+
+        /// <summary>
+        /// What the agent is said to be doing while it works. Rotating wording is the point: an
+        /// unchanging line reads as frozen, and the clock alone does not say the agent is still alive.
+        /// </summary>
+        private static readonly string[] WorkingVerbs =
+        {
+            "Working", "Thinking", "Pondering", "Perusing", "Noodling", "Percolating",
+            "Crunching", "Mulling", "Tinkering", "Digging", "Puzzling", "Simmering",
+            "Cogitating", "Whirring", "Churning", "Deliberating"
+        };
+
+        private static readonly Random VerbPicker = new Random();
+
+        /// <summary>Frame rate of the spinner. Fast enough to read as motion, cheap enough to ignore.</summary>
+        private static readonly TimeSpan SpinnerInterval = TimeSpan.FromMilliseconds(120);
+
+        /// <summary>How long each verb stays up before the next one.</summary>
+        private static readonly TimeSpan VerbInterval = TimeSpan.FromSeconds(4);
+
+        /// <summary>
+        /// Starts the spinner and the running clock on the status line. A long turn otherwise shows a
+        /// motionless "Working..." and gives no way to tell progress from a hang.
+        /// </summary>
+        public void BeginActivity()
+        {
+            _activityLabel = string.Empty;
+            _activityDetail = string.Empty;
+            _activityStartedUtc = DateTime.UtcNow;
+            _lastVerbChangeUtc = DateTime.UtcNow;
+            _spinnerFrame = 0;
+            _verbIndex = VerbPicker.Next(WorkingVerbs.Length);
+
+            if (_activityTimer == null)
+            {
+                _activityTimer = new System.Windows.Threading.DispatcherTimer(
+                    System.Windows.Threading.DispatcherPriority.Normal)
+                {
+                    Interval = SpinnerInterval
+                };
+                _activityTimer.Tick += delegate { AdvanceActivity(); };
+            }
+
+            _activityTimer.Start();
+            StatusBar.Visibility = Visibility.Visible;
+            StatusSpinner.Visibility = Visibility.Visible;
+            RenderActivity();
+        }
+
+        /// <summary>
+        /// Pins a fixed caption — "Waiting for your answer...", "Stopping..." — in place of the rotating
+        /// verbs. The spinner and the clock keep running: the turn is still open.
+        /// </summary>
+        public void SetActivityLabel(string label)
+        {
+            if (_activityTimer == null || !_activityTimer.IsEnabled)
+            {
+                return;
+            }
+
+            _activityLabel = label ?? string.Empty;
+            RenderActivity();
+        }
+
+        /// <summary>Live token counts, appended after the elapsed time. Empty removes them.</summary>
+        public void SetActivityDetail(string detail)
+        {
+            if (_activityTimer == null || !_activityTimer.IsEnabled)
+            {
+                return;
+            }
+
+            _activityDetail = detail ?? string.Empty;
+            RenderActivity();
+        }
+
+        /// <summary>Stops the clock and leaves the turn's final summary on the line.</summary>
+        public void EndActivity(string summary)
+        {
+            SetStatus(summary);
+        }
+
+        /// <summary>How long the current turn has been running. Zero when none is.</summary>
+        public TimeSpan ActivityElapsed
+        {
+            get
+            {
+                return _activityTimer != null && _activityTimer.IsEnabled
+                    ? DateTime.UtcNow - _activityStartedUtc
+                    : TimeSpan.Zero;
+            }
+        }
+
+        /// <summary>One animation frame: spin, and swap the verb when its turn is up.</summary>
+        private void AdvanceActivity()
+        {
+            _spinnerFrame = (_spinnerFrame + 1) % SpinnerFrames.Length;
+
+            // Only while no fixed caption is pinned — "Waiting for your answer..." must not drift into
+            // "Percolating..." while the user reads the question it is asking about.
+            if (_activityLabel.Length == 0 && DateTime.UtcNow - _lastVerbChangeUtc >= VerbInterval)
+            {
+                _verbIndex = (_verbIndex + 1) % WorkingVerbs.Length;
+                _lastVerbChangeUtc = DateTime.UtcNow;
+            }
+
+            RenderActivity();
+        }
+
+        private void RenderActivity()
+        {
+            StatusSpinner.Text = SpinnerFrames[_spinnerFrame];
+
+            string label = _activityLabel.Length > 0 ? _activityLabel : WorkingVerbs[_verbIndex] + "…";
+            string text = label + "  " + ChatFormatting.Duration(DateTime.UtcNow - _activityStartedUtc);
+
+            if (!string.IsNullOrEmpty(_activityDetail))
+            {
+                text += "  ·  " + _activityDetail;
+            }
+
+            StatusText.Text = text;
+        }
+
+        private void StopActivityTimer()
+        {
+            if (_activityTimer != null)
+            {
+                _activityTimer.Stop();
+            }
+
+            StatusSpinner.Visibility = Visibility.Collapsed;
+        }
+
+        #endregion
+
         public void Clear()
         {
             StopTracking();
+            StopActivityTimer();
             Messages.Clear();
             _autoScroll = true;
             ScrollToEndButton.Visibility = Visibility.Collapsed;
@@ -280,6 +463,42 @@ namespace ClaudeCodeVS.UI
             return Math.Max(MinComposerHeight, Math.Min(max, value));
         }
 
+        /// <summary>Smallest and largest chat font the settings dialog offers.</summary>
+        public const double MinChatFontSize = 8;
+        public const double MaxChatFontSize = 28;
+
+        /// <summary>
+        /// Sets the font of the whole conversation. Unlike the console font this may be proportional:
+        /// the transcript is laid out by WPF, not on a character grid, so nothing comes out jumbled.
+        /// <para>
+        /// Applied as resources rather than as properties because the row templates need the secondary
+        /// sizes (headers, badges, code) to move with the base size instead of staying at a fixed 10pt.
+        /// </para>
+        /// </summary>
+        public void SetChatFont(string fontFamily, double fontSizePt)
+        {
+            double size = double.IsNaN(fontSizePt) || fontSizePt <= 0
+                ? 12
+                : Math.Max(MinChatFontSize, Math.Min(MaxChatFontSize, fontSizePt));
+
+            if (!string.IsNullOrWhiteSpace(fontFamily))
+            {
+                try
+                {
+                    // The fallback keeps a face that cannot render a glyph from producing empty boxes.
+                    Resources["ChatFontFamily"] = new System.Windows.Media.FontFamily(fontFamily + ", Segoe UI");
+                }
+                catch (Exception ex)
+                {
+                    System.Diagnostics.Debug.WriteLine($"Chat font '{fontFamily}' could not be applied: {ex.Message}");
+                }
+            }
+
+            Resources["ChatFontSize"] = size;
+            Resources["ChatSmallFontSize"] = Math.Max(8.0, size - 1);
+            Resources["ChatTinyFontSize"] = Math.Max(7.0, size - 2);
+        }
+
         /// <summary>
         /// Zoom factor applied to the whole view. 1.0 is 100%.
         /// </summary>
@@ -337,6 +556,16 @@ namespace ClaudeCodeVS.UI
         }
 
         /// <summary>
+        /// Text of the composer, with the caret placed for what comes next: history navigation puts it
+        /// at the start so ↑ keeps walking backwards instead of moving inside the recalled prompt.
+        /// </summary>
+        public void SetComposerText(string text, bool caretAtStart)
+        {
+            ComposerInput.Text = text ?? string.Empty;
+            ComposerInput.CaretIndex = caretAtStart ? 0 : ComposerInput.Text.Length;
+        }
+
+        /// <summary>
         /// Enter/Shift+Enter/Ctrl+Enter follow the same preference as the panel's prompt box, so the
         /// habit a user already has keeps working in the tab. Escape drops focus back to the
         /// transcript, matching the hint in the placeholder.
@@ -350,17 +579,50 @@ namespace ClaudeCodeVS.UI
                 return;
             }
 
+            bool control = (System.Windows.Input.Keyboard.Modifiers & System.Windows.Input.ModifierKeys.Control) != 0;
+
+            // Ctrl+V is offered to the parent first: an image on the clipboard becomes an attachment,
+            // anything else falls through to the text box's own paste.
+            if (e.Key == System.Windows.Input.Key.V && control)
+            {
+                var args = new ChatPasteEventArgs();
+                PasteRequested?.Invoke(this, args);
+
+                if (args.Handled)
+                {
+                    e.Handled = true;
+                }
+
+                return;
+            }
+
+            // ↑ on the first line recalls the previous prompt, the way a shell does — the caret is
+            // already where the user is looking, so nothing is lost by taking the key. Ctrl+↑/↓ work
+            // anywhere in the text, matching the panel's prompt box.
+            if (e.Key == System.Windows.Input.Key.Up && (control || CaretIsOnFirstComposerLine()))
+            {
+                HistoryPreviousRequested?.Invoke(this, EventArgs.Empty);
+                e.Handled = true;
+                return;
+            }
+
+            if (e.Key == System.Windows.Input.Key.Down && (control || CaretIsOnLastComposerLine()))
+            {
+                HistoryNextRequested?.Invoke(this, EventArgs.Empty);
+                e.Handled = true;
+                return;
+            }
+
             if (e.Key != System.Windows.Input.Key.Enter)
             {
                 return;
             }
 
             bool shift = (System.Windows.Input.Keyboard.Modifiers & System.Windows.Input.ModifierKeys.Shift) != 0;
-            bool ctrl = (System.Windows.Input.Keyboard.Modifiers & System.Windows.Input.ModifierKeys.Control) != 0;
 
             bool send = SendWithEnter
-                ? !shift && !ctrl
-                : SendWithCtrlEnter && ctrl;
+                ? !shift && !control
+                : SendWithCtrlEnter && control;
 
             if (!send)
             {
@@ -369,6 +631,36 @@ namespace ClaudeCodeVS.UI
 
             e.Handled = true;
             SendRequested?.Invoke(this, EventArgs.Empty);
+        }
+
+        /// <summary>
+        /// True when the caret sits on the first wrapped line. Line indexes are visual, so a long first
+        /// paragraph that wraps still counts as one line only where the user actually sees the top.
+        /// </summary>
+        private bool CaretIsOnFirstComposerLine()
+        {
+            try
+            {
+                return ComposerInput.GetLineIndexFromCharacterIndex(ComposerInput.CaretIndex) <= 0;
+            }
+            catch (Exception)
+            {
+                // Thrown while the box has never been laid out; the caret is at 0 then anyway.
+                return true;
+            }
+        }
+
+        private bool CaretIsOnLastComposerLine()
+        {
+            try
+            {
+                int line = ComposerInput.GetLineIndexFromCharacterIndex(ComposerInput.CaretIndex);
+                return line < 0 || line >= ComposerInput.LineCount - 1;
+            }
+            catch (Exception)
+            {
+                return true;
+            }
         }
 
         private void Composer_PreviewDragOver(object sender, DragEventArgs e)
@@ -547,6 +839,55 @@ namespace ClaudeCodeVS.UI
         {
             _autoScroll = true;
             TranscriptScroll.ScrollToEnd();
+        }
+    }
+
+    /// <summary>
+    /// Carries the outcome of a composer paste back to the view: set by the parent when the clipboard
+    /// was consumed as an image attachment, so the text box does not also paste its text form.
+    /// </summary>
+    public class ChatPasteEventArgs : EventArgs
+    {
+        public bool Handled { get; set; }
+    }
+
+    /// <summary>
+    /// Accent colour of a tool row, by family. Literal colours rather than theme brushes: "this ran a
+    /// command" has to read the same under both the dark and the light theme, and the frozen instances
+    /// are shared by every row instead of being allocated per tool call.
+    /// </summary>
+    public static class ChatToolAccents
+    {
+        private static readonly System.Windows.Media.Brush Read = Freeze("#4FA3E3");
+        private static readonly System.Windows.Media.Brush Edit = Freeze("#D8973C");
+        private static readonly System.Windows.Media.Brush Run = Freeze("#A176D6");
+        private static readonly System.Windows.Media.Brush Search = Freeze("#3FB8AF");
+        private static readonly System.Windows.Media.Brush Web = Freeze("#5B9BD5");
+        private static readonly System.Windows.Media.Brush Todo = Freeze("#4EC9B0");
+        private static readonly System.Windows.Media.Brush Agent = Freeze("#E36F9E");
+        private static readonly System.Windows.Media.Brush Other = Freeze("#8C8C8C");
+
+        public static System.Windows.Media.Brush For(ChatToolCategory category)
+        {
+            switch (category)
+            {
+                case ChatToolCategory.Read: return Read;
+                case ChatToolCategory.Edit: return Edit;
+                case ChatToolCategory.Run: return Run;
+                case ChatToolCategory.Search: return Search;
+                case ChatToolCategory.Web: return Web;
+                case ChatToolCategory.Todo: return Todo;
+                case ChatToolCategory.Agent: return Agent;
+                default: return Other;
+            }
+        }
+
+        private static System.Windows.Media.Brush Freeze(string hex)
+        {
+            var brush = new System.Windows.Media.SolidColorBrush(
+                (System.Windows.Media.Color)System.Windows.Media.ColorConverter.ConvertFromString(hex));
+            brush.Freeze();
+            return brush;
         }
     }
 

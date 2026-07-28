@@ -60,6 +60,22 @@ namespace ClaudeCodeVS
         /// <summary>Last throttling notice shown, so the repeated rate-limit events don't stack up.</summary>
         private string _lastNativeRateLimitNotice;
 
+        /// <summary>
+        /// Running totals for the turn in flight, fed by the mid-turn usage events so the status line
+        /// counts up instead of staying at zero until the final result arrives.
+        /// <para>
+        /// Output tokens accumulate across the turn's requests; the input count is that of the most
+        /// recent request, because each one re-sends the whole context and adding them up would report
+        /// a number several times larger than anything that was actually billed.
+        /// </para>
+        /// </summary>
+        private int _nativeTurnOutputTokens;
+        private int _nativeTurnInputTokens;
+
+        /// <summary>True between the prompt being sent and the turn's end, so a stray end-of-turn event
+        /// (the one-shot adapters emit one on relaunch) cannot post a second summary row.</summary>
+        private bool _nativeTurnInFlight;
+
         #endregion
 
         #region Native Mode State
@@ -182,6 +198,7 @@ namespace ClaudeCodeVS
                 _streamingThinkingMessage = null;
                 _lastNativeRateLimitNotice = null;
                 _nativeTurnFinishConfig = null;
+                _nativeTurnInFlight = false;
                 ChatTranscript.SetStatus("Starting the agent...");
 
                 await session.StartAsync(workspace, _nativeSessionCts.Token);
@@ -674,6 +691,13 @@ namespace ClaudeCodeVS
             ChatTranscript.Visibility = show ? Visibility.Visible : Visibility.Collapsed;
             TerminalHost.Visibility = (show || _chatIsInTab) ? Visibility.Collapsed : Visibility.Visible;
 
+            // Font, zoom and composer height are applied here too, not only when the chat moves into
+            // its tab: while the transcript is hosted in the panel nothing else would restore them.
+            if (show)
+            {
+                ApplyChatAppearance();
+            }
+
             // The chat shares the terminal's grid cell, so it inherits whatever the detach code did to
             // that cell: a session detached earlier leaves the group box collapsed and the slot at zero
             // minimum size, and the chat renders into nothing at all. Undo it whenever the chat takes
@@ -737,7 +761,14 @@ namespace ClaudeCodeVS
 
             _streamingAssistantMessage = null;
             _streamingThinkingMessage = null;
-            ChatTranscript.SetStatus("Working...");
+
+            _nativeTurnOutputTokens = 0;
+            _nativeTurnInputTokens = 0;
+            _nativeTurnInFlight = true;
+
+            // A spinner and a running clock rather than a motionless "Working...": on a twenty-minute
+            // turn there is otherwise no way to tell progress from a hang.
+            ChatTranscript.BeginActivity();
             ChatTranscript.SetBusy(session.SupportsInterrupt);
 
             // "On Agent Finish" replacement for the console-idle watcher: capture the same config the
@@ -781,7 +812,7 @@ namespace ClaudeCodeVS
             try
             {
                 ChatTranscript.SetBusy(false);
-                ChatTranscript.SetStatus("Stopping...");
+                ChatTranscript.SetActivityLabel("Stopping...");
 
                 await session.InterruptAsync(_nativeSessionCts != null
                     ? _nativeSessionCts.Token
@@ -858,6 +889,10 @@ namespace ClaudeCodeVS
                     ShowNativeInteraction(agentEvent.Interaction);
                     break;
 
+                case AgentEventKind.UsageUpdated:
+                    ApplyNativeLiveUsage(agentEvent.Usage);
+                    break;
+
                 case AgentEventKind.RateLimitUpdated:
                     ApplyNativeRateLimit(agentEvent.RateLimit);
                     break;
@@ -892,19 +927,37 @@ namespace ClaudeCodeVS
             target.Append(text);
         }
 
+        /// <summary>
+        /// Characters of a tool result kept in the transcript. A whole-file Read or a verbose test run
+        /// otherwise puts hundreds of kilobytes into a text box and stalls the layout for seconds.
+        /// </summary>
+        private const int MaxToolResultLength = 20000;
+
         private void AddToolCallMessage(AgentEvent agentEvent)
         {
             // A new tool call means the assistant's current sentence is finished; close it so the tool
             // row does not end up above still-growing text.
             FinishStreamingMessages();
 
+            // Collapsed, the row is one line — so that line has to say what the tool did and to what,
+            // not just "Edit". The presenter turns the raw payload into that line plus, for the editing
+            // tools, the diff shown when the row is opened.
+            ChatToolPresentation presentation = ChatToolPresenter.Describe(agentEvent.ToolName, agentEvent.ToolInputJson);
+
             var message = new ChatMessageViewModel(ChatMessageKind.ToolCall)
             {
                 ToolCallId = agentEvent.ToolCallId,
                 ToolName = agentEvent.ToolName,
                 ToolInputJson = FormatToolInput(agentEvent.ToolInputJson),
-                Header = string.IsNullOrEmpty(agentEvent.ToolName) ? "Tool" : agentEvent.ToolName
+                Header = presentation.Title,
+                ToolIcon = presentation.Icon,
+                ToolTarget = presentation.Subtitle,
+                ToolBadge = presentation.Badge,
+                ToolAccent = ChatToolAccents.For(presentation.Category),
+                IsRunning = true
             };
+
+            message.SetDiff(presentation.Diff);
 
             ChatTranscript.Messages.Add(message);
 
@@ -925,14 +978,27 @@ namespace ClaudeCodeVS
 
             _pendingToolCalls.Remove(agentEvent.ToolCallId);
 
-            message.ToolResult = agentEvent.ToolResult;
+            message.ToolResult = TruncateToolResult(agentEvent.ToolResult);
             message.IsError = agentEvent.IsError;
+            message.IsRunning = false;
 
             // Failures open themselves: a collapsed row would hide the reason the agent gave up.
             if (agentEvent.IsError)
             {
                 message.IsExpanded = true;
             }
+        }
+
+        private static string TruncateToolResult(string result)
+        {
+            if (string.IsNullOrEmpty(result) || result.Length <= MaxToolResultLength)
+            {
+                return result;
+            }
+
+            return result.Substring(0, MaxToolResultLength) +
+                   Environment.NewLine + Environment.NewLine +
+                   $"… {result.Length - MaxToolResultLength:N0} more characters not shown.";
         }
 
         /// <summary>
@@ -954,7 +1020,9 @@ namespace ClaudeCodeVS
             var interaction = new ChatInteractionViewModel(request);
             ChatTranscript.AddInteraction(interaction);
 
-            ChatTranscript.SetStatus(interaction.IsPlanReview
+            // The label changes but the clock keeps running: the turn is still open, and the time spent
+            // waiting for the user is part of how long it took.
+            ChatTranscript.SetActivityLabel(interaction.IsPlanReview
                 ? "Waiting for you to review the plan..."
                 : "Waiting for your answer...");
         }
@@ -978,7 +1046,30 @@ namespace ClaudeCodeVS
                 UpdateChatComposerState();
             }
 
-            ChatTranscript.SetStatus("Working...");
+            // Empty hands the line back to the rotating verbs: the agent is working again.
+            ChatTranscript.SetActivityLabel(string.Empty);
+        }
+
+        /// <summary>
+        /// Folds a mid-turn usage snapshot into the running totals and refreshes the status line.
+        /// </summary>
+        private void ApplyNativeLiveUsage(AgentUsage usage)
+        {
+            ThreadHelper.ThrowIfNotOnUIThread();
+
+            if (usage == null || ChatTranscript == null)
+            {
+                return;
+            }
+
+            _nativeTurnOutputTokens += usage.OutputTokens;
+
+            // Not accumulated: every request re-sends the whole conversation, so the latest one is the
+            // context size, and summing them would report a number several times too large.
+            if (usage.InputTokens > 0) _nativeTurnInputTokens = usage.InputTokens;
+
+            ChatTranscript.SetActivityDetail(
+                ChatFormatting.Tokens(_nativeTurnInputTokens, _nativeTurnOutputTokens));
         }
 
         private void CompleteNativeTurn(AgentEvent agentEvent)
@@ -1013,9 +1104,42 @@ namespace ClaudeCodeVS
                     "Enable \"Skip permissions\" in the agent menu to allow these tools.");
             }
 
-            ChatTranscript.SetStatus(FormatTurnSummary(agentEvent.Usage));
+            // The CLI's own duration is the honest one; the wall clock covers the adapters that report
+            // none. Read before EndActivity, which stops the clock.
+            TimeSpan elapsed = ResolveTurnDuration(agentEvent.Usage);
+            bool wasInFlight = _nativeTurnInFlight;
+            _nativeTurnInFlight = false;
+
+            // The status line goes away rather than repeating the footer that is about to land right
+            // above it — the two sat adjacent and said the same thing twice.
+            ChatTranscript.EndActivity(string.Empty);
+
+            // A permanent footer for the turn: "how long did that take" is exactly the question asked
+            // after scrolling back, and the status line is transient.
+            if (wasInFlight)
+            {
+                AddNativeMessage(ChatMessageKind.Notice,
+                    FormatTurnFooter(agentEvent.Usage, elapsed, agentEvent.WasInterrupted));
+            }
 
             FireNativeAgentFinish(finishConfig, agentEvent);
+        }
+
+        /// <summary>
+        /// How long the turn took: the CLI's own measurement when it reports one, the wall clock
+        /// otherwise. The live status clock is the fallback's source, so the footer and the ticking
+        /// line it replaces never disagree.
+        /// </summary>
+        private TimeSpan ResolveTurnDuration(AgentUsage usage)
+        {
+            if (usage != null && usage.DurationMs > 0)
+            {
+                return TimeSpan.FromMilliseconds(usage.DurationMs);
+            }
+
+            TimeSpan onScreen = ChatTranscript != null ? ChatTranscript.ActivityElapsed : TimeSpan.Zero;
+
+            return onScreen > TimeSpan.Zero ? onScreen : DateTime.UtcNow - _nativeTurnStartedUtc;
         }
 
         /// <summary>
@@ -1079,31 +1203,23 @@ namespace ClaudeCodeVS
             ChatTranscript.Messages.Add(message);
         }
 
-        private static string FormatTurnSummary(AgentUsage usage)
+        /// <summary>
+        /// The one-line summary left in the transcript when a turn ends, mirroring what the CLI prints
+        /// after a run. Time and tokens only: the cache and cost breakdown made the line long without
+        /// answering the question it is there for.
+        /// </summary>
+        private static string FormatTurnFooter(AgentUsage usage, TimeSpan elapsed, bool wasInterrupted)
         {
-            if (usage == null)
+            string footer = wasInterrupted
+                ? "✳ Stopped after " + ChatFormatting.Duration(elapsed)
+                : "✳ Done in " + ChatFormatting.Duration(elapsed);
+
+            if (usage != null && (usage.InputTokens > 0 || usage.OutputTokens > 0))
             {
-                return string.Empty;
+                footer += " · " + ChatFormatting.Tokens(usage.InputTokens, usage.OutputTokens);
             }
 
-            string summary = $"{usage.InputTokens:N0} in · {usage.OutputTokens:N0} out";
-
-            if (usage.CacheReadTokens > 0)
-            {
-                summary += $" · {usage.CacheReadTokens:N0} cached";
-            }
-
-            if (usage.CostUsd > 0)
-            {
-                summary += $" · ${usage.CostUsd:F4}";
-            }
-
-            if (usage.DurationMs > 0)
-            {
-                summary += $" · {usage.DurationMs / 1000.0:F1}s";
-            }
-
-            return summary;
+            return footer;
         }
 
         /// <summary>

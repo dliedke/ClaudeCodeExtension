@@ -89,6 +89,9 @@ namespace ClaudeCodeVS
             string origConsoleFont            = string.IsNullOrWhiteSpace(_settings.ConsoleFontFaceName)
                                                 ? "Cascadia Mono" : _settings.ConsoleFontFaceName;
             int  origConsoleFontSize          = _settings.ConsoleFontSizePt;
+            string origChatFont               = string.IsNullOrWhiteSpace(_settings.NativeChatFontFaceName)
+                                                ? "Segoe UI" : _settings.NativeChatFontFaceName;
+            double origChatFontSize           = _settings.NativeChatFontSizePt <= 0 ? 12 : _settings.NativeChatFontSizePt;
             ThemePreference origThemePref     = _settings.SelectedThemePreference;
             int  origCustomColorArgb          = _settings.CustomThemeColorArgb;
             bool origSkipThemePrompt          = _settings.SkipThemeRestartPrompt;
@@ -346,6 +349,105 @@ namespace ClaudeCodeVS
                 Margin = new Thickness(20, 2, 0, 0)
             });
 
+            // Native mode never opens a console, so offering Windows Terminal there only invites the
+            // "wt.exe was not found" prompt for a terminal that is never launched.
+            var nativeTerminalHint = new TextBlock
+            {
+                Text = "Native mode does not open a terminal, so the terminal type stays on Command Prompt while it is on.",
+                FontSize = 11,
+                Opacity = 0.7,
+                Foreground = themeFg,
+                TextWrapping = TextWrapping.Wrap,
+                Visibility = Visibility.Collapsed,
+                Margin = new Thickness(20, 2, 0, 0)
+            };
+            terminalStack.Children.Add(nativeTerminalHint);
+
+            void SyncTerminalTypeAvailability()
+            {
+                bool native = nativeModeCheck.IsChecked == true;
+
+                if (native)
+                {
+                    cmdRadio.IsChecked = true;
+                }
+
+                cmdRadio.IsEnabled = !native;
+                wtRadio.IsEnabled = !native;
+                cmdRadio.Opacity = native ? 0.5 : 1.0;
+                wtRadio.Opacity = native ? 0.5 : 1.0;
+                nativeTerminalHint.Visibility = native ? Visibility.Visible : Visibility.Collapsed;
+            }
+            nativeModeCheck.Checked += (s, e) => SyncTerminalTypeAvailability();
+            nativeModeCheck.Unchecked += (s, e) => SyncTerminalTypeAvailability();
+            SyncTerminalTypeAvailability();
+
+            // ---- Chat font (native mode) ----
+            terminalStack.Children.Add(MakeSectionHeader("Chat font (native mode)", themeFg));
+            terminalStack.Children.Add(new TextBlock
+            {
+                Text = "Font of the native-mode chat. Every installed font is listed, proportional ones included: " +
+                       "the chat is laid out by Windows, not on the fixed character grid a console needs, so nothing " +
+                       "comes out jumbled. Code blocks and diffs keep a monospaced face so their columns still line up. " +
+                       "Ctrl+Scroll over the chat zooms on top of this size and is remembered separately.",
+                FontSize = 11,
+                Opacity = 0.7,
+                Foreground = themeFg,
+                TextWrapping = TextWrapping.Wrap,
+                Margin = new Thickness(4, 0, 0, 4)
+            });
+
+            string chosenChatFont = origChatFont;
+
+            var chatFontSearchBox = new TextBox
+            {
+                Width = 300,
+                Height = 24,
+                HorizontalAlignment = HorizontalAlignment.Left,
+                VerticalContentAlignment = VerticalAlignment.Center,
+                Background = themeBg,
+                Foreground = themeFg,
+                BorderBrush = themeFg,
+                Margin = new Thickness(4, 0, 0, 4)
+            };
+            terminalStack.Children.Add(chatFontSearchBox);
+
+            var chatFontList = new ListBox
+            {
+                Width = 300,
+                MaxHeight = 150,
+                HorizontalAlignment = HorizontalAlignment.Left,
+                Background = themeBg,
+                Foreground = themeFg,
+                BorderBrush = themeFg,
+                Margin = new Thickness(4, 0, 0, 4)
+            };
+            terminalStack.Children.Add(chatFontList);
+
+            var chatFontPreview = new TextBlock
+            {
+                Text = "AaBbCc 0123  你好世界  こんにちは  안녕하세요",
+                FontSize = 16,
+                Foreground = themeFg,
+                TextWrapping = TextWrapping.Wrap,
+                Margin = new Thickness(4, 2, 0, 4)
+            };
+            terminalStack.Children.Add(chatFontPreview);
+
+            var chatFontSizeCombo = MakeThemedComboBox(comboRes, themeFg);
+            chatFontSizeCombo.Width = 110;
+            chatFontSizeCombo.HorizontalAlignment = HorizontalAlignment.Left;
+            chatFontSizeCombo.Margin = new Thickness(4, 0, 0, 4);
+            for (int pt = (int)UI.ChatTranscriptView.MinChatFontSize; pt <= (int)UI.ChatTranscriptView.MaxChatFontSize; pt++)
+            {
+                var item = new ComboBoxItem { Content = pt + " pt", Tag = pt };
+                if (comboRes["cbi"] is Style chatCbi) item.Style = chatCbi;
+                if (pt == (int)Math.Round(origChatFontSize)) item.IsSelected = true;
+                chatFontSizeCombo.Items.Add(item);
+            }
+            if (chatFontSizeCombo.SelectedItem == null) chatFontSizeCombo.SelectedIndex = 0;
+            terminalStack.Children.Add(chatFontSizeCombo);
+
             // ---- Console font (searchable picker with live preview) ----
             terminalStack.Children.Add(MakeSectionHeader("Console font", themeFg));
             terminalStack.Children.Add(new TextBlock
@@ -498,6 +600,61 @@ namespace ClaudeCodeVS
             fontList.Loaded += (s, e) =>
             {
                 if (fontList.SelectedItem != null) fontList.ScrollIntoView(fontList.SelectedItem);
+            };
+
+            // ---- Chat font picker (same list, no monospace filter and no warning) ----
+            void ApplyChatPreviewFont(string face)
+            {
+                try { chatFontPreview.FontFamily = new FontFamily(face + ", Segoe UI"); }
+                catch { chatFontPreview.FontFamily = new FontFamily("Segoe UI"); }
+            }
+
+            foreach (string face in installedFonts)
+            {
+                var item = new ListBoxItem
+                {
+                    Content = new TextBlock
+                    {
+                        Text = face,
+                        FontFamily = new FontFamily(face + ", Segoe UI")
+                    },
+                    Tag = face,
+                    Foreground = themeFg,
+                    Background = Brushes.Transparent
+                };
+                chatFontList.Items.Add(item);
+                if (string.Equals(face, chosenChatFont, StringComparison.OrdinalIgnoreCase))
+                {
+                    item.IsSelected = true;
+                }
+            }
+            ApplyChatPreviewFont(chosenChatFont);
+
+            chatFontList.SelectionChanged += (s, e) =>
+            {
+                if (chatFontList.SelectedItem is ListBoxItem li && li.Tag is string face)
+                {
+                    chosenChatFont = face;
+                    ApplyChatPreviewFont(face);
+                }
+            };
+
+            void RefreshChatFontFilter()
+            {
+                string q = chatFontSearchBox.Text?.Trim() ?? string.Empty;
+                foreach (ListBoxItem li in chatFontList.Items)
+                {
+                    string face = li.Tag as string;
+                    bool matchesSearch = q.Length == 0 ||
+                        face?.IndexOf(q, StringComparison.OrdinalIgnoreCase) >= 0;
+                    li.Visibility = matchesSearch ? Visibility.Visible : Visibility.Collapsed;
+                }
+            }
+            chatFontSearchBox.TextChanged += (s, e) => RefreshChatFontFilter();
+
+            chatFontList.Loaded += (s, e) =>
+            {
+                if (chatFontList.SelectedItem != null) chatFontList.ScrollIntoView(chatFontList.SelectedItem);
             };
 
             // ---- Console font size ----
@@ -851,9 +1008,16 @@ namespace ClaudeCodeVS
                 ? LayoutOrientation.Vertical
                 : LayoutOrientation.Horizontal;
             bool newHidePromptPanel = hidePromptPanelCheck.IsChecked == true;
-            TerminalType newTerminalType = wtRadio.IsChecked == true
+            bool newUseNativeMode = nativeModeCheck.IsChecked == true;
+            // Native mode launches no console at all, so the terminal type is pinned rather than left
+            // pointing at a Windows Terminal that would never be started (and never be validated).
+            TerminalType newTerminalType = !newUseNativeMode && wtRadio.IsChecked == true
                 ? TerminalType.WindowsTerminal
                 : TerminalType.CommandPrompt;
+            string newChatFont = string.IsNullOrWhiteSpace(chosenChatFont) ? "Segoe UI" : chosenChatFont.Trim();
+            double newChatFontSize = (chatFontSizeCombo.SelectedItem as ComboBoxItem)?.Tag is int chatPt
+                ? chatPt
+                : origChatFontSize;
             string newConsoleFont = string.IsNullOrWhiteSpace(chosenFont)
                 ? "Cascadia Mono" : chosenFont.Trim();
             int newConsoleFontSize = (consoleFontSizeCombo.SelectedItem as ComboBoxItem)?.Tag is int cfs ? cfs : origConsoleFontSize;
@@ -889,7 +1053,9 @@ namespace ClaudeCodeVS
                 .ToList();
 
             // ---- Validate Windows Terminal availability before persisting ----
-            if (newTerminalType == TerminalType.WindowsTerminal &&
+            // Skipped under native mode: the block above already pinned the type to Command Prompt.
+            if (!newUseNativeMode &&
+                newTerminalType == TerminalType.WindowsTerminal &&
                 newTerminalType != origTerminalType)
             {
                 bool wtAvailable = await IsWindowsTerminalAvailableAsync();
@@ -922,9 +1088,29 @@ namespace ClaudeCodeVS
             _settings.SelectedLayoutOrientation = newOrientation;
             _settings.HidePromptPanel         = newHidePromptPanel;
             _settings.SelectedTerminalType    = newTerminalType;
-            _settings.UseNativeMode           = nativeModeCheck.IsChecked == true;
+            _settings.UseNativeMode           = newUseNativeMode;
             _settings.ConsoleFontFaceName     = newConsoleFont;
             _settings.ConsoleFontSizePt       = newConsoleFontSize;
+            _settings.NativeChatFontFaceName  = newChatFont;
+            _settings.NativeChatFontSizePt    = newChatFontSize;
+
+            // The chat is a WPF control, so a font change is live — no relaunch, unlike the console.
+            ApplyChatAppearance();
+
+            // With native mode on there is no console to watch: the agent reports the end of a turn, so
+            // the idle window drops to its minimum instead of sitting at a value that no longer applies.
+            if (newUseNativeMode)
+            {
+                if (_settings.AgentFinish != null) _settings.AgentFinish.IdleSeconds = 1;
+
+                if (_settings.ProjectAgentFinish != null)
+                {
+                    foreach (var projectFinish in _settings.ProjectAgentFinish.Values)
+                    {
+                        if (projectFinish != null) projectFinish.IdleSeconds = 1;
+                    }
+                }
+            }
             _settings.SelectedThemePreference = newThemePref;
             _settings.CustomThemeColorArgb    = newCustomColorArgb;
             _settings.SkipThemeRestartPrompt  = newSkipThemePrompt;

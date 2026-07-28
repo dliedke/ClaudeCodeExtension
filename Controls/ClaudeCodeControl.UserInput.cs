@@ -484,6 +484,40 @@ namespace ClaudeCodeVS
         }
 
         /// <summary>
+        /// The prompt box history navigation writes to: the chat tab's composer while the user is
+        /// typing there, the panel's prompt box otherwise. Without this the ↑ key in the chat tab
+        /// would silently rewrite the hidden panel prompt instead.
+        /// </summary>
+        private bool HistoryTargetsComposer
+        {
+            get { return ChatTranscript != null && ChatTranscript.ComposerHasFocus; }
+        }
+
+        private string GetHistoryPromptText()
+        {
+            return HistoryTargetsComposer ? ChatTranscript.ComposerText : PromptTextBox.Text;
+        }
+
+        /// <summary>
+        /// Shows a recalled prompt. Walking backwards puts the caret at the start in the composer, so a
+        /// second ↑ is still "on the first line" and keeps going through older prompts rather than
+        /// moving around inside the one just recalled.
+        /// </summary>
+        private void SetHistoryPromptText(string text, bool goingUp)
+        {
+            string value = text ?? string.Empty;
+
+            if (HistoryTargetsComposer)
+            {
+                ChatTranscript.SetComposerText(value, caretAtStart: goingUp);
+                return;
+            }
+
+            PromptTextBox.Text = value;
+            PromptTextBox.SelectionStart = value.Length;
+        }
+
+        /// <summary>
         /// Navigates up in the prompt history (to older prompts)
         /// </summary>
         private void NavigateHistoryUp()
@@ -494,7 +528,7 @@ namespace ClaudeCodeVS
             // First time navigating? Save current text and files
             if (_historyIndex == -1)
             {
-                _tempCurrentText = PromptTextBox.Text;
+                _tempCurrentText = GetHistoryPromptText();
                 _tempCurrentFiles = attachedImagePaths.ToList();
                 _historyIndex = _settings.PromptHistory.Count;
             }
@@ -504,8 +538,7 @@ namespace ClaudeCodeVS
             {
                 _historyIndex--;
                 var entry = _settings.PromptHistory[_historyIndex];
-                PromptTextBox.Text = entry.Text;
-                PromptTextBox.SelectionStart = PromptTextBox.Text.Length;
+                SetHistoryPromptText(entry.Text, goingUp: true);
                 RestoreFilesFromHistory(entry.FilePaths);
             }
         }
@@ -524,7 +557,7 @@ namespace ClaudeCodeVS
             // If we've gone past the end, restore the temp text and files
             if (_historyIndex >= _settings.PromptHistory.Count)
             {
-                PromptTextBox.Text = _tempCurrentText;
+                SetHistoryPromptText(_tempCurrentText, goingUp: false);
                 RestoreFilesFromHistory(_tempCurrentFiles);
                 _historyIndex = -1;
                 _tempCurrentText = string.Empty;
@@ -533,11 +566,9 @@ namespace ClaudeCodeVS
             else
             {
                 var entry = _settings.PromptHistory[_historyIndex];
-                PromptTextBox.Text = entry.Text;
+                SetHistoryPromptText(entry.Text, goingUp: false);
                 RestoreFilesFromHistory(entry.FilePaths);
             }
-
-            PromptTextBox.SelectionStart = PromptTextBox.Text.Length;
         }
 
         private static string GetUniquePromptAttachmentPath(string promptDirectory, string fileName)
