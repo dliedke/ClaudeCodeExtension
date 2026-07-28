@@ -3,7 +3,7 @@
   <Metadata>
     <Identity Id="ClaudeCodeExtension.87de5d13-743e-46b3-b05e-24e1cbeca0c3" Version="87.0" Language="en-US" Publisher="Daniel Carvalho Liedke" />
     <DisplayName>Claude Code Extension for Visual Studio</DisplayName>
-    <Description xml:space="preserve">Embedded terminal for Claude Code, Codex, Cursor Agent, Open Code, Devin, PI, Antigravity, Reasonix inside Visual Studio. Multi-line prompt, image/file attach, integrated diff viewer. Optional native mode shows the agent as a chat tab with formatted answers, file-edit diffs, plan review and per-turn timing and cost.</Description>
+    <Description xml:space="preserve">Embedded terminal for Claude Code, Codex, Cursor Agent, Open Code, Devin, PI, Antigravity, Reasonix inside Visual Studio. Multi-line prompt, image/file attach, integrated diff viewer. Optional native mode: agent as a chat tab with formatted answers, edit diffs and plan review.</Description>
     <MoreInfo>https://github.com/dliedke/ClaudeCodeExtension</MoreInfo>
     <License>LICENSE.txt</License>
     <Icon>app.ico</Icon>

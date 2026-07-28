@@ -121,6 +121,36 @@ namespace ClaudeCodeExtension.Tests
             return match.Groups["version"].Value;
         }
 
+        /// <summary>
+        /// The marketplace rejects a description over 280 characters (<c>VsixPub0024</c>). Publishing is
+        /// the only thing that catches it today, and it does so after a full clean Release rebuild — so
+        /// the limit is asserted here, where it costs a second.
+        /// </summary>
+        [TestMethod]
+        public void ManifestDescription_FitsTheMarketplaceLimit()
+        {
+            const int MarketplaceDescriptionLimit = 280;
+
+            var manifest = XDocument.Parse(RepositoryLayout.ReadText("source.extension.vsixmanifest"));
+
+            var description = manifest
+                .Descendants()
+                .FirstOrDefault(e => e.Name.LocalName == "Description");
+
+            Assert.IsNotNull(description, "No <Description> element in source.extension.vsixmanifest.");
+
+            string text = description.Value;
+
+            Assert.IsFalse(
+                string.IsNullOrWhiteSpace(text),
+                "The <Description> in source.extension.vsixmanifest must be set — the marketplace rejects an empty one.");
+
+            Assert.IsTrue(
+                text.Length <= MarketplaceDescriptionLimit,
+                $"The <Description> is {text.Length} characters; the marketplace allows at most " +
+                $"{MarketplaceDescriptionLimit} and publish.cmd fails with VsixPub0024 above it.");
+        }
+
         private static string ReadManifestVersion()
         {
             var manifest = XDocument.Parse(RepositoryLayout.ReadText("source.extension.vsixmanifest"));
