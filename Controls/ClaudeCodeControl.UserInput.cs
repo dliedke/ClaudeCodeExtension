@@ -379,7 +379,7 @@ namespace ClaudeCodeVS
 
             // When the "@" file/folder picker is open, let it consume navigation/commit keys
             // (Up/Down/Enter/Tab/Esc) before history navigation or send-on-Enter runs.
-            if (HandleAtMentionKey(e)) return;
+            if (HandleAtMentionKey(GetAtMentionPanelTarget(), e)) return;
 
             // Handle Ctrl+Up/Down for prompt history navigation
             if ((Keyboard.Modifiers & ModifierKeys.Control) == ModifierKeys.Control)

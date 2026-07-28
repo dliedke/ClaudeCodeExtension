@@ -312,6 +312,8 @@ namespace ClaudeCodeVS
             ChatTranscript.PasteRequested += OnComposerPasteRequested;
             ChatTranscript.HistoryPreviousRequested += OnComposerHistoryPreviousRequested;
             ChatTranscript.HistoryNextRequested += OnComposerHistoryNextRequested;
+            ChatTranscript.ComposerPreviewKeyDown += ComposerInput_AtMentionPreviewKeyDown;
+            ChatTranscript.ComposerInputBox.TextChanged += ComposerInput_AtMentionTextChanged;
             _composerWired = true;
         }
 
@@ -650,6 +652,54 @@ namespace ClaudeCodeVS
         }
 
         /// <summary>
+        /// Reads the signed-in Claude account from the CLI's own state file (<c>~/.claude.json</c>,
+        /// key <c>oauthAccount</c>) — the same place the CLI itself keeps it. Native mode has no other
+        /// source for this: the headless <c>system/init</c> event carries session/model info only, no
+        /// account or email field. Best-effort — the file's shape is undocumented and CLI-owned, so any
+        /// read/parse failure (including a concurrent CLI write) just means no label is shown.
+        /// </summary>
+        private static string GetSignedInClaudeAccountLabel()
+        {
+            try
+            {
+                string path = Path.Combine(
+                    Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".claude.json");
+                if (!File.Exists(path))
+                {
+                    return null;
+                }
+
+                string json;
+                using (var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite))
+                using (var reader = new StreamReader(stream, Encoding.UTF8))
+                {
+                    json = reader.ReadToEnd();
+                }
+
+                JToken account = JObject.Parse(json)["oauthAccount"];
+                if (account == null)
+                {
+                    return null;
+                }
+
+                string email = (string)account["emailAddress"];
+                string displayName = (string)account["displayName"];
+
+                if (string.IsNullOrWhiteSpace(email))
+                {
+                    return string.IsNullOrWhiteSpace(displayName) ? null : displayName;
+                }
+
+                return string.IsNullOrWhiteSpace(displayName) ? email : $"{displayName} ({email})";
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"GetSignedInClaudeAccountLabel failed: {ex.Message}");
+                return null;
+            }
+        }
+
+        /// <summary>
         /// The lines under the mascot. Only what the extension actually controls is claimed: model and
         /// effort are omitted for the agents that pick those inside their own UI, exactly as the
         /// composer hides those selectors for them.
@@ -664,6 +714,12 @@ namespace ClaudeCodeVS
             if (isClaude)
             {
                 facts.Add(GetChatModelLabel(provider) + " with " + GetChatEffortLabel().ToLowerInvariant() + " effort");
+
+                string account = GetSignedInClaudeAccountLabel();
+                if (!string.IsNullOrEmpty(account))
+                {
+                    facts.Add("Signed in as " + account);
+                }
             }
             else if (isDevin)
             {
@@ -1679,7 +1735,12 @@ namespace ClaudeCodeVS
         /// too. The other adapters have no equivalent, so there the notice says so.
         /// </para>
         /// </summary>
-        private async Task RelaunchNativeSessionAsync(string notice, bool forceNewSession = false)
+        /// <param name="appendAccountLabel">
+        /// When true, the signed-in account (<see cref="GetSignedInClaudeAccountLabel"/>) is appended to
+        /// <paramref name="notice"/> once the relaunched process is up — read at that point, not before,
+        /// so an account switch has the best chance of the CLI's state file already reflecting it.
+        /// </param>
+        private async Task RelaunchNativeSessionAsync(string notice, bool forceNewSession = false, bool appendAccountLabel = false)
         {
             if (_nativeSwitchInProgress)
             {
@@ -1746,6 +1807,15 @@ namespace ClaudeCodeVS
                 _currentRunningProvider = provider;
                 ChatTranscript.SetStatus("Ready.");
 
+                if (appendAccountLabel)
+                {
+                    string account = GetSignedInClaudeAccountLabel();
+                    if (!string.IsNullOrEmpty(account))
+                    {
+                        notice += " — now signed in as " + account;
+                    }
+                }
+
                 // No caveat when the provider can resume but there is simply nothing to resume yet
                 // (no turn has run), because in that case no history is being lost.
                 AddNativeMessage(ChatMessageKind.Notice, canResume || forceNewSession || providerCanResume
@@ -1773,6 +1843,52 @@ namespace ClaudeCodeVS
             finally
             {
                 _nativeSwitchInProgress = false;
+            }
+        }
+
+        /// <summary>
+        /// Handles the ⚙ menu's "Change Account" item in native mode. There is no console here to run
+        /// <c>/logout</c> against — the terminal-mode equivalent (<c>ChangeAccountMenuItem_Click</c>)
+        /// scripts that as keystrokes into the embedded window — so this signs the usage WebView2 out,
+        /// opens claude.ai in the default browser for the user to switch accounts, and once they
+        /// confirm, relaunches the agent so the new turn picks up the refreshed credentials.
+        /// </summary>
+#pragma warning disable VSTHRD100 // Async void is required by the UI event signature
+        private async void ChangeAccountNativeMenuItem_Click(object sender, RoutedEventArgs e)
+#pragma warning restore VSTHRD100
+        {
+            try
+            {
+                await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
+
+                if (!IsNativeModeActive || !IsClaudeProvider(GetActiveOrSelectedProvider()))
+                {
+                    return;
+                }
+
+                // Sign out the embedded usage WebView2 so the new account is picked up there too.
+                await SignOutUsageWindowIfActiveAsync();
+
+                try
+                {
+                    Process.Start(new ProcessStartInfo("https://claude.ai") { UseShellExecute = true });
+                }
+                catch (Exception ex)
+                {
+                    Debug.WriteLine($"ChangeAccountNativeMenuItem_Click: could not open browser: {ex.Message}");
+                }
+
+                MessageBox.Show(
+                    "Please switch to the desired account in your browser, then click OK to resume Claude Code.",
+                    "Change Account",
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Information);
+
+                await RelaunchNativeSessionAsync("🔑 Switched account — resuming", appendAccountLabel: true);
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"Change account (native) failed: {ex.Message}");
             }
         }
 

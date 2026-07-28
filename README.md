@@ -24,7 +24,7 @@ Enjoying the extension? [Buy me a coffee](https://www.buymeacoffee.com/dliedke) 
 - **Claude Code session history** — 📜 toolbar button lists past sessions for the current workspace; resume any session or the most recent one with one click. Works for native and WSL Claude Code.
 - **Claude usage in VS** — 📊 button (when Claude is active) opens the claude.ai usage page inside a dockable tab. Inline session/weekly progress bars below the prompt update automatically and adapt to the active theme.
 - **Custom commands (⚡)** — Save slash commands or canned prompts and dispatch them to the active agent in one click. Configure via *⚙ → Configure Custom Commands...*.
-- **"@" file picker** — Type **@** in the prompt box to search your solution's files and folders and insert one with the keyboard; keep typing to filter, arrow keys + Enter to insert, pick a folder to drill in.
+- **"@" file picker** — Type **@** in the prompt box (or the native mode chat composer) to search your solution's files and folders and insert one with the keyboard; keep typing to filter, arrow keys + Enter to insert, pick a folder to drill in.
 - **On Agent Finish** — Optionally play a sound, show a notification (with duration, plus token count for Claude Code), and run an action (build/rebuild, run, tests, a script, or a follow-up command) when the agent goes idle. Global defaults plus per-solution overrides. Configure via *⚙ → Settings...*.
 - **Auto-send build errors** — Optionally send build errors (with warnings for context) to the active agent automatically whenever a Visual Studio build finishes with errors, so it can fix them. Opt-in via *⚙ → Settings... → Behavior*.
 - **Model selection** — 🤖 button to switch models: for Claude, Best / Opus / Sonnet / Haiku / Opus Plan plus an effort level (Auto / Low / Medium / High / Max) for Opus thinking depth; for Devin, a configurable list of models you can edit via *Configure Models...*; for Codex, Cursor Agent, PI, Antigravity, Reasonix, and Open Code, it opens the agent's own model picker in the terminal.
@@ -135,6 +135,18 @@ https://github.com/anthropics/claude-code/issues/63504
 https://github.com/anthropics/claude-code/issues/41501
 
 ## Version History
+
+### Version 93.0
+- Native mode still in alpha phase. It will be improved and stabilized in next releases. Please do not use for real work yet.
+- The **@** file/folder picker now also works in native mode's chat composer, not just the terminal-mode prompt box.
+
+### Version 92.0
+- Native mode still in alpha phase. It will be improved and stabilized in next releases. Please do not use for real work yet.
+- Native mode now shows which Claude account is signed in, both on the welcome screen and after using **Change Account**.
+
+### Version 91.0
+- Native mode still in alpha phase. It will be improved and stabilized in next releases. Please do not use for real work yet.
+- Added **Change Account** to the ⚙ menu in native mode: opens claude.ai in your browser to switch accounts, then resumes the conversation.
 
 ### Version 90.0
 - Native mode still in alpha phase. It will be improved and stabilized in next releases. Please do not use for real work yet.

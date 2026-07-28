@@ -3533,6 +3533,12 @@ For more details, visit: https://pi.dev";
             DevinDangerousModeMenuItem.Visibility = (isDevinProvider || isDevinNativeProvider) ? Visibility.Visible : Visibility.Collapsed;
             AntigravityDangerouslySkipPermissionsMenuItem.Visibility = isAntigravityProvider ? Visibility.Visible : Visibility.Collapsed;
 
+            // Change Account has no console to act on outside native mode — the 🤖 menu's own
+            // Change Account item (scripted /logout keystrokes) covers the terminal case instead.
+            bool showChangeAccountNative = IsNativeModeActive && isClaudeProvider;
+            ChangeAccountNativeMenuItem.Visibility = showChangeAccountNative ? Visibility.Visible : Visibility.Collapsed;
+            ChangeAccountNativeSeparator.Visibility = showChangeAccountNative ? Visibility.Visible : Visibility.Collapsed;
+
             // Update checkbox state from settings
             if (_settings != null)
             {

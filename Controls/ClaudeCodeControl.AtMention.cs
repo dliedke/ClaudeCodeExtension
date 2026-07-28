@@ -6,12 +6,14 @@
  * Copyright © Daniel Carvalho Liedke 2026
  * Usage and reproduction in any manner whatsoever without the written permission of Daniel Carvalho Liedke is strictly forbidden.
  *
- * Purpose: "@" file/folder mention in the prompt box. Typing "@" (at the start of a word)
- *          opens a popup listing the workspace's files and folders; typing filters it,
- *          Up/Down + Enter/Tab (or a mouse click) inserts the workspace-relative path.
- *          Picking a folder keeps the popup open so the user can drill into it. Paths are
- *          inserted workspace-relative with forward slashes, which resolve for every agent
- *          (the terminal's working directory is the workspace), so no WSL conversion needed.
+ * Purpose: "@" file/folder mention, wired to both the terminal-mode prompt box and the native
+ *          chat composer. Typing "@" (at the start of a word) opens a popup listing the
+ *          workspace's files and folders; typing filters it, Up/Down + Enter/Tab (or a mouse
+ *          click) inserts the workspace-relative path. Picking a folder keeps the popup open so
+ *          the user can drill into it. Paths are inserted workspace-relative with forward
+ *          slashes, which resolve for every agent (the terminal's working directory is the
+ *          workspace), so no WSL conversion needed. The two text boxes each get their own popup
+ *          (an <see cref="AtMentionTarget"/>) but share one workspace index.
  *
  * *******************************************************************************************************************/
 
@@ -44,18 +46,44 @@ namespace ClaudeCodeVS
             "bin", "obj", ".git", ".vs", ".svn", ".hg", "node_modules", "packages", ".idea", "dist", "out", ".vscode"
         };
 
-        private Popup _atPopup;
-        private ListBox _atListBox;
+        /// <summary>Per-text-box popup state. The panel's prompt box and the native chat composer
+        /// each own one, so they never fight over which box the popup is anchored to.</summary>
+        private sealed class AtMentionTarget
+        {
+            public readonly TextBox TextBox;
+            public Popup Popup;
+            public ListBox ListBox;
+            public int MentionStart = -1;    // index of the triggering '@' in the text box's text
+            public bool SuppressTextChanged; // guards programmatic edits from re-triggering
+
+            public AtMentionTarget(TextBox textBox)
+            {
+                TextBox = textBox;
+            }
+        }
+
+        private AtMentionTarget _atPanelTarget;
+        private AtMentionTarget _atComposerTarget;
+
+        // Shared across both targets: keyed by workspace, not by text box.
         private List<string> _atEntries;       // workspace-relative paths ('/' separated, folders end with '/')
         private string _atEntriesRoot;
         private DateTime _atEntriesBuiltUtc;
         private bool _atEntriesBuilding;
-        private int _atMentionStart = -1;      // index of the triggering '@' in the prompt text
-        private bool _atSuppressTextChanged;   // guards programmatic edits from re-triggering
+
+        private AtMentionTarget GetAtMentionPanelTarget()
+        {
+            return _atPanelTarget ?? (_atPanelTarget = new AtMentionTarget(PromptTextBox));
+        }
+
+        private AtMentionTarget GetAtMentionComposerTarget()
+        {
+            return _atComposerTarget ?? (_atComposerTarget = new AtMentionTarget(ChatTranscript.ComposerInputBox));
+        }
 
         #endregion
 
-        #region Prompt TextChanged + Key Handling
+        #region TextChanged + Key Handling
 
         /// <summary>
         /// Prompt-box TextChanged handler (wired in XAML). Re-evaluates whether an "@" mention is
@@ -63,8 +91,26 @@ namespace ClaudeCodeVS
         /// </summary>
         private void PromptTextBox_TextChanged(object sender, TextChangedEventArgs e)
         {
-            if (_atSuppressTextChanged) return;
-            UpdateAtMentionPopup();
+            AtMentionTarget target = GetAtMentionPanelTarget();
+            if (target.SuppressTextChanged) return;
+            UpdateAtMentionPopup(target);
+        }
+
+        /// <summary>Native chat composer's equivalent of <see cref="PromptTextBox_TextChanged"/>, wired
+        /// from <c>WireChatComposer</c> onto <c>ChatTranscript.ComposerInputBox</c>.</summary>
+        private void ComposerInput_AtMentionTextChanged(object sender, TextChangedEventArgs e)
+        {
+            AtMentionTarget target = GetAtMentionComposerTarget();
+            if (target.SuppressTextChanged) return;
+            UpdateAtMentionPopup(target);
+        }
+
+        /// <summary>Native chat composer's equivalent of <see cref="HandleAtMentionKey"/>, wired to
+        /// <c>ChatTranscriptView.ComposerPreviewKeyDown</c> so it runs before that view's own
+        /// Enter-sends / history-navigation handling.</summary>
+        private void ComposerInput_AtMentionPreviewKeyDown(object sender, KeyEventArgs e)
+        {
+            HandleAtMentionKey(GetAtMentionComposerTarget(), e);
         }
 
         /// <summary>
@@ -72,29 +118,29 @@ namespace ClaudeCodeVS
         /// event handled) when the key was consumed, so the caller can return before its own
         /// Enter-sends-prompt / history-navigation logic runs.
         /// </summary>
-        private bool HandleAtMentionKey(KeyEventArgs e)
+        private bool HandleAtMentionKey(AtMentionTarget target, KeyEventArgs e)
         {
-            if (_atPopup == null || !_atPopup.IsOpen) return false;
+            if (target.Popup == null || !target.Popup.IsOpen) return false;
 
             switch (e.Key)
             {
                 case Key.Down:
-                    MoveAtSelection(1);
+                    MoveAtSelection(target, 1);
                     e.Handled = true;
                     return true;
                 case Key.Up:
-                    MoveAtSelection(-1);
+                    MoveAtSelection(target, -1);
                     e.Handled = true;
                     return true;
                 case Key.Enter:
                 case Key.Tab:
                     // Swallow the key regardless; only insert when entries are ready.
-                    if (_atEntries != null && _atListBox?.SelectedItem is string)
-                        CommitAtSelection();
+                    if (_atEntries != null && target.ListBox?.SelectedItem is string)
+                        CommitAtSelection(target);
                     e.Handled = true;
                     return true;
                 case Key.Escape:
-                    HideAtPopup();
+                    HideAtPopup(target);
                     e.Handled = true;
                     return true;
             }
@@ -110,15 +156,16 @@ namespace ClaudeCodeVS
         /// text or after whitespace, followed by non-whitespace up to the caret) and shows the
         /// filtered picker, or hides it when there is no such token.
         /// </summary>
-        private void UpdateAtMentionPopup()
+        private void UpdateAtMentionPopup(AtMentionTarget target)
         {
             try
             {
-                if (PromptTextBox == null) { HideAtPopup(); return; }
+                TextBox box = target.TextBox;
+                if (box == null) { HideAtPopup(target); return; }
 
-                string text = PromptTextBox.Text ?? string.Empty;
-                int caret = PromptTextBox.CaretIndex;
-                if (caret < 0 || caret > text.Length) { HideAtPopup(); return; }
+                string text = box.Text ?? string.Empty;
+                int caret = box.CaretIndex;
+                if (caret < 0 || caret > text.Length) { HideAtPopup(target); return; }
 
                 int at = -1;
                 for (int i = caret - 1; i >= 0; i--)
@@ -131,23 +178,23 @@ namespace ClaudeCodeVS
                     }
                     if (char.IsWhiteSpace(c)) break;
                 }
-                if (at < 0) { HideAtPopup(); return; }
+                if (at < 0) { HideAtPopup(target); return; }
 
-                _atMentionStart = at;
+                target.MentionStart = at;
                 string query = text.Substring(at + 1, caret - at - 1);
 
                 if (_atEntries == null)
                 {
-                    ShowAtIndexing();
-                    _ = EnsureThenRefilterAsync();
+                    ShowAtIndexing(target);
+                    _ = EnsureThenRefilterAsync(target);
                     return;
                 }
 
                 // Refresh a stale index in the background, but show current results immediately.
                 if ((DateTime.UtcNow - _atEntriesBuiltUtc) > AtEntriesTtl && !_atEntriesBuilding)
-                    _ = EnsureThenRefilterAsync();
+                    _ = EnsureThenRefilterAsync(target);
 
-                FilterAndShowAtPopup(query);
+                FilterAndShowAtPopup(target, query);
             }
             catch (Exception ex)
             {
@@ -155,42 +202,42 @@ namespace ClaudeCodeVS
             }
         }
 
-        private void FilterAndShowAtPopup(string query)
+        private void FilterAndShowAtPopup(AtMentionTarget target, string query)
         {
-            EnsureAtPopup();
+            EnsureAtPopup(target);
             var items = RankAtEntries(query);
-            _atListBox.ItemsSource = items;
-            if (items.Count == 0) { HideAtPopup(); return; }
+            target.ListBox.ItemsSource = items;
+            if (items.Count == 0) { HideAtPopup(target); return; }
 
-            _atListBox.SelectedIndex = 0;
-            if (!_atPopup.IsOpen)
+            target.ListBox.SelectedIndex = 0;
+            if (!target.Popup.IsOpen)
             {
-                PositionAtPopup();
-                _atPopup.IsOpen = true;
+                PositionAtPopup(target);
+                target.Popup.IsOpen = true;
             }
         }
 
-        private void ShowAtIndexing()
+        private void ShowAtIndexing(AtMentionTarget target)
         {
-            EnsureAtPopup();
-            _atListBox.ItemsSource = new List<string> { "Indexing workspace…" };
-            _atListBox.SelectedIndex = -1;
-            if (!_atPopup.IsOpen)
+            EnsureAtPopup(target);
+            target.ListBox.ItemsSource = new List<string> { "Indexing workspace…" };
+            target.ListBox.SelectedIndex = -1;
+            if (!target.Popup.IsOpen)
             {
-                PositionAtPopup();
-                _atPopup.IsOpen = true;
+                PositionAtPopup(target);
+                target.Popup.IsOpen = true;
             }
         }
 
-        private void MoveAtSelection(int delta)
+        private void MoveAtSelection(AtMentionTarget target, int delta)
         {
-            if (_atListBox == null || _atListBox.Items.Count == 0) return;
-            int n = _atListBox.Items.Count;
-            int i = _atListBox.SelectedIndex + delta;
+            if (target.ListBox == null || target.ListBox.Items.Count == 0) return;
+            int n = target.ListBox.Items.Count;
+            int i = target.ListBox.SelectedIndex + delta;
             if (i < 0) i = 0;
             if (i >= n) i = n - 1;
-            _atListBox.SelectedIndex = i;
-            if (_atListBox.SelectedItem != null) _atListBox.ScrollIntoView(_atListBox.SelectedItem);
+            target.ListBox.SelectedIndex = i;
+            if (target.ListBox.SelectedItem != null) target.ListBox.ScrollIntoView(target.ListBox.SelectedItem);
         }
 
         /// <summary>
@@ -198,47 +245,48 @@ namespace ClaudeCodeVS
         /// closes the popup; a folder is left without a space and re-opens the picker so the user
         /// can keep drilling into it.
         /// </summary>
-        private void CommitAtSelection()
+        private void CommitAtSelection(AtMentionTarget target)
         {
             try
             {
                 if (_atEntries == null) return;
-                string sel = _atListBox?.SelectedItem as string;
-                if (string.IsNullOrEmpty(sel)) { HideAtPopup(); return; }
+                string sel = target.ListBox?.SelectedItem as string;
+                if (string.IsNullOrEmpty(sel)) { HideAtPopup(target); return; }
 
-                int caret = PromptTextBox.CaretIndex;
-                if (_atMentionStart < 0 || _atMentionStart > PromptTextBox.Text.Length || caret < _atMentionStart)
+                TextBox box = target.TextBox;
+                int caret = box.CaretIndex;
+                if (target.MentionStart < 0 || target.MentionStart > box.Text.Length || caret < target.MentionStart)
                 {
-                    HideAtPopup();
+                    HideAtPopup(target);
                     return;
                 }
 
                 bool isDir = sel.EndsWith("/", StringComparison.Ordinal);
                 string insert = "@" + sel + (isDir ? string.Empty : " ");
 
-                _atSuppressTextChanged = true;
-                PromptTextBox.Select(_atMentionStart, caret - _atMentionStart);
-                PromptTextBox.SelectedText = insert;
-                PromptTextBox.CaretIndex = _atMentionStart + insert.Length;
-                _atSuppressTextChanged = false;
+                target.SuppressTextChanged = true;
+                box.Select(target.MentionStart, caret - target.MentionStart);
+                box.SelectedText = insert;
+                box.CaretIndex = target.MentionStart + insert.Length;
+                target.SuppressTextChanged = false;
 
-                PromptTextBox.Focus();
+                box.Focus();
 
-                if (isDir) UpdateAtMentionPopup();
-                else HideAtPopup();
+                if (isDir) UpdateAtMentionPopup(target);
+                else HideAtPopup(target);
             }
             catch (Exception ex)
             {
                 Debug.WriteLine($"CommitAtSelection error: {ex.Message}");
-                _atSuppressTextChanged = false;
-                HideAtPopup();
+                target.SuppressTextChanged = false;
+                HideAtPopup(target);
             }
         }
 
-        private void HideAtPopup()
+        private void HideAtPopup(AtMentionTarget target)
         {
-            _atMentionStart = -1;
-            if (_atPopup != null) _atPopup.IsOpen = false;
+            target.MentionStart = -1;
+            if (target.Popup != null) target.Popup.IsOpen = false;
         }
 
         /// <summary>
@@ -291,13 +339,13 @@ namespace ClaudeCodeVS
 
         #region Workspace Indexing
 
-        private async Task EnsureThenRefilterAsync()
+        private async Task EnsureThenRefilterAsync(AtMentionTarget target)
         {
             try
             {
                 await EnsureAtEntriesAsync();
                 await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
-                if (_atMentionStart >= 0) UpdateAtMentionPopup();
+                if (target.MentionStart >= 0) UpdateAtMentionPopup(target);
             }
             catch (Exception ex)
             {
@@ -400,14 +448,14 @@ namespace ClaudeCodeVS
 
         #region Popup Construction
 
-        private void EnsureAtPopup()
+        private void EnsureAtPopup(AtMentionTarget target)
         {
-            if (_atPopup != null) return;
+            if (target.Popup != null) return;
 
             GetThemeBrushes(out Brush bg, out Brush fg);
             Brush hover = ComputeAtHoverBrush(bg);
 
-            _atListBox = new ListBox
+            var listBox = new ListBox
             {
                 Background = bg,
                 Foreground = fg,
@@ -416,8 +464,8 @@ namespace ClaudeCodeVS
                 FontFamily = new FontFamily("Cascadia Mono, Consolas"),
                 HorizontalContentAlignment = HorizontalAlignment.Left
             };
-            ScrollViewer.SetHorizontalScrollBarVisibility(_atListBox, ScrollBarVisibility.Auto);
-            ScrollViewer.SetCanContentScroll(_atListBox, false);
+            ScrollViewer.SetHorizontalScrollBarVisibility(listBox, ScrollBarVisibility.Auto);
+            ScrollViewer.SetCanContentScroll(listBox, false);
 
             var itemStyle = new Style(typeof(ListBoxItem));
             itemStyle.Setters.Add(new Setter(Control.ForegroundProperty, fg));
@@ -432,60 +480,64 @@ namespace ClaudeCodeVS
             var overTrigger = new Trigger { Property = UIElement.IsMouseOverProperty, Value = true };
             overTrigger.Setters.Add(new Setter(Control.BackgroundProperty, hover));
             itemStyle.Triggers.Add(overTrigger);
-            _atListBox.ItemContainerStyle = itemStyle;
+            listBox.ItemContainerStyle = itemStyle;
 
-            _atListBox.PreviewMouseLeftButtonUp += (s, e) =>
+            listBox.PreviewMouseLeftButtonUp += (s, e) =>
             {
                 // The scrollbar added for horizontal scrolling lives inside the ListBox's visual
                 // tree too, so a plain "click landed inside the ListBox" check would also fire when
                 // dragging/clicking the scrollbar. Only commit when the click actually hit a row.
-                if (_atEntries != null && _atListBox.SelectedItem is string
+                if (_atEntries != null && listBox.SelectedItem is string
                     && FindVisualAncestor<ListBoxItem>(e.OriginalSource as DependencyObject) != null)
                 {
-                    CommitAtSelection();
+                    CommitAtSelection(target);
                     e.Handled = true;
                 }
             };
 
             var border = new Border
             {
-                Child = _atListBox,
+                Child = listBox,
                 Background = bg,
                 BorderBrush = fg,
                 BorderThickness = new Thickness(1)
             };
 
-            _atPopup = new Popup
+            var popup = new Popup
             {
                 Child = border,
                 StaysOpen = true,
                 AllowsTransparency = true,
                 PopupAnimation = PopupAnimation.None,
                 Placement = PlacementMode.RelativePoint,
-                PlacementTarget = PromptTextBox,
+                PlacementTarget = target.TextBox,
                 MinWidth = 360,
                 MaxWidth = 600
             };
 
-            // Close when the prompt box truly loses keyboard focus, but not when focus moves into
+            // Close when the text box truly loses keyboard focus, but not when focus moves into
             // the popup itself (a mouse click on a row), so the click can commit first.
-            PromptTextBox.LostKeyboardFocus += (s, e) =>
+            target.TextBox.LostKeyboardFocus += (s, e) =>
             {
-                if (IsInsideAtPopup(e.NewFocus as DependencyObject)) return;
-                HideAtPopup();
+                if (IsInsideAtPopup(target, e.NewFocus as DependencyObject)) return;
+                HideAtPopup(target);
             };
+
+            target.ListBox = listBox;
+            target.Popup = popup;
         }
 
-        private void PositionAtPopup()
+        private void PositionAtPopup(AtMentionTarget target)
         {
             try
             {
-                int idx = Math.Max(0, Math.Min(_atMentionStart, PromptTextBox.Text.Length));
-                Rect r = PromptTextBox.GetRectFromCharacterIndex(idx);
+                TextBox box = target.TextBox;
+                int idx = Math.Max(0, Math.Min(target.MentionStart, box.Text.Length));
+                Rect r = box.GetRectFromCharacterIndex(idx);
                 if (!r.IsEmpty)
                 {
-                    _atPopup.HorizontalOffset = r.X;
-                    _atPopup.VerticalOffset = r.Bottom;
+                    target.Popup.HorizontalOffset = r.X;
+                    target.Popup.VerticalOffset = r.Bottom;
                     return;
                 }
             }
@@ -494,8 +546,8 @@ namespace ClaudeCodeVS
                 Debug.WriteLine($"PositionAtPopup error: {ex.Message}");
             }
 
-            _atPopup.HorizontalOffset = 0;
-            _atPopup.VerticalOffset = PromptTextBox.ActualHeight;
+            target.Popup.HorizontalOffset = 0;
+            target.Popup.VerticalOffset = target.TextBox.ActualHeight;
         }
 
         private static T FindVisualAncestor<T>(DependencyObject node) where T : DependencyObject
@@ -514,13 +566,13 @@ namespace ClaudeCodeVS
             return null;
         }
 
-        private bool IsInsideAtPopup(DependencyObject node)
+        private bool IsInsideAtPopup(AtMentionTarget target, DependencyObject node)
         {
             try
             {
                 while (node != null)
                 {
-                    if (ReferenceEquals(node, _atListBox)) return true;
+                    if (ReferenceEquals(node, target.ListBox)) return true;
                     DependencyObject parent = null;
                     if (node is Visual || node is System.Windows.Media.Media3D.Visual3D)
                         parent = VisualTreeHelper.GetParent(node);

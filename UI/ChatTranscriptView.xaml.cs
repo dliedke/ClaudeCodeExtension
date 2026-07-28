@@ -135,6 +135,24 @@ namespace ClaudeCodeVS.UI
         }
 
         /// <summary>
+        /// The composer's raw text box. Exposed (like <see cref="ComposerAttachmentsPanel"/>) so the
+        /// parent's "@" file/folder mention popup can drive it directly (caret index, selection,
+        /// character-rect positioning) the same way it drives the panel's own prompt box.
+        /// </summary>
+        public TextBox ComposerInputBox
+        {
+            get { return ComposerInput; }
+        }
+
+        /// <summary>
+        /// Raised at the very top of the composer's PreviewKeyDown, before any of this view's own key
+        /// handling (Enter-to-send, history navigation, Escape). Lets the parent's "@" mention popup
+        /// claim Up/Down/Enter/Tab/Escape while it is open; setting <c>e.Handled</c> stops this view's
+        /// own handling too.
+        /// </summary>
+        public event EventHandler<System.Windows.Input.KeyEventArgs> ComposerPreviewKeyDown;
+
+        /// <summary>
         /// True while the user is typing in the composer. Prompt history writes to whichever prompt box
         /// has the keyboard, so the panel and the chat tab never overwrite each other's text.
         /// </summary>
@@ -714,6 +732,9 @@ namespace ClaudeCodeVS.UI
         /// </summary>
         private void ComposerInput_PreviewKeyDown(object sender, System.Windows.Input.KeyEventArgs e)
         {
+            ComposerPreviewKeyDown?.Invoke(this, e);
+            if (e.Handled) return;
+
             if (e.Key == System.Windows.Input.Key.Escape)
             {
                 TranscriptScroll.Focus();
