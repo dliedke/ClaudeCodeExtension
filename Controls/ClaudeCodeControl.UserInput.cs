@@ -67,6 +67,13 @@ namespace ClaudeCodeVS
         private async void SendButton_Click(object sender, RoutedEventArgs e)
 #pragma warning restore VSTHRD100 // Avoid async void methods
         {
+            // Reached only from the send button and the prompt box's key handlers, so this already runs
+            // on the UI thread and the switch completes synchronously — it does not yield, which is what
+            // keeps the re-entrancy guard below synchronous with the caller. Asserting instead would be
+            // the wrong tool in an async method (VSTHRD109); this states the requirement to VSTHRD010
+            // for every control member touched from here on.
+            await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
+
             // Re-entrancy guard: reject a second click/Enter while a send is already in flight.
             // Checked and set synchronously before any await (UI thread), so a concurrent
             // invocation can't re-send the same prompt and re-attach the same files. See issue #63.
@@ -183,6 +190,10 @@ namespace ClaudeCodeVS
 
                 // Ensure tracking is active and reset baseline before sending prompt
                 await EnsureDiffTrackingStartedAsync(false);
+
+                // Everything from here on touches the control and the agent session, and the await
+                // above is not guaranteed to have resumed on the UI thread. A no-op when it did.
+                await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
 
                 // Auto-open changes view if enabled and project is in git
                 if (_settings != null && _settings.AutoOpenChangesOnPrompt && !string.IsNullOrEmpty(_gitRepositoryRoot))
@@ -336,6 +347,8 @@ namespace ClaudeCodeVS
         /// </summary>
         private void PromptTextBox_KeyDown(object sender, KeyEventArgs e)
         {
+            ThreadHelper.ThrowIfNotOnUIThread();
+
             if (e.Key == Key.Enter && _settings?.SendWithEnter != false)
             {
                 // Plain Enter sends the prompt (modifier cases handled in PreviewKeyDown)
@@ -350,6 +363,8 @@ namespace ClaudeCodeVS
         /// </summary>
         private void PromptTextBox_PreviewKeyDown(object sender, KeyEventArgs e)
         {
+            ThreadHelper.ThrowIfNotOnUIThread();
+
             // Force cursor visible — "Hide pointer while typing" calls SetCursor(NULL) which WPF
             // only counteracts via WM_SETCURSOR (i.e. on mouse move). While typing non-stop with
             // the mouse stationary, WM_SETCURSOR never fires, so we must call SetCursor directly.
