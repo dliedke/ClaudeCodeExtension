@@ -22,6 +22,7 @@ using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
+using Newtonsoft.Json.Linq;
 using ClaudeCodeVS.Agents;
 using ClaudeCodeVS.UI;
 using Microsoft.VisualStudio.Shell;
@@ -446,6 +447,7 @@ namespace ClaudeCodeVS
                 effort: isClaude,
                 permission: GetChatPermissionLabel(provider) != null);
 
+            ChatTranscript.SetEffortStopLabels(GetChatEffortStopLabels());
             ChatTranscript.SetEffortSlider(
                 EffortToSliderIndex(_settings != null ? _settings.SelectedEffortLevel : EffortLevel.High),
                 GetChatEffortLabel());
@@ -497,12 +499,138 @@ namespace ClaudeCodeVS
             ChatTranscript.ShowWelcome(
                 BuildWelcomeTitle(provider),
                 BuildWelcomeFacts(provider, directory),
-                BuildWelcomeTips());
+                BuildWelcomeTips(provider));
 
             if (provider.HasValue)
             {
                 BeginCliVersionLookup(provider.Value, directory);
             }
+        }
+
+        /// <summary>
+        /// Most rows a replayed transcript may add. A long conversation would otherwise take seconds to
+        /// render and bury the composer under thousands of bubbles; the newest ones are the ones worth
+        /// showing, so the cap keeps the tail and says how much it dropped.
+        /// </summary>
+        private const int ResumedTranscriptMaxRows = 200;
+
+        /// <summary>
+        /// Replays a resumed conversation into the chat. The CLI is the reason this exists: measured,
+        /// <c>--resume</c> in print mode restores the agent's memory in full but emits nothing of the
+        /// history — only <c>system/init</c> and then the new turn. So the agent remembered everything
+        /// while the chat opened blank, which is what "session history doesn't load" looked like.
+        /// The transcript on disk is the same JSONL the Session History dialog already reads.
+        /// </summary>
+        /// <param name="sessionId">
+        /// The id the user asked to resume, or null/"-c" for anything else. "-c" is the Session History
+        /// window's "continue last session", which native mode has no equivalent for and ignores.
+        /// </param>
+        /// <returns>False when there is nothing to replay, and the caller shows the welcome card.</returns>
+        private async Task<bool> TryReplayResumedTranscriptAsync(AiProvider provider, string workspace, string sessionId)
+        {
+            if (string.IsNullOrEmpty(sessionId) || sessionId == "-c" || ChatTranscript == null)
+            {
+                return false;
+            }
+
+            try
+            {
+                string directory = await ResolveSessionDirectoryAsync(provider, workspace);
+                if (string.IsNullOrEmpty(directory))
+                {
+                    return false;
+                }
+
+                string path = Path.Combine(directory, sessionId + ".jsonl");
+                if (!File.Exists(path))
+                {
+                    Debug.WriteLine($"Native mode: no transcript to replay at {path}");
+                    return false;
+                }
+
+                // Parsed off the UI thread — a long session is megabytes of JSONL — and returned as
+                // plain data, because a WPF view model may only be built on the thread that owns it.
+                int total = 0;
+                List<KeyValuePair<ChatMessageKind, string>> rows =
+                    await Task.Run(() => ReadResumedTranscript(path, out total));
+
+                if (rows == null || rows.Count == 0)
+                {
+                    return false;
+                }
+
+                await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
+
+                int dropped = total - rows.Count;
+                AddNativeMessage(ChatMessageKind.Notice, dropped > 0
+                    ? $"🕘 Resumed this conversation — showing the last {rows.Count} of {total} messages."
+                    : $"🕘 Resumed this conversation — {rows.Count} earlier messages restored.");
+
+                foreach (KeyValuePair<ChatMessageKind, string> row in rows)
+                {
+                    AddNativeMessage(row.Key, row.Value);
+                }
+
+                ChatTranscript.ScrollToEndIfFollowing();
+                return true;
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"Native mode: replaying the resumed transcript failed: {ex.Message}");
+                return false;
+            }
+        }
+
+        /// <summary>
+        /// Reads a session's JSONL into chat rows, newest-last, capped at
+        /// <see cref="ResumedTranscriptMaxRows"/>. <paramref name="total"/> reports how many rows the
+        /// file held before the cap, so the caller can say what it left out. Shares the extraction
+        /// helpers with the Session History dialog, so both read a transcript the same way — including
+        /// skipping the tool-result rows the CLI re-injects as "user" messages.
+        /// </summary>
+        private static List<KeyValuePair<ChatMessageKind, string>> ReadResumedTranscript(string path, out int total)
+        {
+            var rows = new List<KeyValuePair<ChatMessageKind, string>>();
+            total = 0;
+
+            using (var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite))
+            using (var reader = new StreamReader(stream, Encoding.UTF8))
+            {
+                string line;
+                while ((line = reader.ReadLine()) != null)
+                {
+                    if (string.IsNullOrWhiteSpace(line)) continue;
+
+                    JObject obj;
+                    try { obj = JObject.Parse(line); }
+                    catch { continue; }
+
+                    string type = (string)obj["type"];
+                    if (type != "user" && type != "assistant") continue;
+
+                    JToken message = obj["message"];
+                    if (message == null) continue;
+
+                    bool isUser = type == "user";
+                    string text = isUser
+                        ? ExtractUserText(message["content"])
+                        : ExtractAssistantText(message["content"]);
+
+                    if (string.IsNullOrWhiteSpace(text)) continue;
+
+                    total++;
+                    rows.Add(new KeyValuePair<ChatMessageKind, string>(
+                        isUser ? ChatMessageKind.User : ChatMessageKind.Assistant, text.TrimEnd()));
+
+                    // Trimming as we go keeps a very long transcript from being held in full.
+                    if (rows.Count > ResumedTranscriptMaxRows)
+                    {
+                        rows.RemoveAt(0);
+                    }
+                }
+            }
+
+            return rows;
         }
 
         /// <summary>Caption on the card's frame: the agent, and its CLI version once that is known.</summary>
@@ -558,18 +686,27 @@ namespace ClaudeCodeVS
 
         /// <summary>
         /// The right-hand column. Deliberately only things the chat tab can actually do — a tip that
-        /// does not work is worse than no tip, and the composer has no "@" picker or slash commands.
+        /// does not work is worse than no tip, so the composer's "@" picker is not mentioned (there
+        /// isn't one) and the slash-command tip appears only where those commands are handled.
         /// </summary>
-        private static List<string> BuildWelcomeTips()
+        private static List<string> BuildWelcomeTips(AiProvider? provider)
         {
-            return new List<string>
+            var tips = new List<string>
             {
                 "Press ↑ in the prompt box to bring back earlier prompts.",
                 "Ctrl+V pastes an image from the clipboard; 📎 attaches files.",
                 "Ctrl+Scroll zooms the conversation, and the top edge of the prompt box can be dragged.",
-                "The buttons below switch agent, model, effort and permissions mid-conversation.",
-                "✚ starts a new chat."
+                "The buttons below switch agent, model, effort and permissions mid-conversation."
             };
+
+            if (IsClaudeProvider(provider))
+            {
+                tips.Add("Type /plan, /model or /effort to switch without leaving the prompt box.");
+            }
+
+            tips.Add("✚ starts a new chat.");
+
+            return tips;
         }
 
         /// <summary>
@@ -843,14 +980,26 @@ namespace ClaudeCodeVS
 
         private string GetChatEffortLabel()
         {
-            EffortLevel level = _settings != null ? _settings.SelectedEffortLevel : EffortLevel.High;
+            return GetChatEffortLabel(_settings != null ? _settings.SelectedEffortLevel : EffortLevel.High);
+        }
 
+        private static string GetChatEffortLabel(EffortLevel level)
+        {
             switch (level)
             {
                 case EffortLevel.XHigh: return "Extra High";
                 case EffortLevel.Ultracode: return "Ultracode";
                 default: return level.ToString();
             }
+        }
+
+        /// <summary>
+        /// Captions of the effort slider stops, in slider order, so the popup can name the level under
+        /// the thumb before it is applied.
+        /// </summary>
+        private static string[] GetChatEffortStopLabels()
+        {
+            return Array.ConvertAll(_effortSliderOrder, GetChatEffortLabel);
         }
 
         /// <summary>
@@ -1132,6 +1281,27 @@ namespace ClaudeCodeVS
             return menu;
         }
 
+        /// <summary>
+        /// The effort levels as a dropdown, for the typed <c>/effort</c> command. The button opens the
+        /// pill slider instead, which is anchored to that button — with the transcript back in the
+        /// panel there is no button and nothing to anchor to, and a menu reads the same from either
+        /// host.
+        /// </summary>
+        private ContextMenu BuildChatEffortMenu()
+        {
+            ContextMenu menu = CreateComposerMenu();
+            EffortLevel selected = _settings != null ? _settings.SelectedEffortLevel : EffortLevel.High;
+
+            foreach (EffortLevel level in _effortSliderOrder)
+            {
+                EffortLevel current = level;
+                AddComposerMenuItem(menu, GetChatEffortLabel(level), level == selected,
+                    delegate { ThreadHelper.ThrowIfNotOnUIThread(); OnChatEffortSelected(current); });
+            }
+
+            return menu;
+        }
+
         private ContextMenu BuildChatPermissionMenu()
         {
             ContextMenu menu = CreateComposerMenu();
@@ -1165,6 +1335,117 @@ namespace ClaudeCodeVS
                 delegate { ThreadHelper.ThrowIfNotOnUIThread(); OnChatPermissionSelected(true); });
 
             return menu;
+        }
+
+        #endregion
+
+        #region Typed Selector Commands
+
+        /// <summary>
+        /// Handles the commands a user can type instead of clicking: <c>/plan</c> turns plan mode on,
+        /// <c>/model</c> and <c>/effort</c> open the pickers the composer buttons open, and
+        /// <c>/btw</c> asks a side question.
+        /// <para>
+        /// They are the extension's own commands, not the CLI's: native mode runs the agent headless,
+        /// where these settings are launch flags rather than anything the agent can be told mid-turn.
+        /// Sending them on as a prompt is what happened before, and the agent simply answered as if
+        /// asked about the word.
+        /// </para>
+        /// </summary>
+        /// <returns>True when the text was a command and was handled, so nothing is sent.</returns>
+        private bool TryHandleNativeSelectorCommand(string prompt)
+        {
+            ThreadHelper.ThrowIfNotOnUIThread();
+
+            if (string.IsNullOrWhiteSpace(prompt))
+            {
+                return false;
+            }
+
+            // Claude-only, exactly like the composer's own model, effort and plan-mode selectors: the
+            // other agents pick their model inside a TUI native mode cannot reach, and none of them
+            // has an effort level or a plan mode.
+            if (!IsClaudeProvider(GetActiveOrSelectedProvider()))
+            {
+                return false;
+            }
+
+            string trimmed = prompt.Trim();
+
+            // "/btw <question>" is the one that takes an argument, so it is matched by prefix. The bare
+            // "/btw" falls through to the usage line rather than asking an empty question.
+            if (trimmed.StartsWith("/btw", StringComparison.OrdinalIgnoreCase)
+                && (trimmed.Length == 4 || char.IsWhiteSpace(trimmed[4])))
+            {
+                string question = trimmed.Substring(4).Trim();
+                if (question.Length == 0)
+                {
+                    AddNativeMessage(ChatMessageKind.Notice, "Usage: /btw <your question>");
+                    return true;
+                }
+
+                AddNativeMessage(ChatMessageKind.User, trimmed);
+                AddNativeMessage(ChatMessageKind.Notice,
+                    "💬 Side question — asked in a forked copy of this conversation, so the work in progress is untouched.");
+
+                _ = AskSideQuestionAsync(question);
+                return true;
+            }
+
+            // Only the bare command. "/plan the migration" is a prompt about planning, and taking it
+            // as a command would silently swallow it.
+            switch (trimmed.ToLowerInvariant())
+            {
+                case "/plan":
+                    if (_settings?.ClaudePlanMode == true)
+                    {
+                        AddNativeMessage(ChatMessageKind.Notice, "🤖 Already in plan mode.");
+                    }
+                    else
+                    {
+                        OnChatPlanModeSelected(true);
+                    }
+                    return true;
+
+                case "/model":
+                    ShowChatSelectorMenu(BuildChatModelMenu(), ChatSelector.Model);
+                    return true;
+
+                case "/effort":
+                    ShowChatSelectorMenu(BuildChatEffortMenu(), ChatSelector.Effort);
+                    return true;
+
+                default:
+                    return false;
+            }
+        }
+
+        /// <summary>
+        /// Opens a composer menu for a typed command. It hangs off the matching composer button when the
+        /// chat is in its tab; with the transcript back in the panel there is no composer, so it falls
+        /// back to the panel's send button — next to the prompt box the command was typed into.
+        /// </summary>
+        private void ShowChatSelectorMenu(ContextMenu menu, ChatSelector selector)
+        {
+            ThreadHelper.ThrowIfNotOnUIThread();
+
+            if (menu == null || menu.Items.Count == 0)
+            {
+                return;
+            }
+
+            UIElement anchor = ChatTranscript?.GetSelectorAnchor(selector)
+                ?? (UIElement)SendPromptButton
+                ?? ChatTranscript;
+
+            if (anchor == null)
+            {
+                return;
+            }
+
+            menu.PlacementTarget = anchor;
+            menu.Placement = System.Windows.Controls.Primitives.PlacementMode.Top;
+            menu.IsOpen = true;
         }
 
         #endregion
@@ -1259,8 +1540,8 @@ namespace ClaudeCodeVS
         }
 
         /// <summary>
-        /// The composer's effort pill settled on a new stop. Same slider order as the panel, so both
-        /// controls always agree on what "High" means.
+        /// The composer's effort popup closed on a stop other than the one it opened on. Same slider
+        /// order as the panel, so both controls always agree on what "High" means.
         /// </summary>
         private void OnComposerEffortChanged(object sender, int index)
         {

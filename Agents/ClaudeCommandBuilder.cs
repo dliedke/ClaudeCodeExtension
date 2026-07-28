@@ -144,6 +144,50 @@ namespace ClaudeCodeVS.Agents
             return "bash -lic " + QuoteForWindowsArgument(inner.ToString());
         }
 
+        /// <summary>
+        /// Command line for a one-shot side question — the <c>/btw</c> command. Plain <c>--print</c>,
+        /// so the answer arrives as text on stdout and no event stream has to be parsed; the question
+        /// itself goes in over stdin, which keeps quoting and length out of the picture.
+        /// <para>
+        /// <c>--resume &lt;id&gt; --fork-session</c> is the whole point: the fork gives the question the
+        /// entire conversation as context while writing to a **new** session id, so the transcript the
+        /// live session owns is left byte-for-byte untouched (measured) and the running turn never sees
+        /// a second writer. Without a resumable id the question is asked with no context rather than
+        /// not at all — that is still an answer, and there is no conversation to lose.
+        /// </para>
+        /// </summary>
+        public static string GetSideQuestionArguments(ClaudeSessionOptions options, string resumeSessionId)
+        {
+            if (options == null) throw new ArgumentNullException(nameof(options));
+
+            bool isWsl = options.UseWsl;
+
+            var flags = new StringBuilder("--print");
+
+            if (!string.IsNullOrWhiteSpace(resumeSessionId))
+            {
+                flags.Append(" --resume ").Append(QuoteArgument(resumeSessionId, isWsl));
+                flags.Append(" --fork-session");
+            }
+
+            // Answered by the model the conversation is running on, so a side question does not
+            // silently come back from a different one.
+            if (!string.IsNullOrWhiteSpace(options.Model))
+            {
+                flags.Append(" --model ").Append(QuoteArgument(options.Model, isWsl));
+            }
+
+            if (!isWsl)
+            {
+                return flags.ToString();
+            }
+
+            var inner = new StringBuilder();
+            inner.Append("cd ").Append(QuoteForBash(options.WslWorkingDirectory)).Append(" && claude ").Append(flags);
+
+            return "bash -lic " + QuoteForWindowsArgument(inner.ToString());
+        }
+
         private static string BuildFlags(ClaudeSessionOptions options, bool isWsl)
         {
             var sb = new StringBuilder();

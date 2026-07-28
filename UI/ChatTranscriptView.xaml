@@ -876,7 +876,9 @@
 		       PlacementTarget="{Binding ElementName=ComposerEffortButton}"
 		       StaysOpen="False"
 		       AllowsTransparency="True"
-		       PopupAnimation="Fade">
+		       PopupAnimation="Fade"
+		       Opened="EffortPopup_Opened"
+		       Closed="EffortPopup_Closed">
 			<Border Padding="12,9,12,10" CornerRadius="5" Margin="6"
 			        Background="{DynamicResource {x:Static vsshell:VsBrushes.CommandBarMenuBackgroundGradientKey}}"
 			        BorderBrush="{DynamicResource {x:Static vsshell:VsBrushes.CommandBarMenuBorderKey}}"
@@ -890,9 +892,7 @@
 					           Foreground="{DynamicResource {x:Static vsshell:VsBrushes.CommandBarTextActiveKey}}"/>
 					<Slider x:Name="EffortPopupSlider"
 					        Style="{StaticResource EffortSliderStyle}"
-					        ValueChanged="EffortPopupSlider_ValueChanged"
-					        Thumb.DragStarted="EffortPopupSlider_DragStarted"
-					        Thumb.DragCompleted="EffortPopupSlider_DragCompleted"/>
+					        ValueChanged="EffortPopupSlider_ValueChanged"/>
 				</StackPanel>
 			</Border>
 		</Popup>

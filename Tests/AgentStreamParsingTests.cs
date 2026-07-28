@@ -411,6 +411,50 @@ namespace ClaudeCodeExtension.Tests
         }
 
         [TestMethod]
+        public void ClaudeCommandBuilder_SideQuestionForksTheResumedSession()
+        {
+            // --fork-session is what makes "/btw" safe: the question reads the whole conversation for
+            // context but writes to a new session id, so the live session's transcript is untouched.
+            // Resuming without forking would put a second writer on the file the running turn owns.
+            string args = ClaudeCommandBuilder.GetSideQuestionArguments(
+                new ClaudeSessionOptions { Model = "opus" }, "abc-123");
+
+            StringAssert.Contains(args, "--print");
+            StringAssert.Contains(args, "--resume \"abc-123\"");
+            StringAssert.Contains(args, "--fork-session");
+            StringAssert.Contains(args, "--model \"opus\"");
+
+            // The answer is plain text on stdout; asking for the event stream would mean parsing it.
+            Assert.IsFalse(args.Contains("--output-format"));
+        }
+
+        [TestMethod]
+        public void ClaudeCommandBuilder_SideQuestionWithoutASessionDoesNotFork()
+        {
+            // --fork-session is only valid with --resume. Before the first turn there is no transcript
+            // to resume, so the question is asked without context rather than failing the launch.
+            string args = ClaudeCommandBuilder.GetSideQuestionArguments(new ClaudeSessionOptions(), null);
+
+            StringAssert.Contains(args, "--print");
+            Assert.IsFalse(args.Contains("--resume"));
+            Assert.IsFalse(args.Contains("--fork-session"));
+        }
+
+        [TestMethod]
+        public void ClaudeCommandBuilder_SideQuestionUnderWslRunsInTheWorkspace()
+        {
+            string args = ClaudeCommandBuilder.GetSideQuestionArguments(new ClaudeSessionOptions
+            {
+                UseWsl = true,
+                WslWorkingDirectory = "/mnt/c/work"
+            }, "abc-123");
+
+            StringAssert.Contains(args, "bash -lic");
+            StringAssert.Contains(args, "cd '/mnt/c/work' && claude --print");
+            StringAssert.Contains(args, "--resume 'abc-123' --fork-session");
+        }
+
+        [TestMethod]
         public void ClaudeCommandBuilder_EffortIsALaunchFlag()
         {
             // Effort used to be sent as the "/effort" command, which the CLI applies "for this session

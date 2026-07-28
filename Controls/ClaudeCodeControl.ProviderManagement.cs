@@ -2118,17 +2118,12 @@ For more details, visit: https://pi.dev";
                 TerminalGroupBox.Header = new System.Windows.Controls.TextBlock { Text = providerName, Opacity = 0.93 };
             }
 
-            // Show/hide model selection button based on provider
-            bool isClaudeProvider = IsClaudeProvider(activeProvider);
-            bool isDevinProvider = activeProvider == AiProvider.Devin || activeProvider == AiProvider.DevinNative;
-            bool hasSimpleModelCommand = GetSimpleModelCommand(activeProvider) != null;
-            ModelDropdownButton.Visibility = (isClaudeProvider || isDevinProvider || hasSimpleModelCommand) ? Visibility.Visible : Visibility.Collapsed;
-
             UpdateInlineUsagePanelVisibility();
 
             // Swap the configurable features between dedicated toolbar buttons and the "⚙"
             // menu, applying provider constraints (Show Usage and Session History are
-            // Claude/Devin-only).
+            // Claude/Devin-only). It also owns the model button, whose visibility depends on
+            // the provider and on whether a console is there to type into.
             RefreshToolbarLayout();
 
             // Reflect the running provider immediately in the VS tool window title.
@@ -2162,12 +2157,22 @@ For more details, visit: https://pi.dev";
                 if (menuItem != null) menuItem.Visibility = asMenu ? Visibility.Visible : Visibility.Collapsed;
             }
 
+            // Native mode runs the agent headless, so anything whose only implementation is typing
+            // into a console window has nothing to act on. Those controls are hidden rather than
+            // disabled: a permanently greyed button in a mode the user chose reads as breakage.
+            // Everything else stays — Restart, Detach, View Changes, Session History, Show Usage,
+            // Set Working Directory and Send Build Errors all work through paths native mode shares.
+            bool hasConsole = !IsNativeModeActive;
+
             // Every configurable feature is always offered (button when promoted, otherwise menu
             // entry). Features that only apply to certain providers or workspaces — View Changes
             // (git repo only), Session History (Claude Code only), Show Usage (Claude/Devin only) —
             // are no longer hidden for the active agent; instead each shows a friendly explanation
             // at click time when it isn't applicable (issue #97).
-            Apply(ToolbarButton.UpdateAgent, true, UpdateAgentToolbarButton, UpdateAgentMenuItem);
+
+            // Updating the CLI means exiting the agent and running its installer at the shell prompt,
+            // which is the console and nothing else.
+            Apply(ToolbarButton.UpdateAgent, hasConsole, UpdateAgentToolbarButton, UpdateAgentMenuItem);
             // Detach means "give this conversation its own tab" in both worlds: it re-parents the
             // embedded console window for the terminal, and moves the chat view for native mode.
             Apply(ToolbarButton.DetachTerminal, true, DetachToolbarButton, DetachTerminalMenuItem);
@@ -2177,6 +2182,24 @@ For more details, visit: https://pi.dev";
             Apply(ToolbarButton.ShowUsage, true, ShowUsageToolbarButton, ShowUsageViewMenuItem);
             Apply(ToolbarButton.SetWorkingDirectory, true, SetWorkingDirectoryToolbarButton, SetWorkingDirectoryMenuItem);
             Apply(ToolbarButton.SendBuildErrors, true, SendBuildErrorsToolbarButton, SendBuildErrorsMenuItem);
+
+            // The model button (🤖) is console-only from top to bottom: for Claude and Devin every
+            // entry sends "/model <name>", the effort slider sends "/effort", and Change Account,
+            // Set Language and Install Caveman are scripted key sequences against the CLI's own TUI;
+            // for the remaining agents the button does nothing but send "/model" so the user can pick
+            // inside that TUI. In native mode the chat composer owns agent, model, effort and
+            // permissions, so the button is hidden instead of silently doing nothing.
+            AiProvider? modelProvider = GetActiveOrSelectedProvider();
+            bool hasModelMenu = IsClaudeProvider(modelProvider)
+                || modelProvider == AiProvider.Devin
+                || modelProvider == AiProvider.DevinNative
+                || GetSimpleModelCommand(modelProvider) != null;
+            if (ModelDropdownButton != null)
+            {
+                ModelDropdownButton.Visibility = (hasConsole && hasModelMenu)
+                    ? Visibility.Visible
+                    : Visibility.Collapsed;
+            }
 
             // The Tools dropdown button is shown only when at least one feature is parked in it
             // (not promoted to its own button, and its constraint allows it). When every feature is
@@ -4062,12 +4085,21 @@ For more details, visit: https://pi.dev";
         /// Applies the user's VisibleProviders filter to the provider items in the
         /// agent menu. The currently selected provider is always visible so a user
         /// who already had a non-default agent picked before upgrading still sees it.
+        /// <para>
+        /// Native mode drops the list entirely: this menu belongs to the panel's terminal toolbar,
+        /// and the chat composer's own "Agent" selector is where a running conversation switches
+        /// agents. Two controls doing the same thing, one of them next to a terminal that isn't
+        /// there, is what made it read as terminal-only UI. "Configure Visible Code Agents..." stays
+        /// — the composer's menu is built from the same list.
+        /// </para>
         /// </summary>
         private void ApplyProviderMenuVisibility()
         {
             ThreadHelper.ThrowIfNotOnUIThread();
 
             if (_settings == null) return;
+
+            bool nativeMode = IsNativeModeActive;
 
             var visible = _settings.VisibleProviders ?? new System.Collections.Generic.List<AiProvider>();
             var selected = GetActiveOrSelectedProvider();
@@ -4076,8 +4108,14 @@ For more details, visit: https://pi.dev";
             foreach (var pair in items)
             {
                 if (pair.Value == null) continue;
-                bool show = visible.Contains(pair.Key) || pair.Key == selected;
+                bool show = !nativeMode && (visible.Contains(pair.Key) || pair.Key == selected);
                 pair.Value.Visibility = show ? Visibility.Visible : Visibility.Collapsed;
+            }
+
+            // Without the list above it the separator would open the menu with a stray rule.
+            if (ProviderListSeparator != null)
+            {
+                ProviderListSeparator.Visibility = nativeMode ? Visibility.Collapsed : Visibility.Visible;
             }
         }
 

@@ -483,7 +483,7 @@
 								<MenuItem Header="PI" x:Name="PiMenuItem" Click="PiMenuItem_Click" IsCheckable="True"/>
 								<MenuItem Header="Antigravity" x:Name="AntigravityMenuItem" Click="AntigravityMenuItem_Click" IsCheckable="True"/>
 								<MenuItem Header="Reasonix" x:Name="ReasonixMenuItem" Click="ReasonixMenuItem_Click" IsCheckable="True"/>
-								<Separator/>
+								<Separator x:Name="ProviderListSeparator"/>
 								<MenuItem Header="Configure Visible Code Agents..." x:Name="ConfigureVisibleAgentsMenuItem" Click="ConfigureVisibleAgentsMenuItem_Click" ToolTip="Choose which code agents appear in this menu. The active agent always remains visible."/>
 								<Separator x:Name="AutoOpenChangesSeparator"/>
 								<MenuItem Header="Claude Code: Skip Permissions" x:Name="ClaudeDangerouslySkipPermissionsMenuItem" Click="ClaudeDangerouslySkipPermissionsMenuItem_Click" IsCheckable="True" ToolTip="When enabled, Claude Code starts with --dangerously-skip-permissions"/>

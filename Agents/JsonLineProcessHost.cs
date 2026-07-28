@@ -59,6 +59,7 @@ namespace ClaudeCodeVS.Agents
         private readonly SemaphoreSlim _writeLock = new SemaphoreSlim(1, 1);
 
         private Process _process;
+        private StreamWriter _stdin;
         private Task _stdoutTask;
         private Task _stderrTask;
         private CancellationTokenSource _lifetimeCts;
@@ -147,6 +148,14 @@ namespace ClaudeCodeVS.Agents
 
             ProcessId = _process.Id;
 
+            // stdin is written through our own UTF-8 writer, never through Process.StandardInput.
+            // .NET Framework has no StandardInputEncoding (it arrived in .NET Core 2.1), and the writer
+            // it builds encodes in Console.InputEncoding — the machine's ANSI/OEM code page when Visual
+            // Studio has no console. Every one of these CLIs reads stdin as UTF-8, so a single accented
+            // character in a prompt went out as one code-page byte and was rejected: Codex answered
+            // "input is not valid UTF-8" and exited 1 before the turn started.
+            _stdin = new StreamWriter(_process.StandardInput.BaseStream, new UTF8Encoding(false));
+
             // stdin is deliberately left open for the life of the session: closing the pipe is how these
             // CLIs are told the conversation is over, and doing it after the first turn ends the session.
             // Both streams are drained concurrently — reading only stdout fills the stderr pipe buffer
@@ -171,7 +180,11 @@ namespace ClaudeCodeVS.Agents
             await _writeLock.WaitAsync(cancellationToken).ConfigureAwait(false);
             try
             {
-                StreamWriter stdin = _process.StandardInput;
+                StreamWriter stdin = _stdin;
+                if (stdin == null)
+                {
+                    throw new InvalidOperationException("Agent process is not running.");
+                }
 
                 // "\n", never WriteLine: on Windows that would emit CRLF, and the CCs' line-based
                 // parsers hand the trailing CR to the JSON reader.
@@ -201,15 +214,17 @@ namespace ClaudeCodeVS.Agents
         /// </summary>
         public void CloseInput()
         {
-            Process process = _process;
-            if (process == null)
+            StreamWriter stdin = _stdin;
+            if (stdin == null)
             {
                 return;
             }
 
             try
             {
-                process.StandardInput.Close();
+                // Closing our writer flushes it and closes the underlying pipe, which is the EOF the
+                // one-shot CLIs wait for.
+                stdin.Close();
             }
             catch (Exception ex)
             {
@@ -337,7 +352,7 @@ namespace ClaudeCodeVS.Agents
                 {
                     if (!process.HasExited)
                     {
-                        process.StandardInput.Close();
+                        CloseInput();
                         process.WaitForExit(1500);
                     }
                 }
@@ -369,6 +384,17 @@ namespace ClaudeCodeVS.Agents
             }
 
             _process = null;
+
+            try
+            {
+                _stdin?.Dispose();
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"JsonLineProcessHost: stdin dispose failed: {ex.Message}");
+            }
+
+            _stdin = null;
 
             try
             {

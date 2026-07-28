@@ -14,6 +14,7 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
+using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
@@ -61,6 +62,13 @@ namespace ClaudeCodeVS
         private string _lastNativeRateLimitNotice;
 
         /// <summary>
+        /// The launch options of the running Claude session, kept so a side question (<c>/btw</c>) can
+        /// be asked with the same executable, distro, folder and model. Null for every other agent and
+        /// between sessions.
+        /// </summary>
+        private ClaudeSessionOptions _nativeClaudeOptions;
+
+        /// <summary>
         /// Running totals for the turn in flight, fed by the mid-turn usage events so the status line
         /// counts up instead of staying at zero until the final result arrives.
         /// <para>
@@ -84,6 +92,17 @@ namespace ClaudeCodeVS
         private bool IsNativeModeActive
         {
             get { return _agentSession != null; }
+        }
+
+        /// <summary>
+        /// True when there is an agent to hand work to at all: an embedded console window, or a native
+        /// session. Anything that sends the agent something unprompted — build errors, runtime errors —
+        /// must ask this instead of testing <c>terminalHandle</c> directly, because native mode has no
+        /// window and a raw handle test reads as "no agent is running" for the entire mode.
+        /// </summary>
+        private bool IsAgentAvailable
+        {
+            get { return IsNativeModeActive || (terminalHandle != IntPtr.Zero && IsWindow(terminalHandle)); }
         }
 
         /// <summary>
@@ -157,6 +176,12 @@ namespace ClaudeCodeVS
                     return false;
                 }
 
+                // Read before the session consumes it. Only a resume the *user* asked for — from the
+                // Session History window — replays a transcript into the chat; the resumes a relaunch
+                // does for itself (model, effort, permission, plan) go through the same field and would
+                // otherwise re-render the whole conversation on every dropdown change.
+                string resumeRequest = Volatile.Read(ref _pendingResumeSessionId);
+
                 IAgentSession session = CreateAgentSession(provider, workspace);
                 if (session == null)
                 {
@@ -206,9 +231,15 @@ namespace ClaudeCodeVS
                 _currentRunningProvider = provider;
                 ChatTranscript.SetStatus("Ready.");
 
-                // An empty transcript says nothing about what is running: the CLI's own startup banner
-                // never reaches native mode, so the chat prints its own.
-                ShowChatWelcome(workspace);
+                // A resumed conversation is replayed from its transcript, because the CLI restores the
+                // agent's memory without re-emitting a single message of it. Otherwise: an empty
+                // transcript says nothing about what is running — the CLI's own startup banner never
+                // reaches native mode, so the chat prints its own.
+                if (!await TryReplayResumedTranscriptAsync(provider, workspace, resumeRequest))
+                {
+                    await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
+                    ShowChatWelcome(workspace);
+                }
 
                 // Native mode always lives in its own document tab: the conversation gets the full
                 // editor width and its own composer, instead of the narrow panel strip.
@@ -254,6 +285,10 @@ namespace ClaudeCodeVS
         /// </summary>
         private IAgentSession CreateAgentSession(AiProvider provider, string workspace)
         {
+            // Cleared for every launch, so the Claude-only state cannot outlive a switch to another
+            // agent and have a side question re-run the previous CLI.
+            _nativeClaudeOptions = null;
+
             switch (provider)
             {
                 case AiProvider.ClaudeCode:
@@ -319,6 +354,10 @@ namespace ClaudeCodeVS
             {
                 options.ResumeSessionId = resumeArg;
             }
+
+            // Remembered so a side question can re-run the same CLI — same executable, distro, folder
+            // and model as the conversation it is a side question to.
+            _nativeClaudeOptions = options;
 
             return new ClaudeStreamJsonSession(options);
         }
@@ -808,6 +847,122 @@ namespace ClaudeCodeVS
                 AddNativeMessage(ChatMessageKind.Error, $"The prompt could not be delivered: {ex.Message}");
                 ChatTranscript.SetStatus(string.Empty);
                 ChatTranscript.SetBusy(false);
+            }
+        }
+
+        /// <summary>Longest a side question is given before its process is killed.</summary>
+        private const int SideQuestionTimeoutMs = 180000;
+
+        /// <summary>
+        /// Answers a <c>/btw</c> side question out of band. A second, short-lived CLI is launched with
+        /// <c>--resume &lt;id&gt; --fork-session</c>: it reads the whole conversation for context but
+        /// writes to a forked session id, so the live session's transcript is untouched and the turn in
+        /// flight — if there is one — carries on unaware. That is what the command means in the TUI, and
+        /// what the headless CLI refuses to do itself ("/btw isn't available in this environment").
+        /// <para>
+        /// Plain <c>--print</c>, so the answer is just text on stdout. None of the turn bookkeeping runs:
+        /// no busy state, no activity clock, no "On Agent Finish" — a side question is not a turn.
+        /// </para>
+        /// </summary>
+        private async Task AskSideQuestionAsync(string question)
+        {
+            ClaudeSessionOptions options = _nativeClaudeOptions;
+            IAgentSession session = _agentSession;
+
+            if (options == null || session == null || string.IsNullOrWhiteSpace(question))
+            {
+                return;
+            }
+
+            string workspace = await GetWorkspaceDirectoryAsync();
+
+            var hostOptions = new JsonLineProcessOptions
+            {
+                FileName = ClaudeCommandBuilder.GetFileName(options),
+                Arguments = ClaudeCommandBuilder.GetSideQuestionArguments(options, session.ResumableSessionId),
+                WorkingDirectory = workspace
+            };
+
+            foreach (KeyValuePair<string, string> pair in options.EnvironmentOverrides)
+            {
+                hostOptions.EnvironmentOverrides[pair.Key] = pair.Value;
+            }
+
+            var answer = new StringBuilder();
+            var stderr = new StringBuilder();
+            var exited = new TaskCompletionSource<int>(TaskCreationOptions.RunContinuationsAsynchronously);
+
+            var host = new JsonLineProcessHost(hostOptions);
+
+            EventHandler<string> onLine = delegate (object s, string line) { lock (answer) { answer.AppendLine(line); } };
+            EventHandler<string> onError = delegate (object s, string line) { lock (stderr) { stderr.AppendLine(line); } };
+            EventHandler<int> onExited = delegate (object s, int code) { exited.TrySetResult(code); };
+
+            host.LineReceived += onLine;
+            host.ErrorLineReceived += onError;
+            host.Exited += onExited;
+
+            try
+            {
+                await host.StartAsync(CancellationToken.None);
+
+                // Over stdin, like the one-shot adapters: nothing to escape onto a command line and no
+                // length limit. EOF is what tells the CLI the prompt is complete.
+                await host.WriteLineAsync(question, CancellationToken.None);
+                host.CloseInput();
+
+                Task completed = await Task.WhenAny(exited.Task, Task.Delay(SideQuestionTimeoutMs));
+                if (completed != exited.Task)
+                {
+                    await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
+                    AddNativeMessage(ChatMessageKind.Error, "The side question timed out.");
+                    return;
+                }
+
+                await host.WaitForOutputDrainAsync(2000);
+
+                string text;
+                lock (answer) { text = answer.ToString().Trim(); }
+
+                await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
+
+                if (text.Length > 0)
+                {
+                    AddNativeMessage(ChatMessageKind.Assistant, text);
+                }
+                else
+                {
+                    string detail;
+                    lock (stderr) { detail = stderr.ToString().Trim(); }
+
+                    AddNativeMessage(ChatMessageKind.Error, string.IsNullOrEmpty(detail)
+                        ? "The side question returned nothing."
+                        : "The side question failed: " + detail);
+                }
+
+                ChatTranscript.ScrollToEndIfFollowing();
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"Side question failed: {ex}");
+
+                await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
+                AddNativeMessage(ChatMessageKind.Error, "The side question failed: " + ex.Message);
+            }
+            finally
+            {
+                host.LineReceived -= onLine;
+                host.ErrorLineReceived -= onError;
+                host.Exited -= onExited;
+
+                try
+                {
+                    host.Dispose();
+                }
+                catch (Exception ex)
+                {
+                    Debug.WriteLine($"Side question: host dispose failed: {ex.Message}");
+                }
             }
         }
 

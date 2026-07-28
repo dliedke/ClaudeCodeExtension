@@ -43,8 +43,9 @@ namespace ClaudeCodeVS.UI
         private ChatMessageViewModel _trackedMessage;
         private bool _autoScroll = true;
         private bool _suppressEffortEvent;
-        private bool _effortSliderDragging;
-        private int _pendingEffortIndex;
+        private int _effortIndexOnOpen;
+        private int _effortIndex;
+        private string[] _effortStopLabels;
 
         private System.Windows.Threading.DispatcherTimer _activityTimer;
         private DateTime _activityStartedUtc;
@@ -90,7 +91,12 @@ namespace ClaudeCodeVS.UI
         /// </summary>
         public event EventHandler<ChatSelector> SelectorClicked;
 
-        /// <summary>Raised when the effort slider settles on a new stop. The argument is the stop index.</summary>
+        /// <summary>
+        /// Raised once the user is done with the effort slider — when the popup closes — carrying the
+        /// stop it was left on. Deliberately not raised per stop: applying a level restarts the agent,
+        /// so reporting each stop the user passes through would restart it once per stop and lock the
+        /// chat up while they are still choosing.
+        /// </summary>
         public event EventHandler<int> EffortChanged;
 
         /// <summary>Raised by the ✚ button: start a fresh conversation.</summary>
@@ -160,6 +166,31 @@ namespace ClaudeCodeVS.UI
             ComposerModelButton.Content = (model ?? "Model") + " ▾";
             ComposerEffortButton.Content = (effort ?? "Effort") + " ▾";
             ComposerPermissionButton.Content = (permission ?? "Permissions") + " ▾";
+        }
+
+        /// <summary>
+        /// The composer button a selector's menu should hang off, or null when there is nothing to hang
+        /// it on — the composer is hidden (the transcript is back in the panel) or that particular
+        /// selector does not apply to the running agent. Used by the typed slash commands, which open
+        /// the same menus the buttons do; the caller falls back to its own anchor on null.
+        /// </summary>
+        public UIElement GetSelectorAnchor(ChatSelector selector)
+        {
+            if (ComposerBar.Visibility != Visibility.Visible)
+            {
+                return null;
+            }
+
+            Button button;
+            switch (selector)
+            {
+                case ChatSelector.Provider: button = ComposerProviderButton; break;
+                case ChatSelector.Model: button = ComposerModelButton; break;
+                case ChatSelector.Effort: button = ComposerEffortButton; break;
+                default: button = ComposerPermissionButton; break;
+            }
+
+            return button != null && button.Visibility == Visibility.Visible ? button : null;
         }
 
         /// <summary>Enables or hides the selectors that do not apply to the running agent.</summary>
@@ -472,13 +503,32 @@ namespace ClaudeCodeVS.UI
                 _suppressEffortEvent = false;
             }
 
+            _effortIndex = index;
+
+            // A level applied from elsewhere (panel slider, settings) becomes the baseline the next
+            // popup session is compared against — but not while the user is inside the popup, where
+            // the baseline is what they opened it on.
+            if (!EffortPopup.IsOpen)
+            {
+                _effortIndexOnOpen = index;
+            }
+
             EffortPopupLabel.Text = string.IsNullOrEmpty(label) ? "Effort" : "Effort (" + label + ")";
         }
 
         /// <summary>
-        /// Commits the new stop immediately for a click or a keyboard change, but holds the ones passed
-        /// through while dragging until the thumb is released — mirroring the panel's slider. Each stop
-        /// restarts the agent, so reporting the ones dragged over would restart it several times over.
+        /// Captions of the slider stops, in slider order, so the popup can name the level under the
+        /// thumb while the user is still moving it — the parent's caption only arrives once the level
+        /// has actually been applied.
+        /// </summary>
+        public void SetEffortStopLabels(string[] labels)
+        {
+            _effortStopLabels = labels;
+        }
+
+        /// <summary>
+        /// Tracks the stop and captions it, without reporting anything: the choice is reported when the
+        /// popup closes, so passing through stops with the mouse or the arrow keys costs nothing.
         /// </summary>
         private void EffortPopupSlider_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
         {
@@ -487,27 +537,32 @@ namespace ClaudeCodeVS.UI
                 return;
             }
 
-            int index = (int)Math.Round(e.NewValue);
+            _effortIndex = (int)Math.Round(e.NewValue);
 
-            if (_effortSliderDragging)
+            if (_effortStopLabels != null && _effortIndex >= 0 && _effortIndex < _effortStopLabels.Length)
             {
-                _pendingEffortIndex = index;
+                EffortPopupLabel.Text = "Effort (" + _effortStopLabels[_effortIndex] + ")";
+            }
+        }
+
+        /// <summary>
+        /// The popup is the whole interaction: it opens on the level in force, and only what the user
+        /// leaves it on is reported.
+        /// </summary>
+        private void EffortPopup_Opened(object sender, EventArgs e)
+        {
+            _effortIndexOnOpen = _effortIndex;
+        }
+
+        private void EffortPopup_Closed(object sender, EventArgs e)
+        {
+            if (_effortIndex == _effortIndexOnOpen)
+            {
                 return;
             }
 
-            EffortChanged?.Invoke(this, index);
-        }
-
-        private void EffortPopupSlider_DragStarted(object sender, DragStartedEventArgs e)
-        {
-            _effortSliderDragging = true;
-            _pendingEffortIndex = (int)Math.Round(EffortPopupSlider.Value);
-        }
-
-        private void EffortPopupSlider_DragCompleted(object sender, DragCompletedEventArgs e)
-        {
-            _effortSliderDragging = false;
-            EffortChanged?.Invoke(this, _pendingEffortIndex);
+            _effortIndexOnOpen = _effortIndex;
+            EffortChanged?.Invoke(this, _effortIndex);
         }
 
         private void ComposerNewChatButton_Click(object sender, RoutedEventArgs e)

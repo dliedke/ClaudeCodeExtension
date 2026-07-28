@@ -162,10 +162,10 @@ namespace ClaudeCodeVS
                     return;
                 }
 
-                // Nothing to send to if no agent terminal is running.
-                if (terminalHandle == IntPtr.Zero || !IsWindow(terminalHandle))
+                // Nothing to send to if no agent is running — in either mode.
+                if (!IsAgentAvailable)
                 {
-                    Debug.WriteLine("Auto-send build errors: no running agent terminal; skipping.");
+                    Debug.WriteLine("Auto-send build errors: no running agent; skipping.");
                     return;
                 }
 
@@ -229,10 +229,10 @@ namespace ClaudeCodeVS
                     return;
                 }
 
-                if (terminalHandle == IntPtr.Zero || !IsWindow(terminalHandle))
+                if (!IsAgentAvailable)
                 {
                     MessageBox.Show(
-                        "No agent terminal is running. Start an agent session before sending build errors.",
+                        "No agent is running. Start an agent session before sending build errors.",
                         "Send Build Errors to Agent",
                         MessageBoxButton.OK,
                         MessageBoxImage.Warning);

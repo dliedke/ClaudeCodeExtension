@@ -87,6 +87,16 @@ namespace ClaudeCodeVS
                     return;
                 }
 
+                // Native mode's typed selector commands (/plan, /model, /effort) drive the extension's
+                // own pickers and are never sent on. Handled here, before the prompt is assembled, so
+                // both input boxes get them — the chat composer routes its text through this same path.
+                // Attachments mean the user meant to send something, so the command is left alone.
+                if (IsNativeModeActive && !hasFiles && TryHandleNativeSelectorCommand(prompt))
+                {
+                    PromptTextBox.Clear();
+                    return;
+                }
+
                 _isSendingPrompt = true;
                 if (SendPromptButton != null) SendPromptButton.IsEnabled = false;
 

@@ -211,9 +211,23 @@ namespace ClaudeCodeVS.Agents
                     Debug.WriteLine($"{_options.DisplayName}: failed to handle line: {ex}");
                 }
             };
+            // Kept so a failed turn can quote the CLI instead of only its exit code: these CLIs explain
+            // themselves on stderr ("input is not valid UTF-8", an expired login, an unknown flag) and
+            // Debug.WriteLine is compiled out of Release, which left the user with a bare exit code.
+            var stderrTail = new Queue<string>();
+
             EventHandler<string> onError = delegate (object sender, string line)
             {
                 Debug.WriteLine($"{_options.DisplayName} stderr: {line}");
+
+                lock (stderrTail)
+                {
+                    stderrTail.Enqueue(line);
+                    if (stderrTail.Count > StderrTailLines)
+                    {
+                        stderrTail.Dequeue();
+                    }
+                }
             };
             EventHandler<int> onExited = delegate (object sender, int code) { exited.TrySetResult(code); };
 
@@ -248,7 +262,8 @@ namespace ClaudeCodeVS.Agents
                 if (exitCode != 0 && !sink.TurnEnded && !_interrupted)
                 {
                     Raise(AgentEvent.SessionError(
-                        $"{_options.DisplayName} exited with code {exitCode} without finishing the turn."));
+                        $"{_options.DisplayName} exited with code {exitCode} without finishing the turn."
+                        + DescribeStderr(stderrTail)));
                 }
 
                 Raise(AgentEvent.TurnCompleted(sink.Usage, null, _interrupted));
@@ -308,6 +323,53 @@ namespace ClaudeCodeVS.Agents
             }
 
             return Task.FromResult(0);
+        }
+
+        /// <summary>How many trailing stderr lines a failure message may quote.</summary>
+        private const int StderrTailLines = 5;
+
+        /// <summary>Longest stderr excerpt to append, so a chatty CLI cannot fill the transcript.</summary>
+        private const int StderrExcerptLength = 600;
+
+        /// <summary>
+        /// Formats the tail of stderr for a failure message, or an empty string when the CLI said
+        /// nothing. Noise about the shell itself is dropped: WSL's non-interactive bash always reports
+        /// that it cannot set the terminal process group, which is expected and explains nothing.
+        /// </summary>
+        private static string DescribeStderr(Queue<string> stderrTail)
+        {
+            string[] lines;
+            lock (stderrTail)
+            {
+                lines = stderrTail.ToArray();
+            }
+
+            var kept = new List<string>();
+            foreach (string line in lines)
+            {
+                string trimmed = (line ?? string.Empty).Trim();
+                if (trimmed.Length == 0 ||
+                    trimmed.StartsWith("bash: cannot set terminal process group", StringComparison.OrdinalIgnoreCase) ||
+                    trimmed.StartsWith("bash: no job control in this shell", StringComparison.OrdinalIgnoreCase))
+                {
+                    continue;
+                }
+
+                kept.Add(trimmed);
+            }
+
+            if (kept.Count == 0)
+            {
+                return string.Empty;
+            }
+
+            string excerpt = string.Join(" ", kept);
+            if (excerpt.Length > StderrExcerptLength)
+            {
+                excerpt = excerpt.Substring(excerpt.Length - StderrExcerptLength);
+            }
+
+            return " " + excerpt;
         }
 
         private void Raise(AgentEvent agentEvent)

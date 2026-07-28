@@ -136,6 +136,19 @@ https://github.com/anthropics/claude-code/issues/41501
 
 ## Version History
 
+### Version 89.0
+- Native mode still in alpha phase. It will be improved and stabilized in next releases. Please do not use for real work yet.
+- Accented and non-English characters in a chat prompt now reach the agent intact. Codex in particular rejected them and ended the turn with "exited with code 1"; every agent was affected.
+- When an agent does fail to finish a turn, the chat now shows what it reported instead of only its exit code.
+- In a Claude Code chat, typing /plan turns on plan mode, and /model or /effort opens the matching picker — without leaving the prompt box.
+- /btw now works in the chat: it asks a quick side question with the full conversation as context, answered without touching the work in progress.
+- Resuming a session from Session History now shows the earlier conversation in the chat instead of opening it blank.
+- The agent list in the ⚙ menu is hidden in native mode, where the chat's own Agent selector switches agents.
+- Toolbar controls that only work through the terminal — Update Code Agent and the model menu — are now hidden in native mode, where the chat's own selectors replace them.
+- Send Build Errors to Agent, and the auto-send of build and runtime errors, now work in native mode instead of reporting that no agent is running.
+- The chat effort slider now applies the level only when you close it, so picking a level no longer restarts the agent once per level you pass through and no longer freezes the chat.
+- The effort popup names the level under the slider while you move it, before it is applied.
+
 ### Version 88.0
 - Native mode still in alpha phase. It will be improved and stabilized in next releases. Please do not use for real work yet.
 - Changing the model, effort level, permission mode or plan mode twice in a row in the chat no longer reports "The agent process exited unexpectedly" and no longer ends the conversation.
