@@ -116,6 +116,9 @@ https://github.com/anthropics/claude-code/issues/41501
 
 ## Version History
 
+### Version 86.0
+- Native mode still in alpha phase. It will be improved and stabilized in next releases. Please do not use for real work yet.
+
 ### Version 85.0
 - The chat tab now answers Claude Code's multiple-choice questions with clickable option cards, and each question also takes a free-text answer of your own.
 - Plan mode is available in the chat tab's permission selector: the agent proposes a plan first, and you approve or send it back for changes from the transcript.
