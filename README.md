@@ -136,6 +136,13 @@ https://github.com/anthropics/claude-code/issues/41501
 
 ## Version History
 
+### Version 88.0
+- Native mode still in alpha phase. It will be improved and stabilized in next releases. Please do not use for real work yet.
+- Changing the model, effort level, permission mode or plan mode twice in a row in the chat no longer reports "The agent process exited unexpectedly" and no longer ends the conversation.
+- The chosen effort level now survives a model, permission or plan mode change instead of quietly falling back to the default.
+- Dragging the chat effort slider applies only the level it is released on, instead of every level it passes over.
+- A new chat now opens with a welcome card showing the agent and its version, the model, effort and permission mode in use, the folder it is working in, and a few tips. It disappears with your first message.
+
 ### Version 87.0
 - Native mode still in alpha phase. It will be improved and stabilized in next releases. Please do not use for real work yet.
 - Chat answers are now formatted: headings, lists, tables, emphasis and code blocks instead of a single block of plain text.

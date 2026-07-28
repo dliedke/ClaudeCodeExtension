@@ -11,12 +11,14 @@
  * *******************************************************************************************************************/
 
 using System;
+using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Collections.Specialized;
 using System.ComponentModel;
 using System.Globalization;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Controls.Primitives;
 using System.Windows.Data;
 
 namespace ClaudeCodeVS.UI
@@ -41,6 +43,8 @@ namespace ClaudeCodeVS.UI
         private ChatMessageViewModel _trackedMessage;
         private bool _autoScroll = true;
         private bool _suppressEffortEvent;
+        private bool _effortSliderDragging;
+        private int _pendingEffortIndex;
 
         private System.Windows.Threading.DispatcherTimer _activityTimer;
         private DateTime _activityStartedUtc;
@@ -356,7 +360,65 @@ namespace ClaudeCodeVS.UI
             _autoScroll = true;
             ScrollToEndButton.Visibility = Visibility.Collapsed;
             StopButton.Visibility = Visibility.Collapsed;
+
+            // The card belongs to a conversation, not to the view: whoever clears the transcript is
+            // about to decide whether a new one is starting, and calls ShowWelcome if it is.
+            HideWelcome();
         }
+
+        #region Welcome card
+
+        /// <summary>
+        /// Fills and shows the card a fresh conversation opens on: what agent is running, against which
+        /// folder, and what the chat can do. Calling it again replaces the content, which is how the
+        /// caller fills in details that only arrive later (the CLI version, for one).
+        /// </summary>
+        /// <param name="title">Caption on the frame, e.g. <c>Claude Code v2.1.220</c>.</param>
+        /// <param name="facts">Lines under the mascot: model, effort, permissions, workspace.</param>
+        /// <param name="tips">Right-hand column, one line each.</param>
+        public void ShowWelcome(string title, IEnumerable<string> facts, IEnumerable<string> tips)
+        {
+            WelcomeTitle.Text = string.IsNullOrWhiteSpace(title) ? "Chat" : title;
+            WelcomeFacts.ItemsSource = ToLines(facts);
+            WelcomeTips.ItemsSource = ToLines(tips);
+            WelcomeBanner.Visibility = Visibility.Visible;
+        }
+
+        /// <summary>Drops the welcome card. Idempotent.</summary>
+        public void HideWelcome()
+        {
+            WelcomeBanner.Visibility = Visibility.Collapsed;
+        }
+
+        /// <summary>
+        /// True while the card is on screen. Callers that fill it in stages check this before redrawing,
+        /// so a late detail cannot bring back a card the first prompt already dismissed.
+        /// </summary>
+        public bool IsWelcomeVisible
+        {
+            get { return WelcomeBanner.Visibility == Visibility.Visible; }
+        }
+
+        /// <summary>Copies the caller's sequence, skipping blanks, so the card never shows empty rows.</summary>
+        private static List<string> ToLines(IEnumerable<string> source)
+        {
+            var lines = new List<string>();
+
+            if (source != null)
+            {
+                foreach (string line in source)
+                {
+                    if (!string.IsNullOrWhiteSpace(line))
+                    {
+                        lines.Add(line);
+                    }
+                }
+            }
+
+            return lines;
+        }
+
+        #endregion
 
         private void StopButton_Click(object sender, RoutedEventArgs e)
         {
@@ -413,6 +475,11 @@ namespace ClaudeCodeVS.UI
             EffortPopupLabel.Text = string.IsNullOrEmpty(label) ? "Effort" : "Effort (" + label + ")";
         }
 
+        /// <summary>
+        /// Commits the new stop immediately for a click or a keyboard change, but holds the ones passed
+        /// through while dragging until the thumb is released — mirroring the panel's slider. Each stop
+        /// restarts the agent, so reporting the ones dragged over would restart it several times over.
+        /// </summary>
         private void EffortPopupSlider_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
         {
             if (_suppressEffortEvent)
@@ -420,7 +487,27 @@ namespace ClaudeCodeVS.UI
                 return;
             }
 
-            EffortChanged?.Invoke(this, (int)Math.Round(e.NewValue));
+            int index = (int)Math.Round(e.NewValue);
+
+            if (_effortSliderDragging)
+            {
+                _pendingEffortIndex = index;
+                return;
+            }
+
+            EffortChanged?.Invoke(this, index);
+        }
+
+        private void EffortPopupSlider_DragStarted(object sender, DragStartedEventArgs e)
+        {
+            _effortSliderDragging = true;
+            _pendingEffortIndex = (int)Math.Round(EffortPopupSlider.Value);
+        }
+
+        private void EffortPopupSlider_DragCompleted(object sender, DragCompletedEventArgs e)
+        {
+            _effortSliderDragging = false;
+            EffortChanged?.Invoke(this, _pendingEffortIndex);
         }
 
         private void ComposerNewChatButton_Click(object sender, RoutedEventArgs e)
@@ -789,6 +876,19 @@ namespace ClaudeCodeVS.UI
                 if (_trackedMessage != null)
                 {
                     _trackedMessage.PropertyChanged += OnTrackedMessageChanged;
+                }
+
+                // The card survives the notices a session start puts in the transcript ("New chat",
+                // "Switched to Sonnet") and only goes away once the user actually says something —
+                // otherwise the thing announcing the new conversation would erase itself.
+                foreach (object item in e.NewItems)
+                {
+                    var message = item as ChatMessageViewModel;
+                    if (message != null && message.IsUser)
+                    {
+                        HideWelcome();
+                        break;
+                    }
                 }
             }
             else if (e.Action == NotifyCollectionChangedAction.Reset)

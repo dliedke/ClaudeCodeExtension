@@ -11,9 +11,12 @@
  * *******************************************************************************************************************/
 
 using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
+using System.Text;
+using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
@@ -450,6 +453,349 @@ namespace ClaudeCodeVS
             ApplyChatAppearance();
             UpdateComposerAttachmentChips();
         }
+
+        #endregion
+
+        #region Welcome Card
+
+        /// <summary>
+        /// CLI versions already measured, keyed by provider. Static so the probe runs once per Visual
+        /// Studio session rather than once per new chat; an empty value records "asked and got nothing",
+        /// which stops a missing or slow CLI from being probed again on every conversation.
+        /// </summary>
+        private static readonly ConcurrentDictionary<AiProvider, string> _cliVersions =
+            new ConcurrentDictionary<AiProvider, string>();
+
+        /// <summary>
+        /// How long a version probe is given before it is killed. It is decoration on a card that is
+        /// already on screen, so it may never hold anything up.
+        /// </summary>
+        private const int CliVersionTimeoutMs = 5000;
+
+        /// <summary>
+        /// Shows the card that opens a fresh conversation: which agent is running, with which model,
+        /// effort and permissions, against which folder, and what the chat can do. It stands in for the
+        /// banner the CLI prints on startup, which native mode never sees — the agent is running
+        /// headless and its greeting is not part of the event stream.
+        /// </summary>
+        /// <param name="workspace">
+        /// Folder the agent was started in. Callers that have just resolved it pass it; the last known
+        /// one is used otherwise.
+        /// </param>
+        private void ShowChatWelcome(string workspace)
+        {
+            ThreadHelper.ThrowIfNotOnUIThread();
+
+            if (ChatTranscript == null)
+            {
+                return;
+            }
+
+            AiProvider? provider = GetActiveOrSelectedProvider();
+            string directory = string.IsNullOrWhiteSpace(workspace) ? _lastWorkspaceDirectory : workspace;
+
+            ChatTranscript.ShowWelcome(
+                BuildWelcomeTitle(provider),
+                BuildWelcomeFacts(provider, directory),
+                BuildWelcomeTips());
+
+            if (provider.HasValue)
+            {
+                BeginCliVersionLookup(provider.Value, directory);
+            }
+        }
+
+        /// <summary>Caption on the card's frame: the agent, and its CLI version once that is known.</summary>
+        private string BuildWelcomeTitle(AiProvider? provider)
+        {
+            string name = GetChatProviderDisplayName(provider);
+
+            string version;
+            if (provider.HasValue &&
+                _cliVersions.TryGetValue(provider.Value, out version) &&
+                !string.IsNullOrEmpty(version))
+            {
+                return name + " v" + version;
+            }
+
+            return name;
+        }
+
+        /// <summary>
+        /// The lines under the mascot. Only what the extension actually controls is claimed: model and
+        /// effort are omitted for the agents that pick those inside their own UI, exactly as the
+        /// composer hides those selectors for them.
+        /// </summary>
+        private List<string> BuildWelcomeFacts(AiProvider? provider, string workspace)
+        {
+            var facts = new List<string>();
+
+            bool isClaude = IsClaudeProvider(provider);
+            bool isDevin = provider == AiProvider.Devin || provider == AiProvider.DevinNative;
+
+            if (isClaude)
+            {
+                facts.Add(GetChatModelLabel(provider) + " with " + GetChatEffortLabel().ToLowerInvariant() + " effort");
+            }
+            else if (isDevin)
+            {
+                facts.Add(GetChatModelLabel(provider));
+            }
+
+            string permission = GetChatPermissionLabel(provider);
+            if (!string.IsNullOrEmpty(permission))
+            {
+                facts.Add(permission);
+            }
+
+            if (!string.IsNullOrWhiteSpace(workspace))
+            {
+                facts.Add(workspace);
+            }
+
+            return facts;
+        }
+
+        /// <summary>
+        /// The right-hand column. Deliberately only things the chat tab can actually do — a tip that
+        /// does not work is worse than no tip, and the composer has no "@" picker or slash commands.
+        /// </summary>
+        private static List<string> BuildWelcomeTips()
+        {
+            return new List<string>
+            {
+                "Press ↑ in the prompt box to bring back earlier prompts.",
+                "Ctrl+V pastes an image from the clipboard; 📎 attaches files.",
+                "Ctrl+Scroll zooms the conversation, and the top edge of the prompt box can be dragged.",
+                "The buttons below switch agent, model, effort and permissions mid-conversation.",
+                "✚ starts a new chat."
+            };
+        }
+
+        /// <summary>
+        /// Asks the CLI for its version in the background and re-renders the card when it answers. Not
+        /// awaited by anything: the card is complete without it, and a CLI that is slow to start must
+        /// not delay the conversation.
+        /// </summary>
+        private void BeginCliVersionLookup(AiProvider provider, string workspace)
+        {
+            if (_cliVersions.ContainsKey(provider))
+            {
+                // Already measured — BuildWelcomeTitle has it, or it is known to be unavailable.
+                return;
+            }
+
+            string fileName;
+            string arguments;
+            string pathOverride;
+
+            if (!TryBuildVersionCommand(provider, out fileName, out arguments, out pathOverride))
+            {
+                _cliVersions[provider] = string.Empty;
+                return;
+            }
+
+#pragma warning disable VSSDK007, VSTHRD110 // Fire and forget: FileAndForget is the handler
+            ThreadHelper.JoinableTaskFactory.RunAsync(async delegate
+            {
+                string version = await Task.Run(() => ReadCliVersion(fileName, arguments, pathOverride))
+                    .ConfigureAwait(false);
+
+                _cliVersions[provider] = version ?? string.Empty;
+
+                if (string.IsNullOrEmpty(version))
+                {
+                    return;
+                }
+
+                await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
+
+                // Only worth redrawing while the card this probe belongs to is still the one on screen:
+                // the user may already have sent a prompt, or switched to another agent.
+                if (ChatTranscript != null &&
+                    ChatTranscript.IsWelcomeVisible &&
+                    GetActiveOrSelectedProvider() == provider)
+                {
+                    ShowChatWelcome(workspace);
+                }
+            }).FileAndForget("claudecode/nativemode/cliversion");
+#pragma warning restore VSSDK007, VSTHRD110
+        }
+
+        /// <summary>
+        /// Builds the "--version" command for a provider, resolving the executable exactly the way the
+        /// session launch does so the version reported is the one that is actually running.
+        /// </summary>
+        private bool TryBuildVersionCommand(AiProvider provider, out string fileName, out string arguments,
+            out string pathOverride)
+        {
+            fileName = string.Empty;
+            arguments = string.Empty;
+            pathOverride = GetFreshPathFromRegistry();
+
+            bool isWsl = provider == AiProvider.ClaudeCodeWSL
+                || provider == AiProvider.Codex
+                || provider == AiProvider.CursorAgent
+                || provider == AiProvider.Devin;
+
+            string executable;
+
+            switch (provider)
+            {
+                case AiProvider.ClaudeCode:
+                    executable = ResolveNativeClaudeExecutable();
+                    break;
+
+                case AiProvider.ClaudeCodeWSL:
+                    executable = "claude";
+                    break;
+
+                case AiProvider.Codex:
+                case AiProvider.CodexNative:
+                    executable = ResolveNativeProviderExecutable(provider, "codex");
+                    break;
+
+                case AiProvider.CursorAgent:
+                case AiProvider.CursorAgentNative:
+                    executable = ResolveNativeCursorExecutable(provider, isWsl, pathOverride);
+                    break;
+
+                case AiProvider.OpenCode:
+                case AiProvider.Devin:
+                case AiProvider.DevinNative:
+                case AiProvider.Reasonix:
+                    executable = ResolveNativeProviderExecutable(provider, GetAcpDefaultCommand(provider));
+                    break;
+
+                case AiProvider.Pi:
+                    executable = ResolveNativeProviderExecutable(provider, "pi");
+                    break;
+
+                case AiProvider.Antigravity:
+                    executable = ResolveNativeProviderExecutable(provider, "agy");
+                    break;
+
+                default:
+                    return false;
+            }
+
+            if (string.IsNullOrWhiteSpace(executable))
+            {
+                return false;
+            }
+
+            if (isWsl)
+            {
+                // A login shell for the same reason the session launch uses one: the CLI is usually
+                // installed by a version manager that only puts it on PATH from the profile scripts.
+                fileName = "wsl.exe";
+                arguments = "bash -lic \"" + executable + " --version\"";
+                pathOverride = string.Empty;
+                return true;
+            }
+
+            fileName = ResolveExecutableOnPath(executable, pathOverride);
+            arguments = "--version";
+
+            return !string.IsNullOrWhiteSpace(fileName);
+        }
+
+        /// <summary>
+        /// Runs the probe and pulls a version number out of whatever it prints. Reads both pipes
+        /// asynchronously: a CLI that fills one of them while nobody drains it blocks forever, and this
+        /// runs on a pool thread that would then never come back.
+        /// </summary>
+        private static string ReadCliVersion(string fileName, string arguments, string pathOverride)
+        {
+            try
+            {
+                var startInfo = new ProcessStartInfo
+                {
+                    FileName = fileName,
+                    Arguments = arguments,
+                    RedirectStandardOutput = true,
+                    RedirectStandardError = true,
+                    UseShellExecute = false,
+                    CreateNoWindow = true
+                };
+
+                if (!string.IsNullOrWhiteSpace(pathOverride))
+                {
+                    startInfo.EnvironmentVariables["PATH"] = pathOverride;
+                }
+
+                var output = new StringBuilder();
+
+                using (var process = new Process { StartInfo = startInfo })
+                {
+                    DataReceivedEventHandler collect = delegate (object sender, DataReceivedEventArgs e)
+                    {
+                        if (e.Data == null) return;
+
+                        lock (output)
+                        {
+                            output.AppendLine(e.Data);
+                        }
+                    };
+
+                    process.OutputDataReceived += collect;
+                    process.ErrorDataReceived += collect;
+
+                    if (!process.Start())
+                    {
+                        return string.Empty;
+                    }
+
+                    process.BeginOutputReadLine();
+                    process.BeginErrorReadLine();
+
+                    if (!process.WaitForExit(CliVersionTimeoutMs))
+                    {
+                        try
+                        {
+                            ProcessTree.Kill(process.Id);
+                        }
+                        catch (Exception ex)
+                        {
+                            Debug.WriteLine($"Version probe could not be stopped: {ex.Message}");
+                        }
+
+                        return string.Empty;
+                    }
+
+                    lock (output)
+                    {
+                        return ExtractVersion(output.ToString());
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"Version probe for '{fileName}' failed: {ex.Message}");
+                return string.Empty;
+            }
+        }
+
+        /// <summary>
+        /// First version-shaped token in the output. The CLIs disagree on the format — bare
+        /// "2.1.220", "codex-cli 0.5.0", "cursor-agent version 1.2.3" — so the number is picked out
+        /// rather than the line being trusted whole.
+        /// </summary>
+        private static string ExtractVersion(string output)
+        {
+            if (string.IsNullOrWhiteSpace(output))
+            {
+                return string.Empty;
+            }
+
+            Match match = Regex.Match(output, @"\d+\.\d+(\.\d+)*([-+][0-9A-Za-z.\-]+)?");
+
+            return match.Success ? match.Value : string.Empty;
+        }
+
+        #endregion
+
+        #region Composer Selectors
 
         /// <summary>
         /// Provider name for the composer's agent selector, qualified by platform. The compact name is
@@ -923,8 +1269,14 @@ namespace ClaudeCodeVS
         }
 
         /// <summary>
-        /// Effort has no headless launch flag, so it is switched the same way the terminal does it:
-        /// with the CLI's own <c>/effort</c> command, delivered over the structured channel.
+        /// Switches the effort level. Like the model, it is a launch flag (<c>--effort</c>), so the
+        /// session is relaunched and resumed rather than being sent the <c>/effort</c> command.
+        /// <para>
+        /// The command was the original approach and had two defects: it only holds "for this session
+        /// only", so the level was silently lost on every other relaunch while the composer still showed
+        /// it, and writing to a live session while the CLI was shutting down after an interrupt made the
+        /// expected exit look like a crash.
+        /// </para>
         /// </summary>
 #pragma warning disable VSTHRD100 // Async void is required by the UI event signature
         private async void OnChatEffortSelected(EffortLevel level)
@@ -949,14 +1301,7 @@ namespace ClaudeCodeVS
                 SaveSettings();
                 UpdateChatComposerState();
 
-                AddNativeMessage(ChatMessageKind.Notice, $"🤖 Effort switched to {GetChatEffortLabel()}");
-
-                IAgentSession session = _agentSession;
-                if (session != null)
-                {
-                    await session.SendAsync($"/effort {level.ToString().ToLower()}",
-                        _nativeSessionCts != null ? _nativeSessionCts.Token : CancellationToken.None);
-                }
+                await RelaunchNativeSessionAsync($"🤖 Effort switched to {GetChatEffortLabel()}");
             }
             catch (Exception ex)
             {
@@ -1072,8 +1417,12 @@ namespace ClaudeCodeVS
             try
             {
                 AiProvider provider = _currentRunningProvider ?? _settings.SelectedProvider;
-                string resumeId = previous.SessionId;
-                bool canResume = !forceNewSession && IsClaudeProvider(provider) && !string.IsNullOrEmpty(resumeId);
+                // Not SessionId: after a relaunch that never ran a turn, that is still the throwaway
+                // id the adapter *asked* for and the CLI never created a transcript for. Resuming it
+                // fails the launch, which is what made two consecutive dropdown changes kill the agent.
+                string resumeId = previous.ResumableSessionId;
+                bool providerCanResume = IsClaudeProvider(provider);
+                bool canResume = !forceNewSession && providerCanResume && !string.IsNullOrEmpty(resumeId);
 
                 string workspace = await GetWorkspaceDirectoryAsync();
 
@@ -1116,12 +1465,21 @@ namespace ClaudeCodeVS
                 _currentRunningProvider = provider;
                 ChatTranscript.SetStatus("Ready.");
 
-                AddNativeMessage(ChatMessageKind.Notice, canResume || forceNewSession
+                // No caveat when the provider can resume but there is simply nothing to resume yet
+                // (no turn has run), because in that case no history is being lost.
+                AddNativeMessage(ChatMessageKind.Notice, canResume || forceNewSession || providerCanResume
                     ? notice
                     : notice + " — this agent cannot resume, so the conversation starts over.");
 
                 UpdateChatComposerState();
                 UpdateChatTabCaption();
+
+                // Only for "New chat". A model or permission switch keeps the conversation, and opening
+                // a fresh-start card in the middle of one would read as if it had been thrown away.
+                if (forceNewSession)
+                {
+                    ShowChatWelcome(workspace);
+                }
             }
             catch (Exception ex)
             {

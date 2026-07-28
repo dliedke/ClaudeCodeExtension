@@ -206,6 +206,10 @@ namespace ClaudeCodeVS
                 _currentRunningProvider = provider;
                 ChatTranscript.SetStatus("Ready.");
 
+                // An empty transcript says nothing about what is running: the CLI's own startup banner
+                // never reaches native mode, so the chat prints its own.
+                ShowChatWelcome(workspace);
+
                 // Native mode always lives in its own document tab: the conversation gets the full
                 // editor width and its own composer, instead of the narrow panel strip.
                 await ShowNativeChatTabAsync(focusComposer: false);
@@ -292,6 +296,7 @@ namespace ClaudeCodeVS
                 WslWorkingDirectory = isWsl ? ConvertToWslPath(workspace) : string.Empty,
                 SessionId = Guid.NewGuid().ToString(),
                 Model = GetNativeModelArgument(),
+                Effort = GetNativeEffortArgument(),
 
                 // Plan mode is the CLI asking before it acts, so it cannot coexist with skipping
                 // every prompt; plan wins when both are somehow set.
@@ -598,6 +603,21 @@ namespace ClaudeCodeVS
                 case ClaudeModel.Haiku: return "haiku";
                 default: return string.Empty;
             }
+        }
+
+        /// <summary>
+        /// Maps the selected effort to the CLI's <c>--effort</c> value. Every level the slider offers is
+        /// accepted, including the undocumented "ultracode"; "Auto" is the extension's own "say nothing"
+        /// and is the one value the CLI rejects, so it maps to the empty string.
+        /// </summary>
+        private string GetNativeEffortArgument()
+        {
+            if (_settings == null || _settings.SelectedEffortLevel == EffortLevel.Auto)
+            {
+                return string.Empty;
+            }
+
+            return _settings.SelectedEffortLevel.ToString().ToLowerInvariant();
         }
 
         /// <summary>

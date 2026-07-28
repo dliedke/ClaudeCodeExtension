@@ -30,7 +30,9 @@ namespace ClaudeCodeVS.Agents
     /// <list type="bullet">
     /// <item>Closing stdin ends the session. It is left open between turns and only closed on dispose.</item>
     /// <item>After an interrupt the CLI exits with code 1. That is normal, not a failure — the session
-    /// transparently relaunches itself with <c>--resume</c> so the user can keep talking.</item>
+    /// transparently relaunches itself with <c>--resume</c> so the user can keep talking. The flag that
+    /// says so is scoped to the process being torn down, so nothing written while it shuts down can
+    /// make that exit look like a crash.</item>
     /// </list>
     /// </summary>
     public class ClaudeStreamJsonSession : IAgentSession
@@ -51,6 +53,7 @@ namespace ClaudeCodeVS.Agents
         private string _resumeId = string.Empty;
         private Task _relaunchTask;
         private volatile bool _interruptRequested;
+        private volatile bool _sessionIdConfirmed;
         private volatile bool _disposed;
         private int _busy;
 
@@ -67,6 +70,28 @@ namespace ClaudeCodeVS.Agents
         }
 
         public string SessionId { get; private set; }
+
+        /// <summary>
+        /// The id a relaunch may hand to <c>--resume</c>, or empty when nothing is resumable yet.
+        /// <para>
+        /// Measured: the CLI emits <b>nothing at all</b> until a turn runs — <c>system/init</c>, which
+        /// is what confirms the id, arrives with the first turn and not at launch. So between a
+        /// relaunch and the user's next prompt, <see cref="SessionId"/> is still the throwaway seed
+        /// this instance was constructed with, and the CLI has never created a transcript under it.
+        /// Handing that to <c>--resume</c> fails the launch outright ("No conversation found with
+        /// session ID"), which surfaced as an aborted turn followed by a dead process — the exact
+        /// failure seen when two composer dropdowns were changed in a row, since each change
+        /// relaunches and the second one resumed the first one's unused seed.
+        /// </para>
+        /// <para>
+        /// So: the confirmed id when there is one, otherwise the id this instance was itself launched
+        /// to resume (already confirmed by whoever handed it over), otherwise empty.
+        /// </para>
+        /// </summary>
+        public string ResumableSessionId
+        {
+            get { return _sessionIdConfirmed ? SessionId : (_resumeId ?? string.Empty); }
+        }
 
         public string Model { get; private set; } = string.Empty;
 
@@ -107,7 +132,10 @@ namespace ClaudeCodeVS.Agents
 
             await EnsureRunningAsync(cancellationToken).ConfigureAwait(false);
 
-            _interruptRequested = false;
+            // _interruptRequested is deliberately NOT cleared here: it belongs to the process that is
+            // shutting down, not to this write. Clearing it made any send that landed between "stop
+            // pressed" and "the CLI actually exits" turn the expected code-1 exit into a red
+            // "exited unexpectedly" banner and skip the --resume relaunch. LaunchAsync clears it.
             Volatile.Write(ref _busy, 1);
 
             var payload = new
@@ -169,6 +197,9 @@ namespace ClaudeCodeVS.Agents
 
         private async Task LaunchAsync(CancellationToken cancellationToken)
         {
+            // The flag describes the process being replaced, so a fresh one always starts without it.
+            _interruptRequested = false;
+
             var launchOptions = new ClaudeSessionOptions
             {
                 ExecutablePath = _options.ExecutablePath,
@@ -177,6 +208,7 @@ namespace ClaudeCodeVS.Agents
                 SessionId = _sessionIdSeed,
                 ResumeSessionId = _resumeId,
                 Model = _options.Model,
+                Effort = _options.Effort,
                 DangerouslySkipPermissions = _options.DangerouslySkipPermissions,
                 PermissionMode = _options.PermissionMode,
                 InteractivePermissions = _options.InteractivePermissions,
@@ -244,7 +276,11 @@ namespace ClaudeCodeVS.Agents
                 }
 
                 DisposeHost();
-                _resumeId = SessionId;
+
+                // ResumableSessionId, not SessionId: an unconfirmed seed has no transcript behind it,
+                // and --resume on one fails the launch. Empty falls back to --session-id, which is
+                // right — nothing ran under it yet.
+                _resumeId = ResumableSessionId;
                 await LaunchAsync(cancellationToken).ConfigureAwait(false);
             }
             finally
@@ -278,6 +314,9 @@ namespace ClaudeCodeVS.Agents
                     if (!string.IsNullOrEmpty(agentEvent.SessionId))
                     {
                         SessionId = agentEvent.SessionId;
+
+                        // The transcript exists from here on, so this id is safe to --resume.
+                        _sessionIdConfirmed = true;
                     }
                     if (!string.IsNullOrEmpty(agentEvent.Model))
                     {
@@ -326,7 +365,7 @@ namespace ClaudeCodeVS.Agents
                             if (_disposed) return;
 
                             DisposeHost();
-                            _resumeId = SessionId;
+                            _resumeId = ResumableSessionId;
                             await LaunchAsync(CancellationToken.None).ConfigureAwait(false);
                         }
                         finally

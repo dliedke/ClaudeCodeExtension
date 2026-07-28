@@ -129,6 +129,12 @@ namespace ClaudeCodeVS.Agents
 
         public string SessionId { get; private set; } = string.Empty;
 
+        /// <summary>Only ever set from what the CLI reported, so it is confirmed by construction.</summary>
+        public string ResumableSessionId
+        {
+            get { return SessionId; }
+        }
+
         public string Model { get; private set; } = string.Empty;
 
         /// <summary>Stopping a turn means killing the process, which every CLI here tolerates.</summary>

@@ -62,6 +62,9 @@ namespace ClaudeCodeVS.Agents
 
         public string SessionId { get; private set; } = string.Empty;
 
+        /// <summary>Only ever set from what the agent reported, so it is confirmed by construction.</summary>
+        public string ResumableSessionId { get { return SessionId; } }
+
         public string Model { get; private set; } = string.Empty;
 
         public bool SupportsInterrupt

@@ -79,6 +79,12 @@ namespace ClaudeCodeVS.Agents
             get { return string.Empty; }
         }
 
+        /// <summary>Print mode has no session to resume.</summary>
+        public string ResumableSessionId
+        {
+            get { return string.Empty; }
+        }
+
         public string Model
         {
             get { return _options.Model ?? string.Empty; }

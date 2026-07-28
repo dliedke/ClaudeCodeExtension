@@ -591,23 +591,122 @@
 		              HorizontalScrollBarVisibility="Disabled"
 		              Padding="8,4,8,4"
 		              ScrollChanged="TranscriptScroll_ScrollChanged">
-			<ItemsControl x:Name="MessagesList">
-				<ItemsControl.ItemsPanel>
-					<ItemsPanelTemplate>
-						<VirtualizingStackPanel/>
-					</ItemsPanelTemplate>
-				</ItemsControl.ItemsPanel>
-				<ItemsControl.ItemTemplateSelector>
-					<local:ChatMessageTemplateSelector
-						UserTemplate="{StaticResource UserTemplate}"
-						AssistantTemplate="{StaticResource AssistantTemplate}"
-						ThinkingTemplate="{StaticResource ThinkingTemplate}"
-						ToolTemplate="{StaticResource ToolTemplate}"
-						ErrorTemplate="{StaticResource ErrorTemplate}"
-						NoticeTemplate="{StaticResource NoticeTemplate}"
-						InteractionTemplate="{StaticResource InteractionTemplate}"/>
-				</ItemsControl.ItemTemplateSelector>
-			</ItemsControl>
+			<!-- Above the rows rather than layered over them: the card is part of the conversation's
+			     content, so it scrolls with it and can never cover the first answer. -->
+			<StackPanel>
+				<!-- Empty state of a fresh conversation: what is running, where, and what the chat can
+				     do. Filled by ShowWelcome and dropped as soon as the user sends the first prompt. -->
+				<Grid x:Name="WelcomeBanner" Visibility="Collapsed" Margin="2,6,2,12">
+					<Border BorderBrush="{StaticResource ChatAccentBrush}"
+					        BorderThickness="1" CornerRadius="4"
+					        Margin="0,8,0,0" Padding="14,14,14,12">
+						<Grid>
+							<Grid.ColumnDefinitions>
+								<ColumnDefinition Width="Auto"/>
+								<ColumnDefinition Width="Auto"/>
+								<ColumnDefinition Width="*"/>
+							</Grid.ColumnDefinitions>
+
+							<StackPanel Grid.Column="0" MinWidth="150" Margin="6,0,14,0">
+								<TextBlock Text="Welcome back!"
+								           HorizontalAlignment="Center"
+								           FontWeight="SemiBold"
+								           FontSize="{DynamicResource ChatFontSize}"/>
+
+								<!-- Drawn rather than typed: an emoji or a glyph mascot depends on a
+								     font being installed, and a missing one renders as an empty box. -->
+								<Viewbox Width="84" Height="60" Margin="0,10,0,10">
+									<Canvas Width="14" Height="10">
+										<Rectangle Canvas.Left="2" Canvas.Top="0" Width="10" Height="1"
+										           Fill="{StaticResource ChatAccentBrush}"/>
+										<Rectangle Canvas.Left="1" Canvas.Top="1" Width="12" Height="5"
+										           Fill="{StaticResource ChatAccentBrush}"/>
+										<Rectangle Canvas.Left="1.6" Canvas.Top="6" Width="1.6" Height="2.6"
+										           Fill="{StaticResource ChatAccentBrush}"/>
+										<Rectangle Canvas.Left="4.6" Canvas.Top="6" Width="1.6" Height="2.6"
+										           Fill="{StaticResource ChatAccentBrush}"/>
+										<Rectangle Canvas.Left="7.8" Canvas.Top="6" Width="1.6" Height="2.6"
+										           Fill="{StaticResource ChatAccentBrush}"/>
+										<Rectangle Canvas.Left="10.8" Canvas.Top="6" Width="1.6" Height="2.6"
+										           Fill="{StaticResource ChatAccentBrush}"/>
+										<!-- Eyes are punched out in the panel colour, so the critter reads
+										     the same way under both themes. -->
+										<Rectangle Canvas.Left="3.6" Canvas.Top="2" Width="1.6" Height="1.8"
+										           Fill="{DynamicResource {x:Static vsshell:VsBrushes.ToolWindowBackgroundKey}}"/>
+										<Rectangle Canvas.Left="8.8" Canvas.Top="2" Width="1.6" Height="1.8"
+										           Fill="{DynamicResource {x:Static vsshell:VsBrushes.ToolWindowBackgroundKey}}"/>
+									</Canvas>
+								</Viewbox>
+
+								<ItemsControl x:Name="WelcomeFacts">
+									<ItemsControl.ItemTemplate>
+										<DataTemplate>
+											<TextBlock Text="{Binding}"
+											           HorizontalAlignment="Center"
+											           TextAlignment="Center"
+											           TextWrapping="Wrap"
+											           Margin="0,0,0,2"
+											           Opacity="0.75"
+											           FontSize="{DynamicResource ChatSmallFontSize}"/>
+										</DataTemplate>
+									</ItemsControl.ItemTemplate>
+								</ItemsControl>
+							</StackPanel>
+
+							<Rectangle Grid.Column="1" Width="1" Margin="0,2,14,2" Opacity="0.35"
+							           Fill="{StaticResource ChatAccentBrush}"/>
+
+							<StackPanel Grid.Column="2" VerticalAlignment="Center">
+								<TextBlock Text="Tips for getting started"
+								           FontWeight="SemiBold"
+								           Margin="0,0,0,4"
+								           FontSize="{DynamicResource ChatFontSize}"
+								           Foreground="{StaticResource ChatAccentBrush}"/>
+								<ItemsControl x:Name="WelcomeTips">
+									<ItemsControl.ItemTemplate>
+										<DataTemplate>
+											<TextBlock Text="{Binding}"
+											           TextWrapping="Wrap"
+											           Margin="0,0,0,3"
+											           Opacity="0.85"
+											           FontSize="{DynamicResource ChatSmallFontSize}"/>
+										</DataTemplate>
+									</ItemsControl.ItemTemplate>
+								</ItemsControl>
+							</StackPanel>
+						</Grid>
+					</Border>
+
+					<!-- Caption sitting on the frame, the way the CLI's banner draws it. Its own
+					     background is what breaks the border line behind the text. -->
+					<Border HorizontalAlignment="Left" VerticalAlignment="Top"
+					        Margin="12,0,0,0" Padding="5,0,5,0"
+					        Background="{DynamicResource {x:Static vsshell:VsBrushes.ToolWindowBackgroundKey}}">
+						<TextBlock x:Name="WelcomeTitle"
+						           FontWeight="SemiBold"
+						           FontSize="{DynamicResource ChatFontSize}"
+						           Foreground="{StaticResource ChatAccentBrush}"/>
+					</Border>
+				</Grid>
+
+				<ItemsControl x:Name="MessagesList">
+					<ItemsControl.ItemsPanel>
+						<ItemsPanelTemplate>
+							<VirtualizingStackPanel/>
+						</ItemsPanelTemplate>
+					</ItemsControl.ItemsPanel>
+					<ItemsControl.ItemTemplateSelector>
+						<local:ChatMessageTemplateSelector
+							UserTemplate="{StaticResource UserTemplate}"
+							AssistantTemplate="{StaticResource AssistantTemplate}"
+							ThinkingTemplate="{StaticResource ThinkingTemplate}"
+							ToolTemplate="{StaticResource ToolTemplate}"
+							ErrorTemplate="{StaticResource ErrorTemplate}"
+							NoticeTemplate="{StaticResource NoticeTemplate}"
+							InteractionTemplate="{StaticResource InteractionTemplate}"/>
+					</ItemsControl.ItemTemplateSelector>
+				</ItemsControl>
+			</StackPanel>
 		</ScrollViewer>
 
 		<!-- Appears only while the user has scrolled away from the newest message -->
@@ -791,7 +890,9 @@
 					           Foreground="{DynamicResource {x:Static vsshell:VsBrushes.CommandBarTextActiveKey}}"/>
 					<Slider x:Name="EffortPopupSlider"
 					        Style="{StaticResource EffortSliderStyle}"
-					        ValueChanged="EffortPopupSlider_ValueChanged"/>
+					        ValueChanged="EffortPopupSlider_ValueChanged"
+					        Thumb.DragStarted="EffortPopupSlider_DragStarted"
+					        Thumb.DragCompleted="EffortPopupSlider_DragCompleted"/>
 				</StackPanel>
 			</Border>
 		</Popup>

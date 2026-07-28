@@ -190,6 +190,9 @@
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
       <IncludeInVSIX>true</IncludeInVSIX>
     </Content>
+    <Content Include="docs\images\native-mode-diff.png" />
+    <Content Include="docs\images\native-mode-plan.png" />
+    <Content Include="docs\images\native-mode-question.png" />
     <Content Include="LICENSE.txt">
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
       <IncludeInVSIX>true</IncludeInVSIX>
@@ -204,22 +207,15 @@
        anywhere to explain it. Drop the siblings right after every deploy so it cannot recur.
        ContinueOnError because an Exp instance left open holds a lock on its own binaries — a stale
        folder is worth a warning, not a failed build. -->
-  <Target Name="RemoveStaleExpDeployments"
-          AfterTargets="DeployVsixExtensionFiles"
-          Condition="'$(DeployExtension)' == 'true' and '$(VsixDeploymentPath)' != ''">
+  <Target Name="RemoveStaleExpDeployments" AfterTargets="DeployVsixExtensionFiles" Condition="'$(DeployExtension)' == 'true' and '$(VsixDeploymentPath)' != ''">
     <PropertyGroup>
       <_ExpDeployDir>$(VsixDeploymentPath.TrimEnd('\'))</_ExpDeployDir>
       <_ExpDeployParent>$([System.IO.Path]::GetDirectoryName('$(_ExpDeployDir)'))</_ExpDeployParent>
     </PropertyGroup>
     <ItemGroup>
-      <_ExpStaleDeploy Include="$(_ExpDeployParent)\*\extension.vsixmanifest"
-                       Exclude="$(_ExpDeployDir)\extension.vsixmanifest" />
+      <_ExpStaleDeploy Include="$(_ExpDeployParent)\*\extension.vsixmanifest" Exclude="$(_ExpDeployDir)\extension.vsixmanifest" />
     </ItemGroup>
-    <Message Importance="high"
-             Text="Removing stale Exp deployment: %(_ExpStaleDeploy.RootDir)%(_ExpStaleDeploy.Directory)"
-             Condition="'@(_ExpStaleDeploy)' != ''" />
-    <RemoveDir Directories="@(_ExpStaleDeploy->'%(RootDir)%(Directory)')"
-               Condition="'@(_ExpStaleDeploy)' != ''"
-               ContinueOnError="true" />
+    <Message Importance="high" Text="Removing stale Exp deployment: %(_ExpStaleDeploy.RootDir)%(_ExpStaleDeploy.Directory)" Condition="'@(_ExpStaleDeploy)' != ''" />
+    <RemoveDir Directories="@(_ExpStaleDeploy->'%(RootDir)%(Directory)')" Condition="'@(_ExpStaleDeploy)' != ''" ContinueOnError="true" />
   </Target>
 </Project>

@@ -52,6 +52,19 @@ namespace ClaudeCodeVS.Agents
         public string Model { get; set; } = string.Empty;
 
         /// <summary>
+        /// Effort level (<c>low</c>, <c>medium</c>, <c>high</c>, <c>xhigh</c>, <c>max</c>,
+        /// <c>ultracode</c>). Empty means the CLI default.
+        /// <para>
+        /// A launch flag rather than the <c>/effort</c> slash command: the command sets it "for this
+        /// session only", so it was silently lost on every relaunch (model switch, permission switch,
+        /// interrupt recovery) while the composer still showed the old level. An unknown value only
+        /// earns a warning on stderr, so a future CLI dropping a level degrades to the default instead
+        /// of failing the launch.
+        /// </para>
+        /// </summary>
+        public string Effort { get; set; } = string.Empty;
+
+        /// <summary>
         /// Maps the existing <c>ClaudeDangerouslySkipPermissions</c> setting: bypass every check.
         /// Mutually exclusive with <see cref="PermissionMode"/>, and it also turns
         /// <see cref="InteractivePermissions"/> off — there is nothing left to ask about.
@@ -159,6 +172,11 @@ namespace ClaudeCodeVS.Agents
             if (!string.IsNullOrWhiteSpace(options.Model))
             {
                 sb.Append(" --model ").Append(QuoteArgument(options.Model, isWsl));
+            }
+
+            if (!string.IsNullOrWhiteSpace(options.Effort))
+            {
+                sb.Append(" --effort ").Append(QuoteArgument(options.Effort, isWsl));
             }
 
             if (options.DangerouslySkipPermissions)

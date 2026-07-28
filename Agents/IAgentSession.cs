@@ -37,6 +37,18 @@ namespace ClaudeCodeVS.Agents
         /// </summary>
         string SessionId { get; }
 
+        /// <summary>
+        /// The id a relaunch may safely hand to <c>--resume</c>, or empty when there is nothing to
+        /// resume yet.
+        /// <para>
+        /// Not the same thing as <see cref="SessionId"/>: adapters seed that with an id they *intend*
+        /// to use, and Claude only creates the transcript once a turn actually runs. Resuming an id
+        /// the CLI never created fails the launch ("No conversation found with session ID"), so a
+        /// relaunch must ask for this instead.
+        /// </para>
+        /// </summary>
+        string ResumableSessionId { get; }
+
         /// <summary>Model reported by the provider, once known.</summary>
         string Model { get; }
 

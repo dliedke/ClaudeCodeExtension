@@ -10,7 +10,9 @@
  *
  * *******************************************************************************************************************/
 
+using System.Globalization;
 using System.Linq;
+using System.Threading;
 using ClaudeCodeVS.UI;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 
@@ -19,6 +21,32 @@ namespace ClaudeCodeExtension.Tests
     [TestClass]
     public class ChatToolPresentationTests
     {
+        private CultureInfo _originalCulture;
+
+        /// <summary>
+        /// Pins the test thread to the invariant culture. <see cref="ChatFormatting"/> formats for
+        /// whoever is reading — a pt-BR user gets "0,0s" and "6.912 tokens", which is correct on screen
+        /// and would fail an expectation written with a period. The formatting rules are what these
+        /// tests are about (one decimal on seconds, none on minutes, thousands grouped), not the
+        /// separators the machine happens to use, so the culture is fixed rather than the assertions
+        /// being rewritten per locale.
+        /// </summary>
+        [TestInitialize]
+        public void FixTheCulture()
+        {
+            _originalCulture = Thread.CurrentThread.CurrentCulture;
+            Thread.CurrentThread.CurrentCulture = CultureInfo.InvariantCulture;
+        }
+
+        [TestCleanup]
+        public void RestoreTheCulture()
+        {
+            if (_originalCulture != null)
+            {
+                Thread.CurrentThread.CurrentCulture = _originalCulture;
+            }
+        }
+
         [TestMethod]
         public void Read_ShowsTheFileAsTheTarget()
         {

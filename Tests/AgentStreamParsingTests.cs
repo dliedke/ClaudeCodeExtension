@@ -410,6 +410,69 @@ namespace ClaudeCodeExtension.Tests
             Assert.IsFalse(args.Contains("--permission-prompt-tool"));
         }
 
+        [TestMethod]
+        public void ClaudeCommandBuilder_EffortIsALaunchFlag()
+        {
+            // Effort used to be sent as the "/effort" command, which the CLI applies "for this session
+            // only" — so every relaunch silently dropped it while the composer still showed the level.
+            string args = ClaudeCommandBuilder.GetArguments(new ClaudeSessionOptions
+            {
+                Effort = "xhigh"
+            });
+
+            StringAssert.Contains(args, "--effort \"xhigh\"");
+        }
+
+        [TestMethod]
+        public void ClaudeCommandBuilder_NoEffortMeansNoFlag()
+        {
+            // "Auto" is the extension's own "say nothing" and is the one value the CLI rejects, so it
+            // has to arrive here as an empty string and produce no flag at all.
+            string args = ClaudeCommandBuilder.GetArguments(new ClaudeSessionOptions());
+
+            Assert.IsFalse(args.Contains("--effort"));
+        }
+
+        [TestMethod]
+        public void ClaudeCommandBuilder_EffortIsBashQuotedUnderWsl()
+        {
+            string args = ClaudeCommandBuilder.GetArguments(new ClaudeSessionOptions
+            {
+                UseWsl = true,
+                WslWorkingDirectory = "/mnt/c/repo",
+                Effort = "ultracode"
+            });
+
+            StringAssert.Contains(args, "--effort 'ultracode'");
+        }
+
+        [TestMethod]
+        public void ClaudeSession_AFreshSessionHasNothingToResumeUntilATurnRuns()
+        {
+            // The CLI creates the transcript only when the first turn runs, so the seeded id names
+            // nothing yet. A relaunch that resumed it would fail with "No conversation found".
+            using (var session = new ClaudeStreamJsonSession(new ClaudeSessionOptions()))
+            {
+                Assert.AreNotEqual(string.Empty, session.SessionId, "the seed still has to be sent as --session-id");
+                Assert.AreEqual(string.Empty, session.ResumableSessionId);
+            }
+        }
+
+        [TestMethod]
+        public void ClaudeSession_ARelaunchKeepsResumingTheIdItWasHandedOver()
+        {
+            // Two composer changes in a row: the second relaunch must resume the same real transcript
+            // as the first, not the throwaway seed the first relaunch was created with.
+            using (var session = new ClaudeStreamJsonSession(new ClaudeSessionOptions
+            {
+                ResumeSessionId = "11111111-2222-3333-4444-555555555555"
+            }))
+            {
+                Assert.AreNotEqual("11111111-2222-3333-4444-555555555555", session.SessionId);
+                Assert.AreEqual("11111111-2222-3333-4444-555555555555", session.ResumableSessionId);
+            }
+        }
+
         #endregion
 
         #region Cursor Agent (one-shot + resume)
