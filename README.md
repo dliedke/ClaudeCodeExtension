@@ -136,6 +136,10 @@ https://github.com/anthropics/claude-code/issues/41501
 
 ## Version History
 
+### Version 90.0
+- Native mode still in alpha phase. It will be improved and stabilized in next releases. Please do not use for real work yet.
+- Maintenance release over 89.0, with no functional changes.
+
 ### Version 89.0
 - Native mode still in alpha phase. It will be improved and stabilized in next releases. Please do not use for real work yet.
 - Accented and non-English characters in a chat prompt now reach the agent intact. Codex in particular rejected them and ended the turn with "exited with code 1"; every agent was affected.
