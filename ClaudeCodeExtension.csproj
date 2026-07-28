@@ -26,12 +26,13 @@
     <StartAction>Program</StartAction>
     <StartProgram Condition="'$(DevEnvDir)' != ''">$(DevEnvDir)devenv.exe</StartProgram>
     <StartArguments>/rootsuffix Exp</StartArguments>
-    <!-- F5 debugging: the VSSDK targets default DeployExtension to false, so without these two the
-         experimental hive never receives the extension and the Exp instance comes up empty.
-         Deploy only when building inside Visual Studio, so command-line builds (test.cmd, publish.cmd)
-         stay side-effect free; deploy-exp.cmd passes -p:DeployExtension=true explicitly. -->
+    <!-- F5 / Ctrl+F5 debugging: the VSSDK targets default DeployExtension to false, so without these
+         two the experimental hive never receives the extension and the Exp instance comes up empty.
+         Deploy for Debug *and* Release, so Ctrl+F5 on a Release build updates the Exp hive too, but
+         only when building inside Visual Studio — command-line builds (test.cmd, publish.cmd) stay
+         side-effect free; deploy-exp.cmd passes -p:DeployExtension=true explicitly. -->
     <VSSDKTargetPlatformRegRootSuffix>Exp</VSSDKTargetPlatformRegRootSuffix>
-    <DeployExtension Condition="'$(DeployExtension)' == '' and '$(Configuration)' == 'Debug' and '$(BuildingInsideVisualStudio)' == 'true'">true</DeployExtension>
+    <DeployExtension Condition="'$(DeployExtension)' == '' and '$(BuildingInsideVisualStudio)' == 'true'">true</DeployExtension>
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|AnyCPU' ">
     <DebugSymbols>true</DebugSymbols>
@@ -51,6 +52,20 @@
     <WarningLevel>4</WarningLevel>
   </PropertyGroup>
   <ItemGroup>
+    <Compile Include="Agents\AcpCommandBuilder.cs" />
+    <Compile Include="Agents\AcpSession.cs" />
+    <Compile Include="Agents\AgentEvent.cs" />
+    <Compile Include="Agents\ClaudeCommandBuilder.cs" />
+    <Compile Include="Agents\ClaudeStreamJsonSession.cs" />
+    <Compile Include="Agents\ClaudeStreamParser.cs" />
+    <Compile Include="Agents\CodexExecProtocol.cs" />
+    <Compile Include="Agents\CursorAgentProtocol.cs" />
+    <Compile Include="Agents\IAgentSession.cs" />
+    <Compile Include="Agents\JsonLineProcessHost.cs" />
+    <Compile Include="Agents\OneShotResumeSession.cs" />
+    <Compile Include="Agents\PiRpcSession.cs" />
+    <Compile Include="Agents\PrintModeSession.cs" />
+    <Compile Include="Agents\ProcessTree.cs" />
     <Compile Include="Controls\ClaudeCodeControl.cs" />
     <Compile Include="Controls\ClaudeCodeControl.AgentCompletion.cs" />
     <Compile Include="Controls\ClaudeCodeControl.AgentFinishDialog.cs" />
@@ -74,13 +89,21 @@
     <Compile Include="Controls\ClaudeCodeControl.Usage.cs" />
     <Compile Include="Controls\ClaudeCodeControl.UserInput.cs" />
     <Compile Include="Controls\ClaudeCodeControl.Workspace.cs" />
+    <Compile Include="Controls\ClaudeCodeControl.NativeMode.cs" />
+    <Compile Include="Controls\ClaudeCodeControl.NativeChat.cs" />
     <Compile Include="Models\ClaudeCodeModels.cs" />
+    <Compile Include="UI\ChatMessages.cs" />
+    <Compile Include="UI\ChatInteractionViewModels.cs" />
+    <Compile Include="UI\ChatTranscriptView.xaml.cs">
+      <DependentUpon>ChatTranscriptView.xaml</DependentUpon>
+    </Compile>
     <Compile Include="ToolWindows\ClaudeCodeToolWindow.cs" />
     <Compile Include="UI\ClaudeUsageControl.xaml.cs">
       <DependentUpon>ClaudeUsageControl.xaml</DependentUpon>
     </Compile>
     <Compile Include="ToolWindows\ClaudeUsageToolWindow.cs" />
     <Compile Include="ToolWindows\DetachedTerminalToolWindow.cs" />
+    <Compile Include="ToolWindows\NativeChatToolWindow.cs" />
     <Compile Include="ToolWindows\DiffViewerToolWindow.cs" />
     <Compile Include="UI\DiffViewerControl.xaml.cs">
       <DependentUpon>DiffViewerControl.xaml</DependentUpon>
@@ -140,8 +163,16 @@
     </VSCTCompile>
   </ItemGroup>
   <ItemGroup>
+    <Page Include="UI\ChatStyles.xaml">
+      <Generator>MSBuild:Compile</Generator>
+      <SubType>Designer</SubType>
+    </Page>
     <Page Include="UI\ClaudeCodeControl.xaml">
       <Generator>MSBuild:Compile</Generator>
+    </Page>
+    <Page Include="UI\ChatTranscriptView.xaml">
+      <Generator>MSBuild:Compile</Generator>
+      <SubType>Designer</SubType>
     </Page>
     <Page Include="UI\ClaudeUsageControl.xaml">
       <Generator>MSBuild:Compile</Generator>
@@ -164,11 +195,29 @@
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
   <Import Project="$(VSToolsPath)\VSSDK\Microsoft.VsSDK.targets" Condition="'$(VSToolsPath)' != ''" />
-  <!-- To modify your build process, add your task inside one of the targets below and uncomment it.
-       Other similar extension points exist, see Microsoft.Common.targets.
-  <Target Name="BeforeBuild">
+  <!-- Every deploy lands in a version-named folder (...\Claude Code Extension for Visual Studio\82.0),
+       so each version bump leaves the previous one behind. With two folders carrying the same VSIX
+       identity the experimental hive can keep loading the older assembly: that is what left the Exp
+       instance running 80.0 for days after 82.0 had already been deployed next to it, with no error
+       anywhere to explain it. Drop the siblings right after every deploy so it cannot recur.
+       ContinueOnError because an Exp instance left open holds a lock on its own binaries — a stale
+       folder is worth a warning, not a failed build. -->
+  <Target Name="RemoveStaleExpDeployments"
+          AfterTargets="DeployVsixExtensionFiles"
+          Condition="'$(DeployExtension)' == 'true' and '$(VsixDeploymentPath)' != ''">
+    <PropertyGroup>
+      <_ExpDeployDir>$(VsixDeploymentPath.TrimEnd('\'))</_ExpDeployDir>
+      <_ExpDeployParent>$([System.IO.Path]::GetDirectoryName('$(_ExpDeployDir)'))</_ExpDeployParent>
+    </PropertyGroup>
+    <ItemGroup>
+      <_ExpStaleDeploy Include="$(_ExpDeployParent)\*\extension.vsixmanifest"
+                       Exclude="$(_ExpDeployDir)\extension.vsixmanifest" />
+    </ItemGroup>
+    <Message Importance="high"
+             Text="Removing stale Exp deployment: %(_ExpStaleDeploy.RootDir)%(_ExpStaleDeploy.Directory)"
+             Condition="'@(_ExpStaleDeploy)' != ''" />
+    <RemoveDir Directories="@(_ExpStaleDeploy->'%(RootDir)%(Directory)')"
+               Condition="'@(_ExpStaleDeploy)' != ''"
+               ContinueOnError="true" />
   </Target>
-  <Target Name="AfterBuild">
-  </Target>
-  -->
 </Project>

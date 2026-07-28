@@ -365,10 +365,14 @@ namespace ClaudeCodeVS
                 }
             }
 
-            await SendTextToTerminalAsync(textToSend);
+            await SendTextToAgentAsync(textToSend);
 
             // Arm the "On Agent Finish" watcher, mirroring the typed-prompt and build-error paths.
-            _ = ArmAgentCompletionWatcherAsync();
+            // Native mode is excluded: the turn there ends on a protocol event, which arms itself.
+            if (!IsNativeModeActive)
+            {
+                _ = ArmAgentCompletionWatcherAsync();
+            }
         }
 
         #endregion

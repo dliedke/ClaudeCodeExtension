@@ -5,12 +5,19 @@
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:wf="clr-namespace:System.Windows.Forms.Integration;assembly=WindowsFormsIntegration"
              xmlns:vsshell="clr-namespace:Microsoft.VisualStudio.Shell;assembly=Microsoft.VisualStudio.Shell.15.0"
+             xmlns:ui="clr-namespace:ClaudeCodeVS.UI"
              mc:Ignorable="d"
              d:DesignHeight="600" d:DesignWidth="400"
              Background="{DynamicResource {x:Static vsshell:VsBrushes.WindowKey}}"
              Foreground="{DynamicResource {x:Static vsshell:VsBrushes.WindowTextKey}}">
 
 	<UserControl.Resources>
+		<ResourceDictionary>
+			<ResourceDictionary.MergedDictionaries>
+				<!-- Effort pill slider styles, shared with the native-mode chat composer -->
+				<ResourceDictionary Source="/ClaudeCodeExtension;component/UI/ChatStyles.xaml"/>
+			</ResourceDictionary.MergedDictionaries>
+
 		<!-- Single border GroupBox style -->
 		<Style x:Key="SingleBorderGroupBoxStyle" TargetType="GroupBox">
 			<Setter Property="Padding" Value="3"/>
@@ -125,99 +132,7 @@
 			<Setter Property="Opacity" Value="0.93"/>
 		</Style>
 
-		<!-- ============ Effort pill slider (VS Code-like) ============ -->
-		<!-- Filled (left of thumb) portion: blue, turns purple at the Max stop -->
-		<Style x:Key="EffortFillButtonStyle" TargetType="RepeatButton">
-			<Setter Property="OverridesDefaultStyle" Value="True"/>
-			<Setter Property="Focusable" Value="False"/>
-			<Setter Property="IsTabStop" Value="False"/>
-			<Setter Property="Background" Value="#1C8AE0"/>
-			<Setter Property="Template">
-				<Setter.Value>
-					<ControlTemplate TargetType="RepeatButton">
-						<Border Background="{TemplateBinding Background}" CornerRadius="9"/>
-					</ControlTemplate>
-				</Setter.Value>
-			</Setter>
-			<Style.Triggers>
-				<!-- Top (Max) stop turns purple, like the VS Code "ultracode" cap -->
-				<DataTrigger Binding="{Binding Value, RelativeSource={RelativeSource AncestorType={x:Type Slider}}}" Value="5">
-					<Setter Property="Background" Value="#9B7BD4"/>
-				</DataTrigger>
-			</Style.Triggers>
-		</Style>
-
-		<!-- Unfilled (right of thumb) portion: transparent so the gray track shows through -->
-		<Style x:Key="EffortTransparentButtonStyle" TargetType="RepeatButton">
-			<Setter Property="OverridesDefaultStyle" Value="True"/>
-			<Setter Property="Focusable" Value="False"/>
-			<Setter Property="IsTabStop" Value="False"/>
-			<Setter Property="Template">
-				<Setter.Value>
-					<ControlTemplate TargetType="RepeatButton">
-						<Border Background="Transparent"/>
-					</ControlTemplate>
-				</Setter.Value>
-			</Setter>
-		</Style>
-
-		<!-- White circular thumb -->
-		<Style x:Key="EffortThumbStyle" TargetType="Thumb">
-			<Setter Property="OverridesDefaultStyle" Value="True"/>
-			<Setter Property="Focusable" Value="False"/>
-			<Setter Property="Width" Value="16"/>
-			<Setter Property="Height" Value="16"/>
-			<Setter Property="Template">
-				<Setter.Value>
-					<ControlTemplate TargetType="Thumb">
-						<Ellipse Fill="#F5F5F5" Stroke="#33000000" StrokeThickness="1"/>
-					</ControlTemplate>
-				</Setter.Value>
-			</Setter>
-		</Style>
-
-		<Style x:Key="EffortSliderStyle" TargetType="Slider">
-			<Setter Property="Minimum" Value="0"/>
-			<Setter Property="Maximum" Value="5"/>
-			<Setter Property="SmallChange" Value="1"/>
-			<Setter Property="LargeChange" Value="1"/>
-			<Setter Property="TickFrequency" Value="1"/>
-			<Setter Property="IsSnapToTickEnabled" Value="True"/>
-			<Setter Property="Width" Value="175"/>
-			<Setter Property="Height" Value="22"/>
-			<Setter Property="Cursor" Value="Hand"/>
-			<Setter Property="Template">
-				<Setter.Value>
-					<ControlTemplate TargetType="Slider">
-						<Grid VerticalAlignment="Center" Height="18">
-							<!-- Track background pill. Semi-transparent gray so it reads as a
-							     subtle groove on both light and dark menu backgrounds. -->
-							<Border CornerRadius="9" Background="#80808080"/>
-							<!-- Six position dots (sit under the fill/thumb) -->
-							<UniformGrid Rows="1" Columns="6" Margin="11,0">
-								<Ellipse Width="4" Height="4" Fill="#80606060" HorizontalAlignment="Center" VerticalAlignment="Center"/>
-								<Ellipse Width="4" Height="4" Fill="#80606060" HorizontalAlignment="Center" VerticalAlignment="Center"/>
-								<Ellipse Width="4" Height="4" Fill="#80606060" HorizontalAlignment="Center" VerticalAlignment="Center"/>
-								<Ellipse Width="4" Height="4" Fill="#80606060" HorizontalAlignment="Center" VerticalAlignment="Center"/>
-								<Ellipse Width="4" Height="4" Fill="#80606060" HorizontalAlignment="Center" VerticalAlignment="Center"/>
-								<Ellipse Width="4" Height="4" Fill="#80606060" HorizontalAlignment="Center" VerticalAlignment="Center"/>
-							</UniformGrid>
-							<Track x:Name="PART_Track">
-								<Track.DecreaseRepeatButton>
-									<RepeatButton Style="{StaticResource EffortFillButtonStyle}" Command="Slider.DecreaseLarge"/>
-								</Track.DecreaseRepeatButton>
-								<Track.Thumb>
-									<Thumb Style="{StaticResource EffortThumbStyle}"/>
-								</Track.Thumb>
-								<Track.IncreaseRepeatButton>
-									<RepeatButton Style="{StaticResource EffortTransparentButtonStyle}" Command="Slider.IncreaseLarge"/>
-								</Track.IncreaseRepeatButton>
-							</Track>
-						</Grid>
-					</ControlTemplate>
-				</Setter.Value>
-			</Setter>
-		</Style>
+		</ResourceDictionary>
 	</UserControl.Resources>
 
 	<Grid x:Name="MainGrid">
@@ -704,7 +619,15 @@
 			<GroupBox.Header>
 				<TextBlock Text="Claude Code" Opacity="0.93"/>
 			</GroupBox.Header>
-			<wf:WindowsFormsHost x:Name="TerminalHost"/>
+			<!-- Native mode swaps the embedded terminal for the chat transcript in this same slot.
+			     Exactly one of the two is ever visible; the terminal host is never unloaded, so
+			     turning native mode off restores the embedded window untouched. -->
+			<!-- While the chat is in its own tab the whole group box is collapsed instead of showing a
+			     placeholder: the panel then reads as prompt-only, and the prompt gets the space. -->
+			<Grid x:Name="TerminalSlotGrid">
+				<wf:WindowsFormsHost x:Name="TerminalHost"/>
+				<ui:ChatTranscriptView x:Name="ChatTranscript" Visibility="Collapsed"/>
+			</Grid>
 		</GroupBox>
 	</Grid>
 </UserControl>

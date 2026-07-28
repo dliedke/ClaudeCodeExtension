@@ -197,7 +197,13 @@ namespace ClaudeCodeVS
         /// Attaches the terminal back from the detached tool window to the main control
         /// </summary>
         /// <param name="skipCloseFrame">If true, does not close the detached window frame (used when window is already closing)</param>
-        private async System.Threading.Tasks.Task AttachTerminalAsync(bool skipCloseFrame = false)
+        /// <param name="preserveDetachPreference">
+        /// If true, the terminal comes back into the panel but the saved "detached" preference is kept.
+        /// Native mode uses this: the chat lives in the terminal's grid slot, so a detached terminal must
+        /// be re-attached for the chat to be visible at all — but the user never asked to stop detaching,
+        /// so turning native mode off has to bring the detached tab back.
+        /// </param>
+        private async System.Threading.Tasks.Task AttachTerminalAsync(bool skipCloseFrame = false, bool preserveDetachPreference = false)
         {
             await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
 
@@ -214,15 +220,7 @@ namespace ClaudeCodeVS
 
                 // Restore main terminal area
                 TerminalGroupBox.Visibility = Visibility.Visible;
-                int terminalSlot = (_settings?.InvertLayout == true) ? 0 : 2;
-                if (LayoutGridIsVertical)
-                {
-                    MainGrid.ColumnDefinitions[terminalSlot].MinWidth = 150;
-                }
-                else
-                {
-                    MainGrid.RowDefinitions[terminalSlot].MinHeight = 150;
-                }
+                RestoreTerminalSlotMinimumSize();
 
                 // Restore splitter to pre-detach position
                 if (_settings != null && _settings.SplitterPosition > 0)
@@ -282,7 +280,7 @@ namespace ClaudeCodeVS
                 UpdateDetachButtonIcon(false);
 
                 // Save state
-                if (_settings != null)
+                if (_settings != null && !preserveDetachPreference)
                 {
                     _settings.IsTerminalDetached = false;
                     SaveSettings();
@@ -291,6 +289,27 @@ namespace ClaudeCodeVS
             catch (Exception ex)
             {
                 Debug.WriteLine($"Error attaching terminal: {ex.Message}");
+            }
+        }
+
+        /// <summary>
+        /// Gives the terminal slot of the main grid its normal minimum size back. Detaching zeroes it so
+        /// the prompt can take over the whole panel; both re-attaching and native mode — whose chat
+        /// transcript lives in that same slot — have to undo it, or the area collapses to nothing and
+        /// the panel looks empty.
+        /// </summary>
+        private void RestoreTerminalSlotMinimumSize()
+        {
+            ThreadHelper.ThrowIfNotOnUIThread();
+
+            int terminalSlot = (_settings?.InvertLayout == true) ? 0 : 2;
+            if (LayoutGridIsVertical)
+            {
+                MainGrid.ColumnDefinitions[terminalSlot].MinWidth = 150;
+            }
+            else
+            {
+                MainGrid.RowDefinitions[terminalSlot].MinHeight = 150;
             }
         }
 
@@ -387,6 +406,16 @@ namespace ClaudeCodeVS
             _ = ThreadHelper.JoinableTaskFactory.RunAsync(async () =>
             {
                 await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
+
+                // Native mode has no console to re-parent, so the same control moves the chat view
+                // between the panel and its own tab — and it is how the user gets the tab back after
+                // closing it.
+                if (IsNativeModeActive)
+                {
+                    await ToggleChatTabAsync();
+                    return;
+                }
+
                 await ToggleDetachAsync();
             });
 #pragma warning restore VSSDK007, VSTHRD110
@@ -404,10 +433,13 @@ namespace ClaudeCodeVS
         {
             try
             {
+                // Native mode moves the chat view, not a console window, so the wording follows suit.
+                string subject = IsNativeModeActive ? "Chat" : "Terminal";
+
                 if (DetachTerminalMenuItem != null)
                     DetachTerminalMenuItem.Header = isDetached
-                        ? "⧉  Attach Terminal Back to Main Panel"
-                        : "⧉  Detach Terminal to Separate Tab";
+                        ? $"⧉  Attach {subject} Back to Main Panel"
+                        : $"⧉  Detach {subject} to Separate Tab";
 
                 // Keep the optional one-click toolbar button in sync: tooltip flips, and the
                 // original vector icon (a box with an arrow) flips direction with the state —
@@ -415,8 +447,8 @@ namespace ClaudeCodeVS
                 if (DetachToolbarButton != null)
                 {
                     DetachToolbarButton.ToolTip = isDetached
-                        ? "Attach Terminal Back to Main Panel"
-                        : "Detach Terminal to Separate Tab";
+                        ? $"Attach {subject} Back to Main Panel"
+                        : $"Detach {subject} to Separate Tab";
                 }
 
                 if (DetachButtonIcon != null)

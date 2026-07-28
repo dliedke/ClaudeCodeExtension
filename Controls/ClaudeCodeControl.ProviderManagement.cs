@@ -2168,6 +2168,8 @@ For more details, visit: https://pi.dev";
             // are no longer hidden for the active agent; instead each shows a friendly explanation
             // at click time when it isn't applicable (issue #97).
             Apply(ToolbarButton.UpdateAgent, true, UpdateAgentToolbarButton, UpdateAgentMenuItem);
+            // Detach means "give this conversation its own tab" in both worlds: it re-parents the
+            // embedded console window for the terminal, and moves the chat view for native mode.
             Apply(ToolbarButton.DetachTerminal, true, DetachToolbarButton, DetachTerminalMenuItem);
             Apply(ToolbarButton.RestartAgent, true, RestartTerminalButton, RestartTerminalMenuItem);
             Apply(ToolbarButton.ViewChanges, true, ViewChangesToolbarButton, ViewChangesMenuItem);

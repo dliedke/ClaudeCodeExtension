@@ -81,6 +81,7 @@ namespace ClaudeCodeVS
             bool origAutoSendBuildErrors      = _settings.AutoSendBuildErrorsToAgent;
             bool origAutoSendRuntimeErrors    = _settings.AutoSendRuntimeErrorsToAgent;
             bool origAutoOpenChanges          = _settings.AutoOpenChangesOnPrompt;
+            bool origUseNativeMode            = _settings.UseNativeMode;
             bool origInvertLayout             = _settings.InvertLayout;
             LayoutOrientation origOrientation = _settings.SelectedLayoutOrientation;
             bool origHidePromptPanel          = _settings.HidePromptPanel;
@@ -319,6 +320,14 @@ namespace ClaudeCodeVS
 
             // ========================= Terminal tab =========================
             var terminalStack = AddTab("Terminal");
+
+            terminalStack.Children.Add(MakeSectionHeader("Native mode", themeFg));
+
+            var nativeModeCheck = MakeCheckBox(
+                "Use native mode (chat instead of an embedded terminal)",
+                "When enabled, the panel shows the conversation with the agent as a chat, driven by the agent's own structured protocol instead of a console window. Answers stream in, tool calls and their results are shown as collapsible cards, and token usage and cost are reported for each turn.\n\nAgents without a structured channel keep using the embedded terminal automatically. The terminal settings below apply only when the terminal is in use.",
+                _settings.UseNativeMode, themeFg);
+            terminalStack.Children.Add(nativeModeCheck);
 
             terminalStack.Children.Add(MakeSectionHeader("Terminal type", themeFg));
             var cmdRadio = MakeRadioButton("Command Prompt (default)",
@@ -913,6 +922,7 @@ namespace ClaudeCodeVS
             _settings.SelectedLayoutOrientation = newOrientation;
             _settings.HidePromptPanel         = newHidePromptPanel;
             _settings.SelectedTerminalType    = newTerminalType;
+            _settings.UseNativeMode           = nativeModeCheck.IsChecked == true;
             _settings.ConsoleFontFaceName     = newConsoleFont;
             _settings.ConsoleFontSizePt       = newConsoleFontSize;
             _settings.SelectedThemePreference = newThemePref;
@@ -1007,7 +1017,10 @@ namespace ClaudeCodeVS
             // A console font change takes effect only when the terminal next launches (conhost reads the
             // registry at creation; Windows Terminal is launched with the dedicated -p profile), so relaunch.
             bool consoleFontChanged = newConsoleFont != origConsoleFont || newConsoleFontSize != origConsoleFontSize;
-            bool needsRestart = terminalTypeChanged || activeCliPathChanged || consoleFontChanged;
+            // Toggling native mode swaps the whole transport, so the agent has to be relaunched for the
+            // panel to change from terminal to chat (or back).
+            bool nativeModeChanged = _settings.UseNativeMode != origUseNativeMode;
+            bool needsRestart = terminalTypeChanged || activeCliPathChanged || consoleFontChanged || nativeModeChanged;
 
             // For theme changes, ask the user (respecting the skip-prompt opt-out
             // and the same "agent color already matches" short-circuit used elsewhere)

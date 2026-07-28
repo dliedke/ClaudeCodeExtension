@@ -399,6 +399,31 @@ namespace ClaudeCodeVS
         public AiProvider SelectedProvider { get; set; } = AiProvider.ClaudeCode;
 
         /// <summary>
+        /// If true, the panel shows a native chat transcript instead of the embedded terminal, driven
+        /// by the agent CLI's headless JSON protocol. One global switch rather than one per provider:
+        /// providers with no structured channel simply keep using the terminal.
+        /// Off by default — the embedded terminal stays the standard experience.
+        /// </summary>
+        public bool UseNativeMode { get; set; } = false;
+
+        /// <summary>
+        /// Zoom factor of the native-mode chat tab, set with Ctrl+Scroll. 1.0 is 100%.
+        /// </summary>
+        public double NativeChatZoom { get; set; } = 1.0;
+
+        /// <summary>
+        /// Height in pixels of the chat tab's prompt box, set by dragging its top edge.
+        /// </summary>
+        public double NativeChatComposerHeight { get; set; } = 72;
+
+        /// <summary>
+        /// If true, Claude Code starts in plan mode: it researches and proposes a plan, and only makes
+        /// changes after the plan is approved in the chat. Native mode only — the terminal has the
+        /// CLI's own shift+tab for this.
+        /// </summary>
+        public bool ClaudePlanMode { get; set; } = false;
+
+        /// <summary>
         /// Which AI providers should be listed in the agent selection menu.
         /// Defaults to Claude Code only so the menu stays short out-of-the-box.
         /// The currently selected provider is always shown in the menu regardless

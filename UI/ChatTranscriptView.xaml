@@ -1,0 +1,599 @@
+<UserControl x:Class="ClaudeCodeVS.UI.ChatTranscriptView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:local="clr-namespace:ClaudeCodeVS.UI"
+             xmlns:vsshell="clr-namespace:Microsoft.VisualStudio.Shell;assembly=Microsoft.VisualStudio.Shell.15.0"
+             mc:Ignorable="d"
+             d:DesignHeight="400" d:DesignWidth="400"
+             Background="{DynamicResource {x:Static vsshell:VsBrushes.ToolWindowBackgroundKey}}"
+             Foreground="{DynamicResource {x:Static vsshell:VsBrushes.WindowTextKey}}">
+
+	<UserControl.Resources>
+		<ResourceDictionary>
+			<ResourceDictionary.MergedDictionaries>
+				<!-- Effort pill slider + themed dropdown chrome, shared with the panel -->
+				<ResourceDictionary Source="/ClaudeCodeExtension;component/UI/ChatStyles.xaml"/>
+			</ResourceDictionary.MergedDictionaries>
+
+		<local:InverseBooleanToVisibilityConverter x:Key="InverseBoolToVis"/>
+		<BooleanToVisibilityConverter x:Key="BoolToVis"/>
+		<local:EmptyStringToVisibilityConverter x:Key="EmptyToVis"/>
+
+		<!-- Read-only text that can still be selected and copied: a TextBlock cannot be,
+		     and copying an answer is the single most common thing users do with a chat. -->
+		<Style x:Key="SelectableTextStyle" TargetType="TextBox">
+			<Setter Property="IsReadOnly" Value="True"/>
+			<Setter Property="IsReadOnlyCaretVisible" Value="False"/>
+			<Setter Property="BorderThickness" Value="0"/>
+			<Setter Property="Background" Value="Transparent"/>
+			<Setter Property="Padding" Value="0"/>
+			<Setter Property="TextWrapping" Value="Wrap"/>
+			<Setter Property="HorizontalScrollBarVisibility" Value="Disabled"/>
+			<Setter Property="VerticalScrollBarVisibility" Value="Disabled"/>
+			<Setter Property="Foreground" Value="{DynamicResource {x:Static vsshell:VsBrushes.WindowTextKey}}"/>
+			<Setter Property="SelectionBrush" Value="{DynamicResource {x:Static vsshell:VsBrushes.HighlightKey}}"/>
+		</Style>
+
+		<Style x:Key="CodeTextStyle" TargetType="TextBox" BasedOn="{StaticResource SelectableTextStyle}">
+			<Setter Property="FontFamily" Value="Consolas"/>
+			<Setter Property="TextWrapping" Value="NoWrap"/>
+			<Setter Property="HorizontalScrollBarVisibility" Value="Auto"/>
+		</Style>
+
+		<!-- One prose or code run inside a message -->
+		<DataTemplate x:Key="SegmentTemplate" DataType="{x:Type local:ChatSegment}">
+			<Grid Margin="0,2,0,2">
+				<TextBox Style="{StaticResource SelectableTextStyle}"
+				         Text="{Binding Text, Mode=OneWay}"
+				         Visibility="{Binding IsCode, Converter={StaticResource InverseBoolToVis}}"/>
+				<Border Visibility="{Binding IsCode, Converter={StaticResource BoolToVis}}"
+				        Margin="0,4,0,4"
+				        Padding="8,6,8,6"
+				        CornerRadius="3"
+				        Background="{DynamicResource {x:Static vsshell:VsBrushes.WindowKey}}"
+				        BorderBrush="{DynamicResource {x:Static vsshell:VsBrushes.ToolWindowBorderKey}}"
+				        BorderThickness="1">
+					<Grid>
+						<Grid.RowDefinitions>
+							<RowDefinition Height="Auto"/>
+							<RowDefinition Height="*"/>
+						</Grid.RowDefinitions>
+						<DockPanel Grid.Row="0" Margin="0,0,0,4"
+						           Visibility="{Binding Language, Converter={StaticResource EmptyToVis}}">
+							<TextBlock Text="{Binding Language}" Opacity="0.6" FontSize="10"/>
+						</DockPanel>
+						<TextBox Grid.Row="1" Style="{StaticResource CodeTextStyle}"
+						         Text="{Binding Text, Mode=OneWay}"/>
+					</Grid>
+				</Border>
+			</Grid>
+		</DataTemplate>
+
+		<!-- Message body: raw text while streaming, parsed segments once the turn ends -->
+		<DataTemplate x:Key="MessageBodyTemplate">
+			<Grid>
+				<TextBox Style="{StaticResource SelectableTextStyle}"
+				         Text="{Binding Text, Mode=OneWay}"
+				         Visibility="{Binding IsStreaming, Converter={StaticResource BoolToVis}}"/>
+				<ItemsControl ItemsSource="{Binding Segments}"
+				              ItemTemplate="{StaticResource SegmentTemplate}"
+				              Visibility="{Binding IsStreaming, Converter={StaticResource InverseBoolToVis}}"/>
+			</Grid>
+		</DataTemplate>
+
+		<!-- User prompt -->
+		<DataTemplate x:Key="UserTemplate">
+			<Border Margin="24,6,0,6" Padding="10,7,10,7" CornerRadius="6"
+			        HorizontalAlignment="Right"
+			        Background="{DynamicResource {x:Static vsshell:VsBrushes.CommandBarMenuBackgroundGradientKey}}"
+			        BorderBrush="{DynamicResource {x:Static vsshell:VsBrushes.ToolWindowBorderKey}}"
+			        BorderThickness="1">
+				<TextBox Style="{StaticResource SelectableTextStyle}" Text="{Binding Text, Mode=OneWay}"/>
+			</Border>
+		</DataTemplate>
+
+		<!-- Agent answer -->
+		<DataTemplate x:Key="AssistantTemplate">
+			<ContentControl Margin="0,6,24,6" Content="{Binding}"
+			                ContentTemplate="{StaticResource MessageBodyTemplate}"/>
+		</DataTemplate>
+
+		<!-- Extended thinking, collapsed by default -->
+		<DataTemplate x:Key="ThinkingTemplate">
+			<Expander Margin="0,4,24,4" IsExpanded="{Binding IsExpanded, Mode=TwoWay}"
+			          Foreground="{DynamicResource {x:Static vsshell:VsBrushes.WindowTextKey}}"
+			          Opacity="0.75">
+				<Expander.Header>
+					<TextBlock Text="{Binding Header}" FontStyle="Italic" FontSize="11"/>
+				</Expander.Header>
+				<Border Margin="18,4,0,4" Padding="8,6,8,6" CornerRadius="3"
+				        Background="{DynamicResource {x:Static vsshell:VsBrushes.WindowKey}}">
+					<TextBox Style="{StaticResource SelectableTextStyle}"
+					         FontStyle="Italic"
+					         Text="{Binding Text, Mode=OneWay}"/>
+				</Border>
+			</Expander>
+		</DataTemplate>
+
+		<!-- Tool call, collapsed by default -->
+		<DataTemplate x:Key="ToolTemplate">
+			<Expander Margin="0,4,24,4" IsExpanded="{Binding IsExpanded, Mode=TwoWay}"
+			          Foreground="{DynamicResource {x:Static vsshell:VsBrushes.WindowTextKey}}">
+				<Expander.Header>
+					<StackPanel Orientation="Horizontal">
+						<TextBlock Text="{Binding Header}" FontSize="11" Opacity="0.85"/>
+						<TextBlock Text="  ✕" FontSize="11" Foreground="#E51400"
+						           Visibility="{Binding IsError, Converter={StaticResource BoolToVis}}"/>
+					</StackPanel>
+				</Expander.Header>
+				<Border Margin="18,4,0,4" Padding="8,6,8,6" CornerRadius="3"
+				        Background="{DynamicResource {x:Static vsshell:VsBrushes.WindowKey}}"
+				        BorderBrush="{DynamicResource {x:Static vsshell:VsBrushes.ToolWindowBorderKey}}"
+				        BorderThickness="1">
+					<StackPanel>
+						<TextBox Style="{StaticResource CodeTextStyle}" FontSize="11"
+						         Text="{Binding ToolInputJson, Mode=OneWay}"
+						         Visibility="{Binding ToolInputJson, Converter={StaticResource EmptyToVis}}"/>
+						<Separator Margin="0,6,0,6" Opacity="0.3"
+						           Visibility="{Binding ToolResult, Converter={StaticResource EmptyToVis}}"/>
+						<TextBox Style="{StaticResource CodeTextStyle}" FontSize="11"
+						         Text="{Binding ToolResult, Mode=OneWay}"
+						         Visibility="{Binding ToolResult, Converter={StaticResource EmptyToVis}}"/>
+					</StackPanel>
+				</Border>
+			</Expander>
+		</DataTemplate>
+
+		<!-- Session failure -->
+		<DataTemplate x:Key="ErrorTemplate">
+			<Border Margin="0,6,24,6" Padding="9,7,9,7" CornerRadius="4"
+			        Background="#22E51400" BorderBrush="#88E51400" BorderThickness="1">
+				<TextBox Style="{StaticResource SelectableTextStyle}" Text="{Binding Text, Mode=OneWay}"/>
+			</Border>
+		</DataTemplate>
+
+		<!-- Neutral status line -->
+		<DataTemplate x:Key="NoticeTemplate">
+			<TextBlock Margin="0,6,24,6" Text="{Binding Text}" TextWrapping="Wrap"
+			           FontStyle="Italic" FontSize="11" Opacity="0.7"/>
+		</DataTemplate>
+
+		<!-- One answer button. The selected state has to be obvious at a glance, so it takes the
+		     accent border and a tinted fill rather than only a check mark. -->
+		<Style x:Key="InteractionOptionStyle" TargetType="Button">
+			<Setter Property="HorizontalContentAlignment" Value="Stretch"/>
+			<Setter Property="Margin" Value="0,0,0,4"/>
+			<Setter Property="Padding" Value="9,6,9,6"/>
+			<Setter Property="Cursor" Value="Hand"/>
+			<Setter Property="Foreground" Value="{DynamicResource {x:Static vsshell:VsBrushes.WindowTextKey}}"/>
+			<Setter Property="Template">
+				<Setter.Value>
+					<ControlTemplate TargetType="Button">
+						<Border x:Name="Shell" CornerRadius="4"
+						        Background="Transparent"
+						        BorderThickness="1"
+						        BorderBrush="{DynamicResource {x:Static vsshell:VsBrushes.ToolWindowBorderKey}}">
+							<ContentPresenter Margin="{TemplateBinding Padding}"
+							                  HorizontalAlignment="Stretch"/>
+						</Border>
+						<ControlTemplate.Triggers>
+							<Trigger Property="IsMouseOver" Value="True">
+								<Setter TargetName="Shell" Property="Background"
+								        Value="{DynamicResource {x:Static vsshell:VsBrushes.CommandBarHoverOverSelectedKey}}"/>
+							</Trigger>
+							<DataTrigger Binding="{Binding IsSelected}" Value="True">
+								<Setter TargetName="Shell" Property="BorderBrush" Value="#1C8AE0"/>
+								<Setter TargetName="Shell" Property="Background" Value="#221C8AE0"/>
+							</DataTrigger>
+						</ControlTemplate.Triggers>
+					</ControlTemplate>
+				</Setter.Value>
+			</Setter>
+		</Style>
+
+		<!-- Action buttons at the bottom of an interaction card -->
+		<Style x:Key="InteractionPrimaryStyle" TargetType="Button">
+			<Setter Property="Background" Value="#1C8AE0"/>
+			<Setter Property="Foreground" Value="White"/>
+			<Setter Property="BorderThickness" Value="0"/>
+			<Setter Property="FontWeight" Value="SemiBold"/>
+			<Setter Property="FontSize" Value="11"/>
+			<Setter Property="Padding" Value="14,4,14,4"/>
+			<Setter Property="Margin" Value="6,0,0,0"/>
+			<Setter Property="Cursor" Value="Hand"/>
+			<Setter Property="Template">
+				<Setter.Value>
+					<ControlTemplate TargetType="Button">
+						<Border x:Name="Shell" CornerRadius="3"
+						        Background="{TemplateBinding Background}">
+							<ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"
+							                  Margin="{TemplateBinding Padding}"/>
+						</Border>
+						<ControlTemplate.Triggers>
+							<Trigger Property="IsMouseOver" Value="True">
+								<Setter TargetName="Shell" Property="Opacity" Value="0.85"/>
+							</Trigger>
+							<Trigger Property="IsEnabled" Value="False">
+								<Setter TargetName="Shell" Property="Opacity" Value="0.4"/>
+							</Trigger>
+						</ControlTemplate.Triggers>
+					</ControlTemplate>
+				</Setter.Value>
+			</Setter>
+		</Style>
+
+		<Style x:Key="InteractionSecondaryStyle" TargetType="Button" BasedOn="{StaticResource InteractionPrimaryStyle}">
+			<Setter Property="Background" Value="#33808080"/>
+			<Setter Property="Foreground" Value="{DynamicResource {x:Static vsshell:VsBrushes.WindowTextKey}}"/>
+			<Setter Property="FontWeight" Value="Normal"/>
+		</Style>
+
+		<!-- One question inside a question card -->
+		<DataTemplate x:Key="InteractionQuestionTemplate" DataType="{x:Type local:ChatQuestionViewModel}">
+			<StackPanel Margin="0,0,0,10">
+				<Border Visibility="{Binding HasHeader, Converter={StaticResource BoolToVis}}"
+				        HorizontalAlignment="Left"
+				        Margin="0,0,0,4" Padding="6,1,6,1" CornerRadius="3"
+				        Background="#331C8AE0">
+					<TextBlock Text="{Binding Header}" FontSize="9" FontWeight="SemiBold"
+					           Opacity="0.9"
+					           Foreground="{DynamicResource {x:Static vsshell:VsBrushes.WindowTextKey}}"/>
+				</Border>
+
+				<TextBlock Text="{Binding Question}" TextWrapping="Wrap" Margin="0,0,0,6"
+				           FontWeight="SemiBold"/>
+
+				<ItemsControl ItemsSource="{Binding Options}">
+					<ItemsControl.ItemTemplate>
+						<DataTemplate DataType="{x:Type local:ChatOptionViewModel}">
+							<!-- Tag carries the owning question: the click handler needs it to clear the
+							     other options of a single-select question. -->
+							<Button Style="{StaticResource InteractionOptionStyle}"
+							        Tag="{Binding DataContext, RelativeSource={RelativeSource AncestorType={x:Type ItemsControl}}}"
+							        Click="InteractionOption_Click">
+								<StackPanel>
+									<TextBlock Text="{Binding Label}" TextWrapping="Wrap"/>
+									<TextBlock Text="{Binding Description}" TextWrapping="Wrap"
+									           FontSize="10" Opacity="0.65" Margin="0,2,0,0"
+									           Visibility="{Binding HasDescription, Converter={StaticResource BoolToVis}}"/>
+								</StackPanel>
+							</Button>
+						</DataTemplate>
+					</ItemsControl.ItemTemplate>
+				</ItemsControl>
+
+				<Grid Margin="0,2,0,0">
+					<TextBox Text="{Binding OtherAnswer, UpdateSourceTrigger=PropertyChanged}"
+					         Padding="6,4,6,4"
+					         TextWrapping="Wrap" AcceptsReturn="True"
+					         Background="{DynamicResource {x:Static vsshell:VsBrushes.WindowKey}}"
+					         Foreground="{DynamicResource {x:Static vsshell:VsBrushes.WindowTextKey}}"
+					         CaretBrush="{DynamicResource {x:Static vsshell:VsBrushes.WindowTextKey}}"
+					         SelectionBrush="{DynamicResource {x:Static vsshell:VsBrushes.HighlightKey}}"
+					         BorderBrush="{DynamicResource {x:Static vsshell:VsBrushes.ToolWindowBorderKey}}"
+					         BorderThickness="1"/>
+					<TextBlock Text="Other — type your own answer…"
+					           IsHitTestVisible="False"
+					           Margin="8,5,0,0" Opacity="0.5" FontSize="11"
+					           VerticalAlignment="Top"
+					           Foreground="{DynamicResource {x:Static vsshell:VsBrushes.WindowTextKey}}"
+					           Visibility="{Binding OtherAnswer, Converter={StaticResource EmptyToVis}, ConverterParameter=invert}"/>
+				</Grid>
+			</StackPanel>
+		</DataTemplate>
+
+		<!-- Question / plan / tool-permission card. Stays in the transcript once answered, showing
+		     what was decided, so scrolling back still explains why the agent did what it did. -->
+		<DataTemplate x:Key="InteractionTemplate" DataType="{x:Type local:ChatInteractionViewModel}">
+			<Border Margin="0,8,24,8" Padding="12,10,12,10" CornerRadius="5"
+			        Background="{DynamicResource {x:Static vsshell:VsBrushes.WindowKey}}"
+			        BorderBrush="#881C8AE0" BorderThickness="1">
+				<StackPanel>
+					<TextBlock Text="{Binding Title}" FontWeight="SemiBold" Margin="0,0,0,8"
+					           TextWrapping="Wrap"/>
+
+					<!-- Pending: the actual controls -->
+					<StackPanel Visibility="{Binding IsPending, Converter={StaticResource BoolToVis}}">
+						<ItemsControl ItemsSource="{Binding Questions}"
+						              ItemTemplate="{StaticResource InteractionQuestionTemplate}"
+						              Visibility="{Binding IsQuestion, Converter={StaticResource BoolToVis}}"/>
+
+						<Border Visibility="{Binding IsPlanReview, Converter={StaticResource BoolToVis}}"
+						        Padding="8,6,8,6" CornerRadius="3" Margin="0,0,0,4"
+						        Background="{DynamicResource {x:Static vsshell:VsBrushes.ToolWindowBackgroundKey}}">
+							<ScrollViewer MaxHeight="300" VerticalScrollBarVisibility="Auto">
+								<TextBox Style="{StaticResource SelectableTextStyle}"
+								         Text="{Binding PlanText, Mode=OneWay}"/>
+							</ScrollViewer>
+						</Border>
+
+						<StackPanel Visibility="{Binding IsToolApproval, Converter={StaticResource BoolToVis}}">
+							<TextBox Style="{StaticResource CodeTextStyle}" FontSize="11"
+							         Text="{Binding ToolInputJson, Mode=OneWay}"
+							         Visibility="{Binding ToolInputJson, Converter={StaticResource EmptyToVis}}"/>
+						</StackPanel>
+
+						<DockPanel Margin="0,8,0,0" LastChildFill="False">
+							<Button DockPanel.Dock="Right"
+							        Style="{StaticResource InteractionPrimaryStyle}"
+							        Content="{Binding SubmitCaption}"
+							        Click="InteractionSubmit_Click"/>
+							<Button DockPanel.Dock="Right"
+							        Style="{StaticResource InteractionSecondaryStyle}"
+							        Content="{Binding RejectCaption}"
+							        Click="InteractionReject_Click"/>
+						</DockPanel>
+					</StackPanel>
+
+					<!-- Answered: one line saying what happened -->
+					<TextBlock Text="{Binding Outcome}" TextWrapping="Wrap"
+					           FontSize="11" Opacity="0.75" FontStyle="Italic"
+					           Visibility="{Binding IsResolved, Converter={StaticResource BoolToVis}}"/>
+				</StackPanel>
+			</Border>
+		</DataTemplate>
+
+		<!-- Composer selector ("Sonnet ▾", "Ask ▾"): flat until hovered, so four of them in a
+		     row read as one strip instead of four competing buttons. -->
+		<Style x:Key="ComposerSelectorStyle" TargetType="Button">
+			<Setter Property="Background" Value="Transparent"/>
+			<Setter Property="Foreground" Value="{DynamicResource {x:Static vsshell:VsBrushes.ToolWindowTextKey}}"/>
+			<Setter Property="BorderBrush" Value="Transparent"/>
+			<Setter Property="BorderThickness" Value="1"/>
+			<Setter Property="Padding" Value="7,2,7,2"/>
+			<Setter Property="Margin" Value="0,0,2,0"/>
+			<Setter Property="FontSize" Value="11"/>
+			<Setter Property="Height" Value="22"/>
+			<Setter Property="Cursor" Value="Hand"/>
+			<Setter Property="Focusable" Value="False"/>
+			<Setter Property="Template">
+				<Setter.Value>
+					<ControlTemplate TargetType="Button">
+						<Border Background="{TemplateBinding Background}"
+						        BorderBrush="{TemplateBinding BorderBrush}"
+						        BorderThickness="{TemplateBinding BorderThickness}"
+						        CornerRadius="3">
+							<ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"
+							                  Margin="{TemplateBinding Padding}"/>
+						</Border>
+						<ControlTemplate.Triggers>
+							<Trigger Property="IsMouseOver" Value="True">
+								<Setter Property="Background" Value="{DynamicResource {x:Static vsshell:VsBrushes.CommandBarHoverOverSelectedKey}}"/>
+								<Setter Property="BorderBrush" Value="{DynamicResource {x:Static vsshell:VsBrushes.CommandBarSelectedBorderKey}}"/>
+							</Trigger>
+							<Trigger Property="IsEnabled" Value="False">
+								<Setter Property="Foreground" Value="{DynamicResource {x:Static vsshell:VsBrushes.GrayTextKey}}"/>
+							</Trigger>
+						</ControlTemplate.Triggers>
+					</ControlTemplate>
+				</Setter.Value>
+			</Setter>
+		</Style>
+
+		<!-- Accent style for the send button, so the primary action reads as primary -->
+		<Style x:Key="ComposerSendStyle" TargetType="Button" BasedOn="{StaticResource ComposerSelectorStyle}">
+			<Setter Property="Background" Value="#1C8AE0"/>
+			<Setter Property="Foreground" Value="White"/>
+			<Setter Property="FontWeight" Value="SemiBold"/>
+			<Setter Property="Padding" Value="12,2,12,2"/>
+			<Setter Property="Margin" Value="6,0,0,0"/>
+		</Style>
+
+		</ResourceDictionary>
+	</UserControl.Resources>
+
+	<!-- LayoutTransform (not RenderTransform) so Ctrl+Scroll zoom re-flows the text at the new
+	     scale instead of blurring a bitmap, and the scroll bars keep matching the content. -->
+	<Grid x:Name="RootGrid" PreviewMouseWheel="Root_PreviewMouseWheel">
+		<Grid.LayoutTransform>
+			<ScaleTransform x:Name="ZoomTransform" ScaleX="1" ScaleY="1"/>
+		</Grid.LayoutTransform>
+		<Grid.RowDefinitions>
+			<RowDefinition Height="*"/>
+			<RowDefinition Height="Auto"/>
+			<RowDefinition Height="Auto"/>
+		</Grid.RowDefinitions>
+
+		<ScrollViewer x:Name="TranscriptScroll" Grid.Row="0"
+		              VerticalScrollBarVisibility="Auto"
+		              HorizontalScrollBarVisibility="Disabled"
+		              Padding="8,4,8,4"
+		              ScrollChanged="TranscriptScroll_ScrollChanged">
+			<ItemsControl x:Name="MessagesList">
+				<ItemsControl.ItemsPanel>
+					<ItemsPanelTemplate>
+						<VirtualizingStackPanel/>
+					</ItemsPanelTemplate>
+				</ItemsControl.ItemsPanel>
+				<ItemsControl.ItemTemplateSelector>
+					<local:ChatMessageTemplateSelector
+						UserTemplate="{StaticResource UserTemplate}"
+						AssistantTemplate="{StaticResource AssistantTemplate}"
+						ThinkingTemplate="{StaticResource ThinkingTemplate}"
+						ToolTemplate="{StaticResource ToolTemplate}"
+						ErrorTemplate="{StaticResource ErrorTemplate}"
+						NoticeTemplate="{StaticResource NoticeTemplate}"
+						InteractionTemplate="{StaticResource InteractionTemplate}"/>
+				</ItemsControl.ItemTemplateSelector>
+			</ItemsControl>
+		</ScrollViewer>
+
+		<!-- Appears only while the user has scrolled away from the newest message -->
+		<Button x:Name="ScrollToEndButton" Grid.Row="0"
+		        Content="↓"
+		        Width="26" Height="26"
+		        Margin="0,0,20,12"
+		        HorizontalAlignment="Right" VerticalAlignment="Bottom"
+		        Visibility="Collapsed"
+		        ToolTip="Jump to the latest message"
+		        Click="ScrollToEndButton_Click"/>
+
+		<Border x:Name="StatusBar" Grid.Row="1"
+		        Padding="8,3,8,3"
+		        Visibility="Collapsed"
+		        Background="{DynamicResource {x:Static vsshell:VsBrushes.ToolWindowBackgroundKey}}"
+		        BorderBrush="{DynamicResource {x:Static vsshell:VsBrushes.ToolWindowBorderKey}}"
+		        BorderThickness="0,1,0,0">
+			<DockPanel LastChildFill="True">
+				<!-- The only way to abort a turn in native mode: there is no console to press ESC in. -->
+				<Button x:Name="StopButton" DockPanel.Dock="Right"
+				        Content="■ Stop"
+				        Padding="8,1,8,1"
+				        FontSize="11"
+				        Margin="8,0,0,0"
+				        Visibility="Collapsed"
+				        ToolTip="Stop the turn in progress"
+				        Click="StopButton_Click"/>
+				<TextBlock x:Name="StatusText" FontSize="11" Opacity="0.75"
+				           VerticalAlignment="Center" TextTrimming="CharacterEllipsis"/>
+			</DockPanel>
+		</Border>
+
+		<!-- Composer: the chat can be driven entirely from here, so the tab is usable on its own
+		     without going back to the panel's prompt box. Hidden while the chat sits in the panel,
+		     where that prompt box is right above it. -->
+		<Border x:Name="ComposerBar" Grid.Row="2"
+		        Visibility="Collapsed"
+		        Padding="8,6,8,8"
+		        AllowDrop="True"
+		        Drop="Composer_Drop"
+		        PreviewDragOver="Composer_PreviewDragOver"
+		        Background="{DynamicResource {x:Static vsshell:VsBrushes.ToolWindowBackgroundKey}}"
+		        BorderBrush="{DynamicResource {x:Static vsshell:VsBrushes.ToolWindowBorderKey}}"
+		        BorderThickness="0,1,0,0">
+			<Grid>
+				<Grid.RowDefinitions>
+					<RowDefinition Height="Auto"/>
+					<RowDefinition Height="Auto"/>
+					<RowDefinition Height="Auto"/>
+					<RowDefinition Height="Auto"/>
+				</Grid.RowDefinitions>
+
+				<!-- Drag the top edge of the composer to make the input taller or shorter -->
+				<Thumb x:Name="ComposerResizeGrip" Grid.Row="0"
+				       Height="6" Margin="0,-4,0,2"
+				       Cursor="SizeNS"
+				       ToolTip="Drag to resize the prompt area"
+				       DragDelta="ComposerResizeGrip_DragDelta">
+					<Thumb.Template>
+						<ControlTemplate TargetType="Thumb">
+							<Border Background="Transparent">
+								<Rectangle Height="3" Width="34" RadiusX="1.5" RadiusY="1.5"
+								           Opacity="0.35"
+								           Fill="{DynamicResource {x:Static vsshell:VsBrushes.WindowTextKey}}"/>
+							</Border>
+						</ControlTemplate>
+					</Thumb.Template>
+				</Thumb>
+
+				<!-- Attachment chips, filled by the parent control from its own attachment list -->
+				<WrapPanel x:Name="ComposerAttachments" Grid.Row="1" Margin="0,0,0,4"/>
+
+				<Border Grid.Row="2" CornerRadius="4" Padding="6,4,6,4"
+				        Background="{DynamicResource {x:Static vsshell:VsBrushes.WindowKey}}"
+				        BorderBrush="{DynamicResource {x:Static vsshell:VsBrushes.ToolWindowBorderKey}}"
+				        BorderThickness="1">
+					<Grid>
+						<!-- CaretBrush is explicit: the default caret is black, which is invisible
+						     against the dark-theme editor background and reads as "no cursor". -->
+						<TextBox x:Name="ComposerInput"
+						         Height="72" MinHeight="46"
+						         AcceptsReturn="True"
+						         TextWrapping="Wrap"
+						         VerticalScrollBarVisibility="Auto"
+						         BorderThickness="0"
+						         Background="Transparent"
+						         FontFamily="Cascadia Mono"
+						         CaretBrush="{DynamicResource {x:Static vsshell:VsBrushes.WindowTextKey}}"
+						         SelectionBrush="{DynamicResource {x:Static vsshell:VsBrushes.HighlightKey}}"
+						         Foreground="{DynamicResource {x:Static vsshell:VsBrushes.WindowTextKey}}"
+						         PreviewKeyDown="ComposerInput_PreviewKeyDown"
+						         TextChanged="ComposerInput_TextChanged"/>
+						<TextBlock x:Name="ComposerPlaceholder"
+						           Text="Ask anything · Esc to unfocus"
+						           IsHitTestVisible="False"
+						           Margin="2,1,0,0"
+						           Opacity="0.5"
+						           FontSize="12"
+						           VerticalAlignment="Top"
+						           Foreground="{DynamicResource {x:Static vsshell:VsBrushes.WindowTextKey}}"/>
+					</Grid>
+				</Border>
+
+				<DockPanel Grid.Row="3" Margin="0,6,0,0" LastChildFill="False">
+					<Button x:Name="ComposerNewChatButton" DockPanel.Dock="Left"
+					        Style="{StaticResource ComposerSelectorStyle}"
+					        Content="✚"
+					        FontSize="13"
+					        ToolTip="Start a new chat (clears the conversation)"
+					        Click="ComposerNewChatButton_Click"/>
+
+					<Button x:Name="ComposerAttachButton" DockPanel.Dock="Left"
+					        Style="{StaticResource ComposerSelectorStyle}"
+					        Content="📎"
+					        ToolTip="Attach a file to the next prompt"
+					        Click="ComposerAttachButton_Click"/>
+
+					<Rectangle DockPanel.Dock="Left" Width="1" Margin="4,4,6,4" Opacity="0.25"
+					           Fill="{DynamicResource {x:Static vsshell:VsBrushes.WindowTextKey}}"/>
+
+					<Button x:Name="ComposerProviderButton" DockPanel.Dock="Left"
+					        Style="{StaticResource ComposerSelectorStyle}"
+					        Content="Agent ▾"
+					        ToolTip="Change the AI agent"
+					        Click="ComposerProviderButton_Click"/>
+
+					<Button x:Name="ComposerModelButton" DockPanel.Dock="Left"
+					        Style="{StaticResource ComposerSelectorStyle}"
+					        Content="Model ▾"
+					        ToolTip="Change the model"
+					        Click="ComposerModelButton_Click"/>
+
+					<Button x:Name="ComposerEffortButton" DockPanel.Dock="Left"
+					        Style="{StaticResource ComposerSelectorStyle}"
+					        Content="Effort ▾"
+					        ToolTip="Change the effort level"
+					        Click="ComposerEffortButton_Click"/>
+
+					<Button x:Name="ComposerPermissionButton" DockPanel.Dock="Left"
+					        Style="{StaticResource ComposerSelectorStyle}"
+					        Content="Permissions ▾"
+					        ToolTip="Change how tool permissions are handled"
+					        Click="ComposerPermissionButton_Click"/>
+
+					<Button x:Name="ComposerSendButton" DockPanel.Dock="Right"
+					        Style="{StaticResource ComposerSendStyle}"
+					        Content="➤  Send"
+					        ToolTip="Send the prompt"
+					        Click="ComposerSendButton_Click"/>
+				</DockPanel>
+			</Grid>
+		</Border>
+
+		<!-- Effort is a pill slider rather than a list, to match the model menu in the panel -->
+		<Popup x:Name="EffortPopup" Grid.Row="2"
+		       Placement="Top"
+		       PlacementTarget="{Binding ElementName=ComposerEffortButton}"
+		       StaysOpen="False"
+		       AllowsTransparency="True"
+		       PopupAnimation="Fade">
+			<Border Padding="12,9,12,10" CornerRadius="5" Margin="6"
+			        Background="{DynamicResource {x:Static vsshell:VsBrushes.CommandBarMenuBackgroundGradientKey}}"
+			        BorderBrush="{DynamicResource {x:Static vsshell:VsBrushes.CommandBarMenuBorderKey}}"
+			        BorderThickness="1">
+				<Border.Effect>
+					<DropShadowEffect BlurRadius="10" ShadowDepth="2" Opacity="0.35"/>
+				</Border.Effect>
+				<StackPanel>
+					<TextBlock x:Name="EffortPopupLabel" Text="Effort" Margin="1,0,0,6" FontSize="11"
+					           Foreground="{DynamicResource {x:Static vsshell:VsBrushes.CommandBarTextActiveKey}}"/>
+					<Slider x:Name="EffortPopupSlider"
+					        Style="{StaticResource EffortSliderStyle}"
+					        ValueChanged="EffortPopupSlider_ValueChanged"/>
+				</StackPanel>
+			</Border>
+		</Popup>
+	</Grid>
+</UserControl>

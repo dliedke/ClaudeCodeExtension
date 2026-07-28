@@ -47,6 +47,9 @@ namespace ClaudeCodeExtension
     [ProvideToolWindow(typeof(ClaudeCodeVS.DiffViewerToolWindow), Transient = true)]
     [ProvideToolWindow(typeof(ClaudeCodeVS.DetachedTerminalToolWindow), Transient = true)]
     [ProvideToolWindow(typeof(ClaudeCodeVS.ClaudeUsageToolWindow), Transient = true)]
+    // MDI style docks the chat in the central document area, next to the open files, instead of the
+    // narrow tool-window strip the other panes use.
+    [ProvideToolWindow(typeof(ClaudeCodeVS.NativeChatToolWindow), Style = VsDockStyle.MDI, Transient = true)]
     [ProvideMenuResource("Menus.ctmenu", 1)]
     [Guid(ClaudeCodeExtensionPackage.PackageGuidString)]
     public sealed class ClaudeCodeExtensionPackage : AsyncPackage

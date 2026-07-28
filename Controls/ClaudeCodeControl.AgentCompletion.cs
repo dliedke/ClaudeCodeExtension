@@ -244,6 +244,12 @@ namespace ClaudeCodeVS
             {
                 if (_settings == null) return;
 
+                // Native mode has a real end-of-turn event, so the whole console-idle heuristic —
+                // AttachConsole, screen hashing, the "is it waiting for input?" keyword sniffing —
+                // stays off. Leaving it armed would only produce false positives against a panel
+                // that has no console at all.
+                if (IsNativeModeActive) return;
+
                 bool windowsTerminal = _settings.SelectedTerminalType == TerminalType.WindowsTerminal;
 
                 await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
@@ -1595,7 +1601,7 @@ namespace ClaudeCodeVS
                             {
                                 string followLabel = DescribeSendCommand(cfg.FollowUpSendToAgent);
                                 await ShowAgentFinishNotificationAsync("Agent finish · next step", followLabel,
-                                    () => SendTextToTerminalAsync(cfg.FollowUpSendToAgent));
+                                    () => SendTextToAgentAsync(cfg.FollowUpSendToAgent));
                             }
                         });
                     }
@@ -1643,7 +1649,7 @@ namespace ClaudeCodeVS
             bool ranOk = await ExecuteMainActionAsync(cfg);
             if (ranOk && HasFollowUp(cfg))
             {
-                await SendTextToTerminalAsync(cfg.FollowUpSendToAgent);
+                await SendTextToAgentAsync(cfg.FollowUpSendToAgent);
             }
         }
 
@@ -1683,7 +1689,7 @@ namespace ClaudeCodeVS
                         return true;
                     case AgentFinishActionType.SendToAgent:
                         if (!string.IsNullOrWhiteSpace(cfg.ScriptOrCommand))
-                            await SendTextToTerminalAsync(cfg.ScriptOrCommand);
+                            await SendTextToAgentAsync(cfg.ScriptOrCommand);
                         return true;
                     default:
                         return true;

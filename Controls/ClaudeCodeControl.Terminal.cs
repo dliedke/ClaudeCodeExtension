@@ -217,6 +217,14 @@ namespace ClaudeCodeVS
         {
             try
             {
+                // Native mode replaces the embedded console with the chat transcript. It returns false
+                // when the setting is off or the provider has no structured channel, in which case the
+                // regular terminal launch below runs untouched.
+                if (await TryStartNativeModeAsync())
+                {
+                    return;
+                }
+
                 // Determine which provider to use based on settings
                 bool useClaudeCodeWSL = _settings?.SelectedProvider == AiProvider.ClaudeCodeWSL;
                 bool useCodex = _settings?.SelectedProvider == AiProvider.Codex;
@@ -4484,6 +4492,18 @@ namespace ClaudeCodeVS
         /// </summary>
         private async Task RestartTerminalWithSelectedProviderAsync()
         {
+            await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
+
+            // A restart always ends the previous native session first, so switching from a provider
+            // with a structured channel to one without leaves no orphaned agent process behind.
+            await ShutdownNativeModeAsync();
+            ShowNativeTranscript(false);
+
+            if (await TryStartNativeModeAsync())
+            {
+                return;
+            }
+
             // Get the selected provider from settings
             AiProvider? selectedProvider = _settings?.SelectedProvider;
             bool providerAvailable = false;
@@ -4551,6 +4571,13 @@ namespace ClaudeCodeVS
 
             // Start the terminal with the selected provider if available, otherwise regular CMD
             await StartEmbeddedTerminalAsync(providerAvailable ? selectedProvider : null);
+
+            // Native mode forces the terminal back into the panel while it owns that slot, but keeps the
+            // saved preference. Now that a real console exists again, honour it.
+            if (_settings?.IsTerminalDetached == true && !_isTerminalDetached)
+            {
+                await DetachTerminalAsync();
+            }
         }
 
         /// <summary>

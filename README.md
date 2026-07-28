@@ -1,7 +1,6 @@
 # Claude Code Extension for Visual Studio
 
-Note: Eventually this extension will be decomissioned. 
-Please use [Claude Code Studio from wluisdev](https://marketplace.visualstudio.com/items?itemName=wluisdev.ClaudeCodeStudio)
+Please also check [Claude Code Studio from wluisdev](https://marketplace.visualstudio.com/items?itemName=wluisdev.ClaudeCodeStudio)
 
 Embedded terminal inside Visual Studio for **Claude Code, OpenAI Codex, Cursor Agent, Open Code, Devin, PI, Google Antigravity, and Reasonix** — with multi-line prompts, file attachments, and an integrated diff viewer.
 
@@ -16,6 +15,7 @@ Enjoying the extension? [Buy me a coffee](https://www.buymeacoffee.com/dliedke) 
 ## Features
 
 - **Embedded AI terminal** — Run any supported AI coding agent inside a Visual Studio tool window. Auto-detects the solution directory; restarts when you switch solutions. Optionally use Windows Terminal instead of Command Prompt for better emoji/Unicode rendering.
+- **Native mode (optional)** — Show the conversation as a chat in its own document tab instead of an embedded terminal: answers stream in, thinking and tool steps appear as collapsible cards, and each turn ends with its token count and cost. The tab has its own message box with file attachments plus agent, model, effort and permission selectors you can change mid-conversation. Opt-in via *⚙ → Settings... → Behavior*; agents that can't run this way keep using the terminal.
 - **Multi-line prompts** — Press **Enter** to send, **Shift+Enter** or **Ctrl+Enter** for a new line. Toggle "Send with Enter" off in the ⚙ menu to make Enter insert a newline and reveal a Send button.
 - **File and image attachments** — Paste images with **Ctrl+V**, drag & drop files onto the prompt area, or use the 📎 button. Any file type is accepted (no limit). Text content like Excel cells pastes as text, not as an image.
 - **Editor selection → prompt** — Click 📋 or right-click selected code → *Send Selection to Claude Code* to insert a formatted snippet (file path + line numbers + syntax-highlighted code fence) into the prompt.
@@ -116,8 +116,27 @@ https://github.com/anthropics/claude-code/issues/41501
 
 ## Version History
 
-### Version 81.0
-- Added a notice that this extension will eventually be decommissioned, pointing to Claude Code Studio as the recommended replacement.
+### Version 85.0
+- The chat tab now answers Claude Code's multiple-choice questions with clickable option cards, and each question also takes a free-text answer of your own.
+- Plan mode is available in the chat tab's permission selector: the agent proposes a plan first, and you approve or send it back for changes from the transcript.
+- Effort in the chat tab is now the same slider used elsewhere in the extension, and the agent, model and permission dropdowns follow the current theme.
+- The agent selector now tells apart the Windows and WSL versions of the same agent.
+- New chat button, a blinking cursor in the message box, a drag handle to resize it, and Ctrl+Scroll to zoom the whole conversation. The size and zoom are remembered.
+- While the chat is in its own tab, the panel no longer shows an empty terminal area — the message box gets that space.
+
+### Version 84.0
+- Native mode now opens the conversation in its own document tab, next to your files, instead of the narrow side panel.
+- The chat tab has its own message box, so you can type, attach files and drop files straight into it.
+- The chat tab also has agent, model, effort and permission selectors: change any of them mid-conversation and the switch is applied right away, with a note in the transcript marking where it happened. With Claude Code the conversation carries over.
+- While native mode is on, *Detach* moves the chat between its tab and the panel.
+
+### Version 83.0
+- Fixed native mode showing an empty panel when the terminal had been detached to a separate tab: the chat now takes that space back, and the detached tab returns as soon as native mode is turned off.
+- The *Detach Terminal to Separate Tab* command is hidden while native mode is on, since there is no terminal to detach.
+
+### Version 82.0
+- New optional native mode: the panel shows the conversation with the agent as a chat, with no embedded terminal — answers stream in as they arrive, thinking and tool steps appear as collapsible cards, and each turn ends with its token count and cost. Turn it on in Settings; it works with every supported agent, and any agent that can't run this way silently keeps using the terminal.
+- In native mode the "On Agent Finish" notification and action now fire when the agent itself reports the turn is over, instead of guessing from the terminal screen, so they no longer fire late or not at all. Auto-send of build and runtime errors, custom commands and follow-up messages all go through the same channel.
 
 ### Version 80.0
 - Fixed the "On Agent Finish" notification and action sometimes not firing: it now also works for prompts typed directly into the terminal (not only ones sent from the prompt box), no longer gives up on long agent turns that run past 30 minutes, and no longer stays silent when the agent's final answer happens to contain the phrase "to navigate".

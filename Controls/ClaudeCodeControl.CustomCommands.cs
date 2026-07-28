@@ -95,7 +95,7 @@ namespace ClaudeCodeVS
                 var cmd = item?.Tag as CustomCommand;
                 if (cmd == null || string.IsNullOrEmpty(cmd.Command)) return;
 
-                await SendTextToTerminalAsync(cmd.Command);
+                await SendTextToAgentAsync(cmd.Command);
             }
             catch (Exception ex)
             {

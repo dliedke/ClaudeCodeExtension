@@ -362,8 +362,10 @@ namespace ClaudeCodeVS
                     _lastWorkspaceDirectory = newWorkspaceDir;
                     await InitializeTerminalAsync();
 
-                    // Auto-restore detached state from previous session
-                    if (_settings?.IsTerminalDetached == true && !_isTerminalDetached)
+                    // Auto-restore detached state from previous session. Never under native mode: the
+                    // chat transcript occupies the terminal's grid slot, so detaching would collapse the
+                    // slot and leave the panel with nothing in it.
+                    if (_settings?.IsTerminalDetached == true && !_isTerminalDetached && !IsNativeModeActive)
                     {
                         await DetachTerminalAsync();
                     }

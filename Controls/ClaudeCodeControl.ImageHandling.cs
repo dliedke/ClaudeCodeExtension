@@ -248,70 +248,83 @@ namespace ClaudeCodeVS
             {
                 foreach (var path in attachedImagePaths.ToList())
                 {
-                    // Create chip border
-                    var chip = new Border
-                    {
-                        Style = (Style)FindResource("ChipBorder"),
-                        Cursor = Cursors.Hand,
-                        Tag = path
-                    };
-
-                    // Make chip clickable to open image
-                    chip.MouseLeftButtonUp += (s, e) =>
-                    {
-                        // Don't open if clicking the remove button
-                        if (e.OriginalSource is Button)
-                            return;
-
-                        var imagePath = (string)((Border)s).Tag;
-                        try
-                        {
-                            Process.Start(new ProcessStartInfo(imagePath) { UseShellExecute = true });
-                        }
-                        catch (Exception ex)
-                        {
-                            MessageBox.Show($"Error opening image: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
-                        }
-                    };
-
-                    // Create chip content
-                    var sp = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
-
-                    // Filename text - truncate if too long
-                    string fileName = Path.GetFileName(path);
-                    string displayName = fileName.Length > 18 ? fileName.Substring(0, 15) + "..." : fileName;
-
-                    var nameBlock = new TextBlock
-                    {
-                        Text = displayName,
-                        VerticalAlignment = VerticalAlignment.Center,
-                        MaxWidth = 120,
-                        TextTrimming = TextTrimming.CharacterEllipsis,
-                        ToolTip = fileName,
-                        FontSize = 11
-                    };
-                    nameBlock.SetResourceReference(TextBlock.ForegroundProperty, Microsoft.VisualStudio.Shell.VsBrushes.ToolWindowTextKey);
-
-                    // Remove button
-                    var removeBtn = new Button
-                    {
-                        Style = (Style)FindResource("ChipRemoveButton"),
-                        Tag = path
-                    };
-                    removeBtn.Click += (s, e) =>
-                    {
-                        var p = (string)((Button)s).Tag;
-                        attachedImagePaths.Remove(p);
-                        UpdateImageDropDisplay();
-                    };
-
-                    sp.Children.Add(nameBlock);
-                    sp.Children.Add(removeBtn);
-                    chip.Child = sp;
-
-                    AttachedImagesPanel.Children.Add(chip);
+                    AttachedImagesPanel.Children.Add(CreateAttachmentChip(path));
                 }
             }
+
+            // The chat tab has its own attachment strip showing the same list.
+            UpdateComposerAttachmentChips();
+        }
+
+        /// <summary>
+        /// Builds one attachment chip (file name + remove button). A fresh instance is created for
+        /// every host because a WPF element can only live in one visual tree, and the panel and the
+        /// chat composer both show the same attachments.
+        /// </summary>
+        private Border CreateAttachmentChip(string path)
+        {
+            // Create chip border
+            var chip = new Border
+            {
+                Style = (Style)FindResource("ChipBorder"),
+                Cursor = Cursors.Hand,
+                Tag = path
+            };
+
+            // Make chip clickable to open image
+            chip.MouseLeftButtonUp += (s, e) =>
+            {
+                // Don't open if clicking the remove button
+                if (e.OriginalSource is Button)
+                    return;
+
+                var imagePath = (string)((Border)s).Tag;
+                try
+                {
+                    Process.Start(new ProcessStartInfo(imagePath) { UseShellExecute = true });
+                }
+                catch (Exception ex)
+                {
+                    MessageBox.Show($"Error opening image: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                }
+            };
+
+            // Create chip content
+            var sp = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
+
+            // Filename text - truncate if too long
+            string fileName = Path.GetFileName(path);
+            string displayName = fileName.Length > 18 ? fileName.Substring(0, 15) + "..." : fileName;
+
+            var nameBlock = new TextBlock
+            {
+                Text = displayName,
+                VerticalAlignment = VerticalAlignment.Center,
+                MaxWidth = 120,
+                TextTrimming = TextTrimming.CharacterEllipsis,
+                ToolTip = fileName,
+                FontSize = 11
+            };
+            nameBlock.SetResourceReference(TextBlock.ForegroundProperty, Microsoft.VisualStudio.Shell.VsBrushes.ToolWindowTextKey);
+
+            // Remove button
+            var removeBtn = new Button
+            {
+                Style = (Style)FindResource("ChipRemoveButton"),
+                Tag = path
+            };
+            removeBtn.Click += (s, e) =>
+            {
+                var p = (string)((Button)s).Tag;
+                attachedImagePaths.Remove(p);
+                UpdateImageDropDisplay();
+            };
+
+            sp.Children.Add(nameBlock);
+            sp.Children.Add(removeBtn);
+            chip.Child = sp;
+
+            return chip;
         }
 
         /// <summary>

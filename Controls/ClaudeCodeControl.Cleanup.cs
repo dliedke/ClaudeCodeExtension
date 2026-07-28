@@ -163,6 +163,12 @@ namespace ClaudeCodeVS
                 // Stop the "On Agent Finish" completion watcher timer
                 StopAgentCompletionTimer();
 
+                // End the native-mode agent session (no-op when the terminal is in use)
+                DisposeNativeSession();
+
+                // The chat tab outlives this control otherwise, showing a transcript nothing feeds
+                CloseNativeChatTab();
+
                 // Unsubscribe from VS build events (auto-send build errors feature)
                 DisposeBuildErrorAutoSend();
 

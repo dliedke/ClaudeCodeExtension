@@ -6,7 +6,7 @@
 
 - **Author**: Daniel Carvalho Liedke (dliedke@gmail.com) | **License**: MIT
 - **Repository**: https://github.com/dliedke/ClaudeCodeExtension
-- **Current Version**: 67.0 | **Target Framework**: .NET Framework 4.7.2
+- **Current Version**: 85.0 | **Target Framework**: .NET Framework 4.7.2
 
 ---
 
@@ -37,19 +37,21 @@
 '/c/Program Files/Microsoft Visual Studio/18/Enterprise/MSBuild/Current/Bin/MSBuild.exe' ClaudeCodeExtension.sln -p:Configuration=Debug -v:minimal
 ```
 
-- **Debug**: F5 in Visual Studio → experimental instance with `/rootsuffix Exp`
+- **F5 / Ctrl+F5** in Visual Studio → experimental instance with `/rootsuffix Exp`, for Debug **and** Release
 
 ### Debugging in the Exp hive (`deploy-exp.cmd`)
 
-The VSSDK targets default `DeployExtension` to **false**, so the csproj sets `VSSDKTargetPlatformRegRootSuffix=Exp` and turns `DeployExtension` on for Debug builds inside Visual Studio. Without those two properties F5 opens an Exp instance with no extension in it. Command-line builds (`test.cmd`, `publish.cmd`) keep the default and deploy nothing.
+The VSSDK targets default `DeployExtension` to **false**, so the csproj sets `VSSDKTargetPlatformRegRootSuffix=Exp` and turns `DeployExtension` on for any configuration built inside Visual Studio. Without those two properties F5 opens an Exp instance with no extension in it. Command-line builds (`test.cmd`, `publish.cmd`) keep the default and deploy nothing.
 
 ```bash
-./deploy-exp.cmd        # build Debug + deploy to the Exp hive
-./deploy-exp.cmd -run   # the above, then start devenv /rootsuffix Exp with the solution
+./deploy-exp.cmd            # build Debug + deploy to the Exp hive
+./deploy-exp.cmd -release   # build Release instead of Debug
+./deploy-exp.cmd -run       # the above, then start devenv /rootsuffix Exp with the solution
 ```
 
 - Close the Exp instance before deploying — otherwise it keeps running the previous build.
 - A first deploy into a hive that never had the extension fails with `VSSDK1031 ... could not be found`; the script recovers by running `devenv /rootsuffix Exp /updateconfiguration` and retrying.
+- Each deploy lands in a version-named folder, so a version bump leaves the previous one behind and the hive can keep loading the **older** assembly with no error anywhere. The `RemoveStaleExpDeployments` target in the csproj deletes the sibling version folders after every deploy to prevent that.
 
 ### Tests (`test.cmd`)
 
@@ -99,16 +101,31 @@ ClaudeCodeExtension/
 │   ├── ClaudeCodeControl.Theme.cs       # Dark/light theme support
 │   ├── ClaudeCodeControl.Detach.cs      # Terminal detach/attach to separate VS tab
 │   ├── ClaudeCodeControl.Usage.cs       # Claude usage tool window wiring & inline bars
-│   └── ClaudeCodeControl.SessionHistory.cs # Session history dialog: list/resume/delete JSONL transcripts
+│   ├── ClaudeCodeControl.SessionHistory.cs # Session history dialog: list/resume/delete JSONL transcripts
+│   ├── ClaudeCodeControl.NativeMode.cs  # "Native mode": chat instead of the embedded terminal, adapter selection, event bridge
+│   └── ClaudeCodeControl.NativeChat.cs  # Native mode chat tab: document-tab hosting, composer, agent/model/effort/permission selectors, live switching
+├── Agents/                              # Headless agent protocols (no WPF, no VS SDK — unit-testable)
+│   ├── IAgentSession.cs                 # Session contract shared by every adapter
+│   ├── AgentEvent.cs                    # Provider-agnostic event/usage/permission model
+│   ├── JsonLineProcessHost.cs           # Shared process plumbing (stdio, line reader, tree teardown)
+│   ├── ProcessTree.cs                   # Process-tree enumeration/termination
+│   ├── ClaudeStreamJsonSession.cs / ClaudeStreamParser.cs / ClaudeCommandBuilder.cs # Claude Code stream-json
+│   ├── AcpSession.cs / AcpCommandBuilder.cs # ACP (OpenCode, Devin, Devin native, Reasonix)
+│   ├── OneShotResumeSession.cs / CodexExecProtocol.cs / CursorAgentProtocol.cs # CLIs that exit each turn
+│   ├── PiRpcSession.cs                  # PI's own RPC mode
+│   └── PrintModeSession.cs              # Antigravity (--print, no event stream)
 ├── UI/                                  # XAML controls + paired code-behind
 │   ├── ClaudeCodeControl.xaml
 │   ├── ClaudeUsageControl.xaml(.cs)
+│   ├── ChatTranscriptView.xaml(.cs)     # Native mode chat transcript
+│   ├── ChatMessages.cs                  # Chat message view-models
 │   └── DiffViewerControl.xaml(.cs)
 ├── ToolWindows/                         # VS tool window hosts
 │   ├── ClaudeCodeToolWindow.cs
 │   ├── DiffViewerToolWindow.cs
 │   ├── DetachedTerminalToolWindow.cs
-│   └── ClaudeUsageToolWindow.cs
+│   ├── ClaudeUsageToolWindow.cs
+│   └── NativeChatToolWindow.cs          # Document-area tab hosting the native-mode chat
 ├── Models/
 │   └── ClaudeCodeModels.cs              # Enums & settings class
 ├── Package/                             # VS package & solution event wiring
@@ -161,9 +178,10 @@ Deep per-file gotchas and design decisions live in **`docs/ARCHITECTURE.md`** (k
 always-loaded file to keep context lean). **Before editing any file below, read its section in that
 doc** — it captures non-obvious behavior that isn't apparent from the code:
 
-**Two cross-cutting rules** (full text in `docs/ARCHITECTURE.md` → *Cross-Cutting Rules*) — read before touching provider selection, UI captions, or terminal focus:
+**Three cross-cutting rules** (full text in `docs/ARCHITECTURE.md` → *Cross-Cutting Rules*) — read before touching provider selection, UI captions, terminal focus, or anything that sends text to the agent:
 - **Active provider UI rule (v24.0)**: provider-dependent UI (checkmarks, captions, menu visibility, active labels) must use `_currentRunningProvider` when a terminal is alive, falling back to `_settings.SelectedProvider` only before launch.
 - **Terminal focus rule (v26.0)**: never focus the embedded terminal with direct `SetForegroundWindow`/`SetFocus`; use `FocusTerminalForInputAsync()`/`FocusTerminalForInput()`/`FocusTerminalWindow()`. Hook focus checks stay Win32-only.
+- **Agent send rule (v82.0)**: send agent-bound text through `SendTextToAgentAsync()`, not `SendTextToTerminalAsync()` — native mode has no console. Console-only traffic (slash commands, CLI updates, plugin installs) is the exception; new console-scraping logic must bail out when `IsNativeModeActive`.
 
 | File | `docs/ARCHITECTURE.md` section |
 |------|-------------------------------|
@@ -184,6 +202,8 @@ doc** — it captures non-obvious behavior that isn't apparent from the code:
 | `Controls/ClaudeCodeControl.BuildErrors.cs` | Auto-Send Build Errors — build-event hook, Error List collection, dedupe/loop guard |
 | `Controls/ClaudeCodeControl.RuntimeErrors.cs` | Auto-Send Runtime Errors — debugger break-mode hook, unhandled-exception collection, dedupe guard |
 | `Controls/ClaudeCodeControl.AtMention.cs` | "@" File/Folder Picker — index, popup, ranking, insert |
+| `Controls/ClaudeCodeControl.NativeMode.cs`, `Agents/*`, `UI/ChatTranscriptView.xaml` | Native Mode — Agent Sessions: `IAgentSession` contract, the six adapters, event map, streaming-duplication traps, `SendTextToAgentAsync` bifurcation |
+| `Controls/ClaudeCodeControl.NativeChat.cs`, `ToolWindows/NativeChatToolWindow.cs` | Native Mode — Chat tab and composer: MDI document-tab hosting, transcript re-parenting, composer reuse of the panel send path, live model/effort/permission switching via resume |
 
 When you add or materially change behavior in one of these files, update its section in
 `docs/ARCHITECTURE.md` (not this table) — the same way you'd update the Architecture section before.

@@ -184,6 +184,16 @@ namespace ClaudeCodeVS
                 string finalPrompt = fullPrompt.ToString();
                 string textToSend = finalPrompt;
 
+                // Native mode delivers the prompt over the agent's structured channel. None of the
+                // clipboard / keystroke / large-prompt-as-file handling below applies there — all of
+                // it exists only because a console window is a lossy input device.
+                if (IsNativeModeActive)
+                {
+                    await SendPromptToNativeAgentAsync(finalPrompt);
+                    FinishPromptSubmission();
+                    return;
+                }
+
                 // "Disable clipboard" mode (issue #61): never touch the clipboard. Always write the
                 // prompt to a temp file and inject only a short reference via simulated keystrokes, so
                 // an app holding the clipboard can't break the send. Only available with conhost
@@ -261,22 +271,7 @@ namespace ClaudeCodeVS
                     await SendTextToTerminalAsync(textToSend);
                 }
 
-                // Clear prompt and images
-                PromptTextBox.Clear();
-                ClearAttachedImages();
-
-                // Reset image counter after sending prompt
-                imageCounter = 1;
-
-                // Reset history navigation
-                _historyIndex = -1;
-                _tempCurrentText = string.Empty;
-
-                // Refresh inline usage bars (throttled internally)
-                _ = RefreshInlineUsageAsync();
-
-                // Arm the "On Agent Finish" watcher (Claude Code only; no-op when disabled)
-                _ = ArmAgentCompletionWatcherAsync();
+                FinishPromptSubmission();
             }
             catch (Exception ex)
             {
@@ -287,6 +282,35 @@ namespace ClaudeCodeVS
                 // Always release the re-entrancy guard and re-enable the button, even on error.
                 _isSendingPrompt = false;
                 if (SendPromptButton != null) SendPromptButton.IsEnabled = true;
+            }
+        }
+
+        /// <summary>
+        /// Post-send housekeeping shared by the terminal and native-mode paths: clears the prompt box
+        /// and attachments, resets history navigation and refreshes the usage bars.
+        /// </summary>
+        private void FinishPromptSubmission()
+        {
+            // Clear prompt and images
+            PromptTextBox.Clear();
+            ClearAttachedImages();
+
+            // Reset image counter after sending prompt
+            imageCounter = 1;
+
+            // Reset history navigation
+            _historyIndex = -1;
+            _tempCurrentText = string.Empty;
+
+            // Refresh inline usage bars (throttled internally)
+            _ = RefreshInlineUsageAsync();
+
+            // Arm the "On Agent Finish" watcher (Claude Code only; no-op when disabled).
+            // Skipped in native mode: there the turn ends on an explicit protocol event, so the whole
+            // AttachConsole/idle-heuristic machinery would only produce false positives.
+            if (!IsNativeModeActive)
+            {
+                _ = ArmAgentCompletionWatcherAsync();
             }
         }
 
