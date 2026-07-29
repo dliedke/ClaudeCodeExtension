@@ -136,6 +136,9 @@ https://github.com/anthropics/claude-code/issues/41501
 
 ## Version History
 
+### Version 104.0
+Updated extension description
+
 ### Version 103.0
 Native mode now in beta phase
 
