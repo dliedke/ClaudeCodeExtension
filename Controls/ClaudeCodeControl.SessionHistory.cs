@@ -295,6 +295,11 @@ namespace ClaudeCodeVS
                         cwd = (string)obj["cwd"] ?? string.Empty;
                     }
 
+                    // Checked before the type dispatch: skill expansions land as "assistant" lines and
+                    // would inflate the count there too. Kept after the cwd read so a session whose
+                    // first record is a meta line does not lose its originating directory.
+                    if (IsMetaTranscriptLine(obj)) continue;
+
                     if (type == "user")
                     {
                         // Skip "user" lines whose content is actually a tool_result attachment —
@@ -342,6 +347,24 @@ namespace ClaudeCodeVS
                 Cwd = cwd,
                 Provider = provider
             };
+        }
+
+        /// <summary>
+        /// True for transcript lines the CLI injected on the user's behalf — local-command caveats
+        /// and skill expansions — which Claude Code flags with a top-level <c>isMeta</c> and its own
+        /// UI hides. They arrive as ordinary "user"/"assistant" lines carrying real text, so neither
+        /// the type filter nor the tool-result check below catches them.
+        /// <para>
+        /// Only the JSON boolean <c>true</c> counts. A plain <c>(bool?)token == true</c> would not do:
+        /// Newtonsoft coerces the *string* "true" to true, and throws <c>FormatException</c> on a
+        /// string it cannot parse — so a future CLI writing anything but a boolean here would either
+        /// change what the history shows or break reading the file.
+        /// </para>
+        /// </summary>
+        internal static bool IsMetaTranscriptLine(JObject obj)
+        {
+            JToken meta = obj?["isMeta"];
+            return meta != null && meta.Type == JTokenType.Boolean && meta.Value<bool>();
         }
 
         /// <summary>
@@ -1181,6 +1204,10 @@ namespace ClaudeCodeVS
 
                     string type = (string)obj["type"];
                     if (type != "user" && type != "assistant") continue;
+
+                    // CLI-injected line, not something either side said — the largest one seen in the
+                    // wild is 863 KB of skill prompt, which would drown the exported transcript.
+                    if (IsMetaTranscriptLine(obj)) continue;
 
                     string stamp = FormatTranscriptTimestamp((string)obj["timestamp"]);
                     var msg = obj["message"];
