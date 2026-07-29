@@ -136,6 +136,9 @@ https://github.com/anthropics/claude-code/issues/41501
 
 ## Version History
 
+### Version 100.0
+- Updated the remaining native mode hints and documentation to match the **Ctrl+Up / Ctrl+Down** prompt history shortcut, including the welcome card tips and the placeholder text.
+
 ### Version 98.0
 - Refreshed the default Devin model list to the current lineup: Claude Opus 5 High, Claude Sonnet 5 High, Claude Opus 4.6 Thinking, GPT-5.5 High Thinking, Gemini 3.1 Pro High Thinking, and SWE-1.6.
 - The agent (⚙) menu now shows **Configure Devin Models...** while Devin is active, so you can add, edit, remove, or reorder Devin models from the same menu.
@@ -197,7 +200,7 @@ https://github.com/anthropics/claude-code/issues/41501
 - Tool cards say what the agent did at a glance — the file it read, the command it ran, how many lines changed — and file edits open into a colored diff.
 - Ctrl+V in the chat pastes an image from the clipboard as an attachment.
 - The chat font and size can be chosen in Settings → Terminal, with every installed font available, and the Ctrl+Scroll zoom is remembered between sessions.
-- Pressing ↑ at the top of the chat message box brings back earlier prompts.
+- Pressing Ctrl+Up in the chat message box brings back earlier prompts.
 - While the agent works the chat shows a spinner with a changing caption, the elapsed time and the tokens used so far, and each turn ends with a line saying how long it took.
 - Turning native mode on keeps the terminal type on Command Prompt and drops the agent-finish idle wait to one second, since the agent reports when it is done.
 

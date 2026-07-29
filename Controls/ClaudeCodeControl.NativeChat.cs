@@ -749,7 +749,7 @@ namespace ClaudeCodeVS
         {
             var tips = new List<string>
             {
-                "Press ↑ in the prompt box to bring back earlier prompts.",
+                "Press Ctrl+Up in the prompt box to bring back earlier prompts.",
                 "Ctrl+V pastes an image from the clipboard; 📎 attaches files.",
                 "Ctrl+Scroll zooms the conversation, and the top edge of the prompt box can be dragged.",
                 "The buttons below switch agent, model, effort and permissions mid-conversation."
