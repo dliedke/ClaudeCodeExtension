@@ -37,6 +37,12 @@ namespace ClaudeCodeVS
         /// </summary>
         private int imageCounter = 1;
 
+        /// <summary>
+        /// Edge length of the square thumbnail on an image attachment chip. The chip height and the
+        /// decode resolution both follow from it, so this is the only value to change when tuning.
+        /// </summary>
+        private const int AttachmentThumbnailSize = 32;
+
         #endregion
 
         #region Image Paste and Attachment
@@ -292,6 +298,15 @@ namespace ClaudeCodeVS
             // Create chip content
             var sp = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
 
+            // Image attachments get a small square thumbnail plus a bigger preview on hover.
+            // The chip grows to fit it, since ChipBorder's own Height is sized for text alone.
+            var thumbnail = CreateAttachmentThumbnail(path);
+            if (thumbnail != null)
+            {
+                chip.Height = AttachmentThumbnailSize + 8;
+                sp.Children.Add(thumbnail);
+            }
+
             // Filename text - truncate if too long
             string fileName = Path.GetFileName(path);
             string displayName = fileName.Length > 18 ? fileName.Substring(0, 15) + "..." : fileName;
@@ -325,6 +340,134 @@ namespace ClaudeCodeVS
             chip.Child = sp;
 
             return chip;
+        }
+
+        /// <summary>
+        /// Builds the small square thumbnail shown at the left of an image chip, with a larger
+        /// preview as its tooltip. Returns null for non-image files or anything that fails to
+        /// decode (a broken file must never stop the chip itself from appearing).
+        /// </summary>
+        private FrameworkElement CreateAttachmentThumbnail(string path)
+        {
+            try
+            {
+                if (string.IsNullOrEmpty(path) || !IsImageFile(path) || !File.Exists(path))
+                {
+                    return null;
+                }
+
+                // Decoded at 2x the display size so the chip stays crisp on a 200% DPI monitor.
+                var bitmap = LoadThumbnailBitmap(path, AttachmentThumbnailSize * 2);
+                if (bitmap == null) return null;
+
+                // UniformToFill inside a fixed square crops instead of letterboxing, so wide
+                // screenshots still show recognizable content at chip size.
+                var thumb = new System.Windows.Shapes.Rectangle
+                {
+                    Width = AttachmentThumbnailSize,
+                    Height = AttachmentThumbnailSize,
+                    RadiusX = 3,
+                    RadiusY = 3,
+                    Margin = new Thickness(0, 0, 6, 0),
+                    VerticalAlignment = VerticalAlignment.Center,
+                    Fill = new System.Windows.Media.ImageBrush(bitmap)
+                    {
+                        Stretch = System.Windows.Media.Stretch.UniformToFill
+                    }
+                };
+                System.Windows.Media.RenderOptions.SetBitmapScalingMode(
+                    thumb, System.Windows.Media.BitmapScalingMode.HighQuality);
+
+                // The preview is decoded on first hover, at its own resolution: reusing the 256 px
+                // chip bitmap is what made it blurry, since WPF then upscaled it to preview size.
+                var preview = new Image
+                {
+                    MaxWidth = 520,
+                    MaxHeight = 400,
+                    Stretch = System.Windows.Media.Stretch.Uniform,
+                    StretchDirection = StretchDirection.DownOnly
+                };
+                System.Windows.Media.RenderOptions.SetBitmapScalingMode(
+                    preview, System.Windows.Media.BitmapScalingMode.HighQuality);
+
+                thumb.ToolTip = preview;
+                thumb.ToolTipOpening += (s, e) =>
+                {
+                    if (preview.Source != null) return;
+
+                    var full = LoadThumbnailBitmap(path, 1200);
+                    if (full == null)
+                    {
+                        e.Handled = true; // nothing to show; don't pop an empty tooltip
+                        return;
+                    }
+                    preview.Source = full;
+                };
+
+                return thumb;
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"CreateAttachmentThumbnail error for '{path}': {ex.Message}");
+                return null;
+            }
+        }
+
+        /// <summary>
+        /// Decodes an image file for preview use, downscaling to <paramref name="maxWidth"/> only
+        /// when it is actually wider than that — DecodePixelWidth also upscales, which produces a
+        /// soft, interpolated bitmap for anything smaller. OnLoad caching is required so the file is
+        /// not left locked: attachments live in the session temp folder that cleanup deletes later.
+        /// </summary>
+        private BitmapImage LoadThumbnailBitmap(string path, int maxWidth)
+        {
+            try
+            {
+                int naturalWidth = GetImagePixelWidth(path);
+
+                var bitmap = new BitmapImage();
+                bitmap.BeginInit();
+                bitmap.UriSource = new Uri(path, UriKind.Absolute);
+                bitmap.CacheOption = BitmapCacheOption.OnLoad;
+                bitmap.CreateOptions = BitmapCreateOptions.IgnoreColorProfile;
+                if (maxWidth > 0 && naturalWidth > maxWidth)
+                {
+                    bitmap.DecodePixelWidth = maxWidth;
+                }
+                bitmap.EndInit();
+                bitmap.Freeze();
+                return bitmap;
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"LoadThumbnailBitmap error for '{path}': {ex.Message}");
+                return null;
+            }
+        }
+
+        /// <summary>
+        /// Reads an image's pixel width from its header without decoding the pixels. Returns 0 when
+        /// the format can't be read, which callers treat as "decode at natural size".
+        /// </summary>
+        private int GetImagePixelWidth(string path)
+        {
+            try
+            {
+                using (var stream = File.OpenRead(path))
+                {
+                    var decoder = BitmapDecoder.Create(
+                        stream,
+                        BitmapCreateOptions.DelayCreation | BitmapCreateOptions.IgnoreColorProfile,
+                        BitmapCacheOption.None);
+
+                    return decoder.Frames.Count > 0 ? decoder.Frames[0].PixelWidth : 0;
+                }
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"GetImagePixelWidth error for '{path}': {ex.Message}");
+                return 0;
+            }
         }
 
         /// <summary>

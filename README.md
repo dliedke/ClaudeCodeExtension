@@ -136,6 +136,10 @@ https://github.com/anthropics/claude-code/issues/41501
 
 ## Version History
 
+### Version 97.0
+- Attached images now show a thumbnail on their chip, with a larger, sharp preview when you hover over it — in the native mode chat composer and in the terminal panel alike.
+- Native mode still in alpha phase. It will be improved and stabilized in next releases. Please do not use for real work yet.
+
 ### Version 95.0
 - Fixed native mode's Antigravity chat not seeing the open project — it now correctly points the agent at your solution folder instead of reporting no active workspace.
 - Native mode still in alpha phase. It will be improved and stabilized in next releases. Please do not use for real work yet.
