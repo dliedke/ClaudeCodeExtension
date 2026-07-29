@@ -136,6 +136,10 @@ https://github.com/anthropics/claude-code/issues/41501
 
 ## Version History
 
+### Version 106.0
+Session history no longer counts or previews CLI-injected caveat/skill text as if it were a real prompt. Thanks to [@wluisdev](https://github.com/wluisdev) for the contribution (issue #120).
+Sessions that only contain a typed slash command (like `/effort medium`), with no real conversation, no longer show up in the session history list.
+
 ### Version 105.0
 Updated extension description
 

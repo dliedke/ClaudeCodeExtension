@@ -272,6 +272,7 @@ namespace ClaudeCodeVS
             string cwd = string.Empty;
             int messageCount = 0;
             int tokenCount = 0;
+            bool sawCommandInvocation = false;
 
             // Open with FileShare.ReadWrite so we can also peek at the active session
             // that Claude Code itself currently has open for writing.
@@ -310,6 +311,16 @@ namespace ClaudeCodeVS
                         string text = ExtractUserText(msg["content"]);
                         if (string.IsNullOrWhiteSpace(text)) continue;
 
+                        // Slash-command invocations (e.g. "/effort medium") are expanded by the CLI into
+                        // a literal <command-name>/<command-message>/<command-args> block rather than
+                        // flagged with isMeta. A session made up of nothing but these isn't a real
+                        // conversation, so it's excluded below rather than cluttering the history list.
+                        if (IsCommandInvocationText(text))
+                        {
+                            sawCommandInvocation = true;
+                            continue;
+                        }
+
                         messageCount++;
                         if (string.IsNullOrEmpty(preview))
                         {
@@ -329,6 +340,13 @@ namespace ClaudeCodeVS
                         }
                     }
                 }
+            }
+
+            // A transcript made up only of slash-command invocations (no genuine user/assistant
+            // turn) isn't worth surfacing in the history list — nothing to resume or read back.
+            if (messageCount == 0 && sawCommandInvocation)
+            {
+                return null;
             }
 
             if (string.IsNullOrEmpty(preview))
@@ -365,6 +383,19 @@ namespace ClaudeCodeVS
         {
             JToken meta = obj?["isMeta"];
             return meta != null && meta.Type == JTokenType.Boolean && meta.Value<bool>();
+        }
+
+        /// <summary>
+        /// True for a user message that is purely a slash-command invocation the CLI expanded
+        /// into text (e.g. typing <c>/effort medium</c> becomes a literal
+        /// <c>&lt;command-name&gt;/effort&lt;/command-name&gt;</c> block), rather than isMeta-flagged
+        /// like caveats/skill expansions. Checked on the trimmed start so a leading blank line in
+        /// the stored text doesn't defeat the match.
+        /// </summary>
+        internal static bool IsCommandInvocationText(string text)
+        {
+            return !string.IsNullOrEmpty(text) &&
+                text.TrimStart().StartsWith("<command-name>", StringComparison.Ordinal);
         }
 
         /// <summary>

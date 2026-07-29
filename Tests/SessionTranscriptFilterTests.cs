@@ -74,5 +74,38 @@ namespace ClaudeCodeExtension.Tests
         {
             Assert.IsFalse(ClaudeCodeControl.IsMetaTranscriptLine(null));
         }
+
+        /// <summary>
+        /// The shape a typed slash command (e.g. "/effort medium") is expanded into by the CLI —
+        /// not isMeta-flagged, so IsMetaTranscriptLine alone would let it through as a real prompt.
+        /// </summary>
+        [TestMethod]
+        public void IsCommandInvocationText_TrueForACommandBlock()
+        {
+            string text = "<command-name>/effort</command-name>\n" +
+                "            <command-message>effort</command-message>\n" +
+                "            <command-args>medium</command-args>";
+
+            Assert.IsTrue(ClaudeCodeControl.IsCommandInvocationText(text));
+        }
+
+        [TestMethod]
+        public void IsCommandInvocationText_FalseForARealPrompt()
+        {
+            Assert.IsFalse(ClaudeCodeControl.IsCommandInvocationText("fix the build"));
+        }
+
+        [TestMethod]
+        public void IsCommandInvocationText_FalseForEmptyOrNull()
+        {
+            Assert.IsFalse(ClaudeCodeControl.IsCommandInvocationText(string.Empty));
+            Assert.IsFalse(ClaudeCodeControl.IsCommandInvocationText(null));
+        }
+
+        [TestMethod]
+        public void IsCommandInvocationText_TrueWithLeadingWhitespace()
+        {
+            Assert.IsTrue(ClaudeCodeControl.IsCommandInvocationText("  \n<command-name>/effort</command-name>"));
+        }
     }
 }
