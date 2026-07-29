@@ -51,6 +51,11 @@ namespace ClaudeCodeVS.Agents
             = new ConcurrentDictionary<string, string>(StringComparer.Ordinal);
 
         private JsonLineProcessHost _host;
+
+        /// <summary>The agent's model picker from <c>session/new</c>, kept so the model can also be
+        /// switched later without restarting the agent.</summary>
+        private JToken _modelOption;
+
         private long _nextRequestId;
         private int _busy;
         private volatile bool _disposed;
@@ -143,6 +148,7 @@ namespace ClaudeCodeVS.Agents
             }
 
             await TrySetModeAsync(session, cancellationToken);
+            await TrySetModelAsync(session, cancellationToken);
 
             Raise(AgentEvent.SessionStarted(SessionId, Model, ReadCommandNames(session), null));
         }
@@ -194,6 +200,150 @@ namespace ClaudeCodeVS.Agents
             {
                 Debug.WriteLine($"ACP: could not set mode '{_options.ModeId}': {ex.Message}");
             }
+        }
+
+        /// <summary>
+        /// Applies the configured model to the fresh session.
+        /// <para>
+        /// The model is not a launch flag here: <c>devin acp</c> takes no <c>--model</c>, and the
+        /// agent instead publishes a <c>model</c> entry in the <c>configOptions</c> of
+        /// <c>session/new</c> that is changed with <c>session/set_config_option</c>. Without this the
+        /// picked model was only ever a caption — every native Devin turn ran on the CLI's default.
+        /// </para>
+        /// </summary>
+        private async Task TrySetModelAsync(JToken session, CancellationToken cancellationToken)
+        {
+            _modelOption = FindModelOption(session?["configOptions"]);
+
+            if (string.IsNullOrWhiteSpace(_options.ModelName))
+            {
+                return;
+            }
+
+            if (_modelOption == null)
+            {
+                Debug.WriteLine($"ACP: {_options.DisplayName} offers no model picker; keeping its default.");
+                return;
+            }
+
+            await ApplyModelAsync(_options.ModelName, true, cancellationToken);
+        }
+
+        /// <summary>
+        /// Switches the model of the running session. Returns false when the agent has no model picker
+        /// or does not list this model, so the caller can fall back to restarting the agent.
+        /// </summary>
+        public async Task<bool> SetModelAsync(string model, CancellationToken cancellationToken)
+        {
+            if (_disposed || _host == null || string.IsNullOrEmpty(SessionId) || _modelOption == null)
+            {
+                return false;
+            }
+
+            return await ApplyModelAsync(model, false, cancellationToken);
+        }
+
+        private async Task<bool> ApplyModelAsync(string model, bool announceMismatch,
+            CancellationToken cancellationToken)
+        {
+            string value = ResolveModelValue(_modelOption, model);
+
+            if (string.IsNullOrEmpty(value))
+            {
+                Debug.WriteLine($"ACP: {_options.DisplayName} does not offer model '{model}'.");
+
+                // Said out loud on launch: the composer keeps showing the model that was picked, so a
+                // silent miss leaves the user reading answers from a model they did not choose.
+                if (announceMismatch)
+                {
+                    Raise(AgentEvent.SessionError(
+                        $"{_options.DisplayName} does not offer the model \"{model}\" — it is running on its " +
+                        "default model. Pick another one in the model menu (\"Configure Models...\" edits the list)."));
+                }
+
+                return false;
+            }
+
+            try
+            {
+                await RequestAsync("session/set_config_option", new JObject
+                {
+                    ["sessionId"] = SessionId,
+                    ["configId"] = _modelOption["id"]?.ToString() ?? "model",
+                    ["value"] = value
+                }, cancellationToken);
+
+                return true;
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"ACP: could not set model '{model}': {ex.Message}");
+                return false;
+            }
+        }
+
+        /// <summary>
+        /// The model picker out of a <c>configOptions</c> array, or null when the agent publishes none.
+        /// Matched on the id first and the category second — OpenCode and Reasonix publish neither, and
+        /// they simply keep their own model.
+        /// </summary>
+        public static JToken FindModelOption(JToken configOptions)
+        {
+            var options = configOptions as JArray;
+            if (options == null) return null;
+
+            foreach (JToken option in options)
+            {
+                if (string.Equals(option?["id"]?.ToString(), "model", StringComparison.OrdinalIgnoreCase) ||
+                    string.Equals(option?["category"]?.ToString(), "model", StringComparison.OrdinalIgnoreCase))
+                {
+                    return option;
+                }
+            }
+
+            return null;
+        }
+
+        /// <summary>
+        /// Turns a configured model into the value the agent expects, or empty when it lists no such
+        /// model. Both the id and the display name are accepted, and everything that is not a letter or
+        /// a digit is ignored while comparing, so the "Claude Opus 4.8 High" stored by the model menu
+        /// matches the "claude-opus-4-8-high" the protocol wants.
+        /// </summary>
+        public static string ResolveModelValue(JToken modelOption, string model)
+        {
+            if (modelOption == null || string.IsNullOrWhiteSpace(model)) return string.Empty;
+
+            string wanted = NormalizeModelKey(model);
+            var candidates = modelOption["options"] as JArray;
+            if (candidates == null) return string.Empty;
+
+            foreach (JToken candidate in candidates)
+            {
+                string value = candidate?["value"]?.ToString();
+                if (string.IsNullOrEmpty(value)) continue;
+
+                if (NormalizeModelKey(value) == wanted ||
+                    NormalizeModelKey(candidate["name"]?.ToString()) == wanted)
+                {
+                    return value;
+                }
+            }
+
+            return string.Empty;
+        }
+
+        private static string NormalizeModelKey(string value)
+        {
+            if (string.IsNullOrEmpty(value)) return string.Empty;
+
+            var builder = new System.Text.StringBuilder(value.Length);
+            foreach (char c in value)
+            {
+                if (char.IsLetterOrDigit(c)) builder.Append(char.ToLowerInvariant(c));
+            }
+
+            return builder.ToString();
         }
 
         public async Task SendAsync(string text, CancellationToken cancellationToken)

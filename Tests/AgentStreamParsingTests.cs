@@ -14,6 +14,7 @@ using System.Collections.Generic;
 using System.Linq;
 using ClaudeCodeVS.Agents;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
+using Newtonsoft.Json.Linq;
 
 namespace ClaudeCodeExtension.Tests
 {
@@ -766,6 +767,76 @@ namespace ClaudeCodeExtension.Tests
 
             Assert.AreEqual(0, events.Count);
             Assert.IsFalse(sink.TurnEnded);
+        }
+
+        #endregion
+
+        #region ACP (model picker)
+
+        /// <summary>
+        /// Trimmed copy of the <c>configOptions</c> block <c>devin acp</c> answers <c>session/new</c>
+        /// with — the only place the model is selectable, since the CLI takes no --model in ACP mode.
+        /// </summary>
+        private static JToken DevinConfigOptions()
+        {
+            return JToken.Parse(@"[
+                {""id"":""mode"",""name"":""Session Mode"",""category"":""mode"",""type"":""select"",
+                 ""currentValue"":""accept-edits"",
+                 ""options"":[{""value"":""accept-edits"",""name"":""Code""},{""value"":""bypass"",""name"":""Bypass Permissions""}]},
+                {""id"":""model"",""name"":""Model"",""category"":""model"",""type"":""select"",
+                 ""currentValue"":""swe-1-7-medium"",
+                 ""options"":[{""value"":""claude-opus-4-8-high"",""name"":""Claude Opus 4.8 High""},
+                              {""value"":""claude-sonnet-5-max"",""name"":""Claude Sonnet 5 Max""},
+                              {""value"":""swe-1-7-lightning"",""name"":""SWE-1.7 Lightning""}]}
+            ]");
+        }
+
+        [TestMethod]
+        public void AcpSession_ModelPickerIsFoundAmongTheOtherConfigOptions()
+        {
+            JToken option = AcpSession.FindModelOption(DevinConfigOptions());
+
+            Assert.IsNotNull(option);
+            Assert.AreEqual("model", option["id"].ToString());
+        }
+
+        [TestMethod]
+        public void AcpSession_AgentsWithoutAModelPickerReturnNothing()
+        {
+            Assert.IsNull(AcpSession.FindModelOption(null));
+            Assert.IsNull(AcpSession.FindModelOption(JToken.Parse("[]")));
+            Assert.IsNull(AcpSession.FindModelOption(JToken.Parse(@"[{""id"":""mode"",""category"":""mode""}]")));
+        }
+
+        [TestMethod]
+        public void AcpSession_DisplayNameFromTheModelMenuResolvesToTheProtocolValue()
+        {
+            JToken option = AcpSession.FindModelOption(DevinConfigOptions());
+
+            // What the model menu stores is the name the CLI shows, not the id the protocol wants.
+            Assert.AreEqual("claude-opus-4-8-high", AcpSession.ResolveModelValue(option, "Claude Opus 4.8 High"));
+            Assert.AreEqual("swe-1-7-lightning", AcpSession.ResolveModelValue(option, "SWE-1.7 Lightning"));
+        }
+
+        [TestMethod]
+        public void AcpSession_ProtocolValueAndLooseSpellingsAlsoResolve()
+        {
+            JToken option = AcpSession.FindModelOption(DevinConfigOptions());
+
+            Assert.AreEqual("claude-opus-4-8-high", AcpSession.ResolveModelValue(option, "claude-opus-4-8-high"));
+            Assert.AreEqual("claude-opus-4-8-high", AcpSession.ResolveModelValue(option, "claude opus 4.8 high"));
+            Assert.AreEqual("claude-sonnet-5-max", AcpSession.ResolveModelValue(option, "CLAUDE-SONNET-5-MAX"));
+        }
+
+        [TestMethod]
+        public void AcpSession_ModelTheAgentDoesNotOfferResolvesToNothing()
+        {
+            JToken option = AcpSession.FindModelOption(DevinConfigOptions());
+
+            // A stale entry in the user's model list must not silently pick a different model.
+            Assert.AreEqual(string.Empty, AcpSession.ResolveModelValue(option, "SWE-1.6"));
+            Assert.AreEqual(string.Empty, AcpSession.ResolveModelValue(option, string.Empty));
+            Assert.AreEqual(string.Empty, AcpSession.ResolveModelValue(null, "Claude Opus 4.8 High"));
         }
 
         #endregion

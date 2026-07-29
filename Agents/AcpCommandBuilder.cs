@@ -39,6 +39,13 @@ namespace ClaudeCodeVS.Agents
         /// </summary>
         public string ModeId { get; set; } = string.Empty;
 
+        /// <summary>
+        /// Model to select after the handshake, given either as the agent's own id
+        /// ("claude-opus-4-8-high") or as the name it shows for it ("Claude Opus 4.8 High"). Empty
+        /// leaves the agent on its default model.
+        /// </summary>
+        public string ModelName { get; set; } = string.Empty;
+
         /// <summary>Display name used in messages shown to the user.</summary>
         public string DisplayName { get; set; } = "agent";
 

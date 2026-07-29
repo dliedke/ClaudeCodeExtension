@@ -136,8 +136,13 @@ https://github.com/anthropics/claude-code/issues/41501
 
 ## Version History
 
+### Version 102.0
+- The model picked for Devin now really applies in native mode chat — it used to be only a caption while the agent answered on its own default model.
+- Switching the Devin model in the chat takes effect immediately, without restarting the conversation.
+- Picking a model Devin no longer offers now says so in the chat instead of silently running another one.
+
 ### Version 101.0
-- Fixed the native mode composer placeholder so it reads **Ctrl+Up** instead of a rendered-as-1 arrow glyph.
+- Fixed the native mode composer placeholder so it reads **Ctrl+Up/Down for prompt history** instead of a rendered-as-1 arrow glyph.
 
 ### Version 100.0
 - Updated the remaining native mode hints and documentation to match the **Ctrl+Up / Ctrl+Down** prompt history shortcut, including the welcome card tips and the placeholder text.
@@ -203,7 +208,7 @@ https://github.com/anthropics/claude-code/issues/41501
 - Tool cards say what the agent did at a glance — the file it read, the command it ran, how many lines changed — and file edits open into a colored diff.
 - Ctrl+V in the chat pastes an image from the clipboard as an attachment.
 - The chat font and size can be chosen in Settings → Terminal, with every installed font available, and the Ctrl+Scroll zoom is remembered between sessions.
-- Pressing Ctrl+Up in the chat message box brings back earlier prompts.
+- Pressing Ctrl+Up/Down in the chat message box browses prompt history.
 - While the agent works the chat shows a spinner with a changing caption, the elapsed time and the tokens used so far, and each turn ends with a line saying how long it took.
 - Turning native mode on keeps the terminal type on Command Prompt and drops the agent-finish idle wait to one second, since the agent reports when it is done.
 

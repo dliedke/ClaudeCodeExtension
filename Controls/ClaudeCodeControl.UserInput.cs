@@ -210,8 +210,10 @@ namespace ClaudeCodeVS
                 // it exists only because a console window is a lossy input device.
                 if (IsNativeModeActive)
                 {
-                    await SendPromptToNativeAgentAsync(finalPrompt);
+                    // Clear the panel's prompt and attachments immediately: the native turn may take a
+                    // long time and the user should not see the sent prompt stuck in the input box.
                     FinishPromptSubmission();
+                    await SendPromptToNativeAgentAsync(finalPrompt);
                     return;
                 }
 

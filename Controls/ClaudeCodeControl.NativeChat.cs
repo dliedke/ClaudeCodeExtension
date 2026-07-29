@@ -749,7 +749,7 @@ namespace ClaudeCodeVS
         {
             var tips = new List<string>
             {
-                "Press Ctrl+Up in the prompt box to bring back earlier prompts.",
+                "Press Ctrl+Up/Down in the prompt box for prompt history.",
                 "Ctrl+V pastes an image from the clipboard; 📎 attaches files.",
                 "Ctrl+Scroll zooms the conversation, and the top edge of the prompt box can be dragged.",
                 "The buttons below switch agent, model, effort and permissions mid-conversation."
@@ -1130,6 +1130,7 @@ namespace ClaudeCodeVS
 
                 PromptTextBox.Text = text;
                 ChatTranscript.ComposerText = string.Empty;
+                ChatTranscript.ComposerAttachmentsPanel.Children.Clear();
 
                 SendButton_Click(this, null);
             }
@@ -1580,8 +1581,9 @@ namespace ClaudeCodeVS
         }
 
         /// <summary>
-        /// Devin's model is chosen inside its own session, and its protocol has no resume, so the new
-        /// model only takes effect when the agent restarts. Ask whether to restart the chat now.
+        /// Devin's model is chosen inside its own session. A running one takes the change over the
+        /// protocol, without losing the conversation; anything else falls back to offering a restart,
+        /// which is what the model needs to be picked up at launch.
         /// </summary>
 #pragma warning disable VSTHRD100 // Async void is required by the UI event signature
         private async void OnChatDevinModelSelected(string model)
@@ -1599,6 +1601,12 @@ namespace ClaudeCodeVS
             SaveSettings();
             UpdateChatComposerState();
 
+            if (await TrySwitchAcpModelAsync(model))
+            {
+                AddNativeMessage(ChatMessageKind.Notice, $"🤖 Model switched to {model}.");
+                return;
+            }
+
             MessageBoxResult result = MessageBox.Show(
                 $"Switch the model to {model} and restart the chat so the change takes effect now?",
                 "Switch Devin model",
@@ -1612,6 +1620,29 @@ namespace ClaudeCodeVS
             else
             {
                 AddNativeMessage(ChatMessageKind.Notice, $"🤖 Model set to {model} — it applies the next time the agent starts.");
+            }
+        }
+
+        /// <summary>
+        /// Asks a live ACP session to change its model. False when there is no such session running or
+        /// the agent would not take the model, and the caller then offers the restart instead.
+        /// </summary>
+        private async Task<bool> TrySwitchAcpModelAsync(string model)
+        {
+            var session = _agentSession as AcpSession;
+            if (session == null)
+            {
+                return false;
+            }
+
+            try
+            {
+                return await session.SetModelAsync(model, CancellationToken.None);
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"Native chat: switching the model on the live session failed: {ex.Message}");
+                return false;
             }
         }
 

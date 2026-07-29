@@ -384,6 +384,7 @@ namespace ClaudeCodeVS
                 ExecutablePath = executable,
                 WslWorkingDirectory = isWsl ? ConvertToWslPath(workspace) : string.Empty,
                 ModeId = GetAcpModeId(provider),
+                ModelName = GetAcpModelName(provider),
                 DisplayName = GetProviderDisplayName(provider)
             };
 
@@ -535,6 +536,17 @@ namespace ClaudeCodeVS
             }
 
             return string.Empty;
+        }
+
+        /// <summary>
+        /// Model to select after the handshake. Only Devin has a model menu in this extension; the
+        /// other ACP agents keep whatever their CLI is configured with.
+        /// </summary>
+        private string GetAcpModelName(AiProvider provider)
+        {
+            bool isDevin = provider == AiProvider.Devin || provider == AiProvider.DevinNative;
+
+            return isDevin ? (_settings?.SelectedDevinModel ?? string.Empty) : string.Empty;
         }
 
         /// <summary>
