@@ -136,6 +136,9 @@ https://github.com/anthropics/claude-code/issues/41501
 
 ## Version History
 
+### Version 101.0
+- Fixed the native mode composer placeholder so it reads **Ctrl+Up** instead of a rendered-as-1 arrow glyph.
+
 ### Version 100.0
 - Updated the remaining native mode hints and documentation to match the **Ctrl+Up / Ctrl+Down** prompt history shortcut, including the welcome card tips and the placeholder text.
 

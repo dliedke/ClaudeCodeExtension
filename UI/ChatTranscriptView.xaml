@@ -812,7 +812,7 @@
 						         PreviewKeyDown="ComposerInput_PreviewKeyDown"
 						         TextChanged="ComposerInput_TextChanged"/>
 						<TextBlock x:Name="ComposerPlaceholder"
-						           Text="Ask anything · Ctrl+↑ for earlier prompts · Esc to unfocus"
+						           Text="Ask anything · Ctrl+Up for earlier prompts · Esc to unfocus"
 						           IsHitTestVisible="False"
 						           Margin="2,1,0,0"
 						           Opacity="0.5"
