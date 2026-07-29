@@ -294,7 +294,7 @@ Opt-in alternative to the embedded terminal: the panel renders the conversation 
 | `OneShotResumeSession` + `CodexExecProtocol` | Codex, CodexNative | `codex exec --json` → `codex exec resume <id>` |
 | `OneShotResumeSession` + `CursorAgentProtocol` | CursorAgent, CursorAgentNative | `agent --print --output-format stream-json --stream-partial-output` → `--resume <chatId>` |
 | `PiRpcSession` | Pi | `pi --mode rpc`, persistent, commands keyed by a `type` field |
-| `PrintModeSession` | Antigravity | `agy --print` — no event stream, the answer arrives whole |
+| `PrintModeSession` | Antigravity | `agy --print --add-dir <workingDirectory>` — no event stream, the answer arrives whole |
 
 - **`SupportsNativeMode(provider)`** (NativeMode.cs) is the fallback table. Anything not listed ignores the setting and launches the terminal; `ShowNativeFallbackNoticeAsync` puts a dismissible info bar up so the terminal appearing never reads as "the setting did nothing". Same notice on no-workspace and on a startup exception (which also tears the half-started session down).
 - **Executable resolution reuses the terminal path's helpers** (`GetClaudeCommand`, `GetCursorAgentCommand`, `CustomExecutablePaths`, `GetFreshPathFromRegistry`) so a custom CLI path configured for the terminal works unchanged in native mode.
@@ -394,7 +394,9 @@ Claude and Cursor both **send the answer twice**, and naively rendering both pri
 
 ### Not validated end-to-end
 
-Codex (login expired), Antigravity (needs Google OAuth) and PI (no API key) could not complete a turn on the development machine. Their item payloads were read from the binaries' own serializer names and their handlers ignore anything unexpected rather than failing, so a slightly different shape degrades instead of breaking. WSL launch of the stream-json path is also still unverified.
+Codex (login expired) and PI (no API key) could not complete a turn on the development machine. Their item payloads were read from the binaries' own serializer names and their handlers ignore anything unexpected rather than failing, so a slightly different shape degrades instead of breaking. WSL launch of the stream-json path is also still unverified.
+
+**Antigravity, validated (v95.0)**: run against a real `agy` install, `agy --print` was found to **ignore the launched process's working directory** for its own "workspace" concept — without being told explicitly it reports no active workspace and offers to scaffold a project under its own `scratch` folder instead of seeing the folder VS opened. Confirmed fix: pass `--add-dir "<workingDirectory>"` on every turn (`PrintModeCommandBuilder.GetArguments`, `PrintModeSession.cs`) — every turn is a fresh process, so this can't be done once at session start. `--continue` still keys off the CLI's own most-recent-conversation state, unaffected by this.
 
 ## Cross-Cutting Rules
 

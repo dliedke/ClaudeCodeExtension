@@ -136,6 +136,10 @@ https://github.com/anthropics/claude-code/issues/41501
 
 ## Version History
 
+### Version 95.0
+- Fixed native mode's Antigravity chat not seeing the open project — it now correctly points the agent at your solution folder instead of reporting no active workspace.
+- Native mode still in alpha phase. It will be improved and stabilized in next releases. Please do not use for real work yet.
+
 ### Version 94.0
 - Fixed an issue where the embedded Windows Terminal font could grow runaway-large for a few seconds after load; a safety limit now prevents it.
 - Native mode still in alpha phase. It will be improved and stabilized in next releases. Please do not use for real work yet.

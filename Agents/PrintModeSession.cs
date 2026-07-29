@@ -54,8 +54,10 @@ namespace ClaudeCodeVS.Agents
     /// second prompt continues that other conversation instead.
     /// </para>
     /// <para>
-    /// Written against the CLI's documented flags but never exercised end to end — the machine it was
-    /// built on had no Antigravity login.
+    /// Every turn is a fresh process, so the CLI's own workspace state never carries over from the
+    /// process's working directory: <c>agy --print</c> ignores its OS cwd for workspace purposes and
+    /// reports no active workspace unless told about the folder explicitly via <c>--add-dir</c>, which
+    /// is why every turn passes it (confirmed against a real Antigravity install).
     /// </para>
     /// </summary>
     public class PrintModeSession : IAgentSession
@@ -138,7 +140,7 @@ namespace ClaudeCodeVS.Agents
             var hostOptions = new JsonLineProcessOptions
             {
                 FileName = PrintModeCommandBuilder.GetFileName(_options),
-                Arguments = PrintModeCommandBuilder.GetArguments(_options, text, _hasPriorTurn),
+                Arguments = PrintModeCommandBuilder.GetArguments(_options, text, _hasPriorTurn, _workingDirectory),
                 WorkingDirectory = _workingDirectory
             };
 
@@ -305,7 +307,7 @@ namespace ClaudeCodeVS.Agents
             return IsBatchScript(options.ExecutablePath) ? "cmd.exe" : options.ExecutablePath;
         }
 
-        public static string GetArguments(PrintModeSessionOptions options, string prompt, bool continueConversation)
+        public static string GetArguments(PrintModeSessionOptions options, string prompt, bool continueConversation, string workingDirectory)
         {
             if (options == null) throw new ArgumentNullException(nameof(options));
 
@@ -314,6 +316,14 @@ namespace ClaudeCodeVS.Agents
             if (continueConversation)
             {
                 arguments.Append("--continue ");
+            }
+
+            // agy ignores the process's working directory for its own notion of "workspace" — without
+            // --add-dir it reports no active workspace and offers to scaffold a project under its own
+            // scratch folder instead of seeing the one VS opened.
+            if (!string.IsNullOrWhiteSpace(workingDirectory))
+            {
+                arguments.Append("--add-dir ").Append(Quote(workingDirectory)).Append(' ');
             }
 
             if (!string.IsNullOrWhiteSpace(options.Model))
