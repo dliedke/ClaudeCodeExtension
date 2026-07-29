@@ -477,11 +477,12 @@ namespace ClaudeCodeVS
         /// </summary>
         public System.Collections.Generic.List<string> DevinModels { get; set; } = new System.Collections.Generic.List<string>
         {
-            "SWE-1.6",
+            "Claude Opus 5 High",
+            "Claude Sonnet 5 High",
             "Claude Opus 4.6 Thinking",
-            "Claude Opus 4.8 High",
             "GPT-5.5 High Thinking",
-            "Gemini 3.1 Pro High Thinking"
+            "Gemini 3.1 Pro High Thinking",
+            "SWE-1.6"
         };
 
         /// <summary>

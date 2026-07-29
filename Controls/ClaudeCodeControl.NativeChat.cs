@@ -1581,11 +1581,13 @@ namespace ClaudeCodeVS
 
         /// <summary>
         /// Devin's model is chosen inside its own session, and its protocol has no resume, so the new
-        /// model is recorded and takes effect the next time the agent starts.
+        /// model only takes effect when the agent restarts. Ask whether to restart the chat now.
         /// </summary>
-        private void OnChatDevinModelSelected(string model)
+#pragma warning disable VSTHRD100 // Async void is required by the UI event signature
+        private async void OnChatDevinModelSelected(string model)
+#pragma warning restore VSTHRD100
         {
-            ThreadHelper.ThrowIfNotOnUIThread();
+            await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
 
             if (_settings == null || string.IsNullOrWhiteSpace(model))
             {
@@ -1597,7 +1599,20 @@ namespace ClaudeCodeVS
             SaveSettings();
             UpdateChatComposerState();
 
-            AddNativeMessage(ChatMessageKind.Notice, $"🤖 Model set to {model} — it applies the next time the agent starts.");
+            MessageBoxResult result = MessageBox.Show(
+                $"Switch the model to {model} and restart the chat so the change takes effect now?",
+                "Switch Devin model",
+                MessageBoxButton.YesNo,
+                MessageBoxImage.Question);
+
+            if (result == MessageBoxResult.Yes)
+            {
+                await RelaunchNativeSessionAsync($"🤖 Model switched to {model}", forceNewSession: true);
+            }
+            else
+            {
+                AddNativeMessage(ChatMessageKind.Notice, $"🤖 Model set to {model} — it applies the next time the agent starts.");
+            }
         }
 
         /// <summary>

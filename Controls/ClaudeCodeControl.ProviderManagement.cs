@@ -3130,6 +3130,26 @@ For more details, visit: https://pi.dev";
         /// </summary>
         private void DevinConfigureModelsMenuItem_Click(object sender, RoutedEventArgs e)
         {
+            ThreadHelper.ThrowIfNotOnUIThread();
+            ConfigureDevinModels();
+        }
+
+        /// <summary>
+        /// Handles the agent (⚙) menu's Configure Devin Models... item click — opens the editor
+        /// for the user-configurable Devin model list, then rebuilds the menu/title on close.
+        /// </summary>
+        private void ConfigureDevinModelsProviderMenuItem_Click(object sender, RoutedEventArgs e)
+        {
+            ThreadHelper.ThrowIfNotOnUIThread();
+            ConfigureDevinModels();
+        }
+
+        /// <summary>
+        /// Opens the editor for the user-configurable Devin model list, then rebuilds the
+        /// model menu/title on close.
+        /// </summary>
+        private void ConfigureDevinModels()
+        {
             try
             {
                 ThreadHelper.ThrowIfNotOnUIThread();
@@ -3531,6 +3551,7 @@ For more details, visit: https://pi.dev";
             CodexFullAutoMenuItem.Visibility = isCodexProvider ? Visibility.Visible : Visibility.Collapsed;
             CursorAgentAutoRunMenuItem.Visibility = isCursorAgentProvider ? Visibility.Visible : Visibility.Collapsed;
             DevinDangerousModeMenuItem.Visibility = (isDevinProvider || isDevinNativeProvider) ? Visibility.Visible : Visibility.Collapsed;
+            ConfigureDevinModelsProviderMenuItem.Visibility = (isDevinProvider || isDevinNativeProvider) ? Visibility.Visible : Visibility.Collapsed;
             AntigravityDangerouslySkipPermissionsMenuItem.Visibility = isAntigravityProvider ? Visibility.Visible : Visibility.Collapsed;
 
             // Change Account has no console to act on outside native mode — the 🤖 menu's own

@@ -136,6 +136,12 @@ https://github.com/anthropics/claude-code/issues/41501
 
 ## Version History
 
+### Version 98.0
+- Refreshed the default Devin model list to the current lineup: Claude Opus 5 High, Claude Sonnet 5 High, Claude Opus 4.6 Thinking, GPT-5.5 High Thinking, Gemini 3.1 Pro High Thinking, and SWE-1.6.
+- The agent (⚙) menu now shows **Configure Devin Models...** while Devin is active, so you can add, edit, remove, or reorder Devin models from the same menu.
+- Native mode chat now cycles prompt history with **Ctrl+Up** and **Ctrl+Down**, matching the terminal panel prompt box.
+- Switching the Devin model in native mode now asks whether to restart the chat so the new model takes effect immediately.
+
 ### Version 97.0
 - Attached images now show a thumbnail on their chip, with a larger, sharp preview when you hover over it — in the native mode chat composer and in the terminal panel alike.
 - Native mode still in alpha phase. It will be improved and stabilized in next releases. Please do not use for real work yet.

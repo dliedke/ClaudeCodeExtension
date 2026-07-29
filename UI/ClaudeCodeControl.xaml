@@ -490,6 +490,7 @@
 								<MenuItem Header="Codex: Approval Never" x:Name="CodexFullAutoMenuItem" Click="CodexFullAutoMenuItem_Click" IsCheckable="True" ToolTip="When enabled, Codex starts with --ask-for-approval never"/>
 								<MenuItem Header="Cursor Agent: Yolo Mode" x:Name="CursorAgentAutoRunMenuItem" Click="CursorAgentAutoRunMenuItem_Click" IsCheckable="True" ToolTip="When enabled, Cursor Agent starts with --yolo to skip all approvals"/>
 								<MenuItem Header="Devin: Dangerous Mode" x:Name="DevinDangerousModeMenuItem" Click="DevinDangerousModeMenuItem_Click" IsCheckable="True" ToolTip="When enabled, Devin starts with --permission-mode dangerous"/>
+								<MenuItem Header="Configure Devin Models..." x:Name="ConfigureDevinModelsProviderMenuItem" Click="ConfigureDevinModelsProviderMenuItem_Click" ToolTip="Add, edit, remove, or reorder the Devin models shown in the model menu."/>
 								<MenuItem Header="Antigravity: Skip Permissions" x:Name="AntigravityDangerouslySkipPermissionsMenuItem" Click="AntigravityDangerouslySkipPermissionsMenuItem_Click" IsCheckable="True" ToolTip="When enabled, Antigravity starts with --dangerously-skip-permissions"/>
 								<Separator x:Name="ChangeAccountNativeSeparator"/>
 								<MenuItem Header="Change Account" x:Name="ChangeAccountNativeMenuItem" Click="ChangeAccountNativeMenuItem_Click" ToolTip="Sign out and switch which Claude account this conversation uses."/>

@@ -771,17 +771,15 @@ namespace ClaudeCodeVS.UI
                 return;
             }
 
-            // ↑ on the first line recalls the previous prompt, the way a shell does — the caret is
-            // already where the user is looking, so nothing is lost by taking the key. Ctrl+↑/↓ work
-            // anywhere in the text, matching the panel's prompt box.
-            if (e.Key == System.Windows.Input.Key.Up && (control || CaretIsOnFirstComposerLine()))
+            // Ctrl+↑/↓ cycle prompt history anywhere in the text, matching the panel's prompt box.
+            if (e.Key == System.Windows.Input.Key.Up && control)
             {
                 HistoryPreviousRequested?.Invoke(this, EventArgs.Empty);
                 e.Handled = true;
                 return;
             }
 
-            if (e.Key == System.Windows.Input.Key.Down && (control || CaretIsOnLastComposerLine()))
+            if (e.Key == System.Windows.Input.Key.Down && control)
             {
                 HistoryNextRequested?.Invoke(this, EventArgs.Empty);
                 e.Handled = true;
