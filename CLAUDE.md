@@ -6,7 +6,7 @@
 
 - **Author**: Daniel Carvalho Liedke (dliedke@gmail.com) | **License**: MIT
 - **Repository**: https://github.com/dliedke/ClaudeCodeExtension
-- **Current Version**: 87.0 | **Target Framework**: .NET Framework 4.7.2
+- **Current Version**: 110.0 | **Target Framework**: .NET Framework 4.7.2
 
 ---
 
@@ -119,7 +119,9 @@ ClaudeCodeExtension/
 │   ├── ClaudeUsageControl.xaml(.cs)
 │   ├── ChatTranscriptView.xaml(.cs)     # Native mode chat transcript
 │   ├── ChatMessages.cs                  # Chat message view-models
+│   ├── ChatInteractionViewModels.cs     # Question/permission/plan card view-models (transcript rows)
 │   ├── ChatToolPresentation.cs          # Tool call → header line + rendered diff (pure, unit-tested)
+│   ├── ChatStyles.xaml                  # Chat resource dictionary (composer menu styles, brushes)
 │   ├── MarkdownFlowRenderer.cs          # Markdown → FlowDocument + the MarkdownBlock control
 │   └── DiffViewerControl.xaml(.cs)
 ├── ToolWindows/                         # VS tool window hosts
@@ -137,14 +139,21 @@ ClaudeCodeExtension/
 │   ├── DiffComputer.cs
 │   ├── FileChangeTracker.cs
 │   └── ChangedFile.cs
+├── Tests/                               # Unit suite (xUnit-style MSTest, no VS required — run via test.cmd)
+│   ├── ClaudeCodeExtension.Tests.csproj # Not built by the Release rebuild in publish.cmd
+│   ├── VersionConsistencyTests.cs / PackageVersionGuardTests.cs / TypeLoadProbeTests.cs # Version + package guards
+│   └── AgentStreamParsingTests.cs, ChatToolPresentationTests.cs, SessionTranscriptFilterTests.cs, … # Pure-helper tests
 ├── docs/
 │   └── ARCHITECTURE.md                  # Per-file non-obvious details (on-demand reference; indexed from CLAUDE.md)
 ├── Root (project metadata only):
 │   ├── ClaudeCodeExtensionPackage.vsct  # Command table
 │   ├── source.extension.vsixmanifest
+│   ├── AGENTS.md                        # Short instructions file for non-Claude agents
 │   └── ClaudeCodeExtension.csproj / .sln
-└── Publishing:
-    ├── publish.cmd                      # Automated marketplace deployment script
+└── Scripts:
+    ├── publish.cmd                      # Automated marketplace deployment script (runs test.cmd first)
+    ├── test.cmd                         # Build + run the unit suite
+    ├── deploy-exp.cmd                   # Build + deploy into the VS experimental (Exp) hive
     └── publishManifest.json             # VS Marketplace metadata
 ```
 
