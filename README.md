@@ -2,7 +2,7 @@
 
 Please also check [Claude Code Studio from wluisdev](https://marketplace.visualstudio.com/items?itemName=wluisdev.ClaudeCodeStudio)
 
-Embedded terminal inside Visual Studio for **Claude Code, OpenAI Codex, Cursor Agent, Open Code, Devin, PI, Google Antigravity, and Reasonix** — with multi-line prompts, file attachments, and an integrated diff viewer.
+Native or terminal inside Visual Studio for **Claude Code, OpenAI Codex, Cursor Agent, Open Code, Devin, PI, Google Antigravity, and Reasonix** — with multi-line prompts, file attachments, and an integrated diff viewer.
 
 <center>
 <img src="https://i.ibb.co/mFcsh3nt/BFB9-B830-8122-4091-9-C8-B-869959-B1-B391.png" alt="Claude Code Extension Screenshot" width=350 height=450 />
@@ -34,7 +34,7 @@ Enjoying the extension? [Buy me a coffee](https://www.buymeacoffee.com/dliedke) 
 
 ## Native Mode
 
-Currently in alpha — turn it on via *⚙ → Settings... → Terminal → Use native mode*.
+Currently in beta — turn it on via *⚙ → Settings... → Terminal → Use native mode*.
 
 <!-- Images are served from this repository's raw URLs, which the VS Marketplace can also reach — the
      overview is rendered from this file with no repo context, so relative paths would not resolve there.
@@ -135,6 +135,9 @@ https://github.com/anthropics/claude-code/issues/63504
 https://github.com/anthropics/claude-code/issues/41501
 
 ## Version History
+
+### Version 103.0
+Native mode now in beta phase
 
 ### Version 102.0
 - The model picked for Devin now really applies in native mode chat — it used to be only a caption while the agent answered on its own default model.
