@@ -339,6 +339,70 @@ namespace ClaudeCodeVS
 
         #endregion
 
+        #region Mouse Pointer Visibility
+
+        /// <summary>
+        /// Forces the mouse pointer visible again after Windows' "Hide pointer while typing"
+        /// (<c>SPI_SETMOUSEVANISH</c>, on by default) has hidden it with <c>SetCursor(NULL)</c>.
+        ///
+        /// <para>
+        /// Windows normally restores the pointer on the next mouse move, when the window under it
+        /// handles <c>WM_SETCURSOR</c>. That fails here for two compounding reasons (issue #122):
+        /// <c>SetParent</c> permanently joins the embedded terminal's input queue with the VS UI
+        /// thread (see issue #65), so both share one pointer-visibility state; and while an agent
+        /// streams output the terminal thread can stop pumping messages long enough that the
+        /// <c>WM_SETCURSOR</c> which would restore the pointer is never processed. The pointer then
+        /// stays invisible until the user happens to move over a VS window that is still pumping.
+        /// Codex shows it most because its TUI repaints continuously, saturating the terminal thread
+        /// for the whole reply.
+        /// </para>
+        ///
+        /// <para>
+        /// Calling <c>SetCursor</c> directly sidesteps <c>WM_SETCURSOR</c> entirely. The shape is
+        /// chosen from what sits under the pointer so the correction is invisible to the user; any
+        /// real mouse move afterwards re-asserts the proper cursor through the normal path anyway.
+        /// </para>
+        /// </summary>
+        private void RestoreMousePointer()
+        {
+            try
+            {
+                IntPtr cursor = LoadCursor(IntPtr.Zero, new IntPtr(IsPointerOverTerminal() ? IDC_ARROW : IDC_IBEAM));
+                if (cursor != IntPtr.Zero)
+                {
+                    SetCursor(cursor);
+                }
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"Error restoring mouse pointer: {ex.Message}");
+            }
+        }
+
+        /// <summary>
+        /// True when the pointer sits over the embedded terminal, which wants the arrow rather than
+        /// the prompt box's I-beam. Win32-only (no WPF hit test) so it is safe to call from the send
+        /// path regardless of thread.
+        /// </summary>
+        private bool IsPointerOverTerminal()
+        {
+            if (terminalHandle == IntPtr.Zero || !IsWindow(terminalHandle))
+            {
+                return false;
+            }
+
+            if (!GetCursorPos(out POINT point))
+            {
+                return false;
+            }
+
+            return GetWindowRect(terminalHandle, out RECT rect)
+                   && point.x >= rect.Left && point.x < rect.Right
+                   && point.y >= rect.Top && point.y < rect.Bottom;
+        }
+
+        #endregion
+
         #region Keyboard Input Handling
 
         /// <summary>
@@ -367,10 +431,7 @@ namespace ClaudeCodeVS
         {
             ThreadHelper.ThrowIfNotOnUIThread();
 
-            // Force cursor visible — "Hide pointer while typing" calls SetCursor(NULL) which WPF
-            // only counteracts via WM_SETCURSOR (i.e. on mouse move). While typing non-stop with
-            // the mouse stationary, WM_SETCURSOR never fires, so we must call SetCursor directly.
-            SetCursor(LoadCursor(IntPtr.Zero, new IntPtr(IDC_IBEAM)));
+            RestoreMousePointer();
 
             // Note prompt typing so the "On Agent Finish" watcher pauses its console read (its
             // AttachConsole can bounce focus out of the prompt mid-keystroke), and keep the WPF

@@ -136,6 +136,19 @@ https://github.com/anthropics/claude-code/issues/41501
 
 ## Version History
 
+### Version 110.0
+Fixed the mouse pointer disappearing after sending a prompt to the terminal, and it no longer jumps away from where you left it.
+
+### Version 109.0
+Chat tab links are now brighter in dark theme, so file and web references stay easy to read against a dark background.
+
+### Version 108.0
+File and web links in the chat tab now work even when the agent wraps the citation in a code snippet, instead of only when it's plain text.
+
+### Version 107.0
+Links in the chat tab are now clickable: web addresses open in your browser, and file references jump straight to that file and line in the editor, even when the agent writes them as plain text instead of a formatted link.
+Text selection in the chat tab now uses a softer accent colour instead of the harsher default highlight.
+
 ### Version 106.0
 Session history no longer counts or previews CLI-injected caveat/skill text as if it were a real prompt. Thanks to [@wluisdev](https://github.com/wluisdev) for the contribution (issue #120).
 Sessions that only contain a typed slash command (like `/effort medium`), with no real conversation, no longer show up in the session history list.

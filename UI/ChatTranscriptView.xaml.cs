@@ -20,6 +20,9 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
 using System.Windows.Data;
+using System.Windows.Media;
+using Microsoft.VisualStudio.PlatformUI;
+using Microsoft.VisualStudio.Shell;
 
 namespace ClaudeCodeVS.UI
 {
@@ -64,6 +67,43 @@ namespace ClaudeCodeVS.UI
             Messages = new ObservableCollection<ChatMessageViewModel>();
             Messages.CollectionChanged += OnMessagesChanged;
             MessagesList.ItemsSource = Messages;
+
+            Loaded += delegate { ApplyLinkAccentForTheme(); };
+            Unloaded += delegate { VSColorTheme.ThemeChanged -= OnVSColorThemeChanged; };
+            VSColorTheme.ThemeChanged += OnVSColorThemeChanged;
+        }
+
+        /// <summary>
+        /// The link/quote-border accent (<c>ChatLinkAccentBrush</c>) is a fixed blue rather than a VS
+        /// theme brush — no VS key reads well as link text in both themes — so it needs its own
+        /// light/dark swap instead of the automatic one <c>DynamicResource</c> gives real theme keys.
+        /// Written into <see cref="FrameworkElement.Resources"/> so every <see cref="MarkdownBlock"/>
+        /// row picks it up live via its style's <c>DynamicResource</c> setter, current rows and future
+        /// ones alike.
+        /// </summary>
+        private void ApplyLinkAccentForTheme()
+        {
+            bool isDarkTheme = true;
+
+            try
+            {
+                var windowBrush = (SolidColorBrush)FindResource(VsBrushes.WindowKey);
+                Color color = windowBrush.Color;
+                double luminance = (0.299 * color.R + 0.587 * color.G + 0.114 * color.B) / 255;
+                isDarkTheme = luminance < 0.5;
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Chat link accent theme detection failed: {ex.Message}");
+            }
+
+            Resources["ChatLinkAccentBrush"] = new SolidColorBrush(
+                isDarkTheme ? Color.FromRgb(0x5B, 0xB4, 0xFF) : Color.FromRgb(0x1C, 0x8A, 0xE0));
+        }
+
+        private void OnVSColorThemeChanged(ThemeChangedEventArgs e)
+        {
+            ApplyLinkAccentForTheme();
         }
 
         /// <summary>Transcript rows, oldest first.</summary>
@@ -104,6 +144,17 @@ namespace ClaudeCodeVS.UI
 
         /// <summary>Raised when Ctrl+Scroll changes the zoom, so the parent can persist it.</summary>
         public event EventHandler<double> ZoomChanged;
+
+        /// <summary>
+        /// Raised when a link rendered inside the transcript's markdown is clicked. The parent decides
+        /// what the URL means — a web address opens in the browser, a bare path opens in the editor.
+        /// </summary>
+        public event EventHandler<string> LinkClicked;
+
+        private void MarkdownBlock_LinkClicked(object sender, string url)
+        {
+            LinkClicked?.Invoke(this, url);
+        }
 
         /// <summary>
         /// Raised on Ctrl+V in the composer. The parent owns the clipboard image pipeline (it also owns

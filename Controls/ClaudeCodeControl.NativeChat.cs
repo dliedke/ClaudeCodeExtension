@@ -15,6 +15,7 @@ using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
+using System.Linq;
 using System.Text;
 using System.Text.RegularExpressions;
 using System.Threading;
@@ -314,6 +315,7 @@ namespace ClaudeCodeVS
             ChatTranscript.HistoryNextRequested += OnComposerHistoryNextRequested;
             ChatTranscript.ComposerPreviewKeyDown += ComposerInput_AtMentionPreviewKeyDown;
             ChatTranscript.ComposerInputBox.TextChanged += ComposerInput_AtMentionTextChanged;
+            ChatTranscript.LinkClicked += OnChatLinkClicked;
             _composerWired = true;
         }
 
@@ -456,6 +458,127 @@ namespace ClaudeCodeVS
 
             ApplyChatAppearance();
             UpdateComposerAttachmentChips();
+        }
+
+        #endregion
+
+        #region Markdown Link Navigation
+
+        /// <summary>Splits a trailing <c>:line</c> or <c>:line-line2</c> off a file reference, e.g. one an agent cites for its own diff.</summary>
+        private static readonly Regex ChatFileLineRefPattern = new Regex(@"^(?<path>.+):(?<line1>\d+)(?:-(?<line2>\d+))?$", RegexOptions.Compiled);
+
+        /// <summary>
+        /// A link clicked in the rendered transcript: a web address opens in the default browser,
+        /// anything else is treated as a file reference (optionally with a trailing <c>:line</c>) and
+        /// opened in the editor at that line.
+        /// </summary>
+#pragma warning disable VSTHRD100 // Async void is required by the UI event signature
+        private async void OnChatLinkClicked(object sender, string url)
+#pragma warning restore VSTHRD100
+        {
+            try
+            {
+                if (string.IsNullOrWhiteSpace(url))
+                {
+                    return;
+                }
+
+                if (Uri.TryCreate(url, UriKind.Absolute, out Uri parsed) &&
+                    (parsed.Scheme == Uri.UriSchemeHttp || parsed.Scheme == Uri.UriSchemeHttps))
+                {
+                    Process.Start(new ProcessStartInfo(url) { UseShellExecute = true });
+                    return;
+                }
+
+                await OpenChatFileLinkAsync(url);
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"Chat link click failed for '{url}': {ex.Message}");
+            }
+        }
+
+        private async Task OpenChatFileLinkAsync(string reference)
+        {
+            string path = reference.Trim();
+            int line = 0;
+
+            Match match = ChatFileLineRefPattern.Match(path);
+            if (match.Success)
+            {
+                path = match.Groups["path"].Value;
+                int.TryParse(match.Groups["line1"].Value, out line);
+            }
+
+            string resolved = await ResolveChatFileLinkAsync(path);
+            if (resolved == null)
+            {
+                return;
+            }
+
+            await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
+
+            var dte = Package.GetGlobalService(typeof(EnvDTE.DTE)) as EnvDTE.DTE;
+            if (dte == null)
+            {
+                return;
+            }
+
+            dte.ItemOperations.OpenFile(resolved);
+
+            if (line > 0 && dte.ActiveDocument != null)
+            {
+                var selection = dte.ActiveDocument.Selection as EnvDTE.TextSelection;
+                selection?.GotoLine(line, false);
+            }
+        }
+
+        /// <summary>
+        /// Resolves a path an agent cited to an actual file: as typed, relative to the workspace root,
+        /// or — since agents often abbreviate to a bare filename or a repo-relative form that does not
+        /// match where the extension resolved the workspace — by falling back to the same index the "@"
+        /// mention picker builds and matching on the trailing path segments.
+        /// </summary>
+        private async Task<string> ResolveChatFileLinkAsync(string path)
+        {
+            if (string.IsNullOrWhiteSpace(path))
+            {
+                return null;
+            }
+
+            string candidate = path.Replace('/', Path.DirectorySeparatorChar);
+
+            if (Path.IsPathRooted(candidate) && File.Exists(candidate))
+            {
+                return candidate;
+            }
+
+            string workspace = await GetWorkspaceDirectoryAsync();
+            if (string.IsNullOrEmpty(workspace))
+            {
+                return null;
+            }
+
+            string direct = Path.Combine(workspace, candidate);
+            if (File.Exists(direct))
+            {
+                return direct;
+            }
+
+            await EnsureAtEntriesAsync();
+            if (_atEntries == null)
+            {
+                return null;
+            }
+
+            string normalizedTarget = path.Replace('\\', '/').TrimStart('/');
+            string entry = _atEntries.FirstOrDefault(e =>
+                !e.EndsWith("/", StringComparison.Ordinal) &&
+                (string.Equals(e, normalizedTarget, StringComparison.OrdinalIgnoreCase) ||
+                 e.EndsWith("/" + normalizedTarget, StringComparison.OrdinalIgnoreCase) ||
+                 string.Equals(Path.GetFileName(e), normalizedTarget, StringComparison.OrdinalIgnoreCase)));
+
+            return entry != null ? Path.Combine(workspace, entry.Replace('/', Path.DirectorySeparatorChar)) : null;
         }
 
         #endregion

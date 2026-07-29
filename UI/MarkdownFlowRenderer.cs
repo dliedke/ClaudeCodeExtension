@@ -18,6 +18,7 @@ using System.Text.RegularExpressions;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Documents;
+using System.Windows.Input;
 using System.Windows.Media;
 
 namespace ClaudeCodeVS.UI
@@ -53,6 +54,17 @@ namespace ClaudeCodeVS.UI
         private static readonly Regex OrderedPattern = new Regex(@"^(\s*)(\d{1,3})[.)]\s+(.*)$", RegexOptions.Compiled);
         private static readonly Regex QuotePattern = new Regex(@"^\s{0,3}>\s?(.*)$", RegexOptions.Compiled);
         private static readonly Regex TableSeparatorPattern = new Regex(@"^\s*\|?\s*:?-{2,}:?\s*(\|\s*:?-{2,}:?\s*)*\|?\s*$", RegexOptions.Compiled);
+
+        /// <summary>A bare URL with no markdown brackets around it. Trailing sentence punctuation is stripped separately.</summary>
+        private static readonly Regex AutoUrlPattern = new Regex(@"https?://[^\s<>""')\]]+", RegexOptions.Compiled);
+
+        /// <summary>
+        /// A bare "path/File.ext:123" or "path/File.ext:123-456" citation with no markdown brackets.
+        /// The dot-plus-extension before the colon is required so prose like "ratio 3:1" or a time
+        /// "10:41" is never mistaken for a file reference.
+        /// </summary>
+        private static readonly Regex AutoFileRefPattern = new Regex(
+            @"[A-Za-z0-9_][A-Za-z0-9_\-./\\]*\.[A-Za-z0-9]{1,10}:\d+(?:-\d+)?", RegexOptions.Compiled);
 
         public static FlowDocument Build(string markdown, MarkdownStyleOptions options)
         {
@@ -516,11 +528,7 @@ namespace ClaudeCodeVS.UI
                     if (close > i + 1)
                     {
                         flush();
-                        target.Add(new Run(text.Substring(i + 1, close - i - 1))
-                        {
-                            FontFamily = options.CodeFontFamily,
-                            Background = options.CodeBackground
-                        });
+                        AppendCodeSpanInlines(target, text.Substring(i + 1, close - i - 1), options);
                         i = close + 1;
                         continue;
                     }
@@ -574,6 +582,34 @@ namespace ClaudeCodeVS.UI
                     }
                 }
 
+                // Agents do not always bother with [label](url) syntax — a bare "https://…" or a
+                // "Logger.cs:41" citation is at least as common as the bracketed form, and both should
+                // still be clickable rather than only working when the agent happens to format them.
+                if (c == 'h')
+                {
+                    Match urlMatch = AutoUrlPattern.Match(text, i);
+                    if (urlMatch.Success && urlMatch.Index == i)
+                    {
+                        string url = TrimTrailingPunctuation(urlMatch.Value);
+                        flush();
+                        target.Add(BuildLink(url, url, options));
+                        i += url.Length;
+                        continue;
+                    }
+                }
+
+                if (char.IsLetterOrDigit(c) || c == '_')
+                {
+                    Match refMatch = AutoFileRefPattern.Match(text, i);
+                    if (refMatch.Success && refMatch.Index == i)
+                    {
+                        flush();
+                        target.Add(BuildLink(refMatch.Value, refMatch.Value, options));
+                        i += refMatch.Value.Length;
+                        continue;
+                    }
+                }
+
                 buffer.Append(c);
                 i++;
             }
@@ -582,9 +618,87 @@ namespace ClaudeCodeVS.UI
         }
 
         /// <summary>
+        /// Agents routinely wrap a whole citation in one code span, e.g. "`Program.cs:56 — public async
+        /// Task Foo()`" — the file:line prefix still needs to be clickable, but the rest is genuine code
+        /// text. Matched URL/file-ref segments become links with no code background (so they read as a
+        /// link, not an inert code block); everything else keeps the normal monospace code styling.
+        /// </summary>
+        private static void AppendCodeSpanInlines(InlineCollection target, string inner, MarkdownStyleOptions options)
+        {
+            var buffer = new StringBuilder();
+            int i = 0;
+
+            Action flush = delegate
+            {
+                if (buffer.Length > 0)
+                {
+                    target.Add(new Run(buffer.ToString())
+                    {
+                        FontFamily = options.CodeFontFamily,
+                        Background = options.CodeBackground
+                    });
+                    buffer.Clear();
+                }
+            };
+
+            while (i < inner.Length)
+            {
+                char c = inner[i];
+
+                if (c == 'h')
+                {
+                    Match urlMatch = AutoUrlPattern.Match(inner, i);
+                    if (urlMatch.Success && urlMatch.Index == i)
+                    {
+                        string url = TrimTrailingPunctuation(urlMatch.Value);
+                        flush();
+                        var link = (Run)BuildLink(url, url, options);
+                        link.FontFamily = options.CodeFontFamily;
+                        target.Add(link);
+                        i += url.Length;
+                        continue;
+                    }
+                }
+
+                if (char.IsLetterOrDigit(c) || c == '_')
+                {
+                    Match refMatch = AutoFileRefPattern.Match(inner, i);
+                    if (refMatch.Success && refMatch.Index == i)
+                    {
+                        flush();
+                        var link = (Run)BuildLink(refMatch.Value, refMatch.Value, options);
+                        link.FontFamily = options.CodeFontFamily;
+                        target.Add(link);
+                        i += refMatch.Value.Length;
+                        continue;
+                    }
+                }
+
+                buffer.Append(c);
+                i++;
+            }
+
+            flush();
+        }
+
+        /// <summary>Drops sentence punctuation an autodetected URL swept up, e.g. the period ending "...see https://x.com/y." </summary>
+        private static string TrimTrailingPunctuation(string url)
+        {
+            int end = url.Length;
+            while (end > 0 && ".,;:!?)]}".IndexOf(url[end - 1]) >= 0)
+            {
+                end--;
+            }
+
+            return url.Substring(0, end);
+        }
+
+        /// <summary>
         /// A link is a coloured, underlined run rather than a WPF <see cref="Hyperlink"/>: the document
         /// lives in a read-only rich text box whose whole job is selecting and copying, and a live
-        /// hyperlink swallows the click that starts a selection.
+        /// hyperlink swallows the click that starts a selection. <see cref="MarkdownBlock"/> instead
+        /// hit-tests a plain click (down and up in the same spot) against <see cref="Run.Tag"/>, which
+        /// carries the URL, so dragging across the link to select text still works.
         /// </summary>
         private static Inline BuildLink(string label, string url, MarkdownStyleOptions options)
         {
@@ -592,7 +706,9 @@ namespace ClaudeCodeVS.UI
             {
                 Foreground = options.AccentBrush,
                 TextDecorations = TextDecorations.Underline,
-                ToolTip = url
+                ToolTip = url,
+                Tag = url,
+                Cursor = Cursors.Hand
             };
 
             return run;
@@ -628,6 +744,12 @@ namespace ClaudeCodeVS.UI
             "CodeFontFamily", typeof(FontFamily), typeof(MarkdownBlock),
             new PropertyMetadata(new FontFamily("Cascadia Mono, Consolas"), OnVisualInputChanged));
 
+        /// <summary>Largest mouse-down-to-up distance, in DIPs, still treated as a click rather than a drag-select.</summary>
+        private const double ClickDragTolerance = 3.0;
+
+        private Point _mouseDownPosition;
+        private bool _trackingClick;
+
         public MarkdownBlock()
         {
             IsReadOnly = true;
@@ -639,6 +761,77 @@ namespace ClaudeCodeVS.UI
             MinHeight = 0;
             VerticalScrollBarVisibility = ScrollBarVisibility.Disabled;
             HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled;
+        }
+
+        /// <summary>Raised when a rendered link is clicked, carrying its URL (or bare file reference).</summary>
+        public event EventHandler<string> LinkClicked;
+
+        /// <summary>
+        /// Records where the click started. Selection still begins normally underneath this — nothing
+        /// here is marked <c>Handled</c> — so a drag over link text keeps working.
+        /// </summary>
+        protected override void OnPreviewMouseLeftButtonDown(MouseButtonEventArgs e)
+        {
+            _mouseDownPosition = e.GetPosition(this);
+            _trackingClick = true;
+            base.OnPreviewMouseLeftButtonDown(e);
+        }
+
+        /// <summary>
+        /// A plain click (up lands within <see cref="ClickDragTolerance"/> of where it went down) that
+        /// lands on a link run fires <see cref="LinkClicked"/>; anything that moved is a selection drag
+        /// and is left alone.
+        /// </summary>
+        protected override void OnPreviewMouseLeftButtonUp(MouseButtonEventArgs e)
+        {
+            base.OnPreviewMouseLeftButtonUp(e);
+
+            if (!_trackingClick)
+            {
+                return;
+            }
+
+            _trackingClick = false;
+            Point upPosition = e.GetPosition(this);
+
+            if (Math.Abs(upPosition.X - _mouseDownPosition.X) > ClickDragTolerance ||
+                Math.Abs(upPosition.Y - _mouseDownPosition.Y) > ClickDragTolerance)
+            {
+                return;
+            }
+
+            string url = HitTestLink(upPosition);
+            if (!string.IsNullOrEmpty(url))
+            {
+                LinkClicked?.Invoke(this, url);
+            }
+        }
+
+        /// <summary>Walks up from the clicked point to the nearest text element carrying a link's URL in its Tag.</summary>
+        private string HitTestLink(Point position)
+        {
+            TextPointer pointer;
+            try
+            {
+                pointer = GetPositionFromPoint(position, true);
+            }
+            catch (Exception)
+            {
+                return null;
+            }
+
+            DependencyObject element = pointer?.Parent;
+            while (element is TextElement current)
+            {
+                if (current.Tag is string url && !string.IsNullOrEmpty(url))
+                {
+                    return url;
+                }
+
+                element = current.Parent;
+            }
+
+            return null;
         }
 
         public string Markdown

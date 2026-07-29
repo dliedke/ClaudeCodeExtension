@@ -30,11 +30,21 @@
 		     same thing ("this was added", "this ran a command") in both the dark and the light theme,
 		     and the VS palette has no stable key for either. -->
 		<SolidColorBrush x:Key="ChatAccentBrush" Color="#1C8AE0"/>
+
+		<!-- Link/quote-border accent used by MarkdownBlock. Overwritten in code-behind based on the
+		     active VS theme (a fixed blue reads fine on light backgrounds but too dark on near-black
+		     ones) — DynamicResource so every row, including ones created after the swap, picks it up. -->
+		<SolidColorBrush x:Key="ChatLinkAccentBrush" Color="#1C8AE0"/>
 		<SolidColorBrush x:Key="DiffAddedForeground" Color="#2EA043"/>
 		<SolidColorBrush x:Key="DiffRemovedForeground" Color="#D1242F"/>
 		<SolidColorBrush x:Key="DiffAddedBackground" Color="#242EA043"/>
 		<SolidColorBrush x:Key="DiffRemovedBackground" Color="#24D1242F"/>
 		<SolidColorBrush x:Key="ChatErrorBrush" Color="#E51400"/>
+
+		<!-- Text selection in the read-only transcript: a soft tint of the chat's own accent, not the
+		     VS theme's HighlightKey — that one renders as a saturated violet block here and fights with
+		     the accent-blue link text sitting on top of it. -->
+		<SolidColorBrush x:Key="ChatSelectionBrush" Color="#661C8AE0"/>
 
 		<local:InverseBooleanToVisibilityConverter x:Key="InverseBoolToVis"/>
 		<BooleanToVisibilityConverter x:Key="BoolToVis"/>
@@ -54,7 +64,8 @@
 			<Setter Property="FontFamily" Value="{DynamicResource ChatFontFamily}"/>
 			<Setter Property="FontSize" Value="{DynamicResource ChatFontSize}"/>
 			<Setter Property="Foreground" Value="{DynamicResource {x:Static vsshell:VsBrushes.WindowTextKey}}"/>
-			<Setter Property="SelectionBrush" Value="{DynamicResource {x:Static vsshell:VsBrushes.HighlightKey}}"/>
+			<Setter Property="SelectionBrush" Value="{StaticResource ChatSelectionBrush}"/>
+			<Setter Property="SelectionOpacity" Value="1"/>
 		</Style>
 
 		<Style x:Key="CodeTextStyle" TargetType="TextBox" BasedOn="{StaticResource SelectableTextStyle}">
@@ -69,11 +80,12 @@
 			<Setter Property="FontFamily" Value="{DynamicResource ChatFontFamily}"/>
 			<Setter Property="FontSize" Value="{DynamicResource ChatFontSize}"/>
 			<Setter Property="CodeFontFamily" Value="{DynamicResource ChatCodeFontFamily}"/>
-			<Setter Property="AccentBrush" Value="{StaticResource ChatAccentBrush}"/>
+			<Setter Property="AccentBrush" Value="{DynamicResource ChatLinkAccentBrush}"/>
 			<Setter Property="CodeBackground" Value="{DynamicResource {x:Static vsshell:VsBrushes.WindowKey}}"/>
 			<Setter Property="CodeBorderBrush" Value="{DynamicResource {x:Static vsshell:VsBrushes.ToolWindowBorderKey}}"/>
 			<Setter Property="Foreground" Value="{DynamicResource {x:Static vsshell:VsBrushes.WindowTextKey}}"/>
-			<Setter Property="SelectionBrush" Value="{DynamicResource {x:Static vsshell:VsBrushes.HighlightKey}}"/>
+			<Setter Property="SelectionBrush" Value="{StaticResource ChatSelectionBrush}"/>
+			<Setter Property="SelectionOpacity" Value="1"/>
 		</Style>
 
 		<!-- Message body: raw text while streaming, rendered markdown once the turn ends. Splitting
@@ -85,7 +97,8 @@
 				         Visibility="{Binding IsStreaming, Converter={StaticResource BoolToVis}}"/>
 				<local:MarkdownBlock Style="{StaticResource MarkdownBodyStyle}"
 				                     Markdown="{Binding RenderedText, Mode=OneWay}"
-				                     Visibility="{Binding IsStreaming, Converter={StaticResource InverseBoolToVis}}"/>
+				                     Visibility="{Binding IsStreaming, Converter={StaticResource InverseBoolToVis}}"
+				                     LinkClicked="MarkdownBlock_LinkClicked"/>
 			</Grid>
 		</DataTemplate>
 
@@ -186,7 +199,8 @@
 				        Background="{DynamicResource {x:Static vsshell:VsBrushes.WindowKey}}">
 					<local:MarkdownBlock Style="{StaticResource MarkdownBodyStyle}"
 					                     FontStyle="Italic"
-					                     Markdown="{Binding RenderedText, Mode=OneWay}"/>
+					                     Markdown="{Binding RenderedText, Mode=OneWay}"
+					                     LinkClicked="MarkdownBlock_LinkClicked"/>
 				</Border>
 			</Expander>
 		</DataTemplate>
@@ -495,7 +509,8 @@
 						        Background="{DynamicResource {x:Static vsshell:VsBrushes.ToolWindowBackgroundKey}}">
 							<ScrollViewer MaxHeight="360" VerticalScrollBarVisibility="Auto">
 								<local:MarkdownBlock Style="{StaticResource MarkdownBodyStyle}"
-								                     Markdown="{Binding PlanText, Mode=OneWay}"/>
+								                     Markdown="{Binding PlanText, Mode=OneWay}"
+								                     LinkClicked="MarkdownBlock_LinkClicked"/>
 							</ScrollViewer>
 						</Border>
 

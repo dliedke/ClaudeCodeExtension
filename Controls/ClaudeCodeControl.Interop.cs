@@ -369,6 +369,13 @@ namespace ClaudeCodeVS
         private static extern bool SetCursorPos(int x, int y);
 
         /// <summary>
+        /// Reads the cursor's current screen position, so a synthetic click that has to move the
+        /// pointer can put it back where the user left it (issue #122).
+        /// </summary>
+        [DllImport("user32.dll")]
+        private static extern bool GetCursorPos(out POINT lpPoint);
+
+        /// <summary>
         /// Sets the cursor shape; used to restore the cursor after Win32 "Hide pointer while typing"
         /// calls SetCursor(NULL) which WPF cannot counteract without a direct Win32 call.
         /// </summary>
@@ -381,6 +388,7 @@ namespace ClaudeCodeVS
         [DllImport("user32.dll", CharSet = CharSet.Auto)]
         private static extern IntPtr LoadCursor(IntPtr hInstance, IntPtr lpCursorName);
 
+        private const int IDC_ARROW = 32512;
         private const int IDC_IBEAM = 32513;
 
         /// <summary>

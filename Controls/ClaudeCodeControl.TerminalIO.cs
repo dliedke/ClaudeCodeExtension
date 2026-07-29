@@ -360,6 +360,13 @@ namespace ClaudeCodeVS
                 try
                 {
                     await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
+
+                    // The Enter that started this send made Windows hide the pointer, and the
+                    // terminal thread is now too busy rendering the reply to process the mouse
+                    // message that would bring it back. Re-assert it here, once every keystroke
+                    // this send injects has already been delivered. See issue #122.
+                    RestoreMousePointer();
+
                     await Task.Delay(100); // Small delay to ensure paste completed
                     await ClipboardRetryAsync(() => RestoreClipboardContent(originalClipboardData));
                 }
@@ -427,6 +434,9 @@ namespace ClaudeCodeVS
                 // Devin's TUI needs extra settle time here too — see TriggerPasteAndWaitAsync.
                 await Task.Delay(isDevinFamilyKeystrokes ? 650 : 150);
                 SendEnterKey();
+
+                // Same hide-while-typing recovery as the paste path (issue #122).
+                RestoreMousePointer();
             }
             catch (Exception ex)
             {
@@ -908,11 +918,23 @@ namespace ClaudeCodeVS
         /// <param name="y">Screen Y coordinate</param>
         private async Task SendRightClickAsync(int x, int y)
         {
+            // The click has to happen at a specific spot, so the pointer is moved there and put back
+            // afterwards. Leaving it parked over the terminal is what made "my mouse disappeared"
+            // (issue #122) so hard to recover from: the pointer was both hidden by Windows'
+            // hide-while-typing and no longer where the user last left it.
+            bool hadOrigin = GetCursorPos(out POINT origin);
+
             SetCursorPos(x, y);
             await Task.Delay(30); // Reduced from 50ms
             mouse_event(MOUSEEVENTF_RIGHTDOWN, 0, 0, 0, UIntPtr.Zero);
             await Task.Delay(30); // Reduced from 50ms
             mouse_event(MOUSEEVENTF_RIGHTUP, 0, 0, 0, UIntPtr.Zero);
+
+            if (hadOrigin)
+            {
+                await Task.Delay(30);
+                SetCursorPos(origin.x, origin.y);
+            }
         }
 
         /// <summary>
@@ -920,11 +942,20 @@ namespace ClaudeCodeVS
         /// </summary>
         private void SendRightClick(int x, int y)
         {
+            // Pointer is restored to where the user left it — see SendRightClickAsync (issue #122).
+            bool hadOrigin = GetCursorPos(out POINT origin);
+
             SetCursorPos(x, y);
             System.Threading.Thread.Sleep(30);
             mouse_event(MOUSEEVENTF_RIGHTDOWN, 0, 0, 0, UIntPtr.Zero);
             System.Threading.Thread.Sleep(30);
             mouse_event(MOUSEEVENTF_RIGHTUP, 0, 0, 0, UIntPtr.Zero);
+
+            if (hadOrigin)
+            {
+                System.Threading.Thread.Sleep(30);
+                SetCursorPos(origin.x, origin.y);
+            }
         }
 
         /// <summary>
