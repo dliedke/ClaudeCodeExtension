@@ -113,7 +113,8 @@ namespace ClaudeCodeVS
             nameof(ClaudeCodeSettings.SelectedProvider),
             nameof(ClaudeCodeSettings.SelectedClaudeModel),
             nameof(ClaudeCodeSettings.SelectedDevinModel),
-            nameof(ClaudeCodeSettings.SelectedEffortLevel)
+            nameof(ClaudeCodeSettings.SelectedEffortLevel),
+            nameof(ClaudeCodeSettings.SelectedCodexReasoningLevel)
         };
 
         #endregion
@@ -155,6 +156,13 @@ namespace ClaudeCodeVS
                     if (!Enum.IsDefined(typeof(AiProvider), _settings.SelectedProvider))
                     {
                         _settings.SelectedProvider = AiProvider.ClaudeCode;
+                    }
+
+                    if (!Enum.IsDefined(
+                        typeof(CodexReasoningLevel),
+                        _settings.SelectedCodexReasoningLevel))
+                    {
+                        _settings.SelectedCodexReasoningLevel = CodexReasoningLevel.Default;
                     }
 
                     // Seed the durable effort baseline from disk. Max/Ultracode are

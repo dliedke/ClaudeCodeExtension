@@ -49,6 +49,7 @@ namespace ClaudeCodeVS.UI
         private int _effortIndexOnOpen;
         private int _effortIndex;
         private string[] _effortStopLabels;
+        private string _effortTitle = "Effort";
 
         private System.Windows.Threading.DispatcherTimer _activityTimer;
         private DateTime _activityStartedUtc;
@@ -336,6 +337,9 @@ namespace ClaudeCodeVS.UI
         /// <summary>How long each verb stays up before the next one.</summary>
         private static readonly TimeSpan VerbInterval = TimeSpan.FromSeconds(4);
 
+        /// <summary>Prompts accepted while the current turn is running and waiting for their turn.</summary>
+        private int _queuedMessageCount;
+
         /// <summary>
         /// Starts the spinner and the running clock on the status line. A long turn otherwise shows a
         /// motionless "Working..." and gives no way to tell progress from a hang.
@@ -390,6 +394,19 @@ namespace ClaudeCodeVS.UI
 
             _activityDetail = detail ?? string.Empty;
             RenderActivity();
+        }
+
+        /// <summary>
+        /// Shows how many follow-up messages are waiting without replacing the live token counts.
+        /// </summary>
+        public void SetQueuedMessageCount(int count)
+        {
+            _queuedMessageCount = Math.Max(0, count);
+
+            if (_activityTimer != null && _activityTimer.IsEnabled)
+            {
+                RenderActivity();
+            }
         }
 
         /// <summary>Stops the clock and leaves the turn's final summary on the line.</summary>
@@ -449,6 +466,12 @@ namespace ClaudeCodeVS.UI
                 text += "  ·  " + _activityDetail;
             }
 
+            if (_queuedMessageCount > 0)
+            {
+                text += "  ·  " + _queuedMessageCount +
+                    (_queuedMessageCount == 1 ? " message queued" : " messages queued");
+            }
+
             StatusText.Text = text;
         }
 
@@ -470,6 +493,7 @@ namespace ClaudeCodeVS.UI
             StopActivityTimer();
             Messages.Clear();
             _autoScroll = true;
+            _queuedMessageCount = 0;
             ScrollToEndButton.Visibility = Visibility.Collapsed;
             StopButton.Visibility = Visibility.Collapsed;
 
@@ -569,11 +593,12 @@ namespace ClaudeCodeVS.UI
         }
 
         /// <summary>
-        /// Positions the effort slider and captions it. <paramref name="index"/> is the slider stop
-        /// (0..5) the parent maps to and from its own effort enum.
+        /// Positions the reasoning slider and captions it. <paramref name="index"/> is the slider stop
+        /// the parent maps to and from the active provider's reasoning enum.
         /// </summary>
-        public void SetEffortSlider(int index, string label)
+        public void SetEffortSlider(int index, string label, string title = "Effort")
         {
+            _effortTitle = string.IsNullOrWhiteSpace(title) ? "Effort" : title;
             _suppressEffortEvent = true;
             try
             {
@@ -594,7 +619,10 @@ namespace ClaudeCodeVS.UI
                 _effortIndexOnOpen = index;
             }
 
-            EffortPopupLabel.Text = string.IsNullOrEmpty(label) ? "Effort" : "Effort (" + label + ")";
+            EffortPopupLabel.Text = string.IsNullOrEmpty(label)
+                ? _effortTitle
+                : _effortTitle + " (" + label + ")";
+            ComposerEffortButton.ToolTip = "Change the " + _effortTitle.ToLowerInvariant() + " level";
         }
 
         /// <summary>
@@ -605,6 +633,9 @@ namespace ClaudeCodeVS.UI
         public void SetEffortStopLabels(string[] labels)
         {
             _effortStopLabels = labels;
+            EffortPopupSlider.Maximum = labels == null || labels.Length == 0
+                ? 0
+                : labels.Length - 1;
         }
 
         /// <summary>
@@ -622,7 +653,8 @@ namespace ClaudeCodeVS.UI
 
             if (_effortStopLabels != null && _effortIndex >= 0 && _effortIndex < _effortStopLabels.Length)
             {
-                EffortPopupLabel.Text = "Effort (" + _effortStopLabels[_effortIndex] + ")";
+                EffortPopupLabel.Text =
+                    _effortTitle + " (" + _effortStopLabels[_effortIndex] + ")";
             }
         }
 

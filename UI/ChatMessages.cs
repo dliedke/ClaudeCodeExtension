@@ -72,15 +72,32 @@ namespace ClaudeCodeVS.UI
         /// <summary>
         /// One token figure for the status line and the turn footer.
         /// <para>
-        /// Deliberately a single number rather than an in/out/cached breakdown: with prompt caching the
-        /// input count is almost always a handful of tokens, so "1 in · 577 out · 25,750 cached" reads
-        /// as a bug rather than as information. Cache reads are excluded — they are context the model
-        /// did not have to process again.
+        /// The caller supplies the input semantics reported by its provider. Codex uses
+        /// <see cref="CodexTokens"/> instead because its input figure includes cached input and would be
+        /// misleading without that breakdown.
         /// </para>
         /// </summary>
         public static string Tokens(int inputTokens, int outputTokens)
         {
             return string.Format("{0:N0} tokens", Math.Max(0, inputTokens) + Math.Max(0, outputTokens));
+        }
+
+        /// <summary>
+        /// Codex's <c>turn.completed</c> breakdown. Its input total includes cached input, so keeping
+        /// all three figures together explains a large processed count without pretending every token
+        /// was new or generated as visible output.
+        /// </summary>
+        public static string CodexTokens(int inputTokens, int outputTokens, int cachedInputTokens)
+        {
+            int safeInput = Math.Max(0, inputTokens);
+            int safeOutput = Math.Max(0, outputTokens);
+            int safeCached = Math.Min(safeInput, Math.Max(0, cachedInputTokens));
+
+            return string.Format(
+                "{0:N0} processed · {1:N0} cached input · {2:N0} output",
+                safeInput + safeOutput,
+                safeCached,
+                safeOutput);
         }
     }
 

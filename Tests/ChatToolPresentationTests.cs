@@ -178,8 +178,7 @@ namespace ClaudeCodeExtension.Tests
         }
 
         /// <summary>
-        /// One figure, not an in/out/cached breakdown: with prompt caching the input count is almost
-        /// always a handful of tokens, and "1 in · 577 out · 25,750 cached" reads as a bug.
+        /// Providers whose input count excludes cache keep the compact total.
         /// </summary>
         [TestMethod]
         public void TokenCountsCollapseToOneFigure()
@@ -187,6 +186,19 @@ namespace ClaudeCodeExtension.Tests
             Assert.AreEqual("6,912 tokens", ChatFormatting.Tokens(1234, 5678));
             Assert.AreEqual("578 tokens", ChatFormatting.Tokens(1, 577));
             Assert.AreEqual("0 tokens", ChatFormatting.Tokens(0, 0));
+        }
+
+        [TestMethod]
+        public void CodexTokenCountsExplainProcessedCacheAndOutput()
+        {
+            Assert.AreEqual(
+                "42,591 processed · 28,000 cached input · 50 output",
+                ChatFormatting.CodexTokens(42541, 50, 28000));
+
+            // Defensive normalization: malformed cache usage cannot exceed the input it belongs to.
+            Assert.AreEqual(
+                "12 processed · 10 cached input · 2 output",
+                ChatFormatting.CodexTokens(10, 2, 99));
         }
     }
 }

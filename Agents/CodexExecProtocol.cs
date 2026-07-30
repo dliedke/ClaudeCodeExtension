@@ -50,6 +50,15 @@ namespace ClaudeCodeVS.Agents
                 arguments.Append(" -m ").Append(options.Model);
             }
 
+            if (!string.IsNullOrWhiteSpace(options.ReasoningEffort))
+            {
+                // The Codex CLI exposes reasoning as a configuration override rather than a
+                // top-level flag. The value comes from the extension's closed enum.
+                arguments.Append(" -c model_reasoning_effort='")
+                    .Append(options.ReasoningEffort)
+                    .Append('\'');
+            }
+
             if (options.SkipApprovals)
             {
                 arguments.Append(" --dangerously-bypass-approvals-and-sandbox");

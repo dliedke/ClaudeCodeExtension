@@ -1558,13 +1558,19 @@ namespace ClaudeCodeVS
 
         #region Completion Handling (notify + action)
 
-        private async Task OnAgentTurnCompletedAsync(AgentFinishConfig cfg, TimeSpan duration, int tokenDelta)
+        private async Task OnAgentTurnCompletedAsync(
+            AgentFinishConfig cfg,
+            TimeSpan duration,
+            int tokenDelta,
+            string detailedTokenSummary = null)
         {
             await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
             try
             {
-                string summary = "Agent finished · " + FormatDuration(duration)
-                    + (tokenDelta > 0 ? $" · +{tokenDelta:N0} tokens" : string.Empty);
+                string summary = FormatAgentFinishSummary(
+                    duration,
+                    tokenDelta,
+                    detailedTokenSummary);
 
                 bool hasAction = cfg.Action != AgentFinishActionType.None;
 
@@ -1621,6 +1627,27 @@ namespace ClaudeCodeVS
             {
                 Debug.WriteLine($"OnAgentTurnCompletedAsync error: {ex.Message}");
             }
+        }
+
+        /// <summary>
+        /// Builds the toast's first line. Native Codex supplies a detailed processed/cache/output
+        /// summary; terminal agents and providers without that breakdown retain the compact delta.
+        /// </summary>
+        internal static string FormatAgentFinishSummary(
+            TimeSpan duration,
+            int tokenDelta,
+            string detailedTokenSummary)
+        {
+            string summary = "Agent finished · " + FormatDuration(duration);
+
+            if (!string.IsNullOrWhiteSpace(detailedTokenSummary))
+            {
+                return summary + " · " + detailedTokenSummary;
+            }
+
+            return summary + (tokenDelta > 0
+                ? $" · +{tokenDelta:N0} tokens"
+                : string.Empty);
         }
 
         /// <summary>

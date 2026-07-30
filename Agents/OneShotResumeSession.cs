@@ -34,6 +34,9 @@ namespace ClaudeCodeVS.Agents
         /// <summary>Model alias to request, or empty for the CLI default.</summary>
         public string Model { get; set; } = string.Empty;
 
+        /// <summary>Codex reasoning effort, or empty for the selected model's default.</summary>
+        public string ReasoningEffort { get; set; } = string.Empty;
+
         /// <summary>Mapped from the provider's existing "full auto" / "yolo" setting.</summary>
         public bool SkipApprovals { get; set; }
 
@@ -156,6 +159,18 @@ namespace ClaudeCodeVS.Agents
         public event EventHandler<AgentEvent> Received;
 
         /// <summary>
+        /// Changes the reasoning effort used by future one-shot turns. A running turn keeps the value
+        /// it launched with; the next process resumes the same thread with the new override.
+        /// </summary>
+        public void SetReasoningEffort(string reasoningEffort)
+        {
+            lock (_options)
+            {
+                _options.ReasoningEffort = reasoningEffort ?? string.Empty;
+            }
+        }
+
+        /// <summary>
         /// Records the workspace. Nothing is launched here: with no persistent process there is nothing
         /// to start until the user actually sends something.
         /// </summary>
@@ -185,10 +200,16 @@ namespace ClaudeCodeVS.Agents
             var exited = new TaskCompletionSource<int>(TaskCreationOptions.RunContinuationsAsynchronously);
             var sink = new OneShotTurnSink(Raise);
 
+            string arguments;
+            lock (_options)
+            {
+                arguments = OneShotCommandBuilder.GetArguments(_options, _protocol, SessionId);
+            }
+
             var hostOptions = new JsonLineProcessOptions
             {
                 FileName = OneShotCommandBuilder.GetFileName(_options),
-                Arguments = OneShotCommandBuilder.GetArguments(_options, _protocol, SessionId),
+                Arguments = arguments,
                 WorkingDirectory = _workingDirectory
             };
 

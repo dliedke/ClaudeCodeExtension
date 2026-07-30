@@ -84,6 +84,26 @@ namespace ClaudeCodeVS
         /// (the one-shot adapters emit one on relaunch) cannot post a second summary row.</summary>
         private bool _nativeTurnInFlight;
 
+        /// <summary>
+        /// Follow-up prompts accepted while Codex is running in native chat mode. Both its Windows and
+        /// WSL headless protocols launch one process per turn, so messages cannot be injected into that
+        /// process; they are resumed on the same thread, in order, as soon as it has fully exited.
+        /// </summary>
+        private readonly Queue<string> _codexNativePromptQueue = new Queue<string>();
+
+        /// <summary>The session whose send loop currently owns <see cref="_codexNativePromptQueue"/>.</summary>
+        private IAgentSession _codexNativeQueueOwner;
+
+        /// <summary>
+        /// Completed by the UI event bridge after the current Codex turn is fully rendered. Waiting for
+        /// this prevents the next turn's activity indicator from being cleared by the previous turn's
+        /// asynchronously marshalled completion event.
+        /// </summary>
+        private TaskCompletionSource<bool> _codexNativeTurnRendered;
+
+        /// <summary>Queued prompts discarded by Stop, reported beside the interrupted-turn notice.</summary>
+        private int _cancelledCodexNativePromptCount;
+
         #endregion
 
         #region Native Mode State
@@ -103,6 +123,15 @@ namespace ClaudeCodeVS
         private bool IsAgentAvailable
         {
             get { return IsNativeModeActive || (terminalHandle != IntPtr.Zero && IsWindow(terminalHandle)); }
+        }
+
+        /// <summary>
+        /// Whether this provider uses the Codex native-chat queue. Kept separate from the Windows
+        /// provider name: Codex (WSL) uses the same one-shot native adapter and must behave identically.
+        /// </summary>
+        internal static bool SupportsQueuedCodexNativeChat(AiProvider? provider)
+        {
+            return provider == AiProvider.Codex || provider == AiProvider.CodexNative;
         }
 
         /// <summary>
@@ -424,6 +453,7 @@ namespace ClaudeCodeVS
                 // With nothing chosen, Cursor is asked for "auto" rather than left to its own default:
                 // measured, a free plan refuses every named model, and "auto" is accepted on all plans.
                 Model = ResolveOneShotModel(provider, isCursor),
+                ReasoningEffort = isCursor ? string.Empty : GetCodexReasoningArgument(),
                 SkipApprovals = isCursor
                     ? _settings?.CursorAgentAutoRun == true
                     : _settings?.CodexFullAuto == true,
@@ -696,6 +726,21 @@ namespace ClaudeCodeVS
         }
 
         /// <summary>
+        /// Maps the Codex reasoning selection to <c>model_reasoning_effort</c>. Default is the
+        /// extension's "do not override the model" choice and therefore maps to an empty string.
+        /// </summary>
+        private string GetCodexReasoningArgument()
+        {
+            if (_settings == null ||
+                _settings.SelectedCodexReasoningLevel == CodexReasoningLevel.Default)
+            {
+                return string.Empty;
+            }
+
+            return _settings.SelectedCodexReasoningLevel.ToString().ToLowerInvariant();
+        }
+
+        /// <summary>
         /// Ends the session and releases the child process. Safe to call when native mode is not active.
         /// </summary>
         private async Task ShutdownNativeModeAsync()
@@ -718,6 +763,7 @@ namespace ClaudeCodeVS
                 ChatTranscript.AbandonPendingInteractions();
 
                 ChatTranscript.SetBusy(false);
+                ChatTranscript.SetQueuedMessageCount(0);
                 ChatTranscript.SetStatus(string.Empty);
             }
 
@@ -732,6 +778,12 @@ namespace ClaudeCodeVS
         {
             IAgentSession session = _agentSession;
             _agentSession = null;
+
+            _codexNativePromptQueue.Clear();
+            _cancelledCodexNativePromptCount = 0;
+            _codexNativeQueueOwner = null;
+            _codexNativeTurnRendered?.TrySetResult(true);
+            _codexNativeTurnRendered = null;
 
             if (session != null)
             {
@@ -849,6 +901,110 @@ namespace ClaudeCodeVS
             }
 
             await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
+
+            if (SupportsQueuedCodexNativeChat(_currentRunningProvider))
+            {
+                await SendPromptToCodexNativeAsync(session, text);
+                return;
+            }
+
+            await SendSinglePromptToNativeAgentAsync(session, text);
+        }
+
+        /// <summary>
+        /// Fast path used by the UI send handler while a Codex turn is already running. It accepts the
+        /// follow-up synchronously, before generic prompt preparation or its re-entrancy guard can
+        /// reject the click. Attachments keep using the full preparation path so they are copied to
+        /// their stable temporary locations before being queued.
+        /// </summary>
+        private bool TryQueueActiveCodexNativeFollowUp(string text, bool hasAttachments)
+        {
+            ThreadHelper.ThrowIfNotOnUIThread();
+
+            if (hasAttachments ||
+                string.IsNullOrWhiteSpace(text) ||
+                !SupportsQueuedCodexNativeChat(_currentRunningProvider) ||
+                !_nativeTurnInFlight ||
+                !ReferenceEquals(_codexNativeQueueOwner, _agentSession))
+            {
+                return false;
+            }
+
+            _codexNativePromptQueue.Enqueue(text);
+            ChatTranscript.SetQueuedMessageCount(_codexNativePromptQueue.Count);
+            return true;
+        }
+
+        /// <summary>
+        /// Accepts Codex Native follow-ups while a turn is active and drains them sequentially. A
+        /// queued call returns immediately; the call that started the loop owns it until the queue is
+        /// empty or the session changes.
+        /// </summary>
+        private async Task SendPromptToCodexNativeAsync(IAgentSession session, string text)
+        {
+            await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
+
+            if (!ReferenceEquals(session, _agentSession))
+            {
+                return;
+            }
+
+            if (_codexNativeQueueOwner != null)
+            {
+                _codexNativePromptQueue.Enqueue(text);
+                ChatTranscript.SetQueuedMessageCount(_codexNativePromptQueue.Count);
+                return;
+            }
+
+            _codexNativeQueueOwner = session;
+
+            try
+            {
+                string nextPrompt = text;
+
+                while (ReferenceEquals(session, _agentSession) &&
+                       ReferenceEquals(session, _codexNativeQueueOwner))
+                {
+                    var turnRendered = new TaskCompletionSource<bool>(
+                        TaskCreationOptions.RunContinuationsAsynchronously);
+                    _codexNativeTurnRendered = turnRendered;
+
+                    await SendSinglePromptToNativeAgentAsync(session, nextPrompt);
+                    await turnRendered.Task;
+                    await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
+
+                    if (!ReferenceEquals(session, _agentSession) ||
+                        !ReferenceEquals(session, _codexNativeQueueOwner) ||
+                        _codexNativePromptQueue.Count == 0)
+                    {
+                        break;
+                    }
+
+                    nextPrompt = _codexNativePromptQueue.Dequeue();
+                    ChatTranscript.SetQueuedMessageCount(_codexNativePromptQueue.Count);
+                }
+            }
+            finally
+            {
+                await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
+
+                if (ReferenceEquals(session, _codexNativeQueueOwner))
+                {
+                    _codexNativeQueueOwner = null;
+                    _codexNativeTurnRendered = null;
+                }
+            }
+        }
+
+        /// <summary>Runs one native turn and echoes its prompt in the transcript.</summary>
+        private async Task SendSinglePromptToNativeAgentAsync(IAgentSession session, string text)
+        {
+            await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
+
+            if (!ReferenceEquals(session, _agentSession))
+            {
+                return;
+            }
 
             var userMessage = new ChatMessageViewModel(ChatMessageKind.User) { Text = text.TrimEnd() };
             userMessage.Complete();
@@ -1014,6 +1170,8 @@ namespace ClaudeCodeVS
         /// </summary>
         private async Task InterruptNativeAgentAsync()
         {
+            await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
+
             IAgentSession session = _agentSession;
             if (session == null || !session.SupportsInterrupt || !session.IsBusy)
             {
@@ -1022,6 +1180,11 @@ namespace ClaudeCodeVS
 
             try
             {
+                if (SupportsQueuedCodexNativeChat(_currentRunningProvider))
+                {
+                    _cancelledCodexNativePromptCount += ClearQueuedCodexNativePrompts();
+                }
+
                 ChatTranscript.SetBusy(false);
                 ChatTranscript.SetActivityLabel("Stopping...");
 
@@ -1033,6 +1196,17 @@ namespace ClaudeCodeVS
             {
                 Debug.WriteLine($"Native mode: interrupt failed: {ex.Message}");
             }
+        }
+
+        /// <summary>Removes follow-ups that have not started and returns how many were discarded.</summary>
+        private int ClearQueuedCodexNativePrompts()
+        {
+            ThreadHelper.ThrowIfNotOnUIThread();
+
+            int count = _codexNativePromptQueue.Count;
+            _codexNativePromptQueue.Clear();
+            ChatTranscript?.SetQueuedMessageCount(0);
+            return count;
         }
 
         #endregion
@@ -1113,7 +1287,14 @@ namespace ClaudeCodeVS
                     break;
 
                 case AgentEventKind.TurnCompleted:
-                    CompleteNativeTurn(agentEvent);
+                    try
+                    {
+                        CompleteNativeTurn(agentEvent);
+                    }
+                    finally
+                    {
+                        _codexNativeTurnRendered?.TrySetResult(true);
+                    }
                     break;
             }
         }
@@ -1225,6 +1406,16 @@ namespace ClaudeCodeVS
                 return;
             }
 
+            if (ShouldPlayNativeQuestionSound(
+                _currentRunningProvider,
+                _nativeTurnFinishConfig,
+                request))
+            {
+                // Unlike the terminal watcher, the structured channel emits each waiting interaction
+                // once, so there is no polling episode to debounce.
+                PlayQuestionSound();
+            }
+
             // Close whatever text was streaming: the card belongs below the sentence that introduced it.
             FinishStreamingMessages();
 
@@ -1236,6 +1427,23 @@ namespace ClaudeCodeVS
             ChatTranscript.SetActivityLabel(interaction.IsPlanReview
                 ? "Waiting for you to review the plan..."
                 : "Waiting for your answer...");
+        }
+
+        /// <summary>
+        /// Whether a structured Claude interaction should play the distinct "waiting for you" sound.
+        /// Questions, plan reviews and tool approvals all stop the turn for an answer, matching the
+        /// terminal detector's selection/confirmation semantics.
+        /// </summary>
+        internal static bool ShouldPlayNativeQuestionSound(
+            AiProvider? provider,
+            AgentFinishConfig config,
+            AgentInteractionRequest request)
+        {
+            return IsClaudeProvider(provider) &&
+                   config != null &&
+                   config.Enabled &&
+                   config.PlayQuestionSound &&
+                   request != null;
         }
 
         private void OnChatInteractionResolved(object sender, ChatInteractionViewModel interaction)
@@ -1298,6 +1506,16 @@ namespace ClaudeCodeVS
             if (agentEvent.WasInterrupted)
             {
                 AddNativeMessage(ChatMessageKind.Notice, "Turn interrupted.");
+
+                if (_cancelledCodexNativePromptCount > 0)
+                {
+                    AddNativeMessage(
+                        ChatMessageKind.Notice,
+                        _cancelledCodexNativePromptCount == 1
+                            ? "1 queued message was cancelled."
+                            : $"{_cancelledCodexNativePromptCount} queued messages were cancelled.");
+                    _cancelledCodexNativePromptCount = 0;
+                }
             }
 
             if (agentEvent.PermissionDenials != null && agentEvent.PermissionDenials.Count > 0)
@@ -1330,7 +1548,11 @@ namespace ClaudeCodeVS
             if (wasInFlight)
             {
                 AddNativeMessage(ChatMessageKind.Notice,
-                    FormatTurnFooter(agentEvent.Usage, elapsed, agentEvent.WasInterrupted));
+                    FormatTurnFooter(
+                        agentEvent.Usage,
+                        elapsed,
+                        agentEvent.WasInterrupted,
+                        SupportsQueuedCodexNativeChat(_currentRunningProvider)));
             }
 
             FireNativeAgentFinish(finishConfig, agentEvent);
@@ -1378,11 +1600,24 @@ namespace ClaudeCodeVS
                 : DateTime.UtcNow - _nativeTurnStartedUtc;
 
             int tokenDelta = usage != null ? usage.InputTokens + usage.OutputTokens : 0;
+            string detailedTokenSummary =
+                SupportsQueuedCodexNativeChat(_currentRunningProvider) &&
+                usage != null &&
+                (usage.InputTokens > 0 || usage.OutputTokens > 0)
+                    ? ChatFormatting.CodexTokens(
+                        usage.InputTokens,
+                        usage.OutputTokens,
+                        usage.CacheReadTokens)
+                    : null;
 
 #pragma warning disable VSSDK007, VSTHRD110 // Intentionally fire-and-forget; the turn is already over
             ThreadHelper.JoinableTaskFactory.RunAsync(async delegate
             {
-                await OnAgentTurnCompletedAsync(cfg, duration, tokenDelta);
+                await OnAgentTurnCompletedAsync(
+                    cfg,
+                    duration,
+                    tokenDelta,
+                    detailedTokenSummary);
             }).FileAndForget("claudecode/nativemode/agentfinish");
 #pragma warning restore VSSDK007, VSTHRD110
         }
@@ -1416,10 +1651,15 @@ namespace ClaudeCodeVS
 
         /// <summary>
         /// The one-line summary left in the transcript when a turn ends, mirroring what the CLI prints
-        /// after a run. Time and tokens only: the cache and cost breakdown made the line long without
-        /// answering the question it is there for.
+        /// after a run. Codex keeps its cache and output breakdown because its reported input includes
+        /// cached context; collapsing that to one unlabeled number makes short replies look implausibly
+        /// expensive. Other providers retain the compact total.
         /// </summary>
-        private static string FormatTurnFooter(AgentUsage usage, TimeSpan elapsed, bool wasInterrupted)
+        private static string FormatTurnFooter(
+            AgentUsage usage,
+            TimeSpan elapsed,
+            bool wasInterrupted,
+            bool showCodexBreakdown)
         {
             string footer = wasInterrupted
                 ? "✳ Stopped after " + ChatFormatting.Duration(elapsed)
@@ -1427,7 +1667,12 @@ namespace ClaudeCodeVS
 
             if (usage != null && (usage.InputTokens > 0 || usage.OutputTokens > 0))
             {
-                footer += " · " + ChatFormatting.Tokens(usage.InputTokens, usage.OutputTokens);
+                footer += " · " + (showCodexBreakdown
+                    ? ChatFormatting.CodexTokens(
+                        usage.InputTokens,
+                        usage.OutputTokens,
+                        usage.CacheReadTokens)
+                    : ChatFormatting.Tokens(usage.InputTokens, usage.OutputTokens));
             }
 
             return footer;

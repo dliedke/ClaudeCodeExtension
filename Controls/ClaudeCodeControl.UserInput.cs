@@ -20,6 +20,7 @@ using System.Collections.Generic;
 using System.Windows;
 using System.Windows.Input;
 using Microsoft.VisualStudio.Shell;
+using Microsoft.VisualStudio.Threading;
 
 namespace ClaudeCodeVS
 {
@@ -73,6 +74,19 @@ namespace ClaudeCodeVS
             // the wrong tool in an async method (VSTHRD109); this states the requirement to VSTHRD010
             // for every control member touched from here on.
             await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
+
+            string queuedPrompt = PromptTextBox.Text.Trim();
+            bool queuedPromptHasFiles = attachedImagePaths.Any();
+
+            // A running Codex native-chat turn owns its own FIFO. Accept a plain follow-up before the
+            // generic submission guard: this is what keeps Enter/Send responsive while the CLI process
+            // is still producing the previous answer.
+            if (TryQueueActiveCodexNativeFollowUp(queuedPrompt, queuedPromptHasFiles))
+            {
+                AddToPromptHistory(queuedPrompt, attachedImagePaths.ToList());
+                FinishPromptSubmission();
+                return;
+            }
 
             // Re-entrancy guard: reject a second click/Enter while a send is already in flight.
             // Checked and set synchronously before any await (UI thread), so a concurrent
@@ -213,6 +227,21 @@ namespace ClaudeCodeVS
                     // Clear the panel's prompt and attachments immediately: the native turn may take a
                     // long time and the user should not see the sent prompt stuck in the input box.
                     FinishPromptSubmission();
+
+                    // Both Windows and WSL Codex accept follow-ups in native chat while their current
+                    // one-shot process is running. Do not keep the prompt-submission guard held for the
+                    // duration of that turn: the native queue owns serialization from here.
+                    if (SupportsQueuedCodexNativeChat(_currentRunningProvider))
+                    {
+#pragma warning disable VSSDK007 // Deliberately detached: the native queue owns the long-running turn
+                        ThreadHelper.JoinableTaskFactory.RunAsync(async delegate
+                        {
+                            await SendPromptToNativeAgentAsync(finalPrompt);
+                        }).FileAndForget("claudecode/codexnative/send");
+#pragma warning restore VSSDK007
+                        return;
+                    }
+
                     await SendPromptToNativeAgentAsync(finalPrompt);
                     return;
                 }

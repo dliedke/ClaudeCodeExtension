@@ -2897,6 +2897,8 @@ For more details, visit: https://pi.dev";
             // Devin (WSL) and Devin (native) both run the `devin` CLI and share the model list.
             bool isDevin = activeProvider == AiProvider.Devin || activeProvider == AiProvider.DevinNative;
             bool isClaude = IsClaudeProvider(activeProvider) || activeProvider == null;
+            bool isCodex = IsCodexProvider(activeProvider);
+            bool hasReasoningLevel = isClaude || isCodex;
 
             // Claude-specific items
             BestMenuItem.Visibility = isClaude ? Visibility.Visible : Visibility.Collapsed;
@@ -2905,11 +2907,11 @@ For more details, visit: https://pi.dev";
             HaikuMenuItem.Visibility = isClaude ? Visibility.Visible : Visibility.Collapsed;
             OpusPlanSeparator.Visibility = isClaude ? Visibility.Visible : Visibility.Collapsed;
             OpusPlanMenuItem.Visibility = isClaude ? Visibility.Visible : Visibility.Collapsed;
-            EffortSeparator.Visibility = isClaude ? Visibility.Visible : Visibility.Collapsed;
-            EffortSliderMenuItem.Visibility = isClaude ? Visibility.Visible : Visibility.Collapsed;
+            EffortSeparator.Visibility = hasReasoningLevel ? Visibility.Visible : Visibility.Collapsed;
+            EffortSliderMenuItem.Visibility = hasReasoningLevel ? Visibility.Visible : Visibility.Collapsed;
 
-            // Keep the slider in sync with the persisted effort level whenever the menu opens.
-            if (isClaude)
+            // Keep the shared slider in sync with the active provider whenever the menu opens.
+            if (hasReasoningLevel)
             {
                 UpdateEffortSelection();
             }
@@ -3422,6 +3424,39 @@ For more details, visit: https://pi.dev";
             }
         }
 
+        /// <summary>
+        /// Saves the Codex reasoning override and offers to restart a running terminal so its
+        /// startup-only configuration takes effect. Native chat updates its one-shot adapter
+        /// directly and therefore does not use this terminal path.
+        /// </summary>
+        private async Task SetCodexReasoningLevelAsync(CodexReasoningLevel level)
+        {
+            if (_settings == null || _settings.SelectedCodexReasoningLevel == level) return;
+
+            await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
+
+            _settings.SelectedCodexReasoningLevel = level;
+            UpdateEffortSelection();
+            SaveSettings();
+
+            if (!IsCodexProvider(_currentRunningProvider))
+            {
+                return;
+            }
+
+            MessageBoxResult answer = MessageBox.Show(
+                "Codex reads its reasoning level when the terminal starts.\n\n" +
+                $"Restart it now with \"{GetCodexReasoningLabel(level)}\" reasoning?",
+                "Reasoning Level Changed",
+                MessageBoxButton.YesNo,
+                MessageBoxImage.Question);
+
+            if (answer == MessageBoxResult.Yes)
+            {
+                await RestartTerminalWithSelectedProviderAsync();
+            }
+        }
+
         // Effort slider state. The slider's left-to-right order is defined explicitly so it
         // is independent of the EffortLevel enum's integer values — that keeps persisted
         // settings stable as new levels are appended. Mirrors the VS Code effort slider:
@@ -3431,9 +3466,19 @@ For more details, visit: https://pi.dev";
             EffortLevel.Low, EffortLevel.Medium, EffortLevel.High,
             EffortLevel.XHigh, EffortLevel.Max, EffortLevel.Ultracode
         };
+
+        private static readonly CodexReasoningLevel[] _codexReasoningSliderOrder =
+        {
+            CodexReasoningLevel.Default, CodexReasoningLevel.Low,
+            CodexReasoningLevel.Medium, CodexReasoningLevel.High,
+            CodexReasoningLevel.XHigh, CodexReasoningLevel.Max,
+            CodexReasoningLevel.Ultra
+        };
+
         private bool _suppressEffortSliderChange;
         private bool _effortSliderDragging;
         private EffortLevel _pendingEffortLevel = EffortLevel.High;
+        private CodexReasoningLevel _pendingCodexReasoningLevel = CodexReasoningLevel.Default;
 
         // Max and Ultracode are session-only, mirroring the Claude Code CLI where
         // "/effort max" is applied for "this session only" and Ultracode (xhigh +
@@ -3464,6 +3509,34 @@ For more details, visit: https://pi.dev";
             return idx < 0 ? 0 : idx;
         }
 
+        private static CodexReasoningLevel CodexReasoningFromSliderIndex(double value)
+        {
+            int index = (int)Math.Round(value);
+            if (index < 0) index = 0;
+            if (index >= _codexReasoningSliderOrder.Length)
+            {
+                index = _codexReasoningSliderOrder.Length - 1;
+            }
+
+            return _codexReasoningSliderOrder[index];
+        }
+
+        private static int CodexReasoningToSliderIndex(CodexReasoningLevel level)
+        {
+            int index = Array.IndexOf(_codexReasoningSliderOrder, level);
+            return index < 0 ? 0 : index;
+        }
+
+        private static string GetCodexReasoningLabel(CodexReasoningLevel level)
+        {
+            switch (level)
+            {
+                case CodexReasoningLevel.Default: return "Model default";
+                case CodexReasoningLevel.XHigh: return "Extra High";
+                default: return level.ToString();
+            }
+        }
+
         /// <summary>
         /// Slider value changed. Updates the label live; commits the new level immediately
         /// for click/keyboard changes, but defers commits made while dragging until release
@@ -3473,31 +3546,71 @@ For more details, visit: https://pi.dev";
         {
             if (_settings == null) return;
 
-            EffortLevel level = EffortFromSliderIndex(e.NewValue);
-            UpdateEffortLabel(level);
+            bool isCodex = IsCodexProvider(GetActiveOrSelectedProvider());
+            EffortLevel level = EffortLevel.High;
+            CodexReasoningLevel codexLevel = CodexReasoningLevel.Default;
+
+            if (isCodex)
+            {
+                codexLevel = CodexReasoningFromSliderIndex(e.NewValue);
+                UpdateCodexReasoningLabel(codexLevel);
+            }
+            else
+            {
+                level = EffortFromSliderIndex(e.NewValue);
+                UpdateEffortLabel(level);
+            }
 
             if (_suppressEffortSliderChange) return;
 
             if (_effortSliderDragging)
             {
-                _pendingEffortLevel = level;
+                if (isCodex)
+                {
+                    _pendingCodexReasoningLevel = codexLevel;
+                }
+                else
+                {
+                    _pendingEffortLevel = level;
+                }
                 return;
             }
 
-            _ = SetEffortLevelAsync(level);
+            if (isCodex)
+            {
+                _ = SetCodexReasoningLevelAsync(codexLevel);
+            }
+            else
+            {
+                _ = SetEffortLevelAsync(level);
+            }
         }
 
         private void EffortSlider_DragStarted(object sender, DragStartedEventArgs e)
         {
             _effortSliderDragging = true;
-            _pendingEffortLevel = EffortFromSliderIndex(EffortSlider.Value);
+            if (IsCodexProvider(GetActiveOrSelectedProvider()))
+            {
+                _pendingCodexReasoningLevel = CodexReasoningFromSliderIndex(EffortSlider.Value);
+            }
+            else
+            {
+                _pendingEffortLevel = EffortFromSliderIndex(EffortSlider.Value);
+            }
         }
 
 #pragma warning disable VSTHRD100 // Avoid async void methods
         private async void EffortSlider_DragCompleted(object sender, DragCompletedEventArgs e)
         {
             _effortSliderDragging = false;
-            await SetEffortLevelAsync(_pendingEffortLevel);
+            if (IsCodexProvider(GetActiveOrSelectedProvider()))
+            {
+                await SetCodexReasoningLevelAsync(_pendingCodexReasoningLevel);
+            }
+            else
+            {
+                await SetEffortLevelAsync(_pendingEffortLevel);
+            }
         }
 #pragma warning restore VSTHRD100
 
@@ -3513,14 +3626,31 @@ For more details, visit: https://pi.dev";
             _suppressEffortSliderChange = true;
             try
             {
-                EffortSlider.Value = EffortToSliderIndex(_settings.SelectedEffortLevel);
+                if (IsCodexProvider(GetActiveOrSelectedProvider()))
+                {
+                    EffortSlider.Maximum = _codexReasoningSliderOrder.Length - 1;
+                    EffortSlider.Value =
+                        CodexReasoningToSliderIndex(_settings.SelectedCodexReasoningLevel);
+                }
+                else
+                {
+                    EffortSlider.Maximum = _effortSliderOrder.Length - 1;
+                    EffortSlider.Value = EffortToSliderIndex(_settings.SelectedEffortLevel);
+                }
             }
             finally
             {
                 _suppressEffortSliderChange = false;
             }
 
-            UpdateEffortLabel(_settings.SelectedEffortLevel);
+            if (IsCodexProvider(GetActiveOrSelectedProvider()))
+            {
+                UpdateCodexReasoningLabel(_settings.SelectedCodexReasoningLevel);
+            }
+            else
+            {
+                UpdateEffortLabel(_settings.SelectedEffortLevel);
+            }
         }
 
         /// <summary>
@@ -3538,6 +3668,13 @@ For more details, visit: https://pi.dev";
                 default: name = level.ToString(); break;
             }
             EffortSliderLabel.Text = $"Effort ({name})";
+        }
+
+        private void UpdateCodexReasoningLabel(CodexReasoningLevel level)
+        {
+            if (EffortSliderLabel == null) return;
+
+            EffortSliderLabel.Text = $"Reasoning ({GetCodexReasoningLabel(level)})";
         }
 
         #endregion

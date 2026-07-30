@@ -4828,6 +4828,12 @@ namespace ClaudeCodeVS
             string baseCommand = ResolveProviderExecutable(provider, "codex", isWsl)
                 + GetModelLaunchFlag(provider);
 
+            string reasoning = GetCodexReasoningArgument();
+            if (!string.IsNullOrWhiteSpace(reasoning))
+            {
+                baseCommand += " -c model_reasoning_effort='" + reasoning + "'";
+            }
+
             if (_settings?.CodexFullAuto == true)
             {
                 return $"{baseCommand} --ask-for-approval never";

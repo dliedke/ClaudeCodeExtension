@@ -433,7 +433,11 @@ namespace ClaudeCodeVS
 
             AiProvider? provider = GetActiveOrSelectedProvider();
             bool isClaude = IsClaudeProvider(provider);
+            bool isCodex = IsCodexProvider(provider);
             bool isDevin = provider == AiProvider.Devin || provider == AiProvider.DevinNative;
+            string reasoningLabel = isCodex
+                ? GetChatCodexReasoningLabel()
+                : GetChatEffortLabel();
 
             ChatTranscript.SendWithEnter = _settings?.SendWithEnter != false;
             ChatTranscript.SendWithCtrlEnter = _settings?.SendWithCtrlEnter == true;
@@ -441,20 +445,36 @@ namespace ClaudeCodeVS
             ChatTranscript.SetSelectorLabels(
                 GetChatProviderDisplayName(provider),
                 GetChatModelLabel(provider),
-                GetChatEffortLabel(),
+                reasoningLabel,
                 GetChatPermissionLabel(provider));
 
-            // Effort stays Claude-only; the model selector now covers every agent, listing either
-            // the models its CLI reports or a list configured in the settings.
+            // Claude and Codex both expose reasoning controls; the model selector covers every agent,
+            // listing either the models its CLI reports or a list configured in the settings.
             ChatTranscript.SetSelectorAvailability(
                 model: isClaude || ProviderHasModelCatalog(provider),
-                effort: isClaude,
+                effort: isClaude || isCodex,
                 permission: GetChatPermissionLabel(provider) != null);
 
-            ChatTranscript.SetEffortStopLabels(GetChatEffortStopLabels());
-            ChatTranscript.SetEffortSlider(
-                EffortToSliderIndex(_settings != null ? _settings.SelectedEffortLevel : EffortLevel.High),
-                GetChatEffortLabel());
+            if (isCodex)
+            {
+                ChatTranscript.SetEffortStopLabels(GetChatCodexReasoningStopLabels());
+                ChatTranscript.SetEffortSlider(
+                    CodexReasoningToSliderIndex(
+                        _settings != null
+                            ? _settings.SelectedCodexReasoningLevel
+                            : CodexReasoningLevel.Default),
+                    reasoningLabel,
+                    "Reasoning");
+            }
+            else
+            {
+                ChatTranscript.SetEffortStopLabels(GetChatEffortStopLabels());
+                ChatTranscript.SetEffortSlider(
+                    EffortToSliderIndex(
+                        _settings != null ? _settings.SelectedEffortLevel : EffortLevel.High),
+                    reasoningLabel,
+                    "Effort");
+            }
 
             ApplyChatAppearance();
             UpdateComposerAttachmentChips();
@@ -604,10 +624,31 @@ namespace ClaudeCodeVS
             new ConcurrentDictionary<AiProvider, string>();
 
         /// <summary>
+        /// Signed-in Codex account labels returned by the CLI's app-server <c>account/read</c>
+        /// endpoint. Native and WSL Codex have separate credential stores, so each provider is cached
+        /// independently. The short lifetime avoids showing an account changed outside Visual Studio
+        /// for the rest of the IDE session.
+        /// </summary>
+        private static readonly ConcurrentDictionary<AiProvider, string> _codexAccountLabels =
+            new ConcurrentDictionary<AiProvider, string>();
+
+        private static readonly ConcurrentDictionary<AiProvider, DateTime> _codexAccountLabelFetchedUtc =
+            new ConcurrentDictionary<AiProvider, DateTime>();
+
+        /// <summary>Prevents card re-renders from starting duplicate app-server account probes.</summary>
+        private static readonly ConcurrentDictionary<AiProvider, byte> _codexAccountLabelLookups =
+            new ConcurrentDictionary<AiProvider, byte>();
+
+        private static readonly TimeSpan CodexAccountLabelTimeToLive = TimeSpan.FromMinutes(1);
+
+        /// <summary>
         /// How long a version probe is given before it is killed. It is decoration on a card that is
         /// already on screen, so it may never hold anything up.
         /// </summary>
         private const int CliVersionTimeoutMs = 5000;
+
+        /// <summary>Maximum total time for the Codex app-server handshake and account read.</summary>
+        private const int CodexAccountLookupTimeoutMs = 5000;
 
         /// <summary>
         /// Shows the card that opens a fresh conversation: which agent is running, with which model,
@@ -1059,14 +1100,16 @@ namespace ClaudeCodeVS
 
         /// <summary>
         /// The lines under the mascot. Only what the extension actually controls is claimed: model and
-        /// effort are omitted for the agents that pick those inside their own UI, exactly as the
-        /// composer hides those selectors for them.
+        /// reasoning are omitted for agents that pick those inside their own UI, exactly as the
+        /// composer hides those selectors for them. Claude effort and Codex reasoning are both owned
+        /// by the extension and are therefore shown.
         /// </summary>
         private List<string> BuildWelcomeFacts(AiProvider? provider, string workspace)
         {
             var facts = new List<string>();
 
             bool isClaude = IsClaudeProvider(provider);
+            bool isCodex = IsCodexProvider(provider);
             bool isDevin = provider == AiProvider.Devin || provider == AiProvider.DevinNative;
 
             if (isClaude)
@@ -1079,6 +1122,22 @@ namespace ClaudeCodeVS
                     : GetSignedInClaudeAccountLabel();
 
                 if (!string.IsNullOrEmpty(account))
+                {
+                    facts.Add("Signed in as " + account);
+                }
+            }
+            else if (isCodex)
+            {
+                string model = GetChatModelLabel(provider);
+                string modelLabel = string.Equals(model, "Model", StringComparison.Ordinal)
+                    ? "Agent default model"
+                    : model;
+                facts.Add(modelLabel + " with " +
+                    GetChatCodexReasoningLabel().ToLowerInvariant() + " reasoning");
+
+                if (provider.HasValue &&
+                    _codexAccountLabels.TryGetValue(provider.Value, out string account) &&
+                    !string.IsNullOrWhiteSpace(account))
                 {
                     facts.Add("Signed in as " + account);
                 }
@@ -1190,7 +1249,23 @@ namespace ClaudeCodeVS
         /// </summary>
         private void BeginAccountLabelLookup(AiProvider provider, string workspace)
         {
-            if (provider != AiProvider.ClaudeCodeWSL || _wslAccountLabels.ContainsKey(provider))
+            ThreadHelper.ThrowIfNotOnUIThread();
+
+            if (provider == AiProvider.ClaudeCodeWSL)
+            {
+                BeginClaudeWslAccountLabelLookup(provider, workspace);
+                return;
+            }
+
+            if (IsCodexProvider(provider))
+            {
+                BeginCodexAccountLabelLookup(provider, workspace);
+            }
+        }
+
+        private void BeginClaudeWslAccountLabelLookup(AiProvider provider, string workspace)
+        {
+            if (_wslAccountLabels.ContainsKey(provider))
             {
                 return;
             }
@@ -1219,6 +1294,257 @@ namespace ClaudeCodeVS
                 }
             }).FileAndForget("claudecode/nativemode/accountlabel");
 #pragma warning restore VSSDK007, VSTHRD110
+        }
+
+        /// <summary>
+        /// Reads the active Codex identity without opening its token file. The documented app-server
+        /// account endpoint works whether credentials live in <c>auth.json</c> or the OS keyring and
+        /// returns the ChatGPT email when one is available. It runs after the card is already visible
+        /// and re-renders only when the label changes.
+        /// </summary>
+        private void BeginCodexAccountLabelLookup(AiProvider provider, string workspace)
+        {
+            if (_codexAccountLabelFetchedUtc.TryGetValue(provider, out DateTime fetchedUtc) &&
+                DateTime.UtcNow - fetchedUtc < CodexAccountLabelTimeToLive)
+            {
+                return;
+            }
+
+            if (!_codexAccountLabelLookups.TryAdd(provider, 0))
+            {
+                return;
+            }
+
+#pragma warning disable VSSDK007, VSTHRD110 // Fire and forget: FileAndForget is the handler
+            ThreadHelper.JoinableTaskFactory.RunAsync(async delegate
+            {
+                try
+                {
+                    string account = await GetSignedInCodexAccountLabelAsync(provider).ConfigureAwait(false);
+
+                    string previous = null;
+                    _codexAccountLabels.TryGetValue(provider, out previous);
+
+                    if (string.IsNullOrWhiteSpace(account))
+                    {
+                        _codexAccountLabels.TryRemove(provider, out _);
+                    }
+                    else
+                    {
+                        _codexAccountLabels[provider] = account;
+                    }
+
+                    _codexAccountLabelFetchedUtc[provider] = DateTime.UtcNow;
+
+                    if (string.Equals(previous, account, StringComparison.Ordinal))
+                    {
+                        return;
+                    }
+
+                    await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
+
+                    if (ChatTranscript != null &&
+                        ChatTranscript.IsWelcomeVisible &&
+                        GetActiveOrSelectedProvider() == provider)
+                    {
+                        ShowChatWelcome(workspace);
+                    }
+                }
+                finally
+                {
+                    _codexAccountLabelLookups.TryRemove(provider, out _);
+                }
+            }).FileAndForget("claudecode/nativemode/codexaccountlabel");
+#pragma warning restore VSSDK007, VSTHRD110
+        }
+
+        /// <summary>
+        /// Starts a short-lived Codex app-server, completes its JSONL handshake and calls
+        /// <c>account/read</c>. This deliberately never reads or decodes credentials itself.
+        /// </summary>
+        private async Task<string> GetSignedInCodexAccountLabelAsync(AiProvider provider)
+        {
+            JsonLineProcessHost host = null;
+            EventHandler<string> onLine = null;
+
+            try
+            {
+                bool isWsl = provider == AiProvider.Codex;
+                string executable = ResolveNativeProviderExecutable(provider, "codex");
+                string freshPath = GetFreshPathFromRegistry();
+                string fileName;
+                string arguments;
+
+                if (isWsl)
+                {
+                    fileName = "wsl.exe";
+                    arguments = "bash -ic " +
+                        QuoteForWindowsCommandArgument(QuoteForBash(executable) + " app-server");
+                    freshPath = string.Empty;
+                }
+                else
+                {
+                    executable = ResolveExecutableOnPath(executable, freshPath);
+                    bool isBatch = executable.EndsWith(".cmd", StringComparison.OrdinalIgnoreCase)
+                        || executable.EndsWith(".bat", StringComparison.OrdinalIgnoreCase);
+
+                    fileName = isBatch ? "cmd.exe" : executable;
+                    arguments = isBatch
+                        ? "/c " + QuoteForWindowsCommandArgument(executable + " app-server")
+                        : "app-server";
+                }
+
+                var options = new JsonLineProcessOptions
+                {
+                    FileName = fileName,
+                    Arguments = arguments
+                };
+
+                if (!string.IsNullOrWhiteSpace(freshPath))
+                {
+                    options.EnvironmentOverrides["PATH"] = freshPath;
+                }
+
+                var initializeResponse = new TaskCompletionSource<JObject>(
+                    TaskCreationOptions.RunContinuationsAsynchronously);
+                var accountResponse = new TaskCompletionSource<JObject>(
+                    TaskCreationOptions.RunContinuationsAsynchronously);
+
+                host = new JsonLineProcessHost(options);
+                onLine = delegate (object sender, string line)
+                {
+                    try
+                    {
+                        JObject message = JObject.Parse(line);
+                        int? id = (int?)message["id"];
+
+                        if (id == 0)
+                        {
+                            initializeResponse.TrySetResult(message);
+                        }
+                        else if (id == 1)
+                        {
+                            accountResponse.TrySetResult(message);
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        Debug.WriteLine($"Codex account probe ignored a non-JSON line: {ex.Message}");
+                    }
+                };
+                host.LineReceived += onLine;
+
+                await host.StartAsync(CancellationToken.None).ConfigureAwait(false);
+
+                var initialize = new JObject
+                {
+                    ["method"] = "initialize",
+                    ["id"] = 0,
+                    ["params"] = new JObject
+                    {
+                        ["clientInfo"] = new JObject
+                        {
+                            ["name"] = "claude_code_extension_visual_studio",
+                            ["title"] = "Claude Code Extension for Visual Studio",
+                            ["version"] = "1.0"
+                        }
+                    }
+                };
+
+                Task timeout = Task.Delay(CodexAccountLookupTimeoutMs);
+                await host.WriteLineAsync(
+                    Newtonsoft.Json.JsonConvert.SerializeObject(
+                        initialize,
+                        Newtonsoft.Json.Formatting.None),
+                    CancellationToken.None).ConfigureAwait(false);
+
+                if (await Task.WhenAny(initializeResponse.Task, timeout).ConfigureAwait(false)
+                    != initializeResponse.Task)
+                {
+                    return null;
+                }
+
+                JObject initMessage = await initializeResponse.Task.ConfigureAwait(false);
+                if (initMessage["error"] != null)
+                {
+                    return null;
+                }
+
+                var initialized = new JObject
+                {
+                    ["method"] = "initialized",
+                    ["params"] = new JObject()
+                };
+                var accountRead = new JObject
+                {
+                    ["method"] = "account/read",
+                    ["id"] = 1,
+                    ["params"] = new JObject { ["refreshToken"] = false }
+                };
+
+                await host.WriteLineAsync(
+                    Newtonsoft.Json.JsonConvert.SerializeObject(
+                        initialized,
+                        Newtonsoft.Json.Formatting.None),
+                    CancellationToken.None).ConfigureAwait(false);
+                await host.WriteLineAsync(
+                    Newtonsoft.Json.JsonConvert.SerializeObject(
+                        accountRead,
+                        Newtonsoft.Json.Formatting.None),
+                    CancellationToken.None).ConfigureAwait(false);
+
+                if (await Task.WhenAny(accountResponse.Task, timeout).ConfigureAwait(false)
+                    != accountResponse.Task)
+                {
+                    return null;
+                }
+
+                JObject response = await accountResponse.Task.ConfigureAwait(false);
+                JToken account = response["result"]?["account"];
+                if (account == null || account.Type == JTokenType.Null)
+                {
+                    return null;
+                }
+
+                string type = (string)account["type"];
+                string email = (string)account["email"];
+
+                if (!string.IsNullOrWhiteSpace(email))
+                {
+                    return email;
+                }
+
+                if (string.Equals(type, "apiKey", StringComparison.OrdinalIgnoreCase))
+                {
+                    return "OpenAI API key";
+                }
+
+                if (string.Equals(type, "chatgpt", StringComparison.OrdinalIgnoreCase))
+                {
+                    return "ChatGPT";
+                }
+
+                if (string.Equals(type, "amazonBedrock", StringComparison.OrdinalIgnoreCase))
+                {
+                    return "Amazon Bedrock";
+                }
+
+                return null;
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"GetSignedInCodexAccountLabelAsync failed: {ex.Message}");
+                return null;
+            }
+            finally
+            {
+                if (host != null && onLine != null)
+                {
+                    host.LineReceived -= onLine;
+                }
+
+                host?.Dispose();
+            }
         }
 
         /// <summary>
@@ -1458,6 +1784,14 @@ namespace ClaudeCodeVS
             }
         }
 
+        private string GetChatCodexReasoningLabel()
+        {
+            CodexReasoningLevel level = _settings != null
+                ? _settings.SelectedCodexReasoningLevel
+                : CodexReasoningLevel.Default;
+            return GetCodexReasoningLabel(level);
+        }
+
         /// <summary>
         /// Captions of the effort slider stops, in slider order, so the popup can name the level under
         /// the thumb before it is applied.
@@ -1465,6 +1799,11 @@ namespace ClaudeCodeVS
         private static string[] GetChatEffortStopLabels()
         {
             return Array.ConvertAll(_effortSliderOrder, GetChatEffortLabel);
+        }
+
+        private static string[] GetChatCodexReasoningStopLabels()
+        {
+            return Array.ConvertAll(_codexReasoningSliderOrder, GetCodexReasoningLabel);
         }
 
         /// <summary>
@@ -1530,6 +1869,14 @@ namespace ClaudeCodeVS
             try
             {
                 await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
+
+                // The central send path may still be copying attachments or opening the Changes view.
+                // Leave the text in the composer until that short preparation window ends instead of
+                // clearing it and then having SendButton_Click reject it via its re-entrancy guard.
+                if (_isSendingPrompt)
+                {
+                    return;
+                }
 
                 string text = ChatTranscript.ComposerText;
                 if (string.IsNullOrWhiteSpace(text) && attachedImagePaths.Count == 0)
@@ -1844,12 +2191,34 @@ namespace ClaudeCodeVS
         private ContextMenu BuildChatEffortMenu()
         {
             ContextMenu menu = CreateComposerMenu();
-            EffortLevel selected = _settings != null ? _settings.SelectedEffortLevel : EffortLevel.High;
+
+            if (IsCodexProvider(GetActiveOrSelectedProvider()))
+            {
+                CodexReasoningLevel codexSelected = _settings != null
+                    ? _settings.SelectedCodexReasoningLevel
+                    : CodexReasoningLevel.Default;
+
+                foreach (CodexReasoningLevel level in _codexReasoningSliderOrder)
+                {
+                    CodexReasoningLevel current = level;
+                    AddComposerMenuItem(menu, GetCodexReasoningLabel(level), level == codexSelected,
+                        delegate
+                        {
+                            ThreadHelper.ThrowIfNotOnUIThread();
+                            OnChatCodexReasoningSelected(current);
+                        });
+                }
+
+                return menu;
+            }
+
+            EffortLevel claudeSelected =
+                _settings != null ? _settings.SelectedEffortLevel : EffortLevel.High;
 
             foreach (EffortLevel level in _effortSliderOrder)
             {
                 EffortLevel current = level;
-                AddComposerMenuItem(menu, GetChatEffortLabel(level), level == selected,
+                AddComposerMenuItem(menu, GetChatEffortLabel(level), level == claudeSelected,
                     delegate { ThreadHelper.ThrowIfNotOnUIThread(); OnChatEffortSelected(current); });
             }
 
@@ -1916,10 +2285,11 @@ namespace ClaudeCodeVS
                 return false;
             }
 
-            // Claude-only, exactly like the composer's own model, effort and plan-mode selectors: the
-            // other agents pick their model inside a TUI native mode cannot reach, and none of them
-            // has an effort level or a plan mode.
-            if (!IsClaudeProvider(GetActiveOrSelectedProvider()))
+            AiProvider? provider = GetActiveOrSelectedProvider();
+            bool isClaude = IsClaudeProvider(provider);
+            bool isCodex = IsCodexProvider(provider);
+
+            if (!isClaude && !isCodex)
             {
                 return false;
             }
@@ -1931,6 +2301,11 @@ namespace ClaudeCodeVS
             if (trimmed.StartsWith("/btw", StringComparison.OrdinalIgnoreCase)
                 && (trimmed.Length == 4 || char.IsWhiteSpace(trimmed[4])))
             {
+                if (!isClaude)
+                {
+                    return false;
+                }
+
                 string question = trimmed.Substring(4).Trim();
                 if (question.Length == 0)
                 {
@@ -1951,6 +2326,11 @@ namespace ClaudeCodeVS
             switch (trimmed.ToLowerInvariant())
             {
                 case "/plan":
+                    if (!isClaude)
+                    {
+                        return false;
+                    }
+
                     if (_settings?.ClaudePlanMode == true)
                     {
                         AddNativeMessage(ChatMessageKind.Notice, "🤖 Already in plan mode.");
@@ -2174,7 +2554,14 @@ namespace ClaudeCodeVS
         private void OnComposerEffortChanged(object sender, int index)
         {
             ThreadHelper.ThrowIfNotOnUIThread();
-            OnChatEffortSelected(EffortFromSliderIndex(index));
+            if (IsCodexProvider(GetActiveOrSelectedProvider()))
+            {
+                OnChatCodexReasoningSelected(CodexReasoningFromSliderIndex(index));
+            }
+            else
+            {
+                OnChatEffortSelected(EffortFromSliderIndex(index));
+            }
         }
 
         /// <summary>
@@ -2216,6 +2603,31 @@ namespace ClaudeCodeVS
             {
                 Debug.WriteLine($"Chat effort switch failed: {ex.Message}");
             }
+        }
+
+        /// <summary>
+        /// Updates the Codex reasoning override used by subsequent one-shot processes. Because native
+        /// Codex starts one process per turn, the same thread can continue without a relaunch.
+        /// </summary>
+        private void OnChatCodexReasoningSelected(CodexReasoningLevel level)
+        {
+            ThreadHelper.ThrowIfNotOnUIThread();
+
+            if (_settings == null || _settings.SelectedCodexReasoningLevel == level)
+            {
+                return;
+            }
+
+            _settings.SelectedCodexReasoningLevel = level;
+            SaveSettings();
+            UpdateChatComposerState();
+
+            var session = _agentSession as OneShotResumeSession;
+            session?.SetReasoningEffort(GetCodexReasoningArgument());
+
+            AddNativeMessage(
+                ChatMessageKind.Notice,
+                $"🤖 Reasoning switched to {GetChatCodexReasoningLabel()} for the next turn.");
         }
 
         /// <summary>
@@ -2343,6 +2755,7 @@ namespace ClaudeCodeVS
                 await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
 
                 ChatTranscript.SetBusy(false);
+                ChatTranscript.SetQueuedMessageCount(0);
                 ChatTranscript.SetStatus("Restarting the agent...");
 
                 DisposeNativeSession();
@@ -2371,6 +2784,8 @@ namespace ClaudeCodeVS
                 _streamingThinkingMessage = null;
                 _nativeTurnFinishConfig = null;
                 _nativeTurnInFlight = false;
+                _codexNativePromptQueue.Clear();
+                _cancelledCodexNativePromptCount = 0;
 
                 await session.StartAsync(workspace, _nativeSessionCts.Token);
 

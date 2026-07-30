@@ -65,7 +65,8 @@ namespace ClaudeCodeExtension.Tests
                 SelectedProvider = AiProvider.OpenCode,
                 SelectedClaudeModel = ClaudeModel.Opus,
                 SelectedDevinModel = "SWE-9.9",
-                SelectedEffortLevel = EffortLevel.Low
+                SelectedEffortLevel = EffortLevel.Low,
+                SelectedCodexReasoningLevel = CodexReasoningLevel.Low
             });
 
             string diskJson = ClaudeCodeControl.SerializeJsonIndented(new ClaudeCodeSettings
@@ -73,7 +74,8 @@ namespace ClaudeCodeExtension.Tests
                 SelectedProvider = AiProvider.ClaudeCode,
                 SelectedClaudeModel = ClaudeModel.Sonnet,
                 SelectedDevinModel = "SWE-1.6",
-                SelectedEffortLevel = EffortLevel.High
+                SelectedEffortLevel = EffortLevel.High,
+                SelectedCodexReasoningLevel = CodexReasoningLevel.XHigh
             });
 
             ClaudeCodeControl.PreserveVolatileFieldsFromDisk(toSave, diskJson);
@@ -82,6 +84,9 @@ namespace ClaudeCodeExtension.Tests
             Assert.AreEqual((int)ClaudeModel.Sonnet, (int)toSave["SelectedClaudeModel"]);
             Assert.AreEqual("SWE-1.6", (string)toSave["SelectedDevinModel"]);
             Assert.AreEqual((int)EffortLevel.High, (int)toSave["SelectedEffortLevel"]);
+            Assert.AreEqual(
+                (int)CodexReasoningLevel.XHigh,
+                (int)toSave["SelectedCodexReasoningLevel"]);
         }
 
         /// <summary>

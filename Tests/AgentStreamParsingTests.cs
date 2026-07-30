@@ -679,6 +679,18 @@ namespace ClaudeCodeExtension.Tests
         }
 
         [TestMethod]
+        public void CodexProtocol_ReasoningEffortIsPassedAsAConfigOverride()
+        {
+            var protocol = new CodexExecProtocol();
+            var options = new OneShotSessionOptions { ReasoningEffort = "xhigh" };
+
+            string arguments = protocol.BuildArguments(options, "thread-9");
+
+            StringAssert.Contains(arguments, "model_reasoning_effort='xhigh'");
+            StringAssert.EndsWith(arguments.Trim(), "-");
+        }
+
+        [TestMethod]
         public void CodexProtocol_ThreadStartedRecordsTheIdResumeNeeds()
         {
             List<AgentEvent> events;

@@ -64,6 +64,21 @@ namespace ClaudeCodeVS
         Ultracode
     }
 
+    /// <summary>
+    /// Reasoning levels accepted by Codex through <c>model_reasoning_effort</c>.
+    /// </summary>
+    public enum CodexReasoningLevel
+    {
+        /// <summary>Let the selected model choose its own default reasoning level.</summary>
+        Default,
+        Low,
+        Medium,
+        High,
+        XHigh,
+        Max,
+        Ultra
+    }
+
 
     /// <summary>
     /// Theme preference for the extension's terminal panel.
@@ -581,6 +596,11 @@ namespace ClaudeCodeVS
         /// Currently selected effort level for Claude Code
         /// </summary>
         public EffortLevel SelectedEffortLevel { get; set; } = EffortLevel.Auto;
+
+        /// <summary>
+        /// Currently selected Codex reasoning level. Default leaves the choice to the model.
+        /// </summary>
+        public CodexReasoningLevel SelectedCodexReasoningLevel { get; set; } = CodexReasoningLevel.Default;
 
         /// <summary>
         /// Custom working directory for the terminal.
