@@ -136,6 +136,9 @@ https://github.com/anthropics/claude-code/issues/41501
 
 ## Version History
 
+### Version 113.0
+Fixed Change Account in native mode: it now opens claude.ai first so you can consciously sign into the desired account before the sign-in step runs, that step now opens in a visible console window, and it switches the WSL account instead of a Windows one the running WSL session never uses. New chats show which account is signed in for WSL too, and that no longer gets stuck blank after a sign-in that was still finishing. Switching agents in the native chat tab now tells you when the switch fails instead of silently leaving the old conversation in place. Fixed Claude Code, Codex, Cursor Agent, Open Code and PI sometimes being reported as "not installed" when they were actually on PATH — a CLI installed while Visual Studio was already running is now detected without needing a restart (issue #124).
+
 ### Version 112.0
 Fixed the terminal not letting you scroll up to see earlier output while the agent is generating, and reduced garbled/overlapping text during long sessions (issues #118, #119). The "Edit Custom Command" popup is now bigger and resizable (issue #123). Native mode no longer drops the current conversation when Visual Studio reloads the same project, and it now shows which Claude Code account is signed in when resuming a chat; switching accounts also works reliably instead of silently keeping the old one.
 

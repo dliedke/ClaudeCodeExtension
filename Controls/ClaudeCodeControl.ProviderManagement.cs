@@ -198,6 +198,13 @@ namespace ClaudeCodeVS
                     CreateNoWindow = true
                 };
 
+                // Refresh PATH from registry so a freshly installed claude is detected without VS restart
+                string freshPath = GetFreshPathFromRegistry();
+                if (!string.IsNullOrEmpty(freshPath))
+                {
+                    startInfo.EnvironmentVariables["PATH"] = freshPath;
+                }
+
                 using (var process = Process.Start(startInfo))
                 {
                     // Use async wait with cancellation support
@@ -548,6 +555,13 @@ namespace ClaudeCodeVS
                     RedirectStandardError = true,
                     CreateNoWindow = true
                 };
+
+                // Refresh PATH from registry so a freshly installed codex is detected without VS restart
+                string freshPath = GetFreshPathFromRegistry();
+                if (!string.IsNullOrEmpty(freshPath))
+                {
+                    startInfo.EnvironmentVariables["PATH"] = freshPath;
+                }
 
                 using (var process = Process.Start(startInfo))
                 {
@@ -921,6 +935,13 @@ namespace ClaudeCodeVS
                     CreateNoWindow = true
                 };
 
+                // Refresh PATH from registry so a freshly installed agent is detected without VS restart
+                string freshPath = GetFreshPathFromRegistry();
+                if (!string.IsNullOrEmpty(freshPath))
+                {
+                    startInfo.EnvironmentVariables["PATH"] = freshPath;
+                }
+
                 using (var process = Process.Start(startInfo))
                 {
                     var completed = await WaitForProcessExitAsync(process, 3000, cancellationToken);
@@ -988,6 +1009,13 @@ namespace ClaudeCodeVS
                     RedirectStandardError = true,
                     CreateNoWindow = true
                 };
+
+                // Refresh PATH from registry so a freshly installed opencode is detected without VS restart
+                string freshPath = GetFreshPathFromRegistry();
+                if (!string.IsNullOrEmpty(freshPath))
+                {
+                    startInfo.EnvironmentVariables["PATH"] = freshPath;
+                }
 
                 using (var process = Process.Start(startInfo))
                 {
@@ -1057,6 +1085,13 @@ namespace ClaudeCodeVS
                     RedirectStandardError = true,
                     CreateNoWindow = true
                 };
+
+                // Refresh PATH from registry so a freshly installed pi is detected without VS restart
+                string freshPath = GetFreshPathFromRegistry();
+                if (!string.IsNullOrEmpty(freshPath))
+                {
+                    startInfo.EnvironmentVariables["PATH"] = freshPath;
+                }
 
                 using (var process = Process.Start(startInfo))
                 {

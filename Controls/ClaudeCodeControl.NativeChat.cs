@@ -594,6 +594,16 @@ namespace ClaudeCodeVS
             new ConcurrentDictionary<AiProvider, string>();
 
         /// <summary>
+        /// Signed-in Claude account label for the WSL provider (only <see cref="AiProvider.ClaudeCodeWSL"/>
+        /// is ever keyed here). Unlike <see cref="_cliVersions"/> this is not "ask once per VS session" —
+        /// it is cleared by <see cref="InvalidateSignedInClaudeAccountLabelAsync"/> whenever the account
+        /// changes, so the welcome card does not have to shell out to <c>wslpath</c> on every render but
+        /// still picks up a switch.
+        /// </summary>
+        private static readonly ConcurrentDictionary<AiProvider, string> _wslAccountLabels =
+            new ConcurrentDictionary<AiProvider, string>();
+
+        /// <summary>
         /// How long a version probe is given before it is killed. It is decoration on a card that is
         /// already on screen, so it may never hold anything up.
         /// </summary>
@@ -629,6 +639,7 @@ namespace ClaudeCodeVS
             if (provider.HasValue)
             {
                 BeginCliVersionLookup(provider.Value, directory);
+                BeginAccountLabelLookup(provider.Value, directory);
             }
         }
 
@@ -697,7 +708,20 @@ namespace ClaudeCodeVS
                 // fresh.
                 if (IsClaudeProvider(provider))
                 {
-                    string account = GetSignedInClaudeAccountLabel();
+                    bool isWsl = provider == AiProvider.ClaudeCodeWSL;
+                    string account = await GetSignedInClaudeAccountLabelAsync(isWsl);
+
+                    // Only a real account is worth caching — an empty result here is as likely to be
+                    // "not signed in yet" (e.g. a login that hadn't finished writing to disk) as
+                    // "genuinely signed out", and unlike a CLI version this can change moment to moment.
+                    // Caching the empty answer would have permanently silenced every later welcome card
+                    // until the next Change Account click, since BeginAccountLabelLookup's ContainsKey
+                    // guard treats any cached entry — including an empty one — as "already answered".
+                    if (isWsl && !string.IsNullOrEmpty(account))
+                    {
+                        _wslAccountLabels[provider] = account;
+                    }
+
                     if (!string.IsNullOrEmpty(account))
                     {
                         AddNativeMessage(ChatMessageKind.Notice, "Signed in as " + account);
@@ -796,10 +820,34 @@ namespace ClaudeCodeVS
         /// </summary>
         private static string GetSignedInClaudeAccountLabel()
         {
+            string path = Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".claude.json");
+            return ReadClaudeAccountLabelFromFile(path);
+        }
+
+        /// <summary>
+        /// WSL-aware counterpart of <see cref="GetSignedInClaudeAccountLabel"/>: the CLI running under
+        /// <c>ClaudeCodeWSL</c> authenticates against the distro's own <c>~/.claude.json</c>, a separate
+        /// file from the Windows-side one the sync overload reads, so reusing that path for a WSL
+        /// session always reported whichever account Windows last used instead of the one the running
+        /// conversation is actually signed in as. Resolves the WSL-side path to its Windows UNC form via
+        /// <see cref="ResolveWslPathAsync"/> first, then reads it exactly like the Windows copy.
+        /// </summary>
+        private static async Task<string> GetSignedInClaudeAccountLabelAsync(bool isWsl)
+        {
+            if (!isWsl)
+            {
+                return GetSignedInClaudeAccountLabel();
+            }
+
+            string wslPath = await ResolveWslPathAsync("$HOME/.claude.json");
+            return string.IsNullOrEmpty(wslPath) ? null : ReadClaudeAccountLabelFromFile(wslPath);
+        }
+
+        private static string ReadClaudeAccountLabelFromFile(string path)
+        {
             try
             {
-                string path = Path.Combine(
-                    Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".claude.json");
                 if (!File.Exists(path))
                 {
                     return null;
@@ -830,7 +878,7 @@ namespace ClaudeCodeVS
             }
             catch (Exception ex)
             {
-                Debug.WriteLine($"GetSignedInClaudeAccountLabel failed: {ex.Message}");
+                Debug.WriteLine($"ReadClaudeAccountLabelFromFile failed: {ex.Message}");
                 return null;
             }
         }
@@ -844,19 +892,29 @@ namespace ClaudeCodeVS
         /// file-based <see cref="GetSignedInClaudeAccountLabel"/> stays the source for the passive
         /// welcome-screen fact, where a blocking CLI spawn on every session start would be a bad trade.
         /// </summary>
-        private async Task<string> GetClaudeAuthStatusEmailAsync(CancellationToken cancellationToken)
+        private async Task<string> GetClaudeAuthStatusEmailAsync(bool isWsl, CancellationToken cancellationToken)
         {
             try
             {
-                var startInfo = new ProcessStartInfo
-                {
-                    FileName = ResolveNativeClaudeExecutable(),
-                    Arguments = "auth status --json",
-                    UseShellExecute = false,
-                    RedirectStandardOutput = true,
-                    RedirectStandardError = true,
-                    CreateNoWindow = true
-                };
+                var startInfo = isWsl
+                    ? new ProcessStartInfo
+                    {
+                        FileName = "wsl.exe",
+                        Arguments = "bash -lic \"claude auth status --json\"",
+                        UseShellExecute = false,
+                        RedirectStandardOutput = true,
+                        RedirectStandardError = true,
+                        CreateNoWindow = true
+                    }
+                    : new ProcessStartInfo
+                    {
+                        FileName = ResolveNativeClaudeExecutable(),
+                        Arguments = "auth status --json",
+                        UseShellExecute = false,
+                        RedirectStandardOutput = true,
+                        RedirectStandardError = true,
+                        CreateNoWindow = true
+                    };
 
                 using (var process = Process.Start(startInfo))
                 {
@@ -896,10 +954,38 @@ namespace ClaudeCodeVS
         /// </summary>
         private static void InvalidateSignedInClaudeAccountLabel()
         {
+            string path = Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".claude.json");
+            RemoveOauthAccountKey(path);
+        }
+
+        /// <summary>
+        /// WSL-aware counterpart of <see cref="InvalidateSignedInClaudeAccountLabel"/> — see <see
+        /// cref="GetSignedInClaudeAccountLabelAsync"/> for why the WSL-side credential file is a
+        /// different one. Also drops the cached welcome-card label (<see cref="_wslAccountLabels"/>) so
+        /// the next card re-reads instead of instantly re-showing the account just logged out of.
+        /// </summary>
+        private static async Task InvalidateSignedInClaudeAccountLabelAsync(bool isWsl)
+        {
+            _wslAccountLabels.TryRemove(AiProvider.ClaudeCodeWSL, out _);
+
+            if (!isWsl)
+            {
+                InvalidateSignedInClaudeAccountLabel();
+                return;
+            }
+
+            string wslPath = await ResolveWslPathAsync("$HOME/.claude.json");
+            if (!string.IsNullOrEmpty(wslPath))
+            {
+                RemoveOauthAccountKey(wslPath);
+            }
+        }
+
+        private static void RemoveOauthAccountKey(string path)
+        {
             try
             {
-                string path = Path.Combine(
-                    Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".claude.json");
                 if (!File.Exists(path))
                 {
                     return;
@@ -920,7 +1006,54 @@ namespace ClaudeCodeVS
             }
             catch (Exception ex)
             {
-                Debug.WriteLine($"InvalidateSignedInClaudeAccountLabel failed: {ex.Message}");
+                Debug.WriteLine($"RemoveOauthAccountKey failed: {ex.Message}");
+            }
+        }
+
+        /// <summary>
+        /// Resolves a WSL-side path expression (evaluated by bash, so <c>$HOME</c> etc. work) to its
+        /// Windows UNC form via <c>wslpath -w</c>, the same approach
+        /// <see cref="ResolveWslSessionDirectoryAsync"/> uses for the session transcripts directory —
+        /// here for the CLI's own credential file so it can be read/edited through regular .NET file IO.
+        /// </summary>
+        private static async Task<string> ResolveWslPathAsync(string linuxPathExpression)
+        {
+            try
+            {
+                string args = $"bash -lic \"wslpath -w \\\"{linuxPathExpression}\\\"\"";
+                var psi = new ProcessStartInfo
+                {
+                    FileName = "wsl",
+                    Arguments = args,
+                    UseShellExecute = false,
+                    RedirectStandardOutput = true,
+                    RedirectStandardError = true,
+                    CreateNoWindow = true,
+                    StandardOutputEncoding = Encoding.UTF8
+                };
+
+                using (var p = new Process { StartInfo = psi })
+                {
+                    p.Start();
+                    Task<string> stdoutTask = p.StandardOutput.ReadToEndAsync();
+                    Task<string> stderrTask = p.StandardError.ReadToEndAsync();
+                    bool exited = await Task.Run(() => p.WaitForExit(5000));
+                    if (!exited)
+                    {
+                        try { p.Kill(); } catch { }
+                        return null;
+                    }
+
+                    string stdout = await stdoutTask;
+                    await stderrTask;
+                    stdout = stdout?.Trim();
+                    return string.IsNullOrEmpty(stdout) ? null : stdout;
+                }
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"ResolveWslPathAsync error: {ex.Message}");
+                return null;
             }
         }
 
@@ -940,7 +1073,11 @@ namespace ClaudeCodeVS
             {
                 facts.Add(GetChatModelLabel(provider) + " with " + GetChatEffortLabel().ToLowerInvariant() + " effort");
 
-                string account = GetSignedInClaudeAccountLabel();
+                bool isWsl = provider == AiProvider.ClaudeCodeWSL;
+                string account = isWsl
+                    ? (_wslAccountLabels.TryGetValue(AiProvider.ClaudeCodeWSL, out string cachedAccount) ? cachedAccount : null)
+                    : GetSignedInClaudeAccountLabel();
+
                 if (!string.IsNullOrEmpty(account))
                 {
                     facts.Add("Signed in as " + account);
@@ -1037,6 +1174,50 @@ namespace ClaudeCodeVS
                     ShowChatWelcome(workspace);
                 }
             }).FileAndForget("claudecode/nativemode/cliversion");
+#pragma warning restore VSSDK007, VSTHRD110
+        }
+
+        /// <summary>
+        /// Looks up the signed-in WSL account in the background and re-renders the card when it answers,
+        /// same pattern as <see cref="BeginCliVersionLookup"/> — but unlike that cache, an empty result
+        /// here is deliberately never stored: a CLI version that comes back empty stays empty for the
+        /// rest of the VS session, while "not signed in" can flip to "signed in" moments later (mid
+        /// login, or a slow write to the CLI's own state file), so caching a miss would have silenced
+        /// every later welcome card until the next explicit Change Account click. Only needed for
+        /// <see cref="AiProvider.ClaudeCodeWSL"/> — the Windows provider's account is read synchronously
+        /// in <see cref="BuildWelcomeFacts"/> since that is a fast local file read, but the WSL copy needs
+        /// a <c>wslpath</c> round-trip first, which must not block the card already on screen.
+        /// </summary>
+        private void BeginAccountLabelLookup(AiProvider provider, string workspace)
+        {
+            if (provider != AiProvider.ClaudeCodeWSL || _wslAccountLabels.ContainsKey(provider))
+            {
+                return;
+            }
+
+#pragma warning disable VSSDK007, VSTHRD110 // Fire and forget: FileAndForget is the handler
+            ThreadHelper.JoinableTaskFactory.RunAsync(async delegate
+            {
+                string account = await GetSignedInClaudeAccountLabelAsync(true).ConfigureAwait(false);
+
+                if (string.IsNullOrEmpty(account))
+                {
+                    return;
+                }
+
+                _wslAccountLabels[provider] = account;
+
+                await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
+
+                // Only worth redrawing while the card this probe belongs to is still the one on screen:
+                // the user may already have sent a prompt, or switched to another agent.
+                if (ChatTranscript != null &&
+                    ChatTranscript.IsWelcomeVisible &&
+                    GetActiveOrSelectedProvider() == provider)
+                {
+                    ShowChatWelcome(workspace);
+                }
+            }).FileAndForget("claudecode/nativemode/accountlabel");
 #pragma warning restore VSSDK007, VSTHRD110
         }
 
@@ -1856,12 +2037,29 @@ namespace ClaudeCodeVS
                 UpdateProviderSelection();
                 UpdateChatComposerState();
                 UpdateChatTabCaption();
+
+                // RestartTerminalWithSelectedProviderAsync swallows its own failures (falls back to the
+                // embedded terminal, or leaves native mode off) without telling this caller — so without
+                // this check, a switch that silently failed still claimed success below, which is exactly
+                // what "I change agent but nothing happens" looked like: no error, no visible change, and
+                // (falsely) no indication anything had gone wrong either.
+                if (GetActiveOrSelectedProvider() != provider || ChatTranscript == null || !_chatIsInTab)
+                {
+                    AddNativeMessage(ChatMessageKind.Error,
+                        $"Could not switch to {GetChatProviderDisplayName(provider)} — check that it is installed " +
+                        "and reachable, then try again. The embedded terminal may have been used instead.");
+                    return;
+                }
+
                 AddNativeMessage(ChatMessageKind.Notice,
                     $"🤖 Switched to {GetChatProviderDisplayName(provider)} — this starts a new conversation.");
             }
             catch (Exception ex)
             {
                 Debug.WriteLine($"Chat provider switch failed: {ex.Message}");
+
+                await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
+                AddNativeMessage(ChatMessageKind.Error, $"Could not switch agent: {ex.Message}");
             }
         }
 
@@ -2183,8 +2381,19 @@ namespace ClaudeCodeVS
 
                 if (appendAccountLabel)
                 {
-                    string account = await GetClaudeAuthStatusEmailAsync(_nativeSessionCts.Token)
-                        ?? GetSignedInClaudeAccountLabel();
+                    bool isWsl = provider == AiProvider.ClaudeCodeWSL;
+                    string account = await GetClaudeAuthStatusEmailAsync(isWsl, _nativeSessionCts.Token)
+                        ?? await GetSignedInClaudeAccountLabelAsync(isWsl);
+
+                    // Empty is not cached (see BeginAccountLabelLookup) — a login the user just finished
+                    // in a separate console window can still be a moment away from being reflected on
+                    // disk, and caching that miss would silence every later welcome card until the next
+                    // Change Account click.
+                    if (isWsl && !string.IsNullOrEmpty(account))
+                    {
+                        _wslAccountLabels[provider] = account;
+                    }
+
                     if (!string.IsNullOrEmpty(account))
                     {
                         notice += " — now signed in as " + account;
@@ -2224,14 +2433,25 @@ namespace ClaudeCodeVS
         /// <summary>
         /// Handles the ⚙ menu's "Change Account" item in native mode. There is no console here to run
         /// <c>/logout</c> against — the terminal-mode equivalent (<c>ChangeAccountMenuItem_Click</c>)
-        /// scripts that as keystrokes into the embedded window. The previous native implementation just
-        /// opened claude.ai in a browser, which cannot actually switch accounts: a browser session against
-        /// the web app is a different credential store than the one the locally-run CLI authenticates
-        /// with, so the relaunch below always came back signed in as whichever account was already cached
-        /// — the exact "switching doesn't work" symptom this fixes. <c>claude auth logout</c>/<c>auth
-        /// login</c> are the CLI's own non-interactive auth subcommands (confirmed via <c>claude auth
-        /// --help</c>): logout clears the real local credential, login drives the CLI's own OAuth flow in
-        /// the browser (not just the marketing homepage) and updates that same store when it completes.
+        /// scripts that as keystrokes into the embedded window. <c>claude auth logout</c>/<c>auth login</c>
+        /// are the CLI's own auth subcommands (confirmed via <c>claude auth --help</c>): logout clears the
+        /// real local credential, login drives the CLI's own OAuth round-trip and updates that same store
+        /// when it completes. For <see cref="AiProvider.ClaudeCodeWSL"/> both subcommands run inside the
+        /// distro (via <c>wsl.exe bash -lic "claude auth ..."</c>) instead of against the Windows-side
+        /// executable — running them on Windows used to "succeed" without errors while leaving the actual
+        /// WSL session's credential untouched, since the two providers each authenticate against their own
+        /// separate <c>~/.claude.json</c>.
+        /// <para>
+        /// Two separate browser touchpoints, in order, because they solve two different problems:
+        /// (1) <c>https://claude.ai</c> is opened first so the user can consciously sign out of the old
+        /// account and into the desired one on the plain site — needed because claude.ai's own OAuth
+        /// *authorize* endpoint has no account picker and silently re-approves whoever the browser is
+        /// already signed in as, so without this step the CLI's own login below just re-authenticated as
+        /// the same old account through the browser's existing session cookies, which is what made the
+        /// switch look like it silently did nothing. (2) Only after that confirmation does <c>claude auth
+        /// login</c> run, in its own visible console (see the try block below) — that drives the CLI's own
+        /// device-code-style round-trip against whichever account is now active in the browser.
+        /// </para>
         /// </summary>
 #pragma warning disable VSTHRD100 // Async void is required by the UI event signature
         private async void ChangeAccountNativeMenuItem_Click(object sender, RoutedEventArgs e)
@@ -2241,10 +2461,13 @@ namespace ClaudeCodeVS
             {
                 await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
 
-                if (!IsNativeModeActive || !IsClaudeProvider(GetActiveOrSelectedProvider()))
+                AiProvider? activeProvider = GetActiveOrSelectedProvider();
+                if (!IsNativeModeActive || !IsClaudeProvider(activeProvider))
                 {
                     return;
                 }
+
+                bool isWsl = activeProvider == AiProvider.ClaudeCodeWSL;
 
                 // Sign out the embedded usage WebView2 so the new account is picked up there too.
                 await SignOutUsageWindowIfActiveAsync();
@@ -2252,13 +2475,18 @@ namespace ClaudeCodeVS
                 // Clear the CLI's local "signed in as" record before relaunching — otherwise the
                 // relaunch below reads the same still-there oauthAccount and reports a successful
                 // switch to the *old* account (the false "switched" message this was fixing).
-                InvalidateSignedInClaudeAccountLabel();
+                await InvalidateSignedInClaudeAccountLabelAsync(isWsl);
 
-                string claudeExe = ResolveNativeClaudeExecutable();
+                // ClaudeCodeWSL authenticates through the distro's own claude install: running these
+                // against the Windows-side executable (as this used to, unconditionally) logs out/in a
+                // credential the live WSL session never uses, so the switch appears to succeed but the
+                // running conversation keeps whatever WSL-side account it already had.
+                string claudeExe = isWsl ? "wsl.exe" : ResolveNativeClaudeExecutable();
+                string logoutArgs = isWsl ? "bash -lic \"claude auth logout\"" : "auth logout";
 
                 try
                 {
-                    using (var logout = Process.Start(new ProcessStartInfo(claudeExe, "auth logout")
+                    using (var logout = Process.Start(new ProcessStartInfo(claudeExe, logoutArgs)
                     {
                         UseShellExecute = false,
                         RedirectStandardOutput = true,
@@ -2274,16 +2502,47 @@ namespace ClaudeCodeVS
                     Debug.WriteLine($"ChangeAccountNativeMenuItem_Click: auth logout failed: {ex.Message}");
                 }
 
+                // claude.ai's own OAuth authorize page silently re-approves whoever is already signed
+                // in there — it has no account picker — so without this step `claude auth login` below
+                // just re-authenticated as the same old account via the browser's existing session
+                // cookies, which is what made the switch look like it silently did nothing. Sending the
+                // user to the plain claude.ai site first, to consciously sign out and into the desired
+                // account there, is what gives the CLI's OAuth round-trip a fresh session to approve.
                 try
                 {
-                    // Fire-and-forget: this drives its own browser OAuth round-trip and waits for the
-                    // callback, which can take as long as the user needs. Not awaited so the UI thread
-                    // isn't blocked; the process keeps running after this method returns and is not
-                    // killed by disposing the managed wrapper.
-                    Process.Start(new ProcessStartInfo(claudeExe, "auth login")
+                    Process.Start(new ProcessStartInfo("https://claude.ai") { UseShellExecute = true });
+                }
+                catch (Exception ex)
+                {
+                    Debug.WriteLine($"ChangeAccountNativeMenuItem_Click: could not open browser: {ex.Message}");
+                }
+
+                MessageBox.Show(
+                    "Please log out and log in to the desired account in the Claude browser tab that just opened, then click OK to continue.",
+                    "Change Account",
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Information);
+
+                try
+                {
+                    // `auth login` needs a real, visible console — measured: it drives an interactive
+                    // OAuth round-trip (opens the browser, and if that redirect can't complete on its
+                    // own it asks the user to paste a code back into this same window), so it needs
+                    // somewhere to print the browser URL/prompt to and somewhere to read a pasted code
+                    // from. CreateNoWindow=true gave it neither, which is why the browser never opened
+                    // and login could never actually finish even though this method itself hit no error.
+                    // Fire-and-forget: not awaited so the UI thread isn't blocked; the process keeps
+                    // running after this method returns and is not killed by disposing the managed
+                    // wrapper. Wrapped in `cmd /k` so the window (and any error `claude auth login`
+                    // prints) stays open after the CLI exits instead of flashing shut.
+                    string loginArguments = isWsl
+                        ? "/k wsl bash -lic \"claude auth login\""
+                        : $"/k \"{claudeExe}\" auth login";
+
+                    Process.Start(new ProcessStartInfo("cmd.exe", loginArguments)
                     {
                         UseShellExecute = false,
-                        CreateNoWindow = true
+                        CreateNoWindow = false
                     });
                 }
                 catch (Exception ex)
@@ -2292,7 +2551,7 @@ namespace ClaudeCodeVS
                 }
 
                 MessageBox.Show(
-                    "A browser window will open so you can sign in to the desired account. Click OK once you've finished signing in to resume Claude Code.",
+                    "A console window opened to finish signing in to the CLI — complete it there (pasting the code if prompted), then click OK to resume Claude Code.",
                     "Change Account",
                     MessageBoxButton.OK,
                     MessageBoxImage.Information);
