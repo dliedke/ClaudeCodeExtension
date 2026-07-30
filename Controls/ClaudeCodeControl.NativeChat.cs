@@ -691,6 +691,19 @@ namespace ClaudeCodeVS
                     ? $"🕘 Resumed this conversation — showing the last {rows.Count} of {total} messages."
                     : $"🕘 Resumed this conversation — {rows.Count} earlier messages restored.");
 
+                // A replayed transcript skips ShowChatWelcome entirely (see its caller), which is the
+                // only other place this label is shown — so a resumed conversation never said who is
+                // signed in, even right after a "Change Account" switch that resumed instead of starting
+                // fresh.
+                if (IsClaudeProvider(provider))
+                {
+                    string account = GetSignedInClaudeAccountLabel();
+                    if (!string.IsNullOrEmpty(account))
+                    {
+                        AddNativeMessage(ChatMessageKind.Notice, "Signed in as " + account);
+                    }
+                }
+
                 foreach (KeyValuePair<ChatMessageKind, string> row in rows)
                 {
                     AddNativeMessage(row.Key, row.Value);
@@ -819,6 +832,95 @@ namespace ClaudeCodeVS
             {
                 Debug.WriteLine($"GetSignedInClaudeAccountLabel failed: {ex.Message}");
                 return null;
+            }
+        }
+
+        /// <summary>
+        /// Asks the CLI itself who is signed in via <c>claude auth status --json</c> (issue: native-mode
+        /// account switching used to only open claude.ai in a browser, which cannot change what the
+        /// locally-run CLI is authenticated as — the CLI's own credentials are a separate store from a
+        /// browser session against the web app). Used right after a Change-Account relaunch, when the
+        /// process just restarted and a subprocess round-trip's latency is negligible; the cheap
+        /// file-based <see cref="GetSignedInClaudeAccountLabel"/> stays the source for the passive
+        /// welcome-screen fact, where a blocking CLI spawn on every session start would be a bad trade.
+        /// </summary>
+        private async Task<string> GetClaudeAuthStatusEmailAsync(CancellationToken cancellationToken)
+        {
+            try
+            {
+                var startInfo = new ProcessStartInfo
+                {
+                    FileName = ResolveNativeClaudeExecutable(),
+                    Arguments = "auth status --json",
+                    UseShellExecute = false,
+                    RedirectStandardOutput = true,
+                    RedirectStandardError = true,
+                    CreateNoWindow = true
+                };
+
+                using (var process = Process.Start(startInfo))
+                {
+                    bool completed = await WaitForProcessExitAsync(process, 5000, cancellationToken);
+                    if (!completed)
+                    {
+                        try { process.Kill(); } catch { }
+                        return null;
+                    }
+
+                    string output = await process.StandardOutput.ReadToEndAsync();
+                    JObject status = JObject.Parse(output);
+                    if ((bool?)status["loggedIn"] != true)
+                    {
+                        return null;
+                    }
+
+                    string email = (string)status["email"];
+                    return string.IsNullOrWhiteSpace(email) ? null : email;
+                }
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"GetClaudeAuthStatusEmailAsync failed: {ex.Message}");
+                return null;
+            }
+        }
+
+        /// <summary>
+        /// Clears the CLI's own record of who is signed in (<c>~/.claude.json</c>'s <c>oauthAccount</c>
+        /// key), so a native-mode "Change Account" cannot relaunch and immediately re-report the old
+        /// account just because the file on disk hasn't changed yet. Native mode has no console to run
+        /// the terminal-mode <c>/logout</c> against (<see cref="ChangeAccountNativeMenuItem_Click"/>), so
+        /// this is the closest equivalent reachable headlessly. Best-effort and local-only: it does not
+        /// revoke the token server-side, only removes the label source, exactly like a read failure in
+        /// <see cref="GetSignedInClaudeAccountLabel"/> already means "no label" rather than "logged out".
+        /// </summary>
+        private static void InvalidateSignedInClaudeAccountLabel()
+        {
+            try
+            {
+                string path = Path.Combine(
+                    Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".claude.json");
+                if (!File.Exists(path))
+                {
+                    return;
+                }
+
+                string json;
+                using (var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite))
+                using (var reader = new StreamReader(stream, Encoding.UTF8))
+                {
+                    json = reader.ReadToEnd();
+                }
+
+                JObject root = JObject.Parse(json);
+                if (root.Remove("oauthAccount"))
+                {
+                    File.WriteAllText(path, root.ToString(), Encoding.UTF8);
+                }
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"InvalidateSignedInClaudeAccountLabel failed: {ex.Message}");
             }
         }
 
@@ -2081,7 +2183,8 @@ namespace ClaudeCodeVS
 
                 if (appendAccountLabel)
                 {
-                    string account = GetSignedInClaudeAccountLabel();
+                    string account = await GetClaudeAuthStatusEmailAsync(_nativeSessionCts.Token)
+                        ?? GetSignedInClaudeAccountLabel();
                     if (!string.IsNullOrEmpty(account))
                     {
                         notice += " — now signed in as " + account;
@@ -2121,9 +2224,14 @@ namespace ClaudeCodeVS
         /// <summary>
         /// Handles the ⚙ menu's "Change Account" item in native mode. There is no console here to run
         /// <c>/logout</c> against — the terminal-mode equivalent (<c>ChangeAccountMenuItem_Click</c>)
-        /// scripts that as keystrokes into the embedded window — so this signs the usage WebView2 out,
-        /// opens claude.ai in the default browser for the user to switch accounts, and once they
-        /// confirm, relaunches the agent so the new turn picks up the refreshed credentials.
+        /// scripts that as keystrokes into the embedded window. The previous native implementation just
+        /// opened claude.ai in a browser, which cannot actually switch accounts: a browser session against
+        /// the web app is a different credential store than the one the locally-run CLI authenticates
+        /// with, so the relaunch below always came back signed in as whichever account was already cached
+        /// — the exact "switching doesn't work" symptom this fixes. <c>claude auth logout</c>/<c>auth
+        /// login</c> are the CLI's own non-interactive auth subcommands (confirmed via <c>claude auth
+        /// --help</c>): logout clears the real local credential, login drives the CLI's own OAuth flow in
+        /// the browser (not just the marketing homepage) and updates that same store when it completes.
         /// </summary>
 #pragma warning disable VSTHRD100 // Async void is required by the UI event signature
         private async void ChangeAccountNativeMenuItem_Click(object sender, RoutedEventArgs e)
@@ -2141,17 +2249,50 @@ namespace ClaudeCodeVS
                 // Sign out the embedded usage WebView2 so the new account is picked up there too.
                 await SignOutUsageWindowIfActiveAsync();
 
+                // Clear the CLI's local "signed in as" record before relaunching — otherwise the
+                // relaunch below reads the same still-there oauthAccount and reports a successful
+                // switch to the *old* account (the false "switched" message this was fixing).
+                InvalidateSignedInClaudeAccountLabel();
+
+                string claudeExe = ResolveNativeClaudeExecutable();
+
                 try
                 {
-                    Process.Start(new ProcessStartInfo("https://claude.ai") { UseShellExecute = true });
+                    using (var logout = Process.Start(new ProcessStartInfo(claudeExe, "auth logout")
+                    {
+                        UseShellExecute = false,
+                        RedirectStandardOutput = true,
+                        RedirectStandardError = true,
+                        CreateNoWindow = true
+                    }))
+                    {
+                        await WaitForProcessExitAsync(logout, 5000);
+                    }
                 }
                 catch (Exception ex)
                 {
-                    Debug.WriteLine($"ChangeAccountNativeMenuItem_Click: could not open browser: {ex.Message}");
+                    Debug.WriteLine($"ChangeAccountNativeMenuItem_Click: auth logout failed: {ex.Message}");
+                }
+
+                try
+                {
+                    // Fire-and-forget: this drives its own browser OAuth round-trip and waits for the
+                    // callback, which can take as long as the user needs. Not awaited so the UI thread
+                    // isn't blocked; the process keeps running after this method returns and is not
+                    // killed by disposing the managed wrapper.
+                    Process.Start(new ProcessStartInfo(claudeExe, "auth login")
+                    {
+                        UseShellExecute = false,
+                        CreateNoWindow = true
+                    });
+                }
+                catch (Exception ex)
+                {
+                    Debug.WriteLine($"ChangeAccountNativeMenuItem_Click: auth login failed: {ex.Message}");
                 }
 
                 MessageBox.Show(
-                    "Please switch to the desired account in your browser, then click OK to resume Claude Code.",
+                    "A browser window will open so you can sign in to the desired account. Click OK once you've finished signing in to resume Claude Code.",
                     "Change Account",
                     MessageBoxButton.OK,
                     MessageBoxImage.Information);

@@ -339,6 +339,34 @@ namespace ClaudeCodeVS
                 // If terminal hasn't been initialized yet, initialize it now
                 if (!HasTerminalLaunchState())
                 {
+                    // Native mode has no embedded terminal/cmdProcess, so HasTerminalLaunchState()
+                    // always reports "not yet initialized" while a native session is live — every
+                    // project-open/reload burst (including a same-directory project reload, which
+                    // fires OnAfterOpenProject just like a real open) would otherwise fall through to
+                    // InitializeTerminalAsync() below and tear down + recreate the agent session,
+                    // losing the conversation. The embedded terminal survives the same event because
+                    // HasTerminalLaunchState() stays true for it. Skip re-init here when native mode
+                    // is already running for this exact workspace; a genuine workspace change still
+                    // falls through to the restart path.
+                    if (IsNativeModeActive && WorkspaceDirectoriesEqual(_lastWorkspaceDirectory, newWorkspaceDir))
+                    {
+                        if (resetDiff)
+                        {
+                            bool refreshViewNative = _diffViewerWindow != null;
+                            if (!refreshViewNative)
+                            {
+                                await EnsureDiffViewerWindowAsync(false);
+                                refreshViewNative = _diffViewerWindow != null;
+                            }
+                            await ResetDiffBaselineAsync(refreshViewNative, false, false, true, newWorkspaceDir, true);
+                        }
+                        else
+                        {
+                            await EnsureDiffTrackingStartedAsync(false);
+                        }
+                        return;
+                    }
+
                     if (WorkspaceDirectoriesEqual(_lastTerminalLaunchWorkspaceDirectory, newWorkspaceDir))
                     {
                         LogTerminalLaunch($"skipping repeated automatic terminal launch for workspace={newWorkspaceDir}");

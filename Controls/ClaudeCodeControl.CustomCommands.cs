@@ -411,10 +411,12 @@ namespace ClaudeCodeVS
             var dialog = new Window
             {
                 Title = existing == null ? "Add Custom Command" : "Edit Custom Command",
-                Width = 520,
-                Height = 240,
+                Width = 600,
+                Height = 420,
                 WindowStartupLocation = WindowStartupLocation.CenterOwner,
-                ResizeMode = ResizeMode.NoResize,
+                ResizeMode = ResizeMode.CanResize,
+                MinWidth = 480,
+                MinHeight = 260,
                 Background = themeBg,
                 Foreground = themeFg,
                 ShowInTaskbar = false,

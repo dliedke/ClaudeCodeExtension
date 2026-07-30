@@ -4789,18 +4789,24 @@ namespace ClaudeCodeVS
                 }
             }
 
-            // Always launch in Claude Code's classic (non-alternate-screen) renderer. Fullscreen
-            // rendering enables Claude's own mouse capture (terminal mouse tracking), and inside the
-            // embedded terminal — where the extension already runs a global mouse hook and
-            // continuously re-asserts focus — that mouse tracking emits a steady burst of
-            // mouse-input escape sequences that Claude Code's fast-input heuristic collapses into
-            // bracketed-paste blocks, flooding the prompt with "[Pasted text #N +NNNN lines]" on
-            // launch and on every restart (issue #92). This must wrap the final command (env
-            // assignment precedes the executable). cmd.exe uses "set X=Y && cmd"; WSL bash uses the
-            // "X=Y cmd" prefix-assignment form.
+            // Always launch in Claude Code's classic (non-alternate-screen) renderer, and always
+            // disable Claude's own terminal mouse tracking (issues #92, #118, #119). Mouse tracking
+            // (conhost QuickEdit disabled / ENABLE_MOUSE_INPUT) is no longer exclusive to the
+            // fullscreen/alternate-screen renderer that was removed in v53 — current Claude Code CLI
+            // builds enable it in classic mode too, confirmed by IsTerminalInMouseInputMode() (used by
+            // the paste path) detecting QuickEdit-off sessions even without fullscreen. With mouse
+            // tracking on, conhost forwards the physical wheel to Claude's stdin as mouse-report
+            // escape sequences instead of scrolling its own buffer — the classic renderer doesn't
+            // consume those for scrolling, so the wheel does nothing (#118, "can't scroll up while
+            // generating") and, on long/busy sessions, likely also feeds the fast-input heuristic
+            // stray escape data that renders as overlapping/disorganized text (#119). Disabling
+            // mouse capture restores conhost's native scrollback/selection unconditionally, same fix
+            // already proven for fullscreen in issue #92. This must wrap the final command (env
+            // assignment precedes the executable). cmd.exe uses "set X=Y && set Z=1 && cmd"; WSL bash
+            // uses the "X=Y Z=1 cmd" prefix-assignment form.
             baseCommand = isWsl
-                ? $"CLAUDE_CODE_DISABLE_ALTERNATE_SCREEN=1 {baseCommand}"
-                : $"set CLAUDE_CODE_DISABLE_ALTERNATE_SCREEN=1 && {baseCommand}";
+                ? $"CLAUDE_CODE_DISABLE_ALTERNATE_SCREEN=1 CLAUDE_CODE_DISABLE_MOUSE=1 {baseCommand}"
+                : $"set CLAUDE_CODE_DISABLE_ALTERNATE_SCREEN=1 && set CLAUDE_CODE_DISABLE_MOUSE=1 && {baseCommand}";
 
             return baseCommand;
         }

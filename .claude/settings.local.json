@@ -40,7 +40,10 @@
       "Bash(dotnet --list-sdks)",
       "Bash(./publish.cmd:*)",
       "Bash(mkdir -p /c/Users/Daniel/.claude/skills/codex-review)",
-      "Read(//c/Users/Daniel/.claude/**)"
+      "Read(//c/Users/Daniel/.claude/**)",
+      "Bash(git log *)",
+      "Bash(claude auth *)",
+      "Bash('/c/Program Files/Microsoft Visual Studio/18/Enterprise/MSBuild/Current/Bin/MSBuild.exe' ClaudeCodeExtension.sln -p:Configuration=Debug -v:minimal -t:ClaudeCodeExtension)"
     ],
     "deny": [],
     "ask": []

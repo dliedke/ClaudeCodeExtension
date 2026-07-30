@@ -136,6 +136,9 @@ https://github.com/anthropics/claude-code/issues/41501
 
 ## Version History
 
+### Version 112.0
+Fixed the terminal not letting you scroll up to see earlier output while the agent is generating, and reduced garbled/overlapping text during long sessions (issues #118, #119). The "Edit Custom Command" popup is now bigger and resizable (issue #123). Native mode no longer drops the current conversation when Visual Studio reloads the same project, and it now shows which Claude Code account is signed in when resuming a chat; switching accounts also works reliably instead of silently keeping the old one.
+
 ### Version 111.0
 Every agent now has a model picker, in the chat tab and in the terminal's model (🤖) menu — the list comes from the agent itself, with Refresh Models to update it. Reasonix, which publishes no list, gets a Configure Models... editor like Devin's.
 
