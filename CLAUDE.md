@@ -97,6 +97,7 @@ ClaudeCodeExtension/
 │   ├── ClaudeCodeControl.AtMention.cs   # "@" file/folder picker in the prompt box (workspace index + popup)
 │   ├── ClaudeCodeControl.CustomCommands.cs # User-defined custom commands: configure dialog, toolbar dropdown, dispatch
 │   ├── ClaudeCodeControl.CliPaths.cs    # Per-provider custom CLI executable path: Settings "CLI Paths" tab content, resolution/validation helpers
+│   ├── ClaudeCodeControl.ModelCatalog.cs # Per-provider model list: CLI discovery + cache, selection storage, launch flags / live switch commands
 │   ├── ClaudeCodeControl.Interop.cs     # Win32 API declarations (P/Invoke)
 │   ├── ClaudeCodeControl.Theme.cs       # Dark/light theme support
 │   ├── ClaudeCodeControl.Detach.cs      # Terminal detach/attach to separate VS tab
@@ -106,6 +107,7 @@ ClaudeCodeExtension/
 │   └── ClaudeCodeControl.NativeChat.cs  # Native mode chat tab: document-tab hosting, composer, agent/model/effort/permission selectors, live switching
 ├── Agents/                              # Headless agent protocols (no WPF, no VS SDK — unit-testable)
 │   ├── IAgentSession.cs                 # Session contract shared by every adapter
+│   ├── ModelCatalog.cs                  # Model option DTO + pure parsers for each CLI's model-listing output
 │   ├── AgentEvent.cs                    # Provider-agnostic event/usage/permission model
 │   ├── JsonLineProcessHost.cs           # Shared process plumbing (stdio, line reader, tree teardown)
 │   ├── ProcessTree.cs                   # Process-tree enumeration/termination
@@ -200,6 +202,7 @@ doc** — it captures non-obvious behavior that isn't apparent from the code:
 | `Controls/ClaudeCodeControl.ProviderManagement.cs` | Provider Detection · Caveman Plugin · Visible Agents — caching, per-provider detect/paste quirks |
 | `Controls/ClaudeCodeControl.CustomCommands.cs` | Custom Commands |
 | `Controls/ClaudeCodeControl.CliPaths.cs` | Custom CLI Paths — CLI Paths settings tab, resolution/validation |
+| `Controls/ClaudeCodeControl.ModelCatalog.cs`, `Agents/ModelCatalog.cs` | Model Catalog & Selection — per-CLI listing commands, cache/TTL, how each agent's model is applied |
 | `Controls/ClaudeCodeControl.TerminalIO.cs` | Terminal I/O — paste/clipboard, chunking, large-prompt-as-file |
 | `Controls/ClaudeCodeControl.Usage.cs` | Claude Usage — WebView2 scraping, persistence, proxy interstitial |
 | `Controls/ClaudeCodeControl.Settings.cs` | Settings — init guard, layout inversion, prompt resize grip |

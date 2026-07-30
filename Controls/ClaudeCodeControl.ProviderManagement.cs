@@ -2183,17 +2183,14 @@ For more details, visit: https://pi.dev";
             Apply(ToolbarButton.SetWorkingDirectory, true, SetWorkingDirectoryToolbarButton, SetWorkingDirectoryMenuItem);
             Apply(ToolbarButton.SendBuildErrors, true, SendBuildErrorsToolbarButton, SendBuildErrorsMenuItem);
 
-            // The model button (🤖) is console-only from top to bottom: for Claude and Devin every
-            // entry sends "/model <name>", the effort slider sends "/effort", and Change Account,
-            // Set Language and Install Caveman are scripted key sequences against the CLI's own TUI;
-            // for the remaining agents the button does nothing but send "/model" so the user can pick
-            // inside that TUI. In native mode the chat composer owns agent, model, effort and
-            // permissions, so the button is hidden instead of silently doing nothing.
+            // The model button (🤖) is console-only from top to bottom: every entry either sends a
+            // command to the CLI's TUI ("/model <name>", the effort slider's "/effort") or changes
+            // the model the next launch starts with, and Change Account, Set Language and Install
+            // Caveman are scripted key sequences against that TUI. In native mode the chat composer
+            // owns agent, model, effort and permissions, so the button is hidden instead of
+            // silently doing nothing.
             AiProvider? modelProvider = GetActiveOrSelectedProvider();
-            bool hasModelMenu = IsClaudeProvider(modelProvider)
-                || modelProvider == AiProvider.Devin
-                || modelProvider == AiProvider.DevinNative
-                || GetSimpleModelCommand(modelProvider) != null;
+            bool hasModelMenu = IsClaudeProvider(modelProvider) || ProviderHasModelCatalog(modelProvider);
             if (ModelDropdownButton != null)
             {
                 ModelDropdownButton.Visibility = (hasConsole && hasModelMenu)
@@ -2806,27 +2803,21 @@ For more details, visit: https://pi.dev";
         private async void ModelDropdownButton_Click(object sender, RoutedEventArgs e)
 #pragma warning restore VSTHRD100
         {
-            // Providers without an extension-managed model list (Codex, Cursor, PI, Antigravity,
-            // Reasonix, Open Code) don't get a menu — the robot icon just sends the CLI's own
-            // model-selection command so the user picks in the agent's native UI.
+            await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
+
+            // Every provider now has a menu: a fixed one for Claude, and for the rest the models
+            // their CLI lists (fetched here so the entries are ready by the time it opens).
             AiProvider? activeProvider = GetActiveOrSelectedProvider();
-            string simpleCommand = GetSimpleModelCommand(activeProvider);
-            if (simpleCommand != null)
+            if (activeProvider != null && ShouldRefreshProviderModels(activeProvider.Value))
             {
-                await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
-                if (_currentRunningProvider == activeProvider)
-                {
-                    // Codex's /model picker is two-stage (model then effort) and its TUI counts
-                    // both the Enter key-down and key-up, so the normal Enter over-submits and
-                    // jumps past the model list. Send it a single Enter event (lone WM_KEYDOWN).
-                    // The other providers open a single-stage picker fine with the normal Enter.
-                    bool isCodex = activeProvider == AiProvider.Codex || activeProvider == AiProvider.CodexNative;
-                    await SendTextToTerminalAsync(simpleCommand, singleEnterEvent: isCodex);
-                }
-                return;
+                _ = RefreshProviderModelsAsync(activeProvider.Value)
+                    .ContinueWith(
+                        t => RebuildProviderModelMenuItems(GetActiveOrSelectedProvider()),
+                        System.Threading.CancellationToken.None,
+                        TaskContinuationOptions.OnlyOnRanToCompletion,
+                        TaskScheduler.FromCurrentSynchronizationContext());
             }
 
-            // Claude / Devin: show the full model context menu.
             var button = sender as System.Windows.Controls.Button;
             if (button?.ContextMenu != null)
             {
@@ -2837,10 +2828,9 @@ For more details, visit: https://pi.dev";
         }
 
         /// <summary>
-        /// Returns the CLI's native model-selection command for providers that do not have an
-        /// extension-managed model list, or null for providers that use the full model menu
-        /// (Claude, Devin). Codex, Cursor, PI, Antigravity and Reasonix use <c>/model</c>;
-        /// Open Code uses <c>/models</c>.
+        /// Returns the command that opens the CLI's own model picker, or null for the agents that
+        /// have none (Claude, Devin — both are driven entirely from the extension's menu). Codex,
+        /// Cursor, PI, Antigravity and Reasonix use <c>/model</c>; Open Code uses <c>/models</c>.
         /// </summary>
         private static string GetSimpleModelCommand(AiProvider? provider)
         {
@@ -2862,7 +2852,7 @@ For more details, visit: https://pi.dev";
         }
 
         /// <summary>
-        /// Shows Claude-specific or Devin-specific model items based on the current provider
+        /// Shows Claude's fixed model items or the active provider's own model list.
         /// </summary>
         private void ModelContextMenu_Opened(object sender, RoutedEventArgs e)
         {
@@ -2871,7 +2861,7 @@ For more details, visit: https://pi.dev";
             AiProvider? activeProvider = GetActiveOrSelectedProvider();
             // Devin (WSL) and Devin (native) both run the `devin` CLI and share the model list.
             bool isDevin = activeProvider == AiProvider.Devin || activeProvider == AiProvider.DevinNative;
-            bool isClaude = !isDevin;
+            bool isClaude = IsClaudeProvider(activeProvider) || activeProvider == null;
 
             // Claude-specific items
             BestMenuItem.Visibility = isClaude ? Visibility.Visible : Visibility.Collapsed;
@@ -2893,28 +2883,28 @@ For more details, visit: https://pi.dev";
             SetLanguageMenuItem.Visibility = isClaude ? Visibility.Visible : Visibility.Collapsed;
             InstallCavemanMenuItem.Visibility = isClaude ? Visibility.Visible : Visibility.Collapsed;
 
-            // Devin-specific items: the model entries are rebuilt dynamically from the
-            // user-configurable _settings.DevinModels list each time the menu opens.
-            RebuildDevinModelMenuItems(isDevin);
-            DevinModelsSeparator.Visibility = isDevin ? Visibility.Visible : Visibility.Collapsed;
+            // Every non-Claude provider gets its own model list, rebuilt each time the menu opens:
+            // it comes either from the CLI (cached) or from a user-configurable list.
+            RebuildProviderModelMenuItems(activeProvider);
+            DevinModelsSeparator.Visibility = isClaude ? Visibility.Collapsed : Visibility.Visible;
             DevinConfigureModelsMenuItem.Visibility = isDevin ? Visibility.Visible : Visibility.Collapsed;
         }
 
         /// <summary>
-        /// Dynamically-inserted Devin model menu items, tracked so they can be removed and
-        /// rebuilt each time the model menu opens (the list is user-configurable).
+        /// Dynamically-inserted model menu items, tracked so they can be removed and rebuilt each
+        /// time the model menu opens (the list changes per provider and can be refreshed in place).
         /// </summary>
         private readonly System.Collections.Generic.List<System.Windows.Controls.MenuItem> _dynamicDevinModelItems
             = new System.Collections.Generic.List<System.Windows.Controls.MenuItem>();
 
         /// <summary>
-        /// Rebuilds the Devin model menu items from <c>_settings.DevinModels</c>, inserting one
-        /// item per configured model at the top of the model context menu. Removes any
-        /// previously-inserted dynamic items first. No-op (just clears) when Devin is not active.
-        /// The items are never checked: the CLI owns the active model (the user can change it with
-        /// /model inside the terminal), so the extension does not claim to know the current one.
+        /// Rebuilds the model entries at the top of the model context menu for the given provider,
+        /// followed by "Refresh Models" (for the CLIs that list their own models), "Configure
+        /// Models..." (for Reasonix, whose CLI does not) and an entry that opens the agent's own
+        /// picker. Removes any previously-inserted dynamic items first; clears them for Claude,
+        /// which has fixed items declared in XAML instead.
         /// </summary>
-        private void RebuildDevinModelMenuItems(bool show)
+        private void RebuildProviderModelMenuItems(AiProvider? provider)
         {
             ThreadHelper.ThrowIfNotOnUIThread();
 
@@ -2924,23 +2914,108 @@ For more details, visit: https://pi.dev";
             }
             _dynamicDevinModelItems.Clear();
 
-            if (!show || _settings == null) return;
-
-            EnsureDevinModelDefaults();
+            if (provider == null || _settings == null || !ProviderHasModelCatalog(provider)) return;
 
             int insertIndex = 0;
-            foreach (var model in _settings.DevinModels)
+            string selected = GetSelectedProviderModelId(provider);
+            System.Collections.Generic.List<Agents.ModelOption> models = GetCachedProviderModels(provider.Value);
+            System.Collections.Generic.List<Agents.ModelGroup> groups = Agents.ModelCatalogGrouping.Group(models);
+
+            // With the list broken into submenus the selection would be buried in one of them, so it
+            // is repeated at the top — the only place the user can see it without hunting.
+            bool grouped = groups.Exists(g => g.IsSubmenu);
+            if (grouped && !string.IsNullOrWhiteSpace(selected) && !IsDevinProvider(provider))
             {
-                if (string.IsNullOrWhiteSpace(model)) continue;
-                var item = new System.Windows.Controls.MenuItem
-                {
-                    Header = model,
-                    Tag = model
-                };
-                item.Click += DevinModelMenuItem_Click;
-                ModelContextMenu.Items.Insert(insertIndex++, item);
-                _dynamicDevinModelItems.Add(item);
+                InsertDynamicModelItem(CreateProviderModelItem(
+                    new Agents.ModelOption { Id = selected, Name = GetSelectedProviderModelLabel(provider) },
+                    selected, provider), ref insertIndex);
             }
+
+            foreach (Agents.ModelGroup group in groups)
+            {
+                if (!group.IsSubmenu)
+                {
+                    foreach (Agents.ModelOption model in group.Models)
+                    {
+                        InsertDynamicModelItem(CreateProviderModelItem(model, selected, provider), ref insertIndex);
+                    }
+
+                    continue;
+                }
+
+                var parent = new System.Windows.Controls.MenuItem { Header = group.Name };
+                foreach (Agents.ModelOption model in group.Models)
+                {
+                    parent.Items.Add(CreateProviderModelItem(model, selected, provider));
+                }
+
+                InsertDynamicModelItem(parent, ref insertIndex);
+            }
+
+            if (models.Count == 0)
+            {
+                var empty = new System.Windows.Controls.MenuItem
+                {
+                    Header = ShouldRefreshProviderModels(provider.Value)
+                        ? "Loading models…"
+                        : "No models reported by the agent",
+                    IsEnabled = false
+                };
+                InsertDynamicModelItem(empty, ref insertIndex);
+            }
+
+            if (ModelCatalogSources.ContainsKey(provider.Value))
+            {
+                var refresh = new System.Windows.Controls.MenuItem { Header = "Refresh Models" };
+                refresh.Click += RefreshProviderModelsMenuItem_Click;
+                InsertDynamicModelItem(refresh, ref insertIndex);
+            }
+            else if (provider == AiProvider.Reasonix)
+            {
+                var configure = new System.Windows.Controls.MenuItem { Header = "Configure Models..." };
+                configure.Click += ConfigureReasonixModelsMenuItem_Click;
+                InsertDynamicModelItem(configure, ref insertIndex);
+            }
+
+            // The escape hatch: whatever the extension knows, the agent's own picker is authoritative.
+            if (GetSimpleModelCommand(provider) != null)
+            {
+                var picker = new System.Windows.Controls.MenuItem
+                {
+                    Header = "Choose in the Agent...",
+                    IsEnabled = _currentRunningProvider == provider
+                };
+                picker.Click += OpenAgentModelPickerMenuItem_Click;
+                InsertDynamicModelItem(picker, ref insertIndex);
+            }
+        }
+
+        /// <summary>
+        /// One model entry of the model context menu. Checked only where the extension itself decides
+        /// the model: Devin's CLI owns the active one (the user can change it with /model in the
+        /// terminal), so the extension does not claim to know which it is.
+        /// </summary>
+        private System.Windows.Controls.MenuItem CreateProviderModelItem(
+            Agents.ModelOption model, string selected, AiProvider? provider)
+        {
+            var item = new System.Windows.Controls.MenuItem
+            {
+                Header = model.DisplayName,
+                Tag = model.Id,
+                IsCheckable = false,
+                IsChecked = !IsDevinProvider(provider) &&
+                            string.Equals(model.Id, selected, StringComparison.OrdinalIgnoreCase)
+            };
+
+            item.Click += ProviderModelMenuItem_Click;
+
+            return item;
+        }
+
+        private void InsertDynamicModelItem(System.Windows.Controls.MenuItem item, ref int insertIndex)
+        {
+            ModelContextMenu.Items.Insert(insertIndex++, item);
+            _dynamicDevinModelItems.Add(item);
         }
 
         /// <summary>
@@ -3097,15 +3172,15 @@ For more details, visit: https://pi.dev";
 
         #endregion
 
-        #region Devin Model Selection
+        #region Provider Model Selection
 
         /// <summary>
-        /// Handles a click on a dynamically-built Devin model menu item. Records the selection
-        /// and, when a Devin terminal is running, switches the model live via
-        /// <c>/model "&lt;name&gt;"</c> (quoted so names with spaces are passed as one argument).
+        /// Handles a click on a dynamically-built model menu item. Records the selection, then
+        /// applies it: Devin and Reasonix switch live through their own slash command, and every
+        /// other agent takes its model at launch, so the user is offered a restart.
         /// </summary>
 #pragma warning disable VSTHRD100 // Avoid async void methods - WPF event handler
-        private async void DevinModelMenuItem_Click(object sender, RoutedEventArgs e)
+        private async void ProviderModelMenuItem_Click(object sender, RoutedEventArgs e)
 #pragma warning restore VSTHRD100
         {
             if (_settings == null) return;
@@ -3115,12 +3190,113 @@ For more details, visit: https://pi.dev";
             if (string.IsNullOrWhiteSpace(model)) return;
 
             await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
-            _settings.SelectedDevinModel = model;
+
+            AiProvider? provider = GetActiveOrSelectedProvider();
+            if (provider == null) return;
+
+            SetSelectedProviderModelId(provider.Value, model);
             UpdateModelSelection();
             SaveSettings();
-            if (_currentRunningProvider == AiProvider.Devin || _currentRunningProvider == AiProvider.DevinNative)
+
+            if (_currentRunningProvider != provider) return;
+
+            string liveCommand = GetLiveModelSwitchCommand(provider.Value, model);
+            if (liveCommand != null)
             {
-                await SendTextToTerminalAsync($"/model \"{model}\"");
+                await SendTextToTerminalAsync(liveCommand);
+                return;
+            }
+
+            var answer = MessageBox.Show(
+                $"{GetProviderDisplayName(provider)} takes its model when it starts.\n\n" +
+                $"Restart it now to run on \"{GetSelectedProviderModelLabel(provider)}\"?",
+                "Model Changed", MessageBoxButton.YesNo, MessageBoxImage.Question);
+
+            if (answer == MessageBoxResult.Yes)
+            {
+                await RestartTerminalWithSelectedProviderAsync();
+            }
+        }
+
+        /// <summary>
+        /// Handles the "Refresh Models" menu item click - re-reads the list from the CLI and
+        /// rebuilds the menu entries in place, so a menu left open shows the new list.
+        /// </summary>
+#pragma warning disable VSTHRD100 // Avoid async void methods - WPF event handler
+        private async void RefreshProviderModelsMenuItem_Click(object sender, RoutedEventArgs e)
+#pragma warning restore VSTHRD100
+        {
+            await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
+
+            AiProvider? provider = GetActiveOrSelectedProvider();
+            if (provider == null) return;
+
+            var item = sender as System.Windows.Controls.MenuItem;
+            if (item != null)
+            {
+                item.Header = "Refreshing…";
+                item.IsEnabled = false;
+            }
+
+            // Drop the timestamp so the fetch is not skipped as still-fresh.
+            if (_settings?.ModelCatalogs != null)
+            {
+                _settings.ModelCatalogs.Remove(provider.Value.ToString());
+            }
+
+            await RefreshProviderModelsAsync(provider.Value);
+            await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
+
+            RebuildProviderModelMenuItems(GetActiveOrSelectedProvider());
+        }
+
+        /// <summary>
+        /// Handles the "Choose in the Agent..." menu item click - sends the CLI's own
+        /// model-selection command so the user picks in the agent's native picker.
+        /// </summary>
+#pragma warning disable VSTHRD100 // Avoid async void methods - WPF event handler
+        private async void OpenAgentModelPickerMenuItem_Click(object sender, RoutedEventArgs e)
+#pragma warning restore VSTHRD100
+        {
+            await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
+
+            AiProvider? provider = GetActiveOrSelectedProvider();
+            string command = GetSimpleModelCommand(provider);
+            if (command == null || _currentRunningProvider != provider) return;
+
+            // Codex's /model picker is two-stage (model then effort) and its TUI counts both the
+            // Enter key-down and key-up, so the normal Enter over-submits and jumps past the model
+            // list. Send it a single Enter event (lone WM_KEYDOWN). The other providers open a
+            // single-stage picker fine with the normal Enter.
+            bool isCodex = provider == AiProvider.Codex || provider == AiProvider.CodexNative;
+            await SendTextToTerminalAsync(command, singleEnterEvent: isCodex);
+        }
+
+        /// <summary>
+        /// Handles the Reasonix "Configure Models..." menu item click - Reasonix publishes no model
+        /// list of its own, so the menu is filled from a list the user maintains here.
+        /// </summary>
+        private void ConfigureReasonixModelsMenuItem_Click(object sender, RoutedEventArgs e)
+        {
+            try
+            {
+                ThreadHelper.ThrowIfNotOnUIThread();
+
+                if (_settings == null) _settings = new ClaudeCodeSettings();
+                EnsureReasonixModelDefaults();
+
+                ShowModelListDialog("Reasonix", _settings.ReasonixModels,
+                    "These models appear in the model (🤖) menu when Reasonix is the active agent. " +
+                    "Reasonix does not publish its own list, so enter the exact model ids it accepts.");
+
+                SaveSettings();
+                UpdateModelSelection();
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"Error configuring Reasonix models: {ex.Message}");
+                MessageBox.Show($"Error configuring Reasonix models: {ex.Message}",
+                    "Error", MessageBoxButton.OK, MessageBoxImage.Error);
             }
         }
 
@@ -3157,7 +3333,10 @@ For more details, visit: https://pi.dev";
                 if (_settings == null) _settings = new ClaudeCodeSettings();
                 if (_settings.DevinModels == null) _settings.DevinModels = new System.Collections.Generic.List<string>();
 
-                ShowDevinModelsDialog();
+                ShowModelListDialog("Devin", _settings.DevinModels,
+                    "These models appear in the model (🤖) menu when Devin is the active agent. " +
+                    "Selecting one switches the model live via /model \"<name>\". Enter the exact " +
+                    "name Devin expects.");
 
                 EnsureDevinModelDefaults();
                 SaveSettings();

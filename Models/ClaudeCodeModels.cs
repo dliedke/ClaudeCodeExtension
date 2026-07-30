@@ -321,6 +321,20 @@ namespace ClaudeCodeVS
     }
 
     /// <summary>
+    /// A provider's model list as last read from its CLI, with the moment it was read. Cached in
+    /// the settings file so the model menu opens filled in instead of starting a process every
+    /// time — the lists only change when the CLI is updated.
+    /// </summary>
+    public class ModelCatalogCache
+    {
+        public System.Collections.Generic.List<Agents.ModelOption> Models { get; set; }
+            = new System.Collections.Generic.List<Agents.ModelOption>();
+
+        /// <summary>UTC timestamp of the CLI call that produced <see cref="Models"/>.</summary>
+        public System.DateTime FetchedUtc { get; set; }
+    }
+
+    /// <summary>
     /// Settings configuration for Claude Code extension
     /// </summary>
     public class ClaudeCodeSettings
@@ -490,6 +504,36 @@ namespace ClaudeCodeVS
         /// Empty until the user picks one; resolved to the first available model at runtime.
         /// </summary>
         public string SelectedDevinModel { get; set; } = "SWE-1.6";
+
+        /// <summary>
+        /// User-configurable list of Reasonix model ids shown in the model menu. Reasonix is the one
+        /// agent that neither lists its models on the command line nor publishes them over ACP, so
+        /// the list is seeded from the ids its own package ships with and stays editable.
+        /// </summary>
+        public System.Collections.Generic.List<string> ReasonixModels { get; set; } = new System.Collections.Generic.List<string>
+        {
+            "deepseek-v4-flash",
+            "deepseek-v4-pro",
+            "deepseek-chat",
+            "deepseek-reasoner"
+        };
+
+        /// <summary>
+        /// Model chosen per provider, keyed by the <see cref="AiProvider"/> name. Holds the id the
+        /// CLI expects (<c>gpt-5.6-sol</c>, <c>opencode/big-pickle</c>, <c>anthropic/claude-opus-4-8</c>).
+        /// An absent or empty entry means "whatever the CLI defaults to". Claude and Devin are not in
+        /// here — they keep <see cref="SelectedClaudeModel"/> and <see cref="SelectedDevinModel"/>.
+        /// </summary>
+        public System.Collections.Generic.Dictionary<string, string> SelectedProviderModels { get; set; }
+            = new System.Collections.Generic.Dictionary<string, string>();
+
+        /// <summary>
+        /// Model lists as last read from each provider's CLI, keyed by the <see cref="AiProvider"/>
+        /// name. Refreshed in the background when older than a day, and by "Refresh Models" in the
+        /// model menu.
+        /// </summary>
+        public System.Collections.Generic.Dictionary<string, ModelCatalogCache> ModelCatalogs { get; set; }
+            = new System.Collections.Generic.Dictionary<string, ModelCatalogCache>();
 
         /// <summary>
         /// List of previously sent prompts with optional file attachments (most recent last)

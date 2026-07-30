@@ -46,6 +46,13 @@ namespace ClaudeCodeVS.Agents
         /// </summary>
         public string ModelName { get; set; } = string.Empty;
 
+        /// <summary>
+        /// Model passed on the launch command line instead, for an agent that publishes no model
+        /// picker in its handshake (Reasonix). Written as the full flag — <c>-m deepseek-v4-pro</c>.
+        /// Empty for the agents whose model is selected through <see cref="ModelName"/>.
+        /// </summary>
+        public string ModelLaunchArgument { get; set; } = string.Empty;
+
         /// <summary>Display name used in messages shown to the user.</summary>
         public string DisplayName { get; set; } = "agent";
 
@@ -78,6 +85,11 @@ namespace ClaudeCodeVS.Agents
             if (options == null) throw new ArgumentNullException(nameof(options));
 
             string subcommand = string.IsNullOrWhiteSpace(options.AcpArgument) ? "acp" : options.AcpArgument.Trim();
+
+            if (!string.IsNullOrWhiteSpace(options.ModelLaunchArgument))
+            {
+                subcommand += " " + options.ModelLaunchArgument.Trim();
+            }
 
             if (options.UseWsl)
             {

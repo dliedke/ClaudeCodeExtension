@@ -27,7 +27,7 @@ Enjoying the extension? [Buy me a coffee](https://www.buymeacoffee.com/dliedke) 
 - **"@" file picker** — Type **@** in the prompt box (or the native mode chat composer) to search your solution's files and folders and insert one with the keyboard; keep typing to filter, arrow keys + Enter to insert, pick a folder to drill in.
 - **On Agent Finish** — Optionally play a sound, show a notification (with duration, plus token count for Claude Code), and run an action (build/rebuild, run, tests, a script, or a follow-up command) when the agent goes idle. Global defaults plus per-solution overrides. Configure via *⚙ → Settings...*.
 - **Auto-send build errors** — Optionally send build errors (with warnings for context) to the active agent automatically whenever a Visual Studio build finishes with errors, so it can fix them. Opt-in via *⚙ → Settings... → Behavior*.
-- **Model selection** — 🤖 button to switch models: for Claude, Best / Opus / Sonnet / Haiku / Opus Plan plus an effort level (Auto / Low / Medium / High / Max) for Opus thinking depth; for Devin, a configurable list of models you can edit via *Configure Models...*; for Codex, Cursor Agent, PI, Antigravity, Reasonix, and Open Code, it opens the agent's own model picker in the terminal.
+- **Model selection** — 🤖 button to switch models: for Claude, Best / Opus / Sonnet / Haiku / Opus Plan plus an effort level (Auto / Low / Medium / High / Max) for Opus thinking depth; for every other agent, the models it reports itself, with *Refresh Models* to re-read them and *Choose in the Agent...* to fall back to its own picker; for Devin and Reasonix, a configurable list you can edit via *Configure Models...*.
 - **Detach / attach terminal** — Pop the terminal into a separate VS tab and bring it back at any time. State persists across sessions.
 - **Theme aware** — Follows VS dark/light theme automatically, or force dark, light, or a custom background color via *⚙ → Settings → Theme*. Prompt zoom is persisted across sessions; set the terminal's console font and size via *⚙ → Settings → Terminal* (Ctrl+Scroll zoom applies for the current session).
 - **Persistent settings** — Layout, provider choice, model, flags, and font sizes all saved to `%LocalAppData%\ClaudeCodeExtension\claudecode-settings.json`.
@@ -93,7 +93,7 @@ Then choose it via *⚙ → Set Terminal Type...*.
 
 1. Click ⚙ → pick your AI provider (use *Configure Visible Code Agents...* if it isn't listed)
 2. If using Open Code, run `Ctrl+P` → "connect providers" once to authenticate
-3. (Claude only) Pick a model via the 🤖 button
+3. Pick a model via the 🤖 button
 4. Type a prompt, press **Enter** to send. Attach files with Ctrl+V, drag-and-drop, or 📎
 5. Watch the agent work in the embedded terminal. For Git projects, open 📊 to see live diffs
 
@@ -107,7 +107,7 @@ Then choose it via *⚙ → Set Terminal Type...*.
 
 **☰ Tools dropdown**: Holds *Update Code Agent*, *Restart Code Agent*, *Detach/Attach Terminal*, *View Code Changes*, *Session History*, *Show Usage*, *Set Working Directory...*, and *Send Build Errors to Agent*. Promote any of these to one-click toolbar buttons — and reorder them by dragging — via *⚙ → Settings... → Toolbar*; promoted features leave the dropdown, which hides once they all become buttons.
 
-**🤖 Model menu**: For Claude — Opus / Sonnet / Haiku, effort level for Opus (Auto / Low / Medium / High / Max), Change Account, Install Caveman plugin. For Devin — pick from a configurable model list, edited via *Configure Models...*.
+**🤖 Model menu**: For Claude — Opus / Sonnet / Haiku, effort level for Opus (Auto / Low / Medium / High / Max), Change Account, Install Caveman plugin. For every other agent — its own models (grouped into submenus when the list is long), *Refresh Models*, and *Choose in the Agent...*; Devin and Reasonix instead offer a configurable list, edited via *Configure Models...*.
 
 **On Agent Finish**: Configure via *⚙ → Settings... → On Agent Finish...*. For scripts, enable *Close script window when it finishes* to auto-close the script console. For *Run (F5)* and *Run without debugging (Ctrl+F5)*, use *Clean solution before running* and *Rebuild solution before running* to control whether the solution is prepared before launch.
 
@@ -135,6 +135,9 @@ https://github.com/anthropics/claude-code/issues/63504
 https://github.com/anthropics/claude-code/issues/41501
 
 ## Version History
+
+### Version 111.0
+Every agent now has a model picker, in the chat tab and in the terminal's model (🤖) menu — the list comes from the agent itself, with Refresh Models to update it. Reasonix, which publishes no list, gets a Configure Models... editor like Devin's.
 
 ### Version 110.0
 Fixed the mouse pointer disappearing after sending a prompt to the terminal, and it no longer jumps away from where you left it.

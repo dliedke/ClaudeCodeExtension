@@ -385,6 +385,7 @@ namespace ClaudeCodeVS
                 WslWorkingDirectory = isWsl ? ConvertToWslPath(workspace) : string.Empty,
                 ModeId = GetAcpModeId(provider),
                 ModelName = GetAcpModelName(provider),
+                ModelLaunchArgument = GetAcpModelLaunchArgument(provider),
                 DisplayName = GetProviderDisplayName(provider)
             };
 
@@ -420,9 +421,9 @@ namespace ClaudeCodeVS
                 UseWsl = isWsl,
                 ExecutablePath = executable,
                 WslWorkingDirectory = isWsl ? ConvertToWslPath(workspace) : string.Empty,
-                // Cursor is asked for "auto" rather than left to its own default: measured, a free plan
-                // refuses every named model, and "auto" is accepted on all plans.
-                Model = isCursor ? "auto" : string.Empty,
+                // With nothing chosen, Cursor is asked for "auto" rather than left to its own default:
+                // measured, a free plan refuses every named model, and "auto" is accepted on all plans.
+                Model = ResolveOneShotModel(provider, isCursor),
                 SkipApprovals = isCursor
                     ? _settings?.CursorAgentAutoRun == true
                     : _settings?.CodexFullAuto == true,
@@ -441,6 +442,14 @@ namespace ClaudeCodeVS
             return new OneShotResumeSession(options, protocol);
         }
 
+        private string ResolveOneShotModel(AiProvider provider, bool isCursor)
+        {
+            string selected = GetSelectedProviderModelId(provider);
+            if (!string.IsNullOrWhiteSpace(selected)) return selected;
+
+            return isCursor ? "auto" : string.Empty;
+        }
+
         /// <summary>
         /// Builds the PI adapter. PI keeps one process alive like the ACP agents, but over a protocol
         /// of its own.
@@ -453,6 +462,7 @@ namespace ClaudeCodeVS
             {
                 ExecutablePath = ResolveExecutableOnPath(
                     ResolveNativeProviderExecutable(AiProvider.Pi, "pi"), freshPath),
+                Model = GetSelectedProviderModelId(AiProvider.Pi),
                 DisplayName = GetProviderDisplayName(AiProvider.Pi)
             };
 
@@ -475,6 +485,7 @@ namespace ClaudeCodeVS
             {
                 ExecutablePath = ResolveExecutableOnPath(
                     ResolveNativeProviderExecutable(AiProvider.Antigravity, "agy"), freshPath),
+                Model = GetSelectedProviderModelId(AiProvider.Antigravity),
                 SkipApprovals = _settings?.AntigravityDangerouslySkipPermissions == true,
                 DisplayName = GetProviderDisplayName(AiProvider.Antigravity)
             };
@@ -539,14 +550,27 @@ namespace ClaudeCodeVS
         }
 
         /// <summary>
-        /// Model to select after the handshake. Only Devin has a model menu in this extension; the
-        /// other ACP agents keep whatever their CLI is configured with.
+        /// Model to select after the handshake, for the agents that publish a model picker there
+        /// (Devin and Open Code). Reasonix publishes none and takes its model at launch instead.
         /// </summary>
         private string GetAcpModelName(AiProvider provider)
         {
-            bool isDevin = provider == AiProvider.Devin || provider == AiProvider.DevinNative;
+            if (provider == AiProvider.Reasonix) return string.Empty;
 
-            return isDevin ? (_settings?.SelectedDevinModel ?? string.Empty) : string.Empty;
+            return GetSelectedProviderModelId(provider);
+        }
+
+        /// <summary>
+        /// Model passed on the launch command line, for Reasonix alone — it exposes no model picker
+        /// over the protocol, so the only way to choose one is <c>reasonix acp -m &lt;id&gt;</c>.
+        /// </summary>
+        private string GetAcpModelLaunchArgument(AiProvider provider)
+        {
+            if (provider != AiProvider.Reasonix) return string.Empty;
+
+            string model = GetSelectedProviderModelId(provider);
+
+            return string.IsNullOrWhiteSpace(model) ? string.Empty : "-m " + model;
         }
 
         /// <summary>

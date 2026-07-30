@@ -1094,7 +1094,7 @@ namespace ClaudeCodeVS
                             break;
 
                         case AiProvider.OpenCode:
-                            string openCodeCommand = ResolveProviderExecutable(AiProvider.OpenCode, "opencode");
+                            string openCodeCommand = GetOpenCodeCommand();
                             cmdCommand = $"/k chcp 65001 >nul && cd /d \"{workspaceDir}\" && ping localhost -n 3 >nul && cls && {openCodeCommand}";
                             break;
 
@@ -1105,7 +1105,7 @@ namespace ClaudeCodeVS
                             break;
 
                         case AiProvider.Pi:
-                            string piCommand = ResolveProviderExecutable(AiProvider.Pi, "pi");
+                            string piCommand = GetPiCommand();
                             cmdCommand = $"/k chcp 65001 >nul && cd /d \"{workspaceDir}\" && ping localhost -n 3 >nul && cls && {piCommand}";
                             break;
 
@@ -1364,7 +1364,7 @@ namespace ClaudeCodeVS
                             break;
 
                         case AiProvider.OpenCode:
-                            string openCodeTerminalCommand = ResolveProviderExecutable(AiProvider.OpenCode, "opencode");
+                            string openCodeTerminalCommand = GetOpenCodeCommand();
                             terminalCommand = $"/k chcp 65001 >nul && cd /d \"{workspaceDir}\" && ping localhost -n 3 >nul && cls && {openCodeTerminalCommand}";
                             break;
 
@@ -1375,7 +1375,7 @@ namespace ClaudeCodeVS
                             break;
 
                         case AiProvider.Pi:
-                            string piTerminalCommand = ResolveProviderExecutable(AiProvider.Pi, "pi");
+                            string piTerminalCommand = GetPiCommand();
                             terminalCommand = $"/k chcp 65001 >nul && cd /d \"{workspaceDir}\" && ping localhost -n 3 >nul && cls && {piTerminalCommand}";
                             break;
 
@@ -4817,8 +4817,10 @@ namespace ClaudeCodeVS
         /// <returns>The codex command to execute</returns>
         private string GetCodexCommand(bool isWsl = false)
         {
-            string baseCommand = ResolveProviderExecutable(
-                isWsl ? AiProvider.Codex : AiProvider.CodexNative, "codex", isWsl);
+            AiProvider provider = isWsl ? AiProvider.Codex : AiProvider.CodexNative;
+
+            string baseCommand = ResolveProviderExecutable(provider, "codex", isWsl)
+                + GetModelLaunchFlag(provider);
 
             if (_settings?.CodexFullAuto == true)
             {
@@ -4871,7 +4873,8 @@ namespace ClaudeCodeVS
         /// <returns>The agy command to execute</returns>
         private string GetAntigravityCommand()
         {
-            string baseCommand = ResolveProviderExecutable(AiProvider.Antigravity, "agy");
+            string baseCommand = ResolveProviderExecutable(AiProvider.Antigravity, "agy")
+                + GetModelLaunchFlag(AiProvider.Antigravity);
 
             if (_settings?.AntigravityDangerouslySkipPermissions == true)
             {
@@ -4936,7 +4939,8 @@ namespace ClaudeCodeVS
             string baseCommand = File.Exists(nativeAgentPath) ? $"\"{nativeAgentPath}\"" : "agent";
 
             // A user-configured custom path overrides native/PATH resolution.
-            baseCommand = ResolveProviderExecutable(AiProvider.CursorAgentNative, baseCommand);
+            baseCommand = ResolveProviderExecutable(AiProvider.CursorAgentNative, baseCommand)
+                + GetModelLaunchFlag(AiProvider.CursorAgentNative);
 
             if (_settings?.CursorAgentAutoRun == true)
             {
@@ -4953,7 +4957,8 @@ namespace ClaudeCodeVS
         /// <returns>The cursor-agent command to execute in WSL</returns>
         private string GetCursorAgentWslCommand()
         {
-            string baseCommand = ResolveProviderExecutable(AiProvider.CursorAgent, "cursor-agent", isWsl: true);
+            string baseCommand = ResolveProviderExecutable(AiProvider.CursorAgent, "cursor-agent", isWsl: true)
+                + GetModelLaunchFlag(AiProvider.CursorAgent);
 
             if (_settings?.CursorAgentAutoRun == true)
             {
@@ -4961,6 +4966,26 @@ namespace ClaudeCodeVS
             }
 
             return baseCommand;
+        }
+
+        /// <summary>
+        /// Gets the PI command, carrying the selected model as --model.
+        /// </summary>
+        /// <returns>The pi command to execute</returns>
+        private string GetPiCommand()
+        {
+            return ResolveProviderExecutable(AiProvider.Pi, "pi") + GetModelLaunchFlag(AiProvider.Pi);
+        }
+
+        /// <summary>
+        /// Gets the Open Code command, carrying the selected model as -m. Open Code wants it in the
+        /// "provider/model" form, which is exactly what <c>opencode models</c> prints.
+        /// </summary>
+        /// <returns>The opencode command to execute</returns>
+        private string GetOpenCodeCommand()
+        {
+            return ResolveProviderExecutable(AiProvider.OpenCode, "opencode")
+                + GetModelLaunchFlag(AiProvider.OpenCode);
         }
 
 

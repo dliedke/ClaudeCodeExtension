@@ -53,6 +53,7 @@
   </PropertyGroup>
   <ItemGroup>
     <Compile Include="Agents\AcpCommandBuilder.cs" />
+    <Compile Include="Agents\ModelCatalog.cs" />
     <Compile Include="Agents\AcpSession.cs" />
     <Compile Include="Agents\AgentEvent.cs" />
     <Compile Include="Agents\ClaudeCommandBuilder.cs" />
@@ -74,6 +75,7 @@
     <Compile Include="Controls\ClaudeCodeControl.RuntimeErrors.cs" />
     <Compile Include="Controls\ClaudeCodeControl.Cleanup.cs" />
     <Compile Include="Controls\ClaudeCodeControl.CliPaths.cs" />
+    <Compile Include="Controls\ClaudeCodeControl.ModelCatalog.cs" />
     <Compile Include="Controls\ClaudeCodeControl.CustomCommands.cs" />
     <Compile Include="Controls\ClaudeCodeControl.Detach.cs" />
     <Compile Include="Controls\ClaudeCodeControl.Diff.cs" />

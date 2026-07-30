@@ -65,6 +65,62 @@
 		</Setter>
 	</Style>
 
+	<!-- Submenu row ("claude-opus ›"), used when a model list is too long for one flat dropdown.
+	     ComposerMenuItemStyle cannot serve here: its template has no Popup, so its children would
+	     never be shown. Same chrome as a normal row, plus the arrow and the child popup. -->
+	<Style x:Key="ComposerSubmenuStyle" TargetType="MenuItem">
+		<Setter Property="Foreground" Value="{DynamicResource {x:Static vsshell:VsBrushes.CommandBarTextActiveKey}}"/>
+		<Setter Property="Background" Value="Transparent"/>
+		<Setter Property="Padding" Value="0"/>
+		<Setter Property="Height" Value="26"/>
+		<Setter Property="Template">
+			<Setter.Value>
+				<ControlTemplate TargetType="MenuItem">
+					<Border x:Name="Shell" Background="{TemplateBinding Background}"
+					        CornerRadius="3" Margin="3,0,3,0" SnapsToDevicePixels="True">
+						<Grid>
+							<Grid.ColumnDefinitions>
+								<ColumnDefinition Width="16"/>
+								<ColumnDefinition Width="*"/>
+								<ColumnDefinition Width="Auto"/>
+							</Grid.ColumnDefinitions>
+							<ContentPresenter Grid.Column="1" ContentSource="Header"
+							                  RecognizesAccessKey="True"
+							                  Margin="0,0,8,0"
+							                  VerticalAlignment="Center"/>
+							<TextBlock Grid.Column="2" Text="&#x203A;" Margin="0,0,10,0"
+							           VerticalAlignment="Center" Opacity="0.7"
+							           Foreground="{TemplateBinding Foreground}"/>
+							<Popup Grid.Column="2" Placement="Right" HorizontalOffset="-2"
+							       IsOpen="{TemplateBinding IsSubmenuOpen}"
+							       AllowsTransparency="True" Focusable="False">
+								<Border Background="{DynamicResource {x:Static vsshell:VsBrushes.CommandBarMenuBackgroundGradientKey}}"
+								        BorderBrush="{DynamicResource {x:Static vsshell:VsBrushes.CommandBarMenuBorderKey}}"
+								        BorderThickness="1" CornerRadius="5" Padding="0,4,0,4"
+								        SnapsToDevicePixels="True">
+									<!-- The families are uneven: cursor-agent's largest holds 56 models -->
+									<ScrollViewer MaxHeight="420" VerticalScrollBarVisibility="Auto">
+										<StackPanel IsItemsHost="True" KeyboardNavigation.DirectionalNavigation="Cycle"/>
+									</ScrollViewer>
+								</Border>
+							</Popup>
+						</Grid>
+					</Border>
+					<ControlTemplate.Triggers>
+						<Trigger Property="IsHighlighted" Value="True">
+							<Setter TargetName="Shell" Property="Background"
+							        Value="{DynamicResource {x:Static vsshell:VsBrushes.CommandBarHoverOverSelectedKey}}"/>
+						</Trigger>
+						<Trigger Property="IsSubmenuOpen" Value="True">
+							<Setter TargetName="Shell" Property="Background"
+							        Value="{DynamicResource {x:Static vsshell:VsBrushes.CommandBarHoverOverSelectedKey}}"/>
+						</Trigger>
+					</ControlTemplate.Triggers>
+				</ControlTemplate>
+			</Setter.Value>
+		</Setter>
+	</Style>
+
 	<Style x:Key="ComposerMenuSeparatorStyle" TargetType="Separator">
 		<Setter Property="Margin" Value="8,4,8,4"/>
 		<Setter Property="Height" Value="1"/>
@@ -94,7 +150,11 @@
 					        CornerRadius="5"
 					        Padding="0,4,0,4"
 					        SnapsToDevicePixels="True">
-						<StackPanel IsItemsHost="True" KeyboardNavigation.DirectionalNavigation="Cycle"/>
+						<!-- Scrolls rather than growing past the screen: a model list can be long even
+						     after grouping, and this template replaces the stock one that scrolled. -->
+						<ScrollViewer MaxHeight="480" VerticalScrollBarVisibility="Auto">
+							<StackPanel IsItemsHost="True" KeyboardNavigation.DirectionalNavigation="Cycle"/>
+						</ScrollViewer>
 					</Border>
 				</ControlTemplate>
 			</Setter.Value>

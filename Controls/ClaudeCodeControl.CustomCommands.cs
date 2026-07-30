@@ -543,20 +543,24 @@ namespace ClaudeCodeVS
 
         #endregion
 
-        #region Configure Devin Models Dialog
+        #region Configure Models Dialog
 
         /// <summary>
-        /// Shows the modal dialog for adding, editing, removing, and reordering the Devin model
-        /// list shown in the model menu. Mutates _settings.DevinModels in place; the caller is
-        /// responsible for saving and refreshing the menu.
+        /// Shows the modal dialog for adding, editing, removing, and reordering a hand-maintained
+        /// model list — the fallback for the agents whose CLI cannot list its own models (Devin,
+        /// Reasonix). Mutates <paramref name="models"/> in place; the caller saves and refreshes
+        /// the menu.
         /// </summary>
-        private void ShowDevinModelsDialog()
+        /// <param name="agentName">Agent the list belongs to, used in the window title.</param>
+        /// <param name="models">The list to edit, in menu order.</param>
+        /// <param name="description">Sentence explaining where the list shows up and how it is applied.</param>
+        private void ShowModelListDialog(string agentName, List<string> models, string description)
         {
             GetThemeBrushes(out Brush themeBg, out Brush themeFg);
 
             var dialog = new Window
             {
-                Title = "Configure Devin Models",
+                Title = $"Configure {agentName} Models",
                 Width = 520,
                 Height = 420,
                 WindowStartupLocation = WindowStartupLocation.CenterOwner,
@@ -577,9 +581,7 @@ namespace ClaudeCodeVS
 
             var label = new TextBlock
             {
-                Text = "These models appear in the model (🤖) menu when Devin is the active agent. " +
-                       "Selecting one switches the model live via /model \"<name>\". Enter the exact " +
-                       "name Devin expects.",
+                Text = description,
                 TextWrapping = TextWrapping.Wrap,
                 Foreground = themeFg,
                 Margin = new Thickness(0, 0, 0, 10)
@@ -606,7 +608,7 @@ namespace ClaudeCodeVS
             Action refreshList = () =>
             {
                 listBox.Items.Clear();
-                foreach (var model in _settings.DevinModels)
+                foreach (var model in models)
                 {
                     listBox.Items.Add(new ListBoxItem
                     {
@@ -660,23 +662,23 @@ namespace ClaudeCodeVS
 
             addButton.Click += (s, args) =>
             {
-                string newModel = ShowDevinModelEditorDialog(null, dialog);
-                if (!string.IsNullOrWhiteSpace(newModel) && !_settings.DevinModels.Contains(newModel))
+                string newModel = ShowModelNameDialog(agentName, null, dialog);
+                if (!string.IsNullOrWhiteSpace(newModel) && !models.Contains(newModel))
                 {
-                    _settings.DevinModels.Add(newModel);
+                    models.Add(newModel);
                     refreshList();
-                    listBox.SelectedIndex = _settings.DevinModels.Count - 1;
+                    listBox.SelectedIndex = models.Count - 1;
                 }
             };
 
             editButton.Click += (s, args) =>
             {
                 int idx = listBox.SelectedIndex;
-                if (idx < 0 || idx >= _settings.DevinModels.Count) return;
-                string edited = ShowDevinModelEditorDialog(_settings.DevinModels[idx], dialog);
+                if (idx < 0 || idx >= models.Count) return;
+                string edited = ShowModelNameDialog(agentName, models[idx], dialog);
                 if (!string.IsNullOrWhiteSpace(edited))
                 {
-                    _settings.DevinModels[idx] = edited;
+                    models[idx] = edited;
                     refreshList();
                     listBox.SelectedIndex = idx;
                 }
@@ -685,16 +687,16 @@ namespace ClaudeCodeVS
             removeButton.Click += (s, args) =>
             {
                 int idx = listBox.SelectedIndex;
-                if (idx < 0 || idx >= _settings.DevinModels.Count) return;
-                var result = MessageBox.Show($"Remove model \"{_settings.DevinModels[idx]}\"?",
+                if (idx < 0 || idx >= models.Count) return;
+                var result = MessageBox.Show($"Remove model \"{models[idx]}\"?",
                     "Confirm Remove", MessageBoxButton.YesNo, MessageBoxImage.Question);
                 if (result == MessageBoxResult.Yes)
                 {
-                    _settings.DevinModels.RemoveAt(idx);
+                    models.RemoveAt(idx);
                     refreshList();
-                    if (_settings.DevinModels.Count > 0)
+                    if (models.Count > 0)
                     {
-                        listBox.SelectedIndex = Math.Min(idx, _settings.DevinModels.Count - 1);
+                        listBox.SelectedIndex = Math.Min(idx, models.Count - 1);
                     }
                 }
             };
@@ -703,9 +705,9 @@ namespace ClaudeCodeVS
             {
                 int idx = listBox.SelectedIndex;
                 if (idx <= 0) return;
-                var item = _settings.DevinModels[idx];
-                _settings.DevinModels.RemoveAt(idx);
-                _settings.DevinModels.Insert(idx - 1, item);
+                var item = models[idx];
+                models.RemoveAt(idx);
+                models.Insert(idx - 1, item);
                 refreshList();
                 listBox.SelectedIndex = idx - 1;
             };
@@ -713,10 +715,10 @@ namespace ClaudeCodeVS
             moveDownButton.Click += (s, args) =>
             {
                 int idx = listBox.SelectedIndex;
-                if (idx < 0 || idx >= _settings.DevinModels.Count - 1) return;
-                var item = _settings.DevinModels[idx];
-                _settings.DevinModels.RemoveAt(idx);
-                _settings.DevinModels.Insert(idx + 1, item);
+                if (idx < 0 || idx >= models.Count - 1) return;
+                var item = models[idx];
+                models.RemoveAt(idx);
+                models.Insert(idx + 1, item);
                 refreshList();
                 listBox.SelectedIndex = idx + 1;
             };
@@ -758,18 +760,19 @@ namespace ClaudeCodeVS
         }
 
         /// <summary>
-        /// Shows the small dialog for adding or editing a single Devin model name.
+        /// Shows the small dialog for adding or editing a single model name.
         /// </summary>
+        /// <param name="agentName">Agent the model belongs to, used in the window title.</param>
         /// <param name="existing">The model name to edit, or null to add a new one.</param>
         /// <param name="owner">The parent dialog window for centering/modality.</param>
         /// <returns>The trimmed model name, or null if cancelled or empty.</returns>
-        private string ShowDevinModelEditorDialog(string existing, Window owner)
+        private string ShowModelNameDialog(string agentName, string existing, Window owner)
         {
             GetThemeBrushes(out Brush themeBg, out Brush themeFg);
 
             var dialog = new Window
             {
-                Title = existing == null ? "Add Devin Model" : "Edit Devin Model",
+                Title = (existing == null ? "Add " : "Edit ") + agentName + " Model",
                 Width = 460,
                 Height = 160,
                 WindowStartupLocation = WindowStartupLocation.CenterOwner,
@@ -788,7 +791,7 @@ namespace ClaudeCodeVS
 
             var nameLabel = new TextBlock
             {
-                Text = "Model name (sent as /model \"<name>\"):",
+                Text = "Model name, exactly as the agent expects it:",
                 Foreground = themeFg,
                 Margin = new Thickness(0, 0, 0, 4)
             };

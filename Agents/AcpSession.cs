@@ -284,8 +284,8 @@ namespace ClaudeCodeVS.Agents
 
         /// <summary>
         /// The model picker out of a <c>configOptions</c> array, or null when the agent publishes none.
-        /// Matched on the id first and the category second — OpenCode and Reasonix publish neither, and
-        /// they simply keep their own model.
+        /// Matched on the id first and the category second — Devin and OpenCode both publish one;
+        /// Reasonix publishes neither and takes its model as a launch flag instead.
         /// </summary>
         public static JToken FindModelOption(JToken configOptions)
         {

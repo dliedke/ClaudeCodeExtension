@@ -444,10 +444,10 @@ namespace ClaudeCodeVS
                 GetChatEffortLabel(),
                 GetChatPermissionLabel(provider));
 
-            // Model and effort are only meaningful where the extension owns the choice: every other
-            // agent picks its model inside its own UI, which native mode has no access to.
+            // Effort stays Claude-only; the model selector now covers every agent, listing either
+            // the models its CLI reports or a list configured in the settings.
             ChatTranscript.SetSelectorAvailability(
-                model: isClaude || isDevin,
+                model: isClaude || ProviderHasModelCatalog(provider),
                 effort: isClaude,
                 permission: GetChatPermissionLabel(provider) != null);
 
@@ -1142,9 +1142,12 @@ namespace ClaudeCodeVS
 
         private string GetChatModelLabel(AiProvider? provider)
         {
-            if (provider == AiProvider.Devin || provider == AiProvider.DevinNative)
+            if (!IsClaudeProvider(provider) && ProviderHasModelCatalog(provider))
             {
-                return string.IsNullOrWhiteSpace(_settings?.SelectedDevinModel) ? "Model" : _settings.SelectedDevinModel;
+                string label = GetSelectedProviderModelLabel(provider);
+
+                // Nothing chosen: the agent runs on its own default, which the extension cannot name.
+                return string.IsNullOrWhiteSpace(label) ? "Model" : label;
             }
 
             switch (_settings?.SelectedClaudeModel)
@@ -1370,7 +1373,12 @@ namespace ClaudeCodeVS
             return menu;
         }
 
-        private MenuItem AddComposerMenuItem(ContextMenu menu, string header, bool isChecked, RoutedEventHandler onClick)
+        /// <summary>
+        /// Adds one entry to a composer dropdown. The parent is an <see cref="ItemsControl"/> rather
+        /// than the menu itself so the same themed entry can go into a submenu (see
+        /// <see cref="AddComposerSubmenu"/>), which is how a long model list is broken up.
+        /// </summary>
+        private MenuItem AddComposerMenuItem(ItemsControl menu, string header, bool isChecked, RoutedEventHandler onClick)
         {
             GetThemeBrushes(out Brush themeBg, out Brush themeFg);
 
@@ -1391,6 +1399,33 @@ namespace ClaudeCodeVS
             }
 
             item.Click += onClick;
+            menu.Items.Add(item);
+
+            return item;
+        }
+
+        /// <summary>
+        /// Adds a submenu header to a composer dropdown and returns it, so entries can be added to it
+        /// with <see cref="AddComposerMenuItem"/>.
+        /// </summary>
+        private MenuItem AddComposerSubmenu(ItemsControl menu, string header)
+        {
+            GetThemeBrushes(out Brush themeBg, out Brush themeFg);
+
+            var item = new MenuItem
+            {
+                Header = header,
+                IsCheckable = false,
+                Background = themeBg,
+                Foreground = themeFg
+            };
+
+            var style = ChatTranscript?.TryFindResource("ComposerSubmenuStyle") as Style;
+            if (style != null)
+            {
+                item.Style = style;
+            }
+
             menu.Items.Add(item);
 
             return item;
@@ -1426,21 +1461,9 @@ namespace ClaudeCodeVS
             ContextMenu menu = CreateComposerMenu();
             AiProvider? active = GetActiveOrSelectedProvider();
 
-            if (active == AiProvider.Devin || active == AiProvider.DevinNative)
+            if (active != null && !IsClaudeProvider(active) && ProviderHasModelCatalog(active))
             {
-                EnsureDevinModelDefaults();
-
-                if (_settings?.DevinModels != null)
-                {
-                    foreach (string model in _settings.DevinModels)
-                    {
-                        if (string.IsNullOrWhiteSpace(model)) continue;
-
-                        string current = model;
-                        AddComposerMenuItem(menu, model, model == _settings.SelectedDevinModel,
-                            delegate { ThreadHelper.ThrowIfNotOnUIThread(); OnChatDevinModelSelected(current); });
-                    }
-                }
+                FillChatModelMenu(menu, active.Value);
 
                 return menu;
             }
@@ -1459,6 +1482,74 @@ namespace ClaudeCodeVS
                 delegate { ThreadHelper.ThrowIfNotOnUIThread(); OnChatClaudeModelSelected(ClaudeModel.OpusPlan); });
 
             return menu;
+        }
+
+        /// <summary>
+        /// Fills the composer's model dropdown with the agent's own models, plus an entry that leaves
+        /// the model to the agent. A stale or missing list is re-read from the CLI in the background
+        /// and dropped into the same menu when it arrives, so the dropdown opens instantly either way.
+        /// </summary>
+        private void FillChatModelMenu(ContextMenu menu, AiProvider provider)
+        {
+            ThreadHelper.ThrowIfNotOnUIThread();
+
+            string selected = GetSelectedProviderModelId(provider);
+            List<Agents.ModelGroup> groups =
+                Agents.ModelCatalogGrouping.Group(GetCachedProviderModels(provider));
+
+            // Repeated at the top when the list is grouped: inside a submenu the checked entry is
+            // invisible until the right one is opened.
+            if (groups.Exists(g => g.IsSubmenu) && !string.IsNullOrWhiteSpace(selected))
+            {
+                AddChatModelMenuItem(menu, new Agents.ModelOption
+                {
+                    Id = selected,
+                    Name = GetSelectedProviderModelLabel(provider)
+                }, selected);
+            }
+
+            foreach (Agents.ModelGroup group in groups)
+            {
+                ItemsControl parent = group.IsSubmenu ? AddComposerSubmenu(menu, group.Name) : (ItemsControl)menu;
+
+                foreach (Agents.ModelOption model in group.Models)
+                {
+                    AddChatModelMenuItem(parent, model, selected);
+                }
+            }
+
+            AddComposerMenuItem(menu, "Agent default", string.IsNullOrWhiteSpace(selected),
+                delegate { ThreadHelper.ThrowIfNotOnUIThread(); OnChatProviderModelSelected(string.Empty); });
+
+            if (!ShouldRefreshProviderModels(provider)) return;
+
+            MenuItem loading = AddComposerMenuItem(menu, "Loading models…", false, delegate { });
+            loading.IsEnabled = false;
+
+            _ = RefreshProviderModelsAsync(provider).ContinueWith(
+                delegate
+                {
+                    ThreadHelper.ThrowIfNotOnUIThread();
+
+                    // Only worth doing while the dropdown is still on screen; otherwise the next
+                    // click rebuilds it from the cache that was just filled.
+                    if (!menu.IsOpen || GetActiveOrSelectedProvider() != provider) return;
+
+                    menu.Items.Clear();
+                    FillChatModelMenu(menu, provider);
+                },
+                System.Threading.CancellationToken.None,
+                TaskContinuationOptions.OnlyOnRanToCompletion,
+                TaskScheduler.FromCurrentSynchronizationContext());
+        }
+
+        private void AddChatModelMenuItem(ItemsControl parent, Agents.ModelOption model, string selected)
+        {
+            string current = model.Id;
+
+            AddComposerMenuItem(parent, model.DisplayName,
+                string.Equals(current, selected, StringComparison.OrdinalIgnoreCase),
+                delegate { ThreadHelper.ThrowIfNotOnUIThread(); OnChatProviderModelSelected(current); });
         }
 
         /// <summary>
@@ -1704,45 +1795,52 @@ namespace ClaudeCodeVS
         }
 
         /// <summary>
-        /// Devin's model is chosen inside its own session. A running one takes the change over the
-        /// protocol, without losing the conversation; anything else falls back to offering a restart,
-        /// which is what the model needs to be picked up at launch.
+        /// A model picked for any non-Claude agent. An ACP session that publishes a model picker
+        /// (Devin, Open Code) takes the change over the protocol without losing the conversation;
+        /// every other agent reads its model at launch, so the user is offered a restart.
         /// </summary>
 #pragma warning disable VSTHRD100 // Async void is required by the UI event signature
-        private async void OnChatDevinModelSelected(string model)
+        private async void OnChatProviderModelSelected(string model)
 #pragma warning restore VSTHRD100
         {
             await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
 
-            if (_settings == null || string.IsNullOrWhiteSpace(model))
+            AiProvider? provider = GetActiveOrSelectedProvider();
+            if (_settings == null || provider == null)
             {
                 return;
             }
 
-            _settings.SelectedDevinModel = model;
+            SetSelectedProviderModelId(provider.Value, model);
             UpdateModelSelection();
             SaveSettings();
             UpdateChatComposerState();
 
-            if (await TrySwitchAcpModelAsync(model))
+            string label = string.IsNullOrWhiteSpace(model)
+                ? "the agent's default"
+                : GetSelectedProviderModelLabel(provider);
+
+            // "Agent default" cannot be requested over the protocol — there is no such option to
+            // select — so it always goes through the relaunch below.
+            if (!string.IsNullOrWhiteSpace(model) && await TrySwitchAcpModelAsync(model))
             {
-                AddNativeMessage(ChatMessageKind.Notice, $"🤖 Model switched to {model}.");
+                AddNativeMessage(ChatMessageKind.Notice, $"🤖 Model switched to {label}.");
                 return;
             }
 
             MessageBoxResult result = MessageBox.Show(
-                $"Switch the model to {model} and restart the chat so the change takes effect now?",
-                "Switch Devin model",
+                $"Switch the model to {label} and restart the chat so the change takes effect now?",
+                $"Switch {GetChatProviderDisplayName(provider)} model",
                 MessageBoxButton.YesNo,
                 MessageBoxImage.Question);
 
             if (result == MessageBoxResult.Yes)
             {
-                await RelaunchNativeSessionAsync($"🤖 Model switched to {model}", forceNewSession: true);
+                await RelaunchNativeSessionAsync($"🤖 Model switched to {label}", forceNewSession: true);
             }
             else
             {
-                AddNativeMessage(ChatMessageKind.Notice, $"🤖 Model set to {model} — it applies the next time the agent starts.");
+                AddNativeMessage(ChatMessageKind.Notice, $"🤖 Model set to {label} — it applies the next time the agent starts.");
             }
         }
 
