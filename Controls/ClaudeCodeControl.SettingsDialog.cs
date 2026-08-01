@@ -24,6 +24,7 @@ using System.Windows.Documents;
 using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
+using System.Windows.Threading;
 using Microsoft.VisualStudio.Shell;
 
 namespace ClaudeCodeVS
@@ -596,10 +597,19 @@ namespace ClaudeCodeVS
             showAllFontsCheck.Unchecked += (s, e) => RefreshFontFilter();
             RefreshFontFilter();
 
-            // Scroll the current selection into view once the dialog is laid out.
+            // Scroll the current selection into view once the dialog is laid out. ScrollIntoView
+            // bubbles a RequestBringIntoView event up past the list's own internal scrollviewer into
+            // the Terminal tab's outer page scrollviewer, which "helpfully" scrolls the whole page down
+            // to keep the (small, mid-page) list in view too — landing the tab somewhere in the middle
+            // instead of at the top every time Settings opens. Put the page back at the top once that
+            // settles.
             fontList.Loaded += (s, e) =>
             {
                 if (fontList.SelectedItem != null) fontList.ScrollIntoView(fontList.SelectedItem);
+#pragma warning disable VSTHRD001, VSTHRD110
+                Dispatcher.BeginInvoke(new Action(() => FindAncestorScrollViewer(fontList)?.ScrollToHome()),
+                    DispatcherPriority.ContextIdle);
+#pragma warning restore VSTHRD001, VSTHRD110
             };
 
             // ---- Chat font picker (same list, no monospace filter and no warning) ----
@@ -655,6 +665,10 @@ namespace ClaudeCodeVS
             chatFontList.Loaded += (s, e) =>
             {
                 if (chatFontList.SelectedItem != null) chatFontList.ScrollIntoView(chatFontList.SelectedItem);
+#pragma warning disable VSTHRD001, VSTHRD110
+                Dispatcher.BeginInvoke(new Action(() => FindAncestorScrollViewer(chatFontList)?.ScrollToHome()),
+                    DispatcherPriority.ContextIdle);
+#pragma warning restore VSTHRD001, VSTHRD110
             };
 
             // ---- Console font size ----
@@ -1250,6 +1264,21 @@ namespace ClaudeCodeVS
         #endregion
 
         #region Settings Dialog Helpers
+
+        /// <summary>
+        /// Walks up from <paramref name="element"/> to the nearest enclosing <see cref="ScrollViewer"/>
+        /// (a tab page's own scroll container), or null if none is found.
+        /// </summary>
+        private static ScrollViewer FindAncestorScrollViewer(DependencyObject element)
+        {
+            DependencyObject current = element;
+            while (current != null)
+            {
+                if (current is ScrollViewer scrollViewer) return scrollViewer;
+                current = VisualTreeHelper.GetParent(current);
+            }
+            return null;
+        }
 
         private static TextBlock MakeSectionHeader(string text, Brush fg)
         {

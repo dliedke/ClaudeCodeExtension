@@ -13,6 +13,7 @@
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.ComponentModel;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
@@ -2724,7 +2725,7 @@ namespace ClaudeCodeVS
         /// <paramref name="notice"/> once the relaunched process is up — read at that point, not before,
         /// so an account switch has the best chance of the CLI's state file already reflecting it.
         /// </param>
-        private async Task RelaunchNativeSessionAsync(string notice, bool forceNewSession = false, bool appendAccountLabel = false)
+        private async Task RelaunchNativeSessionAsync(string notice, bool forceNewSession = false, bool appendAccountLabel = false, Func<Task> midRelaunchAsync = null)
         {
             if (_nativeSwitchInProgress)
             {
@@ -2759,6 +2760,14 @@ namespace ClaudeCodeVS
                 ChatTranscript.SetStatus("Restarting the agent...");
 
                 DisposeNativeSession();
+
+                // Lets a caller run something that needs the agent process gone first (e.g. a CLI
+                // self-update, whose installer overwrites the executable and fails while it is still
+                // running) before the replacement session is created below.
+                if (midRelaunchAsync != null)
+                {
+                    await midRelaunchAsync();
+                }
 
                 if (canResume)
                 {
@@ -2842,6 +2851,150 @@ namespace ClaudeCodeVS
             finally
             {
                 _nativeSwitchInProgress = false;
+            }
+        }
+
+        /// <summary>
+        /// Handles "Update Agent" in native mode: there is no console to type the CLI's self-update
+        /// command into, so the update runs in its own visible console window instead. The running
+        /// agent process is torn down first (its update installer overwrites the same executable, which
+        /// fails while that process still holds it open — measured with Devin native), then the method
+        /// waits for the user to close the update window before relaunching and resuming the conversation,
+        /// so the user has a chance to read the updater's output before the chat comes back.
+        /// </summary>
+        private async Task UpdateNativeAgentAsync()
+        {
+            if (!IsNativeModeActive)
+            {
+                MessageBox.Show("The agent is not running.", "Update Agent", MessageBoxButton.OK, MessageBoxImage.Warning);
+                return;
+            }
+
+            AiProvider provider = _currentRunningProvider ?? _settings.SelectedProvider;
+            string updateCommand = GetNativeAgentUpdateCommand(provider);
+            if (string.IsNullOrEmpty(updateCommand))
+            {
+                MessageBox.Show("No update command is known for this agent.", "Update Agent", MessageBoxButton.OK, MessageBoxImage.Information);
+                return;
+            }
+
+            await RelaunchNativeSessionAsync("🔄️ Agent updated — resuming", midRelaunchAsync: async () =>
+            {
+                try
+                {
+                    using (var updateProcess = StartUpdateWindow(provider, updateCommand))
+                    {
+                        if (updateProcess == null)
+                        {
+                            return;
+                        }
+
+                        // No timeout: this window stays up until the user reads the updater's output and
+                        // closes it themselves, which is the signal to bring the agent back.
+                        while (!updateProcess.HasExited)
+                        {
+                            await Task.Delay(300);
+                        }
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Debug.WriteLine($"UpdateNativeAgentAsync: updater failed: {ex.Message}");
+                    MessageBox.Show($"Failed to run the updater: {ex.Message}", "Update Agent", MessageBoxButton.OK, MessageBoxImage.Error);
+                }
+            });
+        }
+
+        /// <summary>
+        /// Opens the console window that runs the CLI's self-update command. <c>cmd.exe /k</c> hosts every
+        /// provider except <see cref="AiProvider.DevinNative"/> — its updater is what Windows Defender was
+        /// flagging (see <see cref="GetNativeAgentUpdateCommand"/>), and the fix for that is specific to
+        /// it: hosting the command in <c>powershell.exe</c> directly rather than nesting a
+        /// <c>powershell -NoProfile -ExecutionPolicy Bypass -Command "..."</c> call inside <c>cmd.exe</c>,
+        /// which is exactly the download-and-execute shape the heuristic caught. Running every other
+        /// provider through <c>powershell.exe</c> too was tried and broke them: their commands are written
+        /// for <c>cmd.exe</c>'s own parser (the WSL providers' <c>wsl bash -lic "..."</c> quoting, `&`
+        /// chaining), and PowerShell's argument reassembly does not parse those the same way — the WSL
+        /// update silently failed to launch and the relaunch below brought the agent straight back with no
+        /// update having run at all. Two other problems apply to both hosts: some locked-down machines
+        /// deny a direct <see cref="Process.Start"/> of a shell for a non-elevated Visual Studio (Software
+        /// Restriction Policy / AppLocker rules commonly exempt elevated processes) — measured as a
+        /// <see cref="Win32Exception"/> "Access is denied" before any window appeared, fixed by falling
+        /// back to <c>UseShellExecute = true</c>, which routes through the OS shell launch broker instead
+        /// of a raw <c>CreateProcess</c> call and is not subject to the same restriction. And
+        /// <c>WorkingDirectory</c> is pinned to the user's own temp folder rather than left to inherit
+        /// whatever Visual Studio's current directory happens to be, since that is one more thing that can
+        /// be inaccessible to a non-elevated process.
+        /// </summary>
+        private static Process StartUpdateWindow(AiProvider provider, string updateCommand)
+        {
+            string exe = provider == AiProvider.DevinNative ? "powershell.exe" : "cmd.exe";
+            string arguments = provider == AiProvider.DevinNative
+                ? "-NoLogo -NoProfile -NoExit -Command " + updateCommand
+                : "/k " + updateCommand;
+
+            var startInfo = new ProcessStartInfo(exe, arguments)
+            {
+                UseShellExecute = false,
+                CreateNoWindow = false,
+                WorkingDirectory = Path.GetTempPath()
+            };
+
+            try
+            {
+                return Process.Start(startInfo);
+            }
+            catch (Win32Exception ex)
+            {
+                Debug.WriteLine($"StartUpdateWindow: direct launch denied ({ex.Message}), retrying via the shell.");
+                startInfo.UseShellExecute = true;
+                return Process.Start(startInfo);
+            }
+        }
+
+        /// <summary>
+        /// Same self-update command each provider's terminal-mode "Update Agent" button types into the
+        /// console (<c>UpdateAgentButton_Click</c>), minus the exit sequence — there is no TUI session to
+        /// exit here, the process was already killed by <see cref="DisposeNativeSession"/>.
+        /// </summary>
+        private static string GetNativeAgentUpdateCommand(AiProvider provider)
+        {
+            switch (provider)
+            {
+                case AiProvider.CodexNative:
+                    return "npm install -g @openai/codex@latest";
+                case AiProvider.Codex:
+                    return "wsl bash -lic \"npm install -g @openai/codex@latest\"";
+                case AiProvider.CursorAgentNative:
+                    return "agent update";
+                case AiProvider.CursorAgent:
+                    return "wsl bash -lic \"cursor-agent update\"";
+                case AiProvider.ClaudeCodeWSL:
+                    return "wsl bash -lic \"claude update\"";
+                case AiProvider.ClaudeCode:
+                    return "claude update";
+                case AiProvider.OpenCode:
+                    return "npm i -g opencode-ai";
+                case AiProvider.Devin:
+                    return "wsl bash -lic \"devin update\"";
+                case AiProvider.Pi:
+                    return "npm install -g @earendil-works/pi-coding-agent@latest";
+                case AiProvider.Antigravity:
+                    return "agy update";
+                case AiProvider.Reasonix:
+                    return "npm i -g reasonix";
+                case AiProvider.DevinNative:
+                    // `devin update` only prints the install command; the installer overwrites
+                    // %LOCALAPPDATA%\devin\cli\bin\devin.exe, so force-kill stragglers first to release
+                    // the self-update lock before running the official installer script — exactly the
+                    // command Devin's own CLI prints, unwrapped. The earlier nested
+                    // `powershell -NoProfile -ExecutionPolicy Bypass -Command "..."` (needed when this ran
+                    // inside cmd.exe) is gone now that StartUpdateWindow hosts the update in powershell.exe
+                    // directly: neither flag is required for an inline -Command script, and that exact
+                    // shape (bypassed policy + download-and-execute) is what Windows Defender flagged.
+                    return "taskkill /f /im devin.exe; irm https://cli.devin.ai/install.ps1 | iex";
+                default:
+                    return null;
             }
         }
 

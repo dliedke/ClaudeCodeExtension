@@ -10,6 +10,7 @@
  *
  * *******************************************************************************************************************/
 
+using System;
 using System.Collections.Generic;
 using System.Linq;
 
@@ -266,6 +267,70 @@ namespace ClaudeCodeExtension.Tests
 
         #endregion
 
+        #region Reasonix providers
+
+        /// <summary>Trimmed from a real `reasonix doctor --json` run (v1.18.0).</summary>
+        private const string ReasonixDoctorJson = @"{
+  ""version"": ""v1.18.0"",
+  ""config"": { ""default_model"": ""deepseek-flash"" },
+  ""providers"": [
+    { ""name"": ""deepseek-flash"", ""models"": [""deepseek-v4-flash""], ""key_present"": true, ""is_default"": true },
+    { ""name"": ""deepseek-pro"", ""models"": [""deepseek-v4-pro""], ""key_present"": false, ""is_default"": false }
+  ],
+  ""warnings"": []
+}";
+
+        [TestMethod]
+        public void ReasonixProviders_AreListedByProviderNameNotModelId()
+        {
+            List<ModelOption> models = ModelCatalogParsers.ParseReasonixProviders(ReasonixDoctorJson);
+
+            // The ids must be the provider names: those are what --model accepts. Listing
+            // "deepseek-v4-flash" instead is exactly the mistake that broke native Reasonix.
+            Assert.AreEqual(2, models.Count);
+            Assert.AreEqual("deepseek-flash", models[0].Id);
+            Assert.AreEqual("deepseek-pro", models[1].Id);
+        }
+
+        [TestMethod]
+        public void ReasonixProviders_ShowTheServedModelInTheCaption()
+        {
+            List<ModelOption> models = ModelCatalogParsers.ParseReasonixProviders(ReasonixDoctorJson);
+
+            Assert.AreEqual("deepseek-flash — deepseek-v4-flash", models[0].DisplayName);
+        }
+
+        [TestMethod]
+        public void ReasonixProviders_KeepAProviderWhoseApiKeyIsMissing()
+        {
+            // key_present is an environment variable away from being true; hiding the entry would
+            // leave the user no way to select it once the key is set.
+            List<ModelOption> models = ModelCatalogParsers.ParseReasonixProviders(ReasonixDoctorJson);
+
+            Assert.IsTrue(models.Exists(m => m.Id == "deepseek-pro"));
+        }
+
+        [TestMethod]
+        public void ReasonixProviders_SkipAnyBannerPrintedBeforeTheJson()
+        {
+            List<ModelOption> models = ModelCatalogParsers.ParseReasonixProviders(
+                "A new version of reasonix is available!" + Environment.NewLine + ReasonixDoctorJson);
+
+            Assert.AreEqual(2, models.Count);
+        }
+
+        [TestMethod]
+        public void ReasonixProviders_ReturnNothingForUnusableOutput()
+        {
+            // An empty list keeps the previous catalog (FetchProviderModelsAsync) and leaves the
+            // launch flag empty, which starts Reasonix on its own configured default.
+            Assert.AreEqual(0, ModelCatalogParsers.ParseReasonixProviders(null).Count);
+            Assert.AreEqual(0, ModelCatalogParsers.ParseReasonixProviders("command not found").Count);
+            Assert.AreEqual(0, ModelCatalogParsers.ParseReasonixProviders("{\"version\":\"v1.18.0\"}").Count);
+        }
+
+        #endregion
+
         #region ACP launch flag
 
         [TestMethod]
@@ -274,11 +339,29 @@ namespace ClaudeCodeExtension.Tests
             var options = new AcpSessionOptions
             {
                 ExecutablePath = @"C:\npm\reasonix.cmd",
-                ModelLaunchArgument = "-m deepseek-v4-pro"
+                ModelLaunchArgument = AcpCommandBuilder.BuildReasonixModelArgument("deepseek-v4-pro")
             };
 
-            Assert.AreEqual("/c \"C:\\npm\\reasonix.cmd acp -m deepseek-v4-pro\"",
+            Assert.AreEqual("/c \"C:\\npm\\reasonix.cmd acp -model deepseek-v4-pro\"",
                 AcpCommandBuilder.GetArguments(options));
+        }
+
+        [TestMethod]
+        public void ReasonixModelArgument_SpellsTheFlagOutInFull()
+        {
+            // "reasonix acp" parses flags with Go's flag package: no prefix matching, so "-m" exits
+            // with code 2 before the ACP server starts. Shipping that abbreviation broke every native
+            // Reasonix launch that had a model picked, and the failure looked like a dead pipe.
+            Assert.AreEqual("-model deepseek-chat", AcpCommandBuilder.BuildReasonixModelArgument("deepseek-chat"));
+        }
+
+        [TestMethod]
+        public void ReasonixModelArgument_IsEmptyWhenNoModelIsPicked()
+        {
+            // An empty flag is what leaves the CLI on its own config default; "-model" alone would
+            // swallow the next token as its value.
+            Assert.AreEqual(string.Empty, AcpCommandBuilder.BuildReasonixModelArgument(null));
+            Assert.AreEqual(string.Empty, AcpCommandBuilder.BuildReasonixModelArgument("   "));
         }
 
         [TestMethod]

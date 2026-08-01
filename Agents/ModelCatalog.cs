@@ -198,6 +198,66 @@ namespace ClaudeCodeVS.Agents
         }
 
         /// <summary>
+        /// <c>reasonix doctor --json</c>'s <c>providers</c> array. Reasonix's <c>--model</c> takes a
+        /// **provider name** — the <c>name</c> of a <c>[[providers]]</c> block in the user's
+        /// <c>config.toml</c> — not a model id, so `providers[].name` is the only valid set of values
+        /// and it differs per machine: a name the user has not configured is rejected with
+        /// <c>session/new: unknown model "…"</c>. That is why nothing hard-coded can be right here, and
+        /// why a hard-coded list (`deepseek-chat` and friends, which are model ids) broke Reasonix
+        /// native mode outright.
+        ///
+        /// The models the provider serves are shown as the caption, since the name alone
+        /// ("deepseek-flash") says nothing about what actually answers. A provider whose API key is
+        /// missing is still listed — `key_present` reflects an environment variable the user can set
+        /// without touching the config, and hiding the entry would leave no way to pick it.
+        /// </summary>
+        public static List<ModelOption> ParseReasonixProviders(string json)
+        {
+            var models = new List<ModelOption>();
+            if (string.IsNullOrWhiteSpace(json)) return models;
+
+            try
+            {
+                // doctor prints one JSON object, but warnings or an update notice can precede it.
+                int start = json.IndexOf('{');
+                if (start < 0) return models;
+
+                JToken root = JToken.Parse(json.Substring(start));
+                var entries = root["providers"] as JArray;
+                if (entries == null) return models;
+
+                foreach (JToken entry in entries)
+                {
+                    string name = entry?["name"]?.ToString();
+                    if (string.IsNullOrWhiteSpace(name)) continue;
+
+                    Add(models, name, BuildReasonixCaption(name, entry["models"] as JArray));
+                }
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"Model catalog: could not parse the Reasonix providers: {ex.Message}");
+            }
+
+            return models;
+        }
+
+        /// <summary>"deepseek-flash — deepseek-v4-flash", or just the name when it serves no models.</summary>
+        private static string BuildReasonixCaption(string name, JArray servedModels)
+        {
+            if (servedModels == null || servedModels.Count == 0) return name;
+
+            var served = new List<string>();
+            foreach (JToken model in servedModels)
+            {
+                string id = model?.ToString();
+                if (!string.IsNullOrWhiteSpace(id)) served.Add(id.Trim());
+            }
+
+            return served.Count == 0 ? name : name + " — " + string.Join(", ", served);
+        }
+
+        /// <summary>
         /// <c>cursor-agent --list-models</c>: an "Available models" banner followed by
         /// "id - Display Name" lines. Anything that does not have that shape is a banner line.
         /// </summary>

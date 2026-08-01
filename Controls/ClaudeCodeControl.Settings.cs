@@ -185,6 +185,14 @@ namespace ClaudeCodeVS
                     // on upgrade those users silently lost their smaller text and the list navigation
                     // regressed. Carry a saved delta over to the equivalent console font size once.
                     MigrateLegacyTerminalZoomDelta(json);
+
+                    // One-time cleanup: versions <= 121 offered Reasonix a hard-coded model list made
+                    // of DeepSeek *model ids*, but Reasonix's --model takes the *provider name* from
+                    // the user's own config.toml. A selection made from that list is rejected with
+                    // "unknown model" and takes native mode down with it, so it has to go before the
+                    // first launch — the catalog refresh that would drop it only runs when the model
+                    // menu is opened.
+                    DropRetiredReasonixModelSelection();
                 }
                 else
                 {
@@ -260,6 +268,40 @@ namespace ClaudeCodeVS
             if (writeIndex < list.Count)
             {
                 list.RemoveRange(writeIndex, list.Count - writeIndex);
+            }
+        }
+
+        /// <summary>
+        /// Clears a Reasonix model selection left over from the retired hard-coded list (versions
+        /// &lt;= 121). Those were DeepSeek model ids (<c>deepseek-chat</c> and friends), while Reasonix's
+        /// <c>--model</c> takes the name of a <c>[[providers]]</c> block in the user's own config — so
+        /// the launch flag was built from a value the agent rejects, which killed the ACP session at
+        /// <c>session/new</c> and dropped the user back to the terminal. Clearing it starts Reasonix on
+        /// its configured default until the model menu is opened and the real list is discovered.
+        /// Whitelist-free on purpose: any id can only have come from that retired list, and the worst
+        /// case is one re-pick from a menu that now shows what the machine actually has.
+        /// </summary>
+        private void DropRetiredReasonixModelSelection()
+        {
+            try
+            {
+                if (_settings?.SelectedProviderModels == null) return;
+
+                string key = AiProvider.Reasonix.ToString();
+                if (!_settings.SelectedProviderModels.ContainsKey(key)) return;
+
+                // The catalog cache is the marker for "already migrated": it only exists once the new
+                // discovery has run, and anything it kept has been validated against the real list.
+                if (_settings.ModelCatalogs != null && _settings.ModelCatalogs.ContainsKey(key)) return;
+
+                Debug.WriteLine("Dropping the retired Reasonix model selection " +
+                    $"'{_settings.SelectedProviderModels[key]}' — it came from the removed hard-coded list.");
+                _settings.SelectedProviderModels.Remove(key);
+                SaveSettings();
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"Reasonix model selection cleanup error: {ex.Message}");
             }
         }
 

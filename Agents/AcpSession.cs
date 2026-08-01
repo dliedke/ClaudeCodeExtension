@@ -14,6 +14,8 @@ using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.IO;
+using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using Newtonsoft.Json;
@@ -51,6 +53,16 @@ namespace ClaudeCodeVS.Agents
             = new ConcurrentDictionary<string, string>(StringComparer.Ordinal);
 
         private JsonLineProcessHost _host;
+
+        /// <summary>
+        /// Last few stderr lines from the running agent. These CLIs explain themselves there — an
+        /// expired login, a bad flag, a crash — and the raw "closed its input pipe" IOException the
+        /// write throws says nothing about why the process went away. Same trick, and the same caps,
+        /// as <c>OneShotResumeSession</c>.
+        /// </summary>
+        private readonly Queue<string> _stderrTail = new Queue<string>();
+        private const int StderrTailLines = 8;
+        private const int StderrExcerptLength = 800;
 
         /// <summary>The agent's model picker from <c>session/new</c>, kept so the model can also be
         /// switched later without restarting the agent.</summary>
@@ -91,6 +103,149 @@ namespace ClaudeCodeVS.Agents
 
         #region Lifecycle
 
+        /// <summary>
+        /// Answers a CLI's first-ever-run console prompt before the real handshake starts.
+        /// <para>
+        /// Launches a disposable copy of the same command, writes "n\n" to its stdin the instant it is
+        /// up, then kills it after a short grace period. When the prompt exists this answers it and the
+        /// CLI persists the choice to its own config, so the real session started right after never
+        /// sees it again; when the prompt does not exist (already answered on a prior run) the extra
+        /// "n\n" lands on an already-running ACP server's stdin as one malformed JSON-RPC line, which
+        /// every one of these CLIs already tolerates — this adapter does the same for lines it cannot
+        /// parse (see <see cref="OnLineReceived"/>). The grace period is spent either way: an
+        /// already-answered CLI just becomes a live ACP server we throw away instead of exiting on its
+        /// own, since <c>acp</c> mode never exits by itself.
+        /// </para>
+        /// </summary>
+        private static async Task PrimeFirstRunPromptAsync(JsonLineProcessOptions hostOptions,
+            Action<string> log, CancellationToken cancellationToken)
+        {
+            var startInfo = new ProcessStartInfo
+            {
+                FileName = hostOptions.FileName,
+                Arguments = hostOptions.Arguments,
+                WorkingDirectory = hostOptions.WorkingDirectory,
+                UseShellExecute = false,
+                CreateNoWindow = true,
+                RedirectStandardInput = true,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                StandardOutputEncoding = new UTF8Encoding(false),
+                StandardErrorEncoding = new UTF8Encoding(false)
+            };
+
+            foreach (KeyValuePair<string, string> pair in hostOptions.EnvironmentOverrides)
+            {
+                startInfo.EnvironmentVariables[pair.Key] = pair.Value;
+            }
+
+            Process process = null;
+            try
+            {
+                process = Process.Start(startInfo);
+                if (process == null)
+                {
+                    log?.Invoke("priming: Process.Start returned null");
+                    return;
+                }
+
+                // Drained so the child never blocks on a full pipe buffer while it is alive. stderr is
+                // kept rather than discarded: if the primer cannot even launch (a broken shim, a bad
+                // PATH), its complaint here is the same one the real session is about to hit.
+                process.StandardOutput.BaseStream.CopyToAsync(Stream.Null).Forget();
+                Task<string> primerStderr = process.StandardError.ReadToEndAsync();
+
+                using (var stdin = new StreamWriter(process.StandardInput.BaseStream, new UTF8Encoding(false)))
+                {
+                    await stdin.WriteAsync("n\n").ConfigureAwait(false);
+                    await stdin.FlushAsync().ConfigureAwait(false);
+                }
+
+                await Task.WhenAny(
+                    WaitForExitAsync(process),
+                    Task.Delay(1500, cancellationToken)).ConfigureAwait(false);
+
+                if (process.HasExited && log != null)
+                {
+                    // The primer answering and leaving is the normal path once the prompt has been
+                    // answered before; a *non-zero* code here means the command itself is broken, which
+                    // is the same wall the real session is about to hit. The read is already finished
+                    // (the pipe closed with the process), but it is awaited with a cap rather than
+                    // blocked on, so a stuck grandchild holding the handle cannot hang the launch.
+                    string stderr = string.Empty;
+                    if (await Task.WhenAny(primerStderr, Task.Delay(250)).ConfigureAwait(false) == primerStderr)
+                    {
+                        stderr = await primerStderr.ConfigureAwait(false);
+                    }
+
+                    log($"priming: exited on its own, code={process.ExitCode}" +
+                        (string.IsNullOrWhiteSpace(stderr) ? "" : ", stderr=" + Truncate(stderr.Trim(), 400)));
+                }
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"ACP: first-run prompt priming failed: {ex.Message}");
+                log?.Invoke($"priming: failed: {ex.Message}");
+            }
+            finally
+            {
+                if (process != null)
+                {
+                    try
+                    {
+                        if (!process.HasExited)
+                        {
+                            // Still up after the grace period: the prompt was not there to answer, so
+                            // this is a live ACP server we never wanted. Expected on most launches.
+                            ProcessTree.Kill(process.Id);
+
+                            // Kill() only requests termination — the OS can take a moment to actually
+                            // tear the process down and release whatever it was holding. Wait for the
+                            // primer to actually be gone before handing back.
+                            bool gone = await Task.WhenAny(WaitForExitAsync(process), Task.Delay(2000))
+                                .ConfigureAwait(false) != null && process.HasExited;
+
+                            log?.Invoke($"priming: killed after the grace period, confirmedGone={gone}");
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        Debug.WriteLine($"ACP: could not kill priming process: {ex.Message}");
+                    }
+
+                    process.Dispose();
+                }
+
+                // A short unconditional grace period before the real session starts. Note the Kill()
+                // wait above only runs when the primer had to be killed, and once the first-run prompt
+                // has already been answered the primer instead exits on its own in ~170ms — so without
+                // this there is no wait at all on the common path.
+                // Honest scope: this was added on the theory that the real session was racing the
+                // primer's teardown for a workspace-scoped lock, and **that theory was refuted** —
+                // driving this exact adapter outside Visual Studio starts Reasonix reliably with no
+                // delay whatsoever, with the primer, and even with a second Reasonix already running on
+                // the same workspace. It is kept only as cheap insurance for the OS-teardown window,
+                // not as the fix for anything measured.
+                try
+                {
+                    await Task.Delay(400, cancellationToken).ConfigureAwait(false);
+                }
+                catch (OperationCanceledException)
+                {
+                    // The caller gave up on the whole native-mode launch — nothing left to wait for.
+                }
+            }
+        }
+
+        private static Task WaitForExitAsync(Process process)
+        {
+            var tcs = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+            process.EnableRaisingEvents = true;
+            process.Exited += (s, e) => tcs.TrySetResult(true);
+            if (process.HasExited) tcs.TrySetResult(true);
+            return tcs.Task;
+        }
+
         public async Task StartAsync(string workingDirectory, CancellationToken cancellationToken)
         {
             if (_disposed) throw new ObjectDisposedException(nameof(AcpSession));
@@ -107,23 +262,49 @@ namespace ClaudeCodeVS.Agents
                 hostOptions.EnvironmentOverrides[pair.Key] = pair.Value;
             }
 
+            Log($"launching: file='{hostOptions.FileName}' args='{hostOptions.Arguments}' " +
+                $"cwd='{hostOptions.WorkingDirectory}' priming={_options.AnswerFirstRunPromptWithNo}");
+
+            if (_options.AnswerFirstRunPromptWithNo)
+            {
+                await PrimeFirstRunPromptAsync(hostOptions, _options.DiagnosticLog == null
+                    ? (Action<string>)null
+                    : Log, cancellationToken);
+            }
+
             _host = new JsonLineProcessHost(hostOptions);
             _host.LineReceived += OnLineReceived;
             _host.ErrorLineReceived += OnErrorLineReceived;
             _host.Exited += OnHostExited;
 
             await _host.StartAsync(cancellationToken);
+            Log($"process started: pid={_host.ProcessId}");
 
-            JToken init = await RequestAsync("initialize", new JObject
+            JToken init;
+            try
             {
-                ["protocolVersion"] = 1,
-                ["clientCapabilities"] = new JObject
+                init = await RequestAsync("initialize", new JObject
                 {
-                    // Declared false on purpose: the agent then reads and writes files itself instead
-                    // of asking us to, which keeps this adapter free of file-system duties.
-                    ["fs"] = new JObject { ["readTextFile"] = false, ["writeTextFile"] = false }
-                }
-            }, cancellationToken);
+                    ["protocolVersion"] = 1,
+                    ["clientCapabilities"] = new JObject
+                    {
+                        // Declared false on purpose: the agent then reads and writes files itself instead
+                        // of asking us to, which keeps this adapter free of file-system duties.
+                        ["fs"] = new JObject { ["readTextFile"] = false, ["writeTextFile"] = false }
+                    }
+                }, cancellationToken);
+            }
+            catch (Exception ex)
+            {
+                // The handshake is where a CLI that cannot run at all shows up, and the IOException the
+                // write throws ("closed its input pipe") names none of the reasons why. Give the stderr
+                // tail and the exit code, which is what actually identifies the failure. The drain wait
+                // matters: the write fails the instant the pipe breaks, which is *before* the stderr
+                // pump has surfaced the dying process's last words.
+                await _host.WaitForOutputDrainAsync(1000);
+
+                throw new InvalidOperationException(DescribeStartFailure(ex), ex);
+            }
 
             string agentName = init?["agentInfo"]?["title"]?.ToString();
             if (string.IsNullOrEmpty(agentName))
@@ -739,10 +920,85 @@ namespace ClaudeCodeVS.Agents
             // stderr is the agents' human-facing log channel (Reasonix prints its MCP handshake
             // there), never protocol. Recorded for diagnosis, never shown as an agent error.
             Debug.WriteLine($"ACP stderr: {Truncate(line, 400)}");
+
+            if (string.IsNullOrWhiteSpace(line)) return;
+
+            lock (_stderrTail)
+            {
+                _stderrTail.Enqueue(line);
+                while (_stderrTail.Count > StderrTailLines) _stderrTail.Dequeue();
+            }
+        }
+
+        /// <summary>
+        /// Builds the message for a handshake that never completed, folding in what the process
+        /// actually did — exit code and stderr tail — instead of the bare pipe-level IOException.
+        /// </summary>
+        private string DescribeStartFailure(Exception cause)
+        {
+            var detail = new StringBuilder();
+            detail.Append($"{_options.DisplayName} did not complete the ACP handshake: ")
+                  .Append(cause?.Message ?? "unknown error");
+
+            JsonLineProcessHost host = _host;
+            try
+            {
+                if (host != null && !host.IsRunning)
+                {
+                    // WaitForExitAsync is not available here; the host already saw the exit, and its
+                    // pumps need a moment to surface the last stderr line the CLI wrote on its way out.
+                    detail.Append($" (process {host.ProcessId} is no longer running)");
+                }
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"ACP: could not read process state: {ex.Message}");
+            }
+
+            string stderr = GetStderrTail();
+            if (!string.IsNullOrWhiteSpace(stderr))
+            {
+                detail.Append(Environment.NewLine).Append("stderr: ").Append(stderr);
+            }
+
+            string message = detail.ToString();
+            Log("start FAILED: " + message);
+
+            return message;
+        }
+
+        /// <summary>The recent stderr lines as one block, or empty when the agent said nothing.</summary>
+        private string GetStderrTail()
+        {
+            lock (_stderrTail)
+            {
+                if (_stderrTail.Count == 0) return string.Empty;
+
+                return Truncate(string.Join(Environment.NewLine, _stderrTail.ToArray()), StderrExcerptLength);
+            }
+        }
+
+        /// <summary>Reports to the diagnostic sink, if the caller wired one up. Never throws.</summary>
+        private void Log(string message)
+        {
+            Action<string> sink = _options.DiagnosticLog;
+            if (sink == null) return;
+
+            try
+            {
+                sink($"ACP[{_options.DisplayName}]: {message}");
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"ACP: diagnostic sink threw: {ex.Message}");
+            }
         }
 
         private void OnHostExited(object sender, int exitCode)
         {
+            Log($"process exited: code={exitCode}, pendingRequests={_pending.Count}" +
+                (string.IsNullOrWhiteSpace(GetStderrTail()) ? "" : ", stderr=" + GetStderrTail()));
+
             foreach (KeyValuePair<long, TaskCompletionSource<JToken>> entry in _pending)
             {
                 entry.Value.TrySetException(new InvalidOperationException(

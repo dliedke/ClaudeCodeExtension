@@ -4331,6 +4331,12 @@ namespace ClaudeCodeVS
             {
                 await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
 
+                if (IsNativeModeActive)
+                {
+                    await UpdateNativeAgentAsync();
+                    return;
+                }
+
                 if (terminalHandle == IntPtr.Zero || !IsWindow(terminalHandle))
                 {
                     MessageBox.Show("Terminal is not running. Please restart the terminal first.",
@@ -4429,10 +4435,14 @@ namespace ClaudeCodeVS
                         // overwrites %LOCALAPPDATA%\devin\cli\bin\devin.exe, which fails with
                         // "Access is denied" while any devin.exe is still running (self-update lock),
                         // so force-kill stragglers to release the lock before running the updater
-                        // script via PowerShell (irm https://cli.devin.ai/install.ps1 | iex).
+                        // script via PowerShell (irm https://cli.devin.ai/install.ps1 | iex) — exactly
+                        // the command Devin's own CLI prints, unwrapped. `-NoProfile -ExecutionPolicy
+                        // Bypass` is dropped: neither is needed for an inline -Command script, and that
+                        // exact shape (bypassed policy + download-and-execute) is what Windows Defender
+                        // flagged when this ran with them.
                         await SendTextToTerminalAsync("exit");
                         await Task.Delay(1000);
-                        await SendTextToTerminalAsync("taskkill /f /im devin.exe >nul 2>&1 & powershell -NoProfile -ExecutionPolicy Bypass -Command \"irm https://cli.devin.ai/install.ps1 | iex\"");
+                        await SendTextToTerminalAsync("taskkill /f /im devin.exe >nul 2>&1 & powershell -Command \"irm https://cli.devin.ai/install.ps1 | iex\"");
                         break;
 
                     default:

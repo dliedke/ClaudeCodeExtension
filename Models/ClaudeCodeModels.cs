@@ -521,19 +521,6 @@ namespace ClaudeCodeVS
         public string SelectedDevinModel { get; set; } = "SWE-1.6";
 
         /// <summary>
-        /// User-configurable list of Reasonix model ids shown in the model menu. Reasonix is the one
-        /// agent that neither lists its models on the command line nor publishes them over ACP, so
-        /// the list is seeded from the ids its own package ships with and stays editable.
-        /// </summary>
-        public System.Collections.Generic.List<string> ReasonixModels { get; set; } = new System.Collections.Generic.List<string>
-        {
-            "deepseek-v4-flash",
-            "deepseek-v4-pro",
-            "deepseek-chat",
-            "deepseek-reasoner"
-        };
-
-        /// <summary>
         /// Model chosen per provider, keyed by the <see cref="AiProvider"/> name. Holds the id the
         /// CLI expects (<c>gpt-5.6-sol</c>, <c>opencode/big-pickle</c>, <c>anthropic/claude-opus-4-8</c>).
         /// An absent or empty entry means "whatever the CLI defaults to". Claude and Devin are not in

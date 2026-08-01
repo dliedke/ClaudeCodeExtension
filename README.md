@@ -15,7 +15,7 @@ Enjoying the extension? [Buy me a coffee](https://www.buymeacoffee.com/dliedke) 
 ## Features
 
 - **Embedded AI terminal** — Run any supported AI coding agent inside a Visual Studio tool window. Auto-detects the solution directory; restarts when you switch solutions. Optionally use Windows Terminal instead of Command Prompt for better emoji/Unicode rendering.
-- **Native mode (optional)** — Show the conversation as a chat in its own document tab instead of an embedded terminal: answers arrive as formatted text, file edits open into a colored diff, and each turn ends with how long it took and what it cost. The tab has its own message box with image paste and file attachments, plus agent, model, effort and permission selectors you can change mid-conversation. Opt-in via *⚙ → Settings... → Terminal*; agents that can't run this way keep using the terminal.
+- **Native mode (optional)** — Show the conversation as a chat in its own document tab instead of an embedded terminal: answers arrive as formatted text, file edits open into a colored diff, and each turn ends with how long it took and what it cost. The tab has its own message box with image paste and file attachments, plus agent, model, effort and permission selectors you can change mid-conversation. Opt-in via *⚙ → Settings... → Terminal*; Reasonix and any agent that can't run this way keep using the terminal.
 - **Multi-line prompts** — Press **Enter** to send, **Shift+Enter** or **Ctrl+Enter** for a new line. Toggle "Send with Enter" off in the ⚙ menu to make Enter insert a newline and reveal a Send button.
 - **File and image attachments** — Paste images with **Ctrl+V**, drag & drop files onto the prompt area, or use the 📎 button. Any file type is accepted (no limit). Text content like Excel cells pastes as text, not as an image.
 - **Editor selection → prompt** — Click 📋 or right-click selected code → *Send Selection to Claude Code* to insert a formatted snippet (file path + line numbers + syntax-highlighted code fence) into the prompt.
@@ -135,6 +135,31 @@ https://github.com/anthropics/claude-code/issues/63504
 https://github.com/anthropics/claude-code/issues/41501
 
 ## Version History
+
+### Version 124.0
+Reasonix now always runs in the embedded terminal, even with native mode turned on.
+The Reasonix model menu now lists the models actually configured on your machine, read from Reasonix itself, instead of a fixed list that could not be used.
+
+### Version 121.0
+Native mode now records why an agent failed to start when the chat falls back to the terminal, including the message the CLI itself printed.
+
+### Version 120.0
+Fixed Reasonix native mode still opening the terminal on later launches, once a leftover Reasonix process from an earlier attempt had already been holding onto the workspace.
+
+### Version 119.0
+Added diagnostic logging for native mode start failures, to help pin down why a provider sometimes still opens the terminal with native mode on.
+
+### Version 118.0
+Fixed native mode (chat tab) not being used when switching AI provider from the ⚙ menu — it now behaves the same as switching on startup or restart, instead of silently dropping to the terminal.
+
+### Version 117.0
+Fixed the Settings window sometimes opening with the Terminal tab scrolled to the middle instead of the top.
+
+### Version 116.0
+Fixed Reasonix (native) getting stuck on first launch behind its one-time "Allow anonymous CLI usage statistics?" console prompt — it is now answered automatically so the agent starts normally.
+
+### Version 115.0
+"Update Agent" now works in native mode too: it opens a console window running the CLI's own updater, and once you close that window the agent automatically restarts and resumes your conversation. Fixed the update failing with "Access is denied" on machines where Visual Studio is not running as Administrator, and fixed Devin (native)'s updater being flagged by Windows Defender.
 
 ### Version 114.0
 The Codex welcome card in native mode now shows the model currently selected by the extension and the signed-in ChatGPT account, matching the information already shown for Claude Code. Account detection works for both native Windows and WSL Codex installations, supports API-key authentication, runs in the background, and never reads or exposes the stored access tokens. Codex now also has a reasoning-level selector in both terminal and native chat modes, with Model default, Low, Medium, High, Extra High, Max, and Ultra options. Native chat applies the new level to the next turn without losing the conversation; terminal mode offers to restart Codex so the saved level takes effect. Codex native chat also keeps the composer available during a turn for both Windows and WSL providers: follow-up messages are queued in order, show their queued count in the activity footer, and run automatically on the same thread when the current response finishes. Codex turn footers and Agent Finish notifications now split the CLI's large token figure into processed, cached input, and output counts, making resumed short replies easier to interpret. Claude Code native chat now also honors "Play a different sound when the agent asks a question" for questions, plan reviews, and tool approvals.

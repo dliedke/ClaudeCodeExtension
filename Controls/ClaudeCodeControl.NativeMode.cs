@@ -145,11 +145,13 @@ namespace ClaudeCodeVS
             {
                 case AiProvider.ClaudeCode:
                 case AiProvider.ClaudeCodeWSL:
-                // These four speak ACP, so one adapter drives all of them.
+                // These three speak ACP, so one adapter drives all of them. Reasonix is deliberately
+                // **not** here: its ACP adapter works (it handshakes and answers), but it is kept on
+                // the embedded terminal by product decision, so nothing in this table should be read
+                // as a statement about which agents *could* run natively.
                 case AiProvider.OpenCode:
                 case AiProvider.Devin:
                 case AiProvider.DevinNative:
-                case AiProvider.Reasonix:
                 // These four stream JSON but end the process with each turn, so the adapter relaunches
                 // them with a resume flag. The conversation survives; the prompt cache does not.
                 case AiProvider.Codex:
@@ -186,11 +188,17 @@ namespace ClaudeCodeVS
             }
 
             AiProvider provider = _settings.SelectedProvider;
+            LogTerminalLaunch($"Native mode: attempting start for provider={provider}");
             if (!SupportsNativeMode(provider))
             {
-                Debug.WriteLine($"Native mode: {provider} has no structured channel; using the embedded terminal.");
-                await ShowNativeFallbackNoticeAsync(
-                    $"{GetProviderDisplayName(provider)} has no native chat channel — the embedded terminal was used instead.");
+                Debug.WriteLine($"Native mode: {provider} always uses the embedded terminal.");
+                LogTerminalLaunch($"Native mode: {provider} always uses the embedded terminal.");
+
+                // Reasonix gets its own wording: it *does* have a working ACP channel, so telling the
+                // user it has none would be untrue — it is kept on the terminal on purpose.
+                await ShowNativeFallbackNoticeAsync(provider == AiProvider.Reasonix
+                    ? $"{GetProviderDisplayName(provider)} always runs in the embedded terminal."
+                    : $"{GetProviderDisplayName(provider)} has no native chat channel — the embedded terminal was used instead.");
                 return false;
             }
 
@@ -200,6 +208,7 @@ namespace ClaudeCodeVS
                 if (string.IsNullOrWhiteSpace(workspace) || !Directory.Exists(workspace))
                 {
                     Debug.WriteLine("Native mode: no usable workspace directory; using the embedded terminal.");
+                    LogTerminalLaunch($"Native mode: no usable workspace directory (workspace='{workspace}'); using the embedded terminal.");
                     await ShowNativeFallbackNoticeAsync(
                         "Native mode needs an open folder or solution — the embedded terminal was used instead.");
                     return false;
@@ -274,11 +283,13 @@ namespace ClaudeCodeVS
                 // editor width and its own composer, instead of the narrow panel strip.
                 await ShowNativeChatTabAsync(focusComposer: false);
 
+                LogTerminalLaunch($"Native mode: started successfully for provider={provider}");
                 return true;
             }
             catch (Exception ex)
             {
                 Debug.WriteLine($"Native mode failed to start: {ex}");
+                LogTerminalLaunch($"Native mode: failed to start for provider={provider}: {ex}");
 
                 // Never strand the user on a dead panel: tear the half-started session down and let the
                 // caller fall back to the embedded terminal.
@@ -415,7 +426,12 @@ namespace ClaudeCodeVS
                 ModeId = GetAcpModeId(provider),
                 ModelName = GetAcpModelName(provider),
                 ModelLaunchArgument = GetAcpModelLaunchArgument(provider),
-                DisplayName = GetProviderDisplayName(provider)
+                DisplayName = GetProviderDisplayName(provider),
+                AnswerFirstRunPromptWithNo = provider == AiProvider.Reasonix,
+                // Routed into the same terminal-launch log the console path writes to: on a Release
+                // build Debug.WriteLine is gone, so this is the only way to see why an agent that
+                // dies during the handshake died.
+                DiagnosticLog = LogTerminalLaunch
             };
 
             if (!string.IsNullOrWhiteSpace(freshPath))
@@ -592,15 +608,16 @@ namespace ClaudeCodeVS
 
         /// <summary>
         /// Model passed on the launch command line, for Reasonix alone — it exposes no model picker
-        /// over the protocol, so the only way to choose one is <c>reasonix acp -m &lt;id&gt;</c>.
+        /// over the protocol, so the only way to choose one is <c>reasonix acp -model &lt;id&gt;</c>.
+        /// The flag itself is built by <see cref="AcpCommandBuilder.BuildReasonixModelArgument"/>, which
+        /// is where the reason it must be spelled <c>-model</c> and not <c>-m</c> is documented — and
+        /// where the test that keeps it that way lives.
         /// </summary>
         private string GetAcpModelLaunchArgument(AiProvider provider)
         {
             if (provider != AiProvider.Reasonix) return string.Empty;
 
-            string model = GetSelectedProviderModelId(provider);
-
-            return string.IsNullOrWhiteSpace(model) ? string.Empty : "-m " + model;
+            return AcpCommandBuilder.BuildReasonixModelArgument(GetSelectedProviderModelId(provider));
         }
 
         /// <summary>

@@ -56,6 +56,23 @@ namespace ClaudeCodeVS.Agents
         /// <summary>Display name used in messages shown to the user.</summary>
         public string DisplayName { get; set; } = "agent";
 
+        /// <summary>
+        /// Set for a CLI whose very first-ever invocation blocks on an interactive console prompt
+        /// before doing anything else (Reasonix: "Allow anonymous CLI usage statistics? [Y/n]"), with
+        /// no trailing newline — which means it never becomes a complete line on stdout, so the normal
+        /// line-based ACP handshake would hang forever waiting for a JSON-RPC frame that is never
+        /// coming. See <see cref="AcpSession"/>'s priming step.
+        /// </summary>
+        public bool AnswerFirstRunPromptWithNo { get; set; }
+
+        /// <summary>
+        /// Optional diagnostic sink. <see cref="AcpSession"/> reports the launch command, the child's
+        /// exit code and its stderr tail here when a start fails — the only way to see any of that on a
+        /// Release build, where <c>Debug.WriteLine</c> is compiled out. Wired to the terminal-launch
+        /// log by <c>CreateAcpSession</c>; left null in tests. Must never throw.
+        /// </summary>
+        public Action<string> DiagnosticLog { get; set; }
+
         public IDictionary<string, string> EnvironmentOverrides { get; }
             = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
     }
@@ -66,6 +83,20 @@ namespace ClaudeCodeVS.Agents
     /// </summary>
     public static class AcpCommandBuilder
     {
+        /// <summary>
+        /// The launch flag that puts Reasonix on a given model, or an empty string when none is picked.
+        /// Lives here, and not with the rest of the provider wiring, so it can be covered by a test:
+        /// the caller is a WPF/VS-SDK control the unit suite cannot load, which is exactly why shipping
+        /// <c>-m</c> here went unnoticed. <c>reasonix acp</c> parses its flags with Go's <c>flag</c>
+        /// package, which does **no** prefix matching — <c>-m</c> is rejected with "flag provided but
+        /// not defined: -m" and exit code 2 before the ACP server starts, so every native launch with a
+        /// model selected died on the first <c>initialize</c> write.
+        /// </summary>
+        public static string BuildReasonixModelArgument(string modelId)
+        {
+            return string.IsNullOrWhiteSpace(modelId) ? string.Empty : "-model " + modelId.Trim();
+        }
+
         public static string GetFileName(AcpSessionOptions options)
         {
             if (options == null) throw new ArgumentNullException(nameof(options));

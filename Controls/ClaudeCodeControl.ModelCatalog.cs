@@ -44,8 +44,8 @@ namespace ClaudeCodeVS
 
         /// <summary>
         /// The listing command per provider, measured against the real CLIs. Providers absent from
-        /// this table either have no listing command (Reasonix, Devin — their lists live in the
-        /// settings) or no extension-managed model list at all (Claude, which has a fixed menu).
+        /// this table either have no listing command (Devin — its list lives in the settings) or no
+        /// extension-managed model list at all (Claude, which has a fixed menu).
         /// </summary>
         private static readonly Dictionary<AiProvider, ModelCatalogSource> ModelCatalogSources =
             new Dictionary<AiProvider, ModelCatalogSource>
@@ -93,6 +93,14 @@ namespace ClaudeCodeVS
                     DefaultCommand = "agy",
                     Arguments = "models",
                     Parse = ModelCatalogParsers.ParsePlainList
+                },
+                [AiProvider.Reasonix] = new ModelCatalogSource
+                {
+                    DefaultCommand = "reasonix",
+                    // No listing subcommand exists, but doctor reports the configured providers — and
+                    // those names are exactly what --model accepts. See ParseReasonixProviders.
+                    Arguments = "doctor --json",
+                    Parse = ModelCatalogParsers.ParseReasonixProviders
                 }
             };
 
@@ -123,8 +131,7 @@ namespace ClaudeCodeVS
             if (provider == null || IsClaudeProvider(provider)) return false;
 
             return ModelCatalogSources.ContainsKey(provider.Value)
-                || IsDevinProvider(provider)
-                || provider == AiProvider.Reasonix;
+                || IsDevinProvider(provider);
         }
 
         private static bool IsDevinProvider(AiProvider? provider)
@@ -143,12 +150,6 @@ namespace ClaudeCodeVS
             {
                 EnsureDevinModelDefaults();
                 return ToModelOptions(_settings?.DevinModels);
-            }
-
-            if (provider == AiProvider.Reasonix)
-            {
-                EnsureReasonixModelDefaults();
-                return ToModelOptions(_settings?.ReasonixModels);
             }
 
             ModelCatalogCache cache = GetModelCatalogCache(provider);
@@ -332,20 +333,6 @@ namespace ClaudeCodeVS
             }
 
             return models;
-        }
-
-        /// <summary>Ensures the Reasonix list exists, seeding it when an older settings file has none.</summary>
-        private void EnsureReasonixModelDefaults()
-        {
-            if (_settings == null) return;
-
-            if (_settings.ReasonixModels == null || _settings.ReasonixModels.Count == 0)
-            {
-                _settings.ReasonixModels = new List<string>
-                {
-                    "deepseek-v4-flash", "deepseek-v4-pro", "deepseek-chat", "deepseek-reasoner"
-                };
-            }
         }
 
         #endregion

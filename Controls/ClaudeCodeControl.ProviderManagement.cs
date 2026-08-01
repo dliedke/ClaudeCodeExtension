@@ -1786,7 +1786,10 @@ For more details, visit: https://pi.dev";
             }
             else
             {
-                await StartEmbeddedTerminalAsync(AiProvider.OpenCode);
+                if (!await TryStartNativeModeAsync())
+                {
+                    await StartEmbeddedTerminalAsync(AiProvider.OpenCode);
+                }
             }
         }
 
@@ -1821,7 +1824,10 @@ For more details, visit: https://pi.dev";
             }
             else
             {
-                await StartEmbeddedTerminalAsync(AiProvider.Devin);
+                if (!await TryStartNativeModeAsync())
+                {
+                    await StartEmbeddedTerminalAsync(AiProvider.Devin);
+                }
             }
         }
 
@@ -1849,7 +1855,10 @@ For more details, visit: https://pi.dev";
             }
             else
             {
-                await StartEmbeddedTerminalAsync(AiProvider.Pi);
+                if (!await TryStartNativeModeAsync())
+                {
+                    await StartEmbeddedTerminalAsync(AiProvider.Pi);
+                }
             }
         }
 
@@ -1877,7 +1886,10 @@ For more details, visit: https://pi.dev";
             }
             else
             {
-                await StartEmbeddedTerminalAsync(AiProvider.Antigravity);
+                if (!await TryStartNativeModeAsync())
+                {
+                    await StartEmbeddedTerminalAsync(AiProvider.Antigravity);
+                }
             }
         }
 
@@ -1905,7 +1917,10 @@ For more details, visit: https://pi.dev";
             }
             else
             {
-                await StartEmbeddedTerminalAsync(AiProvider.Reasonix);
+                if (!await TryStartNativeModeAsync())
+                {
+                    await StartEmbeddedTerminalAsync(AiProvider.Reasonix);
+                }
             }
         }
 
@@ -1933,7 +1948,10 @@ For more details, visit: https://pi.dev";
             }
             else
             {
-                await StartEmbeddedTerminalAsync(AiProvider.DevinNative);
+                if (!await TryStartNativeModeAsync())
+                {
+                    await StartEmbeddedTerminalAsync(AiProvider.DevinNative);
+                }
             }
         }
 
@@ -1961,7 +1979,10 @@ For more details, visit: https://pi.dev";
             }
             else
             {
-                await StartEmbeddedTerminalAsync(AiProvider.ClaudeCode);
+                if (!await TryStartNativeModeAsync())
+                {
+                    await StartEmbeddedTerminalAsync(AiProvider.ClaudeCode);
+                }
             }
         }
 
@@ -1989,7 +2010,10 @@ For more details, visit: https://pi.dev";
             }
             else
             {
-                await StartEmbeddedTerminalAsync(AiProvider.ClaudeCodeWSL);
+                if (!await TryStartNativeModeAsync())
+                {
+                    await StartEmbeddedTerminalAsync(AiProvider.ClaudeCodeWSL);
+                }
             }
         }
 
@@ -2017,7 +2041,10 @@ For more details, visit: https://pi.dev";
             }
             else
             {
-                await StartEmbeddedTerminalAsync(AiProvider.Codex);
+                if (!await TryStartNativeModeAsync())
+                {
+                    await StartEmbeddedTerminalAsync(AiProvider.Codex);
+                }
             }
         }
 
@@ -2045,7 +2072,10 @@ For more details, visit: https://pi.dev";
             }
             else
             {
-                await StartEmbeddedTerminalAsync(AiProvider.CodexNative);
+                if (!await TryStartNativeModeAsync())
+                {
+                    await StartEmbeddedTerminalAsync(AiProvider.CodexNative);
+                }
             }
         }
 
@@ -2080,7 +2110,10 @@ For more details, visit: https://pi.dev";
             }
             else
             {
-                await StartEmbeddedTerminalAsync(AiProvider.CursorAgent);
+                if (!await TryStartNativeModeAsync())
+                {
+                    await StartEmbeddedTerminalAsync(AiProvider.CursorAgent);
+                }
             }
         }
 
@@ -2108,7 +2141,10 @@ For more details, visit: https://pi.dev";
             }
             else
             {
-                await StartEmbeddedTerminalAsync(AiProvider.CursorAgentNative);
+                if (!await TryStartNativeModeAsync())
+                {
+                    await StartEmbeddedTerminalAsync(AiProvider.CursorAgentNative);
+                }
             }
         }
 
@@ -2205,9 +2241,10 @@ For more details, visit: https://pi.dev";
             // are no longer hidden for the active agent; instead each shows a friendly explanation
             // at click time when it isn't applicable (issue #97).
 
-            // Updating the CLI means exiting the agent and running its installer at the shell prompt,
-            // which is the console and nothing else.
-            Apply(ToolbarButton.UpdateAgent, hasConsole, UpdateAgentToolbarButton, UpdateAgentMenuItem);
+            // Updating the CLI always works: the terminal path types the installer into the console,
+            // and native mode runs it in its own console window and resumes the conversation afterward
+            // (UpdateNativeAgentAsync).
+            Apply(ToolbarButton.UpdateAgent, true, UpdateAgentToolbarButton, UpdateAgentMenuItem);
             // Detach means "give this conversation its own tab" in both worlds: it re-parents the
             // embedded console window for the terminal, and moves the chat view for native mode.
             Apply(ToolbarButton.DetachTerminal, true, DetachToolbarButton, DetachTerminalMenuItem);
@@ -3007,12 +3044,6 @@ For more details, visit: https://pi.dev";
                 refresh.Click += RefreshProviderModelsMenuItem_Click;
                 InsertDynamicModelItem(refresh, ref insertIndex);
             }
-            else if (provider == AiProvider.Reasonix)
-            {
-                var configure = new System.Windows.Controls.MenuItem { Header = "Configure Models..." };
-                configure.Click += ConfigureReasonixModelsMenuItem_Click;
-                InsertDynamicModelItem(configure, ref insertIndex);
-            }
 
             // The escape hatch: whatever the extension knows, the agent's own picker is authoritative.
             if (GetSimpleModelCommand(provider) != null)
@@ -3309,33 +3340,6 @@ For more details, visit: https://pi.dev";
             await SendTextToTerminalAsync(command, singleEnterEvent: isCodex);
         }
 
-        /// <summary>
-        /// Handles the Reasonix "Configure Models..." menu item click - Reasonix publishes no model
-        /// list of its own, so the menu is filled from a list the user maintains here.
-        /// </summary>
-        private void ConfigureReasonixModelsMenuItem_Click(object sender, RoutedEventArgs e)
-        {
-            try
-            {
-                ThreadHelper.ThrowIfNotOnUIThread();
-
-                if (_settings == null) _settings = new ClaudeCodeSettings();
-                EnsureReasonixModelDefaults();
-
-                ShowModelListDialog("Reasonix", _settings.ReasonixModels,
-                    "These models appear in the model (🤖) menu when Reasonix is the active agent. " +
-                    "Reasonix does not publish its own list, so enter the exact model ids it accepts.");
-
-                SaveSettings();
-                UpdateModelSelection();
-            }
-            catch (Exception ex)
-            {
-                Debug.WriteLine($"Error configuring Reasonix models: {ex.Message}");
-                MessageBox.Show($"Error configuring Reasonix models: {ex.Message}",
-                    "Error", MessageBoxButton.OK, MessageBoxImage.Error);
-            }
-        }
 
         /// <summary>
         /// Handles the "Configure Models..." menu item click - opens the editor for the
