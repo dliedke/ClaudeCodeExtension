@@ -136,6 +136,9 @@ https://github.com/anthropics/claude-code/issues/41501
 
 ## Version History
 
+### Version 126.0
+Native mode now supports true parallel chat sessions: click the ✚ button to open a new independent session in its own document tab. Each session runs its own agent process, has its own transcript, and can be closed independently. The ↻ button clears the current conversation and starts fresh. Switch between sessions by clicking tabs; all sessions remain active and processing in parallel.
+
 ### Version 125.0
 Pressing Esc in the native mode chat box now stops the agent's turn, same as the Stop button.
 Native mode sessions can now be renamed from the chat tab; the name shows above the conversation and in Session History.
