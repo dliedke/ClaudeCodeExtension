@@ -461,8 +461,8 @@ namespace ClaudeCodeVS
         }
 
         /// <summary>
-        /// Opens a new parallel chat session. For now, opens in the same area (placeholder).
-        /// Future: will create a new tab with its own independent agent process.
+        /// Opens a new parallel chat session. Tries to create a new session with the same provider
+        /// as the current one. For now, displays in the same area; future versions will show in separate tabs.
         /// </summary>
 #pragma warning disable VSTHRD100 // Async void is required by the UI event signature
         private async void OnComposerNewChatRequested(object sender, EventArgs e)
@@ -478,13 +478,47 @@ namespace ClaudeCodeVS
                     return;
                 }
 
-                // TODO: Implement parallel session creation
-                // For now, just clear — same as the ↻ button
-                MessageBox.Show("Parallel sessions coming soon. Use ↻ to clear this conversation for now.", "New Session", MessageBoxButton.OK, MessageBoxImage.Information);
+                // Get workspace
+                string workspace = await GetWorkspaceDirectoryAsync();
+                if (string.IsNullOrWhiteSpace(workspace) || !System.IO.Directory.Exists(workspace))
+                {
+                    MessageBox.Show("Cannot create new session: no workspace available.", "New Session", MessageBoxButton.OK, MessageBoxImage.Error);
+                    return;
+                }
+
+                // Use same provider as current session
+                AiProvider provider = _settings.SelectedProvider;
+
+                // Create new session
+                var newSession = CreateAndRegisterSession(provider, workspace);
+                if (newSession?.AgentSession == null)
+                {
+                    MessageBox.Show("Failed to create new session.", "New Session", MessageBoxButton.OK, MessageBoxImage.Error);
+                    return;
+                }
+
+                // Wire up transcript events (same as existing session wiring)
+                newSession.ChatTranscript.StopRequested += OnChatStopRequested;
+                newSession.ChatTranscript.InteractionResolved += OnChatInteractionResolved;
+
+                // Clear and start
+                newSession.ChatTranscript.Clear();
+                newSession.ChatTranscript.SetStatus("Starting new session...");
+
+                // Start the agent
+                newSession.SessionCts = new CancellationTokenSource();
+                await newSession.AgentSession.StartAsync(workspace, newSession.SessionCts.Token);
+
+                newSession.ChatTranscript.SetStatus("Ready.");
+                ShowChatWelcome(workspace);
+
+                // Update UI to show new session (placeholder: just show message for now)
+                ChatTranscript.SetStatus("New session created. Future: will show in separate tab.");
             }
             catch (Exception ex)
             {
                 Debug.WriteLine($"Chat new-session failed: {ex.Message}");
+                MessageBox.Show($"Failed to create new session: {ex.Message}", "New Session", MessageBoxButton.OK, MessageBoxImage.Error);
             }
         }
 
