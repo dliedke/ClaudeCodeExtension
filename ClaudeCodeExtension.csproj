@@ -94,6 +94,7 @@
     <Compile Include="Controls\ClaudeCodeControl.NativeMode.cs" />
     <Compile Include="Controls\ClaudeCodeControl.NativeChat.cs" />
     <Compile Include="Models\ClaudeCodeModels.cs" />
+    <Compile Include="Models\NativeChatSessionState.cs" />
     <Compile Include="UI\ChatMessages.cs" />
     <Compile Include="UI\ChatInteractionViewModels.cs" />
     <Compile Include="UI\ChatToolPresentation.cs" />

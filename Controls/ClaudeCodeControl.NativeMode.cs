@@ -29,6 +29,29 @@ namespace ClaudeCodeVS
 {
     public partial class ClaudeCodeControl
     {
+        #region Native Sessions Management (Parallel Sessions Infrastructure)
+
+        // Dictionary to hold multiple concurrent sessions (future: currently single-session mode)
+        private Dictionary<string, NativeChatSessionState> _nativeSessions =
+            new Dictionary<string, NativeChatSessionState>(StringComparer.Ordinal);
+        private string _activeSessionId;
+        private readonly object _sessionLock = new object();
+        private int _sessionIdCounter = 0;
+
+        // Helper: get currently active session (or null if none)
+        private NativeChatSessionState GetActiveSession()
+        {
+            if (string.IsNullOrEmpty(_activeSessionId))
+                return null;
+            lock (_sessionLock)
+            {
+                _nativeSessions.TryGetValue(_activeSessionId, out var session);
+                return session;
+            }
+        }
+
+        #endregion
+
         #region Native Mode Fields
 
         private IAgentSession _agentSession;
