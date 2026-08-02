@@ -877,11 +877,18 @@
 				</Border>
 
 				<DockPanel Grid.Row="3" Margin="0,6,0,0" LastChildFill="False">
+					<Button x:Name="ComposerClearButton" DockPanel.Dock="Left"
+					        Style="{StaticResource ComposerSelectorStyle}"
+					        Content="↻"
+					        FontSize="13"
+					        ToolTip="Clear this conversation and start fresh"
+					        Click="ComposerClearButton_Click"/>
+
 					<Button x:Name="ComposerNewChatButton" DockPanel.Dock="Left"
 					        Style="{StaticResource ComposerSelectorStyle}"
 					        Content="✚"
 					        FontSize="13"
-					        ToolTip="Start a new chat (clears the conversation)"
+					        ToolTip="Open new chat session in parallel tab"
 					        Click="ComposerNewChatButton_Click"/>
 
 					<Button x:Name="ComposerRenameSessionButton" DockPanel.Dock="Left"

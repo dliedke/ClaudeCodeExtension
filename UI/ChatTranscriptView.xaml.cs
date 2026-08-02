@@ -140,7 +140,10 @@ namespace ClaudeCodeVS.UI
         /// </summary>
         public event EventHandler<int> EffortChanged;
 
-        /// <summary>Raised by the ✚ button: start a fresh conversation.</summary>
+        /// <summary>Raised by the ↻ button: clear and restart the current session.</summary>
+        public event EventHandler ClearChatRequested;
+
+        /// <summary>Raised by the ✚ button: open a new parallel chat session.</summary>
         public event EventHandler NewChatRequested;
 
         /// <summary>Raised by the ✎ button: rename the session currently in the tab.</summary>
@@ -679,6 +682,11 @@ namespace ClaudeCodeVS.UI
 
             _effortIndexOnOpen = _effortIndex;
             EffortChanged?.Invoke(this, _effortIndex);
+        }
+
+        private void ComposerClearButton_Click(object sender, RoutedEventArgs e)
+        {
+            ClearChatRequested?.Invoke(this, EventArgs.Empty);
         }
 
         private void ComposerNewChatButton_Click(object sender, RoutedEventArgs e)

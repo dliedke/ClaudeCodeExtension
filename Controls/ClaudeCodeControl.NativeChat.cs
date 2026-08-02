@@ -347,6 +347,7 @@ namespace ClaudeCodeVS
             ChatTranscript.FilesDropped += OnComposerFilesDropped;
             ChatTranscript.SelectorClicked += OnComposerSelectorClicked;
             ChatTranscript.EffortChanged += OnComposerEffortChanged;
+            ChatTranscript.ClearChatRequested += OnComposerClearChatRequested;
             ChatTranscript.NewChatRequested += OnComposerNewChatRequested;
             ChatTranscript.RenameSessionRequested += OnComposerRenameSessionRequested;
             ChatTranscript.ColorPickerRequested += OnComposerColorPickerRequested;
@@ -424,11 +425,10 @@ namespace ClaudeCodeVS
         }
 
         /// <summary>
-        /// Starts a fresh conversation: the agent is relaunched without a resume id, so neither side
-        /// keeps the previous history.
+        /// Clears the current conversation and starts fresh.
         /// </summary>
 #pragma warning disable VSTHRD100 // Async void is required by the UI event signature
-        private async void OnComposerNewChatRequested(object sender, EventArgs e)
+        private async void OnComposerClearChatRequested(object sender, EventArgs e)
 #pragma warning restore VSTHRD100
         {
             try
@@ -441,8 +441,8 @@ namespace ClaudeCodeVS
                 }
 
                 if (MessageBox.Show(
-                        "Start a new chat? The current conversation is cleared.",
-                        "New Chat",
+                        "Clear this conversation and start fresh?",
+                        "Clear Chat",
                         MessageBoxButton.OKCancel,
                         MessageBoxImage.Question) != MessageBoxResult.OK)
                 {
@@ -456,7 +456,35 @@ namespace ClaudeCodeVS
             }
             catch (Exception ex)
             {
-                Debug.WriteLine($"Chat new-conversation failed: {ex.Message}");
+                Debug.WriteLine($"Chat clear failed: {ex.Message}");
+            }
+        }
+
+        /// <summary>
+        /// Opens a new parallel chat session. For now, opens in the same area (placeholder).
+        /// Future: will create a new tab with its own independent agent process.
+        /// </summary>
+#pragma warning disable VSTHRD100 // Async void is required by the UI event signature
+        private async void OnComposerNewChatRequested(object sender, EventArgs e)
+#pragma warning restore VSTHRD100
+        {
+            try
+            {
+                await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
+
+                if (_agentSession == null)
+                {
+                    MessageBox.Show("No active session. Start native mode first.", "New Session", MessageBoxButton.OK, MessageBoxImage.Information);
+                    return;
+                }
+
+                // TODO: Implement parallel session creation
+                // For now, just clear — same as the ↻ button
+                MessageBox.Show("Parallel sessions coming soon. Use ↻ to clear this conversation for now.", "New Session", MessageBoxButton.OK, MessageBoxImage.Information);
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"Chat new-session failed: {ex.Message}");
             }
         }
 
