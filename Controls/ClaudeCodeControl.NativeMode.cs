@@ -1953,6 +1953,56 @@ namespace ClaudeCodeVS
             }
         }
 
+        #region Session Management Helpers
+
+        /// <summary>Creates a new session and registers it (future: for parallel session support).</summary>
+        internal NativeChatSessionState CreateAndRegisterSession(AiProvider provider, string workspace)
+        {
+            _sessionIdCounter++;
+            string sessionId = $"session_{_sessionIdCounter}";
+
+            // Create agent session (uses existing factory)
+            var agentSession = CreateAgentSession(provider, workspace);
+            if (agentSession == null)
+                return null;
+
+            // Create new transcript UI
+            var transcript = new ChatTranscriptView();
+
+            // Bundle into session state
+            var state = new NativeChatSessionState(sessionId, agentSession, transcript);
+            state.SelectedProvider = provider;
+            state.SelectedModel = GetSelectedProviderModelId(provider);
+            state.SelectedEffortLevel = _settings.SelectedEffortLevel;
+
+            // Register in sessions dict
+            lock (_sessionLock)
+            {
+                _nativeSessions[sessionId] = state;
+                _activeSessionId = sessionId;
+            }
+
+            return state;
+        }
+
+        /// <summary>Removes a session from the session list and disposes it.</summary>
+        internal void RemoveSession(string sessionId)
+        {
+            lock (_sessionLock)
+            {
+                if (_nativeSessions.TryGetValue(sessionId, out var state))
+                {
+                    state.Dispose();
+                    _nativeSessions.Remove(sessionId);
+                }
+
+                if (_activeSessionId == sessionId)
+                    _activeSessionId = null;
+            }
+        }
+
+        #endregion
+
         #endregion
     }
 }
