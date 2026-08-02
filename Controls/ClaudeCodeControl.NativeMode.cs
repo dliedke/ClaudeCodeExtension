@@ -50,6 +50,34 @@ namespace ClaudeCodeVS
             }
         }
 
+        // Helper: get session by ID (internal access for NativeChat.cs)
+        internal NativeChatSessionState GetSession(string sessionId)
+        {
+            if (string.IsNullOrEmpty(sessionId))
+                return null;
+            lock (_sessionLock)
+            {
+                _nativeSessions.TryGetValue(sessionId, out var session);
+                return session;
+            }
+        }
+
+        // Helper: remove session (internal access for NativeChat.cs)
+        internal void RemoveSession(string sessionId)
+        {
+            lock (_sessionLock)
+            {
+                if (_nativeSessions.TryGetValue(sessionId, out var state))
+                {
+                    state.Dispose();
+                    _nativeSessions.Remove(sessionId);
+                }
+
+                if (_activeSessionId == sessionId)
+                    _activeSessionId = null;
+            }
+        }
+
         #endregion
 
         #region Native Mode Fields
@@ -1960,6 +1988,7 @@ namespace ClaudeCodeVS
         {
             _sessionIdCounter++;
             string sessionId = $"session_{_sessionIdCounter}";
+            int windowId = _sessionIdCounter;  // Use session counter as window ID (0 is first, 1 is second, etc.)
 
             // Create agent session (uses existing factory)
             var agentSession = CreateAgentSession(provider, workspace);
@@ -1969,8 +1998,8 @@ namespace ClaudeCodeVS
             // Create new transcript UI
             var transcript = new ChatTranscriptView();
 
-            // Bundle into session state
-            var state = new NativeChatSessionState(sessionId, agentSession, transcript);
+            // Bundle into session state with window ID
+            var state = new NativeChatSessionState(sessionId, agentSession, transcript, windowId);
             state.SelectedProvider = provider;
             state.SelectedModel = GetSelectedProviderModelId(provider);
             state.SelectedEffortLevel = _settings.SelectedEffortLevel;
@@ -1983,22 +2012,6 @@ namespace ClaudeCodeVS
             }
 
             return state;
-        }
-
-        /// <summary>Removes a session from the session list and disposes it.</summary>
-        internal void RemoveSession(string sessionId)
-        {
-            lock (_sessionLock)
-            {
-                if (_nativeSessions.TryGetValue(sessionId, out var state))
-                {
-                    state.Dispose();
-                    _nativeSessions.Remove(sessionId);
-                }
-
-                if (_activeSessionId == sessionId)
-                    _activeSessionId = null;
-            }
         }
 
         #endregion

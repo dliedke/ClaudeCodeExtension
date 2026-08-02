@@ -260,6 +260,80 @@ namespace ClaudeCodeVS
         }
 
         /// <summary>
+        /// Shows a specific session's transcript in its own tool window tab (multi-session support).
+        /// </summary>
+        private async Task ShowSessionInTabAsync(NativeChatSessionState session, bool focusComposer)
+        {
+            await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
+
+            if (session?.ChatTranscript == null)
+                return;
+
+            try
+            {
+                var package = await GetPackageAsync();
+                if (package == null)
+                {
+                    Debug.WriteLine("ShowSessionInTabAsync: could not get the package.");
+                    return;
+                }
+
+                // Create/get tool window for this session (using session's window ID)
+                var window = package.FindToolWindow(typeof(NativeChatToolWindow), session.WindowId, true) as NativeChatToolWindow;
+                if (window == null)
+                {
+                    Debug.WriteLine($"ShowSessionInTabAsync: could not create window for session {session.SessionId}.");
+                    return;
+                }
+
+                // Set the transcript content
+                window.SetChatContent(session.ChatTranscript);
+
+                // Wire close event
+                window.Closed -= (s, e) => OnSessionWindowClosed(session.SessionId);
+                window.Closed += (s, e) => OnSessionWindowClosed(session.SessionId);
+
+                session.ChatTranscript.ShowComposer(true);
+                UpdateChatComposerState();
+                UpdateChatTabCaption();
+
+                // Show the window
+                if (window.Frame is IVsWindowFrame frame)
+                {
+                    frame.Show();
+                }
+
+                if (focusComposer)
+                {
+                    session.ChatTranscript.Focus();
+                }
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"Error showing session in tab: {ex.Message}");
+            }
+        }
+
+        /// <summary>Handles a session window being closed.</summary>
+        private void OnSessionWindowClosed(string sessionId)
+        {
+            ThreadHelper.ThrowIfNotOnUIThread();
+
+            try
+            {
+                var session = GetSession(sessionId);
+                if (session != null)
+                {
+                    RemoveSession(sessionId);
+                }
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"Error handling session window close: {ex.Message}");
+            }
+        }
+
+        /// <summary>
         /// Moves the chat between its tab and the panel. This is what the Detach control does while
         /// native mode is running, and the way back after the user closes the tab.
         /// </summary>
@@ -505,15 +579,15 @@ namespace ClaudeCodeVS
                 newSession.ChatTranscript.Clear();
                 newSession.ChatTranscript.SetStatus("Starting new session...");
 
+                // Show new session in its own tab
+                await ShowSessionInTabAsync(newSession, focusComposer: false);
+
                 // Start the agent
                 newSession.SessionCts = new CancellationTokenSource();
                 await newSession.AgentSession.StartAsync(workspace, newSession.SessionCts.Token);
 
                 newSession.ChatTranscript.SetStatus("Ready.");
                 ShowChatWelcome(workspace);
-
-                // Update UI to show new session (placeholder: just show message for now)
-                ChatTranscript.SetStatus("New session created. Future: will show in separate tab.");
             }
             catch (Exception ex)
             {

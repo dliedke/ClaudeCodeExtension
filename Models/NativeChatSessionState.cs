@@ -26,17 +26,19 @@ namespace ClaudeCodeVS
     /// </summary>
     public class NativeChatSessionState
     {
-        public NativeChatSessionState(string sessionId, IAgentSession agentSession, ChatTranscriptView transcript)
+        public NativeChatSessionState(string sessionId, IAgentSession agentSession, ChatTranscriptView transcript, int windowId = 0)
         {
             SessionId = sessionId;
             AgentSession = agentSession;
             ChatTranscript = transcript;
+            WindowId = windowId;
             PendingToolCalls = new Dictionary<string, ChatMessageViewModel>(StringComparer.Ordinal);
             CodexPromptQueue = new Queue<string>();
             SessionCts = new CancellationTokenSource();
         }
 
         public string SessionId { get; }
+        public int WindowId { get; }
         public IAgentSession AgentSession { get; set; }
         public ChatTranscriptView ChatTranscript { get; set; }
 
