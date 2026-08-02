@@ -1308,6 +1308,80 @@ namespace ClaudeCodeVS
 #pragma warning restore VSSDK007, VSTHRD110
         }
 
+        /// <summary>Processes an event for a specific session (multi-session event routing).</summary>
+        private void ApplyAgentEventToSession(string sessionId, NativeChatSessionState session, AgentEvent agentEvent)
+        {
+            ThreadHelper.ThrowIfNotOnUIThread();
+
+            if (session == null)
+                return;
+
+            // Process based on event kind
+            switch (agentEvent.Kind)
+            {
+                case AgentEventKind.SessionStarted:
+                    if (sessionId == _activeSessionId)
+                        UpdateChatTabCaption();
+                    break;
+
+                case AgentEventKind.AssistantText:
+                    {
+                        var msg = session.StreamingAssistantMessage;
+                        AppendStreamingTextForSession(session, ref msg, ChatMessageKind.Assistant, agentEvent.Text, null);
+                        session.StreamingAssistantMessage = msg;
+                    }
+                    break;
+
+                case AgentEventKind.Thinking:
+                    {
+                        var msg = session.StreamingThinkingMessage;
+                        AppendStreamingTextForSession(session, ref msg, ChatMessageKind.Thinking, agentEvent.Text, "Thinking");
+                        session.StreamingThinkingMessage = msg;
+                    }
+                    break;
+
+                case AgentEventKind.ToolCallStarted:
+                    AddToolCallMessageToSession(session, agentEvent);
+                    break;
+
+                case AgentEventKind.ToolCallCompleted:
+                    CompleteToolCallMessageForSession(session, agentEvent);
+                    break;
+
+                case AgentEventKind.PermissionRequested:
+                    ShowNativePermissionDialog(agentEvent.PermissionRequest);
+                    break;
+
+                case AgentEventKind.InteractionRequested:
+                    ShowNativeInteraction(agentEvent.Interaction);
+                    break;
+
+                case AgentEventKind.UsageUpdated:
+                    if (sessionId == _activeSessionId)
+                        ApplyNativeLiveUsage(agentEvent.Usage);
+                    break;
+
+                case AgentEventKind.RateLimitUpdated:
+                    ApplyNativeRateLimitForSession(session, agentEvent.RateLimit);
+                    break;
+
+                case AgentEventKind.SessionError:
+                    AddNativeMessageToSession(session, ChatMessageKind.Error, agentEvent.Text);
+                    break;
+
+                case AgentEventKind.TurnCompleted:
+                    try
+                    {
+                        CompleteNativeTurnForSession(session, agentEvent);
+                    }
+                    finally
+                    {
+                        session.CodexTurnRendered?.TrySetResult(true);
+                    }
+                    break;
+            }
+        }
+
         private void ApplyAgentEvent(AgentEvent agentEvent)
         {
             ThreadHelper.ThrowIfNotOnUIThread();
@@ -1981,6 +2055,143 @@ namespace ClaudeCodeVS
             }
         }
 
+        /// <summary>Appends streaming text to a specific session's transcript.</summary>
+        private void AppendStreamingTextForSession(NativeChatSessionState session, ref ChatMessageViewModel target, ChatMessageKind kind, string text, string header)
+        {
+            if (string.IsNullOrEmpty(text))
+                return;
+
+            if (target == null)
+            {
+                target = new ChatMessageViewModel(kind) { Header = header, IsStreaming = true };
+                session.ChatTranscript.Messages.Add(target);
+            }
+
+            target.Text += text;
+        }
+
+        /// <summary>Adds a tool call message to a specific session's transcript.</summary>
+        private void AddToolCallMessageToSession(NativeChatSessionState session, AgentEvent agentEvent)
+        {
+            FinishStreamingMessages(session);
+
+            ChatToolPresentation presentation = ChatToolPresenter.Describe(agentEvent.ToolName, agentEvent.ToolInputJson);
+
+            var message = new ChatMessageViewModel(ChatMessageKind.ToolCall)
+            {
+                ToolCallId = agentEvent.ToolCallId,
+                ToolName = agentEvent.ToolName,
+                ToolInputJson = FormatToolInput(agentEvent.ToolInputJson),
+                Header = presentation.Title,
+                ToolIcon = presentation.Icon,
+                ToolTarget = presentation.Subtitle,
+                ToolBadge = presentation.Badge,
+                ToolAccent = ChatToolAccents.For(presentation.Category),
+                IsRunning = true
+            };
+
+            message.SetDiff(presentation.Diff);
+            session.ChatTranscript.Messages.Add(message);
+
+            if (!string.IsNullOrEmpty(agentEvent.ToolCallId))
+            {
+                session.PendingToolCalls[agentEvent.ToolCallId] = message;
+            }
+        }
+
+        /// <summary>Completes a tool call message in a specific session's transcript.</summary>
+        private void CompleteToolCallMessageForSession(NativeChatSessionState session, AgentEvent agentEvent)
+        {
+            ChatMessageViewModel message;
+            if (string.IsNullOrEmpty(agentEvent.ToolCallId) ||
+                !session.PendingToolCalls.TryGetValue(agentEvent.ToolCallId, out message))
+            {
+                return;
+            }
+
+            session.PendingToolCalls.Remove(agentEvent.ToolCallId);
+
+            message.ToolResult = TruncateToolResult(agentEvent.ToolResult);
+            message.IsError = agentEvent.IsError;
+            message.IsRunning = false;
+
+            if (agentEvent.IsError)
+            {
+                message.IsExpanded = true;
+            }
+        }
+
+        /// <summary>Adds a status message to a specific session's transcript.</summary>
+        private void AddNativeMessageToSession(NativeChatSessionState session, ChatMessageKind kind, string text)
+        {
+            var msg = new ChatMessageViewModel(kind) { Text = text };
+            session.ChatTranscript.Messages.Add(msg);
+        }
+
+        /// <summary>Applies rate limit to a specific session.</summary>
+        private void ApplyNativeRateLimitForSession(NativeChatSessionState session, AgentRateLimit rateLimit)
+        {
+            if (rateLimit == null)
+                return;
+
+            Debug.WriteLine($"Native mode rate limit: {rateLimit.Status}/{rateLimit.LimitType} resets={rateLimit.ResetsAtUnix}");
+
+            bool weekly = !string.IsNullOrEmpty(rateLimit.LimitType) &&
+                          rateLimit.LimitType.IndexOf("week", StringComparison.OrdinalIgnoreCase) >= 0;
+            string resets = FormatRateLimitReset(rateLimit.ResetsAtUnix);
+
+            if (!string.IsNullOrEmpty(resets))
+            {
+                string notice = weekly ? $"Weekly limit: {rateLimit.Status}. {resets}" : $"Rate limited: {rateLimit.Status}. {resets}";
+
+                if (notice != session.LastRateLimitNotice)
+                {
+                    session.LastRateLimitNotice = notice;
+                    AddNativeMessageToSession(session, ChatMessageKind.Notice, notice);
+                }
+            }
+        }
+
+        /// <summary>Completes a turn for a specific session.</summary>
+        private void CompleteNativeTurnForSession(NativeChatSessionState session, AgentEvent agentEvent)
+        {
+            FinishStreamingMessages(session);
+
+            if (agentEvent.Usage != null)
+            {
+                session.TurnOutputTokens = agentEvent.Usage.OutputTokens;
+                session.TurnInputTokens = agentEvent.Usage.InputTokens;
+            }
+
+            // Only show footer and fire finish action if this is the active session
+            if (session.SessionId == _activeSessionId)
+            {
+                TimeSpan duration = ResolveTurnDuration(agentEvent.Usage);
+                string footer = FormatTurnFooter(agentEvent.Usage, duration, false, SupportsQueuedCodexNativeChat(session.SelectedProvider));
+                AddNativeMessageToSession(session, ChatMessageKind.Notice, footer);
+
+                FireNativeAgentFinish(session.TurnFinishConfig, agentEvent);
+            }
+
+            session.TurnInFlight = false;
+        }
+
+        /// <summary>Finishes streaming messages in a specific session.</summary>
+        private void FinishStreamingMessages(NativeChatSessionState session)
+        {
+            if (session.StreamingAssistantMessage != null)
+            {
+                session.StreamingAssistantMessage.IsStreaming = false;
+                session.StreamingAssistantMessage = null;
+            }
+
+            if (session.StreamingThinkingMessage != null)
+            {
+                session.StreamingThinkingMessage.IsStreaming = false;
+                session.StreamingThinkingMessage = null;
+            }
+        }
+
         #region Session Management Helpers
 
         /// <summary>Creates a new session and registers it (future: for parallel session support).</summary>
@@ -2003,6 +2214,29 @@ namespace ClaudeCodeVS
             state.SelectedProvider = provider;
             state.SelectedModel = GetSelectedProviderModelId(provider);
             state.SelectedEffortLevel = _settings.SelectedEffortLevel;
+
+            // Register event handler (closure captures sessionId and state)
+            EventHandler<AgentEvent> handler = (sender, agentEvent) =>
+            {
+                if (!ReferenceEquals(sender, agentSession))
+                    return;
+
+                ThreadHelper.JoinableTaskFactory.RunAsync(async delegate
+                {
+                    await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
+                    try
+                    {
+                        ApplyAgentEventToSession(sessionId, state, agentEvent);
+                    }
+                    catch (Exception ex)
+                    {
+                        Debug.WriteLine($"Native mode: failed to apply event to session {sessionId}: {ex}");
+                    }
+                }).FileAndForget("claudecode/nativemode/event");
+            };
+
+            state.EventHandler = handler;
+            agentSession.Received += handler;
 
             // Register in sessions dict
             lock (_sessionLock)
