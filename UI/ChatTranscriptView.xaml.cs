@@ -143,6 +143,9 @@ namespace ClaudeCodeVS.UI
         /// <summary>Raised by the ✚ button: start a fresh conversation.</summary>
         public event EventHandler NewChatRequested;
 
+        /// <summary>Raised by the ✎ button: rename the session currently in the tab.</summary>
+        public event EventHandler RenameSessionRequested;
+
         /// <summary>Raised when Ctrl+Scroll changes the zoom, so the parent can persist it.</summary>
         public event EventHandler<double> ZoomChanged;
 
@@ -683,6 +686,89 @@ namespace ClaudeCodeVS.UI
             NewChatRequested?.Invoke(this, EventArgs.Empty);
         }
 
+        private void ComposerRenameSessionButton_Click(object sender, RoutedEventArgs e)
+        {
+            RenameSessionRequested?.Invoke(this, EventArgs.Empty);
+        }
+
+        private void ComposerColorButton_Click(object sender, RoutedEventArgs e)
+        {
+            ColorPickerRequested?.Invoke(this, EventArgs.Empty);
+        }
+
+        private void SessionTitleBar_MouseLeftButtonUp(object sender, System.Windows.Input.MouseButtonEventArgs e)
+        {
+            RenameSessionRequested?.Invoke(this, EventArgs.Empty);
+        }
+
+        /// <summary>Raised by the small color swatch: pick a custom color for this session's title.</summary>
+        public event EventHandler ColorPickerRequested;
+
+        private void SessionColorSwatch_MouseLeftButtonUp(object sender, System.Windows.Input.MouseButtonEventArgs e)
+        {
+            // Own handler so the click doesn't bubble up to SessionTitleBar and also open the
+            // rename dialog.
+            e.Handled = true;
+            ColorPickerRequested?.Invoke(this, EventArgs.Empty);
+        }
+
+        /// <summary>
+        /// Shows or hides the session-name header above the transcript. Kept out of the VS tab
+        /// caption (it truncated long titles awkwardly in the narrow tab strip) — this row has the
+        /// full width of the chat view to work with instead.
+        /// </summary>
+        public void SetSessionTitle(string title)
+        {
+            if (string.IsNullOrEmpty(title))
+            {
+                SessionTitleBar.Visibility = Visibility.Collapsed;
+                SessionTitleText.Text = string.Empty;
+            }
+            else
+            {
+                SessionTitleText.Text = title;
+                SessionTitleBar.Visibility = Visibility.Visible;
+            }
+        }
+
+        private static readonly Color DefaultAccentColor = Color.FromRgb(0x1C, 0x8A, 0xE0); // matches ChatAccentBrush's XAML default
+
+        /// <summary>
+        /// Applies the session's custom accent color, or resets to the default blue when
+        /// <paramref name="hexColor"/> is empty or not a valid "#RRGGBB"/"#RGB". Mutates the shared
+        /// <c>ChatAccentBrush</c> resource in place rather than reassigning individual elements'
+        /// Foreground/Background: every element in this view that references it via StaticResource
+        /// holds the same Brush instance, so changing its Color live-updates all of them at once —
+        /// the welcome banner, user message bubble borders, tips list, and the session title/swatch.
+        /// </summary>
+        public void SetSessionTitleColor(string hexColor)
+        {
+            Color color = TryParseHexColor(hexColor) ?? DefaultAccentColor;
+            if (FindResource("ChatAccentBrush") is SolidColorBrush accentBrush)
+            {
+                accentBrush.Color = color;
+            }
+        }
+
+        private static Color? TryParseHexColor(string hex)
+        {
+            if (string.IsNullOrWhiteSpace(hex)) return null;
+
+            hex = hex.Trim().TrimStart('#');
+            if (hex.Length == 3)
+            {
+                hex = $"{hex[0]}{hex[0]}{hex[1]}{hex[1]}{hex[2]}{hex[2]}";
+            }
+            if (hex.Length != 6) return null;
+
+            if (!int.TryParse(hex, NumberStyles.HexNumber, CultureInfo.InvariantCulture, out int rgb))
+            {
+                return null;
+            }
+
+            return Color.FromRgb((byte)((rgb >> 16) & 0xFF), (byte)((rgb >> 8) & 0xFF), (byte)(rgb & 0xFF));
+        }
+
         /// <summary>
         /// Height of the prompt box, in device-independent pixels. Persisted by the parent so the
         /// composer comes back the size the user left it.
@@ -822,8 +908,8 @@ namespace ClaudeCodeVS.UI
 
         /// <summary>
         /// Enter/Shift+Enter/Ctrl+Enter follow the same preference as the panel's prompt box, so the
-        /// habit a user already has keeps working in the tab. Escape drops focus back to the
-        /// transcript, matching the hint in the placeholder.
+        /// habit a user already has keeps working in the tab. Escape stops the turn in progress (same
+        /// as the Stop button) when one is running; otherwise it is left alone (no unfocus side effect).
         /// </summary>
         private void ComposerInput_PreviewKeyDown(object sender, System.Windows.Input.KeyEventArgs e)
         {
@@ -832,8 +918,11 @@ namespace ClaudeCodeVS.UI
 
             if (e.Key == System.Windows.Input.Key.Escape)
             {
-                TranscriptScroll.Focus();
-                e.Handled = true;
+                if (StopButton.Visibility == Visibility.Visible)
+                {
+                    StopRequested?.Invoke(this, EventArgs.Empty);
+                    e.Handled = true;
+                }
                 return;
             }
 

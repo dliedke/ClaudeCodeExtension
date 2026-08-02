@@ -136,6 +136,11 @@ https://github.com/anthropics/claude-code/issues/41501
 
 ## Version History
 
+### Version 125.0
+Pressing Esc in the native mode chat box now stops the agent's turn, same as the Stop button.
+Native mode sessions can now be renamed from the chat tab; the name shows above the conversation and in Session History.
+Each native mode session can now have its own accent color, replacing the default blue across the whole conversation (message bubbles, welcome banner, session name); pick it from the composer's palette button, no rename required.
+
 ### Version 124.0
 Reasonix now always runs in the embedded terminal, even with native mode turned on.
 The Reasonix model menu now lists the models actually configured on your machine, read from Reasonix itself, instead of a fixed list that could not be used.

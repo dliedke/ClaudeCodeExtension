@@ -764,6 +764,15 @@ namespace ClaudeCodeVS
             = new System.Collections.Generic.Dictionary<string, string>(System.StringComparer.OrdinalIgnoreCase);
 
         /// <summary>
+        /// User-assigned custom title colors ("#RRGGBB") for native mode sessions, keyed the same
+        /// way as <see cref="SessionCustomTitles"/>. Set from the color swatch next to the session
+        /// name header above the native chat transcript; missing/empty entries fall back to the
+        /// default accent color.
+        /// </summary>
+        public System.Collections.Generic.Dictionary<string, string> SessionTitleColors { get; set; }
+            = new System.Collections.Generic.Dictionary<string, string>(System.StringComparer.OrdinalIgnoreCase);
+
+        /// <summary>
         /// Remembered state of the "Renamed only" filter toggle in the Session History
         /// window, so it persists across Visual Studio restarts (issue #95).
         /// </summary>

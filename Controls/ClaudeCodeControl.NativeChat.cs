@@ -287,7 +287,46 @@ namespace ClaudeCodeVS
             }
 
             string provider = GetProviderDisplayName(GetActiveOrSelectedProvider());
-            _nativeChatWindow.UpdateCaption(string.IsNullOrEmpty(provider) ? "Chat" : provider + " Chat");
+            string caption = string.IsNullOrEmpty(provider) ? "Chat" : provider + " Chat";
+            _nativeChatWindow.UpdateCaption(caption);
+
+            // Shown as a header above the transcript rather than appended to the tab caption — the
+            // VS tab strip is narrow and truncated longer titles awkwardly.
+            ChatTranscript?.SetSessionTitle(GetCurrentNativeSessionTitle());
+            ChatTranscript?.SetSessionTitleColor(GetCurrentNativeSessionColor());
+        }
+
+        /// <summary>
+        /// The user-assigned title (✎ button, or the Session History rename) for the session currently
+        /// running in the tab, or empty when it has none or the session id isn't known yet.
+        /// </summary>
+        private string GetCurrentNativeSessionTitle()
+        {
+            string sessionId = _agentSession?.SessionId;
+            if (string.IsNullOrEmpty(sessionId) || _settings?.SessionCustomTitles == null)
+            {
+                return string.Empty;
+            }
+
+            _settings.SessionCustomTitles.TryGetValue(sessionId, out string title);
+            return title ?? string.Empty;
+        }
+
+        /// <summary>
+        /// The user-assigned title color (color swatch) for the session currently running in the
+        /// tab, or empty when it has none or the session id isn't known yet — falls back to the
+        /// default accent color.
+        /// </summary>
+        private string GetCurrentNativeSessionColor()
+        {
+            string sessionId = _agentSession?.SessionId;
+            if (string.IsNullOrEmpty(sessionId) || _settings?.SessionTitleColors == null)
+            {
+                return string.Empty;
+            }
+
+            _settings.SessionTitleColors.TryGetValue(sessionId, out string color);
+            return color ?? string.Empty;
         }
 
         #endregion
@@ -309,6 +348,8 @@ namespace ClaudeCodeVS
             ChatTranscript.SelectorClicked += OnComposerSelectorClicked;
             ChatTranscript.EffortChanged += OnComposerEffortChanged;
             ChatTranscript.NewChatRequested += OnComposerNewChatRequested;
+            ChatTranscript.RenameSessionRequested += OnComposerRenameSessionRequested;
+            ChatTranscript.ColorPickerRequested += OnComposerColorPickerRequested;
             ChatTranscript.ZoomChanged += OnComposerZoomChanged;
             ChatTranscript.ComposerHeightChanged += OnComposerHeightChanged;
             ChatTranscript.PasteRequested += OnComposerPasteRequested;
@@ -417,6 +458,114 @@ namespace ClaudeCodeVS
             {
                 Debug.WriteLine($"Chat new-conversation failed: {ex.Message}");
             }
+        }
+
+        /// <summary>
+        /// Renames the session currently open in the tab (✎ button). Stored the same way as a rename
+        /// from the Session History dialog (issue #95) — keyed by session UUID in
+        /// <c>_settings.SessionCustomTitles</c> — so a title set here also appears in Session History,
+        /// and a title set there is picked up here the next time the tab caption refreshes.
+        /// </summary>
+        private void OnComposerRenameSessionRequested(object sender, EventArgs e)
+        {
+            ThreadHelper.ThrowIfNotOnUIThread();
+
+            if (_agentSession == null)
+            {
+                return;
+            }
+
+            string sessionId = _agentSession.SessionId;
+            if (string.IsNullOrEmpty(sessionId))
+            {
+                MessageBox.Show(
+                    "This session doesn't have an id to rename yet. Send at least one message first — " +
+                    "some agents (e.g. Codex, Antigravity) don't expose a renamable session id at all.",
+                    "Rename Session", MessageBoxButton.OK, MessageBoxImage.Information);
+                return;
+            }
+
+            string currentTitle = null;
+            _settings?.SessionCustomTitles?.TryGetValue(sessionId, out currentTitle);
+
+            var info = new SessionInfo { SessionId = sessionId, CustomTitle = currentTitle ?? string.Empty };
+            string newTitle = ShowRenameSessionDialog(info, Application.Current?.MainWindow);
+            if (newTitle == null) return; // cancelled
+
+            newTitle = newTitle.Trim();
+            if (_settings.SessionCustomTitles == null)
+            {
+                _settings.SessionCustomTitles = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            }
+
+            if (string.IsNullOrEmpty(newTitle))
+            {
+                _settings.SessionCustomTitles.Remove(sessionId);
+            }
+            else
+            {
+                _settings.SessionCustomTitles[sessionId] = newTitle;
+            }
+
+            SaveSettings();
+            UpdateChatTabCaption();
+        }
+
+        /// <summary>
+        /// Picks a custom title color for the session currently open in the tab (the swatch next to
+        /// the session name header). Stored the same way as the title itself — keyed by session UUID
+        /// in <c>_settings.SessionTitleColors</c> — a single native color-chooser dialog, no hex box:
+        /// the header already shows a swatch as a live preview of the last-picked color.
+        /// </summary>
+        private void OnComposerColorPickerRequested(object sender, EventArgs e)
+        {
+            ThreadHelper.ThrowIfNotOnUIThread();
+
+            if (_agentSession == null)
+            {
+                return;
+            }
+
+            string sessionId = _agentSession.SessionId;
+            if (string.IsNullOrEmpty(sessionId))
+            {
+                MessageBox.Show(
+                    "This session doesn't have an id to color yet. Send at least one message first — " +
+                    "some agents (e.g. Codex, Antigravity) don't expose a renamable session id at all.",
+                    "Session Color", MessageBoxButton.OK, MessageBoxImage.Information);
+                return;
+            }
+
+            string currentHex = GetCurrentNativeSessionColor();
+            System.Drawing.Color initial;
+            try
+            {
+                initial = System.Drawing.ColorTranslator.FromHtml(
+                    string.IsNullOrEmpty(currentHex) ? "#1C8AE0" : currentHex); // #1C8AE0 matches ChatAccentBrush
+            }
+            catch (Exception)
+            {
+                initial = System.Drawing.ColorTranslator.FromHtml("#1C8AE0");
+            }
+
+            using (var dialog = new System.Windows.Forms.ColorDialog { FullOpen = true, Color = initial })
+            {
+                if (dialog.ShowDialog() != System.Windows.Forms.DialogResult.OK)
+                {
+                    return; // cancelled
+                }
+
+                if (_settings.SessionTitleColors == null)
+                {
+                    _settings.SessionTitleColors = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+                }
+
+                _settings.SessionTitleColors[sessionId] =
+                    $"#{dialog.Color.R:X2}{dialog.Color.G:X2}{dialog.Color.B:X2}";
+            }
+
+            SaveSettings();
+            UpdateChatTabCaption();
         }
 
         /// <summary>

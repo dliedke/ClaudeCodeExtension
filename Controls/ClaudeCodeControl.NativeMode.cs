@@ -1265,6 +1265,10 @@ namespace ClaudeCodeVS
             {
                 case AgentEventKind.SessionStarted:
                     // Re-announced at the start of every turn — never treat it as a new conversation.
+                    // Refreshed here (cheap, idempotent) so a resumed session's saved title shows up in
+                    // the header above the transcript as soon as its id is known, not only after an
+                    // explicit rename.
+                    UpdateChatTabCaption();
                     break;
 
                 case AgentEventKind.AssistantText:

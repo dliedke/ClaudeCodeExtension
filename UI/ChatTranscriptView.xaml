@@ -603,11 +603,49 @@
 			<RowDefinition Height="Auto"/>
 		</Grid.RowDefinitions>
 
-		<ScrollViewer x:Name="TranscriptScroll" Grid.Row="0"
-		              VerticalScrollBarVisibility="Auto"
-		              HorizontalScrollBarVisibility="Disabled"
-		              Padding="8,4,8,4"
-		              ScrollChanged="TranscriptScroll_ScrollChanged">
+		<DockPanel Grid.Row="0" LastChildFill="True">
+			<!-- Custom session name (✎ button / Session History rename), shown here instead of the tab
+			     caption — the VS document tab is narrow and truncates long titles awkwardly. Collapsed
+			     when the session has no custom title. -->
+			<Border x:Name="SessionTitleBar" DockPanel.Dock="Top"
+			        Visibility="Collapsed"
+			        Padding="10,5,10,5"
+			        Cursor="Hand"
+			        ToolTip="Click to rename this session"
+			        MouseLeftButtonUp="SessionTitleBar_MouseLeftButtonUp"
+			        Background="{DynamicResource {x:Static vsshell:VsBrushes.ToolWindowBackgroundKey}}"
+			        BorderBrush="{DynamicResource {x:Static vsshell:VsBrushes.ToolWindowBorderKey}}"
+			        BorderThickness="0,0,0,1">
+				<DockPanel LastChildFill="True">
+					<!-- Own click handler (marks the event handled) so picking a color doesn't also
+					     trigger the rename dialog bound to the rest of the bar. -->
+					<Border x:Name="SessionColorSwatch" DockPanel.Dock="Right"
+					        Width="12" Height="12" CornerRadius="6"
+					        Margin="8,0,0,0"
+					        Cursor="Hand"
+					        ToolTip="Change session color"
+					        MouseLeftButtonUp="SessionColorSwatch_MouseLeftButtonUp"
+					        Background="{StaticResource ChatAccentBrush}"
+					        BorderBrush="{DynamicResource {x:Static vsshell:VsBrushes.ToolWindowBorderKey}}"
+					        BorderThickness="1"/>
+					<StackPanel Orientation="Horizontal">
+						<TextBlock Text="✎" FontSize="{DynamicResource ChatSmallFontSize}" Opacity="0.6"
+						           Margin="0,0,6,0" VerticalAlignment="Center"/>
+						<TextBlock x:Name="SessionTitleText"
+						           FontSize="{DynamicResource ChatSmallFontSize}"
+						           FontWeight="SemiBold"
+						           VerticalAlignment="Center"
+						           TextTrimming="CharacterEllipsis"
+						           Foreground="{StaticResource ChatAccentBrush}"/>
+					</StackPanel>
+				</DockPanel>
+			</Border>
+
+			<ScrollViewer x:Name="TranscriptScroll"
+			              VerticalScrollBarVisibility="Auto"
+			              HorizontalScrollBarVisibility="Disabled"
+			              Padding="8,4,8,4"
+			              ScrollChanged="TranscriptScroll_ScrollChanged">
 			<!-- Above the rows rather than layered over them: the card is part of the conversation's
 			     content, so it scrolls with it and can never cover the first answer. -->
 			<StackPanel>
@@ -725,6 +763,7 @@
 				</ItemsControl>
 			</StackPanel>
 		</ScrollViewer>
+		</DockPanel>
 
 		<!-- Appears only while the user has scrolled away from the newest message -->
 		<Button x:Name="ScrollToEndButton" Grid.Row="0"
@@ -750,7 +789,7 @@
 				        FontSize="{DynamicResource ChatSmallFontSize}"
 				        Margin="8,0,0,0"
 				        Visibility="Collapsed"
-				        ToolTip="Stop the turn in progress"
+				        ToolTip="Stop the turn in progress (Esc)"
 				        Click="StopButton_Click"/>
 				<!-- Its own element so the spinner can carry the accent colour while the text stays
 				     muted; a single TextBlock would need inline runs rebuilt on every frame. -->
@@ -827,7 +866,7 @@
 						         PreviewKeyDown="ComposerInput_PreviewKeyDown"
 						         TextChanged="ComposerInput_TextChanged"/>
 						<TextBlock x:Name="ComposerPlaceholder"
-						           Text="Ask anything · Ctrl+Up/Down for prompt history · Esc to unfocus"
+						           Text="Ask anything · Ctrl+Up/Down for prompt history · Esc to stop"
 						           IsHitTestVisible="False"
 						           Margin="2,1,0,0"
 						           Opacity="0.5"
@@ -844,6 +883,22 @@
 					        FontSize="13"
 					        ToolTip="Start a new chat (clears the conversation)"
 					        Click="ComposerNewChatButton_Click"/>
+
+					<Button x:Name="ComposerRenameSessionButton" DockPanel.Dock="Left"
+					        Style="{StaticResource ComposerSelectorStyle}"
+					        Content="✎"
+					        FontSize="13"
+					        ToolTip="Rename this session"
+					        Click="ComposerRenameSessionButton_Click"/>
+
+					<!-- Independent from rename — the header's own swatch only exists once a session has a
+					     title, so this is the entry point that works even for a not-yet-renamed session. -->
+					<Button x:Name="ComposerColorButton" DockPanel.Dock="Left"
+					        Style="{StaticResource ComposerSelectorStyle}"
+					        Content="🎨"
+					        FontSize="13"
+					        ToolTip="Change this session's color"
+					        Click="ComposerColorButton_Click"/>
 
 					<Button x:Name="ComposerAttachButton" DockPanel.Dock="Left"
 					        Style="{StaticResource ComposerSelectorStyle}"
