@@ -34,6 +34,7 @@ namespace ClaudeCodeVS
             WindowId = windowId;
             PendingToolCalls = new Dictionary<string, ChatMessageViewModel>(StringComparer.Ordinal);
             CodexPromptQueue = new Queue<string>();
+            AttachedFiles = new List<string>();
             SessionCts = new CancellationTokenSource();
         }
 
@@ -41,6 +42,15 @@ namespace ClaudeCodeVS
         public int WindowId { get; }
         public IAgentSession AgentSession { get; set; }
         public ChatTranscriptView ChatTranscript { get; set; }
+
+        /// <summary>The document tab hosting this session, so its caption can be kept in sync.</summary>
+        public NativeChatToolWindow Window { get; set; }
+
+        /// <summary>
+        /// Files staged in this tab's composer (📎, drag &amp; drop, pasted images). Per-session, so an
+        /// attachment made in one chat is never sent by another; the panel keeps its own global list.
+        /// </summary>
+        public List<string> AttachedFiles { get; }
 
         // Streaming state (per-turn)
         public ChatMessageViewModel StreamingAssistantMessage { get; set; }
@@ -80,11 +90,13 @@ namespace ClaudeCodeVS
             try { ChatTranscript?.AbandonPendingInteractions(); } catch { }
             try { PendingToolCalls.Clear(); } catch { }
             try { CodexPromptQueue.Clear(); } catch { }
+            try { AttachedFiles.Clear(); } catch { }
             try { if (AgentSession != null && EventHandler != null) AgentSession.Received -= EventHandler; } catch { }
             try { AgentSession?.Dispose(); } catch { }
             try { SessionCts?.Cancel(); SessionCts?.Dispose(); } catch { }
             ChatTranscript = null;
             AgentSession = null;
+            Window = null;
         }
     }
 }

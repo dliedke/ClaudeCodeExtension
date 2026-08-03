@@ -374,7 +374,7 @@ namespace ClaudeCodeVS
         /// <summary>
         /// Builds the adapter for a provider. Returns null when the provider has no native channel.
         /// </summary>
-        private IAgentSession CreateAgentSession(AiProvider provider, string workspace)
+        private IAgentSession CreateAgentSession(AiProvider provider, string workspace, string modelOverride = null)
         {
             // Cleared for every launch, so the Claude-only state cannot outlive a switch to another
             // agent and have a side question re-run the previous CLI.
@@ -384,7 +384,7 @@ namespace ClaudeCodeVS
             {
                 case AiProvider.ClaudeCode:
                 case AiProvider.ClaudeCodeWSL:
-                    return CreateClaudeSession(provider, workspace);
+                    return CreateClaudeSession(provider, workspace, modelOverride);
 
                 case AiProvider.OpenCode:
                 case AiProvider.Devin:
@@ -409,7 +409,7 @@ namespace ClaudeCodeVS
             }
         }
 
-        private IAgentSession CreateClaudeSession(AiProvider provider, string workspace)
+        private IAgentSession CreateClaudeSession(AiProvider provider, string workspace, string modelOverride = null)
         {
             bool isWsl = provider == AiProvider.ClaudeCodeWSL;
 
@@ -421,7 +421,7 @@ namespace ClaudeCodeVS
                 ExecutablePath = isWsl ? "claude" : ResolveNativeClaudeExecutable(),
                 WslWorkingDirectory = isWsl ? ConvertToWslPath(workspace) : string.Empty,
                 SessionId = Guid.NewGuid().ToString(),
-                Model = GetNativeModelArgument(),
+                Model = modelOverride ?? GetNativeModelArgument(),
                 Effort = GetNativeEffortArgument(),
 
                 // Plan mode is the CLI asking before it acts, so it cannot coexist with skipping
@@ -960,6 +960,27 @@ namespace ClaudeCodeVS
         /// <summary>
         /// Delivers a prompt over the agent's structured channel and echoes it in the transcript.
         /// </summary>
+        /// <summary>Sends prompt to a specific session's agent (multi-session support).</summary>
+        private async Task SendPromptToNativeAgentAsync(string text, string sessionId)
+        {
+            var sessionState = GetSession(sessionId);
+            if (sessionState?.AgentSession == null || string.IsNullOrWhiteSpace(text))
+                return;
+
+            await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
+
+            // Update active session
+            _activeSessionId = sessionId;
+
+            if (SupportsQueuedCodexNativeChat(sessionState.SelectedProvider))
+            {
+                await SendPromptToCodexNativeAsync(sessionState.AgentSession, text);
+                return;
+            }
+
+            await SendSinglePromptToNativeAgentAsync(sessionState, text);
+        }
+
         private async Task SendPromptToNativeAgentAsync(string text)
         {
             IAgentSession session = _agentSession;
@@ -1065,6 +1086,44 @@ namespace ClaudeCodeVS
         }
 
         /// <summary>Runs one native turn and echoes its prompt in the transcript.</summary>
+        /// <summary>Sends a prompt to a session-specific agent (multi-session support).</summary>
+        private async Task SendSinglePromptToNativeAgentAsync(NativeChatSessionState sessionState, string text)
+        {
+            await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
+
+            if (sessionState?.ChatTranscript == null || sessionState.AgentSession == null)
+                return;
+
+            var userMessage = new ChatMessageViewModel(ChatMessageKind.User) { Text = text.TrimEnd() };
+            userMessage.Complete();
+            sessionState.ChatTranscript.Messages.Add(userMessage);
+
+            sessionState.StreamingAssistantMessage = null;
+            sessionState.StreamingThinkingMessage = null;
+
+            sessionState.TurnOutputTokens = 0;
+            sessionState.TurnInputTokens = 0;
+            sessionState.TurnInFlight = true;
+
+            sessionState.ChatTranscript.BeginActivity();
+            sessionState.ChatTranscript.SetBusy(sessionState.AgentSession.SupportsInterrupt);
+
+            sessionState.TurnStartedUtc = DateTime.UtcNow;
+            sessionState.TurnFinishConfig = GetEffectiveAgentFinish();
+
+            try
+            {
+                await sessionState.AgentSession.SendAsync(text, sessionState.SessionCts?.Token ?? CancellationToken.None);
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"Native mode: send failed: {ex}");
+                AddNativeMessageToSession(sessionState, ChatMessageKind.Error, $"The prompt could not be delivered: {ex.Message}");
+                sessionState.ChatTranscript.SetStatus(string.Empty);
+                sessionState.ChatTranscript.SetBusy(false);
+            }
+        }
+
         private async Task SendSinglePromptToNativeAgentAsync(IAgentSession session, string text)
         {
             await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
@@ -1230,7 +1289,55 @@ namespace ClaudeCodeVS
         private async void OnChatStopRequested(object sender, EventArgs e)
 #pragma warning restore VSTHRD100
         {
+            // The transcript that raised it identifies the session, so Esc/Stop in a tab interrupts
+            // that tab's agent instead of the panel's.
+            var transcript = sender as ChatTranscriptView;
+            string owningSessionId = null;
+
+            if (transcript != null)
+            {
+                lock (_sessionLock)
+                {
+                    foreach (KeyValuePair<string, NativeChatSessionState> pair in _nativeSessions)
+                    {
+                        if (ReferenceEquals(pair.Value.ChatTranscript, transcript))
+                        {
+                            owningSessionId = pair.Key;
+                            break;
+                        }
+                    }
+                }
+            }
+
+            if (owningSessionId != null)
+            {
+                await InterruptNativeAgentAsync(owningSessionId);
+                return;
+            }
+
             await InterruptNativeAgentAsync();
+        }
+
+        /// <summary>Aborts the turn in flight for a specific session.</summary>
+        private async Task InterruptNativeAgentAsync(string sessionId)
+        {
+            await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
+
+            var sessionState = GetSession(sessionId);
+            if (sessionState?.AgentSession == null || !sessionState.AgentSession.SupportsInterrupt || !sessionState.AgentSession.IsBusy)
+                return;
+
+            try
+            {
+                sessionState.ChatTranscript.SetBusy(false);
+                sessionState.ChatTranscript.SetActivityLabel("Stopping...");
+
+                await sessionState.AgentSession.InterruptAsync(sessionState.SessionCts?.Token ?? CancellationToken.None);
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"Native mode: interrupt failed: {ex.Message}");
+            }
         }
 
         /// <summary>
@@ -1320,8 +1427,9 @@ namespace ClaudeCodeVS
             switch (agentEvent.Kind)
             {
                 case AgentEventKind.SessionStarted:
-                    if (sessionId == _activeSessionId)
-                        UpdateChatTabCaption();
+                    // Every tab refreshes its own caption/label: the saved title only becomes known once
+                    // the agent reports its session id, and each session has a different one.
+                    UpdateSessionTabCaption(session);
                     break;
 
                 case AgentEventKind.AssistantText:
@@ -2063,11 +2171,13 @@ namespace ClaudeCodeVS
 
             if (target == null)
             {
-                target = new ChatMessageViewModel(kind) { Header = header, IsStreaming = true };
+                target = new ChatMessageViewModel(kind) { IsStreaming = true, Header = header ?? string.Empty };
                 session.ChatTranscript.Messages.Add(target);
             }
 
-            target.Text += text;
+            // Append() feeds the internal buffer that Complete() renders from; assigning Text directly
+            // leaves that buffer empty and the finished row renders blank.
+            target.Append(text);
         }
 
         /// <summary>Adds a tool call message to a specific session's transcript.</summary>
@@ -2140,22 +2250,44 @@ namespace ClaudeCodeVS
                           rateLimit.LimitType.IndexOf("week", StringComparison.OrdinalIgnoreCase) >= 0;
             string resets = FormatRateLimitReset(rateLimit.ResetsAtUnix);
 
-            if (!string.IsNullOrEmpty(resets))
+            // "allowed" means the request was NOT limited — the CLI emits it on every turn. Announcing
+            // it produced the bogus "Rate limited: allowed" line.
+            string status = rateLimit.Status ?? string.Empty;
+            if (status.Length == 0 || status.Equals("allowed", StringComparison.OrdinalIgnoreCase))
             {
-                string notice = weekly ? $"Weekly limit: {rateLimit.Status}. {resets}" : $"Rate limited: {rateLimit.Status}. {resets}";
-
-                if (notice != session.LastRateLimitNotice)
-                {
-                    session.LastRateLimitNotice = notice;
-                    AddNativeMessageToSession(session, ChatMessageKind.Notice, notice);
-                }
+                session.LastRateLimitNotice = null;
+                return;
             }
+
+            string window = weekly ? "weekly" : "session";
+            string message = status.IndexOf("reject", StringComparison.OrdinalIgnoreCase) >= 0
+                ? $"The {window} usage limit was reached."
+                : $"Approaching the {window} usage limit.";
+
+            if (!string.IsNullOrEmpty(resets)) message += " " + resets + ".";
+            if (rateLimit.IsUsingOverage) message += " Extra usage is being billed.";
+
+            // Repeated on every turn while the window stays hot; say it once.
+            if (string.Equals(session.LastRateLimitNotice, message, StringComparison.Ordinal))
+            {
+                return;
+            }
+
+            session.LastRateLimitNotice = message;
+            AddNativeMessageToSession(session, ChatMessageKind.Notice, message);
         }
 
         /// <summary>Completes a turn for a specific session.</summary>
         private void CompleteNativeTurnForSession(NativeChatSessionState session, AgentEvent agentEvent)
         {
+            ThreadHelper.ThrowIfNotOnUIThread();
+
             FinishStreamingMessages(session);
+            session.ChatTranscript.SetBusy(false);
+
+            // One turn, one firing: cleared here so a stray end-of-turn event can't run it twice.
+            AgentFinishConfig finishConfig = session.TurnFinishConfig;
+            session.TurnFinishConfig = null;
 
             if (agentEvent.Usage != null)
             {
@@ -2163,31 +2295,75 @@ namespace ClaudeCodeVS
                 session.TurnInputTokens = agentEvent.Usage.InputTokens;
             }
 
-            // Only show footer and fire finish action if this is the active session
-            if (session.SessionId == _activeSessionId)
+            if (agentEvent.WasInterrupted)
             {
-                TimeSpan duration = ResolveTurnDuration(agentEvent.Usage);
-                string footer = FormatTurnFooter(agentEvent.Usage, duration, false, SupportsQueuedCodexNativeChat(session.SelectedProvider));
-                AddNativeMessageToSession(session, ChatMessageKind.Notice, footer);
-
-                FireNativeAgentFinish(session.TurnFinishConfig, agentEvent);
+                AddNativeMessageToSession(session, ChatMessageKind.Notice, "Turn interrupted.");
             }
 
+            if (agentEvent.PermissionDenials != null && agentEvent.PermissionDenials.Count > 0)
+            {
+                var names = new List<string>();
+                foreach (AgentPermissionDenial denial in agentEvent.PermissionDenials)
+                {
+                    names.Add(string.IsNullOrEmpty(denial.ToolName) ? "tool" : denial.ToolName);
+                }
+
+                AddNativeMessageToSession(session, ChatMessageKind.Notice,
+                    $"Blocked for lack of permission: {string.Join(", ", names)}. " +
+                    "Enable \"Skip permissions\" in the agent menu to allow these tools.");
+            }
+
+            // Read before EndActivity, which stops the clock this falls back to.
+            TimeSpan elapsed = ResolveTurnDurationForSession(session, agentEvent.Usage);
+            bool wasInFlight = session.TurnInFlight;
             session.TurnInFlight = false;
+
+            // Stops the spinner and the running clock. Without this the tab shows "Puzzling... 51s"
+            // forever even though the turn already ended.
+            session.ChatTranscript.EndActivity(string.Empty);
+
+            if (wasInFlight)
+            {
+                AddNativeMessageToSession(session, ChatMessageKind.Notice,
+                    FormatTurnFooter(
+                        agentEvent.Usage,
+                        elapsed,
+                        agentEvent.WasInterrupted,
+                        SupportsQueuedCodexNativeChat(session.SelectedProvider)));
+            }
+
+            FireNativeAgentFinish(finishConfig, agentEvent);
+        }
+
+        /// <summary>Turn duration scoped to one session: the CLI's own figure, else that tab's clock.</summary>
+        private TimeSpan ResolveTurnDurationForSession(NativeChatSessionState session, AgentUsage usage)
+        {
+            if (usage != null && usage.DurationMs > 0)
+            {
+                return TimeSpan.FromMilliseconds(usage.DurationMs);
+            }
+
+            TimeSpan onScreen = session.ChatTranscript != null
+                ? session.ChatTranscript.ActivityElapsed
+                : TimeSpan.Zero;
+
+            return onScreen > TimeSpan.Zero ? onScreen : DateTime.UtcNow - session.TurnStartedUtc;
         }
 
         /// <summary>Finishes streaming messages in a specific session.</summary>
         private void FinishStreamingMessages(NativeChatSessionState session)
         {
+            // Complete() — not just IsStreaming = false: it is what hands the buffered text to the
+            // markdown view, so a row closed without it stays blank.
             if (session.StreamingAssistantMessage != null)
             {
-                session.StreamingAssistantMessage.IsStreaming = false;
+                session.StreamingAssistantMessage.Complete();
                 session.StreamingAssistantMessage = null;
             }
 
             if (session.StreamingThinkingMessage != null)
             {
-                session.StreamingThinkingMessage.IsStreaming = false;
+                session.StreamingThinkingMessage.Complete();
                 session.StreamingThinkingMessage = null;
             }
         }
@@ -2201,8 +2377,11 @@ namespace ClaudeCodeVS
             string sessionId = $"session_{_sessionIdCounter}";
             int windowId = _sessionIdCounter;  // Use session counter as window ID (0 is first, 1 is second, etc.)
 
-            // Create agent session (uses existing factory)
-            var agentSession = CreateAgentSession(provider, workspace);
+            // Determine model for this session
+            string sessionModel = GetSelectedProviderModelId(provider);
+
+            // Create agent session with the correct model
+            var agentSession = CreateAgentSession(provider, workspace, sessionModel);
             if (agentSession == null)
                 return null;
 
@@ -2212,7 +2391,7 @@ namespace ClaudeCodeVS
             // Bundle into session state with window ID
             var state = new NativeChatSessionState(sessionId, agentSession, transcript, windowId);
             state.SelectedProvider = provider;
-            state.SelectedModel = GetSelectedProviderModelId(provider);
+            state.SelectedModel = sessionModel;
             state.SelectedEffortLevel = _settings.SelectedEffortLevel;
 
             // Register event handler (closure captures sessionId and state)

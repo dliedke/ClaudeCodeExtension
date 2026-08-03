@@ -61,6 +61,87 @@ namespace ClaudeCodeVS
 
         #region Send Button and Prompt Submission
 
+        /// <summary>True for the providers that run inside WSL and therefore need /mnt/ paths.</summary>
+        private static bool IsWslProvider(AiProvider? provider)
+        {
+            return provider == AiProvider.Codex
+                || provider == AiProvider.ClaudeCodeWSL
+                || provider == AiProvider.CursorAgent
+                || provider == AiProvider.Devin;
+        }
+
+        /// <summary>
+        /// Renders the "Files attached:" header the agent sees, copying each attachment into a
+        /// per-prompt temp folder first so editing or deleting the original afterwards can't change
+        /// what the agent reads. A file that fails to copy is still listed at its original path —
+        /// dropping it silently would be worse than pointing at a volatile file.
+        /// <para>
+        /// Shared by the panel's send path and the per-session chat tabs, which stage their own
+        /// attachment lists.
+        /// </para>
+        /// </summary>
+        private string BuildAttachmentPromptBlock(IEnumerable<string> files, bool isWslProvider)
+        {
+            var block = new StringBuilder();
+
+            // Create a unique directory under ClaudeCodeVS_Session for this prompt with files
+            string promptDirectory = null;
+            try
+            {
+                promptDirectory = Path.Combine(Path.GetTempPath(), "ClaudeCodeVS_Session", Guid.NewGuid().ToString());
+                Directory.CreateDirectory(promptDirectory);
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"Error creating temp directory: {ex.Message}");
+                promptDirectory = null;
+            }
+
+            block.AppendLine("Files attached:");
+            foreach (string filePath in files)
+            {
+                try
+                {
+                    string displayPath;
+
+                    // Try to copy file to temp directory for persistence
+                    if (promptDirectory != null && File.Exists(filePath))
+                    {
+                        string fileName = Path.GetFileName(filePath);
+                        string tempPath = GetUniquePromptAttachmentPath(promptDirectory, fileName);
+                        File.Copy(filePath, tempPath, false);
+                        displayPath = isWslProvider ? ConvertToWslPath(tempPath) : tempPath;
+                    }
+                    else
+                    {
+                        // Use original path if copy fails or file doesn't exist
+                        displayPath = isWslProvider ? ConvertToWslPath(filePath) : filePath;
+                    }
+
+                    block.AppendLine($"  - {displayPath}");
+                    Debug.WriteLine($"File attached to prompt: {filePath}");
+                }
+                catch (Exception ex)
+                {
+                    // Always include the file path even if copy fails
+                    Debug.WriteLine($"Error processing file {filePath}: {ex.Message}");
+                    try
+                    {
+                        string displayPath = isWslProvider ? ConvertToWslPath(filePath) : filePath;
+                        block.AppendLine($"  - {displayPath}");
+                    }
+                    catch
+                    {
+                        // Last resort: use the raw path
+                        block.AppendLine($"  - {filePath}");
+                    }
+                }
+            }
+            block.AppendLine();
+
+            return block.ToString();
+        }
+
         /// <summary>
         /// Handles send button click - sends the prompt to the terminal
         /// </summary>
@@ -125,69 +206,12 @@ namespace ClaudeCodeVS
 
                 // Check if CURRENTLY RUNNING provider is WSL-based (not CodexNative, CursorAgentNative).
                 // Hoisted out of the hasFiles branch so the large-prompt-as-file path can use it too.
-                bool isWSLProvider = _currentRunningProvider == AiProvider.Codex ||
-                                     _currentRunningProvider == AiProvider.ClaudeCodeWSL ||
-                                     _currentRunningProvider == AiProvider.CursorAgent ||
-                                     _currentRunningProvider == AiProvider.Devin;
+                bool isWSLProvider = IsWslProvider(_currentRunningProvider);
 
                 // If files are attached, include their paths in the prompt
                 if (hasFiles)
                 {
-
-                    // Create a unique directory under ClaudeCodeVS_Session for this prompt with files
-                    string promptDirectory = null;
-                    try
-                    {
-                        promptDirectory = Path.Combine(Path.GetTempPath(), "ClaudeCodeVS_Session", Guid.NewGuid().ToString());
-                        Directory.CreateDirectory(promptDirectory);
-                    }
-                    catch (Exception ex)
-                    {
-                        Debug.WriteLine($"Error creating temp directory: {ex.Message}");
-                        promptDirectory = null;
-                    }
-
-                    fullPrompt.AppendLine("Files attached:");
-                    foreach (string filePath in attachedImagePaths)
-                    {
-                        try
-                        {
-                            string displayPath;
-
-                            // Try to copy file to temp directory for persistence
-                            if (promptDirectory != null && File.Exists(filePath))
-                            {
-                                string fileName = Path.GetFileName(filePath);
-                                string tempPath = GetUniquePromptAttachmentPath(promptDirectory, fileName);
-                                File.Copy(filePath, tempPath, false);
-                                displayPath = isWSLProvider ? ConvertToWslPath(tempPath) : tempPath;
-                            }
-                            else
-                            {
-                                // Use original path if copy fails or file doesn't exist
-                                displayPath = isWSLProvider ? ConvertToWslPath(filePath) : filePath;
-                            }
-
-                            fullPrompt.AppendLine($"  - {displayPath}");
-                            Debug.WriteLine($"File attached to prompt: {filePath}");
-                        }
-                        catch (Exception ex)
-                        {
-                            // Always include the file path even if copy fails
-                            Debug.WriteLine($"Error processing file {filePath}: {ex.Message}");
-                            try
-                            {
-                                string displayPath = isWSLProvider ? ConvertToWslPath(filePath) : filePath;
-                                fullPrompt.AppendLine($"  - {displayPath}");
-                            }
-                            catch
-                            {
-                                // Last resort: use the raw path
-                                fullPrompt.AppendLine($"  - {filePath}");
-                            }
-                        }
-                    }
-                    fullPrompt.AppendLine();
+                    fullPrompt.Append(BuildAttachmentPromptBlock(attachedImagePaths, isWSLProvider));
                 }
 
                 // Add user's prompt text (if any)

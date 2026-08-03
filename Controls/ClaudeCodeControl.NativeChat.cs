@@ -47,6 +47,12 @@ namespace ClaudeCodeVS
         /// <summary>Guards against a second switch being started while a relaunch is in flight.</summary>
         private bool _nativeSwitchInProgress;
 
+        /// <summary>Stores per-session send request handlers for proper cleanup.</summary>
+        private Dictionary<string, EventHandler> _sessionSendHandlers = new Dictionary<string, EventHandler>();
+
+        /// <summary>Stores per-session window closed handlers for proper cleanup.</summary>
+        private Dictionary<string, EventHandler> _sessionClosedHandlers = new Dictionary<string, EventHandler>();
+
         #endregion
 
         #region Chat Tab Hosting
@@ -288,14 +294,20 @@ namespace ClaudeCodeVS
 
                 // Set the transcript content
                 window.SetChatContent(session.ChatTranscript);
+                session.Window = window;
 
-                // Wire close event
-                window.Closed -= (s, e) => OnSessionWindowClosed(session.SessionId);
-                window.Closed += (s, e) => OnSessionWindowClosed(session.SessionId);
+                // Wire close event (with proper handler storage for cleanup)
+                string sessionId = session.SessionId;
+                EventHandler closedHandler = (s, e) => OnSessionWindowClosed(sessionId);
+                _sessionClosedHandlers[sessionId] = closedHandler;
+                window.Closed += closedHandler;
+
+                // Wire composer events for this session
+                WireSessionComposerEvents(session.ChatTranscript, sessionId);
 
                 session.ChatTranscript.ShowComposer(true);
                 UpdateChatComposerState();
-                UpdateChatTabCaption();
+                UpdateSessionTabCaption(session);
 
                 // Show the window
                 if (window.Frame is IVsWindowFrame frame)
@@ -314,6 +326,86 @@ namespace ClaudeCodeVS
             }
         }
 
+        /// <summary>
+        /// Wires the composer of one session's transcript. The panel's own transcript goes through
+        /// <see cref="WireChatComposer"/>; this is the same list minus the handlers that act on the
+        /// single global session (model/effort/provider, which relaunch it).
+        /// </summary>
+        private void WireSessionComposerEvents(ChatTranscriptView transcript, string sessionId)
+        {
+            // Routed to this session's agent, so it is a closure and has to be stored to be removed.
+            // The handler switches to the main thread itself before touching any UI, so the analyzer's
+            // main-thread requirement is already satisfied inside it.
+#pragma warning disable VSTHRD010
+            EventHandler sendHandler = (s, e) => OnSessionComposerSendRequested(sessionId);
+#pragma warning restore VSTHRD010
+            _sessionSendHandlers[sessionId] = sendHandler;
+            transcript.SendRequested += sendHandler;
+
+            // Stop/Interaction resolve the session from the sender, so the shared handlers are correct.
+            transcript.StopRequested -= OnChatStopRequested;
+            transcript.StopRequested += OnChatStopRequested;
+
+            transcript.InteractionResolved -= OnChatInteractionResolved;
+            transcript.InteractionResolved += OnChatInteractionResolved;
+
+            // Toolbar and composer affordances. These were missing entirely, which is why none of the
+            // buttons under the prompt box did anything in a new tab.
+            transcript.AttachRequested += OnComposerAttachRequested;
+            transcript.FilesDropped += OnComposerFilesDropped;
+            transcript.ClearChatRequested += OnComposerClearChatRequested;
+            transcript.NewChatRequested += OnComposerNewChatRequested;
+            transcript.RenameSessionRequested += OnComposerRenameSessionRequested;
+            transcript.ColorPickerRequested += OnComposerColorPickerRequested;
+            transcript.ZoomChanged += OnComposerZoomChanged;
+            transcript.ComposerHeightChanged += OnComposerHeightChanged;
+            transcript.PasteRequested += OnComposerPasteRequested;
+            transcript.HistoryPreviousRequested += OnComposerHistoryPreviousRequested;
+            transcript.HistoryNextRequested += OnComposerHistoryNextRequested;
+            transcript.LinkClicked += OnChatLinkClicked;
+        }
+
+        /// <summary>Handles send request from a specific session's composer.</summary>
+        private async void OnSessionComposerSendRequested(string sessionId)
+        {
+            try
+            {
+                await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
+
+                var session = GetSession(sessionId);
+                if (session?.ChatTranscript == null)
+                    return;
+
+                string text = session.ChatTranscript.ComposerText.Trim();
+                bool hasFiles = session.AttachedFiles.Count > 0;
+                if (string.IsNullOrEmpty(text) && !hasFiles)
+                    return;
+
+                // Same "Files attached:" header the panel sends, built from this tab's own list so an
+                // attachment staged in another chat is never dragged along.
+                var fullPrompt = new StringBuilder();
+                if (hasFiles)
+                {
+                    fullPrompt.Append(BuildAttachmentPromptBlock(
+                        session.AttachedFiles.ToList(), IsWslProvider(session.SelectedProvider)));
+                }
+                if (!string.IsNullOrEmpty(text))
+                {
+                    fullPrompt.AppendLine(text);
+                }
+
+                session.ChatTranscript.ComposerText = string.Empty;
+                session.AttachedFiles.Clear();
+                UpdateSessionAttachmentChips(session);
+
+                await SendPromptToNativeAgentAsync(fullPrompt.ToString(), sessionId);
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"Chat send failed for session {sessionId}: {ex.Message}");
+            }
+        }
+
         /// <summary>Handles a session window being closed.</summary>
         private void OnSessionWindowClosed(string sessionId)
         {
@@ -324,6 +416,16 @@ namespace ClaudeCodeVS
                 var session = GetSession(sessionId);
                 if (session != null)
                 {
+                    // Remove the send handler
+                    if (_sessionSendHandlers.TryGetValue(sessionId, out var sendHandler))
+                    {
+                        session.ChatTranscript.SendRequested -= sendHandler;
+                        _sessionSendHandlers.Remove(sessionId);
+                    }
+
+                    // Remove the closed handler
+                    _sessionClosedHandlers.Remove(sessionId);
+
                     RemoveSession(sessionId);
                 }
             }
@@ -360,14 +462,95 @@ namespace ClaudeCodeVS
                 return;
             }
 
-            string provider = GetProviderDisplayName(GetActiveOrSelectedProvider());
-            string caption = string.IsNullOrEmpty(provider) ? "Chat" : provider + " Chat";
-            _nativeChatWindow.UpdateCaption(caption);
+            string title = GetCurrentNativeSessionTitle();
+            _nativeChatWindow.UpdateCaption(BuildChatTabCaption(GetActiveOrSelectedProvider(), title));
 
-            // Shown as a header above the transcript rather than appended to the tab caption — the
-            // VS tab strip is narrow and truncated longer titles awkwardly.
-            ChatTranscript?.SetSessionTitle(GetCurrentNativeSessionTitle());
+            // Also kept as a header above the transcript: the VS tab strip truncates, and with several
+            // chats open the header is what tells them apart once a tab is selected.
+            ChatTranscript?.SetSessionTitle(title);
             ChatTranscript?.SetSessionTitleColor(GetCurrentNativeSessionColor());
+        }
+
+        /// <summary>
+        /// Tab caption for a chat: the agent's name plus the session's custom title when it has one,
+        /// so several open chats are distinguishable from the tab strip alone.
+        /// </summary>
+        private string BuildChatTabCaption(AiProvider? provider, string sessionTitle)
+        {
+            string name = GetProviderDisplayName(provider);
+            string caption = string.IsNullOrEmpty(name) ? "Chat" : name + " Chat";
+
+            return string.IsNullOrWhiteSpace(sessionTitle)
+                ? caption
+                : caption + " — " + sessionTitle.Trim();
+        }
+
+        /// <summary>Refreshes the caption and header of one session's tab, leaving the others alone.</summary>
+        private void UpdateSessionTabCaption(NativeChatSessionState session)
+        {
+            ThreadHelper.ThrowIfNotOnUIThread();
+
+            if (session?.ChatTranscript == null)
+            {
+                return;
+            }
+
+            string agentSessionId = session.AgentSession?.SessionId;
+            string title = GetNativeSessionTitle(agentSessionId);
+
+            session.Window?.UpdateCaption(BuildChatTabCaption(session.SelectedProvider, title));
+            session.ChatTranscript.SetSessionTitle(title);
+            session.ChatTranscript.SetSessionTitleColor(GetNativeSessionColor(agentSessionId));
+        }
+
+        /// <summary>The user-assigned title for an agent session id, or empty when it has none.</summary>
+        private string GetNativeSessionTitle(string agentSessionId)
+        {
+            if (string.IsNullOrEmpty(agentSessionId) || _settings?.SessionCustomTitles == null)
+            {
+                return string.Empty;
+            }
+
+            _settings.SessionCustomTitles.TryGetValue(agentSessionId, out string title);
+            return title ?? string.Empty;
+        }
+
+        /// <summary>The user-assigned title color for an agent session id, or empty for the default.</summary>
+        private string GetNativeSessionColor(string agentSessionId)
+        {
+            if (string.IsNullOrEmpty(agentSessionId) || _settings?.SessionTitleColors == null)
+            {
+                return string.Empty;
+            }
+
+            _settings.SessionTitleColors.TryGetValue(agentSessionId, out string color);
+            return color ?? string.Empty;
+        }
+
+        /// <summary>
+        /// The session whose transcript raised a composer event, or null for the panel's own transcript.
+        /// Lets the shared handlers act on the tab the user actually clicked in.
+        /// </summary>
+        private NativeChatSessionState ResolveSessionFromSender(object sender)
+        {
+            var transcript = sender as ChatTranscriptView;
+            if (transcript == null)
+            {
+                return null;
+            }
+
+            lock (_sessionLock)
+            {
+                foreach (KeyValuePair<string, NativeChatSessionState> pair in _nativeSessions)
+                {
+                    if (ReferenceEquals(pair.Value.ChatTranscript, transcript))
+                    {
+                        return pair.Value;
+                    }
+                }
+            }
+
+            return null;
         }
 
         /// <summary>
@@ -376,14 +559,7 @@ namespace ClaudeCodeVS
         /// </summary>
         private string GetCurrentNativeSessionTitle()
         {
-            string sessionId = _agentSession?.SessionId;
-            if (string.IsNullOrEmpty(sessionId) || _settings?.SessionCustomTitles == null)
-            {
-                return string.Empty;
-            }
-
-            _settings.SessionCustomTitles.TryGetValue(sessionId, out string title);
-            return title ?? string.Empty;
+            return GetNativeSessionTitle(_agentSession?.SessionId);
         }
 
         /// <summary>
@@ -393,14 +569,7 @@ namespace ClaudeCodeVS
         /// </summary>
         private string GetCurrentNativeSessionColor()
         {
-            string sessionId = _agentSession?.SessionId;
-            if (string.IsNullOrEmpty(sessionId) || _settings?.SessionTitleColors == null)
-            {
-                return string.Empty;
-            }
-
-            _settings.SessionTitleColors.TryGetValue(sessionId, out string color);
-            return color ?? string.Empty;
+            return GetNativeSessionColor(_agentSession?.SessionId);
         }
 
         #endregion
@@ -462,6 +631,18 @@ namespace ClaudeCodeVS
         private void OnComposerPasteRequested(object sender, ChatPasteEventArgs e)
         {
             ThreadHelper.ThrowIfNotOnUIThread();
+
+            NativeChatSessionState owner = ResolveSessionFromSender(sender);
+            if (owner != null)
+            {
+                // The image goes into the tab the user pasted in, not into the panel's list.
+                if (TrySaveClipboardImage(out string pastedPath))
+                {
+                    AddSessionAttachments(owner, new[] { pastedPath });
+                    e.Handled = true;
+                }
+                return;
+            }
 
             if (TryPasteImage())
             {
@@ -571,9 +752,7 @@ namespace ClaudeCodeVS
                     return;
                 }
 
-                // Wire up transcript events (same as existing session wiring)
-                newSession.ChatTranscript.StopRequested += OnChatStopRequested;
-                newSession.ChatTranscript.InteractionResolved += OnChatInteractionResolved;
+                // Composer/transcript events are wired by ShowSessionInTabAsync below.
 
                 // Clear and start
                 newSession.ChatTranscript.Clear();
@@ -582,12 +761,20 @@ namespace ClaudeCodeVS
                 // Show new session in its own tab
                 await ShowSessionInTabAsync(newSession, focusComposer: false);
 
+                // Configure composer controls for this session
+                UpdateChatComposerState(newSession.ChatTranscript);
+                // Disable model/effort selectors in new sessions (they relaunche the global session)
+                newSession.ChatTranscript.SetSelectorAvailability(model: false, effort: false, permission: true);
+                // Apply the same zoom as the main session for consistency
+                newSession.ChatTranscript.Zoom = _settings?.NativeChatZoom ?? 1.0;
+
                 // Start the agent
                 newSession.SessionCts = new CancellationTokenSource();
                 await newSession.AgentSession.StartAsync(workspace, newSession.SessionCts.Token);
 
                 newSession.ChatTranscript.SetStatus("Ready.");
-                ShowChatWelcome(workspace);
+                // Show welcome card in the new session, not the global one
+                ShowChatWelcome(newSession.ChatTranscript, workspace);
             }
             catch (Exception ex)
             {
@@ -606,12 +793,16 @@ namespace ClaudeCodeVS
         {
             ThreadHelper.ThrowIfNotOnUIThread();
 
-            if (_agentSession == null)
+            // A rename in a session tab must retitle that tab's agent, not the panel's.
+            NativeChatSessionState owner = ResolveSessionFromSender(sender);
+            IAgentSession agent = owner != null ? owner.AgentSession : _agentSession;
+
+            if (agent == null)
             {
                 return;
             }
 
-            string sessionId = _agentSession.SessionId;
+            string sessionId = agent.SessionId;
             if (string.IsNullOrEmpty(sessionId))
             {
                 MessageBox.Show(
@@ -644,7 +835,15 @@ namespace ClaudeCodeVS
             }
 
             SaveSettings();
-            UpdateChatTabCaption();
+
+            if (owner != null)
+            {
+                UpdateSessionTabCaption(owner);
+            }
+            else
+            {
+                UpdateChatTabCaption();
+            }
         }
 
         /// <summary>
@@ -657,12 +856,15 @@ namespace ClaudeCodeVS
         {
             ThreadHelper.ThrowIfNotOnUIThread();
 
-            if (_agentSession == null)
+            NativeChatSessionState owner = ResolveSessionFromSender(sender);
+            IAgentSession agent = owner != null ? owner.AgentSession : _agentSession;
+
+            if (agent == null)
             {
                 return;
             }
 
-            string sessionId = _agentSession.SessionId;
+            string sessionId = agent.SessionId;
             if (string.IsNullOrEmpty(sessionId))
             {
                 MessageBox.Show(
@@ -672,7 +874,7 @@ namespace ClaudeCodeVS
                 return;
             }
 
-            string currentHex = GetCurrentNativeSessionColor();
+            string currentHex = GetNativeSessionColor(sessionId);
             System.Drawing.Color initial;
             try
             {
@@ -701,7 +903,15 @@ namespace ClaudeCodeVS
             }
 
             SaveSettings();
-            UpdateChatTabCaption();
+
+            if (owner != null)
+            {
+                UpdateSessionTabCaption(owner);
+            }
+            else
+            {
+                UpdateChatTabCaption();
+            }
         }
 
         /// <summary>
@@ -717,6 +927,17 @@ namespace ClaudeCodeVS
                 return;
             }
 
+            UpdateChatComposerState(ChatTranscript);
+        }
+
+        /// <summary>Updates composer state for a specific transcript (supports multi-session).</summary>
+        private void UpdateChatComposerState(ChatTranscriptView transcript)
+        {
+            ThreadHelper.ThrowIfNotOnUIThread();
+
+            if (transcript == null)
+                return;
+
             AiProvider? provider = GetActiveOrSelectedProvider();
             bool isClaude = IsClaudeProvider(provider);
             bool isCodex = IsCodexProvider(provider);
@@ -725,26 +946,24 @@ namespace ClaudeCodeVS
                 ? GetChatCodexReasoningLabel()
                 : GetChatEffortLabel();
 
-            ChatTranscript.SendWithEnter = _settings?.SendWithEnter != false;
-            ChatTranscript.SendWithCtrlEnter = _settings?.SendWithCtrlEnter == true;
+            transcript.SendWithEnter = _settings?.SendWithEnter != false;
+            transcript.SendWithCtrlEnter = _settings?.SendWithCtrlEnter == true;
 
-            ChatTranscript.SetSelectorLabels(
+            transcript.SetSelectorLabels(
                 GetChatProviderDisplayName(provider),
                 GetChatModelLabel(provider),
                 reasoningLabel,
                 GetChatPermissionLabel(provider));
 
-            // Claude and Codex both expose reasoning controls; the model selector covers every agent,
-            // listing either the models its CLI reports or a list configured in the settings.
-            ChatTranscript.SetSelectorAvailability(
+            transcript.SetSelectorAvailability(
                 model: isClaude || ProviderHasModelCatalog(provider),
                 effort: isClaude || isCodex,
                 permission: GetChatPermissionLabel(provider) != null);
 
             if (isCodex)
             {
-                ChatTranscript.SetEffortStopLabels(GetChatCodexReasoningStopLabels());
-                ChatTranscript.SetEffortSlider(
+                transcript.SetEffortStopLabels(GetChatCodexReasoningStopLabels());
+                transcript.SetEffortSlider(
                     CodexReasoningToSliderIndex(
                         _settings != null
                             ? _settings.SelectedCodexReasoningLevel
@@ -754,8 +973,8 @@ namespace ClaudeCodeVS
             }
             else
             {
-                ChatTranscript.SetEffortStopLabels(GetChatEffortStopLabels());
-                ChatTranscript.SetEffortSlider(
+                transcript.SetEffortStopLabels(GetChatEffortStopLabels());
+                transcript.SetEffortSlider(
                     EffortToSliderIndex(
                         _settings != null ? _settings.SelectedEffortLevel : EffortLevel.High),
                     reasoningLabel,
@@ -955,10 +1174,21 @@ namespace ClaudeCodeVS
                 return;
             }
 
+            ShowChatWelcome(ChatTranscript, workspace);
+        }
+
+        /// <summary>Shows welcome card in a specific transcript (supports multi-session).</summary>
+        private void ShowChatWelcome(ChatTranscriptView transcript, string workspace)
+        {
+            ThreadHelper.ThrowIfNotOnUIThread();
+
+            if (transcript == null)
+                return;
+
             AiProvider? provider = GetActiveOrSelectedProvider();
             string directory = string.IsNullOrWhiteSpace(workspace) ? _lastWorkspaceDirectory : workspace;
 
-            ChatTranscript.ShowWelcome(
+            transcript.ShowWelcome(
                 BuildWelcomeTitle(provider),
                 BuildWelcomeFacts(provider, directory),
                 BuildWelcomeTips(provider));
@@ -2184,12 +2414,32 @@ namespace ClaudeCodeVS
 
         private void OnComposerAttachRequested(object sender, EventArgs e)
         {
-            ImageDropBorder_Click(sender, null);
+            ThreadHelper.ThrowIfNotOnUIThread();
+
+            NativeChatSessionState owner = ResolveSessionFromSender(sender);
+            if (owner == null)
+            {
+                ImageDropBorder_Click(sender, null);
+                return;
+            }
+
+            string[] chosen = PickAttachmentFiles();
+            if (chosen != null)
+            {
+                AddSessionAttachments(owner, chosen);
+            }
         }
 
         private void OnComposerFilesDropped(object sender, string[] files)
         {
             ThreadHelper.ThrowIfNotOnUIThread();
+
+            NativeChatSessionState owner = ResolveSessionFromSender(sender);
+            if (owner != null)
+            {
+                AddSessionAttachments(owner, files);
+                return;
+            }
 
             bool any = false;
             foreach (string path in files)
@@ -2206,6 +2456,60 @@ namespace ClaudeCodeVS
             if (any)
             {
                 UpdateImageDropDisplay();
+            }
+        }
+
+        /// <summary>
+        /// Stages files in one chat tab's own attachment list. Folders and paths that no longer exist
+        /// are skipped, as they are in the panel — an agent can't be handed a directory.
+        /// </summary>
+        private void AddSessionAttachments(NativeChatSessionState session, IEnumerable<string> paths)
+        {
+            ThreadHelper.ThrowIfNotOnUIThread();
+
+            if (session == null || paths == null)
+            {
+                return;
+            }
+
+            bool any = false;
+            foreach (string path in paths)
+            {
+                if (string.IsNullOrEmpty(path)) continue;
+                if (Directory.Exists(path)) continue;
+                if (!File.Exists(path)) continue;
+                if (session.AttachedFiles.Contains(path)) continue;
+
+                session.AttachedFiles.Add(path);
+                any = true;
+            }
+
+            if (any)
+            {
+                UpdateSessionAttachmentChips(session);
+            }
+        }
+
+        /// <summary>Redraws the attachment strip of one chat tab from that session's own list.</summary>
+        private void UpdateSessionAttachmentChips(NativeChatSessionState session)
+        {
+            ThreadHelper.ThrowIfNotOnUIThread();
+
+            if (session?.ChatTranscript == null)
+            {
+                return;
+            }
+
+            Panel host = session.ChatTranscript.ComposerAttachmentsPanel;
+            host.Children.Clear();
+
+            foreach (string path in session.AttachedFiles.ToList())
+            {
+                host.Children.Add(CreateAttachmentChip(path, p =>
+                {
+                    session.AttachedFiles.Remove(p);
+                    UpdateSessionAttachmentChips(session);
+                }));
             }
         }
 

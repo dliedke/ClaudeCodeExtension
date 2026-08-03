@@ -136,6 +136,10 @@ https://github.com/anthropics/claude-code/issues/41501
 
 ## Version History
 
+### Version 127.0
+Each parallel chat session now shows its own name above the conversation and in its document tab title, so open chats are told apart from the tab strip alone.
+Attachments and pasted images now stay in the chat tab they were added to, instead of always going to the first session.
+
 ### Version 126.0
 Native mode now supports true parallel chat sessions: click the ✚ button to open a new independent session in its own document tab. Each session runs its own agent process, has its own transcript, and can be closed independently. The ↻ button clears the current conversation and starts fresh. Switch between sessions by clicking tabs; all sessions remain active and processing in parallel.
 

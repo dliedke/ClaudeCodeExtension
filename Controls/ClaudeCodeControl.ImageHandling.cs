@@ -53,6 +53,25 @@ namespace ClaudeCodeVS
         /// <returns>True if an image was successfully pasted, false otherwise</returns>
         private bool TryPasteImage()
         {
+            if (!TrySaveClipboardImage(out string imagePath))
+            {
+                return false;
+            }
+
+            attachedImagePaths.Add(imagePath);
+            UpdateImageDropDisplay();
+            return true;
+        }
+
+        /// <summary>
+        /// Writes the clipboard image (if there is one) to the session temp folder and reports where it
+        /// landed. Split out of <see cref="TryPasteImage"/> so a chat tab can stage the file in its own
+        /// attachment list instead of the panel's.
+        /// </summary>
+        private bool TrySaveClipboardImage(out string savedPath)
+        {
+            savedPath = null;
+
             try
             {
                 // Check if clipboard contains text first - if so, let normal text paste happen
@@ -116,9 +135,7 @@ namespace ClaudeCodeVS
                         encoder.Save(fileStream);
                     }
 
-                    attachedImagePaths.Add(imagePath);
-                    UpdateImageDropDisplay();
-
+                    savedPath = imagePath;
                     return true;
                 }
             }
@@ -148,6 +165,26 @@ namespace ClaudeCodeVS
         /// </summary>
         private void ImageDropBorder_Click(object sender, MouseButtonEventArgs e)
         {
+            string[] chosen = PickAttachmentFiles();
+            if (chosen == null)
+            {
+                return;
+            }
+
+            foreach (string filename in chosen)
+            {
+                attachedImagePaths.Add(filename);
+            }
+            UpdateImageDropDisplay();
+        }
+
+        /// <summary>
+        /// Opens the attachment file dialog and returns what the user picked, or null when they
+        /// cancelled. Split out of <see cref="ImageDropBorder_Click"/> so a chat tab can stage the
+        /// files in its own attachment list instead of the panel's.
+        /// </summary>
+        private string[] PickAttachmentFiles()
+        {
             try
             {
                 // Open file dialog for file selection with common data formats
@@ -162,18 +199,12 @@ namespace ClaudeCodeVS
                     Multiselect = true
                 };
 
-                if (openFileDialog.ShowDialog() == true)
-                {
-                    foreach (string filename in openFileDialog.FileNames)
-                    {
-                        attachedImagePaths.Add(filename);
-                    }
-                    UpdateImageDropDisplay();
-                }
+                return openFileDialog.ShowDialog() == true ? openFileDialog.FileNames : null;
             }
             catch (Exception ex)
             {
                 MessageBox.Show($"Error selecting files: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                return null;
             }
         }
 
@@ -269,6 +300,19 @@ namespace ClaudeCodeVS
         /// </summary>
         private Border CreateAttachmentChip(string path)
         {
+            return CreateAttachmentChip(path, p =>
+            {
+                attachedImagePaths.Remove(p);
+                UpdateImageDropDisplay();
+            });
+        }
+
+        /// <summary>
+        /// Same chip, but the caller says what removing it means. A chat tab owns its own attachment
+        /// list, so its ✕ must not reach into the panel's.
+        /// </summary>
+        private Border CreateAttachmentChip(string path, Action<string> onRemove)
+        {
             // Create chip border
             var chip = new Border
             {
@@ -331,8 +375,7 @@ namespace ClaudeCodeVS
             removeBtn.Click += (s, e) =>
             {
                 var p = (string)((Button)s).Tag;
-                attachedImagePaths.Remove(p);
-                UpdateImageDropDisplay();
+                onRemove?.Invoke(p);
             };
 
             sp.Children.Add(nameBlock);
