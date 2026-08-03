@@ -2400,6 +2400,7 @@ namespace ClaudeCodeVS
                 if (!ReferenceEquals(sender, agentSession))
                     return;
 
+#pragma warning disable VSSDK007, VSTHRD110 // Intentionally fire-and-forget; events arrive on the reader thread
                 ThreadHelper.JoinableTaskFactory.RunAsync(async delegate
                 {
                     await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
@@ -2412,6 +2413,7 @@ namespace ClaudeCodeVS
                         Debug.WriteLine($"Native mode: failed to apply event to session {sessionId}: {ex}");
                     }
                 }).FileAndForget("claudecode/nativemode/event");
+#pragma warning restore VSSDK007, VSTHRD110
             };
 
             state.EventHandler = handler;

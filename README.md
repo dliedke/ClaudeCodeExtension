@@ -130,11 +130,15 @@ This binds a Claude Code skill that shells out to OpenAI Codex to audit pending 
 ## Known Issues
 
 - I know it is a pain, but sometimes in plan mode when there is an AI question after a lot of text, the keyboard does not work to select answer.
-After some time it will work again. Very hard to fix issue even with advanced models like Fable 5. Probably related to Claude Code itself.
+After some time it will work again. Very hard to fix issue even with advanced models like Fable 5. Probably related to Claude Code CLI itself.
 https://github.com/anthropics/claude-code/issues/63504
 https://github.com/anthropics/claude-code/issues/41501
+Use native mode to avoid this issue.
 
 ## Version History
+
+### Version 128.0
+Exported session transcripts now always start with the session's name, so the file can be pasted straight into a GitHub issue as its details.
 
 ### Version 127.0
 Each parallel chat session now shows its own name above the conversation and in its document tab title, so open chats are told apart from the tab strip alone.

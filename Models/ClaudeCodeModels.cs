@@ -303,6 +303,15 @@ namespace ClaudeCodeVS
         /// </summary>
         public string CustomTitle { get; set; } = string.Empty;
 
+        /// <summary>
+        /// The session's effective name: the user-assigned <see cref="CustomTitle"/> when set,
+        /// otherwise the first-prompt <see cref="Preview"/>. Always non-empty for a parsed
+        /// session (ParseSessionFile substitutes "(no user messages)"), so the exported
+        /// transcript's Title field is never absent.
+        /// </summary>
+        public string DisplayTitle =>
+            !string.IsNullOrWhiteSpace(CustomTitle) ? CustomTitle : Preview;
+
         /// <summary>Count of user + assistant turns (skipping system/snapshot/attachment lines).</summary>
         public int MessageCount { get; set; }
 

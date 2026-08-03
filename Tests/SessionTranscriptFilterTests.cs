@@ -107,5 +107,59 @@ namespace ClaudeCodeExtension.Tests
         {
             Assert.IsTrue(ClaudeCodeControl.IsCommandInvocationText("  \n<command-name>/effort</command-name>"));
         }
+
+        /// <summary>
+        /// The name the exported transcript's Title line is resolved from: the rename the user
+        /// gave the session, falling back to the first prompt when there is none.
+        /// </summary>
+        [TestMethod]
+        public void DisplayTitle_PrefersTheCustomTitle()
+        {
+            var session = new SessionInfo { CustomTitle = "Fix terminal focus on WSL", Preview = "why is the terminal blank" };
+
+            Assert.AreEqual("Fix terminal focus on WSL", session.DisplayTitle);
+        }
+
+        [TestMethod]
+        public void DisplayTitle_FallsBackToThePreviewWhenNotRenamed()
+        {
+            Assert.AreEqual("why is the terminal blank",
+                new SessionInfo { CustomTitle = string.Empty, Preview = "why is the terminal blank" }.DisplayTitle);
+            Assert.AreEqual("why is the terminal blank",
+                new SessionInfo { CustomTitle = "   ", Preview = "why is the terminal blank" }.DisplayTitle);
+        }
+
+        /// <summary>
+        /// A custom title pasted from a multi-line selection must not split the one-line header.
+        /// </summary>
+        [TestMethod]
+        public void NormalizeTranscriptTitle_FlattensNewlinesAndTabs()
+        {
+            Assert.AreEqual("fix the build then ship it",
+                ClaudeCodeControl.NormalizeTranscriptTitle("  fix the\r\nbuild\tthen   ship it  "));
+        }
+
+        [TestMethod]
+        public void NormalizeTranscriptTitle_CapsOverLongTitles()
+        {
+            string result = ClaudeCodeControl.NormalizeTranscriptTitle(new string('a', 200));
+
+            Assert.AreEqual(new string('a', 120) + "…", result);
+        }
+
+        [TestMethod]
+        public void NormalizeTranscriptTitle_KeepsATitleAtTheCapIntact()
+        {
+            string exact = new string('a', 120);
+
+            Assert.AreEqual(exact, ClaudeCodeControl.NormalizeTranscriptTitle(exact));
+        }
+
+        [TestMethod]
+        public void NormalizeTranscriptTitle_PlaceholderForBlankInput()
+        {
+            Assert.AreEqual("(untitled session)", ClaudeCodeControl.NormalizeTranscriptTitle(null));
+            Assert.AreEqual("(untitled session)", ClaudeCodeControl.NormalizeTranscriptTitle("   "));
+        }
     }
 }

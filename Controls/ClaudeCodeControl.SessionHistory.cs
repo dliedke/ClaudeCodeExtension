@@ -1200,6 +1200,40 @@ namespace ClaudeCodeVS
         }
 
         /// <summary>
+        /// Squeezes a session name into the single line the exported header expects. Preview text
+        /// is already flattened and capped, but a custom title comes straight from the rename
+        /// dialog and is only trimmed, so a pasted multi-line value would break the header shape.
+        /// Blank input yields a placeholder so the field is never left empty.
+        /// </summary>
+        internal static string NormalizeTranscriptTitle(string title)
+        {
+            if (string.IsNullOrWhiteSpace(title)) return "(untitled session)";
+
+            var sb = new StringBuilder(title.Length);
+            bool pendingSpace = false;
+            foreach (char c in title)
+            {
+                if (char.IsWhiteSpace(c))
+                {
+                    pendingSpace = sb.Length > 0;
+                    continue;
+                }
+                if (pendingSpace)
+                {
+                    sb.Append(' ');
+                    pendingSpace = false;
+                }
+                sb.Append(c);
+            }
+
+            string flat = sb.ToString();
+
+            // Same 120-char maximum ParseSessionFile applies to the preview, so both sources of a
+            // title share one cap and the result stays well inside GitHub's issue-title limit.
+            return flat.Length > 120 ? flat.Substring(0, 120) + "…" : flat;
+        }
+
+        /// <summary>
         /// Walks the JSONL transcript and produces a readable conversation: a short header
         /// followed by each user/assistant turn in order. Assistant tool calls are shown as
         /// compact <c>[tool: Name]</c> markers; tool-result re-injections and system/snapshot
@@ -1209,11 +1243,8 @@ namespace ClaudeCodeVS
         {
             var sb = new StringBuilder();
 
+            sb.AppendLine($"Title:     {NormalizeTranscriptTitle(session.DisplayTitle)}");
             sb.AppendLine($"Session:   {session.SessionId}");
-            if (!string.IsNullOrWhiteSpace(session.CustomTitle))
-            {
-                sb.AppendLine($"Title:     {session.CustomTitle}");
-            }
             sb.AppendLine($"Directory: {session.Cwd}");
             sb.AppendLine($"Modified:  {session.LastModified:yyyy-MM-dd HH:mm:ss}");
             sb.AppendLine($"Messages:  {session.MessageCount}   Tokens: {session.TokenCount}");

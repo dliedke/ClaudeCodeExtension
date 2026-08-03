@@ -366,7 +366,9 @@ namespace ClaudeCodeVS
         }
 
         /// <summary>Handles send request from a specific session's composer.</summary>
+#pragma warning disable VSTHRD100 // Async void is required by the UI event signature
         private async void OnSessionComposerSendRequested(string sessionId)
+#pragma warning restore VSTHRD100
         {
             try
             {
