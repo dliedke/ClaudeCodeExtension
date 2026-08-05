@@ -53,6 +53,23 @@ namespace ClaudeCodeVS
         /// <summary>Stores per-session window closed handlers for proper cleanup.</summary>
         private Dictionary<string, EventHandler> _sessionClosedHandlers = new Dictionary<string, EventHandler>();
 
+        /// <summary>Stores per-session window activated handlers for proper cleanup.</summary>
+        private Dictionary<string, EventHandler> _sessionActivatedHandlers = new Dictionary<string, EventHandler>();
+
+        /// <summary>Stores per-session transcript focus handlers for proper cleanup.</summary>
+        private Dictionary<string, DependencyPropertyChangedEventHandler> _sessionFocusHandlers =
+            new Dictionary<string, DependencyPropertyChangedEventHandler>();
+
+        /// <summary>
+        /// The chat tab the user last worked in, in a multi-tab (parallel sessions) setup.
+        /// Null/empty means the default session — the one driven by <c>_agentSession</c> and shown
+        /// either in the panel or in <see cref="_nativeChatWindow"/>. Read by
+        /// <c>ResolveFocusedNativeSessionId()</c> (NativeMode.cs) so automated sends (build/runtime
+        /// errors, custom commands, On Agent Finish follow-ups) go to whichever tab is actually focused
+        /// instead of always the first session.
+        /// </summary>
+        private string _lastFocusedNativeSessionId;
+
         #endregion
 
         #region Chat Tab Hosting
@@ -95,6 +112,7 @@ namespace ClaudeCodeVS
                     }
 
                     _nativeChatWindow.Closed += OnNativeChatWindowClosed;
+                    _nativeChatWindow.Activated += OnDefaultNativeChatWindowActivated;
                 }
 
                 WireChatComposer();
@@ -223,12 +241,78 @@ namespace ClaudeCodeVS
             if (_nativeChatWindow != null)
             {
                 _nativeChatWindow.Closed -= OnNativeChatWindowClosed;
+                _nativeChatWindow.Activated -= OnDefaultNativeChatWindowActivated;
                 _nativeChatWindow = null;
             }
 
             // The Detach control is the way back to the tab, so it has to flip to "detach" again.
             UpdateDetachButtonIcon(false);
         }
+
+        /// <summary>
+        /// The default session's tab was brought to the front. Tracked as "null" (the sentinel for the
+        /// default session) rather than an id, since the default session is never registered in
+        /// <c>_nativeSessions</c> — see <c>ResolveFocusedNativeSessionId()</c> in NativeMode.cs.
+        /// </summary>
+        private void OnDefaultNativeChatWindowActivated(object sender, EventArgs e)
+        {
+            _lastFocusedNativeSessionId = null;
+        }
+
+        /// <summary>
+        /// Records which chat the user is working in, for <c>ResolveFocusedNativeSessionId()</c>. Pass
+        /// null for the default session (the one on <c>_agentSession</c>).
+        /// <para>
+        /// Driven by keyboard focus entering a transcript rather than by the pane's own
+        /// <see cref="NativeChatToolWindow.Activated"/> notification alone: that notification comes from
+        /// <c>FRAMESHOW_TabActivated</c>, which VS only raises when switching between tabs **in the same
+        /// tab group**. With one chat docked to the side and another in the document area — a normal way
+        /// to run two sessions, and how this was first reported broken — both panes are visible at once,
+        /// so clicking between them moves focus without firing any frame notification and the tracked id
+        /// never left the default session. Keyboard focus is the signal that actually distinguishes them
+        /// in every layout.
+        /// </para>
+        /// </summary>
+        private void MarkNativeSessionFocused(string sessionId)
+        {
+            _lastFocusedNativeSessionId = string.IsNullOrEmpty(sessionId) ? null : sessionId;
+        }
+
+        /// <summary>
+        /// Subscribes one transcript so focus landing anywhere inside it marks its session as the one
+        /// automated sends target. <paramref name="sessionId"/> is null for the default session.
+        /// </summary>
+        private void WireTranscriptFocusTracking(ChatTranscriptView transcript, string sessionId)
+        {
+            if (transcript == null)
+            {
+                return;
+            }
+
+            DependencyPropertyChangedEventHandler handler = (s, e) =>
+            {
+                // Only the transition into the control; losing focus must not clear the tracked id, or
+                // clicking into the code editor would send the next build error back to the default tab.
+                if (e.NewValue is bool focused && focused)
+                {
+                    MarkNativeSessionFocused(sessionId);
+                }
+            };
+
+            // Keyed by id so a re-shown session replaces its own handler instead of stacking a second
+            // one; the default session uses a fixed key since its id is the null sentinel.
+            string key = sessionId ?? DefaultSessionFocusKey;
+            if (_sessionFocusHandlers.TryGetValue(key, out var previous))
+            {
+                transcript.IsKeyboardFocusWithinChanged -= previous;
+            }
+
+            _sessionFocusHandlers[key] = handler;
+            transcript.IsKeyboardFocusWithinChanged += handler;
+        }
+
+        /// <summary>Dictionary key standing in for the default session's null id.</summary>
+        private const string DefaultSessionFocusKey = "\0default";
 
         /// <summary>
         /// Closes the chat tab, if it is open. Used when native mode ends: leaving an empty tab behind
@@ -301,6 +385,16 @@ namespace ClaudeCodeVS
                 EventHandler closedHandler = (s, e) => OnSessionWindowClosed(sessionId);
                 _sessionClosedHandlers[sessionId] = closedHandler;
                 window.Closed += closedHandler;
+
+                // Wire activation so automated sends (build/runtime errors, custom commands, On Agent
+                // Finish follow-ups) can target whichever tab the user actually has in front.
+                EventHandler activatedHandler = (s, e) => MarkNativeSessionFocused(sessionId);
+                _sessionActivatedHandlers[sessionId] = activatedHandler;
+                window.Activated += activatedHandler;
+
+                // The frame notification above only covers same-tab-group switches; focus entering the
+                // transcript is what catches a side-docked chat being clicked. See MarkNativeSessionFocused.
+                WireTranscriptFocusTracking(session.ChatTranscript, sessionId);
 
                 // Wire composer events for this session
                 WireSessionComposerEvents(session.ChatTranscript, sessionId);
@@ -427,6 +521,21 @@ namespace ClaudeCodeVS
 
                     // Remove the closed handler
                     _sessionClosedHandlers.Remove(sessionId);
+
+                    // Remove the activated/focus handlers; if this closed tab was the focused one,
+                    // automated sends fall back to the default session rather than a now-gone id.
+                    _sessionActivatedHandlers.Remove(sessionId);
+
+                    if (_sessionFocusHandlers.TryGetValue(sessionId, out var focusHandler))
+                    {
+                        session.ChatTranscript.IsKeyboardFocusWithinChanged -= focusHandler;
+                        _sessionFocusHandlers.Remove(sessionId);
+                    }
+
+                    if (_lastFocusedNativeSessionId == sessionId)
+                    {
+                        _lastFocusedNativeSessionId = null;
+                    }
 
                     RemoveSession(sessionId);
                 }
@@ -604,6 +713,11 @@ namespace ClaudeCodeVS
             ChatTranscript.ComposerPreviewKeyDown += ComposerInput_AtMentionPreviewKeyDown;
             ChatTranscript.ComposerInputBox.TextChanged += ComposerInput_AtMentionTextChanged;
             ChatTranscript.LinkClicked += OnChatLinkClicked;
+
+            // Null = the default session. The transcript object survives being re-parented between the
+            // panel and its tab, so this one subscription covers both homes for the rest of its life.
+            WireTranscriptFocusTracking(ChatTranscript, null);
+
             _composerWired = true;
         }
 
@@ -760,8 +874,11 @@ namespace ClaudeCodeVS
                 newSession.ChatTranscript.Clear();
                 newSession.ChatTranscript.SetStatus("Starting new session...");
 
-                // Show new session in its own tab
+                // Show new session in its own tab. Marked focused right away rather than waiting for
+                // the tab's own activation event, so a build/runtime error landing before the user
+                // clicks anything still targets the tab they just opened, not the old one.
                 await ShowSessionInTabAsync(newSession, focusComposer: false);
+                _lastFocusedNativeSessionId = newSession.SessionId;
 
                 // Configure composer controls for this session
                 UpdateChatComposerState(newSession.ChatTranscript);

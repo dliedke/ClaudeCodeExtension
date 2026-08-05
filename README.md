@@ -137,6 +137,11 @@ Use native mode to avoid this issue.
 
 ## Version History
 
+### Version 130.0
+"Send Selection to Claude Code" now also appears in the XAML editor's right-click menu, not just standard code editors (issue #127).
+The 📎 attach menu has a new "Insert Active File Path" entry that drops a reference to the file open in the active editor tab into the prompt, similar to GitHub Copilot's "Active Document" context (issue #127).
+Automated sends — auto-sent build/runtime errors, custom commands, and "On Agent Finish" follow-ups — now go to whichever parallel chat tab you last had focused, instead of always the first session.
+
 ### Version 128.0
 Exported session transcripts now always start with the session's name, so the file can be pasted straight into a GitHub issue as its details.
 

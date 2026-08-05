@@ -869,6 +869,58 @@ namespace ClaudeCodeVS
         }
 
         /// <summary>
+        /// Handles the "Insert Active File Path" menu item. Drops an "@relative/path" reference to
+        /// the file open in the active editor tab into the prompt, without any code or selection —
+        /// the "Active Document" equivalent from other AI chat extensions (issue #127). Uses the same
+        /// "@" token the file/folder picker in <see cref="ClaudeCodeControl.AtMention"/> writes, so the
+        /// agent resolves it as a normal file reference.
+        /// </summary>
+        private void InsertActiveFilePathMenuItem_Click(object sender, RoutedEventArgs e)
+        {
+            try
+            {
+                ThreadHelper.ThrowIfNotOnUIThread();
+                var dte = Package.GetGlobalService(typeof(EnvDTE.DTE)) as EnvDTE.DTE;
+
+                if (dte?.ActiveDocument == null)
+                {
+                    MessageBox.Show("No active document open in the editor.",
+                        "No Document", MessageBoxButton.OK, MessageBoxImage.Information);
+                    return;
+                }
+
+                string filePath = dte.ActiveDocument.FullName;
+                string displayPath = filePath;
+                if (TryGetRelativePathUnderDirectory(filePath, _lastWorkspaceDirectory, out string relativePath))
+                {
+                    displayPath = relativePath;
+                }
+                displayPath = displayPath.Replace('\\', '/');
+
+                string currentText = PromptTextBox.Text;
+                string insert = "@" + displayPath + " ";
+
+                int caretIndex = PromptTextBox.CaretIndex;
+                if (caretIndex >= 0 && caretIndex <= currentText.Length)
+                {
+                    PromptTextBox.Text = currentText.Insert(caretIndex, insert);
+                    PromptTextBox.CaretIndex = caretIndex + insert.Length;
+                }
+                else
+                {
+                    PromptTextBox.Text = currentText + insert;
+                    PromptTextBox.CaretIndex = PromptTextBox.Text.Length;
+                }
+
+                PromptTextBox.Focus();
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"Error inserting active file path: {ex.Message}");
+            }
+        }
+
+        /// <summary>
         /// Inserts a formatted code snippet into the prompt text box without sending.
         /// Called from the toolbar button and the editor context menu command.
         /// </summary>

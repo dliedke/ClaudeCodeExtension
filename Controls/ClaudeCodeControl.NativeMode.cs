@@ -78,6 +78,24 @@ namespace ClaudeCodeVS
             }
         }
 
+        /// <summary>
+        /// The session id an automated send (build/runtime errors, custom commands, On Agent Finish
+        /// follow-ups — every non-prompt-box caller of <see cref="SendTextToAgentAsync(string)"/>)
+        /// should target, tracked by <c>_lastFocusedNativeSessionId</c> in NativeChat.cs as the user
+        /// switches between chat tabs. Returns null for the default session (the one on
+        /// <see cref="_agentSession"/>, shown in the panel or the windowId-0 tab) — either because that
+        /// is genuinely the last one focused, or because no secondary tab was ever opened.
+        /// </summary>
+        private string ResolveFocusedNativeSessionId()
+        {
+            if (string.IsNullOrEmpty(_lastFocusedNativeSessionId))
+                return null;
+
+            // The tracked id can outlive its session by a race between the tab's Closed and Activated
+            // notifications; falling back to the default session beats sending into a dead one.
+            return GetSession(_lastFocusedNativeSessionId) != null ? _lastFocusedNativeSessionId : null;
+        }
+
         #endregion
 
         #region Native Mode Fields
@@ -941,6 +959,12 @@ namespace ClaudeCodeVS
         /// follow-up. Native mode delivers it over the structured channel; otherwise it goes through
         /// the terminal exactly as before.
         /// <para>
+        /// With several chat tabs open (parallel sessions), it targets whichever one the user last had
+        /// focused — <see cref="ResolveFocusedNativeSessionId"/> — instead of always the first/default
+        /// session, so a build error while working in a second tab lands there and not in a tab the
+        /// user may not even be looking at.
+        /// </para>
+        /// <para>
         /// Terminal-only traffic — slash commands, CLI self-updates, the Caveman install — keeps
         /// calling <see cref="SendTextToTerminalAsync"/> directly, since none of it means anything to
         /// a structured session.
@@ -950,6 +974,13 @@ namespace ClaudeCodeVS
         {
             if (IsNativeModeActive)
             {
+                string focusedSessionId = ResolveFocusedNativeSessionId();
+                if (!string.IsNullOrEmpty(focusedSessionId))
+                {
+                    await SendPromptToNativeAgentAsync(text, focusedSessionId);
+                    return;
+                }
+
                 await SendPromptToNativeAgentAsync(text);
                 return;
             }

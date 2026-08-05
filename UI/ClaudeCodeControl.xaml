@@ -256,6 +256,7 @@
 								<ContextMenu x:Name="AttachContextMenu">
 									<MenuItem Header="📎  Attach File..." x:Name="AttachFileMenuItem" Click="AttachFileMenuItem_Click"/>
 									<MenuItem Header="📋  Insert Editor Selection" x:Name="InsertSelectionMenuItem" Click="GrabSelectionButton_Click"/>
+									<MenuItem Header="📄  Insert Active File Path" x:Name="InsertActiveFilePathMenuItem" Click="InsertActiveFilePathMenuItem_Click" ToolTip="Inserts an @-reference to the file open in the active editor tab, like GitHub Copilot's &quot;Active Document&quot; context."/>
 									<!--
 										Optional menu entry. Hidden by default. Set
 										EnablePasteFromClipboardMenu = true in ClaudeCodeControl.UserInput.cs

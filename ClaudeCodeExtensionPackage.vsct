@@ -9,9 +9,19 @@
       <!-- Standard code editor context menu (C#, VB, C++, F#, JSON, CSS, JS standalone, XML, etc.).
            The modern HTML / Razor / WebForms editors in VS 17+/18 build their context menu via
            the Editor Commanding framework and do NOT expose a VSCT-targetable group, so the
-           Send Selection command cannot appear there from a third-party extension. -->
+           Send Selection command cannot appear there from a third-party extension. A prior attempt
+           to reach it via "IDM_VS_CTXT_HTMLCODE" broke the build (v10.65/10.66, see CommandPlacements
+           below for the other pitfall it likely also hit) — any future context menu group needs a
+           real, VS-registered GUID+ID pair, the way guidVSXamlWindowContextMenu below does for XAML. -->
       <Group guid="guidClaudeCodeExtensionPackageCmdSet" id="EditorContextMenuGroup" priority="0x0600">
         <Parent guid="guidSHLMainMenu" id="IDM_VS_CTXT_CODEWIN"/>
+      </Group>
+      <!-- The XAML editor (WPF/UWP/Xamarin.Forms) builds its own context menu under a private,
+           package-owned GUID instead of IDM_VS_CTXT_CODEWIN, so it needs its own group. Value taken
+           from the VS shell's registered XAML editor context menu (also used by third-party
+           extensions such as XAML Styler to add commands there). -->
+      <Group guid="guidVSXamlWindowContextMenu" id="XamlContextMenuGroup" priority="0x0600">
+        <Parent guid="guidVSXamlWindowContextMenu" id="IDVSXamlWindowContextMenu"/>
       </Group>
     </Groups>
 
@@ -38,6 +48,15 @@
     </Bitmaps>
   </Commands>
 
+  <!-- CommandPlacements is a sibling of Commands, not a subsection of it — nesting it inside
+       Commands is VSCT1102 (this is what actually broke the HTML editor attempt in v10.65/10.66,
+       not the guidSHLMainMenu symbol noted above; both mistakes are worth avoiding here). -->
+  <CommandPlacements>
+    <CommandPlacement guid="guidClaudeCodeExtensionPackageCmdSet" id="EditorSendSelectionCommandId" priority="0x0100">
+      <Parent guid="guidVSXamlWindowContextMenu" id="XamlContextMenuGroup"/>
+    </CommandPlacement>
+  </CommandPlacements>
+
   <Symbols>
     <GuidSymbol name="guidClaudeCodeExtensionPackage" value="{3fa29425-3add-418f-82f6-0c9b7419b2ca}" />
 
@@ -45,6 +64,13 @@
       <IDSymbol name="ClaudeCodeToolWindowCommandId" value="0x0100" />
       <IDSymbol name="EditorContextMenuGroup" value="0x1020" />
       <IDSymbol name="EditorSendSelectionCommandId" value="0x0201" />
+    </GuidSymbol>
+
+    <!-- The XAML editor's own context menu, owned by Microsoft's XAML editor package (not part of
+         guidSHLMainMenu / vsshlids.h). -->
+    <GuidSymbol name="guidVSXamlWindowContextMenu" value="{4C87B692-1202-46AA-B64C-EF01FAEC53DA}">
+      <IDSymbol name="IDVSXamlWindowContextMenu" value="0x0103" />
+      <IDSymbol name="XamlContextMenuGroup" value="0x1030" />
     </GuidSymbol>
 
     <GuidSymbol name="guidImages" value="{aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee}">

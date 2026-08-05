@@ -39,6 +39,14 @@ namespace ClaudeCodeVS
         /// <summary>Fired when the user closes the tab, so the chat can go back into the panel.</summary>
         public event EventHandler Closed;
 
+        /// <summary>
+        /// Fired when this tab becomes the active document (tab click, Ctrl+Tab, or first show), so the
+        /// owning control can track which chat is "focused" — used to target automated sends (build/
+        /// runtime errors, custom commands, On Agent Finish follow-ups) at whichever tab the user is
+        /// actually looking at instead of always the first session.
+        /// </summary>
+        public event EventHandler Activated;
+
         public NativeChatToolWindow() : base(null)
         {
             this.Caption = "Claude Code Chat";
@@ -117,6 +125,13 @@ namespace ClaudeCodeVS
 
         public int OnShow(int fShow)
         {
+            // TabActivated fires on every tab click among several document tabs; WinShown covers the
+            // first time the tab is shown (before there is anything else to switch away from).
+            if (fShow == (int)__FRAMESHOW.FRAMESHOW_TabActivated || fShow == (int)__FRAMESHOW.FRAMESHOW_WinShown)
+            {
+                Activated?.Invoke(this, EventArgs.Empty);
+            }
+
             return VSConstants.S_OK;
         }
 
