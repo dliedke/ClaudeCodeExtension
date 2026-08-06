@@ -21,7 +21,7 @@ Enjoying the extension? [Buy me a coffee](https://www.buymeacoffee.com/dliedke) 
 - **Editor selection → prompt** — Click 📋 or right-click selected code → *Send Selection to Claude Code* to insert a formatted snippet (file path + line numbers + syntax-highlighted code fence) into the prompt.
 - **Integrated diff viewer** — For Git projects, the 📊 view shows uncommitted changes in a dedicated tab with search, double-click-to-open, and double-click-line-to-navigate. Optionally auto-opens when you send a prompt.
 - **Prompt history** — Last 50 prompts saved (with attached files). Browse with **Ctrl+Up / Ctrl+Down**; clear via right-click.
-- **Claude Code session history** — 📜 toolbar button lists past sessions for the current workspace; resume any session or the most recent one with one click. Works for native and WSL Claude Code.
+- **Claude Code and Codex session history** — 📜 toolbar button lists past sessions for the current workspace; view, rename, delete, or resume any session, including the most recent one. Works on Windows and WSL.
 - **Claude usage in VS** — 📊 button (when Claude is active) opens the claude.ai usage page inside a dockable tab. Inline session/weekly progress bars below the prompt update automatically and adapt to the active theme.
 - **Custom commands (⚡)** — Save slash commands or canned prompts and dispatch them to the active agent in one click. Configure via *⚙ → Configure Custom Commands...*.
 - **"@" file picker** — Type **@** in the prompt box (or the native mode chat composer) to search your solution's files and folders and insert one with the keyboard; keep typing to filter, arrow keys + Enter to insert, pick a folder to drill in.
@@ -136,6 +136,12 @@ https://github.com/anthropics/claude-code/issues/41501
 Use native mode to avoid this issue.
 
 ## Version History
+
+### Version 133.0
+Fixed restored Codex sessions opening without their earlier messages in native mode, including older interrupted conversations.
+
+### Version 132.0
+Session History now supports Codex on Windows and WSL, including viewing, renaming, deleting, resuming any thread or the latest one, and restoring earlier messages in native mode.
 
 ### Version 131.0
 The Claude Code panel and any tabs it created (detached terminal, native mode chat tabs) now stay visible while you debug your project, instead of getting hidden by Visual Studio's own layout behavior (issue #130).

@@ -2237,7 +2237,7 @@ For more details, visit: https://pi.dev";
 
             // Every configurable feature is always offered (button when promoted, otherwise menu
             // entry). Features that only apply to certain providers or workspaces — View Changes
-            // (git repo only), Session History (Claude Code only), Show Usage (Claude/Devin only) —
+            // (git repo only), Session History (Claude/Codex), Show Usage (Claude/Devin only) —
             // are no longer hidden for the active agent; instead each shows a friendly explanation
             // at click time when it isn't applicable (issue #97).
 

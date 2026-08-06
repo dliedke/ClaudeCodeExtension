@@ -1334,8 +1334,8 @@ namespace ClaudeCodeVS
         /// The transcript on disk is the same JSONL the Session History dialog already reads.
         /// </summary>
         /// <param name="sessionId">
-        /// The id the user asked to resume, or null/"-c" for anything else. "-c" is the Session History
-        /// window's "continue last session", which native mode has no equivalent for and ignores.
+        /// The id the user asked to resume, or null/"-c" for anything else. Codex resolves "Resume Last"
+        /// to an explicit id before this point; Claude's "-c" sentinel has no native-mode equivalent.
         /// </param>
         /// <returns>False when there is nothing to replay, and the caller shows the welcome card.</returns>
         private async Task<bool> TryReplayResumedTranscriptAsync(AiProvider provider, string workspace, string sessionId)
@@ -1347,6 +1347,32 @@ namespace ClaudeCodeVS
 
             try
             {
+                if (IsCodexSessionHistoryProvider(provider))
+                {
+                    CodexThreadTranscript transcript = await ReadCodexThreadAsync(provider, workspace, sessionId);
+                    List<CodexTranscriptMessage> messages = transcript?.Messages?
+                        .Where(message => message != null && !message.IsTool && !string.IsNullOrWhiteSpace(message.Text))
+                        .ToList() ?? new List<CodexTranscriptMessage>();
+                    LogTerminalLaunch($"Native mode: Codex replay thread={sessionId}, messages={messages.Count}");
+                    if (messages.Count == 0) return false;
+
+                    int start = Math.Max(0, messages.Count - ResumedTranscriptMaxRows);
+                    await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
+                    AddNativeMessage(ChatMessageKind.Notice, start > 0
+                        ? $"🕘 Resumed this Codex conversation — showing the last {messages.Count - start} of {messages.Count} messages."
+                        : $"🕘 Resumed this Codex conversation — {messages.Count} earlier messages restored.");
+
+                    for (int index = start; index < messages.Count; index++)
+                    {
+                        CodexTranscriptMessage message = messages[index];
+                        AddNativeMessage(message.IsUser ? ChatMessageKind.User : ChatMessageKind.Assistant,
+                            message.Text.TrimEnd());
+                    }
+
+                    ChatTranscript.ScrollToEndIfFollowing();
+                    return true;
+                }
+
                 string directory = await ResolveSessionDirectoryAsync(provider, workspace);
                 if (string.IsNullOrEmpty(directory))
                 {
@@ -1415,6 +1441,8 @@ namespace ClaudeCodeVS
             catch (Exception ex)
             {
                 Debug.WriteLine($"Native mode: replaying the resumed transcript failed: {ex.Message}");
+                LogTerminalLaunch($"Native mode: transcript replay failed for provider={provider}, " +
+                    $"session={sessionId}: {ex}");
                 return false;
             }
         }
@@ -3424,8 +3452,8 @@ namespace ClaudeCodeVS
         /// transcript, which is deliberately not cleared: the conversation reads as one continuous
         /// thread with a divider where the switch happened.
         /// <para>
-        /// Claude is relaunched with <c>--resume &lt;session id&gt;</c>, so the agent keeps the history
-        /// too. The other adapters have no equivalent, so there the notice says so.
+        /// Claude and Codex are relaunched with their resume forms, so the agent keeps the history
+        /// too. Adapters without resume support say that the conversation starts over.
         /// </para>
         /// </summary>
         /// <param name="appendAccountLabel">
@@ -3456,7 +3484,8 @@ namespace ClaudeCodeVS
                 // id the adapter *asked* for and the CLI never created a transcript for. Resuming it
                 // fails the launch, which is what made two consecutive dropdown changes kill the agent.
                 string resumeId = previous.ResumableSessionId;
-                bool providerCanResume = IsClaudeProvider(provider);
+                bool providerCanResume = IsClaudeProvider(provider) ||
+                    provider == AiProvider.Codex || provider == AiProvider.CodexNative;
                 bool canResume = !forceNewSession && providerCanResume && !string.IsNullOrEmpty(resumeId);
 
                 string workspace = await GetWorkspaceDirectoryAsync();

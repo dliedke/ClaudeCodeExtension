@@ -6,9 +6,8 @@
  * Copyright © Daniel Carvalho Liedke 2026
  * Usage and reproduction in any manner whatsoever without the written permission of Daniel Carvalho Liedke is strictly forbidden.
  *
- * Purpose: Claude Code session history — lists JSONL transcripts under
- *          ~/.claude/projects/<encoded-cwd>/ for the active workspace,
- *          and resumes one via `claude --resume <id>` or `claude --continue`.
+ * Purpose: Session history for Claude Code and Codex, including native/WSL discovery,
+ *          readable transcript viewing, deletion and provider-specific resume commands
  *
  * *******************************************************************************************************************/
 
@@ -18,6 +17,7 @@ using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
@@ -25,6 +25,7 @@ using System.Windows.Input;
 using System.Windows.Media;
 using Microsoft.VisualStudio.Shell;
 using Newtonsoft.Json.Linq;
+using ClaudeCodeVS.Agents;
 
 namespace ClaudeCodeVS
 {
@@ -187,6 +188,105 @@ namespace ClaudeCodeVS
             {
                 Debug.WriteLine($"ResolveWslSessionDirectoryAsync error: {ex.Message}");
                 return null;
+            }
+        }
+
+        /// <summary>Creates a short-lived App Server client in the selected Codex environment.</summary>
+        private CodexAppServerClient CreateCodexHistoryClient(AiProvider provider, string workspaceDir)
+        {
+            bool isWsl = provider == AiProvider.Codex;
+            string freshPath = GetFreshPathFromRegistry();
+            string executable = ResolveNativeProviderExecutable(provider, "codex");
+            if (!isWsl)
+            {
+                executable = ResolveExecutableOnPath(executable, freshPath);
+            }
+
+            var options = new CodexAppServerOptions
+            {
+                UseWsl = isWsl,
+                ExecutablePath = executable,
+                WorkingDirectory = workspaceDir ?? string.Empty,
+                WslWorkingDirectory = isWsl ? ConvertToWslPath(workspaceDir) : string.Empty,
+                ClientVersion = typeof(ClaudeCodeControl).Assembly.GetName().Version?.ToString() ?? "1.0"
+            };
+
+            if (!isWsl && !string.IsNullOrWhiteSpace(freshPath))
+            {
+                options.EnvironmentOverrides["PATH"] = freshPath;
+            }
+
+            return new CodexAppServerClient(options);
+        }
+
+        /// <summary>Loads Codex thread summaries through the supported rich-client API.</summary>
+        private async Task<List<SessionInfo>> LoadCodexSessionsAsync(
+            AiProvider provider,
+            string workspaceDir)
+        {
+            var result = new List<SessionInfo>();
+            string cwd = provider == AiProvider.Codex ? ConvertToWslPath(workspaceDir) : workspaceDir;
+
+            using (CodexAppServerClient client = CreateCodexHistoryClient(provider, workspaceDir))
+            {
+                await client.StartAsync(CancellationToken.None);
+                IList<CodexThreadSummary> threads = await client.ListThreadsAsync(cwd, CancellationToken.None);
+
+                foreach (CodexThreadSummary thread in threads)
+                {
+                    var info = new SessionInfo
+                    {
+                        SessionId = thread.Id,
+                        FilePath = thread.Path,
+                        // A Codex-owned thread name is the provider's normal display label, not an
+                        // extension rename. Keep CustomTitle reserved for the local override so
+                        // clearing one reliably restores Codex's name (or its first-prompt preview).
+                        Preview = string.IsNullOrWhiteSpace(thread.Name) ? thread.Preview : thread.Name,
+                        CustomTitle = string.Empty,
+                        MessageCount = -1,
+                        TokenCount = -1,
+                        LastModified = thread.LastModified,
+                        Cwd = thread.Cwd,
+                        Provider = provider
+                    };
+
+                    if (_settings?.SessionCustomTitles != null &&
+                        _settings.SessionCustomTitles.TryGetValue(info.SessionId, out string title) &&
+                        !string.IsNullOrWhiteSpace(title))
+                    {
+                        info.CustomTitle = title;
+                    }
+
+                    result.Add(info);
+                }
+            }
+
+            return result.OrderByDescending(session => session.LastModified).ToList();
+        }
+
+        /// <summary>Reads a complete Codex thread for View and native-mode transcript replay.</summary>
+        private async Task<CodexThreadTranscript> ReadCodexThreadAsync(
+            AiProvider provider,
+            string workspaceDir,
+            string threadId)
+        {
+            using (CodexAppServerClient client = CreateCodexHistoryClient(provider, workspaceDir))
+            {
+                await client.StartAsync(CancellationToken.None);
+                return await client.ReadThreadAsync(threadId, CancellationToken.None);
+            }
+        }
+
+        /// <summary>Deletes a Codex thread through App Server so its rollout and metadata stay aligned.</summary>
+        private async Task DeleteCodexThreadAsync(
+            AiProvider provider,
+            string workspaceDir,
+            string threadId)
+        {
+            using (CodexAppServerClient client = CreateCodexHistoryClient(provider, workspaceDir))
+            {
+                await client.StartAsync(CancellationToken.None);
+                await client.DeleteThreadAsync(threadId, CancellationToken.None);
             }
         }
 
@@ -437,9 +537,8 @@ namespace ClaudeCodeVS
         #region Toolbar Button + Dialog
 
         /// <summary>
-        /// Shows or hides the History button based on the currently selected provider.
-        /// Only Windows-native Claude Code and WSL Claude Code persist resumable sessions;
-        /// Codex / Cursor / Devin use different storage and aren't supported here.
+        /// Refreshes the History button after a provider or layout change. The button stays visible;
+        /// its click handler explains when the selected provider has no supported session store.
         /// </summary>
         private void RefreshSessionHistoryButton()
         {
@@ -467,6 +566,30 @@ namespace ClaudeCodeVS
             return provider == AiProvider.ClaudeCode || provider == AiProvider.ClaudeCodeWSL;
         }
 
+        /// <summary>Returns true for the Windows and WSL Codex stores exposed by App Server.</summary>
+        private static bool IsCodexSessionHistoryProvider(AiProvider? provider)
+        {
+            return provider == AiProvider.CodexNative || provider == AiProvider.Codex;
+        }
+
+        /// <summary>Providers whose persisted conversations can be listed and resumed here.</summary>
+        private static bool SupportsSessionHistory(AiProvider? provider)
+        {
+            return IsClaudeCodeSessionHistoryProvider(provider) || IsCodexSessionHistoryProvider(provider);
+        }
+
+        private static string GetSessionHistoryProviderName(AiProvider provider)
+        {
+            switch (provider)
+            {
+                case AiProvider.ClaudeCodeWSL: return "Claude Code (WSL)";
+                case AiProvider.ClaudeCode: return "Claude Code";
+                case AiProvider.Codex: return "Codex (WSL)";
+                case AiProvider.CodexNative: return "Codex";
+                default: return "Code Agent";
+            }
+        }
+
         /// <summary>
         /// Builds the two-line row content for a session. Renamed sessions (issue #95) get a
         /// distinct layout: a colored left accent bar plus a bold, accented title line with a
@@ -478,10 +601,19 @@ namespace ClaudeCodeVS
             bool renamed = !string.IsNullOrWhiteSpace(s.CustomTitle);
 
             string ts = s.LastModified.ToString("yyyy-MM-dd HH:mm");
-            string tokens = s.TokenCount > 1000
-                ? $"{s.TokenCount / 1000.0:0.#}k tokens"
-                : $"{s.TokenCount} tokens";
-            string meta = $"{ts}   ({s.MessageCount} msgs, {tokens})";
+            string meta = ts;
+            if (s.MessageCount >= 0 || s.TokenCount >= 0)
+            {
+                var details = new List<string>();
+                if (s.MessageCount >= 0) details.Add($"{s.MessageCount} msgs");
+                if (s.TokenCount >= 0)
+                {
+                    details.Add(s.TokenCount > 1000
+                        ? $"{s.TokenCount / 1000.0:0.#}k tokens"
+                        : $"{s.TokenCount} tokens");
+                }
+                meta += "   (" + string.Join(", ", details) + ")";
+            }
 
             var root = new Grid();
             root.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
@@ -573,11 +705,11 @@ namespace ClaudeCodeVS
         private async Task ShowSessionHistoryDialogAsync()
         {
             AiProvider? selected = _settings?.SelectedProvider;
-            if (!IsClaudeCodeSessionHistoryProvider(selected))
+            if (!SupportsSessionHistory(selected))
             {
                 MessageBox.Show(
-                    "Session history is only available for Claude Code (native or WSL). " +
-                    "Switch the active code agent to Claude Code first.",
+                    "Session history is available for Claude Code and Codex (native or WSL). " +
+                    "Switch the active code agent to one of those providers first.",
                     "Session History",
                     MessageBoxButton.OK, MessageBoxImage.Information);
                 return;
@@ -595,7 +727,7 @@ namespace ClaudeCodeVS
 
             var dialog = new Window
             {
-                Title = $"Claude Code Session History — {workspaceDir}",
+                Title = $"{GetSessionHistoryProviderName(selected.Value)} Session History — {workspaceDir}",
                 Width = 760,
                 Height = 460,
                 WindowStartupLocation = WindowStartupLocation.CenterOwner,
@@ -883,15 +1015,41 @@ namespace ClaudeCodeVS
                 loading.Visibility = Visibility.Visible;
                 loading.Text = "Loading sessions…";
 
-                string sessionDir = await ResolveSessionDirectoryAsync(selected.Value, workspaceDir);
-                List<SessionInfo> sessions = await LoadSessionsAsync(sessionDir, selected.Value);
+                string sessionDir = null;
+                List<SessionInfo> sessions;
+                try
+                {
+                    if (IsCodexSessionHistoryProvider(selected))
+                    {
+                        sessions = await LoadCodexSessionsAsync(selected.Value, workspaceDir);
+                    }
+                    else
+                    {
+                        sessionDir = await ResolveSessionDirectoryAsync(selected.Value, workspaceDir);
+                        sessions = await LoadSessionsAsync(sessionDir, selected.Value);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Debug.WriteLine($"Session history load failed: {ex}");
+                    loading.Visibility = Visibility.Visible;
+                    loading.Text = $"Could not load {GetSessionHistoryProviderName(selected.Value)} sessions:\n{ex.Message}";
+                    return;
+                }
 
                 if (sessions.Count == 0)
                 {
                     loading.Visibility = Visibility.Visible;
-                    loading.Text = string.IsNullOrEmpty(sessionDir)
-                        ? "WSL not available or claude project folder unreachable."
-                        : $"No sessions found in:\n{sessionDir}";
+                    if (IsCodexSessionHistoryProvider(selected))
+                    {
+                        loading.Text = "No Codex sessions were found for this workspace.";
+                    }
+                    else
+                    {
+                        loading.Text = string.IsNullOrEmpty(sessionDir)
+                            ? "WSL not available or Claude Code project folder unreachable."
+                            : $"No sessions found in:\n{sessionDir}";
+                    }
                     return;
                 }
 
@@ -964,20 +1122,33 @@ namespace ClaudeCodeVS
                 applyFilter(); // re-render so the renamed-row layout (and any filter) updates
             };
 
-            // Delete the selected transcript (and any custom title it carried).
-            Action deleteSelected = () =>
+            // Delete the selected transcript (and any custom title it carried). Codex deletion goes
+            // through App Server so its rollout file and state database cannot drift apart.
+            Func<Task> deleteSelectedAsync = async () =>
             {
                 var sel = currentSelection();
                 if (sel == null) return;
 
+                string descendantWarning = IsCodexSessionHistoryProvider(sel.Provider)
+                    ? "\n\nCodex may also delete threads branched from this one."
+                    : string.Empty;
                 var confirm = MessageBox.Show(
-                    $"Delete this session transcript?\n\n{sel.FilePath}\n\nThis cannot be undone.",
+                    $"Delete this session transcript?\n\n{sel.FilePath}{descendantWarning}\n\nThis cannot be undone.",
                     "Delete Session", MessageBoxButton.YesNo, MessageBoxImage.Warning);
                 if (confirm != MessageBoxResult.Yes) return;
 
                 try
                 {
-                    File.Delete(sel.FilePath);
+                    if (IsCodexSessionHistoryProvider(sel.Provider))
+                    {
+                        await DeleteCodexThreadAsync(sel.Provider, workspaceDir, sel.SessionId);
+                    }
+                    else
+                    {
+                        await Task.Run(() => File.Delete(sel.FilePath));
+                    }
+
+                    await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
                     if (_settings.SessionCustomTitles != null &&
                         _settings.SessionCustomTitles.Remove(sel.SessionId))
                     {
@@ -995,21 +1166,23 @@ namespace ClaudeCodeVS
 
             // Open the selected transcript, rendered as a readable conversation, in the
             // default text editor (Notepad). Purely a viewer — nothing is modified.
-            Action viewSelected = () =>
+            Func<Task> viewSelectedAsync = async () =>
             {
                 var sel = currentSelection();
                 if (sel == null) return;
-                ViewSessionTranscript(sel);
+                await ViewSessionTranscriptAsync(sel, workspaceDir);
             };
 
             // Right-click context menu on the list (issue #95): View / Rename / Delete.
             var listContextMenu = new ContextMenu();
             var viewMenuItem = new MenuItem { Header = "View…" };
-            viewMenuItem.Click += (s, args) => viewSelected();
+            viewMenuItem.Click += (s, args) =>
+                StartSessionHistoryTask(viewSelectedAsync, "claudecode/sessionhistory/view");
             var renameMenuItem = new MenuItem { Header = "Rename…" };
             renameMenuItem.Click += (s, args) => renameSelected();
             var deleteMenuItem = new MenuItem { Header = "Delete" };
-            deleteMenuItem.Click += (s, args) => deleteSelected();
+            deleteMenuItem.Click += (s, args) =>
+                StartSessionHistoryTask(deleteSelectedAsync, "claudecode/sessionhistory/delete");
             listContextMenu.Items.Add(viewMenuItem);
             listContextMenu.Items.Add(renameMenuItem);
             listContextMenu.Items.Add(deleteMenuItem);
@@ -1058,11 +1231,13 @@ namespace ClaudeCodeVS
                 StartSessionHistoryTask(() => ContinueLastSessionAsync(), "claudecode/sessionhistory");
             };
 
-            viewButton.Click += (s, args) => viewSelected();
+            viewButton.Click += (s, args) =>
+                StartSessionHistoryTask(viewSelectedAsync, "claudecode/sessionhistory/view");
 
             renameButton.Click += (s, args) => renameSelected();
 
-            deleteButton.Click += (s, args) => deleteSelected();
+            deleteButton.Click += (s, args) =>
+                StartSessionHistoryTask(deleteSelectedAsync, "claudecode/sessionhistory/delete");
 
             refreshButton.Click += (s, args) =>
             {
@@ -1174,13 +1349,25 @@ namespace ClaudeCodeVS
         /// conversation, writes it to a temp file, and opens it in the default text
         /// editor (Notepad). Read-only — the original transcript is never modified.
         /// </summary>
-        private void ViewSessionTranscript(SessionInfo session)
+        private async Task ViewSessionTranscriptAsync(SessionInfo session, string workspaceDir)
         {
             if (session == null) return;
 
             try
             {
-                string transcript = BuildReadableTranscript(session);
+                string transcript;
+                if (IsCodexSessionHistoryProvider(session.Provider))
+                {
+                    CodexThreadTranscript codexTranscript = await ReadCodexThreadAsync(
+                        session.Provider, workspaceDir, session.SessionId);
+                    transcript = BuildReadableCodexTranscript(session, codexTranscript);
+                }
+                else
+                {
+                    transcript = await Task.Run(() => BuildReadableTranscript(session));
+                }
+
+                await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
 
                 string tempDir = Path.Combine(Path.GetTempPath(), "ClaudeCodeExtension", "SessionView");
                 Directory.CreateDirectory(tempDir);
@@ -1197,6 +1384,40 @@ namespace ClaudeCodeVS
                 MessageBox.Show($"Could not open the session transcript:\n{ex.Message}",
                     "View Session", MessageBoxButton.OK, MessageBoxImage.Error);
             }
+        }
+
+        /// <summary>Formats the provider-neutral messages returned by Codex App Server.</summary>
+        private static string BuildReadableCodexTranscript(
+            SessionInfo session,
+            CodexThreadTranscript transcript)
+        {
+            var sb = new StringBuilder();
+
+            sb.AppendLine($"Title:     {NormalizeTranscriptTitle(session.DisplayTitle)}");
+            sb.AppendLine($"Session:   {session.SessionId}");
+            sb.AppendLine($"Directory: {session.Cwd}");
+            sb.AppendLine($"Modified:  {session.LastModified:yyyy-MM-dd HH:mm:ss}");
+            sb.AppendLine($"Messages:  {transcript?.Messages?.Count(message => message != null && !message.IsTool) ?? 0}");
+            sb.AppendLine($"File:      {session.FilePath}");
+            sb.AppendLine(new string('=', 80));
+            sb.AppendLine();
+
+            if (transcript?.Messages == null) return sb.ToString();
+
+            foreach (CodexTranscriptMessage message in transcript.Messages)
+            {
+                if (message == null || string.IsNullOrWhiteSpace(message.Text)) continue;
+
+                string stamp = message.Timestamp == DateTime.MinValue
+                    ? string.Empty
+                    : $" [{message.Timestamp:yyyy-MM-dd HH:mm}]";
+                string speaker = message.IsUser ? "USER" : message.IsTool ? "TOOL" : "ASSISTANT";
+                sb.AppendLine($"{speaker}{stamp}:");
+                sb.AppendLine(message.Text.TrimEnd());
+                sb.AppendLine();
+            }
+
+            return sb.ToString();
         }
 
         /// <summary>
@@ -1368,10 +1589,9 @@ namespace ClaudeCodeVS
         #region Resume Integration
 
         /// <summary>
-        /// Stops the current terminal (if any), arms the one-shot resume token consumed by
-        /// <c>GetClaudeCommand</c>, and restarts the terminal with the matching provider.
-        /// Switching native↔WSL is intentional — a session created in WSL must be resumed
-        /// in WSL because <c>--resume</c> looks up the transcript by the encoded cwd.
+        /// Stops the current agent (if any), arms the one-shot resume token consumed by the selected
+        /// provider's terminal/native command builder, and restarts with the matching environment.
+        /// Switching native↔WSL is intentional because the two environments own separate stores.
         /// </summary>
         private async Task ResumeSessionAsync(SessionInfo session)
         {
@@ -1388,14 +1608,45 @@ namespace ClaudeCodeVS
         }
 
         /// <summary>
-        /// Resumes the most recent session in the current cwd via <c>claude --continue</c>.
-        /// Honors whichever Claude variant (native vs WSL) is currently selected.
+        /// Resumes the most recent session in the current workspace. Claude uses its native continue
+        /// switch; Codex resolves the latest thread id first so terminal and native mode behave alike.
         /// </summary>
         private async Task ContinueLastSessionAsync()
         {
             AiProvider? selected = _settings?.SelectedProvider;
-            if (!IsClaudeCodeSessionHistoryProvider(selected))
+            if (!SupportsSessionHistory(selected))
             {
+                return;
+            }
+
+            if (IsCodexSessionHistoryProvider(selected))
+            {
+                string workspaceDir = await GetWorkspaceDirectoryAsync();
+                if (string.IsNullOrWhiteSpace(workspaceDir)) return;
+
+                List<SessionInfo> sessions;
+                try
+                {
+                    sessions = await LoadCodexSessionsAsync(selected.Value, workspaceDir);
+                }
+                catch (Exception ex)
+                {
+                    await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
+                    MessageBox.Show($"Could not load the latest Codex session:\n{ex.Message}",
+                        "Session History", MessageBoxButton.OK, MessageBoxImage.Error);
+                    return;
+                }
+
+                SessionInfo latest = sessions.OrderByDescending(session => session.LastModified).FirstOrDefault();
+                if (latest == null)
+                {
+                    await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
+                    MessageBox.Show("No Codex sessions were found for this workspace.",
+                        "Session History", MessageBoxButton.OK, MessageBoxImage.Information);
+                    return;
+                }
+
+                await ResumeSessionAsync(latest);
                 return;
             }
 

@@ -40,6 +40,12 @@ namespace ClaudeCodeVS.Agents
         /// <summary>Mapped from the provider's existing "full auto" / "yolo" setting.</summary>
         public bool SkipApprovals { get; set; }
 
+        /// <summary>
+        /// Existing provider session to continue on the first turn. Empty starts a new conversation.
+        /// Session History uses this for Codex; later turns keep using the id reported by the CLI.
+        /// </summary>
+        public string ResumeSessionId { get; set; } = string.Empty;
+
         public string DisplayName { get; set; } = "agent";
 
         public IDictionary<string, string> EnvironmentOverrides { get; }
@@ -128,6 +134,7 @@ namespace ClaudeCodeVS.Agents
         {
             _options = options ?? throw new ArgumentNullException(nameof(options));
             _protocol = protocol ?? throw new ArgumentNullException(nameof(protocol));
+            SessionId = _options.ResumeSessionId ?? string.Empty;
         }
 
         public string SessionId { get; private set; } = string.Empty;
@@ -180,7 +187,7 @@ namespace ClaudeCodeVS.Agents
 
             _workingDirectory = workingDirectory ?? string.Empty;
 
-            Raise(AgentEvent.SessionStarted(string.Empty, string.Empty, null, null));
+            Raise(AgentEvent.SessionStarted(SessionId, string.Empty, null, null));
 
             return Task.CompletedTask;
         }

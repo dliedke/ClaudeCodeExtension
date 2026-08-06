@@ -23,3 +23,4 @@
 ## Architecture
 - Extension embeds terminal (cmd.exe or wsl.exe) using Win32 interop to host AI CLI tools (Claude Code, Codex, Cursor Agent, Open Code, Devin)
 - Settings, theme, workspace, terminal I/O, and provider management are separated into partial class files for maintainability
+- Session history reads Claude Code JSONL transcripts directly and uses Codex App Server for native/WSL thread list, read, delete, and resume flows

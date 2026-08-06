@@ -59,6 +59,7 @@
     <Compile Include="Agents\ClaudeCommandBuilder.cs" />
     <Compile Include="Agents\ClaudeStreamJsonSession.cs" />
     <Compile Include="Agents\ClaudeStreamParser.cs" />
+    <Compile Include="Agents\CodexAppServerClient.cs" />
     <Compile Include="Agents\CodexExecProtocol.cs" />
     <Compile Include="Agents\CursorAgentProtocol.cs" />
     <Compile Include="Agents\IAgentSession.cs" />

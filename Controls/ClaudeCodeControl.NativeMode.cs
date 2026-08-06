@@ -545,6 +545,17 @@ namespace ClaudeCodeVS
                 DisplayName = GetProviderDisplayName(provider)
             };
 
+            // Session History can reopen a stored Codex thread before the first turn. Cursor's own
+            // history is not exposed by this window, so it must never consume another provider's token.
+            if (!isCursor)
+            {
+                string resumeArg = Interlocked.Exchange(ref _pendingResumeSessionId, null);
+                if (!string.IsNullOrWhiteSpace(resumeArg) && resumeArg != "-c")
+                {
+                    options.ResumeSessionId = resumeArg;
+                }
+            }
+
             if (!string.IsNullOrWhiteSpace(freshPath))
             {
                 options.EnvironmentOverrides["PATH"] = freshPath;

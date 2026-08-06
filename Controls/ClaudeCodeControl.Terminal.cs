@@ -4846,7 +4846,17 @@ namespace ClaudeCodeVS
 
             if (_settings?.CodexFullAuto == true)
             {
-                return $"{baseCommand} --ask-for-approval never";
+                baseCommand += " --ask-for-approval never";
+            }
+
+            // Session History arms this token immediately before the restart. Codex accepts the same
+            // resume command in native Windows and WSL; the id is quoted for the owning shell.
+            string resumeArg = System.Threading.Interlocked.Exchange(ref _pendingResumeSessionId, null);
+            if (!string.IsNullOrEmpty(resumeArg))
+            {
+                baseCommand += resumeArg == "-c"
+                    ? " resume --last"
+                    : " resume " + QuoteProviderArgument(resumeArg, isWsl);
             }
 
             return baseCommand;

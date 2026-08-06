@@ -280,9 +280,9 @@ namespace ClaudeCodeVS
     }
 
     /// <summary>
-    /// Summary metadata for a single Claude Code session loaded from a JSONL transcript
-    /// under <c>~/.claude/projects/&lt;encoded-cwd&gt;/&lt;session-uuid&gt;.jsonl</c>.
-    /// Built in-memory by the session-history dialog, never persisted.
+    /// Summary metadata for a persisted Claude Code or Codex session. Claude sessions are loaded
+    /// from their JSONL transcripts; Codex summaries come from App Server's thread API. Built
+    /// in-memory by the session-history dialog, never persisted.
     /// </summary>
     public class SessionInfo
     {
@@ -312,10 +312,13 @@ namespace ClaudeCodeVS
         public string DisplayTitle =>
             !string.IsNullOrWhiteSpace(CustomTitle) ? CustomTitle : Preview;
 
-        /// <summary>Count of user + assistant turns (skipping system/snapshot/attachment lines).</summary>
+        /// <summary>
+        /// Count of user + assistant messages, or -1 when the provider's list API does not return a
+        /// count without loading the full transcript.
+        /// </summary>
         public int MessageCount { get; set; }
 
-        /// <summary>Sum of input + output tokens across all assistant messages.</summary>
+        /// <summary>Sum of input + output tokens, or -1 when unavailable from the list API.</summary>
         public int TokenCount { get; set; }
 
         /// <summary>File mtime — used to sort the list newest-first.</summary>
@@ -324,7 +327,7 @@ namespace ClaudeCodeVS
         /// <summary>Working directory recorded in the transcript (the original cwd of the session).</summary>
         public string Cwd { get; set; } = string.Empty;
 
-        /// <summary>Provider this session belongs to (Windows-native or WSL Claude Code).</summary>
+        /// <summary>Provider and environment that own this session.</summary>
         public AiProvider Provider { get; set; }
     }
 

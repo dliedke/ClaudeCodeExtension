@@ -6,7 +6,7 @@
 
 - **Author**: Daniel Carvalho Liedke (dliedke@gmail.com) | **License**: MIT
 - **Repository**: https://github.com/dliedke/ClaudeCodeExtension
-- **Current Version**: 110.0 | **Target Framework**: .NET Framework 4.7.2
+- **Current Version**: 133.0 | **Target Framework**: .NET Framework 4.7.2
 
 ---
 
@@ -103,7 +103,7 @@ ClaudeCodeExtension/
 │   ├── ClaudeCodeControl.Theme.cs       # Dark/light theme support
 │   ├── ClaudeCodeControl.Detach.cs      # Terminal detach/attach to separate VS tab
 │   ├── ClaudeCodeControl.Usage.cs       # Claude usage tool window wiring & inline bars
-│   ├── ClaudeCodeControl.SessionHistory.cs # Session history dialog: list/resume/delete JSONL transcripts
+│   ├── ClaudeCodeControl.SessionHistory.cs # Claude/Codex history dialog: list/view/resume/delete
 │   ├── ClaudeCodeControl.NativeMode.cs  # "Native mode": chat instead of the embedded terminal, adapter selection, event bridge
 │   └── ClaudeCodeControl.NativeChat.cs  # Native mode chat tab: document-tab hosting, composer, agent/model/effort/permission selectors, live switching
 ├── Agents/                              # Headless agent protocols (no WPF, no VS SDK — unit-testable)
@@ -115,6 +115,7 @@ ClaudeCodeExtension/
 │   ├── ClaudeStreamJsonSession.cs / ClaudeStreamParser.cs / ClaudeCommandBuilder.cs # Claude Code stream-json
 │   ├── AcpSession.cs / AcpCommandBuilder.cs # ACP (OpenCode, Devin, Devin native, Reasonix)
 │   ├── OneShotResumeSession.cs / CodexExecProtocol.cs / CursorAgentProtocol.cs # CLIs that exit each turn
+│   ├── CodexAppServerClient.cs        # Codex thread list/read/delete client for session history
 │   ├── PiRpcSession.cs                  # PI's own RPC mode
 │   └── PrintModeSession.cs              # Antigravity (--print, no event stream)
 ├── UI/                                  # XAML controls + paired code-behind
