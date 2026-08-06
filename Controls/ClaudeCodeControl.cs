@@ -134,6 +134,9 @@ namespace ClaudeCodeVS
                 // Subscribe to VS debugger events for the opt-in "auto-send runtime errors" feature.
                 InitializeRuntimeErrorAutoSend();
 
+                // Subscribe to VS debugger events to keep the extension (and any tab it created) visible while debugging.
+                InitializeDebugVisibility();
+
                 // Only initialize terminal once - prevent re-initialization on tab switches
                 if (_hasInitialized)
                 {

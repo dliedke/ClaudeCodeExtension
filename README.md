@@ -137,6 +137,9 @@ Use native mode to avoid this issue.
 
 ## Version History
 
+### Version 131.0
+The Claude Code panel and any tabs it created (detached terminal, native mode chat tabs) now stay visible while you debug your project, instead of getting hidden by Visual Studio's own layout behavior (issue #130).
+
 ### Version 130.0
 "Send Selection to Claude Code" now also appears in the XAML editor's right-click menu, not just standard code editors (issue #127).
 The 📎 attach menu has a new "Insert Active File Path" entry that drops a reference to the file open in the active editor tab into the prompt, similar to GitHub Copilot's "Active Document" context (issue #127).

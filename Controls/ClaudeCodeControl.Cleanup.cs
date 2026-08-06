@@ -175,6 +175,9 @@ namespace ClaudeCodeVS
                 // Unsubscribe from VS debugger events (auto-send runtime errors feature)
                 DisposeRuntimeErrorAutoSend();
 
+                // Unsubscribe from VS debugger events (debug-visibility feature)
+                DisposeDebugVisibility();
+
                 // Cleanup detached terminal window
                 if (_isTerminalDetached && _detachedTerminalWindow != null)
                 {
