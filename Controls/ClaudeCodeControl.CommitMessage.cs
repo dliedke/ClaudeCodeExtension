@@ -124,6 +124,10 @@ namespace ClaudeCodeVS
 
                 string prompt = BuildCommitMessagePrompt(diff);
 
+                // This is a behind-the-scenes side question, not something the user asked to chat about —
+                // the "On Agent Finish" sound/action must not fire when its turn completes.
+                _suppressNextNativeAgentFinish = true;
+
                 Task<string> capture = CaptureNextAssistantTurnAsync(session, TimeSpan.FromMilliseconds(SideQuestionTimeoutMs));
                 await SendTextToAgentAsync(prompt);
                 string response = await capture;

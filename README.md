@@ -137,6 +137,9 @@ Use native mode to avoid this issue.
 
 ## Version History
 
+### Version 136.0
+Fixed Generate Commit Message playing the "On Agent Finish" sound or running its action after the AI wrote the commit message.
+
 ### Version 135.0
 Fixed native mode chat occasionally rendering streamed replies with the first few characters of a line missing.
 

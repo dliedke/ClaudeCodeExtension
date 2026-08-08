@@ -142,6 +142,15 @@ namespace ClaudeCodeVS
         /// </summary>
         private AgentFinishConfig _nativeTurnFinishConfig;
 
+        /// <summary>
+        /// Set by a caller (e.g. "Generate Commit Message") right before <see cref="SendTextToAgentAsync"/>
+        /// to suppress the "On Agent Finish" notify/action for the turn that prompt starts. That prompt is
+        /// a behind-the-scenes side question the user never asked for a reply to in chat, so playing the
+        /// finish sound or running the configured action for it would be surprising. Consumed (reset to
+        /// false) the moment a turn captures its finish config, so it never leaks into the next real turn.
+        /// </summary>
+        private bool _suppressNextNativeAgentFinish;
+
         /// <summary>Last throttling notice shown, so the repeated rate-limit events don't stack up.</summary>
         private string _lastNativeRateLimitNotice;
 
@@ -1166,7 +1175,8 @@ namespace ClaudeCodeVS
             sessionState.ChatTranscript.SetBusy(sessionState.AgentSession.SupportsInterrupt);
 
             sessionState.TurnStartedUtc = DateTime.UtcNow;
-            sessionState.TurnFinishConfig = GetEffectiveAgentFinish();
+            sessionState.TurnFinishConfig = _suppressNextNativeAgentFinish ? null : GetEffectiveAgentFinish();
+            _suppressNextNativeAgentFinish = false;
 
             try
             {
@@ -1209,7 +1219,8 @@ namespace ClaudeCodeVS
             // "On Agent Finish" replacement for the console-idle watcher: capture the same config the
             // watcher would have been armed with, and let the protocol's end-of-turn event fire it.
             _nativeTurnStartedUtc = DateTime.UtcNow;
-            _nativeTurnFinishConfig = GetEffectiveAgentFinish();
+            _nativeTurnFinishConfig = _suppressNextNativeAgentFinish ? null : GetEffectiveAgentFinish();
+            _suppressNextNativeAgentFinish = false;
 
             try
             {
