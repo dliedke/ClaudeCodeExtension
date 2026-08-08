@@ -124,8 +124,8 @@
     <Compile Include="Package\SolutionEventsHandler.cs" />
   </ItemGroup>
   <ItemGroup>
-    <None Include="AGENTS.md" />
-    <None Include="CLAUDE.md" />
+    <None Include="docs\AGENTS.md" />
+    <None Include="docs\CLAUDE.md" />
     <None Include="deploy-exp.cmd" />
     <None Include="docs\ARCHITECTURE.md" />
     <None Include="publish.cmd" />
