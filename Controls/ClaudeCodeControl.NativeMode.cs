@@ -103,6 +103,21 @@ namespace ClaudeCodeVS
         private IAgentSession _agentSession;
 
         /// <summary>
+        /// Events queued for the default session, drained strictly in arrival order by
+        /// <see cref="DrainAgentEventQueueAsync"/>. A bare fire-and-forget
+        /// <c>SwitchToMainThreadAsync</c> per event has no ordering guarantee once anything on the main
+        /// thread pumps a nested message loop (a modal permission dialog, for one) — a later event's
+        /// continuation can run before an earlier one finishes, interleaving half-applied text into the
+        /// same streaming row. This queue plus <see cref="_agentEventPumpRunning"/> is what actually
+        /// guarantees streamed text renders in the order the agent sent it.
+        /// </summary>
+        private readonly System.Collections.Concurrent.ConcurrentQueue<AgentEvent> _pendingAgentEvents =
+            new System.Collections.Concurrent.ConcurrentQueue<AgentEvent>();
+
+        /// <summary>1 while a drain loop owns <see cref="_pendingAgentEvents"/>; guards against a second loop starting.</summary>
+        private int _agentEventPumpRunning;
+
+        /// <summary>
         /// The row currently receiving streamed assistant text, so chunks append instead of creating a
         /// new bubble per token. Null between turns.
         /// </summary>
@@ -1440,21 +1455,55 @@ namespace ClaudeCodeVS
                 return;
             }
 
-#pragma warning disable VSSDK007, VSTHRD110 // Intentionally fire-and-forget; events arrive on the reader thread
-            ThreadHelper.JoinableTaskFactory.RunAsync(async delegate
+            // Enqueue-then-maybe-start instead of spawning an independent RunAsync per event: see the
+            // ordering rationale on _pendingAgentEvents. Only the caller that flips the flag from 0 to 1
+            // starts a drain loop; every other concurrent caller just leaves its event for that loop to
+            // pick up, so at most one loop ever owns the queue.
+            _pendingAgentEvents.Enqueue(agentEvent);
+            if (Interlocked.CompareExchange(ref _agentEventPumpRunning, 1, 0) != 0)
             {
-                await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
+                return;
+            }
 
-                try
-                {
-                    ApplyAgentEvent(agentEvent);
-                }
-                catch (Exception ex)
-                {
-                    Debug.WriteLine($"Native mode: failed to render {agentEvent.Kind}: {ex}");
-                }
-            }).FileAndForget("claudecode/nativemode/event");
+#pragma warning disable VSSDK007, VSTHRD110 // Intentionally fire-and-forget; events arrive on the reader thread
+            ThreadHelper.JoinableTaskFactory.RunAsync(DrainAgentEventQueueAsync).FileAndForget("claudecode/nativemode/event");
 #pragma warning restore VSSDK007, VSTHRD110
+        }
+
+        /// <summary>
+        /// Applies queued default-session events strictly in arrival order, one drain loop at a time.
+        /// Re-arms itself if an event was enqueued in the narrow window between the loop emptying the
+        /// queue and releasing <see cref="_agentEventPumpRunning"/>.
+        /// </summary>
+        private async Task DrainAgentEventQueueAsync()
+        {
+            await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
+
+            try
+            {
+                while (_pendingAgentEvents.TryDequeue(out AgentEvent agentEvent))
+                {
+                    try
+                    {
+                        ApplyAgentEvent(agentEvent);
+                    }
+                    catch (Exception ex)
+                    {
+                        Debug.WriteLine($"Native mode: failed to render {agentEvent.Kind}: {ex}");
+                    }
+                }
+            }
+            finally
+            {
+                Volatile.Write(ref _agentEventPumpRunning, 0);
+
+                if (!_pendingAgentEvents.IsEmpty && Interlocked.CompareExchange(ref _agentEventPumpRunning, 1, 0) == 0)
+                {
+#pragma warning disable VSSDK007, VSTHRD110
+                    ThreadHelper.JoinableTaskFactory.RunAsync(DrainAgentEventQueueAsync).FileAndForget("claudecode/nativemode/event");
+#pragma warning restore VSSDK007, VSTHRD110
+                }
+            }
         }
 
         /// <summary>Processes an event for a specific session (multi-session event routing).</summary>
@@ -2436,25 +2485,21 @@ namespace ClaudeCodeVS
             state.SelectedModel = sessionModel;
             state.SelectedEffortLevel = _settings.SelectedEffortLevel;
 
-            // Register event handler (closure captures sessionId and state)
+            // Register event handler (closure captures sessionId and state). Enqueue-then-maybe-start,
+            // same as the default session's OnAgentEventReceived: see the ordering rationale on
+            // NativeChatSessionState.PendingEvents.
             EventHandler<AgentEvent> handler = (sender, agentEvent) =>
             {
-                if (!ReferenceEquals(sender, agentSession))
+                if (agentEvent == null || !ReferenceEquals(sender, agentSession))
+                    return;
+
+                state.PendingEvents.Enqueue(agentEvent);
+                if (Interlocked.CompareExchange(ref state.EventPumpRunning, 1, 0) != 0)
                     return;
 
 #pragma warning disable VSSDK007, VSTHRD110 // Intentionally fire-and-forget; events arrive on the reader thread
-                ThreadHelper.JoinableTaskFactory.RunAsync(async delegate
-                {
-                    await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
-                    try
-                    {
-                        ApplyAgentEventToSession(sessionId, state, agentEvent);
-                    }
-                    catch (Exception ex)
-                    {
-                        Debug.WriteLine($"Native mode: failed to apply event to session {sessionId}: {ex}");
-                    }
-                }).FileAndForget("claudecode/nativemode/event");
+                ThreadHelper.JoinableTaskFactory.RunAsync(() => DrainSessionEventQueueAsync(sessionId, state))
+                    .FileAndForget("claudecode/nativemode/event");
 #pragma warning restore VSSDK007, VSTHRD110
             };
 
@@ -2469,6 +2514,43 @@ namespace ClaudeCodeVS
             }
 
             return state;
+        }
+
+        /// <summary>
+        /// Applies a session's queued events strictly in arrival order, one drain loop at a time. Mirrors
+        /// <see cref="DrainAgentEventQueueAsync"/> for the default session — see the ordering rationale
+        /// on <see cref="NativeChatSessionState.PendingEvents"/>.
+        /// </summary>
+        private async Task DrainSessionEventQueueAsync(string sessionId, NativeChatSessionState state)
+        {
+            await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
+
+            try
+            {
+                while (state.PendingEvents.TryDequeue(out AgentEvent agentEvent))
+                {
+                    try
+                    {
+                        ApplyAgentEventToSession(sessionId, state, agentEvent);
+                    }
+                    catch (Exception ex)
+                    {
+                        Debug.WriteLine($"Native mode: failed to apply event to session {sessionId}: {ex}");
+                    }
+                }
+            }
+            finally
+            {
+                Volatile.Write(ref state.EventPumpRunning, 0);
+
+                if (!state.PendingEvents.IsEmpty && Interlocked.CompareExchange(ref state.EventPumpRunning, 1, 0) == 0)
+                {
+#pragma warning disable VSSDK007, VSTHRD110
+                    ThreadHelper.JoinableTaskFactory.RunAsync(() => DrainSessionEventQueueAsync(sessionId, state))
+                        .FileAndForget("claudecode/nativemode/event");
+#pragma warning restore VSSDK007, VSTHRD110
+                }
+            }
         }
 
         #endregion

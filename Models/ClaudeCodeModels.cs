@@ -171,7 +171,8 @@ namespace ClaudeCodeVS
         SessionHistory,
         ShowUsage,
         SetWorkingDirectory,
-        SendBuildErrors
+        SendBuildErrors,
+        GenerateCommitMessage
     }
 
     /// <summary>

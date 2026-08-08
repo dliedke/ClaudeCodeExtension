@@ -1305,6 +1305,7 @@ namespace ClaudeCodeVS
                 case ToolbarButton.ShowUsage: return ("📊  Show Usage", "Toggle the usage window. Claude / Devin providers only.");
                 case ToolbarButton.SetWorkingDirectory: return ("📁  Set Working Directory", "Set a custom working directory for the agent.");
                 case ToolbarButton.SendBuildErrors: return ("🛠️  Send Build Errors to Agent", "Collect the current build errors and send them to the agent to fix, regardless of the auto-send setting.");
+                case ToolbarButton.GenerateCommitMessage: return ("📝  Generate Commit Message", "Ask the agent to write a commit message from the current git diff and fill it into the Git Changes window. Requires Native Mode.");
                 default: return (id.ToString(), string.Empty);
             }
         }

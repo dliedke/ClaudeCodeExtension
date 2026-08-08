@@ -372,6 +372,17 @@
                             Visibility="Collapsed"
                             Margin="0,0,6,0"/>
 
+					<Button x:Name="GenerateCommitMessageToolbarButton"
+                            Content="📝"
+                            Width="30"
+                            MinWidth="30"
+                            FontSize="14"
+                            Style="{StaticResource IconButtonStyle}"
+                            Click="GenerateCommitMessageButton_Click"
+                            ToolTip="Generate Commit Message"
+                            Visibility="Collapsed"
+                            Margin="0,0,6,0"/>
+
 					<!-- Tools dropdown: holds the configurable features the user did NOT promote to
 					     their own toolbar button. Auto-hides when every feature is a button
 					     (RefreshToolbarLayout). Keeps these features out of the ⚙ menu. -->
@@ -395,6 +406,7 @@
 								<MenuItem Header="📊  Show Usage" x:Name="ShowUsageViewMenuItem" Click="ShowUsageViewMenuItem_Click" IsCheckable="True" Visibility="Collapsed"/>
 								<MenuItem Header="📁  Set Working Directory..." x:Name="SetWorkingDirectoryMenuItem" Click="SetWorkingDirectoryMenuItem_Click" ToolTip="Set a custom working directory (absolute or relative to solution). Leave empty for default behavior."/>
 								<MenuItem Header="🛠️  Send Build Errors to Agent" x:Name="SendBuildErrorsMenuItem" Click="SendBuildErrorsButton_Click" ToolTip="Collect the current build errors and send them to the agent to fix, regardless of the auto-send setting."/>
+								<MenuItem Header="📝  Generate Commit Message" x:Name="GenerateCommitMessageMenuItem" Click="GenerateCommitMessageButton_Click" ToolTip="Ask the agent to write a commit message from the current git diff and fill it into the Git Changes window."/>
 							</ContextMenu>
 						</Button.ContextMenu>
 					</Button>

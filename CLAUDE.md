@@ -6,7 +6,7 @@ Visual Studio Extension (VSIX) for VS 2022/2026 — integrates AI code assistant
 
 - Author: Daniel Carvalho Liedke (dliedke@gmail.com) | License: MIT
 - Repository: https://github.com/dliedke/ClaudeCodeExtension
-- Current Version: 133.0 | Target Framework: .NET Framework 4.7.2
+- Current Version: 135.0 | Target Framework: .NET Framework 4.7.2
 
 ---
 
@@ -98,6 +98,7 @@ ClaudeCodeExtension/
 │   ├── ClaudeCodeControl.CustomCommands.cs # User-defined custom commands: configure dialog, toolbar dropdown, dispatch
 │   ├── ClaudeCodeControl.DebugVisibility.cs # Keeps the extension (and any tab it created) visible while debugging (issue #130)
 │   ├── ClaudeCodeControl.CliPaths.cs    # Per-provider custom CLI executable path: Settings "CLI Paths" tab content, resolution/validation helpers
+│   ├── ClaudeCodeControl.CommitMessage.cs # "Generate Commit Message": AI-drafted commit message from the git diff, filled into the Git Changes window via best-effort UI Automation
 │   ├── ClaudeCodeControl.ModelCatalog.cs # Per-provider model list: CLI discovery + cache, selection storage, launch flags / live switch commands
 │   ├── ClaudeCodeControl.Interop.cs     # Win32 API declarations (P/Invoke)
 │   ├── ClaudeCodeControl.Theme.cs       # Dark/light theme support
@@ -206,6 +207,7 @@ Three cross-cutting rules (full text in `docs/ARCHITECTURE.md` → *Cross-Cuttin
 | `Controls/ClaudeCodeControl.CustomCommands.cs` | Custom Commands |
 | `Controls/ClaudeCodeControl.DebugVisibility.cs` | Debug Visibility — always-on visibility restore for the panel and its tabs while debugging |
 | `Controls/ClaudeCodeControl.CliPaths.cs` | Custom CLI Paths — CLI Paths settings tab, resolution/validation |
+| `Controls/ClaudeCodeControl.CommitMessage.cs` | Generate Commit Message — assistant-turn capture tap, Git Changes window UI Automation, clipboard fallback |
 | `Controls/ClaudeCodeControl.ModelCatalog.cs`, `Agents/ModelCatalog.cs` | Model Catalog & Selection — per-CLI listing commands, cache/TTL, how each agent's model is applied |
 | `Controls/ClaudeCodeControl.TerminalIO.cs` | Terminal I/O — paste/clipboard, chunking, large-prompt-as-file |
 | `Controls/ClaudeCodeControl.Usage.cs` | Claude Usage — WebView2 scraping, persistence, proxy interstitial |

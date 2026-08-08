@@ -105,7 +105,7 @@ Then choose it via *⚙ → Set Terminal Type...*.
 - *Configure Custom Commands...*, *Settings...*, About
 - *Settings...* opens the consolidated dialog with tabs for Behavior (send key, large prompts, auto-open Changes, auto-send build errors, font size), Layout (prompt panel position), Terminal type, Theme, Usage, Toolbar, and CLI Paths
 
-☰ Tools dropdown: Holds *Update Code Agent*, *Restart Code Agent*, *Detach/Attach Terminal*, *View Code Changes*, *Session History*, *Show Usage*, *Set Working Directory...*, and *Send Build Errors to Agent*. Promote any of these to one-click toolbar buttons — and reorder them by dragging — via *⚙ → Settings... → Toolbar*; promoted features leave the dropdown, which hides once they all become buttons.
+☰ Tools dropdown: Holds *Update Code Agent*, *Restart Code Agent*, *Detach/Attach Terminal*, *View Code Changes*, *Session History*, *Show Usage*, *Set Working Directory...*, *Send Build Errors to Agent*, and *Generate Commit Message*. Promote any of these to one-click toolbar buttons — and reorder them by dragging — via *⚙ → Settings... → Toolbar*; promoted features leave the dropdown, which hides once they all become buttons.
 
 🤖 Model menu: For Claude — Opus / Sonnet / Haiku, effort level for Opus (Auto / Low / Medium / High / Max), Change Account, Install Caveman plugin. For every other agent — its own models (grouped into submenus when the list is long), *Refresh Models*, and *Choose in the Agent...*; Devin and Reasonix instead offer a configurable list, edited via *Configure Models...*.
 
@@ -136,6 +136,12 @@ https://github.com/anthropics/claude-code/issues/41501
 Use native mode to avoid this issue.
 
 ## Version History
+
+### Version 135.0
+Fixed native mode chat occasionally rendering streamed replies with the first few characters of a line missing.
+
+### Version 134.0
+Added a Generate Commit Message toolbar button that asks the agent to write a commit message from the current changes and fills it into the Git Changes window, ready to review alongside the diff. Requires native mode; falls back to copying the message to the clipboard if the Git Changes commit box can't be found.
 
 ### Version 133.0
 Fixed restored Codex sessions opening without their earlier messages in native mode, including older interrupted conversations.

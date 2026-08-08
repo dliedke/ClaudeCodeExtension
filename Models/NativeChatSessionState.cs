@@ -11,6 +11,7 @@
  * *******************************************************************************************************************/
 
 using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Threading;
@@ -85,11 +86,25 @@ namespace ClaudeCodeVS
         // Event handler for cleanup
         internal EventHandler<AgentEvent> EventHandler { get; set; }
 
+        /// <summary>
+        /// Events queued for this session, drained strictly in arrival order by the pump in
+        /// <c>ClaudeCodeControl.NativeMode.cs</c>. An independent fire-and-forget
+        /// <c>SwitchToMainThreadAsync</c> per event has no ordering guarantee once anything on the main
+        /// thread pumps a nested message loop (a modal permission dialog, for one), so this queue plus
+        /// <see cref="EventPumpRunning"/> is what guarantees streamed text renders in the order the
+        /// agent sent it.
+        /// </summary>
+        internal readonly ConcurrentQueue<AgentEvent> PendingEvents = new ConcurrentQueue<AgentEvent>();
+
+        /// <summary>1 while a drain loop owns <see cref="PendingEvents"/>; guards against a second loop starting. Plain field (not a property) so it can be passed to Interlocked by ref.</summary>
+        internal int EventPumpRunning;
+
         public void Dispose()
         {
             try { ChatTranscript?.AbandonPendingInteractions(); } catch { }
             try { PendingToolCalls.Clear(); } catch { }
             try { CodexPromptQueue.Clear(); } catch { }
+            try { while (PendingEvents.TryDequeue(out _)) { } } catch { }
             try { AttachedFiles.Clear(); } catch { }
             try { if (AgentSession != null && EventHandler != null) AgentSession.Received -= EventHandler; } catch { }
             try { AgentSession?.Dispose(); } catch { }
