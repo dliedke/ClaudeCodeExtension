@@ -528,10 +528,10 @@ Key settings: `SplitterPosition` (236px default), `SendWithEnter` (default true)
 
 | Package | Version | Purpose |
 |---------|---------|---------|
-| Microsoft.VisualStudio.SDK | 17.0.32112.339 | VS extensibility APIs |
-| Microsoft.VSSDK.BuildTools | 17.14.2101 | VSIX build tools |
-| Newtonsoft.Json | 13.0.3 | Settings serialization |
-| DiffPlex | 1.7.2 | Diff computation |
+| Microsoft.VisualStudio.SDK | 17.14.40265 | VS extensibility APIs |
+| Microsoft.VSSDK.BuildTools | 18.5.40034 | VSIX build tools |
+| Newtonsoft.Json | 13.0.3 | Settings serialization — pinned to the version VS itself loads; do not bump without checking (issue #112) |
+| DiffPlex | 1.9.0 | Diff computation |
 
 ## Adding a New AI Provider (Checklist)
 

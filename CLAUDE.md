@@ -135,7 +135,8 @@ ClaudeCodeExtension/
 │   ├── ClaudeUsageToolWindow.cs
 │   └── NativeChatToolWindow.cs          # Document-area tab hosting the native-mode chat
 ├── Models/
-│   └── ClaudeCodeModels.cs              # Enums & settings class
+│   ├── ClaudeCodeModels.cs              # Enums & settings class
+│   └── NativeChatSessionState.cs        # Per-session native mode chat state (parallel sessions)
 ├── Package/                             # VS package & solution event wiring
 │   ├── ClaudeCodeExtensionPackage.cs    # VS package registration
 │   └── SolutionEventsHandler.cs         # Solution/project open events

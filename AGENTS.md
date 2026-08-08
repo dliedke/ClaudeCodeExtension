@@ -2,8 +2,8 @@
 
 ## Build & Test
 - **Build**: `msbuild ClaudeCodeExtension.sln /p:Configuration=Release` or `msbuild ClaudeCodeExtension.sln /p:Configuration=Debug`
-- **No automated tests**: This is a Visual Studio extension; testing is done via F5 debugging in VS 2022
-- **Debug**: Press F5 in Visual Studio to launch experimental instance with `/rootsuffix Exp`
+- **Tests**: `./test.cmd` builds `Tests/ClaudeCodeExtension.Tests.csproj` and runs it under `vstest.console.exe` (no VS instance needed) — version/package guards plus unit tests of pure helpers (parsers, formatters, path/session logic). `publish.cmd` runs it as a gate before releasing (`SKIP_TESTS=1` bypasses it).
+- **Debug**: Press F5 in Visual Studio to launch experimental instance with `/rootsuffix Exp`. Anything needing a running VS (terminal embedding, provider round-trip, settings dialog) is only exercised this way.
 
 ## Code Style
 - **Language**: C# targeting .NET Framework 4.7.2 for Visual Studio 2022 SDK
@@ -21,6 +21,7 @@
 - **Constants**: Use `const` for hardcoded strings (e.g., `ConfigurationFileName`), `static readonly` for computed values
 
 ## Architecture
-- Extension embeds terminal (cmd.exe or wsl.exe) using Win32 interop to host AI CLI tools (Claude Code, Codex, Cursor Agent, Open Code, Devin)
+- Extension embeds a terminal (cmd.exe or wsl.exe) using Win32 interop to host AI CLI tools (Claude Code, Codex, Cursor Agent, Open Code, Devin, PI, Google Antigravity, Reasonix) — see CLAUDE.md's Supported AI Providers table for the full list
+- "Native mode" replaces the embedded terminal with a chat tab driven by an `IAgentSession` adapter per provider (`Agents/`), instead of scraping console output
 - Settings, theme, workspace, terminal I/O, and provider management are separated into partial class files for maintainability
 - Session history reads Claude Code JSONL transcripts directly and uses Codex App Server for native/WSL thread list, read, delete, and resume flows
