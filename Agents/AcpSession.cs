@@ -314,18 +314,46 @@ namespace ClaudeCodeVS.Agents
             string agentVersion = init?["agentInfo"]?["version"]?.ToString() ?? string.Empty;
             Model = string.IsNullOrEmpty(agentVersion) ? agentName : agentName + " " + agentVersion;
 
-            var newSessionParams = new JObject
+            var sessionParams = new JObject
             {
                 ["cwd"] = workingDirectory ?? string.Empty,
                 ["mcpServers"] = new JArray()
             };
 
-            JToken session = await RequestAsync("session/new", newSessionParams, cancellationToken);
-            SessionId = session?["sessionId"]?.ToString() ?? string.Empty;
-
-            if (string.IsNullOrEmpty(SessionId))
+            JToken session = null;
+            if (!string.IsNullOrEmpty(_options.ResumeSessionId))
             {
-                throw new InvalidOperationException($"{_options.DisplayName} did not return a session id.");
+                var loadParams = (JObject)sessionParams.DeepClone();
+                loadParams["sessionId"] = _options.ResumeSessionId;
+
+                try
+                {
+                    // The agent streams the entire prior conversation back as ordinary session/update
+                    // notifications while this request is outstanding — the same live event pipeline a
+                    // running turn uses — so a caller that already wired up Received before StartAsync
+                    // sees the replay land in the chat with no separate transcript-reading step needed.
+                    session = await RequestAsync("session/load", loadParams, cancellationToken);
+                    SessionId = _options.ResumeSessionId;
+                    WasResumedFromLoad = true;
+                }
+                catch (Exception ex)
+                {
+                    // Older agent build, or the stored session is gone: fall back to a fresh session
+                    // rather than failing the whole launch over a resume that can't be honored.
+                    Log($"session/load failed, starting a new session instead: {ex.Message}");
+                    session = null;
+                }
+            }
+
+            if (session == null)
+            {
+                session = await RequestAsync("session/new", sessionParams, cancellationToken);
+                SessionId = session?["sessionId"]?.ToString() ?? string.Empty;
+
+                if (string.IsNullOrEmpty(SessionId))
+                {
+                    throw new InvalidOperationException($"{_options.DisplayName} did not return a session id.");
+                }
             }
 
             await TrySetModeAsync(session, cancellationToken);
@@ -333,6 +361,13 @@ namespace ClaudeCodeVS.Agents
 
             Raise(AgentEvent.SessionStarted(SessionId, Model, ReadCommandNames(session), null));
         }
+
+        /// <summary>
+        /// True once <see cref="StartAsync"/> resumed via <c>session/load</c> rather than starting a
+        /// fresh session — the caller uses this to know the conversation was already replayed through
+        /// the live event pipeline and must not also render a separately-read transcript on top of it.
+        /// </summary>
+        public bool WasResumedFromLoad { get; private set; }
 
         /// <summary>
         /// Selects the configured session mode, when the agent offers one by that id.

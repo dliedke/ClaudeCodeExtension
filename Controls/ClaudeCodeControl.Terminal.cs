@@ -4873,10 +4873,10 @@ namespace ClaudeCodeVS
 
             if (_settings?.DevinDangerousMode == true)
             {
-                return $"{baseCommand} --permission-mode dangerous";
+                baseCommand = $"{baseCommand} --permission-mode dangerous";
             }
 
-            return baseCommand;
+            return AppendDevinResumeArgument(baseCommand, isWsl: true);
         }
 
         /// <summary>
@@ -4892,10 +4892,28 @@ namespace ClaudeCodeVS
 
             if (_settings?.DevinDangerousMode == true)
             {
-                return $"{baseCommand} --permission-mode dangerous";
+                baseCommand = $"{baseCommand} --permission-mode dangerous";
             }
 
-            return baseCommand;
+            return AppendDevinResumeArgument(baseCommand, isWsl: false);
+        }
+
+        /// <summary>
+        /// Consumes the one-shot resume token the Session History dialog arms just before a terminal
+        /// restart. Mirrors <see cref="GetClaudeCommand"/>'s <c>"-c"</c> sentinel handling: Devin's own
+        /// continue/resume flags (<c>--continue</c> / <c>--resume &lt;id&gt;</c>) take the same shape.
+        /// </summary>
+        private string AppendDevinResumeArgument(string baseCommand, bool isWsl)
+        {
+            string resumeArg = System.Threading.Interlocked.Exchange(ref _pendingResumeSessionId, null);
+            if (string.IsNullOrEmpty(resumeArg))
+            {
+                return baseCommand;
+            }
+
+            return resumeArg == "-c"
+                ? $"{baseCommand} --continue"
+                : $"{baseCommand} --resume {QuoteProviderArgument(resumeArg, isWsl)}";
         }
 
         /// <summary>

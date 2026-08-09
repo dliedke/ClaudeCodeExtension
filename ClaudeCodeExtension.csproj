@@ -62,6 +62,7 @@
     <Compile Include="Agents\CodexAppServerClient.cs" />
     <Compile Include="Agents\CodexExecProtocol.cs" />
     <Compile Include="Agents\CursorAgentProtocol.cs" />
+    <Compile Include="Agents\DevinSessionHistoryClient.cs" />
     <Compile Include="Agents\IAgentSession.cs" />
     <Compile Include="Agents\JsonLineProcessHost.cs" />
     <Compile Include="Agents\OneShotResumeSession.cs" />
@@ -86,6 +87,7 @@
     <Compile Include="Controls\ClaudeCodeControl.Interop.cs" />
     <Compile Include="Controls\ClaudeCodeControl.ProviderManagement.cs" />
     <Compile Include="Controls\ClaudeCodeControl.SessionHistory.cs" />
+    <Compile Include="Controls\ClaudeCodeControl.SessionHistoryProviders.cs" />
     <Compile Include="Controls\ClaudeCodeControl.Settings.cs" />
     <Compile Include="Controls\ClaudeCodeControl.SettingsDialog.cs" />
     <Compile Include="Controls\ClaudeCodeControl.Terminal.cs" />

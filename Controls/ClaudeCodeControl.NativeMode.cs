@@ -362,11 +362,17 @@ namespace ClaudeCodeVS
                 _currentRunningProvider = provider;
                 ChatTranscript.SetStatus("Ready.");
 
+                // Devin (and any other ACP agent that resumes via session/load) already streamed its
+                // prior conversation into the chat live, through the same Received handler a running
+                // turn uses, wired up before StartAsync — there is nothing left to replay for it, and
+                // reading a transcript by another route here would duplicate what is already showing.
+                bool alreadyReplayedLive = (session as AcpSession)?.WasResumedFromLoad == true;
+
                 // A resumed conversation is replayed from its transcript, because the CLI restores the
                 // agent's memory without re-emitting a single message of it. Otherwise: an empty
                 // transcript says nothing about what is running — the CLI's own startup banner never
                 // reaches native mode, so the chat prints its own.
-                if (!await TryReplayResumedTranscriptAsync(provider, workspace, resumeRequest))
+                if (!alreadyReplayedLive && !await TryReplayResumedTranscriptAsync(provider, workspace, resumeRequest))
                 {
                     await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
                     ShowChatWelcome(workspace);
@@ -530,6 +536,18 @@ namespace ClaudeCodeVS
             if (!string.IsNullOrWhiteSpace(freshPath))
             {
                 options.EnvironmentOverrides["PATH"] = freshPath;
+            }
+
+            // Only Devin exposes session history in this window (OpenCode/Reasonix don't), so only it
+            // may consume the token — the same guard CreateOneShotSession applies for Cursor.
+            bool isDevin = provider == AiProvider.Devin || provider == AiProvider.DevinNative;
+            if (isDevin)
+            {
+                string resumeArg = Interlocked.Exchange(ref _pendingResumeSessionId, null);
+                if (!string.IsNullOrWhiteSpace(resumeArg) && resumeArg != "-c")
+                {
+                    options.ResumeSessionId = resumeArg;
+                }
             }
 
             return new AcpSession(options);

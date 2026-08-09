@@ -57,6 +57,14 @@ namespace ClaudeCodeVS.Agents
         public string DisplayName { get; set; } = "agent";
 
         /// <summary>
+        /// A session id to resume via ACP <c>session/load</c> instead of starting fresh with
+        /// <c>session/new</c>. Empty starts a new session. Only meaningful for an agent that
+        /// advertises <c>agentCapabilities.loadSession</c> (Devin does); on an agent that does not,
+        /// or if the load itself fails, <see cref="AcpSession"/> falls back to <c>session/new</c>.
+        /// </summary>
+        public string ResumeSessionId { get; set; } = string.Empty;
+
+        /// <summary>
         /// Set for a CLI whose very first-ever invocation blocks on an interactive console prompt
         /// before doing anything else (Reasonix: "Allow anonymous CLI usage statistics? [Y/n]"), with
         /// no trailing newline — which means it never becomes a complete line on stdout, so the normal
