@@ -138,6 +138,9 @@ Use native mode to avoid this issue.
 
 ## Version History
 
+### Version 139.0
+Session History now supports Devin (native or WSL), including viewing, resuming any session or the latest one, and restoring earlier messages in native mode.
+
 ### Version 138.0
 Restored the highlighted feature and menu names in the README so the Marketplace page reads as before.
 
