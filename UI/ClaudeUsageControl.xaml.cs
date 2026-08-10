@@ -881,12 +881,6 @@ namespace ClaudeCodeVS
         /// </summary>
         public void SetBackgroundInitMode(bool value) => _backgroundInitMode = value;
 
-        /// <summary>
-        /// Marks that the next explicit show should trigger a Navigate to recover any
-        /// black-page rendering surface left by being hidden mid-initialization.
-        /// </summary>
-        public void MarkNeedsReloadOnShow() => _needsReloadOnShow = true;
-
         private void OnNavigationCompleted(object sender, CoreWebView2NavigationCompletedEventArgs e)
         {
             _firstNavTcs.TrySetResult(true);

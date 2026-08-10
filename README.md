@@ -138,7 +138,7 @@ Use native mode to avoid this issue.
 
 ## Version History
 
-### Version 142.0
+### Version 142.0 - metman-oss contribution
 The Claude Usage window no longer pops into view while the inline usage bars refresh in the background — the scraper now runs in its own hidden window instead of briefly showing the tab on every refresh (issue #133).
 
 ### Version 141.0
