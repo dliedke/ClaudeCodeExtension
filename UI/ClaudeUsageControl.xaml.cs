@@ -24,6 +24,7 @@ using System.Text;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Interop;
 using System.Windows.Threading;
 
 namespace ClaudeCodeVS
@@ -58,6 +59,22 @@ namespace ClaudeCodeVS
 
         /// <summary>Non-null while an init is in flight, so concurrent callers await the same build.</summary>
         private Task _pendingWebViewInit;
+
+        /// <summary>
+        /// Hidden top-level window that gives the background scraper a parent HWND of its own.
+        /// WebView2 needs a real, rendered window to attach to, and the tool window frame stops
+        /// providing one the moment it is hidden (issue #131) — which used to force a
+        /// show-hide cycle of the tab on every single background refresh (issue #133).
+        /// Parenting the scraper here instead keeps it alive independently of the frame, so the
+        /// inline bars refresh with a plain <see cref="Reload"/> and the tab is only ever shown
+        /// when the user asks for it.
+        /// </summary>
+        private Window _offscreenHost;
+        private ContentControl _offscreenHostContent;
+
+        /// <summary>True while the live WebView2 hangs in <see cref="_offscreenHost"/> rather than in the tool window.</summary>
+        private bool _hostedOffscreen;
+
         private bool _suppressAutoRefreshEvent;
         private DateTime _lastRedirectAttemptUtc = DateTime.MinValue;
         private DateTime _lastCookieSaveUtc = DateTime.MinValue;
@@ -89,17 +106,48 @@ namespace ClaudeCodeVS
         }
 
         /// <summary>
-        /// Builds a live WebView2 if there isn't one already. Safe to call from multiple places
-        /// (Loaded, the host's show/refresh paths) — concurrent callers await the same build
-        /// instead of racing two <see cref="InitializeWebViewAsync"/> runs.
+        /// Builds a live WebView2 if there isn't one already, parented either into the tool
+        /// window (<paramref name="offscreen"/> = false) or into the hidden off-screen host
+        /// (true, for background scraping while the tab stays closed). An instance that is alive
+        /// but parented in the wrong place is rebuilt — HwndHost cannot be reparented.
+        ///
+        /// Returns true when a fresh instance was built. A fresh instance navigates to the usage
+        /// page on its own, so callers know they do not need an extra <see cref="Reload"/>.
+        ///
+        /// Safe to call from multiple places (Loaded, the host's show/refresh paths): concurrent
+        /// callers await the in-flight build instead of racing two
+        /// <see cref="InitializeWebViewAsync"/> runs.
         /// </summary>
-        public Task EnsureAliveAsync()
+        public async Task<bool> EnsureAliveAsync(bool offscreen = false)
         {
-            if (WebView?.CoreWebView2 != null) return Task.CompletedTask;
-            return _pendingWebViewInit ?? (_pendingWebViewInit = InitializeWebViewAsync());
+            var pending = _pendingWebViewInit;
+            if (pending != null)
+            {
+#pragma warning disable VSTHRD003 // _pendingWebViewInit is this control's own build task, started on the UI thread; no cross-context deadlock
+                await pending;
+#pragma warning restore VSTHRD003
+            }
+
+            // Alive and already parented where the caller needs it — nothing to build.
+            if (WebView?.CoreWebView2 != null && _hostedOffscreen == offscreen) return false;
+
+            var build = InitializeWebViewAsync(offscreen);
+            _pendingWebViewInit = build;
+            try
+            {
+                await build;
+            }
+            finally
+            {
+                // Cleared here rather than inside InitializeWebViewAsync: its own finally would
+                // run before the assignment above if the method ever completed synchronously,
+                // leaving a permanently completed task that makes every later call a no-op.
+                if (ReferenceEquals(_pendingWebViewInit, build)) _pendingWebViewInit = null;
+            }
+            return true;
         }
 
-        private async Task InitializeWebViewAsync()
+        private async Task InitializeWebViewAsync(bool offscreen)
         {
             try
             {
@@ -115,7 +163,17 @@ namespace ClaudeCodeVS
                     HorizontalAlignment = HorizontalAlignment.Stretch,
                     VerticalAlignment = VerticalAlignment.Stretch
                 };
-                if (WebViewHost != null) WebViewHost.Content = WebView;
+
+                _hostedOffscreen = offscreen;
+                if (offscreen)
+                {
+                    EnsureOffscreenHost();
+                    if (_offscreenHostContent != null) _offscreenHostContent.Content = WebView;
+                }
+                else if (WebViewHost != null)
+                {
+                    WebViewHost.Content = WebView;
+                }
 
                 _firstNavigationCompleted = false;
                 _needsReloadOnShow = false;
@@ -151,13 +209,13 @@ namespace ClaudeCodeVS
                 // the tool window, which makes VS activate the Claude Usage tab unexpectedly.
                 WebView.ZoomFactorChanged += (s, e) =>
                 {
-                    if (_backgroundInitMode || !IsVisible) return;
+                    if (SuppressFocus) return;
 #pragma warning disable VSTHRD001, VSTHRD110
                     _ = Dispatcher.BeginInvoke(new Action(() =>
                     {
                         try
                         {
-                            if (_backgroundInitMode || !IsVisible) return;
+                            if (SuppressFocus) return;
                             WebView?.Focus();
                         }
                         catch { }
@@ -195,9 +253,81 @@ namespace ClaudeCodeVS
                 ShowError("WebView2 runtime is required to display the Claude usage page. " +
                           "Click below to install it, then reopen this window.");
             }
+        }
+
+        /// <summary>
+        /// Creates (once) the hidden window that parents the WebView2 while the tool window is
+        /// closed. Positioned far off-screen and shown with ShowActivated = false, so it never
+        /// becomes visible, never takes focus, and — being owned by the VS main window and kept
+        /// out of the taskbar — never shows up in Alt+Tab either.
+        ///
+        /// Sized like a normal desktop viewport on purpose: claude.ai renders a narrower layout
+        /// below its breakpoints, and the scraper reads the desktop DOM.
+        /// </summary>
+        private void EnsureOffscreenHost()
+        {
+            if (_offscreenHost != null) return;
+
+            _offscreenHostContent = new ContentControl
+            {
+                HorizontalAlignment = HorizontalAlignment.Stretch,
+                VerticalAlignment = VerticalAlignment.Stretch
+            };
+
+            _offscreenHost = new Window
+            {
+                Title = "Claude Usage background scraper",
+                Width = 1024,
+                Height = 768,
+                Left = -32000,
+                Top = -32000,
+                WindowStyle = WindowStyle.None,
+                ResizeMode = ResizeMode.NoResize,
+                ShowInTaskbar = false,
+                ShowActivated = false,
+                Focusable = false,
+                Content = _offscreenHostContent
+            };
+
+            // Owned by the VS main window so it can never end up in front of the IDE and dies
+            // with it. Must be set before Show(), otherwise the HWND is created without an owner.
+            try
+            {
+                IntPtr owner = Process.GetCurrentProcess().MainWindowHandle;
+                if (owner != IntPtr.Zero)
+                {
+                    new WindowInteropHelper(_offscreenHost).Owner = owner;
+                }
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine("ClaudeUsageControl: could not own the off-screen host: " + ex.Message);
+            }
+
+            // If the window ever goes away on its own (owner destroyed, VS tearing down), forget
+            // it — otherwise the next build would hand the WebView2 a dead host and hang waiting
+            // for a parent HWND that no longer exists.
+            _offscreenHost.Closed += (s, e) =>
+            {
+                _offscreenHost = null;
+                _offscreenHostContent = null;
+            };
+
+            _offscreenHost.Show();
+        }
+
+        private void CloseOffscreenHost()
+        {
+            try
+            {
+                if (_offscreenHostContent != null) _offscreenHostContent.Content = null;
+                _offscreenHost?.Close();
+            }
+            catch { }
             finally
             {
-                _pendingWebViewInit = null;
+                _offscreenHost = null;
+                _offscreenHostContent = null;
             }
         }
 
@@ -223,7 +353,9 @@ namespace ClaudeCodeVS
             finally
             {
                 WebView = null;
+                _hostedOffscreen = false;
                 if (WebViewHost != null) WebViewHost.Content = null;
+                if (_offscreenHostContent != null) _offscreenHostContent.Content = null;
             }
         }
 
@@ -727,6 +859,14 @@ namespace ClaudeCodeVS
         public bool IsWebViewInitialized => WebView?.CoreWebView2 != null;
 
         /// <summary>
+        /// True whenever priming <see cref="System.Windows.UIElement.Focus"/> on the WebView2
+        /// would be wrong: during a background-init show-hide, while the instance lives in the
+        /// off-screen host (focusing that would pull keyboard focus into an invisible window),
+        /// and while this control simply isn't on screen.
+        /// </summary>
+        private bool SuppressFocus => _backgroundInitMode || _hostedOffscreen || !IsVisible;
+
+        /// <summary>
         /// Returns a Task that completes when the first page navigation finishes (or timeoutMs elapses).
         /// Used by the host to know when it is safe to hide the frame after a background-init show.
         /// </summary>
@@ -765,7 +905,7 @@ namespace ClaudeCodeVS
             // then hidden — VS can't recover that focus automatically, causing
             // the mouse cursor to vanish in the main IDE window. OnWindowBecameVisible
             // handles the cursor prime for the explicit-open case instead.
-            if (!_firstNavigationCompleted && IsVisible && !_backgroundInitMode)
+            if (!_firstNavigationCompleted && !SuppressFocus)
             {
                 _firstNavigationCompleted = true;
                 try { WebView?.Focus(); }
@@ -1012,8 +1152,8 @@ namespace ClaudeCodeVS
         /// <summary>
         /// Called by the host tool window each time it becomes visible.
         /// - Skips everything during background-init show-hide (no focus theft).
-        /// - Rebuilds the WebView2 if it died while hidden (issue #131), instead of leaving a
-        ///   blank panel with no even a "Loading..." hint.
+        /// - Rebuilds the WebView2 if it died while hidden (issue #131) or if it is currently
+        ///   parented into the off-screen scraper host, instead of leaving a blank panel.
         /// - Re-navigates to recover a black WebView2 surface if marked during background init.
         /// - Primes the cursor so it renders without requiring a click.
         /// </summary>
@@ -1023,7 +1163,7 @@ namespace ClaudeCodeVS
 
             _firstNavigationCompleted = true; // suppress duplicate Focus() from OnNavigationCompleted
 
-            if (WebView?.CoreWebView2 == null)
+            if (WebView?.CoreWebView2 == null || _hostedOffscreen)
             {
 #pragma warning disable VSTHRD110 // fire-and-forget: OnWindowBecameVisible is a synchronous VS callback
                 _ = ReviveOnShowAsync();
@@ -1042,12 +1182,16 @@ namespace ClaudeCodeVS
             try { WebView?.Focus(); } catch { }
         }
 
-        /// <summary>Rebuilds a dead WebView2 when the user explicitly opens the tab (issue #131).</summary>
+        /// <summary>
+        /// Builds the tool window's own WebView2 when the user explicitly opens the tab — either
+        /// because the previous one died while hidden (issue #131) or because the live one is the
+        /// background scraper sitting in the off-screen host, which cannot be reparented.
+        /// </summary>
         private async Task ReviveOnShowAsync()
         {
             try
             {
-                await EnsureAliveAsync();
+                await EnsureAliveAsync(offscreen: false);
                 try { WebView?.Focus(); } catch { }
             }
             catch (Exception ex)
@@ -1329,6 +1473,7 @@ namespace ClaudeCodeVS
                 _autoRefreshTimer?.Stop();
                 _autoRefreshTimer = null;
                 DisposeWebViewInstance();
+                CloseOffscreenHost();
             }
             catch { }
         }
