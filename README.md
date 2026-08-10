@@ -138,6 +138,9 @@ Use native mode to avoid this issue.
 
 ## Version History
 
+### Version 140.0
+"On Agent Finish"'s follow-up field now offers a "Generate Commit Message" preset alongside the "no AI credit" one — picking it runs the same Generate Commit Message action instead of sending literal text to the agent.
+
 ### Version 139.0
 Session History now supports Devin (native or WSL), including viewing, resuming any session or the latest one, and restoring earlier messages in native mode.
 

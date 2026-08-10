@@ -35,7 +35,6 @@ namespace ClaudeCodeVS
         /// </summary>
         private static readonly (string, string)[] FollowUpPresets =
         {
-            ("Commit and push", "Commit and push the changes"),
             ("Commit and push (no AI credit)",
                 "Commit and push code changes but keep only the human author and no references to AI model"),
         };
@@ -266,11 +265,34 @@ namespace ClaudeCodeVS
             if (afPresetButtonStyle != null) afFollowUpPresetButton.Style = afPresetButtonStyle;
             else { afFollowUpPresetButton.Background = themeBg; afFollowUpPresetButton.Foreground = themeFg; afFollowUpPresetButton.BorderBrush = themeFg; }
 
+            // Whether the follow-up should autorun "Generate Commit Message" instead of sending
+            // afFollowUpBox's text literally. Set by its preset menu item; cleared by picking a
+            // plain-text preset or by editing the box by hand (via afFollowUpBox.TextChanged
+            // below), so a stale flag never survives the user typing over the preset's text.
+            bool followUpGenerateCommitMessage = false;
+            bool suppressFollowUpTextChanged = false;
+
+            void SetFollowUpText(string text, bool generateCommitMessage)
+            {
+                suppressFollowUpTextChanged = true;
+                afFollowUpBox.Text = text;
+                suppressFollowUpTextChanged = false;
+                followUpGenerateCommitMessage = generateCommitMessage;
+            }
+
+            afFollowUpBox.TextChanged += (s, e) =>
+            {
+                if (!suppressFollowUpTextChanged) followUpGenerateCommitMessage = false;
+            };
+
             var afFollowUpPresetMenu = new ContextMenu();
+            var generateCommitMessageItem = new MenuItem { Header = "Generate Commit Message" };
+            generateCommitMessageItem.Click += (s, ea) => SetFollowUpText("Generate Commit Message", true);
+            afFollowUpPresetMenu.Items.Add(generateCommitMessageItem);
             foreach (var preset in FollowUpPresets)
             {
                 var item = new MenuItem { Header = preset.Item1 };
-                item.Click += (s, ea) => { afFollowUpBox.Text = preset.Item2; };
+                item.Click += (s, ea) => SetFollowUpText(preset.Item2, false);
                 afFollowUpPresetMenu.Items.Add(item);
             }
             afFollowUpPresetButton.Click += (s, ea) =>
@@ -290,7 +312,7 @@ namespace ClaudeCodeVS
 
             stack.Children.Add(new TextBlock
             {
-                Text = "e.g. \"Commit and push the changes\", or pick a preset. Skipped if the action fails (build/rebuild errors) or is skipped. Not available for \"Send a command to the agent\", which already sends text.",
+                Text = "e.g. \"Commit and push the changes\", or pick a preset such as Generate Commit Message. Skipped if the action fails (build/rebuild errors) or is skipped. Not available for \"Send a command to the agent\", which already sends text.",
                 FontSize = 11,
                 Opacity = 0.7,
                 Foreground = themeFg,
@@ -379,7 +401,7 @@ namespace ClaudeCodeVS
                 afCleanBeforeRunCheck.IsChecked = cfg.CleanBeforeRun;
                 afRebuildBeforeRunCheck.IsChecked = cfg.RebuildBeforeRun;
                 afScriptBox.Text            = cfg.ScriptOrCommand ?? string.Empty;
-                afFollowUpBox.Text          = cfg.FollowUpSendToAgent ?? string.Empty;
+                SetFollowUpText(cfg.FollowUpSendToAgent ?? string.Empty, cfg.FollowUpGenerateCommitMessage);
                 afIdleBox.Text              = (nativeMode ? 1 : cfg.IdleSeconds).ToString();
                 afActionCombo.SelectedItem  = null;
                 foreach (ComboBoxItem it in afActionCombo.Items)
@@ -405,6 +427,7 @@ namespace ClaudeCodeVS
                 cfg.RebuildBeforeRun   = afRebuildBeforeRunCheck.IsChecked == true;
                 cfg.ScriptOrCommand    = afScriptBox.Text?.Trim() ?? string.Empty;
                 cfg.FollowUpSendToAgent = afFollowUpBox.Text?.Trim() ?? string.Empty;
+                cfg.FollowUpGenerateCommitMessage = followUpGenerateCommitMessage;
                 if ((afActionCombo.SelectedItem as ComboBoxItem)?.Tag is AgentFinishActionType act)
                     cfg.Action = act;
                 if (nativeMode)
@@ -532,7 +555,8 @@ namespace ClaudeCodeVS
                 RebuildBeforeRun   = src.RebuildBeforeRun,
                 RequireFileChanges = src.RequireFileChanges,
                 Confirm            = src.Confirm,
-                FollowUpSendToAgent = src.FollowUpSendToAgent
+                FollowUpSendToAgent = src.FollowUpSendToAgent,
+                FollowUpGenerateCommitMessage = src.FollowUpGenerateCommitMessage
             };
         }
 

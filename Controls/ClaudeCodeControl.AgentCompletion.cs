@@ -1605,9 +1605,11 @@ namespace ClaudeCodeVS
                             bool ranOk = await ExecuteMainActionAsync(cfg);
                             if (ranOk)
                             {
-                                string followLabel = DescribeSendCommand(cfg.FollowUpSendToAgent);
+                                string followLabel = cfg.FollowUpGenerateCommitMessage
+                                    ? "Generate Commit Message"
+                                    : DescribeSendCommand(cfg.FollowUpSendToAgent);
                                 await ShowAgentFinishNotificationAsync("Agent finish · next step", followLabel,
-                                    () => SendTextToAgentAsync(cfg.FollowUpSendToAgent));
+                                    () => RunFollowUpAsync(cfg));
                             }
                         });
                     }
@@ -1662,7 +1664,19 @@ namespace ClaudeCodeVS
         {
             return cfg.Action != AgentFinishActionType.None
                 && cfg.Action != AgentFinishActionType.SendToAgent
-                && !string.IsNullOrWhiteSpace(cfg.FollowUpSendToAgent);
+                && (cfg.FollowUpGenerateCommitMessage || !string.IsNullOrWhiteSpace(cfg.FollowUpSendToAgent));
+        }
+
+        /// <summary>
+        /// Fires the configured follow-up: the built-in "Generate Commit Message" autorun when
+        /// <see cref="AgentFinishConfig.FollowUpGenerateCommitMessage"/> is set, otherwise a literal
+        /// <see cref="AgentFinishConfig.FollowUpSendToAgent"/> send.
+        /// </summary>
+        private Task RunFollowUpAsync(AgentFinishConfig cfg)
+        {
+            return cfg.FollowUpGenerateCommitMessage
+                ? GenerateCommitMessageAsync()
+                : SendTextToAgentAsync(cfg.FollowUpSendToAgent);
         }
 
         /// <summary>
@@ -1676,7 +1690,7 @@ namespace ClaudeCodeVS
             bool ranOk = await ExecuteMainActionAsync(cfg);
             if (ranOk && HasFollowUp(cfg))
             {
-                await SendTextToAgentAsync(cfg.FollowUpSendToAgent);
+                await RunFollowUpAsync(cfg);
             }
         }
 

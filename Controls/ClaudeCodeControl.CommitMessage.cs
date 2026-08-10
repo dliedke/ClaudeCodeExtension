@@ -36,16 +36,34 @@ namespace ClaudeCodeVS
         private const int GitDiffTimeoutMs = 15000;
 
         /// <summary>
-        /// Toolbar/menu handler for "Generate Commit Message". Collects the current git diff, asks
-        /// the active native-mode agent to write a commit message from it, and fills the result into
-        /// the Git Changes tool window. Requires Native Mode: there is no reliable way to capture a
-        /// clean text answer from the terminal path (only screen-scraping, already used as a
-        /// last-resort heuristic elsewhere and unfit for feeding a UI text box).
-        /// Plain <c>async void</c>, matching every other toolbar click handler in this codebase.
+        /// Toolbar/menu handler for "Generate Commit Message". Plain <c>async void</c>, matching
+        /// every other toolbar click handler in this codebase; the actual work lives in
+        /// <see cref="GenerateCommitMessageAsync"/> so it can also be run headlessly (e.g. as an
+        /// "On Agent Finish" follow-up).
         /// </summary>
 #pragma warning disable VSTHRD100 // Avoid async void methods - WPF event handler
         private async void GenerateCommitMessageButton_Click(object sender, RoutedEventArgs e)
 #pragma warning restore VSTHRD100
+        {
+            try
+            {
+                await GenerateCommitMessageAsync();
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"GenerateCommitMessageButton_Click error: {ex.Message}");
+            }
+        }
+
+        /// <summary>
+        /// Collects the current git diff, asks the active native-mode agent to write a commit
+        /// message from it, and fills the result into the Git Changes tool window. Requires Native
+        /// Mode: there is no reliable way to capture a clean text answer from the terminal path
+        /// (only screen-scraping, already used as a last-resort heuristic elsewhere and unfit for
+        /// feeding a UI text box). Shared by the toolbar button and the "On Agent Finish" follow-up
+        /// preset — both just want the same autorun behavior.
+        /// </summary>
+        private async Task GenerateCommitMessageAsync()
         {
             try
             {
@@ -157,7 +175,7 @@ namespace ClaudeCodeVS
             }
             catch (Exception ex)
             {
-                Debug.WriteLine($"GenerateCommitMessageButton_Click error: {ex.Message}");
+                Debug.WriteLine($"GenerateCommitMessageAsync error: {ex.Message}");
             }
         }
 

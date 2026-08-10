@@ -278,6 +278,15 @@ namespace ClaudeCodeVS
         /// rather than silently chaining behind the first click.
         /// </summary>
         public string FollowUpSendToAgent { get; set; } = string.Empty;
+
+        /// <summary>
+        /// When true, the follow-up step runs the built-in "Generate Commit Message" action
+        /// (the same flow as the toolbar/☰ Tools button) instead of sending
+        /// <see cref="FollowUpSendToAgent"/> as literal text. Set via the follow-up field's
+        /// "Generate Commit Message" preset; picking the other preset or typing custom text
+        /// clears it back to a literal text send.
+        /// </summary>
+        public bool FollowUpGenerateCommitMessage { get; set; } = false;
     }
 
     /// <summary>
