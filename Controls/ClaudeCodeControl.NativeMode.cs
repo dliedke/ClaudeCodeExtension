@@ -221,10 +221,27 @@ namespace ClaudeCodeVS
         /// <summary>
         /// Whether this provider uses the Codex native-chat queue. Kept separate from the Windows
         /// provider name: Codex (WSL) uses the same one-shot native adapter and must behave identically.
+        /// Scoped to the turn-footer token breakdown only — <see cref="SupportsQueuedNativeFollowUps"/>
+        /// is the gate for whether follow-ups get queued at all, and covers Devin too.
         /// </summary>
         internal static bool SupportsQueuedCodexNativeChat(AiProvider? provider)
         {
             return provider == AiProvider.Codex || provider == AiProvider.CodexNative;
+        }
+
+        /// <summary>
+        /// Whether this provider must have its follow-ups queued locally instead of handed straight to
+        /// the live session. Codex/Cursor Agent relaunch a fresh process per turn, so a follow-up cannot
+        /// be injected into a process that has already exited. Devin's ACP session is long-lived, but its
+        /// agent only expects one outstanding <c>session/prompt</c> at a time, so firing a second one
+        /// while a turn is in flight is the same problem by another route. Claude Code, OpenCode and
+        /// Reasonix are deliberately excluded: their protocols accept a follow-up while busy without any
+        /// of this bookkeeping.
+        /// </summary>
+        internal static bool SupportsQueuedNativeFollowUps(AiProvider? provider)
+        {
+            return SupportsQueuedCodexNativeChat(provider) ||
+                provider == AiProvider.Devin || provider == AiProvider.DevinNative;
         }
 
         /// <summary>
@@ -1056,7 +1073,7 @@ namespace ClaudeCodeVS
             // Update active session
             _activeSessionId = sessionId;
 
-            if (SupportsQueuedCodexNativeChat(sessionState.SelectedProvider))
+            if (SupportsQueuedNativeFollowUps(sessionState.SelectedProvider))
             {
                 await SendPromptToCodexNativeAsync(sessionState.AgentSession, text);
                 return;
@@ -1075,7 +1092,7 @@ namespace ClaudeCodeVS
 
             await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
 
-            if (SupportsQueuedCodexNativeChat(_currentRunningProvider))
+            if (SupportsQueuedNativeFollowUps(_currentRunningProvider))
             {
                 await SendPromptToCodexNativeAsync(session, text);
                 return;
@@ -1085,10 +1102,10 @@ namespace ClaudeCodeVS
         }
 
         /// <summary>
-        /// Fast path used by the UI send handler while a Codex turn is already running. It accepts the
-        /// follow-up synchronously, before generic prompt preparation or its re-entrancy guard can
-        /// reject the click. Attachments keep using the full preparation path so they are copied to
-        /// their stable temporary locations before being queued.
+        /// Fast path used by the UI send handler while a Codex or Devin turn is already running. It
+        /// accepts the follow-up synchronously, before generic prompt preparation or its re-entrancy
+        /// guard can reject the click. Attachments keep using the full preparation path so they are
+        /// copied to their stable temporary locations before being queued.
         /// </summary>
         private bool TryQueueActiveCodexNativeFollowUp(string text, bool hasAttachments)
         {
@@ -1096,7 +1113,7 @@ namespace ClaudeCodeVS
 
             if (hasAttachments ||
                 string.IsNullOrWhiteSpace(text) ||
-                !SupportsQueuedCodexNativeChat(_currentRunningProvider) ||
+                !SupportsQueuedNativeFollowUps(_currentRunningProvider) ||
                 !_nativeTurnInFlight ||
                 !ReferenceEquals(_codexNativeQueueOwner, _agentSession))
             {
@@ -1441,7 +1458,7 @@ namespace ClaudeCodeVS
 
             try
             {
-                if (SupportsQueuedCodexNativeChat(_currentRunningProvider))
+                if (SupportsQueuedNativeFollowUps(_currentRunningProvider))
                 {
                     _cancelledCodexNativePromptCount += ClearQueuedCodexNativePrompts();
                 }

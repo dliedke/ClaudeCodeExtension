@@ -45,7 +45,19 @@ namespace ClaudeCodeVS
             "ClaudeCodeExtension", "shared_cookies.json");
 
         private DispatcherTimer _autoRefreshTimer;
-        private bool _initialized;
+
+        /// <summary>
+        /// The live WebView2 instance, built fresh by <see cref="InitializeWebViewAsync"/> and
+        /// re-parented into <c>WebViewHost</c> every time. Never the same object across an
+        /// init cycle: a WebView2 element whose HwndHost has been torn out of the visual tree
+        /// (as happens when the tool window frame is hidden — see issue #131) cannot be revived
+        /// by calling EnsureCoreWebView2Async on it again, so a dead one is discarded rather than
+        /// reused.
+        /// </summary>
+        private Microsoft.Web.WebView2.Wpf.WebView2 WebView;
+
+        /// <summary>Non-null while an init is in flight, so concurrent callers await the same build.</summary>
+        private Task _pendingWebViewInit;
         private bool _suppressAutoRefreshEvent;
         private DateTime _lastRedirectAttemptUtc = DateTime.MinValue;
         private DateTime _lastCookieSaveUtc = DateTime.MinValue;
@@ -72,16 +84,47 @@ namespace ClaudeCodeVS
         private async void OnLoaded(object sender, RoutedEventArgs e)
 #pragma warning restore VSTHRD100
         {
-            if (_initialized) return;
-            _initialized = true;
-            try { await InitializeWebViewAsync(); }
+            try { await EnsureAliveAsync(); }
             catch (Exception ex) { Debug.WriteLine("ClaudeUsageControl.OnLoaded failed: " + ex); }
+        }
+
+        /// <summary>
+        /// Builds a live WebView2 if there isn't one already. Safe to call from multiple places
+        /// (Loaded, the host's show/refresh paths) — concurrent callers await the same build
+        /// instead of racing two <see cref="InitializeWebViewAsync"/> runs.
+        /// </summary>
+        public Task EnsureAliveAsync()
+        {
+            if (WebView?.CoreWebView2 != null) return Task.CompletedTask;
+            return _pendingWebViewInit ?? (_pendingWebViewInit = InitializeWebViewAsync());
         }
 
         private async Task InitializeWebViewAsync()
         {
             try
             {
+                // A WebView2 whose HwndHost has been torn out of the visual tree (the tool
+                // window frame hiding does this — see issue #131) cannot be revived by calling
+                // EnsureCoreWebView2Async on it again, so any leftover instance is discarded
+                // and a fresh one takes its place.
+                DisposeWebViewInstance();
+
+                WebView = new Microsoft.Web.WebView2.Wpf.WebView2
+                {
+                    Focusable = true,
+                    HorizontalAlignment = HorizontalAlignment.Stretch,
+                    VerticalAlignment = VerticalAlignment.Stretch
+                };
+                if (WebViewHost != null) WebViewHost.Content = WebView;
+
+                _firstNavigationCompleted = false;
+                _needsReloadOnShow = false;
+                _firstNavTcs = new TaskCompletionSource<bool>();
+
+                if (LoadingText != null) LoadingText.Visibility = Visibility.Visible;
+                if (ErrorPanel != null) ErrorPanel.Visibility = Visibility.Collapsed;
+                WebView.Visibility = Visibility.Visible;
+
                 // Use a single fixed user-data folder so the full WebView2 profile
                 // (cookies, localStorage, IndexedDB) survives a Visual Studio restart —
                 // devenv.exe gets a new PID every launch, so the old per-PID folder
@@ -151,6 +194,36 @@ namespace ClaudeCodeVS
                 Debug.WriteLine("ClaudeUsageControl: WebView2 init failed: " + ex);
                 ShowError("WebView2 runtime is required to display the Claude usage page. " +
                           "Click below to install it, then reopen this window.");
+            }
+            finally
+            {
+                _pendingWebViewInit = null;
+            }
+        }
+
+        /// <summary>
+        /// Unhooks and disposes whatever WebView2 instance is currently hosted, if any. Called
+        /// before building a fresh one and from <see cref="Cleanup"/>.
+        /// </summary>
+        private void DisposeWebViewInstance()
+        {
+            try
+            {
+                if (WebView?.CoreWebView2 != null)
+                {
+                    WebView.CoreWebView2.WebMessageReceived -= OnWebMessageReceived;
+                    WebView.CoreWebView2.NavigationCompleted -= OnNavigationCompleted;
+                    WebView.CoreWebView2.SourceChanged -= OnSourceChanged;
+                    WebView.CoreWebView2.NewWindowRequested -= OnNewWindowRequested;
+                    WebView.CoreWebView2.WebResourceRequested -= OnWebResourceRequested;
+                }
+                WebView?.Dispose();
+            }
+            catch { }
+            finally
+            {
+                WebView = null;
+                if (WebViewHost != null) WebViewHost.Content = null;
             }
         }
 
@@ -640,15 +713,18 @@ namespace ClaudeCodeVS
         }
 
         private bool _firstNavigationCompleted;
-        private readonly TaskCompletionSource<bool> _firstNavTcs = new TaskCompletionSource<bool>();
+        private TaskCompletionSource<bool> _firstNavTcs = new TaskCompletionSource<bool>();
         private bool _needsReloadOnShow;
         private bool _backgroundInitMode;
 
         /// <summary>
-        /// True once OnLoaded has started WebView2 initialization.
-        /// Used by the host to avoid a redundant show-hide when the scraper is already running.
+        /// True while there is a live CoreWebView2 to talk to. A real liveness check rather than
+        /// a sticky "did we ever start initializing" flag — the WebView2 can die (frame teardown
+        /// while hidden — issue #131) long after that first init, and callers need to know when
+        /// that happened so they call <see cref="EnsureAliveAsync"/> instead of reloading a dead
+        /// instance.
         /// </summary>
-        public bool IsWebViewInitialized => _initialized;
+        public bool IsWebViewInitialized => WebView?.CoreWebView2 != null;
 
         /// <summary>
         /// Returns a Task that completes when the first page navigation finishes (or timeoutMs elapses).
@@ -916,14 +992,28 @@ namespace ClaudeCodeVS
             _autoRefreshTimer.Start();
         }
 
-        public void Reload()
+        /// <summary>
+        /// Reloads the live page. Returns false when there is nothing alive to reload — the
+        /// caller should treat that as a signal to rebuild via <see cref="EnsureAliveAsync"/>
+        /// instead of assuming the reload silently did its job (issue #131).
+        /// </summary>
+        public bool Reload()
         {
-            try { WebView?.CoreWebView2?.Reload(); } catch { }
+            try
+            {
+                var core = WebView?.CoreWebView2;
+                if (core == null) return false;
+                core.Reload();
+                return true;
+            }
+            catch { return false; }
         }
 
         /// <summary>
         /// Called by the host tool window each time it becomes visible.
         /// - Skips everything during background-init show-hide (no focus theft).
+        /// - Rebuilds the WebView2 if it died while hidden (issue #131), instead of leaving a
+        ///   blank panel with no even a "Loading..." hint.
         /// - Re-navigates to recover a black WebView2 surface if marked during background init.
         /// - Primes the cursor so it renders without requiring a click.
         /// </summary>
@@ -932,6 +1022,14 @@ namespace ClaudeCodeVS
             if (_backgroundInitMode) return; // startup show-hide — do not steal focus
 
             _firstNavigationCompleted = true; // suppress duplicate Focus() from OnNavigationCompleted
+
+            if (WebView?.CoreWebView2 == null)
+            {
+#pragma warning disable VSTHRD110 // fire-and-forget: OnWindowBecameVisible is a synchronous VS callback
+                _ = ReviveOnShowAsync();
+#pragma warning restore VSTHRD110
+                return;
+            }
 
             if (_needsReloadOnShow)
             {
@@ -942,6 +1040,20 @@ namespace ClaudeCodeVS
             }
 
             try { WebView?.Focus(); } catch { }
+        }
+
+        /// <summary>Rebuilds a dead WebView2 when the user explicitly opens the tab (issue #131).</summary>
+        private async Task ReviveOnShowAsync()
+        {
+            try
+            {
+                await EnsureAliveAsync();
+                try { WebView?.Focus(); } catch { }
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine("ClaudeUsageControl: revive on show failed: " + ex);
+            }
         }
 
         private void RefreshButton_Click(object sender, RoutedEventArgs e) => Reload();
@@ -1216,15 +1328,7 @@ namespace ClaudeCodeVS
             {
                 _autoRefreshTimer?.Stop();
                 _autoRefreshTimer = null;
-                if (WebView?.CoreWebView2 != null)
-                {
-                    WebView.CoreWebView2.WebMessageReceived -= OnWebMessageReceived;
-                    WebView.CoreWebView2.NavigationCompleted -= OnNavigationCompleted;
-                    WebView.CoreWebView2.SourceChanged -= OnSourceChanged;
-                    WebView.CoreWebView2.NewWindowRequested -= OnNewWindowRequested;
-                    WebView.CoreWebView2.WebResourceRequested -= OnWebResourceRequested;
-                }
-                WebView?.Dispose();
+                DisposeWebViewInstance();
             }
             catch { }
         }

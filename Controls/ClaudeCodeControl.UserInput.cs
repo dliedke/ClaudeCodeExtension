@@ -253,9 +253,11 @@ namespace ClaudeCodeVS
                     FinishPromptSubmission();
 
                     // Both Windows and WSL Codex accept follow-ups in native chat while their current
-                    // one-shot process is running. Do not keep the prompt-submission guard held for the
-                    // duration of that turn: the native queue owns serialization from here.
-                    if (SupportsQueuedCodexNativeChat(_currentRunningProvider))
+                    // one-shot process is running, and Devin's long-lived ACP session accepts them the
+                    // same way since its agent only expects one outstanding turn at a time. Do not keep
+                    // the prompt-submission guard held for the duration of that turn: the native queue
+                    // owns serialization from here.
+                    if (SupportsQueuedNativeFollowUps(_currentRunningProvider))
                     {
 #pragma warning disable VSSDK007 // Deliberately detached: the native queue owns the long-running turn
                         ThreadHelper.JoinableTaskFactory.RunAsync(async delegate

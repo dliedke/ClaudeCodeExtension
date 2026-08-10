@@ -3,7 +3,6 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
-             xmlns:wv2="clr-namespace:Microsoft.Web.WebView2.Wpf;assembly=Microsoft.Web.WebView2.Wpf"
              xmlns:vsshell="clr-namespace:Microsoft.VisualStudio.Shell;assembly=Microsoft.VisualStudio.Shell.15.0"
              mc:Ignorable="d"
              d:DesignHeight="500" d:DesignWidth="500"
@@ -93,10 +92,15 @@
                        Foreground="{DynamicResource {x:Static vsshell:VsBrushes.ToolWindowTextKey}}"
                        FontSize="13" Opacity="0.7"
                        IsHitTestVisible="False"/>
-            <wv2:WebView2 x:Name="WebView"
-                          Focusable="True"
-                          HorizontalAlignment="Stretch"
-                          VerticalAlignment="Stretch" />
+            <!-- WebView2 instances are created and hosted from code-behind (not a fixed x:Name
+                 element): once the tool window frame hides and its content leaves the visual
+                 tree, the HwndHost behind a WebView2 element is torn down and cannot be revived
+                 by re-running EnsureCoreWebView2Async on the same instance — a fresh instance has
+                 to be built and re-parented here instead. See issue #131. -->
+            <ContentControl x:Name="WebViewHost"
+                             Focusable="False"
+                             HorizontalAlignment="Stretch"
+                             VerticalAlignment="Stretch" />
             <StackPanel x:Name="ErrorPanel" Visibility="Collapsed"
                         HorizontalAlignment="Center" VerticalAlignment="Center"
                         MaxWidth="400">

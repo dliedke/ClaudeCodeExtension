@@ -138,6 +138,10 @@ Use native mode to avoid this issue.
 
 ## Version History
 
+### Version 141.0
+Devin (native or WSL) now queues follow-up messages sent while it's still replying, instead of the message racing the one already in progress.
+Fixed the Claude Usage window going blank, and the inline usage bars getting stuck after their first update, once the window had been auto-hidden in the background (issue #131).
+
 ### Version 140.0
 "On Agent Finish"'s follow-up field now offers a "Generate Commit Message" preset alongside the "no AI credit" one — picking it runs the same Generate Commit Message action instead of sending literal text to the agent.
 
