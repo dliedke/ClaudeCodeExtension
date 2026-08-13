@@ -235,16 +235,31 @@ namespace ClaudeCodeVS
                 int cmdProcessId = 0;
                 Process cmdProcessRef = cmdProcess;
                 bool isCmdProcessWindowsTerminal = false;
+                bool cmdProcessAlive = false;
                 if (cmdProcessRef != null)
                 {
                     try
                     {
+                        // Check HasExited on the handle we already hold BEFORE trusting the
+                        // PID for anything. Once this launcher process exits (e.g. the wt.exe
+                        // peasant hands its window off to an existing monarch and quits),
+                        // Windows is free to recycle its PID for a completely unrelated
+                        // process — possibly another VS instance's own terminal launcher or
+                        // WindowsTerminal.exe host. By the time VS closes (potentially hours
+                        // after launch), that PID has almost certainly been reused, so killing
+                        // by the raw number instead of the live handle can tear down an
+                        // unrelated instance's terminal (issue #135).
+                        cmdProcessAlive = !cmdProcessRef.HasExited;
                         cmdProcessId = cmdProcessRef.Id;
+
                         // On Windows 11, the wt.exe App Execution Alias can activate the
                         // MSIX package such that the launched Process maps directly to the
                         // shared WindowsTerminal.exe host. Detect this so we do NOT kill
                         // the tree, which would destroy unrelated WT windows.
-                        isCmdProcessWindowsTerminal = IsWindowsTerminalProcess(cmdProcessId);
+                        if (cmdProcessAlive)
+                        {
+                            isCmdProcessWindowsTerminal = IsWindowsTerminalProcess(cmdProcessId);
+                        }
                     }
                     catch (InvalidOperationException)
                     {
@@ -268,8 +283,10 @@ namespace ClaudeCodeVS
 
                         // Skip killing the launcher tree when it resolves to the shared
                         // WindowsTerminal.exe host — WM_CLOSE (sent above) closes only our
-                        // window and lets WT exit its own child console processes.
-                        if (cmdProcessId > 0 && !isCmdProcessWindowsTerminal)
+                        // window and lets WT exit its own child console processes. Also skip
+                        // entirely once the launcher has already exited — its PID is no longer
+                        // trustworthy (see cmdProcessAlive comment above; issue #135).
+                        if (cmdProcessAlive && cmdProcessId > 0 && !isCmdProcessWindowsTerminal)
                         {
                             try
                             {

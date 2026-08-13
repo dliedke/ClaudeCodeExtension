@@ -138,8 +138,11 @@ Use native mode to avoid this issue.
 
 ## Version History
 
-### Version 142.0 - metman-oss contribution
-The Claude Usage window no longer pops into view while the inline usage bars refresh in the background — the scraper now runs in its own hidden window instead of briefly showing the tab on every refresh (issue #133).
+### Version 143.0
+Fixed closing one Visual Studio instance sometimes killing the Claude terminal in other open instances when using Windows Terminal (issue #135).
+
+### Version 142.0
+The Claude Usage window no longer pops into view while the inline usage bars refresh in the background — the scraper now runs in its own hidden window instead of briefly showing the tab on every refresh (issue #133). Thanks to [@metman-oss](https://github.com/metman-oss) for the contribution.
 
 ### Version 141.0
 Devin (native or WSL) now queues follow-up messages sent while it's still replying, instead of the message racing the one already in progress.

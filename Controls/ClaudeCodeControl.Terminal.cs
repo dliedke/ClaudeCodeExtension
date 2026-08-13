@@ -603,8 +603,17 @@ namespace ClaudeCodeVS
                 try
                 {
                     int existingProcessId = 0;
+                    bool existingProcessAlive = false;
                     try
                     {
+                        // Check HasExited on the handle we already hold BEFORE trusting the
+                        // PID. Once a process exits, Windows is free to recycle its PID for a
+                        // completely unrelated process (e.g. another VS instance's wt.exe
+                        // launcher or WindowsTerminal.exe host) — often within seconds under
+                        // normal churn, and near-certain after the process has sat exited for
+                        // a while. Killing by a stale, recycled PID tears down whatever now
+                        // owns that number instead of our own long-gone launcher (issue #135).
+                        existingProcessAlive = !existingProcess.HasExited;
                         existingProcessId = existingProcess.Id;
                     }
                     catch (InvalidOperationException)
@@ -618,7 +627,7 @@ namespace ClaudeCodeVS
                     // maps directly to WindowsTerminal.exe, and tearing down that tree
                     // would destroy unrelated WT windows (e.g. separate terminals the
                     // user opened manually).
-                    if (existingProcessId > 0 && !IsWindowsTerminalProcess(existingProcessId))
+                    if (existingProcessAlive && existingProcessId > 0 && !IsWindowsTerminalProcess(existingProcessId))
                     {
                         TryTerminateProcessTree(existingProcessId, terminatedProcessIds);
                     }
