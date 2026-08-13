@@ -464,7 +464,7 @@ namespace ClaudeCodeVS.UI
             {
                 Padding = new Thickness(8, 4, 8, 4),
                 BorderBrush = options.CodeBorderBrush,
-                BorderThickness = isHeader ? new Thickness(0, 0, 0, 1) : new Thickness(0)
+                BorderThickness = new Thickness(1)
             };
         }
 

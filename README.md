@@ -138,6 +138,9 @@ Use native mode to avoid this issue.
 
 ## Version History
 
+### Version 144.0
+Native mode tables now render full grid lines around every cell (header and data rows), instead of just an underline below the header.
+
 ### Version 143.0
 Fixed closing one Visual Studio instance sometimes killing the Claude terminal in other open instances when using Windows Terminal (issue #135).
 
