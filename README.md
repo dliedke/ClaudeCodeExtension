@@ -138,6 +138,9 @@ Use native mode to avoid this issue.
 
 ## Version History
 
+### Version 145.0
+The effort level you select now survives a restart of the code agent — previously the new session quietly started at the CLI's own level while the slider still showed the previous selection.
+
 ### Version 144.0
 Native mode tables now render full grid lines around every cell (header and data rows), instead of just an underline below the header.
 
