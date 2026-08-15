@@ -4793,6 +4793,16 @@ namespace ClaudeCodeVS
                 baseCommand = $"{baseCommand} --dangerously-skip-permissions";
             }
 
+            // The effort slider sends "/effort <level>", which the CLI applies to the running session
+            // only. A restart therefore started over at whatever level the CLI reads from its own
+            // settings, while the slider kept showing the last selection — "Max" on the slider next to
+            // a session that had silently fallen back. Passing the level as a launch flag closes that
+            // gap, exactly as native mode already does (see GetNativeEffortArgument). "Auto" is the
+            // extension's own "say nothing" and the one value the flag rejects, so it appends nothing
+            // and leaves the CLI's configured level untouched.
+            baseCommand = AppendClaudeEffortArgument(
+                baseCommand, _settings?.SelectedEffortLevel ?? EffortLevel.Auto);
+
             // Consume one-shot resume request if present — the session-history
             // dialog sets this just before triggering a terminal restart.
             string resumeArg = System.Threading.Interlocked.Exchange(ref _pendingResumeSessionId, null);
@@ -4828,6 +4838,22 @@ namespace ClaudeCodeVS
                 : $"set CLAUDE_CODE_DISABLE_ALTERNATE_SCREEN=1 && set CLAUDE_CODE_DISABLE_MOUSE=1 && {baseCommand}";
 
             return baseCommand;
+        }
+
+        /// <summary>
+        /// Appends the CLI's <c>--effort</c> launch flag for every level the slider offers, including
+        /// the undocumented "ultracode". <see cref="EffortLevel.Auto"/> is the extension's "leave it to
+        /// the CLI" choice and appends nothing. An unknown value only earns a warning on stderr, so a
+        /// future CLI dropping a level degrades to its default instead of failing the launch.
+        /// </summary>
+        internal static string AppendClaudeEffortArgument(string baseCommand, EffortLevel level)
+        {
+            if (level == EffortLevel.Auto)
+            {
+                return baseCommand;
+            }
+
+            return $"{baseCommand} --effort {level.ToString().ToLowerInvariant()}";
         }
 
         private static string QuoteProviderArgument(string value, bool isWsl)
