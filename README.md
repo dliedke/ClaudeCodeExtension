@@ -138,6 +138,9 @@ Use native mode to avoid this issue.
 
 ## Version History
 
+### Version 146.0
+Fixed Windows Terminal failing to launch with "The system cannot find the file specified" when the workspace or user profile path contains an apostrophe (issue #138). wt.exe is normally an App Execution Alias, and launching it via a raw CreateProcess call could fail to resolve the alias in that case; the launch now retries through ShellExecute, which resolves it reliably.
+
 ### Version 145.0
 The effort level you select now survives a restart of the code agent — previously the new session quietly started at the CLI's own level while the slider still showed the previous selection.
 
