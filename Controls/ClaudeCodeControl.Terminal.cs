@@ -12,6 +12,7 @@
 
 using System;
 using System.Collections.Generic;
+using System.ComponentModel;
 using System.IO;
 using System.Diagnostics;
 using System.Runtime.InteropServices;
@@ -1193,6 +1194,33 @@ namespace ClaudeCodeVS
                             cmdProcess = new Process { StartInfo = wtStartInfo };
                             cmdProcess.Start();
                             LogTerminalLaunch($"wt.exe spawned: pid={cmdProcess.Id}");
+                        }
+                        catch (Win32Exception win32Ex) when (win32Ex.NativeErrorCode == 2 /* ERROR_FILE_NOT_FOUND */)
+                        {
+                            // wt.exe is normally an App Execution Alias — a reparse-point stub
+                            // under %LOCALAPPDATA%\Microsoft\WindowsApps that the OS resolves to
+                            // the packaged Windows Terminal app. Launching it via a raw
+                            // CreateProcess call (UseShellExecute = false) can fail with "the
+                            // system cannot find the file specified" even though the alias is
+                            // right there — reported with a workspace/user path containing an
+                            // apostrophe (issue #138), which raw CreateProcess appears not to
+                            // resolve reliably against the alias. ShellExecute goes through the
+                            // OS's own package activation instead, which resolves the alias
+                            // correctly regardless of what characters are in the working directory.
+                            LogTerminalLaunch($"wt.exe spawn via CreateProcess failed (file not found); retrying via ShellExecute");
+
+                            var shellStartInfo = new ProcessStartInfo
+                            {
+                                FileName = "wt.exe",
+                                Arguments = wtStartInfo.Arguments,
+                                UseShellExecute = true,
+                                WorkingDirectory = wtStartInfo.WorkingDirectory,
+                                WindowStyle = ProcessWindowStyle.Hidden
+                            };
+
+                            cmdProcess = new Process { StartInfo = shellStartInfo };
+                            cmdProcess.Start();
+                            LogTerminalLaunch($"wt.exe spawned via ShellExecute fallback: pid={cmdProcess.Id}");
                         }
                         catch (Exception ex)
                         {
