@@ -21,6 +21,7 @@ using System.Windows;
 using System.Windows.Input;
 using Microsoft.VisualStudio.Shell;
 using Microsoft.VisualStudio.Threading;
+using ClaudeCodeVS.UI;
 
 namespace ClaudeCodeVS
 {
@@ -42,6 +43,14 @@ namespace ClaudeCodeVS
         /// Temporary storage for current attached file paths when navigating history
         /// </summary>
         private List<string> _tempCurrentFiles = new List<string>();
+
+        /// <summary>
+        /// The chat tab whose composer Ctrl+Up/Down is currently walking. Null means the panel — its
+        /// prompt box, or the default transcript hosted in the first chat tab. Extra chat tabs each
+        /// own a transcript of their own, so without this the recalled prompt landed in the panel's
+        /// prompt box instead of the tab the user was typing in.
+        /// </summary>
+        private NativeChatSessionState _historyTargetSession;
 
         /// <summary>
         /// Maximum number of prompts to keep in history
@@ -504,12 +513,14 @@ namespace ClaudeCodeVS
             {
                 if (e.Key == Key.Up)
                 {
+                    SetHistoryNavigationTarget(null);
                     NavigateHistoryUp();
                     e.Handled = true;
                     return;
                 }
                 else if (e.Key == Key.Down)
                 {
+                    SetHistoryNavigationTarget(null);
                     NavigateHistoryDown();
                     e.Handled = true;
                     return;
@@ -627,18 +638,45 @@ namespace ClaudeCodeVS
         }
 
         /// <summary>
-        /// The prompt box history navigation writes to: the chat tab's composer while the user is
-        /// typing there, the panel's prompt box otherwise. Without this the ↑ key in the chat tab
-        /// would silently rewrite the hidden panel prompt instead.
+        /// Points history navigation at the chat tab the keystroke came from, so the recalled prompt
+        /// appears in the box the user is typing in. Switching boxes restarts the walk from the newest
+        /// entry — carrying the previous box's position over would recall a prompt from nowhere.
         /// </summary>
-        private bool HistoryTargetsComposer
+        private void SetHistoryNavigationTarget(NativeChatSessionState session)
         {
-            get { return ChatTranscript != null && ChatTranscript.ComposerHasFocus; }
+            if (ReferenceEquals(_historyTargetSession, session))
+            {
+                return;
+            }
+
+            _historyTargetSession = session;
+            _historyIndex = -1;
+            _tempCurrentText = string.Empty;
+            _tempCurrentFiles = new List<string>();
+        }
+
+        /// <summary>
+        /// The composer history navigation writes to: the chat tab the keystroke came from, the
+        /// default transcript while the user is typing there, and null for the panel's prompt box.
+        /// Without this the ↑ key in a chat tab would silently rewrite the hidden panel prompt.
+        /// </summary>
+        private ChatTranscriptView HistoryTargetTranscript
+        {
+            get
+            {
+                if (_historyTargetSession?.ChatTranscript != null)
+                {
+                    return _historyTargetSession.ChatTranscript;
+                }
+
+                return ChatTranscript != null && ChatTranscript.ComposerHasFocus ? ChatTranscript : null;
+            }
         }
 
         private string GetHistoryPromptText()
         {
-            return HistoryTargetsComposer ? ChatTranscript.ComposerText : PromptTextBox.Text;
+            ChatTranscriptView target = HistoryTargetTranscript;
+            return target != null ? target.ComposerText : PromptTextBox.Text;
         }
 
         /// <summary>
@@ -650,9 +688,10 @@ namespace ClaudeCodeVS
         {
             string value = text ?? string.Empty;
 
-            if (HistoryTargetsComposer)
+            ChatTranscriptView target = HistoryTargetTranscript;
+            if (target != null)
             {
-                ChatTranscript.SetComposerText(value, caretAtStart: goingUp);
+                target.SetComposerText(value, caretAtStart: goingUp);
                 return;
             }
 
@@ -661,10 +700,31 @@ namespace ClaudeCodeVS
         }
 
         /// <summary>
+        /// Restores a history entry's attachments into whichever list feeds the prompt box being
+        /// navigated — the chat tab's own staged files, or the panel's.
+        /// </summary>
+        private void RestoreHistoryAttachments(List<string> filePaths)
+        {
+            ThreadHelper.ThrowIfNotOnUIThread();
+
+            if (_historyTargetSession != null)
+            {
+                _historyTargetSession.AttachedFiles.Clear();
+                AddSessionAttachments(_historyTargetSession, filePaths ?? new List<string>());
+                UpdateSessionAttachmentChips(_historyTargetSession);
+                return;
+            }
+
+            RestoreFilesFromHistory(filePaths);
+        }
+
+        /// <summary>
         /// Navigates up in the prompt history (to older prompts)
         /// </summary>
         private void NavigateHistoryUp()
         {
+            ThreadHelper.ThrowIfNotOnUIThread();
+
             if (_settings?.PromptHistory == null || _settings.PromptHistory.Count == 0)
                 return;
 
@@ -682,7 +742,7 @@ namespace ClaudeCodeVS
                 _historyIndex--;
                 var entry = _settings.PromptHistory[_historyIndex];
                 SetHistoryPromptText(entry.Text, goingUp: true);
-                RestoreFilesFromHistory(entry.FilePaths);
+                RestoreHistoryAttachments(entry.FilePaths);
             }
         }
 
@@ -691,6 +751,8 @@ namespace ClaudeCodeVS
         /// </summary>
         private void NavigateHistoryDown()
         {
+            ThreadHelper.ThrowIfNotOnUIThread();
+
             if (_settings?.PromptHistory == null || _historyIndex == -1)
                 return;
 
@@ -701,7 +763,7 @@ namespace ClaudeCodeVS
             if (_historyIndex >= _settings.PromptHistory.Count)
             {
                 SetHistoryPromptText(_tempCurrentText, goingUp: false);
-                RestoreFilesFromHistory(_tempCurrentFiles);
+                RestoreHistoryAttachments(_tempCurrentFiles);
                 _historyIndex = -1;
                 _tempCurrentText = string.Empty;
                 _tempCurrentFiles = new List<string>();
@@ -710,7 +772,7 @@ namespace ClaudeCodeVS
             {
                 var entry = _settings.PromptHistory[_historyIndex];
                 SetHistoryPromptText(entry.Text, goingUp: false);
-                RestoreFilesFromHistory(entry.FilePaths);
+                RestoreHistoryAttachments(entry.FilePaths);
             }
         }
 

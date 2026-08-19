@@ -769,12 +769,18 @@ namespace ClaudeCodeVS
         private void OnComposerHistoryPreviousRequested(object sender, EventArgs e)
         {
             ThreadHelper.ThrowIfNotOnUIThread();
+
+            // Every chat tab shares these handlers, so the recalled prompt has to be aimed at the
+            // transcript that raised the event — otherwise it lands in the panel's prompt box.
+            SetHistoryNavigationTarget(ResolveSessionFromSender(sender));
             NavigateHistoryUp();
         }
 
         private void OnComposerHistoryNextRequested(object sender, EventArgs e)
         {
             ThreadHelper.ThrowIfNotOnUIThread();
+
+            SetHistoryNavigationTarget(ResolveSessionFromSender(sender));
             NavigateHistoryDown();
         }
 

@@ -1351,58 +1351,53 @@ namespace ClaudeCodeVS
         }
 
         /// <summary>
-        /// Checks if Windows Terminal is installed and available
-        /// Checks the PATH (refreshed from registry) for wt.exe executable
+        /// Checks if Windows Terminal is installed and available.
+        /// <para>
+        /// Resolves wt.exe against the PATH (refreshed from registry) in managed code rather than
+        /// shelling out to "where wt.exe". A redirected console child writes its output in the OEM
+        /// code page, so any character that page cannot represent comes back best-fit mapped: a
+        /// profile such as "C:\Users\LarryD’xxx" (U+2019 RIGHT SINGLE QUOTATION MARK) came
+        /// back as "C:\Users\LarryD'xxx", and launching that non-existent path failed with "the system
+        /// cannot find the file specified" (issue #138). Probing PATH entries with File.Exists
+        /// keeps the path in Unicode end to end.
+        /// </para>
         /// </summary>
-        /// <param name="cancellationToken">Optional cancellation token</param>
+        /// <param name="cancellationToken">Optional cancellation token (unused, kept for callers)</param>
         /// <returns>True if Windows Terminal is available, false otherwise</returns>
-        public async Task<bool> IsWindowsTerminalAvailableAsync(CancellationToken cancellationToken = default)
+        public Task<bool> IsWindowsTerminalAvailableAsync(CancellationToken cancellationToken = default)
         {
             try
             {
-                var startInfo = new ProcessStartInfo
-                {
-                    FileName = "cmd.exe",
-                    Arguments = "/c where wt.exe",
-                    UseShellExecute = false,
-                    RedirectStandardOutput = true,
-                    RedirectStandardError = true,
-                    CreateNoWindow = true
-                };
+                string resolved = ResolveExecutableOnPath("wt", GetFreshPathFromRegistry());
 
-                // Use fresh PATH from registry to detect newly installed WT without VS restart
-                string freshPath = GetFreshPathFromRegistry();
-                if (!string.IsNullOrEmpty(freshPath))
+                // Not on the registry PATH: try the PATH this Visual Studio process started with,
+                // then the App Execution Alias location Windows Terminal installs itself into.
+                if (string.Equals(resolved, "wt", StringComparison.Ordinal))
                 {
-                    startInfo.EnvironmentVariables["PATH"] = freshPath;
+                    resolved = ResolveExecutableOnPath("wt", Environment.GetEnvironmentVariable("PATH"));
                 }
 
-                using (var process = Process.Start(startInfo))
+                if (string.Equals(resolved, "wt", StringComparison.Ordinal))
                 {
-                    var completed = await WaitForProcessExitAsync(process, 3000, cancellationToken);
-
-                    if (!completed)
-                    {
-                        try { process.Kill(); } catch { }
-                        return false;
-                    }
-
-                    string output = await process.StandardOutput.ReadToEndAsync();
-                    bool found = process.ExitCode == 0 && !string.IsNullOrWhiteSpace(output);
-
-                    if (found)
-                    {
-                        // Store the full resolved path so we can use it to launch wt.exe reliably
-                        _wtExePath = output.Trim().Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries)[0];
-                    }
-
-                    return found;
+                    string aliasPath = Path.Combine(
+                        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+                        "Microsoft", "WindowsApps", "wt.exe");
+                    resolved = File.Exists(aliasPath) ? aliasPath : null;
                 }
+
+                if (string.IsNullOrEmpty(resolved) || string.Equals(resolved, "wt", StringComparison.Ordinal))
+                {
+                    return Task.FromResult(false);
+                }
+
+                // Store the full resolved path so we can use it to launch wt.exe reliably
+                _wtExePath = resolved;
+                return Task.FromResult(true);
             }
             catch (Exception ex)
             {
                 Debug.WriteLine($"Error checking for Windows Terminal: {ex.Message}");
-                return false;
+                return Task.FromResult(false);
             }
         }
 

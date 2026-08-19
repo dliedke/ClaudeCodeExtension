@@ -138,6 +138,11 @@ Use native mode to avoid this issue.
 
 ## Version History
 
+### Version 147.0
+Fixed Windows Terminal still failing to start with "The system cannot find the file specified" when the Windows user name contains a typographic apostrophe or other non-ASCII character (issue #138).
+
+Ctrl+Up/Down prompt history now fills the chat tab you are typing in — in a second or later chat tab the recalled prompt went into the panel's prompt box instead.
+
 ### Version 146.0
 Fixed Windows Terminal failing to launch with "The system cannot find the file specified" when the workspace or user profile path contains an apostrophe (issue #138). wt.exe is normally an App Execution Alias, and launching it via a raw CreateProcess call could fail to resolve the alias in that case; the launch now retries through ShellExecute, which resolves it reliably.
 

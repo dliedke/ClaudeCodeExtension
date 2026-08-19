@@ -1148,9 +1148,10 @@ namespace ClaudeCodeVS
                     _wtConsoleClientPid = 0;
                     var preExistingCmdPids = SnapshotCmdProcessIds();
 
-                    // Resolve wt.exe path if not already cached
-                    if (string.IsNullOrEmpty(_wtExePath))
+                    // Resolve wt.exe path if not already cached (or if the cached path went stale)
+                    if (string.IsNullOrEmpty(_wtExePath) || !File.Exists(_wtExePath))
                     {
+                        _wtExePath = null;
                         await IsWindowsTerminalAvailableAsync();
                     }
                     string wtFileName = !string.IsNullOrEmpty(_wtExePath) ? _wtExePath : "wt.exe";
@@ -1195,32 +1196,22 @@ namespace ClaudeCodeVS
                             cmdProcess.Start();
                             LogTerminalLaunch($"wt.exe spawned: pid={cmdProcess.Id}");
                         }
-                        catch (Win32Exception win32Ex) when (win32Ex.NativeErrorCode == 2 /* ERROR_FILE_NOT_FOUND */)
+                        catch (Win32Exception win32Ex) when (win32Ex.NativeErrorCode == 2 /* ERROR_FILE_NOT_FOUND */
+                                                            && wtFileName != "wt.exe")
                         {
-                            // wt.exe is normally an App Execution Alias — a reparse-point stub
-                            // under %LOCALAPPDATA%\Microsoft\WindowsApps that the OS resolves to
-                            // the packaged Windows Terminal app. Launching it via a raw
-                            // CreateProcess call (UseShellExecute = false) can fail with "the
-                            // system cannot find the file specified" even though the alias is
-                            // right there — reported with a workspace/user path containing an
-                            // apostrophe (issue #138), which raw CreateProcess appears not to
-                            // resolve reliably against the alias. ShellExecute goes through the
-                            // OS's own package activation instead, which resolves the alias
-                            // correctly regardless of what characters are in the working directory.
-                            LogTerminalLaunch($"wt.exe spawn via CreateProcess failed (file not found); retrying via ShellExecute");
+                            // The resolved wt.exe path did not exist. Retry with the bare name and
+                            // let CreateProcess walk the PATH itself — it resolves the App Execution
+                            // Alias under %LOCALAPPDATA%\Microsoft\WindowsApps the same way a shell
+                            // does. Everything else about the launch stays identical to the path
+                            // above, so the window is still created visible and embeddable.
+                            LogTerminalLaunch("wt.exe spawn failed (file not found) for resolved path; retrying with bare wt.exe on PATH");
 
-                            var shellStartInfo = new ProcessStartInfo
-                            {
-                                FileName = "wt.exe",
-                                Arguments = wtStartInfo.Arguments,
-                                UseShellExecute = true,
-                                WorkingDirectory = wtStartInfo.WorkingDirectory,
-                                WindowStyle = ProcessWindowStyle.Hidden
-                            };
+                            _wtExePath = null;
+                            wtStartInfo.FileName = "wt.exe";
 
-                            cmdProcess = new Process { StartInfo = shellStartInfo };
+                            cmdProcess = new Process { StartInfo = wtStartInfo };
                             cmdProcess.Start();
-                            LogTerminalLaunch($"wt.exe spawned via ShellExecute fallback: pid={cmdProcess.Id}");
+                            LogTerminalLaunch($"wt.exe spawned via PATH fallback: pid={cmdProcess.Id}");
                         }
                         catch (Exception ex)
                         {
