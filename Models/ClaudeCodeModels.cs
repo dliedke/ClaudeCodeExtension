@@ -42,7 +42,7 @@ namespace ClaudeCodeVS
         Opus,
         Sonnet,
         Haiku,
-        Best,
+        Fable,
         OpusPlan
     }
 

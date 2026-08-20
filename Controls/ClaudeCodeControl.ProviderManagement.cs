@@ -2938,7 +2938,7 @@ For more details, visit: https://pi.dev";
             bool hasReasoningLevel = isClaude || isCodex;
 
             // Claude-specific items
-            BestMenuItem.Visibility = isClaude ? Visibility.Visible : Visibility.Collapsed;
+            FableMenuItem.Visibility = isClaude ? Visibility.Visible : Visibility.Collapsed;
             OpusMenuItem.Visibility = isClaude ? Visibility.Visible : Visibility.Collapsed;
             SonnetMenuItem.Visibility = isClaude ? Visibility.Visible : Visibility.Collapsed;
             HaikuMenuItem.Visibility = isClaude ? Visibility.Visible : Visibility.Collapsed;
@@ -3174,18 +3174,18 @@ For more details, visit: https://pi.dev";
         }
 
         /// <summary>
-        /// Handles Best menu item click - switches to the "best" model alias
-        /// (Fable 5 where available, otherwise the latest Opus model)
+        /// Handles Fable menu item click - switches to the "fable" model alias
+        /// (the latest Claude Fable model, for the most demanding tasks)
         /// </summary>
 #pragma warning disable VSTHRD100 // Avoid async void methods
-        private async void BestMenuItem_Click(object sender, RoutedEventArgs e)
+        private async void FableMenuItem_Click(object sender, RoutedEventArgs e)
 #pragma warning restore VSTHRD100
         {
             if (_settings == null) return;
 
             await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
 
-            _settings.SelectedClaudeModel = ClaudeModel.Best;
+            _settings.SelectedClaudeModel = ClaudeModel.Fable;
             UpdateModelSelection();
             SaveSettings();
 
@@ -3193,7 +3193,7 @@ For more details, visit: https://pi.dev";
             if (_currentRunningProvider == AiProvider.ClaudeCode ||
                 _currentRunningProvider == AiProvider.ClaudeCodeWSL)
             {
-                await SendTextToTerminalAsync("/model best");
+                await SendTextToTerminalAsync("/model fable");
             }
         }
 

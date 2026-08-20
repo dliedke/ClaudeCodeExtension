@@ -2434,7 +2434,7 @@ namespace ClaudeCodeVS
                 case ClaudeModel.Sonnet: return "Sonnet";
                 case ClaudeModel.Haiku: return "Haiku";
                 case ClaudeModel.OpusPlan: return "Opus Plan";
-                default: return "Best";
+                default: return "Fable";
             }
         }
 
@@ -2841,10 +2841,10 @@ namespace ClaudeCodeVS
                 return menu;
             }
 
-            ClaudeModel selected = _settings != null ? _settings.SelectedClaudeModel : ClaudeModel.Best;
+            ClaudeModel selected = _settings != null ? _settings.SelectedClaudeModel : ClaudeModel.Fable;
 
-            AddComposerMenuItem(menu, "Best", selected == ClaudeModel.Best,
-                delegate { ThreadHelper.ThrowIfNotOnUIThread(); OnChatClaudeModelSelected(ClaudeModel.Best); });
+            AddComposerMenuItem(menu, "Fable", selected == ClaudeModel.Fable,
+                delegate { ThreadHelper.ThrowIfNotOnUIThread(); OnChatClaudeModelSelected(ClaudeModel.Fable); });
             AddComposerMenuItem(menu, "Opus", selected == ClaudeModel.Opus,
                 delegate { ThreadHelper.ThrowIfNotOnUIThread(); OnChatClaudeModelSelected(ClaudeModel.Opus); });
             AddComposerMenuItem(menu, "Sonnet", selected == ClaudeModel.Sonnet,

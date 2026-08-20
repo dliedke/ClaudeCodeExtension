@@ -514,7 +514,7 @@ Terminal focus rule (v26.0): do not focus the embedded terminal with direct `Set
 
 ```csharp
 enum AiProvider { ClaudeCode=0, ClaudeCodeWSL=1, Codex=2, CodexNative=3, CursorAgent=4, CursorAgentNative=5, /* 6=QwenCode removed */ OpenCode=7, Devin=8, Pi=9, Antigravity=10, Reasonix=11, DevinNative=12 }
-enum ClaudeModel { Opus, Sonnet, Haiku, Best, OpusPlan }
+enum ClaudeModel { Opus, Sonnet, Haiku, Fable, OpusPlan }
 enum EffortLevel { Auto, Low, Medium, High, Max, XHigh, Ultracode }   // slider order drops Auto: Low, Medium, High, XHigh, Max, Ultracode
 enum TerminalType { CommandPrompt, WindowsTerminal }
 enum AgentFinishActionType { None, BuildSolution, RebuildSolution, Run, RunWithoutDebugging, RunTests, RunScript, SendToAgent }

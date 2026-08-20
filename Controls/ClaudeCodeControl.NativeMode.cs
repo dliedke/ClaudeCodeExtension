@@ -847,8 +847,8 @@ namespace ClaudeCodeVS
         }
 
         /// <summary>
-        /// Maps the selected model to the CLI alias. "Best" and "OpusPlan" are interactive-only
-        /// selections with no headless equivalent, so they fall back to the CLI default.
+        /// Maps the selected model to the CLI alias. "OpusPlan" is an interactive-only
+        /// selection with no headless equivalent, so it falls back to the CLI default.
         /// </summary>
         private string GetNativeModelArgument()
         {
@@ -859,6 +859,7 @@ namespace ClaudeCodeVS
 
             switch (_settings.SelectedClaudeModel)
             {
+                case ClaudeModel.Fable: return "fable";
                 case ClaudeModel.Opus: return "opus";
                 case ClaudeModel.Sonnet: return "sonnet";
                 case ClaudeModel.Haiku: return "haiku";

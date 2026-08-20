@@ -28,7 +28,7 @@ Enjoying the extension? [Buy me a coffee](https://www.buymeacoffee.com/dliedke) 
 - **On Agent Finish** — Optionally play a sound, show a notification (with duration, plus token count for Claude Code), and run an action (build/rebuild, run, tests, a script, or a follow-up command) when the agent goes idle. Global defaults plus per-solution overrides. Configure via *⚙ → Settings...*.
 - **Auto-send build errors** — Optionally send build errors (with warnings for context) to the active agent automatically whenever a Visual Studio build finishes with errors, so it can fix them. Opt-in via *⚙ → Settings... → Behavior*.
 - **Generate Commit Message** — Toolbar/menu action that asks the active agent to write a commit message from the current changes and fills it into the Git Changes window. Requires native mode; falls back to the clipboard if the commit message box can't be found.
-- **Model selection** — 🤖 button to switch models: for Claude, Best / Opus / Sonnet / Haiku / Opus Plan plus an effort level; for Codex, its reported models plus a reasoning level (Model default / Low / Medium / High / Extra High / Max / Ultra); for every other agent, the models it reports itself, with *Refresh Models* to re-read them and *Choose in the Agent...* to fall back to its own picker; for Devin and Reasonix, a configurable list you can edit via *Configure Models...*.
+- **Model selection** — 🤖 button to switch models: for Claude, Fable / Opus / Sonnet / Haiku / Opus Plan plus an effort level; for Codex, its reported models plus a reasoning level (Model default / Low / Medium / High / Extra High / Max / Ultra); for every other agent, the models it reports itself, with *Refresh Models* to re-read them and *Choose in the Agent...* to fall back to its own picker; for Devin and Reasonix, a configurable list you can edit via *Configure Models...*.
 - **Detach / attach terminal** — Pop the terminal into a separate VS tab and bring it back at any time. State persists across sessions.
 - **Theme aware** — Follows VS dark/light theme automatically, or force dark, light, or a custom background color via *⚙ → Settings → Theme*. Prompt zoom is persisted across sessions; set the terminal's console font and size via *⚙ → Settings → Terminal* (Ctrl+Scroll zoom applies for the current session).
 - **Persistent settings** — Layout, provider choice, model, flags, and font sizes all saved to `%LocalAppData%\ClaudeCodeExtension\claudecode-settings.json`.
@@ -137,6 +137,9 @@ https://github.com/anthropics/claude-code/issues/41501
 Use native mode to avoid this issue.
 
 ## Version History
+
+### Version 148.0
+The Claude model menu now offers **Fable** in place of **Best**, selecting Claude Fable directly for the most demanding tasks. Available in both the terminal and the native chat.
 
 ### Version 147.0
 Fixed Windows Terminal still failing to start with "The system cannot find the file specified" when the Windows user name contains a typographic apostrophe or other non-ASCII character (issue #138).
