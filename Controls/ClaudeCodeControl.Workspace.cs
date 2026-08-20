@@ -493,7 +493,14 @@ namespace ClaudeCodeVS
                     // Restart with the selected provider if available, otherwise show message and use regular CMD
                     if (providerAvailable)
                     {
-                        await StartEmbeddedTerminalAsync(selectedProvider);
+                        // Native mode first, exactly as every other launch path does: this branch used
+                        // to go straight to the console, which dropped the user out of the chat on a
+                        // solution change (and, before the session was ended for it, left the previous
+                        // agent running on the previous solution's folder).
+                        if (!await TryStartNativeModeAsync())
+                        {
+                            await StartEmbeddedTerminalAsync(selectedProvider);
+                        }
                     }
                     else
                     {

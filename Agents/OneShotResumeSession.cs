@@ -299,7 +299,12 @@ namespace ClaudeCodeVS.Agents
             catch (Exception ex)
             {
                 Debug.WriteLine($"{_options.DisplayName}: turn failed: {ex}");
-                Raise(AgentEvent.SessionError($"The turn failed: {ex.Message}"));
+
+                // The stderr tail matters most on exactly this path: a CLI that dies between launch and
+                // the prompt write leaves nothing but "Agent process closed its input pipe", while the
+                // reason it died — an expired login, an unknown flag, a session id it cannot resume —
+                // is sitting in the lines it printed on its way out.
+                Raise(AgentEvent.SessionError($"The turn failed: {ex.Message}" + DescribeStderr(stderrTail)));
                 Raise(AgentEvent.TurnCompleted(null, null, _interrupted));
                 throw;
             }

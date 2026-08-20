@@ -1027,6 +1027,22 @@ namespace ClaudeCodeVS
                     return;
                 }
 
+                // A console taking the panel means native mode is over, so no agent may be left
+                // running behind it: the provider menu reaches this point directly when the agent it
+                // selected turns out not to be installed, and without this the previous native session
+                // kept its CLI alive and its events kept arriving in the panel that replaced it.
+                // Taken under the native lifecycle lock so a switch that is still starting an agent is
+                // waited for rather than torn in half.
+                await _nativeLifecycleSemaphore.WaitAsync();
+                try
+                {
+                    await EndActiveNativeSessionAsync();
+                }
+                finally
+                {
+                    _nativeLifecycleSemaphore.Release();
+                }
+
                 string workspaceDir = NormalizeWorkspaceDirectory(await GetWorkspaceDirectoryAsync());
                 if (string.IsNullOrEmpty(workspaceDir))
                 {
@@ -4593,18 +4609,27 @@ namespace ClaudeCodeVS
         /// Restarts the terminal using the currently selected provider from settings.
         /// Falls back to regular CMD if the provider is unavailable.
         /// </summary>
-        private async Task RestartTerminalWithSelectedProviderAsync()
+        /// <returns>
+        /// False when a newer agent switch superseded this restart while it waited for the native
+        /// lifecycle lock — that later switch owns the outcome, so the caller must not report this one.
+        /// </returns>
+        private async Task<bool> RestartTerminalWithSelectedProviderAsync()
         {
             await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
 
             // A restart always ends the previous native session first, so switching from a provider
-            // with a structured channel to one without leaves no orphaned agent process behind.
-            await ShutdownNativeModeAsync();
-            ShowNativeTranscript(false);
-
-            if (await TryStartNativeModeAsync())
+            // with a structured channel to one without leaves no orphaned agent process behind. That
+            // teardown happens inside StartNativeModeAsync, under the same lock as the start, so a
+            // switch cannot tear down the session a concurrent switch has just published.
+            NativeStartOutcome outcome = await StartNativeModeAsync();
+            if (outcome == NativeStartOutcome.Started)
             {
-                return;
+                return true;
+            }
+
+            if (outcome == NativeStartOutcome.Superseded)
+            {
+                return false;
             }
 
             // Get the selected provider from settings
@@ -4681,6 +4706,8 @@ namespace ClaudeCodeVS
             {
                 await DetachTerminalAsync();
             }
+
+            return true;
         }
 
         /// <summary>

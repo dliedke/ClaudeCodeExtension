@@ -1,4 +1,4 @@
-/* *******************************************************************************************************************
+﻿/* *******************************************************************************************************************
  * Application: ClaudeCodeExtension
  *
  * Autor:  Daniel Carvalho Liedke / Claude Code
@@ -197,6 +197,22 @@ namespace ClaudeCodeVS
         /// <summary>Queued prompts discarded by Stop, reported beside the interrupted-turn notice.</summary>
         private int _cancelledCodexNativePromptCount;
 
+        /// <summary>
+        /// Serializes native-mode start/stop transitions, mirroring the embedded terminal's
+        /// <c>_terminalLifecycleSemaphore</c>. Without it two agent switches overlap: Devin's handshake
+        /// takes seconds, and a switch started while it is still running used to tear down — or be torn
+        /// down by — the session the other one had already published on <see cref="_agentSession"/>,
+        /// leaving an orphaned agent process still raising events into the new chat.
+        /// </summary>
+        private readonly SemaphoreSlim _nativeLifecycleSemaphore = new SemaphoreSlim(1, 1);
+
+        /// <summary>
+        /// Monotonic ticket for native start requests. A request that finds a newer ticket after
+        /// acquiring the lifecycle lock has been superseded by a later switch and skips itself, so
+        /// clicking through three agents launches the last one instead of all three in turn.
+        /// </summary>
+        private int _nativeLaunchTicket;
+
         #endregion
 
         #region Native Mode State
@@ -283,18 +299,89 @@ namespace ClaudeCodeVS
 
         #region Native Mode Lifecycle
 
+        /// <summary>How a native start request ended.</summary>
+        private enum NativeStartOutcome
+        {
+            /// <summary>The chat session is up and owns the panel.</summary>
+            Started,
+
+            /// <summary>Native mode does not apply — the caller must launch the embedded terminal.</summary>
+            Declined,
+
+            /// <summary>
+            /// A later switch was requested while this one waited for the lifecycle lock. That newer
+            /// request owns the outcome, so this one must touch nothing and report nothing.
+            /// </summary>
+            Superseded
+        }
+
         /// <summary>
         /// Starts native mode if the setting is on and the selected provider supports it.
         /// </summary>
         /// <returns>
-        /// True when the chat session took over, meaning the caller must not launch the terminal.
-        /// False means "carry on as usual" — the setting is off, or this provider has no native channel.
+        /// True when the chat session took over, or when a newer switch has taken the request over —
+        /// either way the caller must not launch the terminal. False means "carry on as usual": the
+        /// setting is off, or this provider has no native channel.
         /// </returns>
         private async Task<bool> TryStartNativeModeAsync()
         {
+            return await StartNativeModeAsync() != NativeStartOutcome.Declined;
+        }
+
+        /// <summary>
+        /// The serialized entry point every native start goes through. Any session still running is
+        /// ended first — switching agent from the provider menu used to start the new one straight on
+        /// top of the old, which left the previous CLI alive and still subscribed to
+        /// <see cref="OnAgentEventReceived"/>, so its events kept landing in the new agent's chat.
+        /// </summary>
+        private async Task<NativeStartOutcome> StartNativeModeAsync()
+        {
+            int ticket = Interlocked.Increment(ref _nativeLaunchTicket);
+
+            // No ConfigureAwait(false): every caller reaches this from the UI thread and the start path
+            // below expects to resume there, exactly as the terminal's lifecycle lock is awaited.
+            await _nativeLifecycleSemaphore.WaitAsync();
+            try
+            {
+                if (ticket != Volatile.Read(ref _nativeLaunchTicket))
+                {
+                    LogTerminalLaunch("Native mode: start request superseded by a newer agent switch.");
+                    return NativeStartOutcome.Superseded;
+                }
+
+                await EndActiveNativeSessionAsync();
+
+                return await StartNativeModeCoreAsync();
+            }
+            finally
+            {
+                _nativeLifecycleSemaphore.Release();
+            }
+        }
+
+        /// <summary>
+        /// Ends the running native session — process, event subscription and chat tab — and hands the
+        /// panel slot back to the terminal. A no-op when native mode is not running.
+        /// </summary>
+        private async Task EndActiveNativeSessionAsync()
+        {
+            // _chatIsInTab too, not only a live session: a chat whose agent has already died still owns
+            // its document tab, and leaving that open would read as a conversation that survived.
+            if (_agentSession == null && !_chatIsInTab)
+            {
+                return;
+            }
+
+            await ShutdownNativeModeAsync();
+            await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
+            ShowNativeTranscript(false);
+        }
+
+        private async Task<NativeStartOutcome> StartNativeModeCoreAsync()
+        {
             if (_settings == null || !_settings.UseNativeMode)
             {
-                return false;
+                return NativeStartOutcome.Declined;
             }
 
             AiProvider provider = _settings.SelectedProvider;
@@ -309,7 +396,7 @@ namespace ClaudeCodeVS
                 await ShowNativeFallbackNoticeAsync(provider == AiProvider.Reasonix
                     ? $"{GetProviderDisplayName(provider)} always runs in the embedded terminal."
                     : $"{GetProviderDisplayName(provider)} has no native chat channel — the embedded terminal was used instead.");
-                return false;
+                return NativeStartOutcome.Declined;
             }
 
             try
@@ -321,7 +408,7 @@ namespace ClaudeCodeVS
                     LogTerminalLaunch($"Native mode: no usable workspace directory (workspace='{workspace}'); using the embedded terminal.");
                     await ShowNativeFallbackNoticeAsync(
                         "Native mode needs an open folder or solution — the embedded terminal was used instead.");
-                    return false;
+                    return NativeStartOutcome.Declined;
                 }
 
                 // Read before the session consumes it. Only a resume the *user* asked for — from the
@@ -333,7 +420,7 @@ namespace ClaudeCodeVS
                 IAgentSession session = CreateAgentSession(provider, workspace);
                 if (session == null)
                 {
-                    return false;
+                    return NativeStartOutcome.Declined;
                 }
 
                 await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
@@ -400,7 +487,7 @@ namespace ClaudeCodeVS
                 await ShowNativeChatTabAsync(focusComposer: false);
 
                 LogTerminalLaunch($"Native mode: started successfully for provider={provider}");
-                return true;
+                return NativeStartOutcome.Started;
             }
             catch (Exception ex)
             {
@@ -415,7 +502,7 @@ namespace ClaudeCodeVS
                 await ShowNativeFallbackNoticeAsync(
                     $"Native mode could not start ({ex.Message}) — the embedded terminal was used instead.");
 
-                return false;
+                return NativeStartOutcome.Declined;
             }
         }
 

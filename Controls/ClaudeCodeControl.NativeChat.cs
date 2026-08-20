@@ -3150,7 +3150,14 @@ namespace ClaudeCodeVS
                 UpdateProviderSelection();
                 SaveSettings();
 
-                await RestartTerminalWithSelectedProviderAsync();
+                if (!await RestartTerminalWithSelectedProviderAsync())
+                {
+                    // The user picked another agent while this switch was still waiting for the
+                    // previous one to finish starting — Devin's handshake alone takes seconds. That
+                    // later switch is what runs, and it reports its own result; saying anything here
+                    // would describe an agent the chat is not about to be running.
+                    return;
+                }
 
                 await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
 
@@ -3474,8 +3481,7 @@ namespace ClaudeCodeVS
                 return;
             }
 
-            IAgentSession previous = _agentSession;
-            if (previous == null)
+            if (_agentSession == null)
             {
                 // Native mode is not running (the panel is on the terminal) — nothing to relaunch.
                 return;
@@ -3483,8 +3489,21 @@ namespace ClaudeCodeVS
 
             _nativeSwitchInProgress = true;
 
+            // Same lock the agent switches take: a relaunch replaces _agentSession too, so running one
+            // while a switch is starting another agent leaves whichever finishes second pointing at a
+            // session the other one has already disposed.
+            await _nativeLifecycleSemaphore.WaitAsync();
+
             try
             {
+                IAgentSession previous = _agentSession;
+                if (previous == null)
+                {
+                    // An agent switch ended the session while this relaunch waited for the lock; the
+                    // switch has already started what the user asked for last.
+                    return;
+                }
+
                 AiProvider provider = _currentRunningProvider ?? _settings.SelectedProvider;
                 // Not SessionId: after a relaunch that never ran a turn, that is still the throwaway
                 // id the adapter *asked* for and the CLI never created a transcript for. Resuming it
@@ -3593,6 +3612,7 @@ namespace ClaudeCodeVS
             }
             finally
             {
+                _nativeLifecycleSemaphore.Release();
                 _nativeSwitchInProgress = false;
             }
         }

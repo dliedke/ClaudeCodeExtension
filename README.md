@@ -138,6 +138,13 @@ Use native mode to avoid this issue.
 
 ## Version History
 
+### Version 149.0
+Fixed switching agent in native mode — most often after using Devin — leaving the previous agent running behind the new chat, so its replies and errors appeared in the wrong conversation and restarting the session did not clear them.
+
+Switching agent again while one is still starting no longer breaks the chat: the switches are applied one at a time, and only the agent you picked last is started.
+
+When a Codex or Cursor Agent turn fails to start, the chat now shows what the agent itself reported instead of only "Agent process closed its input pipe".
+
 ### Version 148.0
 The Claude model menu now offers **Fable** in place of **Best**, selecting Claude Fable directly for the most demanding tasks. Available in both the terminal and the native chat.
 
