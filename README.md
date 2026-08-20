@@ -138,6 +138,9 @@ Use native mode to avoid this issue.
 
 ## Version History
 
+### Version 150.0 - NeilN1 contribution
+Fixed Windows Terminal launches still failing with "The system cannot find the path specified" when the launch chain contains a non-ASCII path — Windows Terminal starts its console in the OEM code page, so a UTF-8 character (like a typographic apostrophe) decoded as mojibake before the script's own `chcp 65001` line could take effect (issue #138).
+
 ### Version 149.0
 Fixed switching agent in native mode — most often after using Devin — leaving the previous agent running behind the new chat, so its replies and errors appeared in the wrong conversation and restarting the session did not clear them.
 
