@@ -992,15 +992,35 @@ namespace ClaudeCodeVS
         /// </summary>
         private string WriteLaunchScript(string cmdKArguments)
         {
+            string scriptDir = !string.IsNullOrEmpty(tempImageDirectory) ? tempImageDirectory : Path.GetTempPath();
+            Directory.CreateDirectory(scriptDir);
+            string scriptPath = Path.Combine(scriptDir, $"launch_{Guid.NewGuid():N}.cmd");
+            File.WriteAllText(scriptPath, BuildLaunchScriptBody(cmdKArguments), new UTF8Encoding(false));
+            return scriptPath;
+        }
+
+        /// <summary>
+        /// Builds the launch script's content from the "/k ..." command chain. cmd.exe decodes a
+        /// batch line with the console code page in effect when the line is READ, so the
+        /// "chcp 65001" prefix cannot rescue non-ASCII text sharing its own line. Under Windows
+        /// Terminal the console starts in the OEM code page (WT ignores the HKCU\Console
+        /// CodePage=65001 that protects conhost launches), so a UTF-8 path like
+        /// C:\Users\LarryD’xxx (U+2019) was decoded as mojibake and the chain died with
+        /// "The system cannot find the path specified" (issue #138, after the wt.exe resolution
+        /// fix). Moving the chcp to its own first line makes every following line decode as
+        /// UTF-8. The file must stay BOM-less: cmd would read a BOM as garbage prepended to the
+        /// first command.
+        /// </summary>
+        internal static string BuildLaunchScriptBody(string cmdKArguments)
+        {
             string body = cmdKArguments.StartsWith("/k ", StringComparison.Ordinal)
                 ? cmdKArguments.Substring(3)
                 : cmdKArguments;
 
-            string scriptDir = !string.IsNullOrEmpty(tempImageDirectory) ? tempImageDirectory : Path.GetTempPath();
-            Directory.CreateDirectory(scriptDir);
-            string scriptPath = Path.Combine(scriptDir, $"launch_{Guid.NewGuid():N}.cmd");
-            File.WriteAllText(scriptPath, body, new UTF8Encoding(false));
-            return scriptPath;
+            const string chcpPrefix = "chcp 65001 >nul && ";
+            return body.StartsWith(chcpPrefix, StringComparison.Ordinal)
+                ? "@chcp 65001 >nul\r\n" + body.Substring(chcpPrefix.Length)
+                : body;
         }
 
         /// <summary>
