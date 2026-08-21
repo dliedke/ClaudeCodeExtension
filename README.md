@@ -138,6 +138,11 @@ Use native mode to avoid this issue.
 
 ## Version History
 
+### Version 151.0
+Fixed the panel sliding itself open on every debug step when it is auto-hidden (collapsed to the side) or left behind another tab — a panel you parked out of the way now stays out of the way for the whole debug session (issue #141).
+
+The panel is still brought back if Visual Studio itself hides it when debugging starts, and a panel you closed is no longer reopened by starting a debug session.
+
 ### Version 150.0 - NeilN1 contribution
 Fixed Windows Terminal launches still failing with "The system cannot find the path specified" when the launch chain contains a non-ASCII path — Windows Terminal starts its console in the OEM code page, so a UTF-8 character (like a typographic apostrophe) decoded as mojibake before the script's own `chcp 65001` line could take effect (issue #138).
 

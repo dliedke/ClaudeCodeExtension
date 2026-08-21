@@ -6,7 +6,7 @@ Visual Studio Extension (VSIX) for VS 2022/2026 — integrates AI code assistant
 
 - Author: Daniel Carvalho Liedke (dliedke@gmail.com) | License: MIT
 - Repository: https://github.com/dliedke/ClaudeCodeExtension
-- Current Version: 150.0 | Target Framework: .NET Framework 4.7.2
+- Current Version: 151.0 | Target Framework: .NET Framework 4.7.2
 
 ---
 
@@ -96,7 +96,7 @@ ClaudeCodeExtension/
 │   ├── ClaudeCodeControl.RuntimeErrors.cs # "Auto-send runtime errors": VS debugger-event hook, unhandled-exception collection, format + send to agent
 │   ├── ClaudeCodeControl.AtMention.cs   # "@" file/folder picker in the prompt box (workspace index + popup)
 │   ├── ClaudeCodeControl.CustomCommands.cs # User-defined custom commands: configure dialog, toolbar dropdown, dispatch
-│   ├── ClaudeCodeControl.DebugVisibility.cs # Keeps the extension (and any tab it created) visible while debugging (issue #130)
+│   ├── ClaudeCodeControl.DebugVisibility.cs # Keeps the extension (and any tab it created) visible while debugging (issues #130, #141)
 │   ├── ClaudeCodeControl.CliPaths.cs    # Per-provider custom CLI executable path: Settings "CLI Paths" tab content, resolution/validation helpers
 │   ├── ClaudeCodeControl.CommitMessage.cs # "Generate Commit Message": AI-drafted commit message from the git diff, filled into the Git Changes window via best-effort UI Automation
 │   ├── ClaudeCodeControl.ModelCatalog.cs # Per-provider model list: CLI discovery + cache, selection storage, launch flags / live switch commands
