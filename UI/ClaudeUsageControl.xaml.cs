@@ -199,7 +199,25 @@ namespace ClaudeCodeVS
                 CleanupStaleWebView2Folders();
 
                 var env = await ClaudeUsageWebViewEnvironment.GetOrCreateAsync(userDataFolder, fallbackFolder);
-                await WebView.EnsureCoreWebView2Async(env);
+                try
+                {
+                    await WebView.EnsureCoreWebView2Async(env);
+                }
+                catch (Exception ex)
+                {
+                    // GetOrCreateAsync's own fallback only guards environment *creation* —
+                    // it can succeed even though another VS instance already owns the shared
+                    // folder's browser process. The failure actually shows up here, when this
+                    // control tries to attach to it (COMException 0x8007139F, "the group or
+                    // resource is not in the correct state to perform the requested
+                    // operation"). Retry with a dedicated per-PID environment/folder so this
+                    // instance still works (its session won't persist, but shared_cookies.json
+                    // restores login on the next launch that gets the shared folder).
+                    Debug.WriteLine("ClaudeUsage: EnsureCoreWebView2Async failed on shared env, retrying with per-PID fallback: " + ex);
+                    Directory.CreateDirectory(fallbackFolder);
+                    var fallbackEnv = await CoreWebView2Environment.CreateAsync(null, fallbackFolder, null);
+                    await WebView.EnsureCoreWebView2Async(fallbackEnv);
+                }
 
                 // Re-focus after Ctrl+Scroll zoom so WebView2 re-establishes cursor tracking.
                 // Without this the mouse cursor disappears until the user clicks again.
@@ -251,7 +269,8 @@ namespace ClaudeCodeVS
             {
                 Debug.WriteLine("ClaudeUsageControl: WebView2 init failed: " + ex);
                 ShowError("WebView2 runtime is required to display the Claude usage page. " +
-                          "Click below to install it, then reopen this window.");
+                          "Click below to install it, then reopen this window.\n\n" +
+                          "Details: " + ex.GetType().Name + ": " + ex.Message);
             }
         }
 

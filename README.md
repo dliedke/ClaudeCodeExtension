@@ -138,6 +138,9 @@ Use native mode to avoid this issue.
 
 ## Version History
 
+### Version 152.0
+Fixed the Claude Usage panel wrongly showing "WebView2 runtime is required" when another Visual Studio instance already had it open — it now falls back automatically so both instances can display the usage page at the same time.
+
 ### Version 151.0
 Fixed the panel sliding itself open on every debug step when it is auto-hidden (collapsed to the side) or left behind another tab — a panel you parked out of the way now stays out of the way for the whole debug session (issue #141).
 
