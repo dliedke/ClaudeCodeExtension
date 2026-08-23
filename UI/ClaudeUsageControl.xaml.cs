@@ -46,6 +46,8 @@ namespace ClaudeCodeVS
             "ClaudeCodeExtension", "shared_cookies.json");
 
         private DispatcherTimer _autoRefreshTimer;
+        private int _autoRefreshSeconds;
+        private bool _isHostVisible;
 
         /// <summary>
         /// The live WebView2 instance, built fresh by <see cref="InitializeWebViewAsync"/> and
@@ -1126,13 +1128,26 @@ namespace ClaudeCodeVS
             // Only Off/2m exist now; any legacy setting holding some other value
             // (from an older release's JSON) is treated as 2m.
             int normalized = seconds <= 0 ? 0 : Math.Max(120, seconds);
+            _autoRefreshSeconds = normalized;
             _suppressAutoRefreshEvent = true;
             try
             {
                 if (AutoRefreshCheck != null) AutoRefreshCheck.IsChecked = normalized > 0;
             }
             finally { _suppressAutoRefreshEvent = false; }
-            RestartAutoRefreshTimer(normalized);
+            RestartAutoRefreshTimer(_isHostVisible ? normalized : 0);
+        }
+
+        /// <summary>
+        /// Keeps the page-owned timer limited to an active tool-window tab. A deactivated tab can
+        /// lose its WebView2 rendering host, so the parent control takes over with its off-screen
+        /// scraper until Visual Studio activates this tab again.
+        /// </summary>
+        public void SetHostVisibility(bool visible)
+        {
+            if (_isHostVisible == visible) return;
+            _isHostVisible = visible;
+            RestartAutoRefreshTimer(visible ? _autoRefreshSeconds : 0);
         }
 
         private void RestartAutoRefreshTimer(int seconds)
@@ -1219,7 +1234,8 @@ namespace ClaudeCodeVS
         {
             if (_suppressAutoRefreshEvent) return;
             int seconds = AutoRefreshCheck?.IsChecked == true ? 120 : 0;
-            RestartAutoRefreshTimer(seconds);
+            _autoRefreshSeconds = seconds;
+            RestartAutoRefreshTimer(_isHostVisible ? seconds : 0);
             AutoRefreshChanged?.Invoke(this, seconds);
         }
 
@@ -1485,6 +1501,7 @@ namespace ClaudeCodeVS
             {
                 _autoRefreshTimer?.Stop();
                 _autoRefreshTimer = null;
+                _isHostVisible = false;
                 DisposeWebViewInstance();
                 CloseOffscreenHost();
             }

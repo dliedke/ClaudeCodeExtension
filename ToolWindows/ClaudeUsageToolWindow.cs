@@ -72,6 +72,7 @@ namespace ClaudeCodeVS
             if (Frame is IVsWindowFrame windowFrame)
             {
                 _isVisible = windowFrame.IsVisible() == VSConstants.S_OK;
+                _control?.SetHostVisibility(_isVisible);
             }
         }
 
@@ -90,6 +91,7 @@ namespace ClaudeCodeVS
             if (_isVisible)
             {
                 _isVisible = false;
+                _control?.SetHostVisibility(false);
                 VisibilityChanged?.Invoke(this, false);
             }
 
@@ -117,12 +119,14 @@ namespace ClaudeCodeVS
             {
                 _isVisible = true;
                 _closedByUserRaised = false; // Allow ClosedByUser to fire again on the next close
+                _control?.SetHostVisibility(true);
                 _control?.OnWindowBecameVisible(); // Prime WebView2 cursor if created while hidden
                 VisibilityChanged?.Invoke(this, true);
             }
             else if (nowHidden && _isVisible)
             {
                 _isVisible = false;
+                _control?.SetHostVisibility(false);
                 VisibilityChanged?.Invoke(this, false);
             }
 
@@ -147,6 +151,7 @@ namespace ClaudeCodeVS
                 if (_isVisible)
                 {
                     _isVisible = false;
+                    _control?.SetHostVisibility(false);
                     VisibilityChanged?.Invoke(this, false);
                 }
                 RaiseClosedByUserIfNeeded();
@@ -158,6 +163,7 @@ namespace ClaudeCodeVS
             if (_isVisible)
             {
                 _isVisible = false;
+                _control?.SetHostVisibility(false);
                 VisibilityChanged?.Invoke(this, false);
             }
             _closedByUserRaised = false; // Allow re-firing on future closes

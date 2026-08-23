@@ -320,7 +320,8 @@ namespace ClaudeCodeVS
 
         /// <summary>
         /// Starts (or restarts) the background refresh timer that periodically calls
-        /// RefreshUsageInBackgroundAsync so inline bars stay up to date while the tab is hidden.
+        /// RefreshUsageInBackgroundAsync so inline bars stay up to date while the tab is hidden
+        /// or behind another tab in the same dock group.
         /// Stops and nulls itself if bars are disabled, provider is not Claude,
         /// or the tab is already visible. UsageAutoRefreshSeconds=0 ("Off" in the combo)
         /// only suppresses the page-visible reload — background bar refresh still runs
@@ -332,7 +333,10 @@ namespace ClaudeCodeVS
             _usageBackgroundRefreshTimer = null;
 
             if (_settings?.ShowInlineUsageBars != true || !IsClaudeProviderSelected()) return;
-            if (_settings?.UsageWindowOpened == true) return; // tab is visible, no timer needed
+            // UsageWindowOpened is persisted session-restore intent, not current visibility. It
+            // stays true when VS sends TabDeactivated, so using it here leaves an unfocused tab
+            // with no viable refresher once WebView2's frame host is suspended.
+            if (_usageToolWindow?.IsWindowVisible == true) return;
 
             // Combo "Off" (0) → 60s background floor; otherwise honor user's interval (min 2m —
             // 30s/1m are no longer selectable, so a legacy JSON value below 2m floors to it).
@@ -395,6 +399,8 @@ namespace ClaudeCodeVS
 
                 _usageToolWindow.ClosedByUser -= OnUsageToolWindowClosed;
                 _usageToolWindow.ClosedByUser += OnUsageToolWindowClosed;
+                _usageToolWindow.VisibilityChanged -= OnUsageToolWindowVisibilityChanged;
+                _usageToolWindow.VisibilityChanged += OnUsageToolWindowVisibilityChanged;
 
                 var frame = (IVsWindowFrame)_usageToolWindow.Frame;
 
@@ -457,6 +463,29 @@ namespace ClaudeCodeVS
                     StartUsageBackgroundRefreshTimer();
             }
             catch { }
+        }
+
+        private void OnUsageToolWindowVisibilityChanged(object sender, bool isVisible)
+        {
+            try
+            {
+                ThreadHelper.ThrowIfNotOnUIThread();
+                if (isVisible)
+                {
+                    _usageBackgroundRefreshTimer?.Stop();
+                    _usageBackgroundRefreshTimer = null;
+                }
+                else
+                {
+                    // Includes TabDeactivated: an open-but-unfocused docked tab must use the
+                    // off-screen host because its frame-hosted WebView2 can stop processing.
+                    StartUsageBackgroundRefreshTimer();
+                }
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine("OnUsageToolWindowVisibilityChanged failed: " + ex);
+            }
         }
 
         private void OnUsageToolWindowClosed(object sender, EventArgs e)

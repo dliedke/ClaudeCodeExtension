@@ -138,6 +138,9 @@ Use native mode to avoid this issue.
 
 ## Version History
 
+### Version 153.0
+Claude Usage now refreshes automatically while its Visual Studio tab is unfocused, so the usage bars stay current without pressing Refresh.
+
 ### Version 152.0
 Fixed the Claude Usage panel wrongly showing "WebView2 runtime is required" when another Visual Studio instance already had it open — it now falls back automatically so both instances can display the usage page at the same time.
 
