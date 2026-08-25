@@ -138,6 +138,11 @@ Use native mode to avoid this issue.
 
 ## Version History
 
+### Version 158.0
+The Claude Usage panel now returns to the usage bars on its own after an account change: use Switch Account, log out of claude.ai inside the panel, and sign back in with a different account, and the new account's usage loads automatically instead of leaving you on the claude.ai home page until you press Refresh.
+
+Also fixed the panel sometimes showing the full claude.ai page layout instead of the focused usage bars after switching accounts.
+
 ### Version 157.0
 Fixed Switch Account in the Claude Usage panel: "Log out" used to appear to just refresh instead of signing out, because the panel's own safety redirect (which snaps the embedded page back to the usage view after login) fired immediately on the transient page claude.ai's sign-out flow passes through, aborting the log-out request mid-flight. That redirect now waits a short beat and re-checks the page before acting, so a genuine login still snaps back to the usage view automatically while a sign-out in progress is left alone.
 

@@ -86,6 +86,16 @@ namespace ClaudeCodeVS
         private DispatcherTimer _redirectDebounceTimer;
 
         /// <summary>
+        /// Set once the embedded page has visited a sign-in / sign-out path (the user pressed
+        /// "Log out" in the native claude.ai menu that Switch Account reveals). It turns the
+        /// otherwise-ignored root path into a post-auth landing, so signing back in as a
+        /// different user drops us straight back on the usage view — see
+        /// <see cref="TryRedirectToUsage"/>. Cleared the moment that redirect fires, which is
+        /// what keeps a genuinely signed-out session from bouncing root → usage → root forever.
+        /// </summary>
+        private bool _sawSignedOutPage;
+
+        /// <summary>
         /// Fires when a usage snapshot is successfully scraped from the page.
         /// </summary>
         public event EventHandler<UsageSnapshot> UsageDataReceived;
@@ -929,6 +939,7 @@ namespace ClaudeCodeVS
             if (LoadingText != null) LoadingText.Visibility = Visibility.Collapsed;
             UpdateStatus();
             if (TryHandleUrlBlock()) return;
+            TryRestoreTrim();
             TryRedirectToUsage();
 
             // WebView2 hosted in WPF doesn't render its mouse cursor until
@@ -958,6 +969,7 @@ namespace ClaudeCodeVS
         private void OnSourceChanged(object sender, CoreWebView2SourceChangedEventArgs e)
         {
             if (TryHandleUrlBlock()) return;
+            TryRestoreTrim();
             TryRedirectToUsage();
         }
 
@@ -1066,13 +1078,32 @@ namespace ClaudeCodeVS
                 }
 
                 string path = uri.AbsolutePath ?? "/";
+
+                // Remember that the user went through a manual sign-out / sign-in. claude.ai
+                // sends a fresh login to the root path about as often as it sends it to /new,
+                // and root is normally off-limits here (it doubles as the signed-out home page).
+                if (path.StartsWith("/login", StringComparison.OrdinalIgnoreCase) ||
+                    path.StartsWith("/logout", StringComparison.OrdinalIgnoreCase) ||
+                    path.StartsWith("/magic-link", StringComparison.OrdinalIgnoreCase) ||
+                    path.StartsWith("/auth", StringComparison.OrdinalIgnoreCase))
+                {
+                    _sawSignedOutPage = true;
+                    _redirectDebounceTimer?.Stop();
+                    return;
+                }
+
                 bool isPostAuthLanding =
                     path.Equals("/new", StringComparison.OrdinalIgnoreCase) ||
                     path.Equals("/chats", StringComparison.OrdinalIgnoreCase) ||
                     path.StartsWith("/chat/", StringComparison.OrdinalIgnoreCase) ||
                     path.StartsWith("/projects", StringComparison.OrdinalIgnoreCase) ||
                     path.StartsWith("/recents", StringComparison.OrdinalIgnoreCase);
-                if (!isPostAuthLanding)
+
+                // Root only counts as a landing right after a sign-out we witnessed, and even
+                // then only once the session cookie proves the new sign-in actually completed.
+                bool isReLoginRootLanding = !isPostAuthLanding && _sawSignedOutPage && path.Equals("/", StringComparison.Ordinal);
+
+                if (!isPostAuthLanding && !isReLoginRootLanding)
                 {
                     // Moved on to somewhere else (e.g. claude.ai finished signing out and landed
                     // on /login or /) before the pending redirect fired — cancel it.
@@ -1088,27 +1119,107 @@ namespace ClaudeCodeVS
                 _redirectDebounceTimer.Tick += (s, e) =>
                 {
                     _redirectDebounceTimer.Stop();
-                    try
-                    {
-                        var core2 = WebView?.CoreWebView2;
-                        if (core2 == null) return;
-                        if (!Uri.TryCreate(core2.Source, UriKind.Absolute, out var uri2)) return;
-                        // Still sitting on the same post-auth landing 1.5s later — this is a
-                        // settled login, not a mid-flight hop through the sign-out flow.
-                        if (!string.Equals(uri2.AbsolutePath, path, StringComparison.OrdinalIgnoreCase)) return;
-                        _lastRedirectAttemptUtc = DateTime.UtcNow;
-                        core2.Navigate(UsageUrl);
-                    }
-                    catch (Exception ex)
-                    {
-                        Debug.WriteLine("ClaudeUsageControl: delayed redirect to usage failed: " + ex);
-                    }
+#pragma warning disable VSTHRD110 // fire-and-forget: timer tick cannot await; failures are logged inside
+                    _ = RedirectToUsageIfSettledAsync(path, requireSessionCookie: isReLoginRootLanding);
+#pragma warning restore VSTHRD110
                 };
                 _redirectDebounceTimer.Start();
             }
             catch (Exception ex)
             {
                 Debug.WriteLine("ClaudeUsageControl: redirect to usage failed: " + ex);
+            }
+        }
+
+        /// <summary>
+        /// Second half of <see cref="TryRedirectToUsage"/>, run after the settle delay.
+        /// Navigates back to the usage view only when the page is still resting on the same
+        /// landing path it was on when the timer was armed — a mid-flight hop through the
+        /// sign-out flow will have moved on by now — and, for the root landing, only when a
+        /// claude.ai session cookie confirms the user is actually signed in again.
+        /// </summary>
+        private async Task RedirectToUsageIfSettledAsync(string landingPath, bool requireSessionCookie)
+        {
+            try
+            {
+                var core = WebView?.CoreWebView2;
+                if (core == null) return;
+                if (!Uri.TryCreate(core.Source, UriKind.Absolute, out var uri)) return;
+                if (!string.Equals(uri.AbsolutePath, landingPath, StringComparison.OrdinalIgnoreCase)) return;
+
+                if (requireSessionCookie && !await HasClaudeSessionCookieAsync()) return;
+
+                // Re-check the URL: awaiting the cookie read gave the page another chance to move.
+                core = WebView?.CoreWebView2;
+                if (core == null) return;
+                if (!Uri.TryCreate(core.Source, UriKind.Absolute, out uri)) return;
+                if (!string.Equals(uri.AbsolutePath, landingPath, StringComparison.OrdinalIgnoreCase)) return;
+
+                // One shot per sign-out: if this navigate lands back where it came from (session
+                // gone after all), nothing re-arms the root landing and we stop rather than loop.
+                _sawSignedOutPage = false;
+                _lastRedirectAttemptUtc = DateTime.UtcNow;
+                core.Navigate(UsageUrl);
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine("ClaudeUsageControl: delayed redirect to usage failed: " + ex);
+            }
+        }
+
+        /// <summary>
+        /// True when the WebView holds a non-empty claude.ai session cookie, i.e. the user has
+        /// finished signing in. Used to tell "logged back in and landed on the home page" apart
+        /// from "sitting on the signed-out home page".
+        /// </summary>
+        private async Task<bool> HasClaudeSessionCookieAsync()
+        {
+            try
+            {
+                var cm = WebView?.CoreWebView2?.CookieManager;
+                if (cm == null) return false;
+                var cookies = await cm.GetCookiesAsync("https://claude.ai");
+                foreach (var c in cookies)
+                {
+                    if (c.Name != null &&
+                        c.Name.IndexOf("sessionKey", StringComparison.OrdinalIgnoreCase) >= 0 &&
+                        !string.IsNullOrEmpty(c.Value))
+                    {
+                        return true;
+                    }
+                }
+                return false;
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine("ClaudeUsageControl: session cookie probe failed: " + ex);
+                return false;
+            }
+        }
+
+        /// <summary>
+        /// Switch Account sets <c>window.__claudeSuppressTrim</c> so the native claude.ai chrome
+        /// — and with it the account menu — stays visible. The flag lives on the document, so a
+        /// full page load clears it by itself, but an SPA route change back to the usage view does
+        /// not. Clearing it whenever we are on the usage page again brings the focused, trimmed
+        /// bars back instead of leaving the raw claude.ai layout in the panel.
+        /// </summary>
+        private void TryRestoreTrim()
+        {
+            try
+            {
+                var core = WebView?.CoreWebView2;
+                if (core == null) return;
+                if (!Uri.TryCreate(core.Source, UriKind.Absolute, out var uri)) return;
+                if (!uri.Host.Equals("claude.ai", StringComparison.OrdinalIgnoreCase)) return;
+                if (!(uri.AbsolutePath ?? "").StartsWith("/settings/usage", StringComparison.OrdinalIgnoreCase)) return;
+#pragma warning disable VSTHRD110 // ExecuteScriptAsync fire-and-forget is intentional
+                _ = core.ExecuteScriptAsync("window.__claudeSuppressTrim = false;");
+#pragma warning restore VSTHRD110
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine("ClaudeUsageControl: restore trim failed: " + ex);
             }
         }
 
