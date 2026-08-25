@@ -126,10 +126,10 @@
     <Compile Include="Package\SolutionEventsHandler.cs" />
   </ItemGroup>
   <ItemGroup>
-    <None Include="docs\AGENTS.md" />
-    <None Include="docs\CLAUDE.md" />
+    <None Include="AGENTS.md" />
+    <None Include="CLAUDE.md" />
     <None Include="deploy-exp.cmd" />
-    <None Include="docs\ARCHITECTURE.md" />
+    <None Include="ARCHITECTURE.md" />
     <None Include="publish.cmd" />
     <None Include="publishManifest.json" />
     <None Include="README.md" />
