@@ -397,8 +397,11 @@ namespace ClaudeCodeExtension.Tests
         }
 
         [TestMethod]
-        public void ClaudeCommandBuilder_SkippingPermissionsDropsThePromptToolAndTheMode()
+        public void ClaudeCommandBuilder_SkippingPermissionsDropsTheModeButKeepsThePromptTool()
         {
+            // Measured: the two flags coexist. Bypassing every check silences the tool approvals, but
+            // the prompt tool is still what puts AskUserQuestion and ExitPlanMode in the inventory, so
+            // dropping it here is what made the CLI answer "No such tool available: AskUserQuestion".
             string args = ClaudeCommandBuilder.GetArguments(new ClaudeSessionOptions
             {
                 DangerouslySkipPermissions = true,
@@ -407,7 +410,20 @@ namespace ClaudeCodeExtension.Tests
             });
 
             StringAssert.Contains(args, "--dangerously-skip-permissions");
+            StringAssert.Contains(args, "--permission-prompt-tool stdio");
             Assert.IsFalse(args.Contains("--permission-mode"));
+        }
+
+        [TestMethod]
+        public void ClaudeCommandBuilder_InteractivePermissionsOffDropsThePromptToolWhenSkipping()
+        {
+            string args = ClaudeCommandBuilder.GetArguments(new ClaudeSessionOptions
+            {
+                DangerouslySkipPermissions = true,
+                InteractivePermissions = false
+            });
+
+            StringAssert.Contains(args, "--dangerously-skip-permissions");
             Assert.IsFalse(args.Contains("--permission-prompt-tool"));
         }
 

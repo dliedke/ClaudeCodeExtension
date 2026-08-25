@@ -66,8 +66,8 @@ namespace ClaudeCodeVS.Agents
 
         /// <summary>
         /// Maps the existing <c>ClaudeDangerouslySkipPermissions</c> setting: bypass every check.
-        /// Mutually exclusive with <see cref="PermissionMode"/>, and it also turns
-        /// <see cref="InteractivePermissions"/> off — there is nothing left to ask about.
+        /// Mutually exclusive with <see cref="PermissionMode"/>, but <b>not</b> with
+        /// <see cref="InteractivePermissions"/>: the tool approvals go away, the questions do not.
         /// </summary>
         public bool DangerouslySkipPermissions { get; set; }
 
@@ -85,6 +85,10 @@ namespace ClaudeCodeVS.Agents
         /// <c>ExitPlanMode</c> at all. Without it neither appears in the tool inventory, so plan mode
         /// can be entered but never approved and the agent replies that the tools are not available in
         /// this environment.
+        /// </para>
+        /// <para>
+        /// Applies to <see cref="DangerouslySkipPermissions"/> sessions too — there the channel only
+        /// ever carries those two tools, because nothing else is gated.
         /// </para>
         /// </summary>
         public bool InteractivePermissions { get; set; } = true;
@@ -227,17 +231,20 @@ namespace ClaudeCodeVS.Agents
             {
                 sb.Append(" --dangerously-skip-permissions");
             }
-            else
+            else if (!string.IsNullOrWhiteSpace(options.PermissionMode))
             {
-                if (!string.IsNullOrWhiteSpace(options.PermissionMode))
-                {
-                    sb.Append(" --permission-mode ").Append(QuoteArgument(options.PermissionMode, isWsl));
-                }
+                sb.Append(" --permission-mode ").Append(QuoteArgument(options.PermissionMode, isWsl));
+            }
 
-                if (options.InteractivePermissions)
-                {
-                    sb.Append(" --permission-prompt-tool stdio");
-                }
+            // Outside the branch above on purpose: the prompt tool coexists with
+            // --dangerously-skip-permissions (measured). Under bypassPermissions the CLI never asks
+            // about Bash, Edit or Write, but it still routes AskUserQuestion and ExitPlanMode over the
+            // channel, flagged "requires_user_interaction". Tying the flag to the permission checks is
+            // what left both tools out of the inventory in skip-permissions mode, so the agent
+            // answered "No such tool available: AskUserQuestion" instead of showing the picker.
+            if (options.InteractivePermissions)
+            {
+                sb.Append(" --permission-prompt-tool stdio");
             }
 
             return sb.ToString();

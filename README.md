@@ -138,6 +138,9 @@ Use native mode to avoid this issue.
 
 ## Version History
 
+### Version 156.0
+Fixed multiple-choice questions never appearing when "Skip permissions" was on — Claude reported the question tool as unavailable for the session and answered in plain text instead. Questions and plan approvals now show up as clickable cards in every permission mode.
+
 ### Version 155.0
 Auto-refresh now updates the Claude Usage bars every 1 minute instead of 2.
 
