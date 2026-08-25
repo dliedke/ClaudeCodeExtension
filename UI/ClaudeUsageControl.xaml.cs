@@ -251,6 +251,23 @@ namespace ClaudeCodeVS
                 WebView.CoreWebView2.SourceChanged += OnSourceChanged;
                 WebView.CoreWebView2.NewWindowRequested += OnNewWindowRequested;
 
+                // Disable the HTTP cache for this dedicated scraper profile so Reload()/Navigate()
+                // (manual Refresh click, the in-page auto-refresh timer, and the background
+                // off-screen refresh) always pull a live response instead of a validator-matched
+                // 304 from claude.ai's own API calls — those are what actually carry the usage
+                // percentages, and a plain reload only guarantees a fresh *document*, not fresh
+                // fetch() responses underneath it (issue #111: refresh looked like a no-op,
+                // panel kept showing minutes/hours-old numbers even right after clicking Refresh).
+                try
+                {
+                    await WebView.CoreWebView2.CallDevToolsProtocolMethodAsync(
+                        "Network.setCacheDisabled", "{\"cacheDisabled\":true}");
+                }
+                catch (Exception ex)
+                {
+                    Debug.WriteLine("ClaudeUsageControl: Network.setCacheDisabled failed: " + ex);
+                }
+
                 // claude.ai's client detection reads the "Microsoft Edge WebView2" brand
                 // that Chromium adds to Sec-Ch-Ua / Sec-Ch-Ua-Full-Version-List for every
                 // request when running hosted (not present in a standalone Edge browser),
@@ -1125,9 +1142,9 @@ namespace ClaudeCodeVS
 
         public void ApplyAutoRefreshSeconds(int seconds)
         {
-            // Only Off/2m exist now; any legacy setting holding some other value
-            // (from an older release's JSON) is treated as 2m.
-            int normalized = seconds <= 0 ? 0 : Math.Max(120, seconds);
+            // Only Off/1m exist now; any legacy setting holding some other value
+            // (from an older release's JSON) is treated as 1m.
+            int normalized = seconds <= 0 ? 0 : Math.Max(60, seconds);
             _autoRefreshSeconds = normalized;
             _suppressAutoRefreshEvent = true;
             try
@@ -1228,12 +1245,23 @@ namespace ClaudeCodeVS
             }
         }
 
-        private void RefreshButton_Click(object sender, RoutedEventArgs e) => Reload();
+        private void RefreshButton_Click(object sender, RoutedEventArgs e)
+        {
+            // Reload() silently no-ops when the live instance died while the tab sat hidden
+            // (issue #131) — fall back to a full rebuild instead of leaving Refresh looking like
+            // it did nothing.
+            if (!Reload())
+            {
+#pragma warning disable VSTHRD110 // fire-and-forget: click handler cannot be async void-awaited here
+                _ = ReviveOnShowAsync();
+#pragma warning restore VSTHRD110
+            }
+        }
 
         private void AutoRefreshCheck_CheckedChanged(object sender, RoutedEventArgs e)
         {
             if (_suppressAutoRefreshEvent) return;
-            int seconds = AutoRefreshCheck?.IsChecked == true ? 120 : 0;
+            int seconds = AutoRefreshCheck?.IsChecked == true ? 60 : 0;
             _autoRefreshSeconds = seconds;
             RestartAutoRefreshTimer(_isHostVisible ? seconds : 0);
             AutoRefreshChanged?.Invoke(this, seconds);

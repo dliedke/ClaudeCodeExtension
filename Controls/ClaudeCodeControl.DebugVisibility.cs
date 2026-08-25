@@ -174,10 +174,55 @@ namespace ClaudeCodeVS
                 {
                     RestoreFrameIfHiddenByVS(pair.Value?.Window?.Frame as IVsWindowFrame);
                 }
+
+                // Frame visibility says nothing about the embedded conhost/wt.exe HWND living
+                // inside it (issue #142): the panel itself can stay docked and "visible" as far
+                // as VS is concerned while the foreign window SetParent() joined to it gets
+                // orphaned by the same debug-layout churn, leaving the tab blank and unresponsive
+                // to clicks until the terminal is repaired.
+                RepairEmbeddedTerminalIfOrphaned();
             }
             catch (Exception ex)
             {
                 Debug.WriteLine($"ShowExtensionAndCreatedTabsAsync error: {ex.Message}");
+            }
+        }
+
+        /// <summary>
+        /// Re-parents the active embedded terminal if VS's debug-mode layout transition silently
+        /// broke its SetParent() link to the host panel, then forces a resize + repaint pass either
+        /// way. A foreign HWND embedded via SetParent (conhost.exe/wt.exe) isn't tracked by VS's own
+        /// frame-visibility bookkeeping, so <see cref="RestoreFrameIfHiddenByVS"/> can leave the tool
+        /// window frame correctly shown while the terminal surface inside it is still an orphaned,
+        /// unparented window - blank and inert until re-embedded (issue #142).
+        /// </summary>
+        private void RepairEmbeddedTerminalIfOrphaned()
+        {
+            ThreadHelper.ThrowIfNotOnUIThread();
+
+            try
+            {
+                if (terminalHandle == IntPtr.Zero || !IsWindow(terminalHandle)) return;
+
+                var panel = ActiveTerminalPanel;
+                if (panel == null || panel.IsDisposed) return;
+
+                if (GetParent(terminalHandle) != panel.Handle)
+                {
+                    // Windows Terminal wants WS_CHILD to behave once embedded; classic conhost
+                    // loses input/focus if forced into that style (mirrors the embed-time call in
+                    // StartEmbeddedTerminalAsync).
+                    bool isWt = _settings?.SelectedTerminalType == TerminalType.WindowsTerminal;
+                    SetParent(terminalHandle, panel.Handle);
+                    ApplyEmbeddedTerminalWindowStyle(forceChildWindowStyle: isWt);
+                }
+
+                ResizeEmbeddedTerminal();
+                RefreshEmbeddedTerminalWindow();
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"RepairEmbeddedTerminalIfOrphaned error: {ex.Message}");
             }
         }
 

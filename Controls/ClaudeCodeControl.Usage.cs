@@ -283,7 +283,18 @@ namespace ClaudeCodeVS
             try
             {
                 if (_usageToolWindow?.Frame == null || control == null) return;
-                if (_usageToolWindow.IsWindowVisible) return; // already visible, scraper is live
+                // _usageToolWindow.IsWindowVisible (not a live IVsWindowFrame.IsVisible() COM
+                // read) on purpose: IsVisible() reports S_OK for a tool window frame that is
+                // merely open — including a tab sitting inactive behind a sibling tab in the same
+                // dock group (see RestoreFrameIfHiddenByVS's own comment on this). That made an
+                // earlier version of this guard always see "visible" while the user was on, say,
+                // the Claude Code tab with Claude Usage parked behind it, so the background
+                // refresh never ran and the bars only ever updated when the tab was clicked
+                // (issue #111 recurrence). IsWindowVisible tracks OnShow's
+                // FRAMESHOW_TabActivated/TabDeactivated specifically, which is exactly "is this
+                // the foreground tab right now" — already visible there really does mean the
+                // scraper is live and rendering in the frame itself.
+                if (_usageToolWindow.IsWindowVisible) return;
 
                 // Keep the focus-priming paths quiet for the duration of the off-screen work.
                 control.SetBackgroundInitMode(true);
@@ -322,10 +333,19 @@ namespace ClaudeCodeVS
         /// Starts (or restarts) the background refresh timer that periodically calls
         /// RefreshUsageInBackgroundAsync so inline bars stay up to date while the tab is hidden
         /// or behind another tab in the same dock group.
-        /// Stops and nulls itself if bars are disabled, provider is not Claude,
-        /// or the tab is already visible. UsageAutoRefreshSeconds=0 ("Off" in the combo)
-        /// only suppresses the page-visible reload — background bar refresh still runs
-        /// at a 60s default so inline bars never go stale forever.
+        /// Stops and nulls itself if bars are disabled or provider is not Claude.
+        /// UsageAutoRefreshSeconds=0 ("Off" in the checkbox) only suppresses the page-visible
+        /// reload — background bar refresh still runs at a 60s default so inline bars never go
+        /// stale forever.
+        ///
+        /// Deliberately NOT gated on the tool window's current visibility at start time (unlike
+        /// the tick handler below): this timer is meant to run continuously once bars are on, so a
+        /// missed or mis-timed <see cref="ClaudeUsageToolWindow.VisibilityChanged"/> notification —
+        /// e.g. VS not raising TabDeactivated for every way a sibling tab can become the active one
+        /// in the same dock group — can never leave the inline bars with no live refresher at all
+        /// (issue #111: bars stayed frozen for the whole session unless the user opened the Usage
+        /// tab, which is the one path that always ends up doing a fresh reload). Each tick still
+        /// re-checks visibility itself before doing any work.
         /// </summary>
         private void StartUsageBackgroundRefreshTimer()
         {
@@ -333,16 +353,12 @@ namespace ClaudeCodeVS
             _usageBackgroundRefreshTimer = null;
 
             if (_settings?.ShowInlineUsageBars != true || !IsClaudeProviderSelected()) return;
-            // UsageWindowOpened is persisted session-restore intent, not current visibility. It
-            // stays true when VS sends TabDeactivated, so using it here leaves an unfocused tab
-            // with no viable refresher once WebView2's frame host is suspended.
-            if (_usageToolWindow?.IsWindowVisible == true) return;
 
-            // Combo "Off" (0) → 60s background floor; otherwise honor user's interval (min 2m —
-            // 30s/1m are no longer selectable, so a legacy JSON value below 2m floors to it).
+            // Checkbox "Off" (0) → 60s background floor; otherwise honor user's interval (min
+            // 1m — a legacy JSON value below that floors to it).
             int intervalSeconds = (_settings?.UsageAutoRefreshSeconds ?? 0) <= 0
                 ? 60
-                : Math.Max(120, _settings.UsageAutoRefreshSeconds);
+                : Math.Max(60, _settings.UsageAutoRefreshSeconds);
 
             _usageBackgroundRefreshTimer = new DispatcherTimer
             {
@@ -358,9 +374,15 @@ namespace ClaudeCodeVS
         {
             try
             {
-                if (_usageToolWindow?.IsWindowVisible == true) return;
                 if (_settings?.ShowInlineUsageBars != true || !IsClaudeProviderSelected()) return;
+                // IsWindowVisible (not a live IVsWindowFrame.IsVisible() COM read) — see the
+                // matching comment on the guard in RefreshUsageInBackgroundAsync for why.
+                // DispatcherTimer.Tick always fires on the UI thread, so this field access is
+                // safe despite the analyzer not being able to see that (VSTHRD010).
+#pragma warning disable VSTHRD010
+                if (_usageToolWindow?.IsWindowVisible == true) return;
                 await RefreshUsageInBackgroundAsync();
+#pragma warning restore VSTHRD010
             }
             catch (Exception ex)
             {
@@ -406,9 +428,13 @@ namespace ClaudeCodeVS
 
                 if (showWindow)
                 {
-                    // Stop background timer — tab is visible, scraper runs normally.
-                    _usageBackgroundRefreshTimer?.Stop();
-                    _usageBackgroundRefreshTimer = null;
+                    // Start the (self-guarding) background heartbeat here too, not just in the
+                    // showWindow:false branch below. It no-ops on every tick while the tab is
+                    // genuinely visible (page's own reload handles that), but keeping it running
+                    // means the inline bars still get refreshed later even if VS never raises the
+                    // VisibilityChanged notification that would otherwise be the only thing to
+                    // (re)start it once the user switches away from this tab (issue #111).
+                    StartUsageBackgroundRefreshTimer();
 
                     // ShowNoActivate when the tab is being restored automatically (e.g.
                     // after a solution reload) so the editor / agent terminal keeps focus.
@@ -458,9 +484,10 @@ namespace ClaudeCodeVS
                 if (_settings == null) return;
                 _settings.UsageAutoRefreshSeconds = seconds;
                 SaveSettings();
-                // Restart (or stop) the background timer to match the new setting immediately.
-                if (_usageToolWindow?.IsWindowVisible != true)
-                    StartUsageBackgroundRefreshTimer();
+                // Restart the (self-guarding) background timer to match the new interval
+                // immediately — see StartUsageBackgroundRefreshTimer for why this no longer
+                // branches on the tool window's cached visibility flag.
+                StartUsageBackgroundRefreshTimer();
             }
             catch { }
         }
@@ -470,17 +497,15 @@ namespace ClaudeCodeVS
             try
             {
                 ThreadHelper.ThrowIfNotOnUIThread();
-                if (isVisible)
-                {
-                    _usageBackgroundRefreshTimer?.Stop();
-                    _usageBackgroundRefreshTimer = null;
-                }
-                else
-                {
-                    // Includes TabDeactivated: an open-but-unfocused docked tab must use the
-                    // off-screen host because its frame-hosted WebView2 can stop processing.
-                    StartUsageBackgroundRefreshTimer();
-                }
+                // Always (re)start rather than branching on isVisible: the heartbeat now
+                // self-guards on a live visibility read every tick (see
+                // StartUsageBackgroundRefreshTimer), so stopping it here on isVisible:true used to
+                // rely on the matching TabDeactivated notification firing later to start it back up
+                // — and VS does not raise that notification for every way a sibling tab in the same
+                // dock group can become the active one, which left the inline bars frozen for the
+                // rest of the session (issue #111). Restarting unconditionally means a missed
+                // "became hidden" notification can no longer strand the bars with no refresher.
+                StartUsageBackgroundRefreshTimer();
             }
             catch (Exception ex)
             {

@@ -85,6 +85,35 @@ namespace ClaudeCodeExtension.Tests
         }
 
         /// <summary>
+        /// Issue #142: the tool window frame can stay visible-per-VS through a debug-mode layout
+        /// change while the embedded conhost/wt.exe HWND — a foreign window joined via SetParent,
+        /// invisible to VS's own frame bookkeeping — gets silently orphaned underneath it, leaving
+        /// the panel blank and unresponsive to clicks. The restore pass must repair that link too,
+        /// not just re-show frames.
+        /// </summary>
+        [TestMethod]
+        public void RestorePassAlsoRepairsAnOrphanedEmbeddedTerminal()
+        {
+            string source = Source;
+
+            StringAssert.Contains(
+                ExtractMethodBody(source, "private async Task ShowExtensionAndCreatedTabsAsync()"),
+                "RepairEmbeddedTerminalIfOrphaned();",
+                "Frame visibility says nothing about the embedded terminal HWND surviving the debug-layout change.");
+
+            string repair = ExtractMethodBody(source, "private void RepairEmbeddedTerminalIfOrphaned()");
+
+            StringAssert.Contains(repair, "GetParent(terminalHandle) != panel.Handle",
+                "Must detect an orphaned terminal by checking whether it is still parented to the active panel.");
+            StringAssert.Contains(repair, "SetParent(terminalHandle, panel.Handle);",
+                "Must re-embed the terminal once an orphaned parent link is detected.");
+            StringAssert.Contains(repair, "ResizeEmbeddedTerminal();",
+                "Must reposition the terminal to the panel's current bounds after (or instead of) a re-embed.");
+            StringAssert.Contains(repair, "RefreshEmbeddedTerminalWindow();",
+                "Must force a repaint pass so a stale-painted surface doesn't linger even when the parent link was fine.");
+        }
+
+        /// <summary>
         /// Returns the text of a method's body, located by its signature and closed by brace matching.
         /// </summary>
         private static string ExtractMethodBody(string source, string signature)

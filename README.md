@@ -138,6 +138,18 @@ Use native mode to avoid this issue.
 
 ## Version History
 
+### Version 155.0
+Auto-refresh now updates the Claude Usage bars every 1 minute instead of 2.
+
+Fixed the bars still only updating when the Claude Usage tab was the active tab, even after the v154.0 fix — the background refresh was checking a visibility signal that Visual Studio also reports as "visible" for a tab sitting open but unfocused behind another tab, so it kept skipping the refresh. It now checks whether the tab is actually in front (issue #111).
+
+### Version 154.0
+Fixed the Claude Usage bars only updating when the Claude Usage tab itself was opened — the previous background-refresh timer was only (re)started from a tab-visibility notification that Visual Studio doesn't reliably raise for every way a sibling tab in the same dock group can become active, so a missed notification could leave the bars frozen for the rest of the session. The refresh timer now runs continuously once usage bars are enabled instead (issue #111).
+
+Refresh also now disables the HTTP cache on the usage scraper's WebView2, so clicking Refresh (or the automatic reload) always pulls a live response instead of a stale one served from claude.ai's own client-side cache, and rebuilds the WebView2 if it had already died instead of silently doing nothing.
+
+Fixed the embedded terminal going blank and unresponsive after entering Debug mode (F5) in some layouts — the terminal surface is a foreign window joined to its panel via SetParent, which Visual Studio's own frame-visibility tracking knows nothing about, so it could be silently orphaned by the same debug-layout change that issue #130/#141 already guard the panel's own visibility against. The existing debug-mode restore pass now also repairs that link (issue #142).
+
 ### Version 153.0
 Claude Usage now refreshes automatically while its Visual Studio tab is unfocused, so the usage bars stay current without pressing Refresh.
 
