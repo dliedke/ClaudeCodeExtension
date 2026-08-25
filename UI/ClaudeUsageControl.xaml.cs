@@ -82,6 +82,9 @@ namespace ClaudeCodeVS
         private DateTime _lastCookieSaveUtc = DateTime.MinValue;
         private DateTime _lastUrlBlockClickUtc = DateTime.MinValue;
 
+        /// <summary>Pending delayed navigate scheduled by <see cref="TryRedirectToUsage"/>.</summary>
+        private DispatcherTimer _redirectDebounceTimer;
+
         /// <summary>
         /// Fires when a usage snapshot is successfully scraped from the page.
         /// </summary>
@@ -158,6 +161,7 @@ namespace ClaudeCodeVS
                 // EnsureCoreWebView2Async on it again, so any leftover instance is discarded
                 // and a fresh one takes its place.
                 DisposeWebViewInstance();
+                _redirectDebounceTimer?.Stop();
 
                 WebView = new Microsoft.Web.WebView2.Wpf.WebView2
                 {
@@ -1031,15 +1035,22 @@ namespace ClaudeCodeVS
         }
 
         /// <summary>
-        /// After login, claude.ai bounces the user to a post-auth landing
-        /// (/new, /chats, /projects, /recents) instead of the page we asked
-        /// for. Detect those specific landings and re-navigate to
-        /// /settings/usage. We whitelist the post-auth paths rather than
-        /// blacklist /login because the unauthenticated home page (root /)
-        /// is also a valid resting state when the user has signed out — a
-        /// blacklist there would cause an infinite loop /settings/usage → /
-        /// → /settings/usage → ... A 5s debounce catches double-fires from
-        /// SPA pushState + NavigationCompleted on the same route change.
+        /// After login (including a Switch Account re-login), claude.ai bounces the user to a
+        /// post-auth landing (/new, /chats, /projects, /recents) instead of the page we asked
+        /// for. Detect those specific landings and re-navigate to /settings/usage. We whitelist
+        /// the post-auth paths rather than blacklist /login because the unauthenticated home page
+        /// (root /) is also a valid resting state when the user has signed out — a blacklist
+        /// there would cause an infinite loop /settings/usage → / → /settings/usage → ...
+        /// A 5s debounce (<see cref="_lastRedirectAttemptUtc"/>) catches double-fires from SPA
+        /// pushState + NavigationCompleted on the same route change.
+        ///
+        /// The actual navigate is delayed a short beat (<see cref="_redirectDebounceTimer"/>)
+        /// rather than fired immediately: claude.ai's own "Log out" flow briefly passes through
+        /// one of these same landing paths before continuing on to /login, and an immediate
+        /// Navigate() there aborts that in-flight sign-out request, making Log out look like it
+        /// just "refreshed" back to the usage view instead of signing out. Re-checking the URL
+        /// hasn't moved on by the time the delay elapses tells the two cases apart without needing
+        /// to know anything about what the page's own JS is doing.
         /// </summary>
         private void TryRedirectToUsage()
         {
@@ -1048,7 +1059,11 @@ namespace ClaudeCodeVS
                 var core = WebView?.CoreWebView2;
                 if (core == null) return;
                 if (!Uri.TryCreate(core.Source, UriKind.Absolute, out var uri)) return;
-                if (!uri.Host.Equals("claude.ai", StringComparison.OrdinalIgnoreCase)) return;
+                if (!uri.Host.Equals("claude.ai", StringComparison.OrdinalIgnoreCase))
+                {
+                    _redirectDebounceTimer?.Stop();
+                    return;
+                }
 
                 string path = uri.AbsolutePath ?? "/";
                 bool isPostAuthLanding =
@@ -1057,13 +1072,39 @@ namespace ClaudeCodeVS
                     path.StartsWith("/chat/", StringComparison.OrdinalIgnoreCase) ||
                     path.StartsWith("/projects", StringComparison.OrdinalIgnoreCase) ||
                     path.StartsWith("/recents", StringComparison.OrdinalIgnoreCase);
-                if (!isPostAuthLanding) return;
+                if (!isPostAuthLanding)
+                {
+                    // Moved on to somewhere else (e.g. claude.ai finished signing out and landed
+                    // on /login or /) before the pending redirect fired — cancel it.
+                    _redirectDebounceTimer?.Stop();
+                    return;
+                }
 
                 var now = DateTime.UtcNow;
                 if ((now - _lastRedirectAttemptUtc).TotalSeconds < 5) return;
-                _lastRedirectAttemptUtc = now;
 
-                core.Navigate(UsageUrl);
+                _redirectDebounceTimer?.Stop();
+                _redirectDebounceTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(1500) };
+                _redirectDebounceTimer.Tick += (s, e) =>
+                {
+                    _redirectDebounceTimer.Stop();
+                    try
+                    {
+                        var core2 = WebView?.CoreWebView2;
+                        if (core2 == null) return;
+                        if (!Uri.TryCreate(core2.Source, UriKind.Absolute, out var uri2)) return;
+                        // Still sitting on the same post-auth landing 1.5s later — this is a
+                        // settled login, not a mid-flight hop through the sign-out flow.
+                        if (!string.Equals(uri2.AbsolutePath, path, StringComparison.OrdinalIgnoreCase)) return;
+                        _lastRedirectAttemptUtc = DateTime.UtcNow;
+                        core2.Navigate(UsageUrl);
+                    }
+                    catch (Exception ex)
+                    {
+                        Debug.WriteLine("ClaudeUsageControl: delayed redirect to usage failed: " + ex);
+                    }
+                };
+                _redirectDebounceTimer.Start();
             }
             catch (Exception ex)
             {
@@ -1247,6 +1288,20 @@ namespace ClaudeCodeVS
 
         private void RefreshButton_Click(object sender, RoutedEventArgs e)
         {
+            // Refresh is the documented way back to the focused usage view after Switch Account
+            // reveals the native claude.ai menu — Reload() alone would just reload whatever page
+            // the account switch left us on (e.g. /new), not bring the usage view back, so
+            // explicitly navigate there whenever we're not on it already.
+            var core = WebView?.CoreWebView2;
+            if (core != null &&
+                Uri.TryCreate(core.Source, UriKind.Absolute, out var uri) &&
+                !uri.AbsolutePath.StartsWith("/settings/usage", StringComparison.OrdinalIgnoreCase))
+            {
+                _redirectDebounceTimer?.Stop();
+                core.Navigate(UsageUrl);
+                return;
+            }
+
             // Reload() silently no-ops when the live instance died while the tab sat hidden
             // (issue #131) — fall back to a full rebuild instead of leaving Refresh looking like
             // it did nothing.
@@ -1279,10 +1334,9 @@ namespace ClaudeCodeVS
         ///   1. Removes the trim style and clears trim-related data attributes
         ///   2. Stops the tick() from re-applying the trim by setting a flag
         ///   3. Clicks the user avatar to open the org/account picker
-        /// After the user picks an account, the page navigates to the new
-        /// org context. When the user wants the focused usage view back,
-        /// they can press Refresh — the next NavigationCompleted re-runs the
-        /// injected script which re-trims if TRIM=true.
+        /// After the user picks an account, the page navigates to the new org context —
+        /// <see cref="TryRedirectToUsage"/> notices the settled post-auth landing and brings the
+        /// focused usage view back on its own; pressing Refresh does the same immediately.
         /// </summary>
         private void SwitchAccountButton_Click(object sender, RoutedEventArgs e)
         {
@@ -1329,6 +1383,7 @@ namespace ClaudeCodeVS
         {
             try
             {
+                _redirectDebounceTimer?.Stop();
                 try { if (File.Exists(SharedCookiePath)) File.Delete(SharedCookiePath); } catch { }
 
                 var cm = WebView?.CoreWebView2?.CookieManager;
@@ -1529,6 +1584,8 @@ namespace ClaudeCodeVS
             {
                 _autoRefreshTimer?.Stop();
                 _autoRefreshTimer = null;
+                _redirectDebounceTimer?.Stop();
+                _redirectDebounceTimer = null;
                 _isHostVisible = false;
                 DisposeWebViewInstance();
                 CloseOffscreenHost();

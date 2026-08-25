@@ -138,6 +138,11 @@ Use native mode to avoid this issue.
 
 ## Version History
 
+### Version 157.0
+Fixed Switch Account in the Claude Usage panel: "Log out" used to appear to just refresh instead of signing out, because the panel's own safety redirect (which snaps the embedded page back to the usage view after login) fired immediately on the transient page claude.ai's sign-out flow passes through, aborting the log-out request mid-flight. That redirect now waits a short beat and re-checks the page before acting, so a genuine login still snaps back to the usage view automatically while a sign-out in progress is left alone.
+
+Also fixed switching to a different account and logging back in leaving the panel stuck on the full claude.ai chat UI instead of returning to the usage view — Refresh now explicitly navigates back to the usage page when it isn't already there, instead of just reloading whatever page Switch Account left behind.
+
 ### Version 156.0
 Fixed multiple-choice questions never appearing when "Skip permissions" was on — Claude reported the question tool as unavailable for the session and answered in plain text instead. Questions and plan approvals now show up as clickable cards in every permission mode.
 
