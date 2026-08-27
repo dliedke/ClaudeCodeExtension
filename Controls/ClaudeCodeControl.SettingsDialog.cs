@@ -874,6 +874,8 @@ namespace ClaudeCodeVS
             // ========================= CLI Paths tab (last) =========================
             var cliPathsStack = AddTab("CLI Paths");
             var cliPathEditors = BuildCliPathsTabContent(cliPathsStack, themeBg, themeFg);
+            cliPathsStack.Children.Add(new Border { Height = 12 });
+            var launchArgEditors = BuildLaunchArgumentsSectionContent(cliPathsStack, themeBg, themeFg);
 
             // ---- Button row ----
             var buttonPanel = new Grid { Margin = new Thickness(0, 14, 0, 0) };
@@ -971,8 +973,11 @@ namespace ClaudeCodeVS
                 showBarsCheck.IsChecked = true;
                 autoRefreshCheck.IsChecked = false;       // Off
 
-                // CLI Paths tab: default is no custom path (use detection) for every provider.
+                // CLI Paths tab: default is no custom path (use detection) for every provider,
+                // and no extra launch arguments.
                 foreach (var tb in cliPathEditors.Values)
+                    tb.Text = "";
+                foreach (var tb in launchArgEditors.Values)
                     tb.Text = "";
 
                 // Toolbar tab: default promotes only Restart to a one-click button, in default order.
@@ -1154,6 +1159,11 @@ namespace ClaudeCodeVS
             // Only the active provider's path change warrants relaunching the terminal.
             bool activeCliPathChanged = changedCliProviders.Contains(_settings.SelectedProvider);
 
+            // Extra launch arguments (same tab). Applies to the embedded terminal and native mode
+            // alike, so any change to the active provider's arguments warrants a relaunch.
+            var changedLaunchArgProviders = ApplyLaunchArgumentsChanges(launchArgEditors);
+            bool activeLaunchArgsChanged = changedLaunchArgProviders.Contains(_settings.SelectedProvider);
+
             // On Agent Finish is configured in its own dialog (opened by the button above),
             // which persists its own changes; nothing to apply here.
 
@@ -1220,7 +1230,7 @@ namespace ClaudeCodeVS
             // Toggling native mode swaps the whole transport, so the agent has to be relaunched for the
             // panel to change from terminal to chat (or back).
             bool nativeModeChanged = _settings.UseNativeMode != origUseNativeMode;
-            bool needsRestart = terminalTypeChanged || activeCliPathChanged || consoleFontChanged || nativeModeChanged;
+            bool needsRestart = terminalTypeChanged || activeCliPathChanged || consoleFontChanged || nativeModeChanged || activeLaunchArgsChanged;
 
             // For theme changes, ask the user (respecting the skip-prompt opt-out
             // and the same "agent color already matches" short-circuit used elsewhere)

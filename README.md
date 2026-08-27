@@ -138,6 +138,11 @@ Use native mode to avoid this issue.
 
 ## Version History
 
+### Version 160.0
+In native mode, permission approvals and question prompts raised by a parallel chat tab now appear in that tab (and bring it to the front) instead of on the first tab, so the tab that is waiting for you is the one that shows the prompt.
+
+Added a per-provider "Extra launch arguments" box under Settings → CLI Paths: text entered there is appended to the agent's command line when it starts, in both the embedded terminal and native mode, for passing flags the extension does not expose (for example `--chrome` to enable Claude in Chrome).
+
 ### Version 159.0
 The inline usage bars now refresh on their own right after Visual Studio starts, without needing the Claude Usage tab to be opened or brought to the front first.
 

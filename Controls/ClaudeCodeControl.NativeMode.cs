@@ -23,6 +23,7 @@ using System.Windows.Media;
 using ClaudeCodeVS.Agents;
 using ClaudeCodeVS.UI;
 using Microsoft.VisualStudio.Shell;
+using Microsoft.VisualStudio.Shell.Interop;
 using Microsoft.VisualStudio.Threading;
 
 namespace ClaudeCodeVS
@@ -579,7 +580,10 @@ namespace ClaudeCodeVS
                 // Plan mode is the CLI asking before it acts, so it cannot coexist with skipping
                 // every prompt; plan wins when both are somehow set.
                 DangerouslySkipPermissions = !planMode && _settings?.ClaudeDangerouslySkipPermissions == true,
-                PermissionMode = planMode ? "plan" : "acceptEdits"
+                PermissionMode = planMode ? "plan" : "acceptEdits",
+
+                // User-supplied extra flags (Settings → CLI Paths → "Extra launch arguments").
+                ExtraArguments = GetExtraLaunchArgs(provider)
             };
 
             // A CLI installed after Visual Studio started is missing from the PATH we inherited; the
@@ -630,6 +634,7 @@ namespace ClaudeCodeVS
                 ModelName = GetAcpModelName(provider),
                 ModelLaunchArgument = GetAcpModelLaunchArgument(provider),
                 DisplayName = GetProviderDisplayName(provider),
+                ExtraArguments = GetExtraLaunchArgs(provider),
                 AnswerFirstRunPromptWithNo = provider == AiProvider.Reasonix,
                 // Routed into the same terminal-launch log the console path writes to: on a Release
                 // build Debug.WriteLine is gone, so this is the only way to see why an agent that
@@ -688,7 +693,8 @@ namespace ClaudeCodeVS
                 SkipApprovals = isCursor
                     ? _settings?.CursorAgentAutoRun == true
                     : _settings?.CodexFullAuto == true,
-                DisplayName = GetProviderDisplayName(provider)
+                DisplayName = GetProviderDisplayName(provider),
+                ExtraArguments = GetExtraLaunchArgs(provider)
             };
 
             // Session History can reopen a stored Codex thread before the first turn. Cursor's own
@@ -735,7 +741,8 @@ namespace ClaudeCodeVS
                 ExecutablePath = ResolveExecutableOnPath(
                     ResolveNativeProviderExecutable(AiProvider.Pi, "pi"), freshPath),
                 Model = GetSelectedProviderModelId(AiProvider.Pi),
-                DisplayName = GetProviderDisplayName(AiProvider.Pi)
+                DisplayName = GetProviderDisplayName(AiProvider.Pi),
+                ExtraArguments = GetExtraLaunchArgs(AiProvider.Pi)
             };
 
             if (!string.IsNullOrWhiteSpace(freshPath))
@@ -759,7 +766,8 @@ namespace ClaudeCodeVS
                     ResolveNativeProviderExecutable(AiProvider.Antigravity, "agy"), freshPath),
                 Model = GetSelectedProviderModelId(AiProvider.Antigravity),
                 SkipApprovals = _settings?.AntigravityDangerouslySkipPermissions == true,
-                DisplayName = GetProviderDisplayName(AiProvider.Antigravity)
+                DisplayName = GetProviderDisplayName(AiProvider.Antigravity),
+                ExtraArguments = GetExtraLaunchArgs(AiProvider.Antigravity)
             };
 
             if (!string.IsNullOrWhiteSpace(freshPath))
@@ -1682,11 +1690,11 @@ namespace ClaudeCodeVS
                     break;
 
                 case AgentEventKind.PermissionRequested:
-                    ShowNativePermissionDialog(agentEvent.PermissionRequest);
+                    ShowNativePermissionDialogForSession(session, agentEvent.PermissionRequest);
                     break;
 
                 case AgentEventKind.InteractionRequested:
-                    ShowNativeInteraction(agentEvent.Interaction);
+                    ShowNativeInteractionForSession(session, agentEvent.Interaction);
                     break;
 
                 case AgentEventKind.UsageUpdated:
@@ -1879,15 +1887,44 @@ namespace ClaudeCodeVS
         private void ShowNativeInteraction(AgentInteractionRequest request)
         {
             ThreadHelper.ThrowIfNotOnUIThread();
+            ShowNativeInteractionCore(request, ChatTranscript, _nativeTurnFinishConfig);
+        }
 
-            if (request == null || ChatTranscript == null)
+        /// <summary>
+        /// Renders a question / plan / permission card in a parallel tab's own transcript rather than
+        /// the panel's. Without this every prompt raised by a second session landed on the first tab,
+        /// which showed nothing and blocked (issue #144). Also brings the owning tab forward so the
+        /// waiting card is not hidden behind the tab the user happens to be looking at.
+        /// </summary>
+        private void ShowNativeInteractionForSession(NativeChatSessionState session, AgentInteractionRequest request)
+        {
+            ThreadHelper.ThrowIfNotOnUIThread();
+
+            if (session == null || session.ChatTranscript == null)
+            {
+                ShowNativeInteraction(request);
+                return;
+            }
+
+            BringSessionTabToFront(session);
+            ShowNativeInteractionCore(request, session.ChatTranscript, session.TurnFinishConfig);
+        }
+
+        private void ShowNativeInteractionCore(
+            AgentInteractionRequest request,
+            ChatTranscriptView transcript,
+            AgentFinishConfig finishConfig)
+        {
+            ThreadHelper.ThrowIfNotOnUIThread();
+
+            if (request == null || transcript == null)
             {
                 return;
             }
 
             if (ShouldPlayNativeQuestionSound(
                 _currentRunningProvider,
-                _nativeTurnFinishConfig,
+                finishConfig,
                 request))
             {
                 // Unlike the terminal watcher, the structured channel emits each waiting interaction
@@ -1896,16 +1933,45 @@ namespace ClaudeCodeVS
             }
 
             // Close whatever text was streaming: the card belongs below the sentence that introduced it.
-            FinishStreamingMessages();
+            NativeChatSessionState owner = ResolveSessionFromSender(transcript);
+            if (owner != null)
+            {
+                FinishStreamingMessages(owner);
+            }
+            else
+            {
+                FinishStreamingMessages();
+            }
 
             var interaction = new ChatInteractionViewModel(request);
-            ChatTranscript.AddInteraction(interaction);
+            transcript.AddInteraction(interaction);
 
             // The label changes but the clock keeps running: the turn is still open, and the time spent
             // waiting for the user is part of how long it took.
-            ChatTranscript.SetActivityLabel(interaction.IsPlanReview
+            transcript.SetActivityLabel(interaction.IsPlanReview
                 ? "Waiting for you to review the plan..."
                 : "Waiting for your answer...");
+        }
+
+        /// <summary>
+        /// Selects a parallel session's document tab so a card that blocks its agent is not left
+        /// unseen behind another tab. Best-effort — never throws into the event pump.
+        /// </summary>
+        private void BringSessionTabToFront(NativeChatSessionState session)
+        {
+            ThreadHelper.ThrowIfNotOnUIThread();
+
+            try
+            {
+                if (session?.Window?.Frame is IVsWindowFrame frame)
+                {
+                    frame.Show();
+                }
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"Native mode: could not surface session tab: {ex.Message}");
+            }
         }
 
         /// <summary>
@@ -1929,7 +1995,18 @@ namespace ClaudeCodeVS
         {
             ThreadHelper.ThrowIfNotOnUIThread();
 
-            if (ChatTranscript == null || interaction == null)
+            if (interaction == null)
+            {
+                return;
+            }
+
+            // A parallel tab resolves its own card; fall back to the panel's transcript for the
+            // panel session. Plan mode is a global, panel-only setting (the extra tabs disable that
+            // selector), so only touch it when the panel session answered.
+            NativeChatSessionState owner = ResolveSessionFromSender(sender);
+            ChatTranscriptView transcript = owner?.ChatTranscript ?? ChatTranscript;
+
+            if (transcript == null)
             {
                 return;
             }
@@ -1937,7 +2014,7 @@ namespace ClaudeCodeVS
             // Approving the plan is how a session leaves plan mode. Leaving the setting on would put the
             // agent straight back into planning the next time it is relaunched, right after the user
             // told it to go ahead.
-            if (interaction.IsPlanReview && interaction.WasAccepted && _settings?.ClaudePlanMode == true)
+            if (owner == null && interaction.IsPlanReview && interaction.WasAccepted && _settings?.ClaudePlanMode == true)
             {
                 _settings.ClaudePlanMode = false;
                 SaveSettings();
@@ -1945,7 +2022,7 @@ namespace ClaudeCodeVS
             }
 
             // Empty hands the line back to the rotating verbs: the agent is working again.
-            ChatTranscript.SetActivityLabel(string.Empty);
+            transcript.SetActivityLabel(string.Empty);
         }
 
         /// <summary>
@@ -2190,12 +2267,41 @@ namespace ClaudeCodeVS
         private void ShowNativePermissionDialog(AgentPermissionRequest request)
         {
             ThreadHelper.ThrowIfNotOnUIThread();
+            ShowNativePermissionDialog(request, ChatTranscript);
+        }
+
+        /// <summary>
+        /// Same approval dialog, routed to a parallel session: the owning tab is brought forward and its
+        /// status line reads "Waiting for your answer..." so the blocked agent is visible in the tab that
+        /// raised it rather than only on the first one (issue #144).
+        /// </summary>
+        private void ShowNativePermissionDialogForSession(NativeChatSessionState session, AgentPermissionRequest request)
+        {
+            ThreadHelper.ThrowIfNotOnUIThread();
+
+            if (session == null || session.ChatTranscript == null)
+            {
+                ShowNativePermissionDialog(request);
+                return;
+            }
+
+            BringSessionTabToFront(session);
+            ShowNativePermissionDialog(request, session.ChatTranscript);
+        }
+
+        private void ShowNativePermissionDialog(AgentPermissionRequest request, ChatTranscriptView transcript)
+        {
+            ThreadHelper.ThrowIfNotOnUIThread();
 
             if (request == null || request.Options == null || request.Options.Count == 0)
             {
                 request?.Cancel();
                 return;
             }
+
+            // Keep the originating transcript visibly blocked while the modal is up; the turn clock
+            // keeps running, so waiting time still counts toward the turn.
+            transcript?.SetActivityLabel("Waiting for your answer...");
 
             GetThemeBrushes(out Brush themeBg, out Brush themeFg);
 
@@ -2285,6 +2391,9 @@ namespace ClaudeCodeVS
 
             dialog.Closed += delegate
             {
+                // Hand the status line back to the rotating verbs: the agent runs again once answered.
+                transcript?.SetActivityLabel(string.Empty);
+
                 if (string.IsNullOrEmpty(chosenOptionId))
                 {
                     request.Cancel();

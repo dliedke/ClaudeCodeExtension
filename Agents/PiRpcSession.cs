@@ -34,6 +34,12 @@ namespace ClaudeCodeVS.Agents
 
         public string DisplayName { get; set; } = "PI";
 
+        /// <summary>
+        /// User-supplied extra flags (Settings → CLI Paths → "Extra launch arguments"), appended
+        /// verbatim to the launch command. Empty adds nothing.
+        /// </summary>
+        public string ExtraArguments { get; set; } = string.Empty;
+
         public IDictionary<string, string> EnvironmentOverrides { get; }
             = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
     }
@@ -551,6 +557,11 @@ namespace ClaudeCodeVS.Agents
             if (!string.IsNullOrWhiteSpace(options.Model))
             {
                 arguments += " --model " + options.Model;
+            }
+
+            if (!string.IsNullOrWhiteSpace(options.ExtraArguments))
+            {
+                arguments += " " + options.ExtraArguments.Trim();
             }
 
             if (IsBatchScript(options.ExecutablePath))

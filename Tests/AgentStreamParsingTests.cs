@@ -508,6 +508,46 @@ namespace ClaudeCodeExtension.Tests
         }
 
         [TestMethod]
+        public void ClaudeCommandBuilder_ExtraArgumentsAreAppendedVerbatim()
+        {
+            // The per-provider "Extra launch arguments" box (issue #143): the text is passed through
+            // unquoted so a user can opt into a CLI flag the extension does not model, e.g. --chrome.
+            string args = ClaudeCommandBuilder.GetArguments(new ClaudeSessionOptions
+            {
+                ExtraArguments = "--chrome --add-dir \"C:\\repo\""
+            });
+
+            StringAssert.EndsWith(args, "--chrome --add-dir \"C:\\repo\"");
+            // Appended after the flags the extension builds, not in the middle of them.
+            Assert.IsTrue(args.IndexOf("--permission-prompt-tool stdio", System.StringComparison.Ordinal)
+                          < args.IndexOf("--chrome", System.StringComparison.Ordinal));
+        }
+
+        [TestMethod]
+        public void ClaudeCommandBuilder_NoExtraArgumentsMeansNoTrailingSpace()
+        {
+            string args = ClaudeCommandBuilder.GetArguments(new ClaudeSessionOptions());
+
+            Assert.AreEqual(args, args.Trim());
+        }
+
+        [TestMethod]
+        public void ClaudeCommandBuilder_ExtraArgumentsRideInsideTheWslBashString()
+        {
+            string args = ClaudeCommandBuilder.GetArguments(new ClaudeSessionOptions
+            {
+                UseWsl = true,
+                WslWorkingDirectory = "/mnt/c/repo",
+                ExtraArguments = "--chrome"
+            });
+
+            // Part of the command that runs inside the login shell, not a Windows-side wsl.exe arg.
+            StringAssert.StartsWith(args, "bash -lic ");
+            StringAssert.Contains(args, "claude --print");
+            StringAssert.Contains(args, "stdio --chrome");
+        }
+
+        [TestMethod]
         public void ClaudeSession_AFreshSessionHasNothingToResumeUntilATurnRuns()
         {
             // The CLI creates the transcript only when the first turn runs, so the seeded id names

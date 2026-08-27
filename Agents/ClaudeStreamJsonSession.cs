@@ -212,7 +212,8 @@ namespace ClaudeCodeVS.Agents
                 DangerouslySkipPermissions = _options.DangerouslySkipPermissions,
                 PermissionMode = _options.PermissionMode,
                 InteractivePermissions = _options.InteractivePermissions,
-                IncludePartialMessages = _options.IncludePartialMessages
+                IncludePartialMessages = _options.IncludePartialMessages,
+                ExtraArguments = _options.ExtraArguments
             };
 
             var hostOptions = new JsonLineProcessOptions

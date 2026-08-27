@@ -35,11 +35,11 @@ namespace ClaudeCodeVS
             (AiProvider.CursorAgentNative, "Cursor Agent",       false),
             (AiProvider.CursorAgent,       "Cursor Agent (WSL)", true),
             (AiProvider.OpenCode,          "Open Code",          false),
-            (AiProvider.Devin,          "Devin (WSL)",     true),
+            (AiProvider.DevinNative,       "Devin",              false),
+            (AiProvider.Devin,             "Devin (WSL)",        true),
             (AiProvider.Pi,                "PI",                 false),
             (AiProvider.Antigravity,       "Antigravity",        false),
             (AiProvider.Reasonix,          "Reasonix",           false),
-            (AiProvider.DevinNative,       "Devin",              false),
         };
 
         #endregion
@@ -161,6 +161,33 @@ namespace ClaudeCodeVS
             quoted.Append('\\', backslashCount * 2);
             quoted.Append('"');
             return quoted.ToString();
+        }
+
+        /// <summary>
+        /// Returns the user-configured extra launch arguments for a provider, or an empty string when
+        /// none are set. Passed through verbatim, so the caller appends them raw. Applies to both the
+        /// embedded terminal and native mode.
+        /// </summary>
+        private string GetExtraLaunchArgs(AiProvider provider)
+        {
+            if (_settings?.ExtraLaunchArgs != null &&
+                _settings.ExtraLaunchArgs.TryGetValue(provider, out var args) &&
+                !string.IsNullOrWhiteSpace(args))
+            {
+                return args.Trim();
+            }
+            return string.Empty;
+        }
+
+        /// <summary>
+        /// Appends the provider's configured extra launch arguments to <paramref name="command"/>,
+        /// separated by a single space. No-op when none are set. Used by the terminal launch path;
+        /// native mode threads the same value through each adapter's options DTO instead.
+        /// </summary>
+        private string AppendExtraLaunchArgs(string command, AiProvider provider)
+        {
+            string extra = GetExtraLaunchArgs(provider);
+            return string.IsNullOrEmpty(extra) ? command : command + " " + extra;
         }
 
         /// <summary>
@@ -354,6 +381,106 @@ namespace ClaudeCodeVS
                 else
                 {
                     _settings.CustomExecutablePaths[p.Provider] = newValue;
+                }
+            }
+
+            return changed;
+        }
+
+        /// <summary>
+        /// Builds the "Extra launch arguments" section into the supplied stack panel and returns the
+        /// per-provider editors. One aligned row per provider: label | arguments text box. The text is
+        /// appended verbatim to the agent's launch command (terminal and native mode alike), so it is
+        /// the user's job to keep the syntax valid; empty rows add nothing.
+        /// </summary>
+        private Dictionary<AiProvider, TextBox> BuildLaunchArgumentsSectionContent(StackPanel stack, Brush themeBg, Brush themeFg)
+        {
+            if (_settings.ExtraLaunchArgs == null)
+            {
+                _settings.ExtraLaunchArgs = new Dictionary<AiProvider, string>();
+            }
+
+            stack.Children.Add(MakeSectionHeader("Extra launch arguments", themeFg));
+            stack.Children.Add(new TextBlock
+            {
+                Text = "Appended as-is to the agent's command line when it is launched (embedded terminal and native\n" +
+                       "mode alike) — one place to pass flags the extension does not expose (e.g. --chrome,\n" +
+                       "--add-dir \"C:\\repo\", --mcp-config ...). Keep the syntax valid: the text is passed through\n" +
+                       "unquoted, and a bad flag makes the agent fail to start. Leave empty to add nothing.",
+                FontSize = 11,
+                Opacity = 0.7,
+                Foreground = themeFg,
+                TextWrapping = TextWrapping.Wrap,
+                Margin = new Thickness(4, 0, 0, 8)
+            });
+
+            var editors = new Dictionary<AiProvider, TextBox>();
+            foreach (var p in CliPathProviders)
+            {
+                var rowGrid = new Grid { Margin = new Thickness(4, 0, 0, 8) };
+                rowGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(140) });
+                rowGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+
+                var nameLabel = new TextBlock
+                {
+                    Text = p.DisplayName,
+                    Foreground = themeFg,
+                    VerticalAlignment = VerticalAlignment.Center,
+                    Margin = new Thickness(0, 0, 8, 0),
+                    TextWrapping = TextWrapping.Wrap
+                };
+                Grid.SetColumn(nameLabel, 0);
+                rowGrid.Children.Add(nameLabel);
+
+                _settings.ExtraLaunchArgs.TryGetValue(p.Provider, out var current);
+                var textBox = new TextBox
+                {
+                    Text = current ?? "",
+                    Background = themeBg,
+                    Foreground = themeFg,
+                    BorderBrush = themeFg,
+                    VerticalAlignment = VerticalAlignment.Center,
+                    VerticalContentAlignment = VerticalAlignment.Center,
+                    Height = 24
+                };
+                Grid.SetColumn(textBox, 1);
+                rowGrid.Children.Add(textBox);
+
+                editors[p.Provider] = textBox;
+                stack.Children.Add(rowGrid);
+            }
+
+            return editors;
+        }
+
+        /// <summary>
+        /// Applies edits collected by <see cref="BuildLaunchArgumentsSectionContent"/> into
+        /// _settings.ExtraLaunchArgs. Returns the providers whose arguments actually changed, so the
+        /// host can relaunch the active one.
+        /// </summary>
+        private List<AiProvider> ApplyLaunchArgumentsChanges(Dictionary<AiProvider, TextBox> editors)
+        {
+            var changed = new List<AiProvider>();
+            if (editors == null || _settings?.ExtraLaunchArgs == null) return changed;
+
+            foreach (var p in CliPathProviders)
+            {
+                if (!editors.TryGetValue(p.Provider, out var tb)) continue;
+
+                string newValue = tb.Text.Trim();
+                _settings.ExtraLaunchArgs.TryGetValue(p.Provider, out var oldValue);
+                oldValue = oldValue ?? "";
+
+                if (newValue == oldValue) continue;
+
+                changed.Add(p.Provider);
+                if (string.IsNullOrWhiteSpace(newValue))
+                {
+                    _settings.ExtraLaunchArgs.Remove(p.Provider);
+                }
+                else
+                {
+                    _settings.ExtraLaunchArgs[p.Provider] = newValue;
                 }
             }
 

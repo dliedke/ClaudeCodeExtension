@@ -105,6 +105,14 @@ namespace ClaudeCodeVS.Agents
         /// </summary>
         public IDictionary<string, string> EnvironmentOverrides { get; } =
             new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+
+        /// <summary>
+        /// User-supplied extra flags appended verbatim after the ones the extension builds
+        /// (Settings → CLI Paths → "Extra launch arguments"). Passed through unquoted, so the user
+        /// owns the syntax; empty adds nothing. Lets a session opt into CLI capabilities the
+        /// extension does not model — <c>--chrome</c>, <c>--add-dir</c>, <c>--mcp-config</c>, …
+        /// </summary>
+        public string ExtraArguments { get; set; } = string.Empty;
     }
 
     /// <summary>
@@ -245,6 +253,13 @@ namespace ClaudeCodeVS.Agents
             if (options.InteractivePermissions)
             {
                 sb.Append(" --permission-prompt-tool stdio");
+            }
+
+            // Appended last so a user flag can override an earlier one the CLI resolves last-wins, and
+            // raw because the user writes it as a shell fragment (it may carry its own quoting).
+            if (!string.IsNullOrWhiteSpace(options.ExtraArguments))
+            {
+                sb.Append(' ').Append(options.ExtraArguments.Trim());
             }
 
             return sb.ToString();

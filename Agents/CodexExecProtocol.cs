@@ -76,6 +76,12 @@ namespace ClaudeCodeVS.Agents
                 arguments.Append(' ').Append(resumeSessionId);
             }
 
+            // User-supplied flags go before the stdin marker so "-" stays last.
+            if (!string.IsNullOrWhiteSpace(options.ExtraArguments))
+            {
+                arguments.Append(' ').Append(options.ExtraArguments.Trim());
+            }
+
             // "-" means "read the prompt from stdin", which keeps quoting and length out of the picture.
             arguments.Append(" -");
 

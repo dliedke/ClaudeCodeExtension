@@ -64,6 +64,11 @@ namespace ClaudeCodeVS.Agents
                 arguments.Append(" --resume ").Append(resumeSessionId);
             }
 
+            if (!string.IsNullOrWhiteSpace(options.ExtraArguments))
+            {
+                arguments.Append(' ').Append(options.ExtraArguments.Trim());
+            }
+
             return arguments.ToString();
         }
 

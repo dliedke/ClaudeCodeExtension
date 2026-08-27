@@ -644,6 +644,17 @@ namespace ClaudeCodeVS
             = new System.Collections.Generic.Dictionary<AiProvider, string>();
 
         /// <summary>
+        /// Per-provider extra command-line arguments appended verbatim to the agent's launch
+        /// command, keyed by <see cref="AiProvider"/>. Applies to both the embedded terminal and
+        /// native mode. Empty/missing entries add nothing. The text is passed through unquoted, so
+        /// the user is responsible for valid shell syntax (e.g. <c>--chrome</c>,
+        /// <c>--add-dir "C:\repo"</c>). Native providers get the text appended to the Windows
+        /// command line; WSL providers get it inside the <c>bash -lic "..."</c> string.
+        /// </summary>
+        public System.Collections.Generic.Dictionary<AiProvider, string> ExtraLaunchArgs { get; set; }
+            = new System.Collections.Generic.Dictionary<AiProvider, string>();
+
+        /// <summary>
         /// Terminal emulator to use (Command Prompt or Windows Terminal)
         /// Defaults to Command Prompt for compatibility
         /// </summary>

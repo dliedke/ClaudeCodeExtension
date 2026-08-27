@@ -48,6 +48,13 @@ namespace ClaudeCodeVS.Agents
 
         public string DisplayName { get; set; } = "agent";
 
+        /// <summary>
+        /// User-supplied extra flags (Settings → CLI Paths → "Extra launch arguments"), appended
+        /// verbatim to every turn's command line, ahead of the trailing stdin marker. Empty adds
+        /// nothing.
+        /// </summary>
+        public string ExtraArguments { get; set; } = string.Empty;
+
         public IDictionary<string, string> EnvironmentOverrides { get; }
             = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
     }

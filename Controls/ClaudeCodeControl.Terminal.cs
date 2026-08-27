@@ -1161,7 +1161,8 @@ namespace ClaudeCodeVS
                             break;
 
                         case AiProvider.Reasonix:
-                            string reasonixCommand = ResolveProviderExecutable(AiProvider.Reasonix, "reasonix");
+                            string reasonixCommand = AppendExtraLaunchArgs(
+                                ResolveProviderExecutable(AiProvider.Reasonix, "reasonix"), AiProvider.Reasonix);
                             cmdCommand = $"/k chcp 65001 >nul && cd /d \"{workspaceDir}\" && ping localhost -n 3 >nul && cls && {reasonixCommand}";
                             break;
 
@@ -1449,7 +1450,8 @@ namespace ClaudeCodeVS
                             break;
 
                         case AiProvider.Reasonix:
-                            string reasonixTerminalCommand = ResolveProviderExecutable(AiProvider.Reasonix, "reasonix");
+                            string reasonixTerminalCommand = AppendExtraLaunchArgs(
+                                ResolveProviderExecutable(AiProvider.Reasonix, "reasonix"), AiProvider.Reasonix);
                             terminalCommand = $"/k chcp 65001 >nul && cd /d \"{workspaceDir}\" && ping localhost -n 3 >nul && cls && {reasonixTerminalCommand}";
                             break;
 
@@ -4884,6 +4886,10 @@ namespace ClaudeCodeVS
                 }
             }
 
+            // User-configured extra flags (Settings → CLI Paths → "Extra launch arguments").
+            baseCommand = AppendExtraLaunchArgs(
+                baseCommand, isWsl ? AiProvider.ClaudeCodeWSL : AiProvider.ClaudeCode);
+
             // Always launch in Claude Code's classic (non-alternate-screen) renderer, and always
             // disable Claude's own terminal mouse tracking (issues #92, #118, #119). Mouse tracking
             // (conhost QuickEdit disabled / ENABLE_MOUSE_INPUT) is no longer exclusive to the
@@ -4960,7 +4966,7 @@ namespace ClaudeCodeVS
                     : " resume " + QuoteProviderArgument(resumeArg, isWsl);
             }
 
-            return baseCommand;
+            return AppendExtraLaunchArgs(baseCommand, provider);
         }
 
         /// <summary>
@@ -4977,7 +4983,8 @@ namespace ClaudeCodeVS
                 baseCommand = $"{baseCommand} --permission-mode dangerous";
             }
 
-            return AppendDevinResumeArgument(baseCommand, isWsl: true);
+            return AppendExtraLaunchArgs(
+                AppendDevinResumeArgument(baseCommand, isWsl: true), AiProvider.Devin);
         }
 
         /// <summary>
@@ -4996,7 +5003,8 @@ namespace ClaudeCodeVS
                 baseCommand = $"{baseCommand} --permission-mode dangerous";
             }
 
-            return AppendDevinResumeArgument(baseCommand, isWsl: false);
+            return AppendExtraLaunchArgs(
+                AppendDevinResumeArgument(baseCommand, isWsl: false), AiProvider.DevinNative);
         }
 
         /// <summary>
@@ -5029,10 +5037,10 @@ namespace ClaudeCodeVS
 
             if (_settings?.AntigravityDangerouslySkipPermissions == true)
             {
-                return $"{baseCommand} --dangerously-skip-permissions";
+                baseCommand = $"{baseCommand} --dangerously-skip-permissions";
             }
 
-            return baseCommand;
+            return AppendExtraLaunchArgs(baseCommand, AiProvider.Antigravity);
         }
 
         /// <summary>
@@ -5095,10 +5103,10 @@ namespace ClaudeCodeVS
 
             if (_settings?.CursorAgentAutoRun == true)
             {
-                return $"{baseCommand} --yolo";
+                baseCommand = $"{baseCommand} --yolo";
             }
 
-            return baseCommand;
+            return AppendExtraLaunchArgs(baseCommand, AiProvider.CursorAgentNative);
         }
 
         /// <summary>
@@ -5113,10 +5121,10 @@ namespace ClaudeCodeVS
 
             if (_settings?.CursorAgentAutoRun == true)
             {
-                return $"{baseCommand} --yolo";
+                baseCommand = $"{baseCommand} --yolo";
             }
 
-            return baseCommand;
+            return AppendExtraLaunchArgs(baseCommand, AiProvider.CursorAgent);
         }
 
         /// <summary>
@@ -5125,7 +5133,9 @@ namespace ClaudeCodeVS
         /// <returns>The pi command to execute</returns>
         private string GetPiCommand()
         {
-            return ResolveProviderExecutable(AiProvider.Pi, "pi") + GetModelLaunchFlag(AiProvider.Pi);
+            return AppendExtraLaunchArgs(
+                ResolveProviderExecutable(AiProvider.Pi, "pi") + GetModelLaunchFlag(AiProvider.Pi),
+                AiProvider.Pi);
         }
 
         /// <summary>
@@ -5135,8 +5145,10 @@ namespace ClaudeCodeVS
         /// <returns>The opencode command to execute</returns>
         private string GetOpenCodeCommand()
         {
-            return ResolveProviderExecutable(AiProvider.OpenCode, "opencode")
-                + GetModelLaunchFlag(AiProvider.OpenCode);
+            return AppendExtraLaunchArgs(
+                ResolveProviderExecutable(AiProvider.OpenCode, "opencode")
+                    + GetModelLaunchFlag(AiProvider.OpenCode),
+                AiProvider.OpenCode);
         }
 
 

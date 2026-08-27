@@ -35,6 +35,12 @@ namespace ClaudeCodeVS.Agents
 
         public string DisplayName { get; set; } = "agent";
 
+        /// <summary>
+        /// User-supplied extra flags (Settings → CLI Paths → "Extra launch arguments"), inserted
+        /// verbatim before <c>--print &lt;prompt&gt;</c> on every turn. Empty adds nothing.
+        /// </summary>
+        public string ExtraArguments { get; set; } = string.Empty;
+
         public IDictionary<string, string> EnvironmentOverrides { get; }
             = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
     }
@@ -334,6 +340,11 @@ namespace ClaudeCodeVS.Agents
             if (options.SkipApprovals)
             {
                 arguments.Append("--dangerously-skip-permissions ");
+            }
+
+            if (!string.IsNullOrWhiteSpace(options.ExtraArguments))
+            {
+                arguments.Append(options.ExtraArguments.Trim()).Append(' ');
             }
 
             arguments.Append("--print ").Append(Quote(prompt));

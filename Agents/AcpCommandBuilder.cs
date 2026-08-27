@@ -57,6 +57,12 @@ namespace ClaudeCodeVS.Agents
         public string DisplayName { get; set; } = "agent";
 
         /// <summary>
+        /// User-supplied extra flags (Settings → CLI Paths → "Extra launch arguments"), appended
+        /// verbatim after the <c>acp</c> subcommand. Empty adds nothing.
+        /// </summary>
+        public string ExtraArguments { get; set; } = string.Empty;
+
+        /// <summary>
         /// A session id to resume via ACP <c>session/load</c> instead of starting fresh with
         /// <c>session/new</c>. Empty starts a new session. Only meaningful for an agent that
         /// advertises <c>agentCapabilities.loadSession</c> (Devin does); on an agent that does not,
@@ -128,6 +134,11 @@ namespace ClaudeCodeVS.Agents
             if (!string.IsNullOrWhiteSpace(options.ModelLaunchArgument))
             {
                 subcommand += " " + options.ModelLaunchArgument.Trim();
+            }
+
+            if (!string.IsNullOrWhiteSpace(options.ExtraArguments))
+            {
+                subcommand += " " + options.ExtraArguments.Trim();
             }
 
             if (options.UseWsl)
