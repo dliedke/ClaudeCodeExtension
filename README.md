@@ -138,6 +138,11 @@ Use native mode to avoid this issue.
 
 ## Version History
 
+### Version 159.0
+The inline usage bars now refresh on their own right after Visual Studio starts, without needing the Claude Usage tab to be opened or brought to the front first.
+
+Fixed the usage bars staying stuck on the previous session's numbers for the whole session when the Claude Usage tab was restored behind another tab.
+
 ### Version 158.0
 The Claude Usage panel now returns to the usage bars on its own after an account change: use Switch Account, log out of claude.ai inside the panel, and sign back in with a different account, and the new account's usage loads automatically instead of leaving you on the claude.ai home page until you press Refresh.
 

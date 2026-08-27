@@ -151,6 +151,79 @@ namespace ClaudeCodeExtension.Tests
                 "The fallback must rebuild the WebView2 the same way an explicit tab-open recovery does.");
         }
 
+        /// <summary>
+        /// Starting Visual Studio left the inline bars showing the previous session's numbers
+        /// until the user clicked the Claude Usage tab. Visual Studio restores that tab behind
+        /// whichever sibling tab in its dock group is active, and the tool window seeded its
+        /// "am I the foreground tab" flag from IVsWindowFrame.IsVisible(), which reports S_OK for
+        /// any frame that is merely open — so the extension believed the tab was showing and
+        /// suppressed every background scrape for the rest of the session. IsOnScreen answers the
+        /// question the flag actually stands for.
+        /// </summary>
+        [TestMethod]
+        public void StartupRestore_TreatsATabParkedBehindASiblingAsHidden()
+        {
+            string created = ExtractMethodBody(ToolWindowSource, "public override void OnToolWindowCreated()");
+            StringAssert.Contains(created, "_isVisible = IsFrameOnScreen();",
+                "A restored-but-inactive tab must not seed the foreground-tab flag as visible.");
+            Assert.IsFalse(created.Contains("IsVisible() == VSConstants.S_OK"),
+                "IsVisible() cannot tell a tab parked behind a sibling from one that is actually showing.");
+
+            string onShow = ExtractMethodBody(ToolWindowSource, "public int OnShow(int fShow)");
+            StringAssert.Contains(onShow, "IsFrameOnScreen()",
+                "FRAMESHOW_WinShown is also raised for a frame reopened behind another tab (startup restore, ShowNoActivate) and must be confirmed.");
+        }
+
+        /// <summary>
+        /// WebView2's WPF control only finishes EnsureCoreWebView2Async once its host window
+        /// renders, so building into a tab Visual Studio restored but never rendered left the
+        /// build task pending forever — and since every EnsureAliveAsync caller awaits that same
+        /// in-flight task, the background scraper could never build its off-screen instance
+        /// either. The wait must be bounded so the off-screen fallback stays reachable.
+        /// </summary>
+        [TestMethod]
+        public void WebViewInit_IsBounded_SoAnUnrenderedTabCannotPoisonLaterBuilds()
+        {
+            Assert.IsFalse(ControlSource.Contains("await WebView.EnsureCoreWebView2Async("),
+                "An unbounded EnsureCoreWebView2Async await never completes for a tab that never renders.");
+            StringAssert.Contains(ControlSource, "await EnsureCoreWebView2WithTimeoutAsync(env);");
+
+            string helper = ExtractMethodBody(ControlSource,
+                "private async Task EnsureCoreWebView2WithTimeoutAsync(CoreWebView2Environment environment, int timeoutMs = 30000)");
+            StringAssert.Contains(helper, "throw new TimeoutException(",
+                "The bounded wait must surface a timeout so the half-built instance is discarded instead of inherited.");
+        }
+
+        /// <summary>
+        /// The background scrape used to rebuild the WebView2 off-screen unconditionally, which
+        /// tears a frame-hosted instance out of the tab it renders in (an HwndHost cannot be
+        /// reparented). A live instance scrapes the page from wherever it is parented, so it is
+        /// reloaded instead, and the off-screen build is the fallback.
+        /// </summary>
+        [TestMethod]
+        public void BackgroundScrape_ReloadsALiveInstanceBeforeBuildingOffScreen()
+        {
+            string body = ExtractMethodBody(HostSource, "private async Task RefreshUsageInBackgroundAsync()");
+            StringAssert.Contains(body, "if (!control.IsWebViewInitialized || !control.Reload())",
+                "A live instance must be reloaded rather than torn out of the frame it renders in.");
+            StringAssert.Contains(body, "await control.EnsureAliveAsync(offscreen: true);",
+                "Nothing alive to reload must still fall back to the off-screen build.");
+        }
+
+        /// <summary>
+        /// Restoring the usage tab at startup shows it without activating it, so its page may
+        /// never load and never scrape. The restore path must still kick one background scrape.
+        /// </summary>
+        [TestMethod]
+        public void StartupRestore_StillKicksABackgroundScrape()
+        {
+            string body = ExtractMethodBody(HostSource,
+                "private async Task EnsureUsageToolWindowAsync(bool showWindow, bool updateWindowState = true, bool activate = true)");
+            StringAssert.Contains(body, "if (!activate)",
+                "A non-activating restore cannot rely on the tab's own page load to refresh the bars.");
+            StringAssert.Contains(body, "await RefreshUsageInBackgroundAsync();");
+        }
+
         private static string ExtractMethodBody(string source, string signature)
         {
             int start = source.IndexOf(signature, System.StringComparison.Ordinal);

@@ -69,11 +69,38 @@ namespace ClaudeCodeVS
                 windowFrame2.Advise(this, out _notifyCookie);
             }
 
-            if (Frame is IVsWindowFrame windowFrame)
+            // IsOnScreen, not IsVisible: IsVisible() reports S_OK for any frame that is merely
+            // open — including the tab Visual Studio restores at startup behind a sibling tab in
+            // the same dock group. Seeding the flag from it made the extension believe the usage
+            // tab was the foreground tab, which suppressed every background scrape (and so froze
+            // the inline bars on the cached snapshot) until the user clicked the tab. IsOnScreen
+            // answers the question the flag actually stands for: is this tab showing right now.
+            _isVisible = IsFrameOnScreen();
+            _control?.SetHostVisibility(_isVisible);
+        }
+
+        /// <summary>
+        /// True only while this frame is really showing — not minimized, not auto-hidden, and not
+        /// sitting behind another tab in its dock group.
+        /// </summary>
+        private bool IsFrameOnScreen()
+        {
+            ThreadHelper.ThrowIfNotOnUIThread();
+
+            try
             {
-                _isVisible = windowFrame.IsVisible() == VSConstants.S_OK;
-                _control?.SetHostVisibility(_isVisible);
+                if (Frame is IVsWindowFrame windowFrame &&
+                    windowFrame.IsOnScreen(out int onScreen) == VSConstants.S_OK)
+                {
+                    return onScreen != 0;
+                }
             }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine("ClaudeUsageToolWindow.IsFrameOnScreen failed: " + ex);
+            }
+
+            return false;
         }
 
         protected override void OnClose()
@@ -105,11 +132,18 @@ namespace ClaudeCodeVS
 
         public int OnShow(int fShow)
         {
+            ThreadHelper.ThrowIfNotOnUIThread();
+
             var frameShow = (__FRAMESHOW)fShow;
-            bool nowVisible = frameShow == __FRAMESHOW.FRAMESHOW_WinShown ||
-                              frameShow == __FRAMESHOW.FRAMESHOW_WinRestored ||
-                              frameShow == __FRAMESHOW.FRAMESHOW_WinMaximized ||
-                              frameShow == __FRAMESHOW.FRAMESHOW_TabActivated;
+
+            // TabActivated means this tab is now the foreground one, full stop. The other three
+            // only say the frame was shown/restored, which Visual Studio also raises for a frame
+            // reopened behind a sibling tab (startup restore, ShowNoActivate) — so those are
+            // confirmed against the frame's real on-screen state before the flag flips to visible.
+            bool nowVisible = frameShow == __FRAMESHOW.FRAMESHOW_TabActivated ||
+                              ((frameShow == __FRAMESHOW.FRAMESHOW_WinShown ||
+                                frameShow == __FRAMESHOW.FRAMESHOW_WinRestored ||
+                                frameShow == __FRAMESHOW.FRAMESHOW_WinMaximized) && IsFrameOnScreen());
 
             bool nowHidden = frameShow == __FRAMESHOW.FRAMESHOW_WinHidden ||
                              frameShow == __FRAMESHOW.FRAMESHOW_WinMinimized ||

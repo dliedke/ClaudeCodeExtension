@@ -298,22 +298,34 @@ namespace ClaudeCodeVS
 
                 // Keep the focus-priming paths quiet for the duration of the off-screen work.
                 control.SetBackgroundInitMode(true);
-                _backgroundScrapeCompletionTcs = new TaskCompletionSource<bool>();
+                var scrapeCompleted = new TaskCompletionSource<bool>();
+                _backgroundScrapeCompletionTcs = scrapeCompleted;
 
-                // Builds the off-screen instance on first use and after the user closed the tab
-                // (which kills the frame-hosted one). A fresh build navigates on its own; an
-                // instance that is already alive off-screen just needs a reload.
-                bool rebuilt = await control.EnsureAliveAsync(offscreen: true);
-                if (!rebuilt && !control.Reload())
+                // A live instance scrapes the page just as well wherever it happens to be
+                // parented, so one sitting in the frame (tab open but not the foreground tab) is
+                // reloaded instead of torn out and rebuilt off-screen — an HwndHost cannot be
+                // reparented, so rebuilding it would blank that tab. Only when there is nothing
+                // alive to reload is the off-screen instance built.
+                bool builtOffscreen = false;
+                if (!control.IsWebViewInitialized || !control.Reload())
                 {
-                    // Died between the liveness check and the reload call — rebuild rather than
-                    // wait ten seconds for data that can never arrive.
                     await control.EnsureAliveAsync(offscreen: true);
+                    builtOffscreen = true;
                 }
 
                 // Wait for the JS scraper to post real data (max 10 s)
-#pragma warning disable VSTHRD003 // _backgroundScrapeCompletionTcs is completed by our own data-received handler on the UI thread; no cross-context deadlock
-                await Task.WhenAny(_backgroundScrapeCompletionTcs.Task, Task.Delay(10000));
+#pragma warning disable VSTHRD003 // scrapeCompleted is completed by our own data-received handler on the UI thread; no cross-context deadlock
+                await Task.WhenAny(scrapeCompleted.Task, Task.Delay(10000));
+
+                // Reloading a frame-hosted instance whose rendering host is already gone (issue
+                // #131) reports success but never posts anything back, so a silent timeout there
+                // means the off-screen instance has to be built after all.
+                if (!builtOffscreen && !scrapeCompleted.Task.IsCompleted &&
+                    _usageToolWindow?.IsWindowVisible != true)
+                {
+                    await control.EnsureAliveAsync(offscreen: true);
+                    await Task.WhenAny(scrapeCompleted.Task, Task.Delay(10000));
+                }
 #pragma warning restore VSTHRD003
             }
             catch (Exception ex)
@@ -449,6 +461,17 @@ namespace ClaudeCodeVS
                         SaveSettings();
                     }
                     UpdateInlineUsagePanelVisibility();
+
+                    // Restoring the tab is not the same as rendering it: Visual Studio parks a
+                    // restored tool window behind whichever sibling tab in its dock group is the
+                    // active one, and a tab that never renders never loads its page and never
+                    // scrapes. This call self-guards on the foreground-tab flag, so it does
+                    // nothing when the tab really is showing — and is what keeps the inline bars
+                    // from sitting on the previous session's numbers when it isn't.
+                    if (!activate)
+                    {
+                        await RefreshUsageInBackgroundAsync();
+                    }
                 }
                 else
                 {

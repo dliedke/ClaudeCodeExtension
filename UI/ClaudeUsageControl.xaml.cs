@@ -217,7 +217,12 @@ namespace ClaudeCodeVS
                 var env = await ClaudeUsageWebViewEnvironment.GetOrCreateAsync(userDataFolder, fallbackFolder);
                 try
                 {
-                    await WebView.EnsureCoreWebView2Async(env);
+                    await EnsureCoreWebView2WithTimeoutAsync(env);
+                }
+                catch (TimeoutException)
+                {
+                    // Host window never rendered — a per-PID environment would not help.
+                    throw;
                 }
                 catch (Exception ex)
                 {
@@ -232,7 +237,7 @@ namespace ClaudeCodeVS
                     Debug.WriteLine("ClaudeUsage: EnsureCoreWebView2Async failed on shared env, retrying with per-PID fallback: " + ex);
                     Directory.CreateDirectory(fallbackFolder);
                     var fallbackEnv = await CoreWebView2Environment.CreateAsync(null, fallbackFolder, null);
-                    await WebView.EnsureCoreWebView2Async(fallbackEnv);
+                    await EnsureCoreWebView2WithTimeoutAsync(fallbackEnv);
                 }
 
                 // Re-focus after Ctrl+Scroll zoom so WebView2 re-establishes cursor tracking.
@@ -298,6 +303,15 @@ namespace ClaudeCodeVS
 
                 WebView.CoreWebView2.Navigate(UsageUrl);
             }
+            catch (TimeoutException tex)
+            {
+                // Not a runtime problem, so no error panel: the host window simply never
+                // rendered (see EnsureCoreWebView2WithTimeoutAsync). Drop the half-built
+                // instance so the next EnsureAliveAsync — the off-screen background scrape, or
+                // an explicit tab open once Visual Studio does render it — starts clean.
+                Debug.WriteLine("ClaudeUsageControl: WebView2 init timed out: " + tex.Message);
+                DisposeWebViewInstance();
+            }
             catch (Exception ex)
             {
                 Debug.WriteLine("ClaudeUsageControl: WebView2 init failed: " + ex);
@@ -305,6 +319,29 @@ namespace ClaudeCodeVS
                           "Click below to install it, then reopen this window.\n\n" +
                           "Details: " + ex.GetType().Name + ": " + ex.Message);
             }
+        }
+
+        /// <summary>
+        /// Bounds <c>EnsureCoreWebView2Async</c>, which only completes once the control's host
+        /// window actually renders. Building into a tool window tab that Visual Studio restored
+        /// but never made the active tab (the usual state right after startup) therefore left the
+        /// await pending forever — and because every caller of <see cref="EnsureAliveAsync"/>
+        /// waits on that same in-flight build task, the background scraper could never build its
+        /// own off-screen instance either, so the inline usage bars stayed on the cached snapshot
+        /// until the user clicked the Claude Usage tab.
+        /// </summary>
+        private async Task EnsureCoreWebView2WithTimeoutAsync(CoreWebView2Environment environment, int timeoutMs = 30000)
+        {
+            var init = WebView.EnsureCoreWebView2Async(environment);
+#pragma warning disable VSTHRD003 // init is this control's own WebView2 build task; no cross-context deadlock
+            if (await Task.WhenAny(init, Task.Delay(timeoutMs)) != init)
+            {
+                throw new TimeoutException(
+                    "WebView2 initialization did not complete within " + timeoutMs + "ms (host window never rendered).");
+            }
+
+            await init;
+#pragma warning restore VSTHRD003
         }
 
         /// <summary>
@@ -909,6 +946,14 @@ namespace ClaudeCodeVS
         /// instance.
         /// </summary>
         public bool IsWebViewInitialized => WebView?.CoreWebView2 != null;
+
+        /// <summary>
+        /// True when the live instance (if any) is parented into the hidden off-screen host
+        /// rather than into the tool window frame. Lets the host reload an in-frame instance
+        /// for a background scrape instead of tearing it out and rebuilding it off-screen,
+        /// which would blank the tab it is rendering in.
+        /// </summary>
+        public bool IsHostedOffscreen => _hostedOffscreen;
 
         /// <summary>
         /// True whenever priming <see cref="System.Windows.UIElement.Focus"/> on the WebView2
