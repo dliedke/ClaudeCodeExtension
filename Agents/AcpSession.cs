@@ -421,10 +421,11 @@ namespace ClaudeCodeVS.Agents
         /// <summary>
         /// Applies the configured model to the fresh session.
         /// <para>
-        /// The model is not a launch flag here: <c>devin acp</c> takes no <c>--model</c>, and the
-        /// agent instead publishes a <c>model</c> entry in the <c>configOptions</c> of
-        /// <c>session/new</c> that is changed with <c>session/set_config_option</c>. Without this the
-        /// picked model was only ever a caption — every native Devin turn ran on the CLI's default.
+        /// The model is not a launch flag here: the agent publishes a <c>model</c> entry in the
+        /// <c>configOptions</c> of <c>session/new</c> that is changed with
+        /// <c>session/set_config_option</c>. Without this the picked model was only ever a caption —
+        /// every native Devin turn ran on the CLI's default. (<c>devin acp</c> has since grown a
+        /// <c>--model</c> flag, but the config option is what also switches a running session.)
         /// </para>
         /// </summary>
         private async Task TrySetModelAsync(JToken session, CancellationToken cancellationToken)

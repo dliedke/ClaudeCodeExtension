@@ -187,6 +187,11 @@ namespace ClaudeCodeVS
                     {
                         await UpdateViewChangesButtonVisibilityAsync();
                     }
+
+                    // Re-read the active agent's model list once per VS session (see
+                    // ModelCatalogsReadThisSession). Runs after the workspace work so it never
+                    // delays the first paint.
+                    WarmUpActiveProviderModelCatalog();
                 }
                 catch (Exception ex)
                 {

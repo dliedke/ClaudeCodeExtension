@@ -2867,18 +2867,14 @@ namespace ClaudeCodeVS
             ThreadHelper.ThrowIfNotOnUIThread();
 
             string selected = GetSelectedProviderModelId(provider);
-            List<Agents.ModelGroup> groups =
-                Agents.ModelCatalogGrouping.Group(GetCachedProviderModels(provider));
+            List<Agents.ModelOption> models = GetCachedProviderModels(provider);
+            List<Agents.ModelGroup> groups = Agents.ModelCatalogGrouping.Group(models);
 
             // Repeated at the top when the list is grouped: inside a submenu the checked entry is
             // invisible until the right one is opened.
             if (groups.Exists(g => g.IsSubmenu) && !string.IsNullOrWhiteSpace(selected))
             {
-                AddChatModelMenuItem(menu, new Agents.ModelOption
-                {
-                    Id = selected,
-                    Name = GetSelectedProviderModelLabel(provider)
-                }, selected);
+                AddChatModelMenuItem(menu, GetSelectedModelOption(provider, models, selected), selected);
             }
 
             foreach (Agents.ModelGroup group in groups)
@@ -2920,7 +2916,7 @@ namespace ClaudeCodeVS
         {
             string current = model.Id;
 
-            AddComposerMenuItem(parent, model.DisplayName,
+            AddComposerMenuItem(parent, model.BuildMenuCaption(),
                 string.Equals(current, selected, StringComparison.OrdinalIgnoreCase),
                 delegate { ThreadHelper.ThrowIfNotOnUIThread(); OnChatProviderModelSelected(current); });
         }

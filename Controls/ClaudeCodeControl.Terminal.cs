@@ -4976,7 +4976,8 @@ namespace ClaudeCodeVS
         /// <returns>The devin command to execute</returns>
         private string GetDevinCommand()
         {
-            string baseCommand = ResolveProviderExecutable(AiProvider.Devin, "devin", isWsl: true);
+            string baseCommand = ResolveProviderExecutable(AiProvider.Devin, "devin", isWsl: true)
+                + GetModelLaunchFlag(AiProvider.Devin);
 
             if (_settings?.DevinDangerousMode == true)
             {
@@ -4996,7 +4997,8 @@ namespace ClaudeCodeVS
         /// <returns>The devin command to execute</returns>
         private string GetDevinNativeCommand()
         {
-            string baseCommand = ResolveProviderExecutable(AiProvider.DevinNative, "devin");
+            string baseCommand = ResolveProviderExecutable(AiProvider.DevinNative, "devin")
+                + GetModelLaunchFlag(AiProvider.DevinNative);
 
             if (_settings?.DevinDangerousMode == true)
             {

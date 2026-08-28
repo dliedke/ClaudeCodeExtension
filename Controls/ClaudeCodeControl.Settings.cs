@@ -133,11 +133,11 @@ namespace ClaudeCodeVS
                     var json = File.ReadAllText(ConfigurationPath);
 
                     // ObjectCreationHandling.Replace: properties seeded with a non-empty
-                    // default list (e.g. DevinModels, VisibleProviders) must be REPLACED by
-                    // the saved values, not appended to. With the default (Auto) handling,
-                    // Newtonsoft adds the deserialized items on top of the initializer items,
-                    // so the list grows by the seed size on every load — which made the Devin
-                    // model menu show the model list repeated over and over.
+                    // default list (e.g. VisibleProviders) must be REPLACED by the saved
+                    // values, not appended to. With the default (Auto) handling, Newtonsoft
+                    // adds the deserialized items on top of the initializer items, so the list
+                    // grows by the seed size on every load — which made the (then hand-edited)
+                    // Devin model menu show the model list repeated over and over.
                     var loadSettings = new JsonSerializerSettings
                     {
                         ObjectCreationHandling = ObjectCreationHandling.Replace
@@ -146,7 +146,6 @@ namespace ClaudeCodeVS
 
                     // Heal settings files already corrupted by the append-on-load bug above:
                     // collapse accumulated duplicate entries while preserving order.
-                    DedupePreservingOrder(_settings.DevinModels);
                     DedupePreservingOrder(_settings.VisibleProviders);
                     DedupePreservingOrder(_settings.VisibleToolbarButtons);
 

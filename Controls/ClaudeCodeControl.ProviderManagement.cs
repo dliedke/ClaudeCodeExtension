@@ -2931,8 +2931,6 @@ For more details, visit: https://pi.dev";
             ThreadHelper.ThrowIfNotOnUIThread();
 
             AiProvider? activeProvider = GetActiveOrSelectedProvider();
-            // Devin (WSL) and Devin (native) both run the `devin` CLI and share the model list.
-            bool isDevin = activeProvider == AiProvider.Devin || activeProvider == AiProvider.DevinNative;
             bool isClaude = IsClaudeProvider(activeProvider) || activeProvider == null;
             bool isCodex = IsCodexProvider(activeProvider);
             bool hasReasoningLevel = isClaude || isCodex;
@@ -2957,11 +2955,10 @@ For more details, visit: https://pi.dev";
             SetLanguageMenuItem.Visibility = isClaude ? Visibility.Visible : Visibility.Collapsed;
             InstallCavemanMenuItem.Visibility = isClaude ? Visibility.Visible : Visibility.Collapsed;
 
-            // Every non-Claude provider gets its own model list, rebuilt each time the menu opens:
-            // it comes either from the CLI (cached) or from a user-configurable list.
+            // Every non-Claude provider gets its own model list, read from its CLI and cached,
+            // rebuilt each time the menu opens.
             RebuildProviderModelMenuItems(activeProvider);
             DevinModelsSeparator.Visibility = isClaude ? Visibility.Collapsed : Visibility.Visible;
-            DevinConfigureModelsMenuItem.Visibility = isDevin ? Visibility.Visible : Visibility.Collapsed;
         }
 
         /// <summary>
@@ -2973,10 +2970,9 @@ For more details, visit: https://pi.dev";
 
         /// <summary>
         /// Rebuilds the model entries at the top of the model context menu for the given provider,
-        /// followed by "Refresh Models" (for the CLIs that list their own models), "Configure
-        /// Models..." (for Reasonix, whose CLI does not) and an entry that opens the agent's own
-        /// picker. Removes any previously-inserted dynamic items first; clears them for Claude,
-        /// which has fixed items declared in XAML instead.
+        /// followed by "Refresh Models" and an entry that opens the agent's own picker. Removes any
+        /// previously-inserted dynamic items first; clears them for Claude, which has fixed items
+        /// declared in XAML instead.
         /// </summary>
         private void RebuildProviderModelMenuItems(AiProvider? provider)
         {
@@ -2998,11 +2994,10 @@ For more details, visit: https://pi.dev";
             // With the list broken into submenus the selection would be buried in one of them, so it
             // is repeated at the top — the only place the user can see it without hunting.
             bool grouped = groups.Exists(g => g.IsSubmenu);
-            if (grouped && !string.IsNullOrWhiteSpace(selected) && !IsDevinProvider(provider))
+            if (grouped && !string.IsNullOrWhiteSpace(selected))
             {
                 InsertDynamicModelItem(CreateProviderModelItem(
-                    new Agents.ModelOption { Id = selected, Name = GetSelectedProviderModelLabel(provider) },
-                    selected, provider), ref insertIndex);
+                    GetSelectedModelOption(provider, models, selected), selected, provider), ref insertIndex);
             }
 
             foreach (Agents.ModelGroup group in groups)
@@ -3059,20 +3054,17 @@ For more details, visit: https://pi.dev";
         }
 
         /// <summary>
-        /// One model entry of the model context menu. Checked only where the extension itself decides
-        /// the model: Devin's CLI owns the active one (the user can change it with /model in the
-        /// terminal), so the extension does not claim to know which it is.
+        /// One model entry of the model context menu.
         /// </summary>
         private System.Windows.Controls.MenuItem CreateProviderModelItem(
             Agents.ModelOption model, string selected, AiProvider? provider)
         {
             var item = new System.Windows.Controls.MenuItem
             {
-                Header = model.DisplayName,
+                Header = model.BuildMenuCaption(),
                 Tag = model.Id,
                 IsCheckable = false,
-                IsChecked = !IsDevinProvider(provider) &&
-                            string.Equals(model.Id, selected, StringComparison.OrdinalIgnoreCase)
+                IsChecked = string.Equals(model.Id, selected, StringComparison.OrdinalIgnoreCase)
             };
 
             item.Click += ProviderModelMenuItem_Click;
@@ -3084,24 +3076,6 @@ For more details, visit: https://pi.dev";
         {
             ModelContextMenu.Items.Insert(insertIndex++, item);
             _dynamicDevinModelItems.Add(item);
-        }
-
-        /// <summary>
-        /// Ensures the Devin model list exists and the saved selection is one of its entries.
-        /// </summary>
-        private void EnsureDevinModelDefaults()
-        {
-            if (_settings == null) return;
-            if (_settings.DevinModels == null)
-            {
-                _settings.DevinModels = new System.Collections.Generic.List<string>();
-            }
-            if (_settings.DevinModels.Count > 0 &&
-                (string.IsNullOrWhiteSpace(_settings.SelectedDevinModel) ||
-                 !_settings.DevinModels.Contains(_settings.SelectedDevinModel)))
-            {
-                _settings.SelectedDevinModel = _settings.DevinModels[0];
-            }
         }
 
         /// <summary>
@@ -3259,6 +3233,14 @@ For more details, visit: https://pi.dev";
 
             await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
 
+            // Native mode has no console for the slash command below, and the chat composer's own
+            // model selector already switches a live ACP session in place — route the menu into it.
+            if (IsNativeModeActive)
+            {
+                OnChatProviderModelSelected(model);
+                return;
+            }
+
             AiProvider? provider = GetActiveOrSelectedProvider();
             if (provider == null) return;
 
@@ -3340,56 +3322,6 @@ For more details, visit: https://pi.dev";
             await SendTextToTerminalAsync(command, singleEnterEvent: isCodex);
         }
 
-
-        /// <summary>
-        /// Handles the "Configure Models..." menu item click - opens the editor for the
-        /// user-configurable Devin model list, then rebuilds the menu/title on close.
-        /// </summary>
-        private void DevinConfigureModelsMenuItem_Click(object sender, RoutedEventArgs e)
-        {
-            ThreadHelper.ThrowIfNotOnUIThread();
-            ConfigureDevinModels();
-        }
-
-        /// <summary>
-        /// Handles the agent (⚙) menu's Configure Devin Models... item click — opens the editor
-        /// for the user-configurable Devin model list, then rebuilds the menu/title on close.
-        /// </summary>
-        private void ConfigureDevinModelsProviderMenuItem_Click(object sender, RoutedEventArgs e)
-        {
-            ThreadHelper.ThrowIfNotOnUIThread();
-            ConfigureDevinModels();
-        }
-
-        /// <summary>
-        /// Opens the editor for the user-configurable Devin model list, then rebuilds the
-        /// model menu/title on close.
-        /// </summary>
-        private void ConfigureDevinModels()
-        {
-            try
-            {
-                ThreadHelper.ThrowIfNotOnUIThread();
-
-                if (_settings == null) _settings = new ClaudeCodeSettings();
-                if (_settings.DevinModels == null) _settings.DevinModels = new System.Collections.Generic.List<string>();
-
-                ShowModelListDialog("Devin", _settings.DevinModels,
-                    "These models appear in the model (🤖) menu when Devin is the active agent. " +
-                    "Selecting one switches the model live via /model \"<name>\". Enter the exact " +
-                    "name Devin expects.");
-
-                EnsureDevinModelDefaults();
-                SaveSettings();
-                UpdateModelSelection();
-            }
-            catch (Exception ex)
-            {
-                Debug.WriteLine($"Error configuring Devin models: {ex.Message}");
-                MessageBox.Show($"Error configuring Devin models: {ex.Message}",
-                    "Error", MessageBoxButton.OK, MessageBoxImage.Error);
-            }
-        }
 
         /// <summary>
         /// Handles Devin Show Usage menu item click - opens the Devin usage page in the browser
@@ -3906,7 +3838,6 @@ For more details, visit: https://pi.dev";
             CodexFullAutoMenuItem.Visibility = isCodexProvider ? Visibility.Visible : Visibility.Collapsed;
             CursorAgentAutoRunMenuItem.Visibility = isCursorAgentProvider ? Visibility.Visible : Visibility.Collapsed;
             DevinDangerousModeMenuItem.Visibility = (isDevinProvider || isDevinNativeProvider) ? Visibility.Visible : Visibility.Collapsed;
-            ConfigureDevinModelsProviderMenuItem.Visibility = (isDevinProvider || isDevinNativeProvider) ? Visibility.Visible : Visibility.Collapsed;
             AntigravityDangerouslySkipPermissionsMenuItem.Visibility = isAntigravityProvider ? Visibility.Visible : Visibility.Collapsed;
 
             // Change Account has no console to act on outside native mode — the 🤖 menu's own

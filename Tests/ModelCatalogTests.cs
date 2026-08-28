@@ -265,6 +265,149 @@ namespace ClaudeCodeExtension.Tests
             Assert.AreEqual(string.Empty, ModelCatalogGrouping.GetGroupKey(null));
         }
 
+        [TestMethod]
+        public void Group_PrefersTheFamilyTheCliNamedItself()
+        {
+            // Devin's own families separate "Claude Opus 4.8" from "Claude Opus 5"; GetGroupKey
+            // reduces both ids to "claude-opus" and would merge them into one 20-entry submenu.
+            var models = new List<ModelOption>();
+            for (int i = 0; i < 14; i++)
+            {
+                models.Add(new ModelOption { Id = "claude-opus-4-8-" + i, Name = "A" + i, Group = "Claude Opus 4.8" });
+            }
+            for (int i = 0; i < 14; i++)
+            {
+                models.Add(new ModelOption { Id = "claude-opus-5-" + i, Name = "B" + i, Group = "Claude Opus 5" });
+            }
+
+            List<ModelGroup> groups = ModelCatalogGrouping.Group(models);
+
+            Assert.AreEqual(2, groups.Count);
+            Assert.AreEqual("Claude Opus 4.8", groups[0].Name);
+            Assert.AreEqual("Claude Opus 5", groups[1].Name);
+        }
+
+        #endregion
+
+        #region Devin models
+
+        /// <summary>Trimmed from a real `devin models list --format json` run (v3000.6.2).</summary>
+        private const string DevinModelsJson = @"{
+  ""families"": [
+    {
+      ""family_label"": ""Claude Opus 5"",
+      ""family_uid"": ""claude-opus-5"",
+      ""aliases"": [""opus""],
+      ""variants"": [
+        { ""model_uid"": ""claude-opus-5-medium"", ""label"": ""Claude Opus 5 Medium"", ""max_context_tokens"": 1000000, ""cost_tier"": ""High cost"", ""is_new"": false, ""is_beta"": false },
+        { ""model_uid"": ""claude-opus-5-high"", ""label"": ""Claude Opus 5 High"", ""max_context_tokens"": 1000000, ""cost_tier"": ""High cost"", ""is_new"": true, ""is_beta"": true }
+      ]
+    },
+    {
+      ""family_label"": ""Claude Haiku 4.5"",
+      ""family_uid"": ""Claude Haiku 4.5"",
+      ""variants"": [
+        { ""model_uid"": ""MODEL_PRIVATE_11"", ""label"": ""Claude Haiku 4.5"" }
+      ]
+    }
+  ]
+}";
+
+        [TestMethod]
+        public void ParseDevinCatalog_ReadsEveryVariantOfEveryFamily()
+        {
+            List<ModelOption> models = ModelCatalogParsers.ParseDevinCatalog(DevinModelsJson);
+
+            Assert.AreEqual(3, models.Count);
+            Assert.AreEqual("claude-opus-5-medium", models[0].Id);
+            Assert.AreEqual("Claude Opus 5 Medium", models[0].DisplayName);
+        }
+
+        [TestMethod]
+        public void ParseDevinCatalog_KeepsTheModelUidEvenWhenItLooksInternal()
+        {
+            // Devin's older families are listed under ids like MODEL_PRIVATE_11. They are what both
+            // `devin --model` and the ACP model picker accept; the label matches no fuzzy name.
+            List<ModelOption> models = ModelCatalogParsers.ParseDevinCatalog(DevinModelsJson);
+
+            Assert.AreEqual("MODEL_PRIVATE_11", models[2].Id);
+            Assert.AreEqual("Claude Haiku 4.5", models[2].DisplayName);
+        }
+
+        [TestMethod]
+        public void ParseDevinCatalog_ReadsTheDetailsTheMenuShows()
+        {
+            List<ModelOption> models = ModelCatalogParsers.ParseDevinCatalog(DevinModelsJson);
+
+            Assert.AreEqual("High cost", models[0].CostTier);
+            Assert.AreEqual(1000000, models[0].ContextTokens);
+            Assert.IsTrue(models[1].IsNew);
+            Assert.IsTrue(models[1].IsBeta);
+            Assert.IsFalse(models[0].IsNew);
+        }
+
+        [TestMethod]
+        public void MenuCaption_AppendsWhateverTheCliReported()
+        {
+            var model = new ModelOption
+            {
+                Id = "grok-4-6-low",
+                Name = "Grok 4.6 Low",
+                CostTier = "Med cost",
+                ContextTokens = 500000,
+                IsNew = true,
+                IsBeta = true
+            };
+
+            Assert.AreEqual("Grok 4.6 Low — 500K · Med cost · New · Beta", model.BuildMenuCaption());
+        }
+
+        [TestMethod]
+        public void MenuCaption_RoundsDevinsContextWindowsTheWayDevinPrintsThem()
+        {
+            // Devin reports 1047576 and 1048576 for the windows its own picker calls "1M".
+            Assert.AreEqual("A — 1M", new ModelOption { Name = "A", ContextTokens = 1048576 }.BuildMenuCaption());
+            Assert.AreEqual("A — 1M", new ModelOption { Name = "A", ContextTokens = 1000000 }.BuildMenuCaption());
+            Assert.AreEqual("A — 272K", new ModelOption { Name = "A", ContextTokens = 272000 }.BuildMenuCaption());
+            Assert.AreEqual("A — 1.5M", new ModelOption { Name = "A", ContextTokens = 1500000 }.BuildMenuCaption());
+        }
+
+        [TestMethod]
+        public void MenuCaption_IsTheBareNameForAnAgentThatReportsNoDetails()
+        {
+            // Every CLI except Devin lists ids and names only; their menus must not grow a stray dash.
+            Assert.AreEqual("GPT-5.6-Sol", new ModelOption { Id = "gpt-5.6-sol", Name = "GPT-5.6-Sol" }.BuildMenuCaption());
+            Assert.AreEqual("adaptive", new ModelOption { Id = "adaptive" }.BuildMenuCaption());
+        }
+
+        [TestMethod]
+        public void ParseDevinCatalog_CarriesDevinsOwnFamilyAsTheSubmenu()
+        {
+            List<ModelOption> models = ModelCatalogParsers.ParseDevinCatalog(DevinModelsJson);
+
+            Assert.AreEqual("Claude Opus 5", models[0].Group);
+            Assert.AreEqual("Claude Haiku 4.5", models[2].Group);
+        }
+
+        [TestMethod]
+        public void ParseDevinCatalog_SkipAnyBannerPrintedBeforeTheJson()
+        {
+            List<ModelOption> models = ModelCatalogParsers.ParseDevinCatalog(
+                "A new version of devin is available!" + Environment.NewLine + DevinModelsJson);
+
+            Assert.AreEqual(3, models.Count);
+        }
+
+        [TestMethod]
+        public void ParseDevinCatalog_ReturnsNothingForUnusableOutput()
+        {
+            // An empty list keeps the previous catalog (FetchProviderModelsAsync) and leaves the
+            // launch flag empty, which starts Devin on the model its account defaults to.
+            Assert.AreEqual(0, ModelCatalogParsers.ParseDevinCatalog(null).Count);
+            Assert.AreEqual(0, ModelCatalogParsers.ParseDevinCatalog("devin: command not found").Count);
+            Assert.AreEqual(0, ModelCatalogParsers.ParseDevinCatalog("{\"families\":[]}").Count);
+        }
+
         #endregion
 
         #region Reasonix providers

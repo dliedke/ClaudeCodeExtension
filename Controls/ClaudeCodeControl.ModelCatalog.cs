@@ -43,9 +43,8 @@ namespace ClaudeCodeVS
         }
 
         /// <summary>
-        /// The listing command per provider, measured against the real CLIs. Providers absent from
-        /// this table either have no listing command (Devin — its list lives in the settings) or no
-        /// extension-managed model list at all (Claude, which has a fixed menu).
+        /// The listing command per provider, measured against the real CLIs. The only provider absent
+        /// from this table is Claude, which has a fixed menu instead.
         /// </summary>
         private static readonly Dictionary<AiProvider, ModelCatalogSource> ModelCatalogSources =
             new Dictionary<AiProvider, ModelCatalogSource>
@@ -94,6 +93,19 @@ namespace ClaudeCodeVS
                     Arguments = "models",
                     Parse = ModelCatalogParsers.ParsePlainList
                 },
+                [AiProvider.DevinNative] = new ModelCatalogSource
+                {
+                    DefaultCommand = "devin",
+                    Arguments = "models list --format json",
+                    Parse = ModelCatalogParsers.ParseDevinCatalog
+                },
+                [AiProvider.Devin] = new ModelCatalogSource
+                {
+                    DefaultCommand = "devin",
+                    Arguments = "models list --format json",
+                    UseWsl = true,
+                    Parse = ModelCatalogParsers.ParseDevinCatalog
+                },
                 [AiProvider.Reasonix] = new ModelCatalogSource
                 {
                     DefaultCommand = "reasonix",
@@ -106,6 +118,16 @@ namespace ClaudeCodeVS
 
         /// <summary>A cached list older than this is refreshed the next time the menu opens.</summary>
         private static readonly TimeSpan ModelCatalogTimeToLive = TimeSpan.FromHours(24);
+
+        /// <summary>
+        /// Providers whose list has already been read from the CLI in this Visual Studio session.
+        /// A list cached by an earlier session is still shown immediately, but it is never trusted
+        /// on its timestamp alone: the CLI can be updated (or the account's entitlements changed)
+        /// while VS is closed, and an extension update can start reading fields the older cache does
+        /// not carry — the Devin cost tier / context window added in v161.0 stayed invisible until
+        /// the 24h stamp expired. Static, so the panel and a detached window share one read.
+        /// </summary>
+        private static readonly HashSet<AiProvider> ModelCatalogsReadThisSession = new HashSet<AiProvider>();
 
         /// <summary>
         /// Listing a model can reach the network (Cursor authenticates, PI reads its provider
@@ -123,15 +145,13 @@ namespace ClaudeCodeVS
 
         /// <summary>
         /// Whether the model menu offers a list for this provider. Claude has its own fixed menu and
-        /// is deliberately excluded; everything else either lists its models on the command line or
-        /// carries a user-editable list in the settings.
+        /// is deliberately excluded; every other provider lists its models on the command line.
         /// </summary>
         private static bool ProviderHasModelCatalog(AiProvider? provider)
         {
             if (provider == null || IsClaudeProvider(provider)) return false;
 
-            return ModelCatalogSources.ContainsKey(provider.Value)
-                || IsDevinProvider(provider);
+            return ModelCatalogSources.ContainsKey(provider.Value);
         }
 
         private static bool IsDevinProvider(AiProvider? provider)
@@ -140,32 +160,54 @@ namespace ClaudeCodeVS
         }
 
         /// <summary>
-        /// The models to show right now, without starting a process: the settings list for the
-        /// agents that have one, otherwise whatever the last CLI call cached. Empty means the
-        /// caller should kick off <see cref="RefreshProviderModelsAsync"/> and show a placeholder.
+        /// The models to show right now, without starting a process: whatever the last CLI call
+        /// cached. Empty means the caller should kick off <see cref="RefreshProviderModelsAsync"/>
+        /// and show a placeholder.
         /// </summary>
         private List<ModelOption> GetCachedProviderModels(AiProvider provider)
         {
-            if (IsDevinProvider(provider))
-            {
-                EnsureDevinModelDefaults();
-                return ToModelOptions(_settings?.DevinModels);
-            }
-
             ModelCatalogCache cache = GetModelCatalogCache(provider);
 
             return cache?.Models != null ? new List<ModelOption>(cache.Models) : new List<ModelOption>();
         }
 
-        /// <summary>True when the cached list is missing or old enough to be worth re-reading.</summary>
+        /// <summary>
+        /// True when the cached list is missing, has not been read yet in this session, or is old
+        /// enough to be worth re-reading.
+        /// </summary>
         private bool ShouldRefreshProviderModels(AiProvider provider)
         {
             if (!ModelCatalogSources.ContainsKey(provider)) return false;
+
+            lock (ModelCatalogsReadThisSession)
+            {
+                if (!ModelCatalogsReadThisSession.Contains(provider)) return true;
+            }
 
             ModelCatalogCache cache = GetModelCatalogCache(provider);
             if (cache?.Models == null || cache.Models.Count == 0) return true;
 
             return DateTime.UtcNow - cache.FetchedUtc > ModelCatalogTimeToLive;
+        }
+
+        /// <summary>
+        /// Reads the active agent's list once, shortly after the panel loads, so the first time the
+        /// menu opens it already shows what the CLI offers today. Only the active provider: warming
+        /// every one of them would start a process per agent for lists the user may never open.
+        /// </summary>
+        private void WarmUpActiveProviderModelCatalog()
+        {
+            try
+            {
+                AiProvider? provider = GetActiveOrSelectedProvider();
+                if (provider == null || !ShouldRefreshProviderModels(provider.Value)) return;
+
+                _ = RefreshProviderModelsAsync(provider.Value);
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"Model catalog: could not warm up the list: {ex.Message}");
+            }
         }
 
         private ModelCatalogCache GetModelCatalogCache(AiProvider provider)
@@ -219,6 +261,14 @@ namespace ClaudeCodeVS
             catch (Exception ex)
             {
                 Debug.WriteLine($"Model catalog: listing {provider} failed: {ex.Message}");
+            }
+
+            // Marked whether or not it worked: a CLI that is missing or broken would otherwise be
+            // started again on every single menu open, each time waiting out its own timeout.
+            // "Refresh Models" stays the way to retry within the session.
+            lock (ModelCatalogsReadThisSession)
+            {
+                ModelCatalogsReadThisSession.Add(provider);
             }
 
             if (models == null || models.Count == 0)
@@ -321,27 +371,14 @@ namespace ClaudeCodeVS
             return value.IndexOf(' ') >= 0 ? "\"" + value + "\"" : value;
         }
 
-        private static List<ModelOption> ToModelOptions(IEnumerable<string> names)
-        {
-            var models = new List<ModelOption>();
-            if (names == null) return models;
-
-            foreach (string name in names)
-            {
-                if (string.IsNullOrWhiteSpace(name)) continue;
-                models.Add(new ModelOption { Id = name.Trim(), Name = name.Trim() });
-            }
-
-            return models;
-        }
-
         #endregion
 
         #region Selection
 
         /// <summary>
-        /// The model id chosen for this provider, or empty for the CLI's own default. Devin is read
-        /// from its own setting so the list it has always had keeps working.
+        /// The model id chosen for this provider, or empty for the CLI's own default. Devin keeps its
+        /// own setting because Devin (WSL) and Devin (native) run the same CLI against the same
+        /// account: one pick has to survive switching between them.
         /// </summary>
         private string GetSelectedProviderModelId(AiProvider? provider)
         {
@@ -358,6 +395,24 @@ namespace ClaudeCodeVS
             return _settings.SelectedProviderModels.TryGetValue(provider.Value.ToString(), out model)
                 ? (model ?? string.Empty)
                 : string.Empty;
+        }
+
+        /// <summary>
+        /// The catalog entry a menu repeats at its top for the current selection. Taken out of the
+        /// list itself, so the repeat carries the same details as the entry buried in the submenu;
+        /// falls back to a bare caption for a selection the CLI no longer lists.
+        /// </summary>
+        private ModelOption GetSelectedModelOption(AiProvider? provider, List<ModelOption> models, string selected)
+        {
+            if (models != null)
+            {
+                foreach (ModelOption model in models)
+                {
+                    if (string.Equals(model.Id, selected, StringComparison.OrdinalIgnoreCase)) return model;
+                }
+            }
+
+            return new ModelOption { Id = selected, Name = GetSelectedProviderModelLabel(provider) };
         }
 
         /// <summary>Records the choice. Does not save — callers batch the save with their own updates.</summary>
@@ -381,7 +436,9 @@ namespace ClaudeCodeVS
 
         /// <summary>
         /// Clears a selection the CLI no longer offers, so the next launch falls back to the agent's
-        /// default rather than to a model it will reject.
+        /// default rather than to a model it will reject. A selection that matches a caption rather
+        /// than an id is rewritten to the id instead of dropped — that is how the Devin picks made
+        /// against the old hand-maintained list ("Claude Opus 5 High") become the ids the CLI wants.
         /// </summary>
         private void DropSelectionMissingFromCatalog(AiProvider provider, List<ModelOption> models)
         {
@@ -391,6 +448,15 @@ namespace ClaudeCodeVS
             foreach (ModelOption model in models)
             {
                 if (string.Equals(model.Id, selected, StringComparison.OrdinalIgnoreCase)) return;
+            }
+
+            foreach (ModelOption model in models)
+            {
+                if (string.Equals(model.DisplayName, selected, StringComparison.OrdinalIgnoreCase))
+                {
+                    SetSelectedProviderModelId(provider, model.Id);
+                    return;
+                }
             }
 
             Debug.WriteLine($"Model catalog: {provider} no longer offers '{selected}'; falling back to its default.");
@@ -424,7 +490,7 @@ namespace ClaudeCodeVS
         /// <summary>
         /// The launch flag that starts the agent on the selected model, or an empty string when
         /// nothing is selected. Only for the CLIs that accept a model on their interactive command
-        /// line — Devin and Reasonix are switched with a slash command inside their own TUI instead.
+        /// line — Reasonix is switched with a slash command inside its own TUI instead.
         /// </summary>
         private string GetModelLaunchFlag(AiProvider provider)
         {
@@ -442,6 +508,8 @@ namespace ClaudeCodeVS
                 case AiProvider.CursorAgentNative:
                 case AiProvider.Pi:
                 case AiProvider.Antigravity:
+                case AiProvider.Devin:
+                case AiProvider.DevinNative:
                     return " --model " + QuoteModelArgument(model);
 
                 default:
@@ -451,13 +519,13 @@ namespace ClaudeCodeVS
 
         /// <summary>
         /// The slash command that switches the model of a running TUI, or null when the agent has
-        /// none. Devin takes a quoted display name; Reasonix takes a bare id.
+        /// none. Both Devin and Reasonix take a bare id.
         /// </summary>
         private string GetLiveModelSwitchCommand(AiProvider provider, string modelId)
         {
             if (string.IsNullOrWhiteSpace(modelId)) return null;
 
-            if (IsDevinProvider(provider)) return "/model \"" + modelId + "\"";
+            if (IsDevinProvider(provider)) return "/model " + QuoteModelArgument(modelId);
             if (provider == AiProvider.Reasonix) return "/model " + modelId;
 
             return null;

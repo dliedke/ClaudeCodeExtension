@@ -521,26 +521,12 @@ namespace ClaudeCodeVS
         public ClaudeModel SelectedClaudeModel { get; set; } = ClaudeModel.Sonnet;
 
         /// <summary>
-        /// User-configurable list of Devin model names shown in the model selection menu.
-        /// Devin (WSL) and Devin (native) share this list (same `devin` CLI). Each entry is
-        /// the model name passed to the CLI as <c>/model "&lt;name&gt;"</c>. Editable via the
-        /// "Configure Models..." item in the model menu. Seeded with a default set.
+        /// Model id chosen for Devin, e.g. <c>claude-opus-5-high</c>. Kept apart from
+        /// <see cref="SelectedProviderModels"/> because Devin (WSL) and Devin (native) run the same
+        /// CLI against the same account and share one pick. The list it is chosen from comes from
+        /// <c>devin models list</c>; empty means Devin's own default model.
         /// </summary>
-        public System.Collections.Generic.List<string> DevinModels { get; set; } = new System.Collections.Generic.List<string>
-        {
-            "Claude Opus 5 High",
-            "Claude Sonnet 5 High",
-            "Claude Opus 4.6 Thinking",
-            "GPT-5.5 High Thinking",
-            "Gemini 3.1 Pro High Thinking",
-            "SWE-1.6"
-        };
-
-        /// <summary>
-        /// Currently selected Devin model name (must be one of <see cref="DevinModels"/>).
-        /// Empty until the user picks one; resolved to the first available model at runtime.
-        /// </summary>
-        public string SelectedDevinModel { get; set; } = "SWE-1.6";
+        public string SelectedDevinModel { get; set; } = string.Empty;
 
         /// <summary>
         /// Model chosen per provider, keyed by the <see cref="AiProvider"/> name. Holds the id the

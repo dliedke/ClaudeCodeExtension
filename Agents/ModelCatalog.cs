@@ -13,6 +13,7 @@
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.Globalization;
 using System.Text.RegularExpressions;
 
 using Newtonsoft.Json.Linq;
@@ -31,10 +32,71 @@ namespace ClaudeCodeVS.Agents
         /// <summary>Caption shown in the model menu. Falls back to the id when the CLI prints no name.</summary>
         public string Name { get; set; } = string.Empty;
 
+        /// <summary>
+        /// Submenu this model belongs to, when the CLI names its own families (Devin prints
+        /// "Claude Opus 5", "SWE-1.6 Fast"). Empty leaves the grouping to
+        /// <see cref="ModelCatalogGrouping.GetGroupKey"/>, which derives it from the id.
+        /// </summary>
+        public string Group { get; set; } = string.Empty;
+
+        /// <summary>How expensive the CLI says this model is ("High cost", "Free"). Empty when unknown.</summary>
+        public string CostTier { get; set; } = string.Empty;
+
+        /// <summary>Context window in tokens, 0 when the CLI does not report one.</summary>
+        public int ContextTokens { get; set; }
+
+        /// <summary>The CLI's own "new" marker.</summary>
+        public bool IsNew { get; set; }
+
+        /// <summary>The CLI's own "beta" marker.</summary>
+        public bool IsBeta { get; set; }
+
         /// <summary>The caption, never empty — menus bind to this.</summary>
         public string DisplayName
         {
             get { return string.IsNullOrWhiteSpace(Name) ? Id : Name; }
+        }
+
+        /// <summary>
+        /// The menu entry: the caption followed by whatever the CLI reported about the model —
+        /// "Grok 4.6 Low — 500K · Med cost · New · Beta". Kept out of <see cref="DisplayName"/>,
+        /// which is also the composer's button caption and the text of the "Model switched to …"
+        /// notice, where the details would only be noise. Falls back to the bare caption for the
+        /// agents that report none (every CLI except Devin, today).
+        /// </summary>
+        public string BuildMenuCaption()
+        {
+            var details = new List<string>();
+
+            string context = FormatContextWindow(ContextTokens);
+            if (context.Length > 0) details.Add(context);
+
+            if (!string.IsNullOrWhiteSpace(CostTier)) details.Add(CostTier.Trim());
+            if (IsNew) details.Add("New");
+            if (IsBeta) details.Add("Beta");
+
+            return details.Count == 0
+                ? DisplayName
+                : DisplayName + " — " + string.Join(" · ", details);
+        }
+
+        /// <summary>"1M", "500K", "272K" — Devin reports 1047576 and 1048576 for what it shows as 1M.</summary>
+        private static string FormatContextWindow(int tokens)
+        {
+            if (tokens <= 0) return string.Empty;
+
+            if (tokens >= 1000000)
+            {
+                double millions = Math.Round(tokens / 1000000.0, 1);
+                return millions.ToString("0.#", CultureInfo.InvariantCulture) + "M";
+            }
+
+            if (tokens >= 1000)
+            {
+                return Math.Round(tokens / 1000.0).ToString("0", CultureInfo.InvariantCulture) + "K";
+            }
+
+            return tokens.ToString(CultureInfo.InvariantCulture);
         }
 
         public override string ToString() { return DisplayName; }
@@ -84,7 +146,12 @@ namespace ClaudeCodeVS.Agents
 
             foreach (ModelOption model in all)
             {
-                string key = GetGroupKey(model.Id);
+                // A family the CLI named itself beats anything derived from the id: Devin's own
+                // "Claude Opus 4.8" and "Claude Opus 5" both reduce to "claude-opus" otherwise, and
+                // its 112 models would collapse into a handful of huge submenus.
+                string key = string.IsNullOrWhiteSpace(model.Group)
+                    ? GetGroupKey(model.Id)
+                    : model.Group.Trim();
 
                 ModelGroup group;
                 if (!byKey.TryGetValue(key, out group))
@@ -192,6 +259,61 @@ namespace ClaudeCodeVS.Agents
             catch (Exception ex)
             {
                 Debug.WriteLine($"Model catalog: could not parse the Codex catalog: {ex.Message}");
+            }
+
+            return models;
+        }
+
+        /// <summary>
+        /// <c>devin models list --format json</c>'s <c>families</c> array — the models the user's own
+        /// account is entitled to, which is why nothing hard-coded can be right here (the list was a
+        /// hand-maintained setting until v161.0 and went stale the moment Devin shipped a model).
+        /// <para>
+        /// The id is <c>model_uid</c>: it is what <c>devin --model</c> resolves and, verified against
+        /// <c>devin acp</c>, exactly the <c>value</c> the ACP model picker publishes — including the
+        /// internal-looking ones (<c>MODEL_PRIVATE_11</c>) that no fuzzy name matches. The family
+        /// label rides along as <see cref="ModelOption.Group"/> so the menu can use Devin's own
+        /// grouping rather than one guessed from the id.
+        /// </para>
+        /// </summary>
+        public static List<ModelOption> ParseDevinCatalog(string json)
+        {
+            var models = new List<ModelOption>();
+            if (string.IsNullOrWhiteSpace(json)) return models;
+
+            try
+            {
+                // An update notice can precede the JSON, the same way it can for Reasonix.
+                int start = json.IndexOf('{');
+                if (start < 0) return models;
+
+                JToken root = JToken.Parse(json.Substring(start));
+                var families = root["families"] as JArray;
+                if (families == null) return models;
+
+                foreach (JToken family in families)
+                {
+                    string label = family?["family_label"]?.ToString();
+                    var variants = family?["variants"] as JArray;
+                    if (variants == null) continue;
+
+                    foreach (JToken variant in variants)
+                    {
+                        int before = models.Count;
+                        Add(models, variant?["model_uid"]?.ToString(), variant?["label"]?.ToString(), label);
+                        if (models.Count == before) continue;
+
+                        ModelOption added = models[models.Count - 1];
+                        added.CostTier = variant["cost_tier"]?.ToString() ?? string.Empty;
+                        added.ContextTokens = ReadInt(variant["max_context_tokens"]);
+                        added.IsNew = ReadBool(variant["is_new"]);
+                        added.IsBeta = ReadBool(variant["is_beta"]);
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"Model catalog: could not parse the Devin catalog: {ex.Message}");
             }
 
             return models;
@@ -339,8 +461,24 @@ namespace ClaudeCodeVS.Agents
             }
         }
 
+        private static int ReadInt(JToken token)
+        {
+            if (token == null || token.Type == JTokenType.Null) return 0;
+
+            int value;
+            return int.TryParse(token.ToString(), out value) ? value : 0;
+        }
+
+        private static bool ReadBool(JToken token)
+        {
+            if (token == null || token.Type == JTokenType.Null) return false;
+
+            bool value;
+            return bool.TryParse(token.ToString(), out value) && value;
+        }
+
         /// <summary>Appends unless the id is already there — WSL profiles can echo a list twice.</summary>
-        private static void Add(List<ModelOption> models, string id, string name)
+        private static void Add(List<ModelOption> models, string id, string name, string group = null)
         {
             string trimmedId = (id ?? string.Empty).Trim();
             if (trimmedId.Length == 0) return;
@@ -353,7 +491,8 @@ namespace ClaudeCodeVS.Agents
             models.Add(new ModelOption
             {
                 Id = trimmedId,
-                Name = string.IsNullOrWhiteSpace(name) ? trimmedId : name.Trim()
+                Name = string.IsNullOrWhiteSpace(name) ? trimmedId : name.Trim(),
+                Group = (group ?? string.Empty).Trim()
             });
         }
     }
