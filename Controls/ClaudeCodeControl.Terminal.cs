@@ -2001,17 +2001,23 @@ namespace ClaudeCodeVS
         /// because the parent HKCU\Console CodePage value is ignored in practice.
         /// </summary>
         /// <summary>
-        /// Opt-in for restoring the console registry on paths other than the normal end of a
-        /// launch: the launch method's finally block and control teardown.
+        /// Maintainer toggle, in the spirit of EnablePasteFromClipboardMenu: restore the console
+        /// registry on the paths the normal restore never reaches - the launch method's finally
+        /// block and control teardown. Flip this to true to enable it.
         ///
-        /// Off by default because it changes when the restore runs, and the failure it guards
-        /// against (VS crashing or being killed between save and restore) cannot be covered by
-        /// the unit tests. The restore itself is idempotent - it returns immediately unless
-        /// _consoleFontSaved is set - so switching this on only adds attempts, never double
-        /// restores. Flip to true to enable.
+        /// Deliberately not a user setting. There is no sensible reason a user would want their
+        /// console registry left dirty after a crash, so there is nothing here for them to decide;
+        /// what is open is whether the timing change is worth taking, which is your call.
+        ///
+        /// Off by default because it moves when the restore runs, and the failure it guards against
+        /// - VS crashing or being killed between save and restore - cannot be reproduced in the unit
+        /// tests. The restore itself is idempotent: it returns immediately unless _consoleFontSaved
+        /// is set, so enabling this only adds attempts, never double restores.
+        ///
+        /// static readonly rather than const because the guarded blocks are plain if statements:
+        /// a const false would turn them into unreachable code (CS0162). EnablePasteFromClipboardMenu
+        /// can stay const because it is used in a compound condition.
         /// </summary>
-        /// Declared static readonly rather than const so the guarded blocks still compile
-        /// and are checked by the compiler - a const false would make them unreachable code.
         private static readonly bool RestoreConsoleRegistryOnAllExitPaths = false;
 
         private object _savedConsoleCodePage;
