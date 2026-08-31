@@ -943,6 +943,8 @@ namespace ClaudeCodeVS
         /// </summary>
         private void ReassertConsoleCodePage()
         {
+            if (_settings?.KeepTerminalCodePage == false) return;
+
             try
             {
                 uint current = GetConsoleOutputCP();

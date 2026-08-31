@@ -665,6 +665,17 @@ namespace ClaudeCodeVS
         public int ConsoleFontSizePt { get; set; } = 0;
 
         /// <summary>
+        /// Whether the embedded terminal is kept on the code page it was launched with (UTF-8 / 65001).
+        /// The code page belongs to the console and is shared with everything the agent spawns, so a child
+        /// process that changes it - PowerShell's [Console]::OutputEncoding, a chcp inside a shell command,
+        /// some .NET CLI tools - leaves the terminal decoding every later byte with the wrong one until it
+        /// is restarted. While enabled, the completion watcher puts the launch code page back as soon as it
+        /// notices the drift. Turn this off if an agent workflow deliberately switches the console to a
+        /// different code page and needs it to stay there.
+        /// </summary>
+        public bool KeepTerminalCodePage { get; set; } = true;
+
+        /// <summary>
         /// Whether the terminal is currently detached into a separate tool window tab
         /// </summary>
         public bool IsTerminalDetached { get; set; } = false;
