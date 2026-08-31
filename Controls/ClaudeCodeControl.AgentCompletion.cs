@@ -922,6 +922,42 @@ namespace ClaudeCodeVS
         }
 
         /// <summary>
+        /// Code page the terminal is launched with - the launch script starts with "chcp 65001".
+        /// </summary>
+        private const uint TerminalLaunchCodePage = 65001;
+
+        /// <summary>
+        /// Puts the console back to the code page the terminal was launched with.
+        ///
+        /// The code page belongs to the console, not to the process that changes it, and that
+        /// console is shared with everything the agent spawns. A child that calls
+        /// SetConsoleOutputCP - PowerShell's [Console]::OutputEncoding, a chcp inside a shell
+        /// command, some .NET CLI tools - leaves it changed after it exits, and from then on
+        /// every byte the agent writes is decoded with the wrong code page. The panel stays
+        /// unreadable until the terminal is restarted, which costs the session's scrollback.
+        ///
+        /// We are attached to that console about once a second anyway, so putting it back here
+        /// is close to free and repairs the drift before the user has to act on it. Only output
+        /// written after the correction benefits; text already in the scroll buffer was damaged
+        /// when it was written and cannot be recovered.
+        /// </summary>
+        private void ReassertConsoleCodePage()
+        {
+            try
+            {
+                uint current = GetConsoleOutputCP();
+                if (current == 0 || current == TerminalLaunchCodePage) return;
+
+                LogTerminalLaunch($"console output CP drifted to {current}, restoring {TerminalLaunchCodePage}");
+                SetConsoleOutputCP(TerminalLaunchCodePage);
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"ReassertConsoleCodePage: {ex.Message}");
+            }
+        }
+
+        /// <summary>
         /// Convenience wrapper: captures the console text and returns its stable hash
         /// (or null on any failure). Used by the arm path which only needs a baseline hash.
         /// </summary>
@@ -978,6 +1014,10 @@ namespace ClaudeCodeVS
                         return null;
                     }
                     attached = true;
+
+                    // A child of the agent may have left the console on a different code
+                    // page; while we are attached, put it back. See ReassertConsoleCodePage.
+                    ReassertConsoleCodePage();
 
                     handle = CreateFile("CONOUT$",
                         GENERIC_READ_CONSOLE | GENERIC_WRITE_CONSOLE,
@@ -1083,6 +1123,10 @@ namespace ClaudeCodeVS
                     }
                     attached = true;
 
+                    // A child of the agent may have left the console on a different code
+                    // page; while we are attached, put it back. See ReassertConsoleCodePage.
+                    ReassertConsoleCodePage();
+
                     handle = CreateFile("CONIN$",
                         GENERIC_READ_CONSOLE | GENERIC_WRITE_CONSOLE,
                         FILE_SHARE_READ_CONSOLE | FILE_SHARE_WRITE_CONSOLE,
@@ -1165,6 +1209,10 @@ namespace ClaudeCodeVS
                         return 0;
                     }
                     attached = true;
+
+                    // A child of the agent may have left the console on a different code
+                    // page; while we are attached, put it back. See ReassertConsoleCodePage.
+                    ReassertConsoleCodePage();
 
                     // Font APIs operate on the active screen buffer (CONOUT$).
                     handle = CreateFile("CONOUT$",
