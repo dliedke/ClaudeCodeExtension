@@ -132,5 +132,22 @@ namespace ClaudeCodeExtension.Tests
             Assert.AreEqual((int)AiProvider.Reasonix, (int)toSave["SelectedProvider"]);
             Assert.AreEqual(1, (int)toSave["SelectedEffortLevel"]);
         }
+
+        /// <summary>
+        /// The terminal is launched as UTF-8, so keeping it there is the default; a user who has an
+        /// agent workflow that deliberately switches the console code page can turn it off, and that
+        /// choice has to survive a save/load round trip.
+        /// </summary>
+        [TestMethod]
+        public void KeepTerminalCodePage_DefaultsToOnAndRoundTrips()
+        {
+            Assert.IsTrue(new ClaudeCodeSettings().KeepTerminalCodePage);
+
+            var settings = new ClaudeCodeSettings { KeepTerminalCodePage = false };
+
+            string json = ClaudeCodeControl.SerializeJsonIndented(settings);
+
+            Assert.IsFalse((bool)JObject.Parse(json)["KeepTerminalCodePage"]);
+        }
     }
 }

@@ -704,6 +704,18 @@ namespace ClaudeCodeVS
             }
             terminalStack.Children.Add(consoleFontSizeCombo);
 
+            terminalStack.Children.Add(MakeSectionHeader("Encoding", themeFg));
+
+            var keepCodePageCheck = MakeCheckBox(
+                "Keep the terminal on its launch code page (UTF-8)",
+                "The console's code page is shared with every process the agent starts. A command that changes it - " +
+                "PowerShell's [Console]::OutputEncoding, a chcp inside a shell command, some .NET CLI tools - leaves it " +
+                "changed after it exits, and from then on the terminal renders mojibake until it is restarted.\n\n" +
+                "While this is on, the code page is put back as soon as the drift is noticed. Turn it off if an agent " +
+                "workflow deliberately switches the console to a different code page and needs it to stay there.",
+                _settings.KeepTerminalCodePage, themeFg);
+            terminalStack.Children.Add(keepCodePageCheck);
+
             // "Disable clipboard" relies on simulated keystrokes that only conhost (Command Prompt)
             // accepts, so the toggle is enabled only while Command Prompt is selected. Keep it in sync
             // with the terminal-type radios live, and uncheck it when switching to Windows Terminal so
@@ -1028,6 +1040,7 @@ namespace ClaudeCodeVS
                 : LayoutOrientation.Horizontal;
             bool newHidePromptPanel = hidePromptPanelCheck.IsChecked == true;
             bool newUseNativeMode = nativeModeCheck.IsChecked == true;
+            bool newKeepTerminalCodePage = keepCodePageCheck.IsChecked == true;
             // Native mode launches no console at all, so the terminal type is pinned rather than left
             // pointing at a Windows Terminal that would never be started (and never be validated).
             TerminalType newTerminalType = !newUseNativeMode && wtRadio.IsChecked == true
@@ -1110,6 +1123,7 @@ namespace ClaudeCodeVS
             _settings.UseNativeMode           = newUseNativeMode;
             _settings.ConsoleFontFaceName     = newConsoleFont;
             _settings.ConsoleFontSizePt       = newConsoleFontSize;
+            _settings.KeepTerminalCodePage    = newKeepTerminalCodePage;
             _settings.NativeChatFontFaceName  = newChatFont;
             _settings.NativeChatFontSizePt    = newChatFontSize;
 

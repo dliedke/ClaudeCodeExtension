@@ -461,6 +461,19 @@ namespace ClaudeCodeVS
         private static extern bool FreeConsole();
 
         /// <summary>
+        /// Reads the code page the attached console uses for output.
+        /// </summary>
+        [DllImport("kernel32.dll", SetLastError = true)]
+        private static extern uint GetConsoleOutputCP();
+
+        /// <summary>
+        /// Sets the code page the attached console uses for output.
+        /// </summary>
+        [DllImport("kernel32.dll", SetLastError = true)]
+        private static extern bool SetConsoleOutputCP(uint wCodePageID);
+
+
+        /// <summary>
         /// Returns the window handle of the console attached to the calling process, or IntPtr.Zero when none
         /// </summary>
         [DllImport("kernel32.dll")]
