@@ -1794,6 +1794,14 @@ namespace ClaudeCodeVS
                 {
                     _terminalLifecycleSemaphore.Release();
                 }
+
+                // Catches the paths the normal restore above never reaches - an exception thrown
+                // inside the embed block, or the method left early. Idempotent; see the flag.
+                if (RestoreConsoleRegistryOnAllExitPaths)
+                {
+                    RestoreConsoleFontRegistry();
+                    RestoreConsoleColorsRegistry();
+                }
             }
         }
 
@@ -1992,6 +2000,26 @@ namespace ClaudeCodeVS
         /// Stored in the conhost.exe-specific subkey (HKCU\Console\%SystemRoot%_System32_conhost.exe),
         /// because the parent HKCU\Console CodePage value is ignored in practice.
         /// </summary>
+        /// <summary>
+        /// Maintainer toggle, in the spirit of EnablePasteFromClipboardMenu: restore the console
+        /// registry on the paths the normal restore never reaches - the launch method's finally
+        /// block and control teardown. Flip this to true to enable it.
+        ///
+        /// Deliberately not a user setting. There is no sensible reason a user would want their
+        /// console registry left dirty after a crash, so there is nothing here for them to decide;
+        /// what is open is whether the timing change is worth taking, which is your call.
+        ///
+        /// Off by default because it moves when the restore runs, and the failure it guards against
+        /// - VS crashing or being killed between save and restore - cannot be reproduced in the unit
+        /// tests. The restore itself is idempotent: it returns immediately unless _consoleFontSaved
+        /// is set, so enabling this only adds attempts, never double restores.
+        ///
+        /// static readonly rather than const because the guarded blocks are plain if statements:
+        /// a const false would turn them into unreachable code (CS0162). EnablePasteFromClipboardMenu
+        /// can stay const because it is used in a compound condition.
+        /// </summary>
+        private static readonly bool RestoreConsoleRegistryOnAllExitPaths = false;
+
         private object _savedConsoleCodePage;
 
         /// <summary>
@@ -2083,7 +2111,11 @@ namespace ClaudeCodeVS
                 // CodePage lives in the per-executable conhost.exe subkey; the parent Console\CodePage is ignored by conhost.exe.
                 using (var existing = Microsoft.Win32.Registry.CurrentUser.OpenSubKey(ConsoleConhostSubkeyPath, writable: false))
                 {
-                    _cmdConhostSubkeyExisted = existing != null;
+                    // A key with no values under it is one of our own leftovers: DeleteSubKey lost
+                    // a race against a conhost that still had the key open, so only the values went
+                    // away. Treating it as pre-existing user state would latch this to true forever
+                    // and the restore would never delete the key again.
+                    _cmdConhostSubkeyExisted = existing != null && existing.GetValueNames().Length > 0;
                     _savedConsoleCodePage = existing?.GetValue("CodePage");
                 }
 
@@ -2151,7 +2183,18 @@ namespace ClaudeCodeVS
                 else
                 {
                     // We created the subkey; remove it entirely to leave the registry as we found it.
-                    Microsoft.Win32.Registry.CurrentUser.DeleteSubKey(ConsoleConhostSubkeyPath, throwOnMissingSubKey: false);
+                    try
+                    {
+                        Microsoft.Win32.Registry.CurrentUser.DeleteSubKey(ConsoleConhostSubkeyPath, throwOnMissingSubKey: false);
+                    }
+                    catch (Exception ex)
+                    {
+                        // Expected when the conhost we created it for still holds a handle: the
+                        // values are gone but the key survives until that handle closes. Harmless
+                        // in itself - the value-count guard above keeps the next launch from
+                        // adopting the empty key as user state.
+                        LogTerminalLaunch($"DeleteSubKey({ConsoleConhostSubkeyPath}) failed: {ex.Message}");
+                    }
                 }
 
                 _consoleFontSaved = false;

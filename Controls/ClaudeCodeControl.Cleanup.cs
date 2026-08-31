@@ -136,6 +136,14 @@ namespace ClaudeCodeVS
                 // fields (provider, model, effort) are written to disk.
                 _isShuttingDown = true;
 
+                // Last chance to undo the console registry changes if a launch left them set.
+                // Idempotent; see RestoreConsoleRegistryOnAllExitPaths in the Terminal partial.
+                if (RestoreConsoleRegistryOnAllExitPaths)
+                {
+                    RestoreConsoleFontRegistry();
+                    RestoreConsoleColorsRegistry();
+                }
+
                 // Persist the latest UI state before tearing down the control.
                 SaveSettings();
 
