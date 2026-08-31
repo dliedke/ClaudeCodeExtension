@@ -1794,6 +1794,14 @@ namespace ClaudeCodeVS
                 {
                     _terminalLifecycleSemaphore.Release();
                 }
+
+                // Catches the paths the normal restore above never reaches - an exception thrown
+                // inside the embed block, or the method left early. Idempotent; see the flag.
+                if (RestoreConsoleRegistryOnAllExitPaths)
+                {
+                    RestoreConsoleFontRegistry();
+                    RestoreConsoleColorsRegistry();
+                }
             }
         }
 
@@ -1992,6 +2000,20 @@ namespace ClaudeCodeVS
         /// Stored in the conhost.exe-specific subkey (HKCU\Console\%SystemRoot%_System32_conhost.exe),
         /// because the parent HKCU\Console CodePage value is ignored in practice.
         /// </summary>
+        /// <summary>
+        /// Opt-in for restoring the console registry on paths other than the normal end of a
+        /// launch: the launch method's finally block and control teardown.
+        ///
+        /// Off by default because it changes when the restore runs, and the failure it guards
+        /// against (VS crashing or being killed between save and restore) cannot be covered by
+        /// the unit tests. The restore itself is idempotent - it returns immediately unless
+        /// _consoleFontSaved is set - so switching this on only adds attempts, never double
+        /// restores. Flip to true to enable.
+        /// </summary>
+        /// Declared static readonly rather than const so the guarded blocks still compile
+        /// and are checked by the compiler - a const false would make them unreachable code.
+        private static readonly bool RestoreConsoleRegistryOnAllExitPaths = false;
+
         private object _savedConsoleCodePage;
 
         /// <summary>
@@ -2083,7 +2105,11 @@ namespace ClaudeCodeVS
                 // CodePage lives in the per-executable conhost.exe subkey; the parent Console\CodePage is ignored by conhost.exe.
                 using (var existing = Microsoft.Win32.Registry.CurrentUser.OpenSubKey(ConsoleConhostSubkeyPath, writable: false))
                 {
-                    _cmdConhostSubkeyExisted = existing != null;
+                    // A key with no values under it is one of our own leftovers: DeleteSubKey lost
+                    // a race against a conhost that still had the key open, so only the values went
+                    // away. Treating it as pre-existing user state would latch this to true forever
+                    // and the restore would never delete the key again.
+                    _cmdConhostSubkeyExisted = existing != null && existing.GetValueNames().Length > 0;
                     _savedConsoleCodePage = existing?.GetValue("CodePage");
                 }
 
@@ -2151,7 +2177,18 @@ namespace ClaudeCodeVS
                 else
                 {
                     // We created the subkey; remove it entirely to leave the registry as we found it.
-                    Microsoft.Win32.Registry.CurrentUser.DeleteSubKey(ConsoleConhostSubkeyPath, throwOnMissingSubKey: false);
+                    try
+                    {
+                        Microsoft.Win32.Registry.CurrentUser.DeleteSubKey(ConsoleConhostSubkeyPath, throwOnMissingSubKey: false);
+                    }
+                    catch (Exception ex)
+                    {
+                        // Expected when the conhost we created it for still holds a handle: the
+                        // values are gone but the key survives until that handle closes. Harmless
+                        // in itself - the value-count guard above keeps the next launch from
+                        // adopting the empty key as user state.
+                        LogTerminalLaunch($"DeleteSubKey({ConsoleConhostSubkeyPath}) failed: {ex.Message}");
+                    }
                 }
 
                 _consoleFontSaved = false;
