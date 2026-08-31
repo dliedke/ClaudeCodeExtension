@@ -138,6 +138,11 @@ Use native mode to avoid this issue.
 
 ## Version History
 
+### Version 162.0
+The terminal now corrects itself if a command running inside it (PowerShell, a `chcp`, some .NET CLI tools) switches its text encoding, instead of staying garbled until you restart it. Turn this off under Settings → Terminal → Encoding if a workflow needs the console left on the encoding it switched to.
+
+Fixed a rare case where the terminal's cleanup left a leftover, empty registry entry behind, which could stop later cleanups from removing it.
+
 ### Version 161.0
 The model menu now lists Devin's real models, read from your own Devin account instead of a hand-maintained list, and the picked model is applied when Devin starts as well as live in a running session. Each Devin entry shows its context window, cost tier, and New/Beta marker.
 
