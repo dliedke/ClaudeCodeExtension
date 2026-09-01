@@ -47,6 +47,11 @@ namespace ClaudeCodeVS.Agents
         // Control requests the CLI is blocked on. Denied on teardown so the process can exit.
         private readonly List<AgentInteractionRequest> _pendingInteractions = new List<AgentInteractionRequest>();
 
+        // Tools the user chose "Allow for the rest of this session" on. Later approval requests for the
+        // same tool are answered here without surfacing another card. Scoped to this session object, so
+        // a "New chat" / model switch (which builds a fresh session) starts asking again.
+        private readonly HashSet<string> _sessionAllowedTools = new HashSet<string>(StringComparer.Ordinal);
+
         private JsonLineProcessHost _host;
         private ClaudeStreamParser _parser;
         private string _workingDirectory = string.Empty;
@@ -301,11 +306,42 @@ namespace ClaudeCodeVS.Agents
             {
                 if (agentEvent.Kind == AgentEventKind.InteractionRequested)
                 {
+                    AgentInteractionRequest interaction = agentEvent.Interaction;
+
+                    bool eligibleForSession =
+                        interaction != null &&
+                        interaction.Kind == AgentInteractionKind.ToolApproval &&
+                        !string.IsNullOrEmpty(interaction.ToolName);
+
+                    // Already pre-approved this session: answer it and never raise a card.
+                    if (eligibleForSession)
+                    {
+                        string tool = interaction.ToolName;
+                        lock (_sessionAllowedTools)
+                        {
+                            if (_sessionAllowedTools.Contains(tool))
+                            {
+                                interaction.Allow(null);
+                                continue;
+                            }
+                        }
+
+                        // Let the card offer "Allow for the rest of this session"; the callback is what
+                        // adds the tool to the set the check above reads.
+                        interaction.OnAllowForSession = delegate
+                        {
+                            lock (_sessionAllowedTools)
+                            {
+                                _sessionAllowedTools.Add(tool);
+                            }
+                        };
+                    }
+
                     // Tracked so an interrupt or a dispose can deny it: a control request left
                     // unanswered blocks the CLI forever, and the process would never exit.
                     lock (_pendingInteractions)
                     {
-                        _pendingInteractions.Add(agentEvent.Interaction);
+                        _pendingInteractions.Add(interaction);
                     }
                 }
                 else if (agentEvent.Kind == AgentEventKind.SessionStarted)

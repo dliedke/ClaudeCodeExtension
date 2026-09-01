@@ -1522,6 +1522,135 @@ namespace ClaudeCodeVS
         }
 
         /// <summary>
+        /// One-line "the CLI updated since last time" notice for the transcript, mirroring the changelog
+        /// line the terminal greeting prints after a self-update. Returns null — nothing is posted —
+        /// unless <paramref name="currentVersion"/> is a real version, a different one was recorded
+        /// before, and the new one is strictly newer: a downgrade, or the very first run with nothing
+        /// recorded, stays silent. Components are compared as integers so "2.1.9" precedes "2.1.10".
+        /// </summary>
+        internal static string BuildCliUpdateNotice(string providerName, string previousVersion, string currentVersion)
+        {
+            if (string.IsNullOrWhiteSpace(currentVersion) || string.IsNullOrWhiteSpace(previousVersion))
+            {
+                return null;
+            }
+
+            currentVersion = currentVersion.Trim();
+            previousVersion = previousVersion.Trim();
+
+            if (string.Equals(previousVersion, currentVersion, StringComparison.OrdinalIgnoreCase))
+            {
+                return null;
+            }
+
+            if (!IsNewerCliVersion(previousVersion, currentVersion))
+            {
+                return null;
+            }
+
+            string name = string.IsNullOrWhiteSpace(providerName) ? "The agent CLI" : providerName.Trim();
+
+            return $"🆕 {name} updated to v{currentVersion} since you were last here (was v{previousVersion}) — " +
+                   "what's new: https://code.claude.com/docs/en/changelog";
+        }
+
+        /// <summary>
+        /// True when <paramref name="candidate"/> is a strictly higher version than
+        /// <paramref name="baseline"/>, compared component-by-component as integers. A pre-release or
+        /// build suffix ("-beta", "+1") is ignored — only the dotted numbers decide. Anything
+        /// unparseable returns false, so a malformed probe result never produces an "updated" claim.
+        /// </summary>
+        private static bool IsNewerCliVersion(string baseline, string candidate)
+        {
+            int[] a = ParseVersionComponents(baseline);
+            int[] b = ParseVersionComponents(candidate);
+
+            if (a == null || b == null)
+            {
+                return false;
+            }
+
+            int len = Math.Max(a.Length, b.Length);
+            for (int i = 0; i < len; i++)
+            {
+                int left = i < a.Length ? a[i] : 0;
+                int right = i < b.Length ? b[i] : 0;
+                if (right != left)
+                {
+                    return right > left;
+                }
+            }
+
+            return false;
+        }
+
+        private static int[] ParseVersionComponents(string version)
+        {
+            if (string.IsNullOrWhiteSpace(version))
+            {
+                return null;
+            }
+
+            // Drop a trailing "-beta.1" / "+build" so only the dotted numbers are parsed.
+            int cut = version.IndexOfAny(new[] { '-', '+' });
+            if (cut >= 0)
+            {
+                version = version.Substring(0, cut);
+            }
+
+            string[] parts = version.Split('.');
+            var numbers = new List<int>(parts.Length);
+            foreach (string part in parts)
+            {
+                if (!int.TryParse(part.Trim(), out int value) || value < 0)
+                {
+                    return null;
+                }
+                numbers.Add(value);
+            }
+
+            return numbers.Count == 0 ? null : numbers.ToArray();
+        }
+
+        /// <summary>
+        /// Posts <see cref="BuildCliUpdateNotice"/>'s line to the transcript once per real version bump,
+        /// then records the new version so it is not repeated. Claude providers only (the changelog URL
+        /// is Claude's). Must be called on the UI thread.
+        /// </summary>
+        private void MaybeAnnounceCliUpdate(AiProvider provider, string currentVersion)
+        {
+            ThreadHelper.ThrowIfNotOnUIThread();
+
+            if (_settings == null || string.IsNullOrWhiteSpace(currentVersion) || !IsClaudeProvider(provider))
+            {
+                return;
+            }
+
+            currentVersion = currentVersion.Trim();
+
+            if (_settings.LastSeenCliVersions == null)
+            {
+                _settings.LastSeenCliVersions = new Dictionary<string, string>();
+            }
+
+            string key = provider.ToString();
+            _settings.LastSeenCliVersions.TryGetValue(key, out string previous);
+
+            string notice = BuildCliUpdateNotice(GetChatProviderDisplayName(provider), previous, currentVersion);
+
+            if (!string.Equals(previous, currentVersion, StringComparison.OrdinalIgnoreCase))
+            {
+                _settings.LastSeenCliVersions[key] = currentVersion;
+                SaveSettings();
+            }
+
+            if (!string.IsNullOrEmpty(notice))
+            {
+                AddNativeMessage(ChatMessageKind.Notice, notice);
+            }
+        }
+
+        /// <summary>
         /// Reads the signed-in Claude account from the CLI's own state file (<c>~/.claude.json</c>,
         /// key <c>oauthAccount</c>) — the same place the CLI itself keeps it. Native mode has no other
         /// source for this: the headless <c>system/init</c> event carries session/model info only, no
@@ -1848,6 +1977,8 @@ namespace ClaudeCodeVS
             if (IsClaudeProvider(provider))
             {
                 tips.Add("Type /plan, /model or /effort to switch without leaving the prompt box.");
+                tips.Add("This chat runs locally in Visual Studio and isn't published to claude.ai. " +
+                         "Start \"claude\" in a terminal for a session you can follow from the Claude mobile and desktop apps.");
             }
 
             tips.Add("✚ starts a new chat.");
@@ -1893,11 +2024,19 @@ namespace ClaudeCodeVS
 
                 await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
 
+                // Nothing below is worth doing once the user has moved to a different agent: the
+                // update notice would land in the wrong transcript and the redraw would be moot.
+                if (GetActiveOrSelectedProvider() != provider)
+                {
+                    return;
+                }
+
+                // Mirrors the terminal greeting's changelog line after a self-update between sessions.
+                MaybeAnnounceCliUpdate(provider, version);
+
                 // Only worth redrawing while the card this probe belongs to is still the one on screen:
-                // the user may already have sent a prompt, or switched to another agent.
-                if (ChatTranscript != null &&
-                    ChatTranscript.IsWelcomeVisible &&
-                    GetActiveOrSelectedProvider() == provider)
+                // the user may already have sent a prompt.
+                if (ChatTranscript != null && ChatTranscript.IsWelcomeVisible)
                 {
                     ShowChatWelcome(workspace);
                 }
@@ -2984,7 +3123,7 @@ namespace ClaudeCodeVS
                 AddComposerMenuItem(menu, "Plan mode", planning,
                     delegate { ThreadHelper.ThrowIfNotOnUIThread(); OnChatPlanModeSelected(true); });
                 AddComposerMenuItem(menu, "Ask permission", !planning && !skipping.Value,
-                    delegate { ThreadHelper.ThrowIfNotOnUIThread(); OnChatPlanModeSelected(false); });
+                    delegate { ThreadHelper.ThrowIfNotOnUIThread(); OnChatAskPermissionSelected(); });
                 AddComposerMenuItem(menu, "Skip permissions", !planning && skipping.Value,
                     delegate { ThreadHelper.ThrowIfNotOnUIThread(); OnChatPermissionSelected(true); });
 
@@ -3453,6 +3592,51 @@ namespace ClaudeCodeVS
             catch (Exception ex)
             {
                 Debug.WriteLine($"Chat plan-mode switch failed: {ex.Message}");
+            }
+        }
+
+        /// <summary>
+        /// The Claude "Ask permission" choice is the neutral state between "Plan mode" and "Skip
+        /// permissions": it is reachable from either one, so it clears both launch flags rather than
+        /// assuming which was set. Wiring it to <see cref="OnChatPlanModeSelected"/> alone meant that
+        /// coming straight from "Skip permissions" — where plan mode is already off — hit that method's
+        /// no-op guard and left the skip flag on, so the selector appeared to do nothing.
+        /// </summary>
+#pragma warning disable VSTHRD100 // Async void is required by the UI event signature
+        private async void OnChatAskPermissionSelected()
+#pragma warning restore VSTHRD100
+        {
+            try
+            {
+                await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
+
+                if (_settings == null)
+                {
+                    return;
+                }
+
+                AiProvider? provider = GetActiveOrSelectedProvider();
+                bool wasSkipping = GetChatPermissionSkipFlag(provider) == true;
+                bool wasPlanning = _settings.ClaudePlanMode;
+                if (!wasSkipping && !wasPlanning)
+                {
+                    return;
+                }
+
+                _settings.ClaudePlanMode = false;
+                if (wasSkipping)
+                {
+                    SetChatPermissionSkipFlag(provider, false);
+                }
+
+                SaveSettings();
+                UpdateChatComposerState();
+
+                await RelaunchNativeSessionAsync("🤖 Switched to asking for permission");
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"Chat permission switch failed: {ex.Message}");
             }
         }
 

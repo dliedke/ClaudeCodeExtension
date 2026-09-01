@@ -521,6 +521,22 @@
 						</StackPanel>
 
 						<DockPanel Margin="0,8,0,0" LastChildFill="False">
+							<!-- Caret next to Allow: keeps "Allow for the rest of this session" out of the
+							     button row (issue #149) instead of adding a third button. Tool-approval only. -->
+							<Button DockPanel.Dock="Right"
+							        Style="{StaticResource InteractionPrimaryStyle}"
+							        Padding="7,4,7,4"
+							        Content="▾"
+							        ToolTip="More allow options"
+							        Visibility="{Binding CanAllowForSession, Converter={StaticResource BoolToVis}}"
+							        Click="InteractionAllowMenu_Click">
+								<Button.ContextMenu>
+									<ContextMenu>
+										<MenuItem Header="{Binding AllowForSessionCaption}"
+										          Click="InteractionAllowForSession_Click"/>
+									</ContextMenu>
+								</Button.ContextMenu>
+							</Button>
 							<Button DockPanel.Dock="Right"
 							        Style="{StaticResource InteractionPrimaryStyle}"
 							        Content="{Binding SubmitCaption}"

@@ -217,6 +217,25 @@ namespace ClaudeCodeVS.UI
 
         public bool IsToolApproval { get { return InteractionKind == AgentInteractionKind.ToolApproval; } }
 
+        /// <summary>
+        /// True when this approval card can also offer "Allow for the rest of this session" — the
+        /// session marks the request eligible and supplies the callback that remembers the tool.
+        /// </summary>
+        public bool CanAllowForSession
+        {
+            get { return IsToolApproval && _request.OnAllowForSession != null; }
+        }
+
+        public string AllowForSessionCaption
+        {
+            get
+            {
+                return string.IsNullOrEmpty(ToolName)
+                    ? "Allow for the rest of this session"
+                    : "Allow " + ToolName + " for the rest of this session";
+            }
+        }
+
         public ObservableCollection<ChatQuestionViewModel> Questions { get; }
 
         public string PlanText { get { return _request.PlanText; } }
@@ -330,6 +349,22 @@ namespace ClaudeCodeVS.UI
                 Outcome = IsPlanReview ? "Plan approved — proceeding." : "Allowed.";
             }
 
+            WasAccepted = true;
+            IsPending = false;
+        }
+
+        /// <summary>
+        /// Allows this call and tells the session not to ask again for the same tool this run. Only
+        /// meaningful when <see cref="CanAllowForSession"/> is true.
+        /// </summary>
+        public void AllowForSession()
+        {
+            if (!IsPending) return;
+
+            _request.AllowForSession();
+            Outcome = string.IsNullOrEmpty(ToolName)
+                ? "Allowed — won't ask again this session."
+                : "Allowed — won't ask again for " + ToolName + " this session.";
             WasAccepted = true;
             IsPending = false;
         }

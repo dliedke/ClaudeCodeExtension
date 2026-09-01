@@ -138,6 +138,13 @@ Use native mode to avoid this issue.
 
 ## Version History
 
+### Version 163.0
+Native mode: moving the permission selector straight from "Skip permissions" back to "Ask permission" now takes effect instead of doing nothing — the earlier workaround of going via "Plan mode" first is no longer needed.
+
+Native mode: tool approvals gained an "Allow for the rest of this session" choice, reached from a small caret next to the Allow button. Once picked, later requests for that same tool are approved automatically until you start a new chat or switch model.
+
+Native mode now posts a one-line "Claude Code updated to vX" note with a changelog link when the CLI has updated itself since you last used it, mirroring the terminal greeting. The welcome card also notes that a native-mode chat runs locally in Visual Studio and is not published to claude.ai.
+
 ### Version 162.0
 The terminal now corrects itself if a command running inside it (PowerShell, a `chcp`, some .NET CLI tools) switches its text encoding, instead of staying garbled until you restart it. Turn this off under Settings → Terminal → Encoding if a workflow needs the console left on the encoding it switched to.
 

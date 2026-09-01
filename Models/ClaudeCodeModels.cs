@@ -551,6 +551,15 @@ namespace ClaudeCodeVS
         public System.Collections.Generic.List<PromptHistoryEntry> PromptHistory { get; set; } = new System.Collections.Generic.List<PromptHistoryEntry>();
 
         /// <summary>
+        /// CLI version last announced in a native-mode welcome, keyed by <see cref="AiProvider"/> name.
+        /// Lets a self-update between sessions surface a one-line "updated to vX — changelog" notice, the
+        /// way the terminal greeting does. An absent key means nothing has been recorded yet, so the
+        /// first run after this shipped is silent rather than claiming an update.
+        /// </summary>
+        public System.Collections.Generic.Dictionary<string, string> LastSeenCliVersions { get; set; }
+            = new System.Collections.Generic.Dictionary<string, string>();
+
+        /// <summary>
         /// If true, automatically opens the Changes view, expands files, and enables auto-scroll when a prompt is sent
         /// Only applies when the project is in a git repository
         /// </summary>
