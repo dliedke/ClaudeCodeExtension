@@ -41,8 +41,8 @@ using System.Runtime.InteropServices;
 // You can specify all the values or you can default the Build and Revision Numbers
 // by using the '*' as shown below:
 // [assembly: AssemblyVersion("1.0.*")]
-[assembly: AssemblyVersion("162.0.0.0")]
-[assembly: AssemblyFileVersion("162.0.0.0")]
+[assembly: AssemblyVersion("164.0.0.0")]
+[assembly: AssemblyFileVersion("164.0.0.0")]
 
 // Exposes internal helpers to the test project so the pure logic (path encoding, git status
 // parsing, WSL command building, prompt formatting) can be tested without a running Visual Studio.

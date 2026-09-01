@@ -47,6 +47,13 @@ namespace ClaudeCodeVS
         /// <summary>Guards against a second switch being started while a relaunch is in flight.</summary>
         private bool _nativeSwitchInProgress;
 
+        /// <summary>
+        /// The default session's counterpart to <see cref="NativeChatSessionState.MigrationSourceSessionId"/>
+        /// — see that field's doc comment. Set wherever <c>_agentSession</c> is (re)assigned, consumed
+        /// by the <c>SessionStarted</c> case in <c>ApplyAgentEvent</c>.
+        /// </summary>
+        private string _nativeSessionMigrationSourceId;
+
         /// <summary>Stores per-session send request handlers for proper cleanup.</summary>
         private Dictionary<string, EventHandler> _sessionSendHandlers = new Dictionary<string, EventHandler>();
 
@@ -422,8 +429,12 @@ namespace ClaudeCodeVS
 
         /// <summary>
         /// Wires the composer of one session's transcript. The panel's own transcript goes through
-        /// <see cref="WireChatComposer"/>; this is the same list minus the handlers that act on the
-        /// single global session (model/effort/provider, which relaunch it).
+        /// <see cref="WireChatComposer"/>; this is the same list, now including the model/effort/
+        /// permission selectors (v163.0) — <see cref="OnComposerSelectorClicked"/> and
+        /// <see cref="OnComposerEffortChanged"/> resolve the owning session from the sender and relaunch
+        /// through <see cref="RelaunchSessionAsync"/> instead of the panel's global one. Provider
+        /// switching is the one selector still panel-only (see the comment in
+        /// <see cref="OnComposerSelectorClicked"/>).
         /// </summary>
         private void WireSessionComposerEvents(ChatTranscriptView transcript, string sessionId)
         {
@@ -442,6 +453,13 @@ namespace ClaudeCodeVS
 
             transcript.InteractionResolved -= OnChatInteractionResolved;
             transcript.InteractionResolved += OnChatInteractionResolved;
+
+            // Selectors resolve the owning session from the sender too — see the class summary above.
+            transcript.SelectorClicked -= OnComposerSelectorClicked;
+            transcript.SelectorClicked += OnComposerSelectorClicked;
+
+            transcript.EffortChanged -= OnComposerEffortChanged;
+            transcript.EffortChanged += OnComposerEffortChanged;
 
             // Toolbar and composer affordances. These were missing entirely, which is why none of the
             // buttons under the prompt box did anything in a new tab.
@@ -639,6 +657,49 @@ namespace ClaudeCodeVS
         }
 
         /// <summary>
+        /// Re-keys a custom title/color from an old session id to the one the CLI just confirmed
+        /// (v163.1, issue reported after v163.0). <c>ClaudeStreamJsonSession.SessionId</c> documents
+        /// why this is needed: "a --resume relaunch can come back with a new one" — every relaunch that
+        /// preserves the conversation (model, effort, permission, plan-mode switch; an interrupt; even
+        /// a CLI update) can silently swap the id a rename or color pick was stored under, orphaning
+        /// it. Both dictionaries are also read by the Session History window keyed by the CLI's own
+        /// on-disk id (see the doc comment on <see cref="OnComposerRenameSessionRequested"/>), so this
+        /// re-keys the existing entry instead of switching to an extension-owned synthetic id, which
+        /// would sever that integration.
+        /// </summary>
+        private void MigrateSessionTitleAndColor(string oldSessionId, string newSessionId)
+        {
+            if (_settings == null || string.IsNullOrEmpty(oldSessionId) || string.IsNullOrEmpty(newSessionId) ||
+                string.Equals(oldSessionId, newSessionId, StringComparison.OrdinalIgnoreCase))
+            {
+                return;
+            }
+
+            bool changed = false;
+
+            if (_settings.SessionCustomTitles != null &&
+                _settings.SessionCustomTitles.TryGetValue(oldSessionId, out string title))
+            {
+                _settings.SessionCustomTitles.Remove(oldSessionId);
+                _settings.SessionCustomTitles[newSessionId] = title;
+                changed = true;
+            }
+
+            if (_settings.SessionTitleColors != null &&
+                _settings.SessionTitleColors.TryGetValue(oldSessionId, out string color))
+            {
+                _settings.SessionTitleColors.Remove(oldSessionId);
+                _settings.SessionTitleColors[newSessionId] = color;
+                changed = true;
+            }
+
+            if (changed)
+            {
+                SaveSettings();
+            }
+        }
+
+        /// <summary>
         /// The session whose transcript raised a composer event, or null for the panel's own transcript.
         /// Lets the shared handlers act on the tab the user actually clicked in.
         /// </summary>
@@ -802,7 +863,10 @@ namespace ClaudeCodeVS
         }
 
         /// <summary>
-        /// Clears the current conversation and starts fresh.
+        /// Clears the current conversation and starts fresh. Resolves the owning session from the
+        /// sender (v163.0) — this is wired into every parallel tab's composer too, and without that
+        /// resolution "Clear Chat" clicked in tab 2 used to wipe out the panel's own conversation
+        /// instead of tab 2's.
         /// </summary>
 #pragma warning disable VSTHRD100 // Async void is required by the UI event signature
         private async void OnComposerClearChatRequested(object sender, EventArgs e)
@@ -812,7 +876,10 @@ namespace ClaudeCodeVS
             {
                 await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
 
-                if (_agentSession == null)
+                NativeChatSessionState owner = ResolveSessionFromSender(sender);
+                ChatTranscriptView transcript = owner?.ChatTranscript ?? ChatTranscript;
+
+                if ((owner?.AgentSession ?? _agentSession) == null)
                 {
                     return;
                 }
@@ -826,10 +893,17 @@ namespace ClaudeCodeVS
                     return;
                 }
 
-                ChatTranscript.Clear();
+                transcript.Clear();
 
                 // No resume id is staged, so the relaunch below starts a brand new session.
-                await RelaunchNativeSessionAsync("🤖 New chat", forceNewSession: true);
+                if (owner != null)
+                {
+                    await RelaunchSessionAsync(owner, "🤖 New chat", forceNewSession: true);
+                }
+                else
+                {
+                    await RelaunchNativeSessionAsync("🤖 New chat", forceNewSession: true);
+                }
             }
             catch (Exception ex)
             {
@@ -886,10 +960,10 @@ namespace ClaudeCodeVS
                 await ShowSessionInTabAsync(newSession, focusComposer: false);
                 _lastFocusedNativeSessionId = newSession.SessionId;
 
-                // Configure composer controls for this session
-                UpdateChatComposerState(newSession.ChatTranscript);
-                // Disable model/effort selectors in new sessions (they relaunche the global session)
-                newSession.ChatTranscript.SetSelectorAvailability(model: false, effort: false, permission: true);
+                // Configure composer controls for this session. Model/effort/permission are fully live
+                // here (v163.0) — they relaunch this tab's own session via RelaunchSessionAsync, not
+                // the global one.
+                UpdateChatComposerState(newSession);
                 // Apply the same zoom as the main session for consistency
                 newSession.ChatTranscript.Zoom = _settings?.NativeChatZoom ?? 1.0;
 
@@ -1108,6 +1182,64 @@ namespace ClaudeCodeVS
 
             ApplyChatAppearance();
             UpdateComposerAttachmentChips();
+        }
+
+        /// <summary>
+        /// Updates composer state for one parallel session's own tab (v163.0), reading that session's
+        /// own model/effort/permission snapshot instead of the global settings the panel and default
+        /// tab use — the same four selectors, sourced differently. Attachment chips and the shared
+        /// appearance settings (font, zoom, composer height) are handled separately for a parallel
+        /// tab (<see cref="AddSessionAttachments"/>, the explicit <c>.Zoom</c> assignment where the tab
+        /// is created) since <see cref="ApplyChatAppearance"/> and <see cref="UpdateComposerAttachmentChips"/>
+        /// both only ever target the panel's own <c>ChatTranscript</c>.
+        /// </summary>
+        private void UpdateChatComposerState(NativeChatSessionState session)
+        {
+            ThreadHelper.ThrowIfNotOnUIThread();
+
+            ChatTranscriptView transcript = session?.ChatTranscript;
+            if (transcript == null)
+                return;
+
+            AiProvider provider = session.SelectedProvider;
+            bool isClaude = IsClaudeProvider(provider);
+            bool isCodex = IsCodexProvider(provider);
+            string reasoningLabel = isCodex
+                ? GetCodexReasoningLabel(session.SelectedCodexReasoningLevel)
+                : GetChatEffortLabel(session.SelectedEffortLevel);
+
+            transcript.SendWithEnter = _settings?.SendWithEnter != false;
+            transcript.SendWithCtrlEnter = _settings?.SendWithCtrlEnter == true;
+
+            string permissionLabel = GetChatPermissionLabel(session);
+
+            transcript.SetSelectorLabels(
+                GetChatProviderDisplayName(provider),
+                GetChatModelLabel(session),
+                reasoningLabel,
+                permissionLabel);
+
+            transcript.SetSelectorAvailability(
+                model: isClaude || ProviderHasModelCatalog(provider),
+                effort: isClaude || isCodex,
+                permission: permissionLabel != null);
+
+            if (isCodex)
+            {
+                transcript.SetEffortStopLabels(GetChatCodexReasoningStopLabels());
+                transcript.SetEffortSlider(
+                    CodexReasoningToSliderIndex(session.SelectedCodexReasoningLevel),
+                    reasoningLabel,
+                    "Reasoning");
+            }
+            else
+            {
+                transcript.SetEffortStopLabels(GetChatEffortStopLabels());
+                transcript.SetEffortSlider(
+                    EffortToSliderIndex(session.SelectedEffortLevel),
+                    reasoningLabel,
+                    "Effort");
+            }
         }
 
         #endregion
@@ -2438,6 +2570,27 @@ namespace ClaudeCodeVS
             }
         }
 
+        /// <summary>Same caption, read from a parallel tab's own model snapshot instead of the global settings.</summary>
+        private string GetChatModelLabel(NativeChatSessionState session)
+        {
+            AiProvider provider = session.SelectedProvider;
+
+            if (!IsClaudeProvider(provider) && ProviderHasModelCatalog(provider))
+            {
+                string label = GetSelectedProviderModelLabel(provider, session.SelectedModel);
+                return string.IsNullOrWhiteSpace(label) ? "Model" : label;
+            }
+
+            switch (session.SelectedClaudeModel)
+            {
+                case ClaudeModel.Opus: return "Opus";
+                case ClaudeModel.Sonnet: return "Sonnet";
+                case ClaudeModel.Haiku: return "Haiku";
+                case ClaudeModel.OpusPlan: return "Opus Plan";
+                default: return "Fable";
+            }
+        }
+
         private string GetChatEffortLabel()
         {
             return GetChatEffortLabel(_settings != null ? _settings.SelectedEffortLevel : EffortLevel.High);
@@ -2493,6 +2646,27 @@ namespace ClaudeCodeVS
             }
 
             return skipping.Value ? "Skip permissions" : "Ask permission";
+        }
+
+        /// <summary>Same caption, read from a parallel tab's own permission/plan-mode snapshot instead of the global settings.</summary>
+        private string GetChatPermissionLabel(NativeChatSessionState session)
+        {
+            AiProvider provider = session.SelectedProvider;
+
+            // GetChatPermissionSkipFlag(provider) only used here to ask "does this extension drive
+            // permissions for this provider at all" — the same provider set for every session — not
+            // to read its (global) value, which the session's own SkipPermissions replaces below.
+            if (GetChatPermissionSkipFlag(provider) == null)
+            {
+                return null;
+            }
+
+            if (IsClaudeProvider(provider) && session.PlanMode)
+            {
+                return "Plan mode";
+            }
+
+            return session.SkipPermissions ? "Skip permissions" : "Ask permission";
         }
 
         private bool? GetChatPermissionSkipFlag(AiProvider? provider)
@@ -2694,21 +2868,41 @@ namespace ClaudeCodeVS
         {
             ThreadHelper.ThrowIfNotOnUIThread();
 
-            var anchor = sender as Button;
+            // sender is the transcript itself (v163.0), so the same handler can tell whether the click
+            // came from the panel/default composer or a parallel tab's own; the anchor button is
+            // recovered from the selector rather than passed through as the sender.
+            var transcript = sender as ChatTranscriptView;
+            UIElement anchor = transcript?.GetSelectorAnchor(selector);
             if (anchor == null)
             {
                 return;
             }
 
+            NativeChatSessionState owner = ResolveSessionFromSender(sender);
             ContextMenu menu;
 
-            // Effort is not here: it opens the pill slider inside the transcript view and reports back
-            // through EffortChanged.
-            switch (selector)
+            if (owner != null)
             {
-                case ChatSelector.Provider: menu = BuildChatProviderMenu(); break;
-                case ChatSelector.Model: menu = BuildChatModelMenu(); break;
-                default: menu = BuildChatPermissionMenu(); break;
+                // Model and permission relaunch this tab's own session (RelaunchSessionAsync). Provider
+                // switching stays panel-only: it restarts a wholesale different CLI process through
+                // RestartTerminalWithSelectedProviderAsync, which only ever targets the default session.
+                switch (selector)
+                {
+                    case ChatSelector.Provider: return;
+                    case ChatSelector.Model: menu = BuildChatModelMenu(owner); break;
+                    default: menu = BuildChatPermissionMenu(owner); break;
+                }
+            }
+            else
+            {
+                // Effort is not here: it opens the pill slider inside the transcript view and reports
+                // back through EffortChanged.
+                switch (selector)
+                {
+                    case ChatSelector.Provider: menu = BuildChatProviderMenu(); break;
+                    case ChatSelector.Model: menu = BuildChatModelMenu(); break;
+                    default: menu = BuildChatPermissionMenu(); break;
+                }
             }
 
             if (menu == null || menu.Items.Count == 0)
@@ -2857,6 +3051,35 @@ namespace ClaudeCodeVS
             return menu;
         }
 
+        /// <summary>The parallel-tab counterpart of <see cref="BuildChatModelMenu()"/>, read from that tab's own selection.</summary>
+        private ContextMenu BuildChatModelMenu(NativeChatSessionState session)
+        {
+            ContextMenu menu = CreateComposerMenu();
+            AiProvider provider = session.SelectedProvider;
+
+            if (!IsClaudeProvider(provider) && ProviderHasModelCatalog(provider))
+            {
+                FillChatModelMenu(menu, provider, session);
+
+                return menu;
+            }
+
+            ClaudeModel selected = session.SelectedClaudeModel;
+
+            AddComposerMenuItem(menu, "Fable", selected == ClaudeModel.Fable,
+                delegate { ThreadHelper.ThrowIfNotOnUIThread(); OnChatClaudeModelSelectedForSession(session, ClaudeModel.Fable); });
+            AddComposerMenuItem(menu, "Opus", selected == ClaudeModel.Opus,
+                delegate { ThreadHelper.ThrowIfNotOnUIThread(); OnChatClaudeModelSelectedForSession(session, ClaudeModel.Opus); });
+            AddComposerMenuItem(menu, "Sonnet", selected == ClaudeModel.Sonnet,
+                delegate { ThreadHelper.ThrowIfNotOnUIThread(); OnChatClaudeModelSelectedForSession(session, ClaudeModel.Sonnet); });
+            AddComposerMenuItem(menu, "Haiku", selected == ClaudeModel.Haiku,
+                delegate { ThreadHelper.ThrowIfNotOnUIThread(); OnChatClaudeModelSelectedForSession(session, ClaudeModel.Haiku); });
+            AddComposerMenuItem(menu, "Opus Plan", selected == ClaudeModel.OpusPlan,
+                delegate { ThreadHelper.ThrowIfNotOnUIThread(); OnChatClaudeModelSelectedForSession(session, ClaudeModel.OpusPlan); });
+
+            return menu;
+        }
+
         /// <summary>
         /// Fills the composer's model dropdown with the agent's own models, plus an entry that leaves
         /// the model to the agent. A stale or missing list is re-read from the CLI in the background
@@ -2912,6 +3135,56 @@ namespace ClaudeCodeVS
                 TaskScheduler.FromCurrentSynchronizationContext());
         }
 
+        /// <summary>The parallel-tab counterpart of <see cref="FillChatModelMenu(ContextMenu, AiProvider)"/>.</summary>
+        private void FillChatModelMenu(ContextMenu menu, AiProvider provider, NativeChatSessionState session)
+        {
+            ThreadHelper.ThrowIfNotOnUIThread();
+
+            string selected = session.SelectedModel;
+            List<Agents.ModelOption> models = GetCachedProviderModels(provider);
+            List<Agents.ModelGroup> groups = Agents.ModelCatalogGrouping.Group(models);
+
+            if (groups.Exists(g => g.IsSubmenu) && !string.IsNullOrWhiteSpace(selected))
+            {
+                AddChatModelMenuItem(menu, GetSelectedModelOption(provider, models, selected), selected, session);
+            }
+
+            foreach (Agents.ModelGroup group in groups)
+            {
+                ItemsControl parent = group.IsSubmenu ? AddComposerSubmenu(menu, group.Name) : (ItemsControl)menu;
+
+                foreach (Agents.ModelOption model in group.Models)
+                {
+                    AddChatModelMenuItem(parent, model, selected, session);
+                }
+            }
+
+            AddComposerMenuItem(menu, "Agent default", string.IsNullOrWhiteSpace(selected),
+                delegate { ThreadHelper.ThrowIfNotOnUIThread(); OnChatProviderModelSelectedForSession(session, string.Empty); });
+
+            if (!ShouldRefreshProviderModels(provider)) return;
+
+            MenuItem loading = AddComposerMenuItem(menu, "Loading models…", false, delegate { });
+            loading.IsEnabled = false;
+
+            // No provider-equality re-check here unlike the global overload: a session's provider
+            // cannot change out from under an open dropdown (only a full agent switch does that, and
+            // that is panel-only), so "still open" is the only staleness check needed.
+            _ = RefreshProviderModelsAsync(provider).ContinueWith(
+                delegate
+                {
+                    ThreadHelper.ThrowIfNotOnUIThread();
+
+                    if (!menu.IsOpen) return;
+
+                    menu.Items.Clear();
+                    FillChatModelMenu(menu, provider, session);
+                },
+                System.Threading.CancellationToken.None,
+                TaskContinuationOptions.OnlyOnRanToCompletion,
+                TaskScheduler.FromCurrentSynchronizationContext());
+        }
+
         private void AddChatModelMenuItem(ItemsControl parent, Agents.ModelOption model, string selected)
         {
             string current = model.Id;
@@ -2919,6 +3192,16 @@ namespace ClaudeCodeVS
             AddComposerMenuItem(parent, model.BuildMenuCaption(),
                 string.Equals(current, selected, StringComparison.OrdinalIgnoreCase),
                 delegate { ThreadHelper.ThrowIfNotOnUIThread(); OnChatProviderModelSelected(current); });
+        }
+
+        /// <summary>The parallel-tab counterpart of <see cref="AddChatModelMenuItem(ItemsControl, Agents.ModelOption, string)"/>.</summary>
+        private void AddChatModelMenuItem(ItemsControl parent, Agents.ModelOption model, string selected, NativeChatSessionState session)
+        {
+            string current = model.Id;
+
+            AddComposerMenuItem(parent, model.BuildMenuCaption(),
+                string.Equals(current, selected, StringComparison.OrdinalIgnoreCase),
+                delegate { ThreadHelper.ThrowIfNotOnUIThread(); OnChatProviderModelSelectedForSession(session, current); });
         }
 
         /// <summary>
@@ -2984,7 +3267,7 @@ namespace ClaudeCodeVS
                 AddComposerMenuItem(menu, "Plan mode", planning,
                     delegate { ThreadHelper.ThrowIfNotOnUIThread(); OnChatPlanModeSelected(true); });
                 AddComposerMenuItem(menu, "Ask permission", !planning && !skipping.Value,
-                    delegate { ThreadHelper.ThrowIfNotOnUIThread(); OnChatPlanModeSelected(false); });
+                    delegate { ThreadHelper.ThrowIfNotOnUIThread(); OnChatAskPermissionSelected(); });
                 AddComposerMenuItem(menu, "Skip permissions", !planning && skipping.Value,
                     delegate { ThreadHelper.ThrowIfNotOnUIThread(); OnChatPermissionSelected(true); });
 
@@ -2995,6 +3278,43 @@ namespace ClaudeCodeVS
                 delegate { ThreadHelper.ThrowIfNotOnUIThread(); OnChatPermissionSelected(false); });
             AddComposerMenuItem(menu, "Skip permissions", skipping.Value,
                 delegate { ThreadHelper.ThrowIfNotOnUIThread(); OnChatPermissionSelected(true); });
+
+            return menu;
+        }
+
+        /// <summary>The parallel-tab counterpart of <see cref="BuildChatPermissionMenu()"/>, read from that tab's own permission/plan-mode snapshot.</summary>
+        private ContextMenu BuildChatPermissionMenu(NativeChatSessionState session)
+        {
+            ContextMenu menu = CreateComposerMenu();
+            AiProvider provider = session.SelectedProvider;
+
+            // Only used here to ask "does this extension drive permissions for this provider at all" —
+            // the actual flag comes from the session, not the global settings this getter also reads.
+            if (GetChatPermissionSkipFlag(provider) == null)
+            {
+                return menu;
+            }
+
+            bool skipping = session.SkipPermissions;
+
+            if (IsClaudeProvider(provider))
+            {
+                bool planning = session.PlanMode;
+
+                AddComposerMenuItem(menu, "Plan mode", planning,
+                    delegate { ThreadHelper.ThrowIfNotOnUIThread(); OnChatPlanModeSelectedForSession(session, true); });
+                AddComposerMenuItem(menu, "Ask permission", !planning && !skipping,
+                    delegate { ThreadHelper.ThrowIfNotOnUIThread(); OnChatAskPermissionSelectedForSession(session); });
+                AddComposerMenuItem(menu, "Skip permissions", !planning && skipping,
+                    delegate { ThreadHelper.ThrowIfNotOnUIThread(); OnChatPermissionSelectedForSession(session, true); });
+
+                return menu;
+            }
+
+            AddComposerMenuItem(menu, "Ask permission", !skipping,
+                delegate { ThreadHelper.ThrowIfNotOnUIThread(); OnChatPermissionSelectedForSession(session, false); });
+            AddComposerMenuItem(menu, "Skip permissions", skipping,
+                delegate { ThreadHelper.ThrowIfNotOnUIThread(); OnChatPermissionSelectedForSession(session, true); });
 
             return menu;
         }
@@ -3274,17 +3594,20 @@ namespace ClaudeCodeVS
         /// Asks a live ACP session to change its model. False when there is no such session running or
         /// the agent would not take the model, and the caller then offers the restart instead.
         /// </summary>
-        private async Task<bool> TrySwitchAcpModelAsync(string model)
+        private Task<bool> TrySwitchAcpModelAsync(string model) => TrySwitchAcpModelAsync(_agentSession, model);
+
+        /// <summary>Same live switch, for a specific agent session — a parallel tab's own, not the panel's global one.</summary>
+        private async Task<bool> TrySwitchAcpModelAsync(IAgentSession agentSession, string model)
         {
-            var session = _agentSession as AcpSession;
-            if (session == null)
+            var acpSession = agentSession as AcpSession;
+            if (acpSession == null)
             {
                 return false;
             }
 
             try
             {
-                return await session.SetModelAsync(model, CancellationToken.None);
+                return await acpSession.SetModelAsync(model, CancellationToken.None);
             }
             catch (Exception ex)
             {
@@ -3300,6 +3623,21 @@ namespace ClaudeCodeVS
         private void OnComposerEffortChanged(object sender, int index)
         {
             ThreadHelper.ThrowIfNotOnUIThread();
+
+            NativeChatSessionState owner = ResolveSessionFromSender(sender);
+            if (owner != null)
+            {
+                if (IsCodexProvider(owner.SelectedProvider))
+                {
+                    OnChatCodexReasoningSelectedForSession(owner, CodexReasoningFromSliderIndex(index));
+                }
+                else
+                {
+                    OnChatEffortSelectedForSession(owner, EffortFromSliderIndex(index));
+                }
+                return;
+            }
+
             if (IsCodexProvider(GetActiveOrSelectedProvider()))
             {
                 OnChatCodexReasoningSelected(CodexReasoningFromSliderIndex(index));
@@ -3457,6 +3795,43 @@ namespace ClaudeCodeVS
         }
 
         /// <summary>
+        /// "Ask permission" in the three-way Claude menu (Plan mode / Ask permission / Skip
+        /// permissions). Not a single-flag toggle like its two siblings — it is a specific target state
+        /// (neither planning nor skipping) reachable from *either* other state, so it cannot reuse
+        /// <see cref="OnChatPlanModeSelected"/> or <see cref="OnChatPermissionSelected"/>: both only
+        /// check the one flag they own, so each treated "already there" and no-opped when the *other*
+        /// flag was the one still wrong — <c>OnChatPlanModeSelected(false)</c> no-ops coming from Skip
+        /// permissions (plan mode was already off), <c>OnChatPermissionSelected(false)</c> no-ops
+        /// coming from Plan mode (skip was already off there too). Reported after v163.0 made switching
+        /// permissions per tab an actively-used path.
+        /// </summary>
+#pragma warning disable VSTHRD100 // Async void is required by the UI event signature
+        private async void OnChatAskPermissionSelected()
+#pragma warning restore VSTHRD100
+        {
+            try
+            {
+                await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
+
+                if (_settings == null || (!_settings.ClaudePlanMode && !_settings.ClaudeDangerouslySkipPermissions))
+                {
+                    return;
+                }
+
+                _settings.ClaudePlanMode = false;
+                _settings.ClaudeDangerouslySkipPermissions = false;
+                SaveSettings();
+                UpdateChatComposerState();
+
+                await RelaunchNativeSessionAsync("🤖 Switched to asking for permission");
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"Chat permission switch failed: {ex.Message}");
+            }
+        }
+
+        /// <summary>
         /// Restarts the agent process with the current settings and drops an inline notice into the
         /// transcript, which is deliberately not cleared: the conversation reads as one continuous
         /// thread with a divider where the switch happened.
@@ -3546,6 +3921,23 @@ namespace ClaudeCodeVS
                 _agentSession = session;
                 session.Received += OnAgentEventReceived;
 
+                // Migrate the title/color to the new agent's id *now*, not only once the CLI confirms
+                // one later — UpdateChatTabCaption below runs before any turn has, so without this the
+                // tab visibly loses its title/color the instant the switch completes, only to (maybe)
+                // get it back on the next message. Keyed on !forceNewSession rather than canResume: a
+                // model/effort/permission switch is not the user asking for a fresh start even on a
+                // provider whose CLI has no --resume, so the tab's title should survive it regardless —
+                // MigrateSessionTitleAndColor itself is the no-op guard when there is nothing to carry
+                // over (empty/unknown old id, or a provider that never named this conversation at all).
+                // session.SessionId is still just the adapter's throwaway seed at this point, but the
+                // CLI can still swap it for a different confirmed one on the first turn, so the field is
+                // left set below for that later migration too.
+                if (!forceNewSession)
+                {
+                    MigrateSessionTitleAndColor(previous.SessionId, session.SessionId);
+                }
+                _nativeSessionMigrationSourceId = session.SessionId;
+
                 _pendingToolCalls.Clear();
                 _streamingAssistantMessage = null;
                 _streamingThinkingMessage = null;
@@ -3612,6 +4004,340 @@ namespace ClaudeCodeVS
                 _nativeSwitchInProgress = false;
             }
         }
+
+        /// <summary>
+        /// The parallel-tab counterpart of <see cref="RelaunchNativeSessionAsync"/> (v163.0): restarts
+        /// one session's own process with its own model/effort/permission selectors instead of the
+        /// global ones, so switching the model in this tab never touches the panel's session or any
+        /// other open tab. A faithful port of the original, scoped to <paramref name="session"/> — see
+        /// the "ForSession helpers" note on <c>NativeChatSessionState.PendingEvents</c>.
+        /// <para>
+        /// Guarded by <see cref="NativeChatSessionState.RelaunchLock"/>, not the panel's
+        /// <c>_nativeLifecycleSemaphore</c>: that lock also serializes a full agent switch, which never
+        /// touches a parallel session, so sharing it would make an unrelated tab's relaunch wait on
+        /// this one for nothing. <c>appendAccountLabel</c> is intentionally not offered here — account
+        /// switching (Change Account) is panel-only.
+        /// </para>
+        /// </summary>
+        private async Task RelaunchSessionAsync(NativeChatSessionState session, string notice,
+            bool forceNewSession = false, Func<Task> midRelaunchAsync = null)
+        {
+            if (session?.AgentSession == null)
+            {
+                return;
+            }
+
+            await session.RelaunchLock.WaitAsync();
+
+            try
+            {
+                IAgentSession previous = session.AgentSession;
+                AiProvider provider = session.SelectedProvider;
+
+                // Not SessionId — see the identical note on RelaunchNativeSessionAsync: a relaunch that
+                // never ran a turn only ever asked for this id, and resuming it fails the launch.
+                string resumeId = previous.ResumableSessionId;
+                bool providerCanResume = IsClaudeProvider(provider) ||
+                    provider == AiProvider.Codex || provider == AiProvider.CodexNative;
+                bool canResume = !forceNewSession && providerCanResume && !string.IsNullOrEmpty(resumeId);
+
+                string workspace = await GetWorkspaceDirectoryAsync();
+
+                await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
+
+                ChatTranscriptView transcript = session.ChatTranscript;
+                transcript.SetBusy(false);
+                transcript.SetQueuedMessageCount(0);
+                transcript.SetStatus("Restarting the agent...");
+
+                DisposeSessionAgent(session);
+
+                if (midRelaunchAsync != null)
+                {
+                    await midRelaunchAsync();
+                }
+
+                IAgentSession newAgentSession = CreateAgentSession(
+                    provider, workspace, session, canResume ? resumeId : null);
+                if (newAgentSession == null)
+                {
+                    AddNativeMessageToSession(session, ChatMessageKind.Error, "The agent could not be restarted.");
+                    transcript.SetStatus(string.Empty);
+                    return;
+                }
+
+                session.SessionCts = new CancellationTokenSource();
+                session.AgentSession = newAgentSession;
+                AttachSessionEventHandler(session);
+
+                // Migrate the title/color to the new agent's id *now*, not only once the CLI confirms
+                // one later — UpdateSessionTabCaption below runs before any turn has, so without this
+                // the tab visibly loses its title/color the instant the switch completes. Keyed on
+                // !forceNewSession rather than canResume — see the identical note on
+                // RelaunchNativeSessionAsync. newAgentSession.SessionId is still just the adapter's
+                // throwaway seed here, but the CLI can still swap it for a different confirmed one on
+                // the first turn, so the field is left set below for that later migration too.
+                if (!forceNewSession)
+                {
+                    MigrateSessionTitleAndColor(previous.SessionId, newAgentSession.SessionId);
+                }
+                session.MigrationSourceSessionId = newAgentSession.SessionId;
+
+                session.PendingToolCalls.Clear();
+                session.StreamingAssistantMessage = null;
+                session.StreamingThinkingMessage = null;
+                session.TurnFinishConfig = null;
+                session.TurnInFlight = false;
+
+                await newAgentSession.StartAsync(workspace, session.SessionCts.Token);
+
+                await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
+
+                transcript.SetStatus("Ready.");
+
+                AddNativeMessageToSession(session, ChatMessageKind.Notice, canResume || forceNewSession || providerCanResume
+                    ? notice
+                    : notice + " — this agent cannot resume, so the conversation starts over.");
+
+                UpdateChatComposerState(session);
+                UpdateSessionTabCaption(session);
+
+                // Only for "New chat" — a model or permission switch keeps the conversation, and
+                // opening a fresh-start card in the middle of one would read as if it had been thrown
+                // away. The caller (OnComposerClearChatRequested) already cleared the transcript.
+                if (forceNewSession)
+                {
+                    ShowChatWelcome(transcript, workspace);
+                }
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"Native mode: relaunch failed for session {session.SessionId}: {ex}");
+
+                await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
+                AddNativeMessageToSession(session, ChatMessageKind.Error, $"The agent could not be restarted: {ex.Message}");
+                session.ChatTranscript?.SetStatus(string.Empty);
+            }
+            finally
+            {
+                session.RelaunchLock.Release();
+            }
+        }
+
+        #region Per-Session Selector Handlers (v163.0)
+
+        /// <summary>
+        /// The parallel-tab counterpart of <see cref="OnChatClaudeModelSelected"/>: relaunches this
+        /// tab's own session instead of the panel's, and mutates <see cref="NativeChatSessionState.SelectedClaudeModel"/>
+        /// instead of <c>Settings</c> — a per-tab pick is never persisted, so the next VS launch starts
+        /// every tab from whatever Settings itself holds.
+        /// </summary>
+#pragma warning disable VSTHRD100 // Async void is required by the UI event signature
+        private async void OnChatClaudeModelSelectedForSession(NativeChatSessionState session, ClaudeModel model)
+#pragma warning restore VSTHRD100
+        {
+            try
+            {
+                await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
+
+                if (session == null || session.SelectedClaudeModel == model)
+                {
+                    return;
+                }
+
+                session.SelectedClaudeModel = model;
+                UpdateChatComposerState(session);
+
+                await RelaunchSessionAsync(session, $"🤖 Switched to {GetChatModelLabel(session)}");
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"Chat model switch failed for session {session?.SessionId}: {ex.Message}");
+            }
+        }
+
+        /// <summary>The parallel-tab counterpart of <see cref="OnChatProviderModelSelected"/>.</summary>
+#pragma warning disable VSTHRD100 // Async void is required by the UI event signature
+        private async void OnChatProviderModelSelectedForSession(NativeChatSessionState session, string model)
+#pragma warning restore VSTHRD100
+        {
+            await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
+
+            if (session == null)
+            {
+                return;
+            }
+
+            session.SelectedModel = model ?? string.Empty;
+            UpdateChatComposerState(session);
+
+            string label = string.IsNullOrWhiteSpace(model)
+                ? "the agent's default"
+                : GetSelectedProviderModelLabel(session.SelectedProvider, model);
+
+            if (!string.IsNullOrWhiteSpace(model) && await TrySwitchAcpModelAsync(session.AgentSession, model))
+            {
+                AddNativeMessageToSession(session, ChatMessageKind.Notice, $"🤖 Model switched to {label}.");
+                return;
+            }
+
+            MessageBoxResult result = MessageBox.Show(
+                $"Switch the model to {label} and restart this chat so the change takes effect now?",
+                $"Switch {GetChatProviderDisplayName(session.SelectedProvider)} model",
+                MessageBoxButton.YesNo,
+                MessageBoxImage.Question);
+
+            if (result == MessageBoxResult.Yes)
+            {
+                await RelaunchSessionAsync(session, $"🤖 Model switched to {label}", forceNewSession: true);
+            }
+            else
+            {
+                AddNativeMessageToSession(session, ChatMessageKind.Notice,
+                    $"🤖 Model set to {label} — it applies the next time this chat's agent starts.");
+            }
+        }
+
+        /// <summary>The parallel-tab counterpart of <see cref="OnChatEffortSelected"/>. Max/Ultracode need no "session-only" tracking here — a tab's effort is never persisted at all.</summary>
+#pragma warning disable VSTHRD100 // Async void is required by the UI event signature
+        private async void OnChatEffortSelectedForSession(NativeChatSessionState session, EffortLevel level)
+#pragma warning restore VSTHRD100
+        {
+            try
+            {
+                await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
+
+                if (session == null || session.SelectedEffortLevel == level)
+                {
+                    return;
+                }
+
+                session.SelectedEffortLevel = level;
+                UpdateChatComposerState(session);
+
+                await RelaunchSessionAsync(session, $"🤖 Effort switched to {GetChatEffortLabel(level)}");
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"Chat effort switch failed for session {session?.SessionId}: {ex.Message}");
+            }
+        }
+
+        /// <summary>The parallel-tab counterpart of <see cref="OnChatCodexReasoningSelected"/>: Codex stays alive across turns, so this needs no relaunch either.</summary>
+        private void OnChatCodexReasoningSelectedForSession(NativeChatSessionState session, CodexReasoningLevel level)
+        {
+            ThreadHelper.ThrowIfNotOnUIThread();
+
+            if (session == null || session.SelectedCodexReasoningLevel == level)
+            {
+                return;
+            }
+
+            session.SelectedCodexReasoningLevel = level;
+            UpdateChatComposerState(session);
+
+            var oneShot = session.AgentSession as OneShotResumeSession;
+            oneShot?.SetReasoningEffort(MapCodexReasoningArgument(level));
+
+            AddNativeMessageToSession(session, ChatMessageKind.Notice,
+                $"🤖 Reasoning switched to {GetCodexReasoningLabel(level)} for the next turn.");
+        }
+
+        /// <summary>The parallel-tab counterpart of <see cref="OnChatPermissionSelected"/>.</summary>
+#pragma warning disable VSTHRD100 // Async void is required by the UI event signature
+        private async void OnChatPermissionSelectedForSession(NativeChatSessionState session, bool skip)
+#pragma warning restore VSTHRD100
+        {
+            try
+            {
+                await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
+
+                if (session == null || session.SkipPermissions == skip)
+                {
+                    return;
+                }
+
+                session.SkipPermissions = skip;
+
+                // Plan mode and skipping every prompt are opposites; picking one drops the other rather
+                // than launching with a contradictory pair of flags.
+                if (skip)
+                {
+                    session.PlanMode = false;
+                }
+
+                UpdateChatComposerState(session);
+
+                await RelaunchSessionAsync(session, skip
+                    ? "🤖 Switched to skipping permission prompts"
+                    : "🤖 Switched to asking for permission");
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"Chat permission switch failed for session {session?.SessionId}: {ex.Message}");
+            }
+        }
+
+        /// <summary>The parallel-tab counterpart of <see cref="OnChatPlanModeSelected"/>.</summary>
+#pragma warning disable VSTHRD100 // Async void is required by the UI event signature
+        private async void OnChatPlanModeSelectedForSession(NativeChatSessionState session, bool planning)
+#pragma warning restore VSTHRD100
+        {
+            try
+            {
+                await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
+
+                if (session == null || session.PlanMode == planning)
+                {
+                    return;
+                }
+
+                session.PlanMode = planning;
+
+                if (planning)
+                {
+                    session.SkipPermissions = false;
+                }
+
+                UpdateChatComposerState(session);
+
+                await RelaunchSessionAsync(session, planning
+                    ? "🤖 Plan mode on — the agent will propose a plan before making changes"
+                    : "🤖 Plan mode off");
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"Chat plan-mode switch failed for session {session?.SessionId}: {ex.Message}");
+            }
+        }
+
+        /// <summary>The parallel-tab counterpart of <see cref="OnChatAskPermissionSelected"/> — see its doc comment for why this needs its own handler instead of reusing the plan-mode/skip-permissions toggles.</summary>
+#pragma warning disable VSTHRD100 // Async void is required by the UI event signature
+        private async void OnChatAskPermissionSelectedForSession(NativeChatSessionState session)
+#pragma warning restore VSTHRD100
+        {
+            try
+            {
+                await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
+
+                if (session == null || (!session.PlanMode && !session.SkipPermissions))
+                {
+                    return;
+                }
+
+                session.PlanMode = false;
+                session.SkipPermissions = false;
+                UpdateChatComposerState(session);
+
+                await RelaunchSessionAsync(session, "🤖 Switched to asking for permission");
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"Chat permission switch failed for session {session?.SessionId}: {ex.Message}");
+            }
+        }
+
+        #endregion
 
         /// <summary>
         /// Handles "Update Agent" in native mode: there is no console to type the CLI's self-update

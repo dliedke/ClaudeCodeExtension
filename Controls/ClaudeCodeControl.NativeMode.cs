@@ -448,6 +448,11 @@ namespace ClaudeCodeVS
                 _agentSession = session;
                 session.Received += OnAgentEventReceived;
 
+                // A fresh launch has nothing to migrate a title from, but a rename made before the
+                // first turn (still the throwaway seed id) must still survive the id being confirmed —
+                // see NativeChatSessionState.MigrationSourceSessionId.
+                _nativeSessionMigrationSourceId = session.SessionId;
+
                 ShowNativeTranscript(true);
                 ChatTranscript.StopRequested -= OnChatStopRequested;
                 ChatTranscript.StopRequested += OnChatStopRequested;
@@ -526,8 +531,17 @@ namespace ClaudeCodeVS
 
         /// <summary>
         /// Builds the adapter for a provider. Returns null when the provider has no native channel.
+        /// <paramref name="session"/> is null for the default/panel session (launch options come from
+        /// the global <c>_settings</c>, exactly as before v163.0) or a parallel chat tab's own state
+        /// (launch options come from that tab's own selectors instead — see
+        /// <see cref="NativeChatSessionState"/>). <paramref name="resumeSessionId"/> is only consulted
+        /// for a parallel tab: the default session instead consumes the shared
+        /// <see cref="_pendingResumeSessionId"/> field, which a parallel tab's relaunch must never
+        /// touch — stealing it would silently break whatever the panel's *next* launch was queued to
+        /// resume (e.g. a pick made in the Session History window).
         /// </summary>
-        private IAgentSession CreateAgentSession(AiProvider provider, string workspace, string modelOverride = null)
+        private IAgentSession CreateAgentSession(AiProvider provider, string workspace,
+            NativeChatSessionState session = null, string resumeSessionId = null)
         {
             // Cleared for every launch, so the Claude-only state cannot outlive a switch to another
             // agent and have a side question re-run the previous CLI.
@@ -537,36 +551,40 @@ namespace ClaudeCodeVS
             {
                 case AiProvider.ClaudeCode:
                 case AiProvider.ClaudeCodeWSL:
-                    return CreateClaudeSession(provider, workspace, modelOverride);
+                    return CreateClaudeSession(provider, workspace, session, resumeSessionId);
 
                 case AiProvider.OpenCode:
                 case AiProvider.Devin:
                 case AiProvider.DevinNative:
                 case AiProvider.Reasonix:
-                    return CreateAcpSession(provider, workspace);
+                    return CreateAcpSession(provider, workspace, session, resumeSessionId);
 
                 case AiProvider.Codex:
                 case AiProvider.CodexNative:
                 case AiProvider.CursorAgent:
                 case AiProvider.CursorAgentNative:
-                    return CreateOneShotSession(provider, workspace);
+                    return CreateOneShotSession(provider, workspace, session, resumeSessionId);
 
                 case AiProvider.Pi:
-                    return CreatePiSession();
+                    return CreatePiSession(session);
 
                 case AiProvider.Antigravity:
-                    return CreatePrintModeSession();
+                    return CreatePrintModeSession(session);
 
                 default:
                     return null;
             }
         }
 
-        private IAgentSession CreateClaudeSession(AiProvider provider, string workspace, string modelOverride = null)
+        private IAgentSession CreateClaudeSession(AiProvider provider, string workspace,
+            NativeChatSessionState session = null, string resumeSessionId = null)
         {
             bool isWsl = provider == AiProvider.ClaudeCodeWSL;
 
-            bool planMode = _settings?.ClaudePlanMode == true;
+            bool planMode = session != null ? session.PlanMode : _settings?.ClaudePlanMode == true;
+            bool skipPermissions = session != null
+                ? session.SkipPermissions
+                : _settings?.ClaudeDangerouslySkipPermissions == true;
 
             var options = new ClaudeSessionOptions
             {
@@ -574,12 +592,16 @@ namespace ClaudeCodeVS
                 ExecutablePath = isWsl ? "claude" : ResolveNativeClaudeExecutable(),
                 WslWorkingDirectory = isWsl ? ConvertToWslPath(workspace) : string.Empty,
                 SessionId = Guid.NewGuid().ToString(),
-                Model = modelOverride ?? GetNativeModelArgument(),
-                Effort = GetNativeEffortArgument(),
+                Model = session != null
+                    ? MapClaudeModelArgument(session.SelectedClaudeModel)
+                    : GetNativeModelArgument(),
+                Effort = session != null
+                    ? MapEffortArgument(session.SelectedEffortLevel)
+                    : GetNativeEffortArgument(),
 
                 // Plan mode is the CLI asking before it acts, so it cannot coexist with skipping
                 // every prompt; plan wins when both are somehow set.
-                DangerouslySkipPermissions = !planMode && _settings?.ClaudeDangerouslySkipPermissions == true,
+                DangerouslySkipPermissions = !planMode && skipPermissions,
                 PermissionMode = planMode ? "plan" : "acceptEdits",
 
                 // User-supplied extra flags (Settings → CLI Paths → "Extra launch arguments").
@@ -595,16 +617,22 @@ namespace ClaudeCodeVS
             }
 
             // Consume a pending resume request from the Session History window, exactly as the terminal
-            // launch does — "--continue" has no stream-json equivalent, so it is ignored there.
-            string resumeArg = Interlocked.Exchange(ref _pendingResumeSessionId, null);
+            // launch does — "--continue" has no stream-json equivalent, so it is ignored there. A
+            // parallel tab's own resume id (set by its own relaunch, see RelaunchSessionAsync) is used
+            // as-is instead, never through the shared field.
+            string resumeArg = session != null ? resumeSessionId : Interlocked.Exchange(ref _pendingResumeSessionId, null);
             if (!string.IsNullOrEmpty(resumeArg) && resumeArg != "-c")
             {
                 options.ResumeSessionId = resumeArg;
             }
 
             // Remembered so a side question can re-run the same CLI — same executable, distro, folder
-            // and model as the conversation it is a side question to.
-            _nativeClaudeOptions = options;
+            // and model as the conversation it is a side question to. Only for the default session:
+            // a side question is asked from the panel's own composer, never from a parallel tab.
+            if (session == null)
+            {
+                _nativeClaudeOptions = options;
+            }
 
             return new ClaudeStreamJsonSession(options);
         }
@@ -614,7 +642,8 @@ namespace ClaudeCodeVS
         /// <c>acp</c> subcommand and the same protocol, so only the executable and the session mode
         /// differ between them.
         /// </summary>
-        private IAgentSession CreateAcpSession(AiProvider provider, string workspace)
+        private IAgentSession CreateAcpSession(AiProvider provider, string workspace,
+            NativeChatSessionState session = null, string resumeSessionId = null)
         {
             bool isWsl = provider == AiProvider.Devin;
             string freshPath = GetFreshPathFromRegistry();
@@ -630,9 +659,9 @@ namespace ClaudeCodeVS
                 UseWsl = isWsl,
                 ExecutablePath = executable,
                 WslWorkingDirectory = isWsl ? ConvertToWslPath(workspace) : string.Empty,
-                ModeId = GetAcpModeId(provider),
-                ModelName = GetAcpModelName(provider),
-                ModelLaunchArgument = GetAcpModelLaunchArgument(provider),
+                ModeId = GetAcpModeId(provider, session),
+                ModelName = GetAcpModelName(provider, session),
+                ModelLaunchArgument = GetAcpModelLaunchArgument(provider, session),
                 DisplayName = GetProviderDisplayName(provider),
                 ExtraArguments = GetExtraLaunchArgs(provider),
                 AnswerFirstRunPromptWithNo = provider == AiProvider.Reasonix,
@@ -652,7 +681,7 @@ namespace ClaudeCodeVS
             bool isDevin = provider == AiProvider.Devin || provider == AiProvider.DevinNative;
             if (isDevin)
             {
-                string resumeArg = Interlocked.Exchange(ref _pendingResumeSessionId, null);
+                string resumeArg = session != null ? resumeSessionId : Interlocked.Exchange(ref _pendingResumeSessionId, null);
                 if (!string.IsNullOrWhiteSpace(resumeArg) && resumeArg != "-c")
                 {
                     options.ResumeSessionId = resumeArg;
@@ -666,7 +695,8 @@ namespace ClaudeCodeVS
         /// Builds the adapter for the CLIs that stream JSON but exit after every turn. Codex and Cursor
         /// Agent differ only in their wire format, which is what the protocol object supplies.
         /// </summary>
-        private IAgentSession CreateOneShotSession(AiProvider provider, string workspace)
+        private IAgentSession CreateOneShotSession(AiProvider provider, string workspace,
+            NativeChatSessionState session = null, string resumeSessionId = null)
         {
             bool isWsl = provider == AiProvider.Codex || provider == AiProvider.CursorAgent;
             bool isCursor = provider == AiProvider.CursorAgent || provider == AiProvider.CursorAgentNative;
@@ -688,11 +718,18 @@ namespace ClaudeCodeVS
                 WslWorkingDirectory = isWsl ? ConvertToWslPath(workspace) : string.Empty,
                 // With nothing chosen, Cursor is asked for "auto" rather than left to its own default:
                 // measured, a free plan refuses every named model, and "auto" is accepted on all plans.
-                Model = ResolveOneShotModel(provider, isCursor),
-                ReasoningEffort = isCursor ? string.Empty : GetCodexReasoningArgument(),
-                SkipApprovals = isCursor
-                    ? _settings?.CursorAgentAutoRun == true
-                    : _settings?.CodexFullAuto == true,
+                Model = session != null
+                    ? ResolveOneShotModel(session.SelectedModel, isCursor)
+                    : ResolveOneShotModel(GetSelectedProviderModelId(provider), isCursor),
+                ReasoningEffort = isCursor
+                    ? string.Empty
+                    : session != null
+                        ? MapCodexReasoningArgument(session.SelectedCodexReasoningLevel)
+                        : GetCodexReasoningArgument(),
+                SkipApprovals = session != null ? session.SkipPermissions
+                    : isCursor
+                        ? _settings?.CursorAgentAutoRun == true
+                        : _settings?.CodexFullAuto == true,
                 DisplayName = GetProviderDisplayName(provider),
                 ExtraArguments = GetExtraLaunchArgs(provider)
             };
@@ -701,7 +738,7 @@ namespace ClaudeCodeVS
             // history is not exposed by this window, so it must never consume another provider's token.
             if (!isCursor)
             {
-                string resumeArg = Interlocked.Exchange(ref _pendingResumeSessionId, null);
+                string resumeArg = session != null ? resumeSessionId : Interlocked.Exchange(ref _pendingResumeSessionId, null);
                 if (!string.IsNullOrWhiteSpace(resumeArg) && resumeArg != "-c")
                 {
                     options.ResumeSessionId = resumeArg;
@@ -720,9 +757,8 @@ namespace ClaudeCodeVS
             return new OneShotResumeSession(options, protocol);
         }
 
-        private string ResolveOneShotModel(AiProvider provider, bool isCursor)
+        private static string ResolveOneShotModel(string selected, bool isCursor)
         {
-            string selected = GetSelectedProviderModelId(provider);
             if (!string.IsNullOrWhiteSpace(selected)) return selected;
 
             return isCursor ? "auto" : string.Empty;
@@ -732,7 +768,7 @@ namespace ClaudeCodeVS
         /// Builds the PI adapter. PI keeps one process alive like the ACP agents, but over a protocol
         /// of its own.
         /// </summary>
-        private IAgentSession CreatePiSession()
+        private IAgentSession CreatePiSession(NativeChatSessionState session = null)
         {
             string freshPath = GetFreshPathFromRegistry();
 
@@ -740,7 +776,7 @@ namespace ClaudeCodeVS
             {
                 ExecutablePath = ResolveExecutableOnPath(
                     ResolveNativeProviderExecutable(AiProvider.Pi, "pi"), freshPath),
-                Model = GetSelectedProviderModelId(AiProvider.Pi),
+                Model = session != null ? session.SelectedModel : GetSelectedProviderModelId(AiProvider.Pi),
                 DisplayName = GetProviderDisplayName(AiProvider.Pi),
                 ExtraArguments = GetExtraLaunchArgs(AiProvider.Pi)
             };
@@ -756,7 +792,7 @@ namespace ClaudeCodeVS
         /// <summary>
         /// Builds the print-mode adapter for Antigravity, whose headless surface has no event stream.
         /// </summary>
-        private IAgentSession CreatePrintModeSession()
+        private IAgentSession CreatePrintModeSession(NativeChatSessionState session = null)
         {
             string freshPath = GetFreshPathFromRegistry();
 
@@ -764,8 +800,8 @@ namespace ClaudeCodeVS
             {
                 ExecutablePath = ResolveExecutableOnPath(
                     ResolveNativeProviderExecutable(AiProvider.Antigravity, "agy"), freshPath),
-                Model = GetSelectedProviderModelId(AiProvider.Antigravity),
-                SkipApprovals = _settings?.AntigravityDangerouslySkipPermissions == true,
+                Model = session != null ? session.SelectedModel : GetSelectedProviderModelId(AiProvider.Antigravity),
+                SkipApprovals = session != null ? session.SkipPermissions : _settings?.AntigravityDangerouslySkipPermissions == true,
                 DisplayName = GetProviderDisplayName(AiProvider.Antigravity),
                 ExtraArguments = GetExtraLaunchArgs(AiProvider.Antigravity)
             };
@@ -817,11 +853,12 @@ namespace ClaudeCodeVS
         /// than through the protocol's approval channel, so its "dangerous mode" setting maps here;
         /// the other agents keep whatever default they ship with.
         /// </summary>
-        private string GetAcpModeId(AiProvider provider)
+        private string GetAcpModeId(AiProvider provider, NativeChatSessionState session = null)
         {
             bool isDevin = provider == AiProvider.Devin || provider == AiProvider.DevinNative;
+            bool dangerous = session != null ? session.SkipPermissions : _settings?.DevinDangerousMode == true;
 
-            if (isDevin && _settings?.DevinDangerousMode == true)
+            if (isDevin && dangerous)
             {
                 return "bypass";
             }
@@ -833,11 +870,11 @@ namespace ClaudeCodeVS
         /// Model to select after the handshake, for the agents that publish a model picker there
         /// (Devin and Open Code). Reasonix publishes none and takes its model at launch instead.
         /// </summary>
-        private string GetAcpModelName(AiProvider provider)
+        private string GetAcpModelName(AiProvider provider, NativeChatSessionState session = null)
         {
             if (provider == AiProvider.Reasonix) return string.Empty;
 
-            return GetSelectedProviderModelId(provider);
+            return session != null ? session.SelectedModel : GetSelectedProviderModelId(provider);
         }
 
         /// <summary>
@@ -847,11 +884,12 @@ namespace ClaudeCodeVS
         /// is where the reason it must be spelled <c>-model</c> and not <c>-m</c> is documented — and
         /// where the test that keeps it that way lives.
         /// </summary>
-        private string GetAcpModelLaunchArgument(AiProvider provider)
+        private string GetAcpModelLaunchArgument(AiProvider provider, NativeChatSessionState session = null)
         {
             if (provider != AiProvider.Reasonix) return string.Empty;
 
-            return AcpCommandBuilder.BuildReasonixModelArgument(GetSelectedProviderModelId(provider));
+            string model = session != null ? session.SelectedModel : GetSelectedProviderModelId(provider);
+            return AcpCommandBuilder.BuildReasonixModelArgument(model);
         }
 
         /// <summary>
@@ -947,12 +985,13 @@ namespace ClaudeCodeVS
         /// </summary>
         private string GetNativeModelArgument()
         {
-            if (_settings == null)
-            {
-                return string.Empty;
-            }
+            return _settings == null ? string.Empty : MapClaudeModelArgument(_settings.SelectedClaudeModel);
+        }
 
-            switch (_settings.SelectedClaudeModel)
+        /// <summary>Pure mapping, shared by the default session (via <see cref="GetNativeModelArgument"/>) and a parallel tab's own <see cref="NativeChatSessionState.SelectedClaudeModel"/>.</summary>
+        private static string MapClaudeModelArgument(ClaudeModel model)
+        {
+            switch (model)
             {
                 case ClaudeModel.Fable: return "fable";
                 case ClaudeModel.Opus: return "opus";
@@ -969,12 +1008,13 @@ namespace ClaudeCodeVS
         /// </summary>
         private string GetNativeEffortArgument()
         {
-            if (_settings == null || _settings.SelectedEffortLevel == EffortLevel.Auto)
-            {
-                return string.Empty;
-            }
+            return _settings == null ? string.Empty : MapEffortArgument(_settings.SelectedEffortLevel);
+        }
 
-            return _settings.SelectedEffortLevel.ToString().ToLowerInvariant();
+        /// <summary>Pure mapping, shared with a parallel tab's own <see cref="NativeChatSessionState.SelectedEffortLevel"/>.</summary>
+        private static string MapEffortArgument(EffortLevel level)
+        {
+            return level == EffortLevel.Auto ? string.Empty : level.ToString().ToLowerInvariant();
         }
 
         /// <summary>
@@ -983,13 +1023,13 @@ namespace ClaudeCodeVS
         /// </summary>
         private string GetCodexReasoningArgument()
         {
-            if (_settings == null ||
-                _settings.SelectedCodexReasoningLevel == CodexReasoningLevel.Default)
-            {
-                return string.Empty;
-            }
+            return _settings == null ? string.Empty : MapCodexReasoningArgument(_settings.SelectedCodexReasoningLevel);
+        }
 
-            return _settings.SelectedCodexReasoningLevel.ToString().ToLowerInvariant();
+        /// <summary>Pure mapping, shared with a parallel tab's own <see cref="NativeChatSessionState.SelectedCodexReasoningLevel"/>.</summary>
+        private static string MapCodexReasoningArgument(CodexReasoningLevel level)
+        {
+            return level == CodexReasoningLevel.Default ? string.Empty : level.ToString().ToLowerInvariant();
         }
 
         /// <summary>
@@ -1661,7 +1701,13 @@ namespace ClaudeCodeVS
             {
                 case AgentEventKind.SessionStarted:
                     // Every tab refreshes its own caption/label: the saved title only becomes known once
-                    // the agent reports its session id, and each session has a different one.
+                    // the agent reports its session id, and each session has a different one. Migrate
+                    // first, so a relaunch's re-keyed title/color is what UpdateSessionTabCaption reads.
+                    if (!string.IsNullOrEmpty(session.MigrationSourceSessionId) && !string.IsNullOrEmpty(agentEvent.SessionId))
+                    {
+                        MigrateSessionTitleAndColor(session.MigrationSourceSessionId, agentEvent.SessionId);
+                        session.MigrationSourceSessionId = null;
+                    }
                     UpdateSessionTabCaption(session);
                     break;
 
@@ -1733,7 +1779,12 @@ namespace ClaudeCodeVS
                     // Re-announced at the start of every turn — never treat it as a new conversation.
                     // Refreshed here (cheap, idempotent) so a resumed session's saved title shows up in
                     // the header above the transcript as soon as its id is known, not only after an
-                    // explicit rename.
+                    // explicit rename. Migrate first — see _nativeSessionMigrationSourceId.
+                    if (!string.IsNullOrEmpty(_nativeSessionMigrationSourceId) && !string.IsNullOrEmpty(agentEvent.SessionId))
+                    {
+                        MigrateSessionTitleAndColor(_nativeSessionMigrationSourceId, agentEvent.SessionId);
+                        _nativeSessionMigrationSourceId = null;
+                    }
                     UpdateChatTabCaption();
                     break;
 
@@ -2711,26 +2762,58 @@ namespace ClaudeCodeVS
             string sessionId = $"session_{_sessionIdCounter}";
             int windowId = _sessionIdCounter;  // Use session counter as window ID (0 is first, 1 is second, etc.)
 
-            // Determine model for this session
-            string sessionModel = GetSelectedProviderModelId(provider);
-
-            // Create agent session with the correct model
-            var agentSession = CreateAgentSession(provider, workspace, sessionModel);
-            if (agentSession == null)
-                return null;
-
             // Create new transcript UI
             var transcript = new ChatTranscriptView();
 
-            // Bundle into session state with window ID
-            var state = new NativeChatSessionState(sessionId, agentSession, transcript, windowId);
+            // Bundle into session state with window ID. AgentSession is attached below, once this
+            // tab's own launch-option snapshot exists for CreateAgentSession to read (v163.0): a
+            // parallel tab's model/effort/permission selectors mutate these fields independently of
+            // Settings from here on, which is what lets one tab run Opus while another runs Sonnet.
+            var state = new NativeChatSessionState(sessionId, null, transcript, windowId);
             state.SelectedProvider = provider;
-            state.SelectedModel = sessionModel;
-            state.SelectedEffortLevel = _settings.SelectedEffortLevel;
+            state.SelectedModel = GetSelectedProviderModelId(provider);
+            state.SelectedClaudeModel = _settings?.SelectedClaudeModel ?? ClaudeModel.Fable;
+            state.SelectedEffortLevel = _settings?.SelectedEffortLevel ?? EffortLevel.High;
+            state.SelectedCodexReasoningLevel = _settings?.SelectedCodexReasoningLevel ?? CodexReasoningLevel.Default;
+            state.SkipPermissions = GetChatPermissionSkipFlag(provider) ?? false;
+            state.PlanMode = IsClaudeProvider(provider) && _settings?.ClaudePlanMode == true;
 
-            // Register event handler (closure captures sessionId and state). Enqueue-then-maybe-start,
-            // same as the default session's OnAgentEventReceived: see the ordering rationale on
-            // NativeChatSessionState.PendingEvents.
+            // Create agent session from this tab's own snapshot rather than the global settings.
+            var agentSession = CreateAgentSession(provider, workspace, state);
+            if (agentSession == null)
+                return null;
+
+            state.AgentSession = agentSession;
+            AttachSessionEventHandler(state);
+
+            // A rename made before this tab's first turn (still the throwaway seed id) must still
+            // survive the id being confirmed — see NativeChatSessionState.MigrationSourceSessionId.
+            state.MigrationSourceSessionId = agentSession.SessionId;
+
+            // Register in sessions dict
+            lock (_sessionLock)
+            {
+                _nativeSessions[sessionId] = state;
+                _activeSessionId = sessionId;
+            }
+
+            return state;
+        }
+
+        /// <summary>
+        /// Wires a session's event pump to whichever <see cref="IAgentSession"/> currently sits in
+        /// <see cref="NativeChatSessionState.AgentSession"/>. Called both when a tab is first created
+        /// and again by <see cref="RelaunchSessionAsync"/> after a relaunch replaces the process — the
+        /// handler closes over the exact instance passed in, so <c>ReferenceEquals</c> in the callback
+        /// rejects a stray event from a process this session already tore down (same trap the default
+        /// session's <c>OnAgentEventReceived</c> guards against).
+        /// </summary>
+        private void AttachSessionEventHandler(NativeChatSessionState state)
+        {
+            IAgentSession agentSession = state?.AgentSession;
+            if (agentSession == null) return;
+
+            string sessionId = state.SessionId;
             EventHandler<AgentEvent> handler = (sender, agentEvent) =>
             {
                 if (agentEvent == null || !ReferenceEquals(sender, agentSession))
@@ -2748,15 +2831,54 @@ namespace ClaudeCodeVS
 
             state.EventHandler = handler;
             agentSession.Received += handler;
+        }
 
-            // Register in sessions dict
-            lock (_sessionLock)
+        /// <summary>
+        /// Tears down a session's agent process in place — unsubscribes the event pump, disposes the
+        /// process and its cancellation token, and clears per-turn/queue state — without touching the
+        /// transcript UI or removing the session from <see cref="_nativeSessions"/>. Used by
+        /// <see cref="RelaunchSessionAsync"/>, which needs the old process gone before its replacement
+        /// starts; full tab teardown instead goes through <see cref="NativeChatSessionState.Dispose"/>.
+        /// </summary>
+        private void DisposeSessionAgent(NativeChatSessionState state)
+        {
+            IAgentSession agentSession = state.AgentSession;
+            state.AgentSession = null;
+
+            if (agentSession != null && state.EventHandler != null)
             {
-                _nativeSessions[sessionId] = state;
-                _activeSessionId = sessionId;
+                agentSession.Received -= state.EventHandler;
+            }
+            state.EventHandler = null;
+
+            if (agentSession != null)
+            {
+                try
+                {
+                    agentSession.Dispose();
+                }
+                catch (Exception ex)
+                {
+                    Debug.WriteLine($"Native mode: session {state.SessionId} dispose failed: {ex.Message}");
+                }
             }
 
-            return state;
+            try
+            {
+                state.SessionCts?.Cancel();
+                state.SessionCts?.Dispose();
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"Native mode: session {state.SessionId} token dispose failed: {ex.Message}");
+            }
+            state.SessionCts = null;
+
+            state.CodexPromptQueue.Clear();
+            state.CancelledCodexPromptCount = 0;
+            state.IsCodexQueueOwner = false;
+            state.CodexTurnRendered?.TrySetResult(true);
+            state.CodexTurnRendered = null;
         }
 
         /// <summary>

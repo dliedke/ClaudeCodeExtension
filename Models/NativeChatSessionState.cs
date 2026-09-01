@@ -75,13 +75,40 @@ namespace ClaudeCodeVS
         // Lifecycle
         public CancellationTokenSource SessionCts { get; set; }
 
+        /// <summary>
+        /// The previous <see cref="IAgentSession.SessionId"/> this tab's agent is carrying forward
+        /// through a resume, or the current agent's own (still-unconfirmed) id when it isn't resuming
+        /// anything — null once consumed. The CLI is the authority on the id and can hand back a
+        /// different one on every relaunch even for the same conversation (see
+        /// <c>ClaudeStreamJsonSession.SessionId</c>); since custom titles/colors are keyed by that id
+        /// (and shared with the Session History window, so they can't switch to a synthetic key
+        /// instead), the next confirmed <c>SessionStarted</c> event migrates the stored entry from this
+        /// id to the new one rather than orphaning it. Set by <c>RelaunchSessionAsync</c> and consumed
+        /// (cleared) by <c>ApplyAgentEventToSession</c>.
+        /// </summary>
+        public string MigrationSourceSessionId { get; set; }
+
         // Claude-specific
         public ClaudeSessionOptions ClaudeOptions { get; set; }
 
-        // Session settings snapshot
+        // Session settings snapshot. Seeded from the global settings at CreateAndRegisterSession
+        // time, then mutated independently by this tab's own selector menus (v163.0) — never written
+        // back to Settings, which is why a parallel tab can run Opus while the panel stays on Sonnet.
         public AiProvider SelectedProvider { get; set; }
         public string SelectedModel { get; set; }
+        public ClaudeModel SelectedClaudeModel { get; set; }
         public EffortLevel SelectedEffortLevel { get; set; }
+        public CodexReasoningLevel SelectedCodexReasoningLevel { get; set; }
+        public bool SkipPermissions { get; set; }
+        public bool PlanMode { get; set; }
+
+        /// <summary>
+        /// Serializes this session's own relaunches (model/effort/permission switch, "New chat").
+        /// Deliberately separate from the panel's <c>_nativeLifecycleSemaphore</c>: that one also
+        /// guards a full agent switch, which never touches a parallel session, so sharing it would
+        /// make an unrelated tab's relaunch wait on this tab for no reason.
+        /// </summary>
+        public SemaphoreSlim RelaunchLock { get; } = new SemaphoreSlim(1, 1);
 
         // Event handler for cleanup
         internal EventHandler<AgentEvent> EventHandler { get; set; }
@@ -109,6 +136,7 @@ namespace ClaudeCodeVS
             try { if (AgentSession != null && EventHandler != null) AgentSession.Received -= EventHandler; } catch { }
             try { AgentSession?.Dispose(); } catch { }
             try { SessionCts?.Cancel(); SessionCts?.Dispose(); } catch { }
+            try { RelaunchLock?.Dispose(); } catch { }
             ChatTranscript = null;
             AgentSession = null;
             Window = null;

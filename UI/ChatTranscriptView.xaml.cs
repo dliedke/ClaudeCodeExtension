@@ -581,12 +581,15 @@ namespace ClaudeCodeVS.UI
 
         private void ComposerProviderButton_Click(object sender, RoutedEventArgs e)
         {
-            SelectorClicked?.Invoke(sender, ChatSelector.Provider);
+            // Raised with `this`, not the button — every other composer event does the same so the
+            // control-level handler can resolve the owning session from the sender (v163.0); the
+            // anchor button itself is recovered from the selector via GetSelectorAnchor.
+            SelectorClicked?.Invoke(this, ChatSelector.Provider);
         }
 
         private void ComposerModelButton_Click(object sender, RoutedEventArgs e)
         {
-            SelectorClicked?.Invoke(sender, ChatSelector.Model);
+            SelectorClicked?.Invoke(this, ChatSelector.Model);
         }
 
         /// <summary>
@@ -894,7 +897,7 @@ namespace ClaudeCodeVS.UI
 
         private void ComposerPermissionButton_Click(object sender, RoutedEventArgs e)
         {
-            SelectorClicked?.Invoke(sender, ChatSelector.Permission);
+            SelectorClicked?.Invoke(this, ChatSelector.Permission);
         }
 
         private void ComposerInput_TextChanged(object sender, TextChangedEventArgs e)

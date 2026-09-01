@@ -469,7 +469,12 @@ namespace ClaudeCodeVS
         /// </summary>
         private string GetSelectedProviderModelLabel(AiProvider? provider)
         {
-            string selected = GetSelectedProviderModelId(provider);
+            return GetSelectedProviderModelLabel(provider, GetSelectedProviderModelId(provider));
+        }
+
+        /// <summary>Same lookup, for a model id that did not come from the global selection — a parallel chat tab's own <c>NativeChatSessionState.SelectedModel</c>.</summary>
+        private string GetSelectedProviderModelLabel(AiProvider? provider, string selected)
+        {
             if (string.IsNullOrWhiteSpace(selected) || provider == null) return string.Empty;
 
             foreach (ModelOption model in GetCachedProviderModels(provider.Value))

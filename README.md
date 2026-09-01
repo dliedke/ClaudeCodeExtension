@@ -138,6 +138,16 @@ Use native mode to avoid this issue.
 
 ## Version History
 
+### Version 164.0
+Fixed "Ask permission" doing nothing when switching away from "Skip permissions" in native mode's Claude permission menu — it now always lands on ask-permission regardless of which of the other two modes (Skip permissions or Plan mode) it's switching from.
+
+Fixed a chat tab's custom title and color disappearing the moment a model, effort or permission switch completed, for the panel's own chat and every parallel tab alike — the running agent can hand back a different internal session id after such a switch, which used to disconnect the saved name/color from the tab until (sometimes) a later message reconnected it by luck.
+
+### Version 163.0
+Native mode's parallel chat tabs now have their own model, effort/reasoning and permission (or plan mode) selectors, independent of the panel and of every other open tab — run Opus in one tab and Sonnet in another, or leave one tab asking for permission while another skips prompts.
+
+Fixed "Clear Chat" inside a parallel tab clearing the panel's own conversation instead of that tab's.
+
 ### Version 162.0
 The terminal now corrects itself if a command running inside it (PowerShell, a `chcp`, some .NET CLI tools) switches its text encoding, instead of staying garbled until you restart it. Turn this off under Settings → Terminal → Encoding if a workflow needs the console left on the encoding it switched to.
 
