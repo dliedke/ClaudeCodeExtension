@@ -12,6 +12,7 @@
 
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 
 namespace ClaudeCodeVS.Agents
 {
@@ -270,6 +271,14 @@ namespace ClaudeCodeVS.Agents
         }
 
         /// <summary>
+        /// Set by the session for a <see cref="AgentInteractionKind.ToolApproval"/> whose tool can be
+        /// pre-approved for the rest of the run. When present the card offers "Allow for the rest of
+        /// this session"; invoking it records the tool so later requests for it are answered without
+        /// another card. Null when the interaction is not eligible (questions, plan reviews).
+        /// </summary>
+        public Action OnAllowForSession { get; set; }
+
+        /// <summary>
         /// Lets the tool run. <paramref name="answers"/> maps question text to the chosen label and is
         /// only meaningful for <see cref="AgentInteractionKind.Question"/>; pass null otherwise.
         /// </summary>
@@ -282,6 +291,28 @@ namespace ClaudeCodeVS.Agents
             }
 
             _respond?.Invoke(true, null, answers);
+        }
+
+        /// <summary>
+        /// Allows this call and, via <see cref="OnAllowForSession"/>, tells the session to stop asking
+        /// for the same tool for the rest of the run. Falls back to a plain <see cref="Allow(IDictionary{string,string})"/>
+        /// when the interaction was not marked eligible.
+        /// </summary>
+        public void AllowForSession()
+        {
+            lock (_gate)
+            {
+                if (_answered) return;
+            }
+
+            Action remember = OnAllowForSession;
+            if (remember != null)
+            {
+                try { remember(); }
+                catch (Exception ex) { Debug.WriteLine($"AllowForSession bookkeeping failed: {ex.Message}"); }
+            }
+
+            Allow(null);
         }
 
         /// <summary>Refuses the tool call. The message is fed back to the agent as the reason.</summary>

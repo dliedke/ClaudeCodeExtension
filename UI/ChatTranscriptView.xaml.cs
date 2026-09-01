@@ -1115,6 +1115,30 @@ namespace ClaudeCodeVS.UI
             InteractionResolved?.Invoke(this, interaction);
         }
 
+        /// <summary>Drops the "Allow for the rest of this session" menu below the caret on left-click.</summary>
+        private void InteractionAllowMenu_Click(object sender, RoutedEventArgs e)
+        {
+            var button = sender as Button;
+            if (button?.ContextMenu == null) return;
+
+            button.ContextMenu.PlacementTarget = button;
+            button.ContextMenu.Placement = System.Windows.Controls.Primitives.PlacementMode.Top;
+            button.ContextMenu.IsOpen = true;
+        }
+
+        private void InteractionAllowForSession_Click(object sender, RoutedEventArgs e)
+        {
+            var interaction = ResolveInteraction(sender);
+            if (interaction == null) return;
+
+            interaction.AllowForSession();
+
+            if (!interaction.IsPending)
+            {
+                InteractionResolved?.Invoke(this, interaction);
+            }
+        }
+
         private static ChatInteractionViewModel ResolveInteraction(object sender)
         {
             var element = sender as FrameworkElement;
