@@ -15,6 +15,7 @@ using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
+using System.Linq;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
@@ -816,7 +817,13 @@ namespace ClaudeCodeVS.Agents
                 ? rawInput.ToString(Formatting.Indented)
                 : string.Empty;
 
-            Raise(AgentEvent.ToolCallStarted(id, title, inputJson));
+            // ACP's own answer to "which file did this touch", straight from the protocol rather than
+            // guessed from rawInput's field names — those vary with whatever tool schema the underlying
+            // CLI happens to use internally. Only the first location is used: the transcript's "open
+            // file" icon opens one file, and a call touching several is rare enough not to design for.
+            string filePath = (update["locations"] as JArray)?.FirstOrDefault()?["path"]?.ToString();
+
+            Raise(AgentEvent.ToolCallStarted(id, title, inputJson, filePath));
 
             // Some agents deliver a completed call in one notification, with no follow-up update.
             string status = update["status"]?.ToString();

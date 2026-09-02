@@ -78,6 +78,14 @@ namespace ClaudeCodeVS.UI
         /// <summary>What it acted on: a file, a command, a pattern. Empty when the tool has no obvious target.</summary>
         public string Subtitle { get; set; } = string.Empty;
 
+        /// <summary>
+        /// The unshortened path the tool reported, exactly as the CLI sent it — set only for the tools
+        /// that act on a single file (<c>Read</c>, <c>Write</c>, <c>Edit</c>, <c>MultiEdit</c>,
+        /// <c>NotebookEdit</c>). <see cref="Subtitle"/> is trimmed for display and is not enough to
+        /// resolve the file on disk; this is what the transcript's "open file" icon opens.
+        /// </summary>
+        public string FilePath { get; set; } = string.Empty;
+
         /// <summary>Right-aligned summary, e.g. <c>+12 -3</c>. Empty when there is nothing to count.</summary>
         public string Badge { get; set; } = string.Empty;
 
@@ -156,13 +164,15 @@ namespace ClaudeCodeVS.UI
                 case "read":
                 case "notebookread":
                     result.Category = ChatToolCategory.Read;
-                    result.Subtitle = ShortenPath(GetString(input, "file_path", "notebook_path", "path", "filePath"));
+                    result.FilePath = GetString(input, "file_path", "notebook_path", "path", "filePath");
+                    result.Subtitle = ShortenPath(result.FilePath);
                     result.Badge = FormatReadRange(input);
                     return;
 
                 case "write":
                     result.Category = ChatToolCategory.Edit;
-                    result.Subtitle = ShortenPath(GetString(input, "file_path", "path", "filePath"));
+                    result.FilePath = GetString(input, "file_path", "path", "filePath");
+                    result.Subtitle = ShortenPath(result.FilePath);
                     ApplyDiff(result, string.Empty, GetString(input, "content", "contents", "text"));
                     return;
 
@@ -170,7 +180,8 @@ namespace ClaudeCodeVS.UI
                 case "str_replace":
                 case "str_replace_editor":
                     result.Category = ChatToolCategory.Edit;
-                    result.Subtitle = ShortenPath(GetString(input, "file_path", "path", "filePath"));
+                    result.FilePath = GetString(input, "file_path", "path", "filePath");
+                    result.Subtitle = ShortenPath(result.FilePath);
                     ApplyDiff(result,
                         GetString(input, "old_string", "oldString", "old_str"),
                         GetString(input, "new_string", "newString", "new_str"));
@@ -178,13 +189,15 @@ namespace ClaudeCodeVS.UI
 
                 case "multiedit":
                     result.Category = ChatToolCategory.Edit;
-                    result.Subtitle = ShortenPath(GetString(input, "file_path", "path", "filePath"));
+                    result.FilePath = GetString(input, "file_path", "path", "filePath");
+                    result.Subtitle = ShortenPath(result.FilePath);
                     ApplyMultiEditDiff(result, input);
                     return;
 
                 case "notebookedit":
                     result.Category = ChatToolCategory.Edit;
-                    result.Subtitle = ShortenPath(GetString(input, "notebook_path", "file_path", "path"));
+                    result.FilePath = GetString(input, "notebook_path", "file_path", "path");
+                    result.Subtitle = ShortenPath(result.FilePath);
                     ApplyDiff(result, string.Empty, GetString(input, "new_source", "source", "content"));
                     return;
 
@@ -255,6 +268,12 @@ namespace ClaudeCodeVS.UI
                     result.Category = ChatToolCategory.Other;
                     result.Subtitle = Flatten(GetString(input,
                         "file_path", "path", "command", "query", "pattern", "url", "description", "prompt"));
+
+                    // A narrower key list than Subtitle's on purpose: an unrecognized tool name (a
+                    // provider-specific label, an MCP tool) still deserves the "open file" icon when its
+                    // JSON plainly names one, but not when the only match was "command" or "url" — those
+                    // would make the icon try to open a shell command or a web address as a file.
+                    result.FilePath = GetString(input, "file_path", "path", "filePath", "target_file", "notebook_path");
                     return;
             }
         }

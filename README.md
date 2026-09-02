@@ -138,6 +138,9 @@ Use native mode to avoid this issue.
 
 ## Version History
 
+### Version 166.0
+Native mode's tool cards (Read, Edit, Write, MultiEdit, NotebookEdit and more) now show a small ↗ icon on the collapsed row when they touched a file in your project — click it to jump straight to that file in the editor. Works across every provider (Claude Code, Codex, Cursor Agent, Devin, OpenCode, PI, Reasonix), including WSL-based ones, and tells you when a file can't be found instead of doing nothing.
+
 ### Version 165.0
 Native mode's parallel chat tabs now have their own model, effort/reasoning and permission (or plan mode) selectors, independent of the panel and of every other open tab — run Opus in one tab and Sonnet in another, or leave one tab asking for permission while another skips prompts.
 

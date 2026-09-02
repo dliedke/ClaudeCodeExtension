@@ -235,6 +235,37 @@
 			</DataTemplate.Triggers>
 		</DataTemplate>
 
+		<!-- Small glyph-only button for a tool row's "open file" icon: flat, with a hover highlight,
+		     same look as the composer's icon buttons (ComposerSelectorStyle) but sized for a row. -->
+		<Style x:Key="ToolRowIconButtonStyle" TargetType="Button">
+			<Setter Property="Background" Value="Transparent"/>
+			<Setter Property="BorderBrush" Value="Transparent"/>
+			<Setter Property="BorderThickness" Value="1"/>
+			<Setter Property="Padding" Value="3,0,3,0"/>
+			<Setter Property="Height" Value="18"/>
+			<Setter Property="Cursor" Value="Hand"/>
+			<Setter Property="Focusable" Value="False"/>
+			<Setter Property="Template">
+				<Setter.Value>
+					<ControlTemplate TargetType="Button">
+						<Border Background="{TemplateBinding Background}"
+						        BorderBrush="{TemplateBinding BorderBrush}"
+						        BorderThickness="{TemplateBinding BorderThickness}"
+						        CornerRadius="3">
+							<ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"
+							                  Margin="{TemplateBinding Padding}"/>
+						</Border>
+						<ControlTemplate.Triggers>
+							<Trigger Property="IsMouseOver" Value="True">
+								<Setter Property="Background" Value="{DynamicResource {x:Static vsshell:VsBrushes.CommandBarHoverOverSelectedKey}}"/>
+								<Setter Property="BorderBrush" Value="{DynamicResource {x:Static vsshell:VsBrushes.CommandBarSelectedBorderKey}}"/>
+							</Trigger>
+						</ControlTemplate.Triggers>
+					</ControlTemplate>
+				</Setter.Value>
+			</Setter>
+		</Style>
+
 		<!-- Tool call. Collapsed it is one informative line — the tool, what it touched and how much
 		     changed — because a column of bare "Read"/"Edit" labels says nothing about the turn. -->
 		<DataTemplate x:Key="ToolTemplate">
@@ -259,6 +290,7 @@
 									<ColumnDefinition Width="Auto"/>
 									<ColumnDefinition Width="Auto"/>
 									<ColumnDefinition Width="*"/>
+									<ColumnDefinition Width="Auto"/>
 									<ColumnDefinition Width="Auto"/>
 									<ColumnDefinition Width="Auto"/>
 									<ColumnDefinition Width="Auto"/>
@@ -302,7 +334,19 @@
 									           Foreground="{Binding ToolAccent}"/>
 								</Border>
 
-								<TextBlock Grid.Column="5" Text="✕" Margin="6,0,0,0"
+								<!-- Jumps straight to the file the tool acted on, so a change does not have to be
+								     found by hand afterwards. A plain Button: its Click handles the mouse-up
+								     routed event, which keeps the click from also toggling the row's Expander. -->
+								<Button Grid.Column="5" Content="↗" Margin="6,0,0,0"
+								        Style="{StaticResource ToolRowIconButtonStyle}"
+								        FontSize="{DynamicResource ChatSmallFontSize}"
+								        VerticalAlignment="Center"
+								        Foreground="{Binding ToolAccent}"
+								        ToolTip="{Binding ToolFilePath}"
+								        Click="OpenToolFile_Click"
+								        Visibility="{Binding HasToolFilePath, Converter={StaticResource BoolToVis}}"/>
+
+								<TextBlock Grid.Column="6" Text="✕" Margin="6,0,0,0"
 								           FontSize="{DynamicResource ChatSmallFontSize}"
 								           VerticalAlignment="Center"
 								           Foreground="{StaticResource ChatErrorBrush}"

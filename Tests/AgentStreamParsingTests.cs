@@ -796,6 +796,38 @@ namespace ClaudeCodeExtension.Tests
             StringAssert.Contains(events[1].ToolResult, "clean");
         }
 
+        /// <summary>
+        /// The transcript's "open file" icon needs an authoritative path for Codex's "File change"
+        /// cards — <c>changes</c> is a JSON array, which the generic tool-card presenter cannot pull a
+        /// "file_path"-shaped field out of, so Codex has to name the file itself.
+        /// </summary>
+        [TestMethod]
+        public void CodexProtocol_FileChangeReportsThePathFromTheChangesArray()
+        {
+            List<AgentEvent> events;
+            OneShotTurnSink sink = NewSink(out events);
+            var protocol = new CodexExecProtocol();
+
+            protocol.HandleLine("{\"type\":\"item.started\",\"item\":{\"id\":\"i3\",\"type\":\"file_change\"," +
+                                "\"changes\":[{\"path\":\"C:\\\\repo\\\\a.cs\",\"kind\":\"update\"}]}}", sink);
+
+            Assert.AreEqual(AgentEventKind.ToolCallStarted, events[0].Kind);
+            Assert.AreEqual("C:\\repo\\a.cs", events[0].ToolFilePath);
+        }
+
+        [TestMethod]
+        public void CodexProtocol_CommandExecutionReportsNoFilePath()
+        {
+            List<AgentEvent> events;
+            OneShotTurnSink sink = NewSink(out events);
+            var protocol = new CodexExecProtocol();
+
+            protocol.HandleLine("{\"type\":\"item.started\",\"item\":{\"id\":\"i4\",\"type\":\"command_execution\"," +
+                                "\"command\":\"git status\"}}", sink);
+
+            Assert.AreEqual(string.Empty, events[0].ToolFilePath);
+        }
+
         [TestMethod]
         public void CodexProtocol_TurnCompletedCarriesUsageAndTurnFailedReportsTheReason()
         {

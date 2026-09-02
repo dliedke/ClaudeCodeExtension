@@ -66,6 +66,71 @@ namespace ClaudeCodeExtension.Tests
             Assert.AreEqual("lines 10-14", result.Badge);
         }
 
+        /// <summary>
+        /// FilePath keeps the path exactly as the tool reported it — unlike Subtitle, which is
+        /// shortened for display — because it is what the transcript's "open file" icon resolves.
+        /// </summary>
+        [TestMethod]
+        public void FileScopedTools_KeepTheUnshortenedPathSeparately()
+        {
+            var read = ChatToolPresenter.Describe("Read", "{\"file_path\":\"C:\\\\repo\\\\Controls\\\\Foo.cs\"}");
+            Assert.AreEqual("C:\\repo\\Controls\\Foo.cs", read.FilePath);
+
+            var edit = ChatToolPresenter.Describe("Edit",
+                "{\"file_path\":\"C:\\\\repo\\\\a.cs\",\"old_string\":\"a\",\"new_string\":\"b\"}");
+            Assert.AreEqual("C:\\repo\\a.cs", edit.FilePath);
+
+            var write = ChatToolPresenter.Describe("Write", "{\"file_path\":\"C:\\\\repo\\\\a.txt\",\"content\":\"x\"}");
+            Assert.AreEqual("C:\\repo\\a.txt", write.FilePath);
+
+            var multiEdit = ChatToolPresenter.Describe("MultiEdit",
+                "{\"file_path\":\"C:\\\\repo\\\\a.cs\",\"edits\":[{\"old_string\":\"a\",\"new_string\":\"A\"}]}");
+            Assert.AreEqual("C:\\repo\\a.cs", multiEdit.FilePath);
+        }
+
+        /// <summary>Tools with no single file target must not invent one, so the row's icon stays hidden.</summary>
+        [TestMethod]
+        public void ToolsWithNoFileTarget_LeaveFilePathEmpty()
+        {
+            var bash = ChatToolPresenter.Describe("Bash", "{\"command\":\"git status\"}");
+            Assert.AreEqual(string.Empty, bash.FilePath);
+
+            var grep = ChatToolPresenter.Describe("Grep", "{\"pattern\":\"foo\",\"path\":\"src\"}");
+            Assert.AreEqual(string.Empty, grep.FilePath);
+        }
+
+        /// <summary>
+        /// A tool name the presenter does not recognize — a provider-specific label (ACP's "Edit file"),
+        /// an MCP tool — still gets the "open file" icon when its own JSON plainly names one, so the
+        /// icon is not limited to the handful of Claude-style tool names the switch above matches.
+        /// </summary>
+        [TestMethod]
+        public void UnrecognizedToolNames_StillReportAFilePathWhenTheJsonNamesOne()
+        {
+            var acpStyle = ChatToolPresenter.Describe("Edit file", "{\"path\":\"C:\\\\repo\\\\a.cs\"}");
+            Assert.AreEqual("C:\\repo\\a.cs", acpStyle.FilePath);
+
+            var mcpStyle = ChatToolPresenter.Describe("mcp__fs__write_file",
+                "{\"file_path\":\"C:\\\\repo\\\\b.cs\",\"content\":\"x\"}");
+            Assert.AreEqual("C:\\repo\\b.cs", mcpStyle.FilePath);
+        }
+
+        /// <summary>
+        /// The narrower key list for FilePath (vs. Subtitle's) matters: a generic tool whose only
+        /// path-shaped-looking match is "command" or "url" must not offer to "open" a shell command or a
+        /// web address as if it were a file.
+        /// </summary>
+        [TestMethod]
+        public void UnrecognizedToolNames_DoNotMistakeACommandOrUrlForAFilePath()
+        {
+            var command = ChatToolPresenter.Describe("run_shell", "{\"command\":\"echo hi\"}");
+            Assert.AreEqual(string.Empty, command.FilePath);
+            Assert.AreEqual("echo hi", command.Subtitle);
+
+            var url = ChatToolPresenter.Describe("fetch_url", "{\"url\":\"https://example.com\"}");
+            Assert.AreEqual(string.Empty, url.FilePath);
+        }
+
         [TestMethod]
         public void Bash_ShowsTheCommandOnOneLine()
         {

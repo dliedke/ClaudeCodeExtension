@@ -182,6 +182,14 @@ namespace ClaudeCodeVS.UI
 
         public string ToolInputJson { get; set; } = string.Empty;
 
+        /// <summary>
+        /// The unshortened file path a file-scoped tool (Read, Write, Edit, MultiEdit, NotebookEdit)
+        /// acted on. Empty for tools with no single file target. Backs the row's "open file" icon.
+        /// </summary>
+        public string ToolFilePath { get; set; } = string.Empty;
+
+        public bool HasToolFilePath { get { return !string.IsNullOrWhiteSpace(ToolFilePath); } }
+
         public string ToolResult
         {
             get { return _toolResult; }

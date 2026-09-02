@@ -46,6 +46,38 @@ namespace ClaudeCodeExtension.Tests
         }
 
         /// <summary>
+        /// The reverse of <c>ConvertToWslPath</c>'s drive-letter case: a WSL-hosted CLI (Codex, Claude
+        /// Code WSL, Cursor Agent, Devin) reports a tool's file path as <c>/mnt/&lt;drive&gt;/...</c>,
+        /// which the native-mode transcript's "open file" affordances have to turn back into a Windows
+        /// path before Visual Studio can open it (issue: the ↗ icon on a tool row did nothing under WSL).
+        /// </summary>
+        [TestMethod]
+        public void ConvertFromWslMountPath_MapsMntDriveBackToAWindowsPath()
+        {
+            Assert.AreEqual(
+                @"C:\GitLab\Personal\TestingApp\test.md",
+                ClaudeCodeControl.ConvertFromWslMountPath("/mnt/c/GitLab/Personal/TestingApp/test.md"));
+
+            Assert.AreEqual(@"D:\work", ClaudeCodeControl.ConvertFromWslMountPath("/mnt/d/work"));
+
+            // The drive letter alone, no trailing path.
+            Assert.AreEqual(@"C:\", ClaudeCodeControl.ConvertFromWslMountPath("/mnt/c"));
+        }
+
+        [TestMethod]
+        public void ConvertFromWslMountPath_LeavesEverythingElseUnchanged()
+        {
+            // Already a Windows path.
+            Assert.AreEqual(@"C:\GitLab\Project\a.cs", ClaudeCodeControl.ConvertFromWslMountPath(@"C:\GitLab\Project\a.cs"));
+
+            // A native Linux path with no Windows drive to map to.
+            Assert.AreEqual("/home/user/project/a.cs", ClaudeCodeControl.ConvertFromWslMountPath("/home/user/project/a.cs"));
+
+            Assert.AreEqual(string.Empty, ClaudeCodeControl.ConvertFromWslMountPath(null));
+            Assert.AreEqual(string.Empty, ClaudeCodeControl.ConvertFromWslMountPath(string.Empty));
+        }
+
+        /// <summary>
         /// Issue #106: a workspace directory containing a dash broke the launch. The path must ride
         /// inside single quotes so nothing in it can be read as an option or operator by bash.
         /// </summary>

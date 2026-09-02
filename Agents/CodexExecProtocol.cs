@@ -12,6 +12,7 @@
 
 using System;
 using System.Diagnostics;
+using System.Linq;
 using System.Text;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
@@ -184,7 +185,12 @@ namespace ClaudeCodeVS.Agents
                 case "file_change":
                     if (started)
                     {
-                        sink.Emit(AgentEvent.ToolCallStarted(id, "File change", Describe(item["changes"])));
+                        // changes[].path is Codex's own field for what a patch touched — the transcript's
+                        // "open file" icon uses it directly rather than trying to find a path inside the
+                        // rendered changes array. Only the first file: one icon opens one file, and Codex
+                        // reports one file_change item per file even when several change in one turn.
+                        string filePath = (item["changes"] as JArray)?.FirstOrDefault()?["path"]?.ToString();
+                        sink.Emit(AgentEvent.ToolCallStarted(id, "File change", Describe(item["changes"]), filePath));
                     }
                     else
                     {

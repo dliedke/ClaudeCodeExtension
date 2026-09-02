@@ -164,6 +164,30 @@ namespace ClaudeCodeVS.UI
         }
 
         /// <summary>
+        /// Raised by a tool row's ↗ icon with the file it acted on. A dedicated event rather than
+        /// reusing <see cref="LinkClicked"/>: the path here is never a guess (it came straight off the
+        /// tool call), so a miss is worth telling the user about, unlike a markdown auto-link that is
+        /// often just prose that happened to look like a path.
+        /// </summary>
+        public event EventHandler<string> ToolFileOpenRequested;
+
+        private void OpenToolFile_Click(object sender, RoutedEventArgs e)
+        {
+            var message = (sender as FrameworkElement)?.DataContext as ChatMessageViewModel;
+            if (message == null || string.IsNullOrWhiteSpace(message.ToolFilePath))
+            {
+                return;
+            }
+
+            // The button already stops this click from also toggling the row's Expander (its own
+            // Click handling marks the routed mouse-up event handled before it bubbles that far), but
+            // an explicit mark here costs nothing and removes any doubt if that stops being true.
+            e.Handled = true;
+
+            ToolFileOpenRequested?.Invoke(this, message.ToolFilePath);
+        }
+
+        /// <summary>
         /// Raised on Ctrl+V in the composer. The parent owns the clipboard image pipeline (it also owns
         /// the attachment list), and sets <see cref="ChatPasteEventArgs.Handled"/> when it consumed the
         /// clipboard as an image — otherwise the text box performs its normal text paste.

@@ -475,6 +475,7 @@ namespace ClaudeCodeVS
             transcript.HistoryPreviousRequested += OnComposerHistoryPreviousRequested;
             transcript.HistoryNextRequested += OnComposerHistoryNextRequested;
             transcript.LinkClicked += OnChatLinkClicked;
+            transcript.ToolFileOpenRequested += OnToolFileOpenRequested;
         }
 
         /// <summary>Handles send request from a specific session's composer.</summary>
@@ -774,6 +775,7 @@ namespace ClaudeCodeVS
             ChatTranscript.ComposerPreviewKeyDown += ComposerInput_AtMentionPreviewKeyDown;
             ChatTranscript.ComposerInputBox.TextChanged += ComposerInput_AtMentionTextChanged;
             ChatTranscript.LinkClicked += OnChatLinkClicked;
+            ChatTranscript.ToolFileOpenRequested += OnToolFileOpenRequested;
 
             // Null = the default session. The transcript object survives being re-parented between the
             // panel and its tab, so this one subscription covers both homes for the rest of its life.
@@ -1280,7 +1282,39 @@ namespace ClaudeCodeVS
             }
         }
 
-        private async Task OpenChatFileLinkAsync(string reference)
+        /// <summary>
+        /// The ↗ icon on a tool row. Unlike <see cref="OnChatLinkClicked"/>, a miss is reported in the
+        /// row's own transcript — the path came straight off the tool call rather than being guessed out
+        /// of prose, so silently doing nothing would just look broken instead of looking like a
+        /// reasonable "not a real citation" skip.
+        /// </summary>
+#pragma warning disable VSTHRD100 // Async void is required by the UI event signature
+        private async void OnToolFileOpenRequested(object sender, string filePath)
+#pragma warning restore VSTHRD100
+        {
+            try
+            {
+                bool opened = await OpenChatFileLinkAsync(filePath);
+                if (!opened && sender is ChatTranscriptView transcript)
+                {
+                    var notice = new ChatMessageViewModel(ChatMessageKind.Notice)
+                    {
+                        Text = "Could not find \"" + filePath + "\" to open it."
+                    };
+                    notice.Complete();
+                    transcript.Messages.Add(notice);
+                }
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"Tool file open failed for '{filePath}': {ex.Message}");
+            }
+        }
+
+        /// <summary>Returns whether the reference was actually opened, so a deliberate click (the tool
+        /// row's ↗ icon) can tell the user why nothing happened instead of failing silently — an
+        /// auto-linked citation in free-form text stays silent on a miss since most of those are guesses.</summary>
+        private async Task<bool> OpenChatFileLinkAsync(string reference)
         {
             string path = reference.Trim();
             int line = 0;
@@ -1295,7 +1329,7 @@ namespace ClaudeCodeVS
             string resolved = await ResolveChatFileLinkAsync(path);
             if (resolved == null)
             {
-                return;
+                return false;
             }
 
             await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
@@ -1303,7 +1337,7 @@ namespace ClaudeCodeVS
             var dte = Package.GetGlobalService(typeof(EnvDTE.DTE)) as EnvDTE.DTE;
             if (dte == null)
             {
-                return;
+                return false;
             }
 
             dte.ItemOperations.OpenFile(resolved);
@@ -1313,6 +1347,8 @@ namespace ClaudeCodeVS
                 var selection = dte.ActiveDocument.Selection as EnvDTE.TextSelection;
                 selection?.GotoLine(line, false);
             }
+
+            return true;
         }
 
         /// <summary>
@@ -1328,7 +1364,10 @@ namespace ClaudeCodeVS
                 return null;
             }
 
-            string candidate = path.Replace('/', Path.DirectorySeparatorChar);
+            // A WSL-hosted provider (Codex, Claude Code WSL, Cursor Agent, Devin) reports its own view
+            // of the file system — /mnt/c/... — not the Windows path Visual Studio needs. Convert first;
+            // this is a no-op for every other path shape, including one that is already Windows-style.
+            string candidate = ConvertFromWslMountPath(path).Replace('/', Path.DirectorySeparatorChar);
 
             if (Path.IsPathRooted(candidate) && File.Exists(candidate))
             {

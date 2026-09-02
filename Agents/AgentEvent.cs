@@ -371,6 +371,15 @@ namespace ClaudeCodeVS.Agents
         /// <summary>Raw JSON of the tool input, for display.</summary>
         public string ToolInputJson { get; set; } = string.Empty;
 
+        /// <summary>
+        /// The file a tool call acted on, when the adapter's own protocol names it unambiguously —
+        /// ACP's <c>locations</c>, Codex's <c>file_change.changes[].path</c> — rather than leaving it to
+        /// be guessed from <see cref="ToolInputJson"/> by field name. Empty when the protocol does not
+        /// say (most tool calls, and every provider whose <see cref="ToolName"/> already matches a
+        /// known Claude-style tool, where the guess from <see cref="ToolInputJson"/> is reliable).
+        /// </summary>
+        public string ToolFilePath { get; set; } = string.Empty;
+
         /// <summary>Tool output text, for <see cref="AgentEventKind.ToolCallCompleted"/>.</summary>
         public string ToolResult { get; set; } = string.Empty;
 
@@ -418,14 +427,15 @@ namespace ClaudeCodeVS.Agents
             return new AgentEvent { Kind = AgentEventKind.Thinking, Text = text ?? string.Empty };
         }
 
-        public static AgentEvent ToolCallStarted(string id, string name, string inputJson)
+        public static AgentEvent ToolCallStarted(string id, string name, string inputJson, string filePath = null)
         {
             return new AgentEvent
             {
                 Kind = AgentEventKind.ToolCallStarted,
                 ToolCallId = id ?? string.Empty,
                 ToolName = name ?? string.Empty,
-                ToolInputJson = inputJson ?? string.Empty
+                ToolInputJson = inputJson ?? string.Empty,
+                ToolFilePath = filePath ?? string.Empty
             };
         }
 

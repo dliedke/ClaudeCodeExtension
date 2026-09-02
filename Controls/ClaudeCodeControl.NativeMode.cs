@@ -1881,7 +1881,8 @@ namespace ClaudeCodeVS
                 ToolInputJson = FormatToolInput(agentEvent.ToolInputJson),
                 Header = presentation.Title,
                 ToolIcon = presentation.Icon,
-                ToolTarget = presentation.Subtitle,
+                ToolTarget = ResolveToolTarget(agentEvent, presentation),
+                ToolFilePath = ResolveToolFilePath(agentEvent, presentation),
                 ToolBadge = presentation.Badge,
                 ToolAccent = ChatToolAccents.For(presentation.Category),
                 IsRunning = true
@@ -1895,6 +1896,36 @@ namespace ClaudeCodeVS
             {
                 _pendingToolCalls[agentEvent.ToolCallId] = message;
             }
+        }
+
+        /// <summary>
+        /// The file a tool call acted on: the adapter's own authoritative answer
+        /// (<see cref="AgentEvent.ToolFilePath"/> — ACP's <c>locations</c>, Codex's <c>changes[].path</c>)
+        /// when it gave one, else the presenter's guess from the raw JSON payload. Preferring the
+        /// authoritative source matters for providers whose tool names or payload shapes the presenter
+        /// was never built to recognize (every ACP agent, Codex's synthesized "File change"/"Command").
+        /// </summary>
+        private static string ResolveToolFilePath(AgentEvent agentEvent, ChatToolPresentation presentation)
+        {
+            return !string.IsNullOrEmpty(agentEvent.ToolFilePath) ? agentEvent.ToolFilePath : presentation.FilePath;
+        }
+
+        /// <summary>
+        /// The collapsed row's target text. Falls back to the authoritative file path when the presenter
+        /// found nothing to show — e.g. Codex's "File change" payload is a JSON array, which the
+        /// presenter cannot pull field names out of — so a card is never left with an "open file" icon
+        /// pointing at a file the row itself never mentions.
+        /// </summary>
+        private static string ResolveToolTarget(AgentEvent agentEvent, ChatToolPresentation presentation)
+        {
+            if (!string.IsNullOrEmpty(presentation.Subtitle))
+            {
+                return presentation.Subtitle;
+            }
+
+            return string.IsNullOrEmpty(agentEvent.ToolFilePath)
+                ? string.Empty
+                : ChatToolPresenter.ShortenPath(agentEvent.ToolFilePath);
         }
 
         private void CompleteToolCallMessage(AgentEvent agentEvent)
@@ -2579,7 +2610,8 @@ namespace ClaudeCodeVS
                 ToolInputJson = FormatToolInput(agentEvent.ToolInputJson),
                 Header = presentation.Title,
                 ToolIcon = presentation.Icon,
-                ToolTarget = presentation.Subtitle,
+                ToolTarget = ResolveToolTarget(agentEvent, presentation),
+                ToolFilePath = ResolveToolFilePath(agentEvent, presentation),
                 ToolBadge = presentation.Badge,
                 ToolAccent = ChatToolAccents.For(presentation.Category),
                 IsRunning = true

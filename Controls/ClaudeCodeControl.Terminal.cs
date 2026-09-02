@@ -4857,6 +4857,36 @@ namespace ClaudeCodeVS
             return windowsPath.Replace("\\", "/");
         }
 
+        /// <summary>
+        /// Converts a <c>/mnt/&lt;drive&gt;/...</c> path — what a WSL-hosted CLI (Codex, Claude Code
+        /// WSL, Cursor Agent, Devin) reports for anything under the project, since the workspace itself
+        /// is always passed to it as a mounted Windows drive (the reverse of <see cref="ConvertToWslPath"/>)
+        /// — back to the Windows path Visual Studio can open. Anything else (a native Linux path with no
+        /// Windows equivalent, or a path that is already Windows-shaped) is returned unchanged.
+        /// </summary>
+        /// <param name="path">Path as reported by a WSL-hosted tool call.</param>
+        /// <returns>The Windows-style equivalent, or <paramref name="path"/> unchanged if it is not a
+        /// recognized <c>/mnt/</c> path.</returns>
+        internal static string ConvertFromWslMountPath(string path)
+        {
+            if (string.IsNullOrEmpty(path))
+                return path ?? string.Empty;
+
+            const string prefix = "/mnt/";
+            if (!path.StartsWith(prefix, StringComparison.OrdinalIgnoreCase) || path.Length < prefix.Length + 1)
+                return path;
+
+            char driveLetter = path[prefix.Length];
+            if (!char.IsLetter(driveLetter))
+                return path;
+
+            int remainderStart = prefix.Length + 1;
+            bool hasRemainder = remainderStart < path.Length && path[remainderStart] == '/';
+            string remainder = hasRemainder ? path.Substring(remainderStart + 1) : string.Empty;
+
+            return char.ToUpperInvariant(driveLetter) + ":\\" + remainder.Replace('/', '\\');
+        }
+
         internal static string BuildWslLaunchCommand(string wslPath, string providerCommand)
         {
             return $"wsl bash -lic \"cd {QuoteForBash(wslPath)} && {providerCommand}\"";
