@@ -3269,22 +3269,31 @@ namespace ClaudeCodeVS
 
             string selected = GetSelectedProviderModelId(provider);
             List<Agents.ModelOption> models = GetCachedProviderModels(provider);
-            List<Agents.ModelGroup> groups = Agents.ModelCatalogGrouping.Group(models);
 
-            // Repeated at the top when the list is grouped: inside a submenu the checked entry is
-            // invisible until the right one is opened.
-            if (groups.Exists(g => g.IsSubmenu) && !string.IsNullOrWhiteSpace(selected))
+            if (ProviderUsesModelPicker(provider))
             {
-                AddChatModelMenuItem(menu, GetSelectedModelOption(provider, models, selected), selected);
+                FillChatModelPickerEntries(menu, provider, models, selected,
+                    picked => OnChatProviderModelSelected(picked));
             }
-
-            foreach (Agents.ModelGroup group in groups)
+            else
             {
-                ItemsControl parent = group.IsSubmenu ? AddComposerSubmenu(menu, group.Name) : (ItemsControl)menu;
+                List<Agents.ModelGroup> groups = Agents.ModelCatalogGrouping.Group(models);
 
-                foreach (Agents.ModelOption model in group.Models)
+                // Repeated at the top when the list is grouped: inside a submenu the checked entry is
+                // invisible until the right one is opened.
+                if (groups.Exists(g => g.IsSubmenu) && !string.IsNullOrWhiteSpace(selected))
                 {
-                    AddChatModelMenuItem(parent, model, selected);
+                    AddChatModelMenuItem(menu, GetSelectedModelOption(provider, models, selected), selected);
+                }
+
+                foreach (Agents.ModelGroup group in groups)
+                {
+                    ItemsControl parent = group.IsSubmenu ? AddComposerSubmenu(menu, group.Name) : (ItemsControl)menu;
+
+                    foreach (Agents.ModelOption model in group.Models)
+                    {
+                        AddChatModelMenuItem(parent, model, selected);
+                    }
                 }
             }
 
@@ -3320,20 +3329,29 @@ namespace ClaudeCodeVS
 
             string selected = session.SelectedModel;
             List<Agents.ModelOption> models = GetCachedProviderModels(provider);
-            List<Agents.ModelGroup> groups = Agents.ModelCatalogGrouping.Group(models);
 
-            if (groups.Exists(g => g.IsSubmenu) && !string.IsNullOrWhiteSpace(selected))
+            if (ProviderUsesModelPicker(provider))
             {
-                AddChatModelMenuItem(menu, GetSelectedModelOption(provider, models, selected), selected, session);
+                FillChatModelPickerEntries(menu, provider, models, selected,
+                    picked => OnChatProviderModelSelectedForSession(session, picked));
             }
-
-            foreach (Agents.ModelGroup group in groups)
+            else
             {
-                ItemsControl parent = group.IsSubmenu ? AddComposerSubmenu(menu, group.Name) : (ItemsControl)menu;
+                List<Agents.ModelGroup> groups = Agents.ModelCatalogGrouping.Group(models);
 
-                foreach (Agents.ModelOption model in group.Models)
+                if (groups.Exists(g => g.IsSubmenu) && !string.IsNullOrWhiteSpace(selected))
                 {
-                    AddChatModelMenuItem(parent, model, selected, session);
+                    AddChatModelMenuItem(menu, GetSelectedModelOption(provider, models, selected), selected, session);
+                }
+
+                foreach (Agents.ModelGroup group in groups)
+                {
+                    ItemsControl parent = group.IsSubmenu ? AddComposerSubmenu(menu, group.Name) : (ItemsControl)menu;
+
+                    foreach (Agents.ModelOption model in group.Models)
+                    {
+                        AddChatModelMenuItem(parent, model, selected, session);
+                    }
                 }
             }
 
@@ -3361,6 +3379,53 @@ namespace ClaudeCodeVS
                 System.Threading.CancellationToken.None,
                 TaskContinuationOptions.OnlyOnRanToCompletion,
                 TaskScheduler.FromCurrentSynchronizationContext());
+        }
+
+        /// <summary>
+        /// The composer's Devin dropdown: the model in use, the starred favorites, and the entry
+        /// that opens the searchable picker — the same shape the panel's model menu takes.
+        /// </summary>
+        private void FillChatModelPickerEntries(ContextMenu menu, AiProvider provider,
+            List<Agents.ModelOption> models, string selected, Action<string> onPicked)
+        {
+            ThreadHelper.ThrowIfNotOnUIThread();
+
+            if (!string.IsNullOrWhiteSpace(selected))
+            {
+                AddChatModelMenuItem(menu, GetSelectedModelOption(provider, models, selected), selected, onPicked);
+            }
+
+            foreach (string favorite in GetFavoriteDevinModelIds())
+            {
+                if (string.Equals(favorite, selected, StringComparison.OrdinalIgnoreCase)) continue;
+
+                Agents.ModelOption model = FindProviderModel(models, favorite);
+                if (model == null) continue;
+
+                AddChatModelMenuItem(menu, model, selected, onPicked);
+            }
+
+            AddComposerMenuItem(menu, "Select Model...", false,
+                delegate
+                {
+                    ThreadHelper.ThrowIfNotOnUIThread();
+
+                    string picked = ShowProviderModelPickerDialog(provider, selected);
+                    if (picked == null) return;
+
+                    onPicked(picked);
+                });
+        }
+
+        /// <summary>The picker-backed counterpart: the caller decides what a pick does.</summary>
+        private void AddChatModelMenuItem(ItemsControl parent, Agents.ModelOption model, string selected,
+            Action<string> onPicked)
+        {
+            string current = model.Id;
+
+            AddComposerMenuItem(parent, model.BuildMenuCaption(),
+                string.Equals(current, selected, StringComparison.OrdinalIgnoreCase),
+                delegate { ThreadHelper.ThrowIfNotOnUIThread(); onPicked(current); });
         }
 
         private void AddChatModelMenuItem(ItemsControl parent, Agents.ModelOption model, string selected)

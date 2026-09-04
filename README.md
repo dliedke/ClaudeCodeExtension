@@ -138,6 +138,16 @@ Use native mode to avoid this issue.
 
 ## Version History
 
+### Version 168.0
+The Devin model picker now has favorites: click the star next to any model to pin it, and it jumps to a "Favorites" section at the top of the list, right under Adaptive.
+
+Favorites replace the automatic "recently used" list in both the picker and the model menu — nothing is remembered unless you star it, and your picks are saved for next session.
+
+### Version 167.0
+Devin's model menu now opens a searchable picker, like the one in Devin Desktop: type to find any of Devin's models, with Adaptive pinned on top and a side panel showing each model's context window, cost tier and per-million prices.
+
+The menu itself now lists the model in use plus the ones you picked recently, so switching between your usual models no longer means walking through submenus. Works in both the terminal and native mode, for Devin (native) and Devin (WSL).
+
 ### Version 166.0
 Native mode's tool cards (Read, Edit, Write, MultiEdit, NotebookEdit and more) now show a small ↗ icon on the collapsed row when they touched a file in your project — click it to jump straight to that file in the editor. Works across every provider (Claude Code, Codex, Cursor Agent, Devin, OpenCode, PI, Reasonix), including WSL-based ones, and tells you when a file can't be found instead of doing nothing.
 

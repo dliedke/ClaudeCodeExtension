@@ -45,6 +45,15 @@ namespace ClaudeCodeVS.Agents
         /// <summary>Context window in tokens, 0 when the CLI does not report one.</summary>
         public int ContextTokens { get; set; }
 
+        /// <summary>
+        /// The per-1M prices the CLI reports ("$5 / 1M Input · $0.5 / 1M Cached input · $25 / 1M
+        /// Output"). Shown in the picker's details pane; empty when the CLI reports none.
+        /// </summary>
+        public string CostSummary { get; set; } = string.Empty;
+
+        /// <summary>One-line description of what the model is for. Devin reports one for Adaptive.</summary>
+        public string Description { get; set; } = string.Empty;
+
         /// <summary>The CLI's own "new" marker.</summary>
         public bool IsNew { get; set; }
 
@@ -80,8 +89,18 @@ namespace ClaudeCodeVS.Agents
                 : DisplayName + " — " + string.Join(" · ", details);
         }
 
+        /// <summary>"1M context" for the details pane, empty when the CLI reports no window.</summary>
+        public string ContextWindowLabel
+        {
+            get
+            {
+                string context = FormatContextWindow(ContextTokens);
+                return context.Length == 0 ? string.Empty : context + " context";
+            }
+        }
+
         /// <summary>"1M", "500K", "272K" — Devin reports 1047576 and 1048576 for what it shows as 1M.</summary>
-        private static string FormatContextWindow(int tokens)
+        public static string FormatContextWindow(int tokens)
         {
             if (tokens <= 0) return string.Empty;
 
@@ -305,6 +324,8 @@ namespace ClaudeCodeVS.Agents
 
                         ModelOption added = models[models.Count - 1];
                         added.CostTier = variant["cost_tier"]?.ToString() ?? string.Empty;
+                        added.CostSummary = variant["cost_summary"]?.ToString() ?? string.Empty;
+                        added.Description = variant["description"]?.ToString() ?? string.Empty;
                         added.ContextTokens = ReadInt(variant["max_context_tokens"]);
                         added.IsNew = ReadBool(variant["is_new"]);
                         added.IsBeta = ReadBool(variant["is_beta"]);
@@ -494,6 +515,196 @@ namespace ClaudeCodeVS.Agents
                 Name = string.IsNullOrWhiteSpace(name) ? trimmedId : name.Trim(),
                 Group = (group ?? string.Empty).Trim()
             });
+        }
+    }
+
+    /// <summary>
+    /// One block of the model picker: a caption and the models under it. A section with an empty
+    /// <see cref="Name"/> is drawn without a header, which is how the pinned entries at the very top
+    /// (Adaptive) reach the list.
+    /// </summary>
+    public class ModelPickerSection
+    {
+        public string Name { get; set; } = string.Empty;
+
+        public List<ModelOption> Models { get; set; } = new List<ModelOption>();
+
+        public bool HasHeader
+        {
+            get { return !string.IsNullOrEmpty(Name); }
+        }
+    }
+
+    /// <summary>
+    /// Lays out the searchable model picker: what it shows, in what order, for a given search text.
+    /// Pure so it can be unit-tested without a window — the dialog only turns these sections into
+    /// rows. Devin lists 158 models in 31 families, which is why the picker exists at all: the menu
+    /// buried every one of them two levels deep with no way to search.
+    /// </summary>
+    public static class ModelPickerView
+    {
+        /// <summary>
+        /// Devin's own name for the family that picks the model per turn. Pinned at the top of the
+        /// picker the way Devin Desktop pins it, rather than sorted in among the model families.
+        /// </summary>
+        public const string AdaptiveFamily = "Adaptive";
+
+        public static List<ModelPickerSection> Build(
+            IEnumerable<ModelOption> models, IEnumerable<string> favoriteIds, string search)
+        {
+            var sections = new List<ModelPickerSection>();
+
+            var all = new List<ModelOption>();
+            if (models != null) all.AddRange(models);
+            if (all.Count == 0) return sections;
+
+            string[] terms = SplitSearchTerms(search);
+            var matched = new List<ModelOption>();
+            foreach (ModelOption model in all)
+            {
+                if (Matches(model, terms)) matched.Add(model);
+            }
+
+            if (matched.Count == 0) return sections;
+
+            var pinned = new ModelPickerSection();
+            foreach (ModelOption model in matched)
+            {
+                if (IsAdaptive(model)) pinned.Models.Add(model);
+            }
+            if (pinned.Models.Count > 0) sections.Add(pinned);
+
+            // Unlike the old "Recently Used" list this is user-curated, not automatic, so a search
+            // still narrows it down instead of hiding it outright — a favorite that does not match
+            // what was typed drops out the same way a family entry would.
+            if (favoriteIds != null)
+            {
+                var favorites = new ModelPickerSection { Name = "Favorites" };
+
+                foreach (string id in favoriteIds)
+                {
+                    ModelOption model = Find(matched, id);
+                    if (model == null || IsAdaptive(model)) continue;
+
+                    favorites.Models.Add(model);
+                }
+
+                if (favorites.Models.Count > 0) sections.Add(favorites);
+            }
+
+            // Families in the order the CLI printed them, which is the order it considers useful —
+            // its newest models first. A model that is also pinned or favorited stays here too, so
+            // the family reads complete.
+            var byFamily = new Dictionary<string, ModelPickerSection>(StringComparer.OrdinalIgnoreCase);
+            foreach (ModelOption model in matched)
+            {
+                if (IsAdaptive(model)) continue;
+
+                string name = string.IsNullOrWhiteSpace(model.Group)
+                    ? ModelCatalogGrouping.GetGroupKey(model.Id)
+                    : model.Group.Trim();
+
+                ModelPickerSection section;
+                if (!byFamily.TryGetValue(name, out section))
+                {
+                    section = new ModelPickerSection { Name = name };
+                    byFamily[name] = section;
+                    sections.Add(section);
+                }
+
+                section.Models.Add(model);
+            }
+
+            return sections;
+        }
+
+        /// <summary>Whether <paramref name="modelId"/> is in the favorites list, case-insensitively.</summary>
+        public static bool IsFavorite(IEnumerable<string> favoriteIds, string modelId)
+        {
+            if (favoriteIds == null || string.IsNullOrWhiteSpace(modelId)) return false;
+
+            foreach (string id in favoriteIds)
+            {
+                if (string.Equals((id ?? string.Empty).Trim(), modelId, StringComparison.OrdinalIgnoreCase)) return true;
+            }
+
+            return false;
+        }
+
+        /// <summary>
+        /// Adds or removes <paramref name="modelId"/> from the favorites list — a star click toggles,
+        /// it does not just add. A newly-starred model goes to the front, so the most recently
+        /// favorited model leads the "Favorites" section the same way it did as "Recently Used".
+        /// </summary>
+        public static List<string> ToggleFavorite(IEnumerable<string> favoriteIds, string modelId)
+        {
+            string toggled = (modelId ?? string.Empty).Trim();
+            var updated = new List<string>();
+            bool removed = false;
+
+            if (favoriteIds != null)
+            {
+                foreach (string id in favoriteIds)
+                {
+                    string existing = (id ?? string.Empty).Trim();
+                    if (existing.Length == 0) continue;
+
+                    if (string.Equals(existing, toggled, StringComparison.OrdinalIgnoreCase))
+                    {
+                        removed = true;
+                        continue;
+                    }
+
+                    updated.Add(existing);
+                }
+            }
+
+            if (!removed && toggled.Length > 0) updated.Insert(0, toggled);
+
+            return updated;
+        }
+
+        /// <summary>
+        /// Every term has to match somewhere in the caption, the family or the id, so "opus high"
+        /// finds "Claude Opus 5 High" no matter which order the words are typed.
+        /// </summary>
+        private static bool Matches(ModelOption model, string[] terms)
+        {
+            if (terms.Length == 0) return true;
+
+            string haystack = (model.DisplayName + " " + model.Group + " " + model.Id).ToLowerInvariant();
+
+            foreach (string term in terms)
+            {
+                if (haystack.IndexOf(term, StringComparison.Ordinal) < 0) return false;
+            }
+
+            return true;
+        }
+
+        private static string[] SplitSearchTerms(string search)
+        {
+            if (string.IsNullOrWhiteSpace(search)) return new string[0];
+
+            return search.ToLowerInvariant().Split(new[] { ' ', '\t' }, StringSplitOptions.RemoveEmptyEntries);
+        }
+
+        private static bool IsAdaptive(ModelOption model)
+        {
+            return string.Equals(model.Group, AdaptiveFamily, StringComparison.OrdinalIgnoreCase)
+                || string.Equals(model.Id, "adaptive", StringComparison.OrdinalIgnoreCase);
+        }
+
+        private static ModelOption Find(List<ModelOption> models, string id)
+        {
+            if (string.IsNullOrWhiteSpace(id)) return null;
+
+            foreach (ModelOption model in models)
+            {
+                if (string.Equals(model.Id, id, StringComparison.OrdinalIgnoreCase)) return model;
+            }
+
+            return null;
         }
     }
 }

@@ -79,6 +79,7 @@
     <Compile Include="Controls\ClaudeCodeControl.CliPaths.cs" />
     <Compile Include="Controls\ClaudeCodeControl.CommitMessage.cs" />
     <Compile Include="Controls\ClaudeCodeControl.ModelCatalog.cs" />
+    <Compile Include="Controls\ClaudeCodeControl.ModelPickerDialog.cs" />
     <Compile Include="Controls\ClaudeCodeControl.CustomCommands.cs" />
     <Compile Include="Controls\ClaudeCodeControl.DebugVisibility.cs" />
     <Compile Include="Controls\ClaudeCodeControl.Detach.cs" />

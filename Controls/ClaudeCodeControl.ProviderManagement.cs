@@ -2989,6 +2989,16 @@ For more details, visit: https://pi.dev";
             int insertIndex = 0;
             string selected = GetSelectedProviderModelId(provider);
             System.Collections.Generic.List<Agents.ModelOption> models = GetCachedProviderModels(provider.Value);
+
+            // Devin swaps the model list for the searchable picker: the menu keeps the current pick
+            // and the last few used, and "Select Model..." opens the window for everything else.
+            if (ProviderUsesModelPicker(provider))
+            {
+                InsertDevinModelMenuItems(provider.Value, models, selected, ref insertIndex);
+                InsertModelCatalogTailItems(provider.Value, ref insertIndex);
+                return;
+            }
+
             System.Collections.Generic.List<Agents.ModelGroup> groups = Agents.ModelCatalogGrouping.Group(models);
 
             // With the list broken into submenus the selection would be buried in one of them, so it
@@ -3033,14 +3043,24 @@ For more details, visit: https://pi.dev";
                 InsertDynamicModelItem(empty, ref insertIndex);
             }
 
-            if (ModelCatalogSources.ContainsKey(provider.Value))
+            InsertModelCatalogTailItems(provider.Value, ref insertIndex);
+        }
+
+        /// <summary>
+        /// The two entries every catalog-backed provider ends with: re-read the list from the CLI,
+        /// and open the agent's own picker, which is authoritative whatever the extension knows.
+        /// </summary>
+        private void InsertModelCatalogTailItems(AiProvider provider, ref int insertIndex)
+        {
+            ThreadHelper.ThrowIfNotOnUIThread();
+
+            if (ModelCatalogSources.ContainsKey(provider))
             {
                 var refresh = new System.Windows.Controls.MenuItem { Header = "Refresh Models" };
                 refresh.Click += RefreshProviderModelsMenuItem_Click;
                 InsertDynamicModelItem(refresh, ref insertIndex);
             }
 
-            // The escape hatch: whatever the extension knows, the agent's own picker is authoritative.
             if (GetSimpleModelCommand(provider) != null)
             {
                 var picker = new System.Windows.Controls.MenuItem
@@ -3051,6 +3071,80 @@ For more details, visit: https://pi.dev";
                 picker.Click += OpenAgentModelPickerMenuItem_Click;
                 InsertDynamicModelItem(picker, ref insertIndex);
             }
+        }
+
+        /// <summary>
+        /// Devin's model entries: the model in use, the starred favorites, and the entry that opens
+        /// the searchable picker (where the star lives). 158 models in 31 families do not belong in a
+        /// context menu, but the handful the user has starred do.
+        /// </summary>
+        private void InsertDevinModelMenuItems(
+            AiProvider provider, System.Collections.Generic.List<Agents.ModelOption> models,
+            string selected, ref int insertIndex)
+        {
+            ThreadHelper.ThrowIfNotOnUIThread();
+
+            if (!string.IsNullOrWhiteSpace(selected))
+            {
+                InsertDynamicModelItem(CreateProviderModelItem(
+                    GetSelectedModelOption(provider, models, selected), selected, provider), ref insertIndex);
+            }
+
+            foreach (string favorite in GetFavoriteDevinModelIds())
+            {
+                if (string.Equals(favorite, selected, StringComparison.OrdinalIgnoreCase)) continue;
+
+                Agents.ModelOption model = FindProviderModel(models, favorite);
+                if (model == null) continue;
+
+                InsertDynamicModelItem(CreateProviderModelItem(model, selected, provider), ref insertIndex);
+            }
+
+            var browse = new System.Windows.Controls.MenuItem { Header = "Select Model..." };
+            browse.Click += OpenModelPickerMenuItem_Click;
+            InsertDynamicModelItem(browse, ref insertIndex);
+
+            if (models.Count != 0) return;
+
+            var empty = new System.Windows.Controls.MenuItem
+            {
+                Header = ShouldRefreshProviderModels(provider) ? "Loading models…" : "No models reported by the agent",
+                IsEnabled = false
+            };
+            InsertDynamicModelItem(empty, ref insertIndex);
+        }
+
+        /// <summary>The catalog entry for an id, or null when the CLI no longer lists it.</summary>
+        private static Agents.ModelOption FindProviderModel(
+            System.Collections.Generic.List<Agents.ModelOption> models, string modelId)
+        {
+            if (models == null || string.IsNullOrWhiteSpace(modelId)) return null;
+
+            foreach (Agents.ModelOption model in models)
+            {
+                if (string.Equals(model.Id, modelId, StringComparison.OrdinalIgnoreCase)) return model;
+            }
+
+            return null;
+        }
+
+        /// <summary>
+        /// Opens the searchable picker and applies what comes back through the same path a menu entry
+        /// takes, so the live switch (or the restart prompt) behaves identically either way.
+        /// </summary>
+#pragma warning disable VSTHRD100 // Avoid async void methods
+        private async void OpenModelPickerMenuItem_Click(object sender, RoutedEventArgs e)
+#pragma warning restore VSTHRD100
+        {
+            await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
+
+            AiProvider? provider = GetActiveOrSelectedProvider();
+            if (provider == null) return;
+
+            string picked = ShowProviderModelPickerDialog(provider.Value, GetSelectedProviderModelId(provider));
+            if (picked == null) return;
+
+            ApplyPickedProviderModel(provider.Value, picked);
         }
 
         /// <summary>
@@ -3233,6 +3327,23 @@ For more details, visit: https://pi.dev";
 
             await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
 
+            AiProvider? provider = GetActiveOrSelectedProvider();
+            if (provider == null) return;
+
+            ApplyPickedProviderModel(provider.Value, model);
+        }
+
+        /// <summary>
+        /// Applies a model picked from the menu or the picker window: native mode switches the live
+        /// chat session, the terminal gets the agent's own slash command, and an agent that only reads
+        /// its model at launch is offered a restart.
+        /// </summary>
+#pragma warning disable VSTHRD100 // Avoid async void methods
+        private async void ApplyPickedProviderModel(AiProvider provider, string model)
+#pragma warning restore VSTHRD100
+        {
+            await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
+
             // Native mode has no console for the slash command below, and the chat composer's own
             // model selector already switches a live ACP session in place — route the menu into it.
             if (IsNativeModeActive)
@@ -3241,16 +3352,13 @@ For more details, visit: https://pi.dev";
                 return;
             }
 
-            AiProvider? provider = GetActiveOrSelectedProvider();
-            if (provider == null) return;
-
-            SetSelectedProviderModelId(provider.Value, model);
+            SetSelectedProviderModelId(provider, model);
             UpdateModelSelection();
             SaveSettings();
 
             if (_currentRunningProvider != provider) return;
 
-            string liveCommand = GetLiveModelSwitchCommand(provider.Value, model);
+            string liveCommand = GetLiveModelSwitchCommand(provider, model);
             if (liveCommand != null)
             {
                 await SendTextToTerminalAsync(liveCommand);

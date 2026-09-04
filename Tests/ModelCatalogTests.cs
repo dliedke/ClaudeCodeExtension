@@ -299,7 +299,7 @@ namespace ClaudeCodeExtension.Tests
       ""family_uid"": ""claude-opus-5"",
       ""aliases"": [""opus""],
       ""variants"": [
-        { ""model_uid"": ""claude-opus-5-medium"", ""label"": ""Claude Opus 5 Medium"", ""max_context_tokens"": 1000000, ""cost_tier"": ""High cost"", ""is_new"": false, ""is_beta"": false },
+        { ""model_uid"": ""claude-opus-5-medium"", ""label"": ""Claude Opus 5 Medium"", ""max_context_tokens"": 1000000, ""cost_tier"": ""High cost"", ""cost_summary"": ""$5 / 1M Input \u00b7 $25 / 1M Output"", ""is_new"": false, ""is_beta"": false },
         { ""model_uid"": ""claude-opus-5-high"", ""label"": ""Claude Opus 5 High"", ""max_context_tokens"": 1000000, ""cost_tier"": ""High cost"", ""is_new"": true, ""is_beta"": true }
       ]
     },
@@ -307,7 +307,7 @@ namespace ClaudeCodeExtension.Tests
       ""family_label"": ""Claude Haiku 4.5"",
       ""family_uid"": ""Claude Haiku 4.5"",
       ""variants"": [
-        { ""model_uid"": ""MODEL_PRIVATE_11"", ""label"": ""Claude Haiku 4.5"" }
+        { ""model_uid"": ""MODEL_PRIVATE_11"", ""label"": ""Claude Haiku 4.5"", ""description"": ""Fast and cheap"" }
       ]
     }
   ]
@@ -340,10 +340,15 @@ namespace ClaudeCodeExtension.Tests
             List<ModelOption> models = ModelCatalogParsers.ParseDevinCatalog(DevinModelsJson);
 
             Assert.AreEqual("High cost", models[0].CostTier);
+            StringAssert.Contains(models[0].CostSummary, "$25 / 1M Output");
             Assert.AreEqual(1000000, models[0].ContextTokens);
             Assert.IsTrue(models[1].IsNew);
             Assert.IsTrue(models[1].IsBeta);
             Assert.IsFalse(models[0].IsNew);
+
+            // The details pane's own fields: Devin describes Adaptive and its cheaper models.
+            Assert.AreEqual("Fast and cheap", models[2].Description);
+            Assert.AreEqual(string.Empty, models[0].Description);
         }
 
         [TestMethod]

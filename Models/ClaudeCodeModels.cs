@@ -529,6 +529,14 @@ namespace ClaudeCodeVS
         public string SelectedDevinModel { get; set; } = string.Empty;
 
         /// <summary>
+        /// The Devin models starred as favorites, most recently starred first, so the model picker
+        /// and the model menu can offer them without a trip through 31 families. Ids, same as
+        /// <see cref="SelectedDevinModel"/>; user-curated (star icon in the picker), not capped.
+        /// </summary>
+        public System.Collections.Generic.List<string> FavoriteDevinModels { get; set; }
+            = new System.Collections.Generic.List<string>();
+
+        /// <summary>
         /// Model chosen per provider, keyed by the <see cref="AiProvider"/> name. Holds the id the
         /// CLI expects (<c>gpt-5.6-sol</c>, <c>opencode/big-pickle</c>, <c>anthropic/claude-opus-4-8</c>).
         /// An absent or empty entry means "whatever the CLI defaults to". Claude and Devin are not in
