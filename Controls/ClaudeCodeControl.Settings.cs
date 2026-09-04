@@ -1128,6 +1128,11 @@ namespace ClaudeCodeVS
         /// and inline usage bars stay visible and reachable so the user can always turn the
         /// box back on. Called at the end of <see cref="ApplyLayout"/>, so it runs after
         /// every layout rebuild (startup, orientation/position change).
+        /// When native mode is active and the chat is docked in the panel (not detached to
+        /// its own tab), <see cref="ChatTranscriptView.ComposerBar"/> is hidden and the prompt
+        /// box is the only surface that can reach the model/effort/permission selectors (via
+        /// "/model", "/effort", etc.) — so the setting is ignored while native mode is active
+        /// to avoid stranding the user with no way to reach them (issue #151).
         /// </summary>
         private void ApplyPromptPanelHiddenState()
         {
@@ -1138,7 +1143,7 @@ namespace ClaudeCodeVS
                     return;
                 }
 
-                bool hidden = _settings.HidePromptPanel;
+                bool hidden = _settings.HidePromptPanel && !IsNativeModeActive;
 
                 PromptGroupBox.Visibility = hidden ? Visibility.Collapsed : Visibility.Visible;
                 MainGridSplitter.Visibility = hidden ? Visibility.Collapsed : Visibility.Visible;

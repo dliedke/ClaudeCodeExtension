@@ -138,6 +138,9 @@ Use native mode to avoid this issue.
 
 ## Version History
 
+### Version 169.0
+Fixed native mode losing access to the model/effort/permission selectors when "Hide prompt input box" was turned on and the chat wasn't detached to its own tab.
+
 ### Version 168.0
 The Devin model picker now has favorites: click the star next to any model to pin it, and it jumps to a "Favorites" section at the top of the list, right under Adaptive.
 

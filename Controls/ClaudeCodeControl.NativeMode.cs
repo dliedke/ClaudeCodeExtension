@@ -1153,6 +1153,12 @@ namespace ClaudeCodeVS
             // button-versus-menu split, so it decides where the control reappears when the terminal
             // comes back — setting both to Visible here would show it twice.
             RefreshToolbarLayout();
+
+            // "Hide prompt input box" is ignored while native mode is active (issue #151: with the
+            // chat docked and the box hidden there'd be no surface left to reach the model/effort
+            // selectors). Toggling native mode on/off doesn't go through ApplyLayout, so re-evaluate
+            // it here instead of leaving the box in a stale state until the next layout rebuild.
+            ApplyPromptPanelHiddenState();
         }
 
         #endregion
