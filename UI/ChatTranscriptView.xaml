@@ -637,15 +637,6 @@
 			</Setter>
 		</Style>
 
-		<!-- Accent style for the send button, so the primary action reads as primary -->
-		<Style x:Key="ComposerSendStyle" TargetType="Button" BasedOn="{StaticResource ComposerSelectorStyle}">
-			<Setter Property="Background" Value="#1C8AE0"/>
-			<Setter Property="Foreground" Value="White"/>
-			<Setter Property="FontWeight" Value="SemiBold"/>
-			<Setter Property="Padding" Value="12,2,12,2"/>
-			<Setter Property="Margin" Value="6,0,0,0"/>
-		</Style>
-
 		</ResourceDictionary>
 	</UserControl.Resources>
 
@@ -865,8 +856,10 @@
 		</Border>
 
 		<!-- Composer: the chat can be driven entirely from here, so the tab is usable on its own
-		     without going back to the panel's prompt box. Hidden while the chat sits in the panel,
-		     where that prompt box is right above it. -->
+		     without going back to the panel's prompt box. Three states, set via SetComposerMode:
+		     Hidden (native mode off), ActionsOnly (chat docked in the panel — the panel's own prompt
+		     box sits right above this one, so only the action row's selectors/menus stay visible, not
+		     a second input box) and Full (chat in its own tab). -->
 		<Border x:Name="ComposerBar" Grid.Row="2"
 		        Visibility="Collapsed"
 		        Padding="8,6,8,8"
@@ -902,9 +895,9 @@
 				</Thumb>
 
 				<!-- Attachment chips, filled by the parent control from its own attachment list -->
-				<WrapPanel x:Name="ComposerAttachments" Grid.Row="1" Margin="0,0,0,4"/>
+				<WrapPanel x:Name="ComposerAttachments" Grid.Row="2" Margin="0,0,0,4"/>
 
-				<Border Grid.Row="2" CornerRadius="4" Padding="6,4,6,4"
+				<Border x:Name="ComposerInputBorder" Grid.Row="3" CornerRadius="4" Padding="6,4,6,4"
 				        Background="{DynamicResource {x:Static vsshell:VsBrushes.WindowKey}}"
 				        BorderBrush="{DynamicResource {x:Static vsshell:VsBrushes.ToolWindowBorderKey}}"
 				        BorderThickness="1">
@@ -926,7 +919,7 @@
 						         PreviewKeyDown="ComposerInput_PreviewKeyDown"
 						         TextChanged="ComposerInput_TextChanged"/>
 						<TextBlock x:Name="ComposerPlaceholder"
-						           Text="Ask anything · Ctrl+Up/Down for prompt history · Esc to stop"
+						           Text="Ask anything · Enter to send · Ctrl+Up/Down for prompt history · Esc to stop"
 						           IsHitTestVisible="False"
 						           Margin="2,1,0,0"
 						           Opacity="0.5"
@@ -936,76 +929,143 @@
 					</Grid>
 				</Border>
 
-				<DockPanel Grid.Row="3" Margin="0,6,0,0" LastChildFill="False">
-					<Button x:Name="ComposerClearButton" DockPanel.Dock="Left"
+				<!-- Action row sits above the prompt box, not below it — it's the composer's own
+				     toolbar (session actions, selectors, mirrored config buttons), and reads more like
+				     one when it isn't crammed between the text box and the edge of the window.
+				     Only the mirrored config buttons at the end (⚙/☰/⚡ and the promoted-toolbar
+				     mirrors) scroll when a customized toolbar makes them wider than the tab — via
+				     small ◀/▶ buttons (only shown once there's something to scroll to) and the mouse
+				     wheel, rather than a full-width scrollbar track that would look out of place under
+				     a row this thin. The session actions and the Agent/Model/Effort/Permissions
+				     selectors sit in their own fixed, non-scrolling section before the arrows, since
+				     they're the controls actually needed to drive the agent. -->
+				<Grid x:Name="ComposerActionRow" Grid.Row="1" Margin="0,0,0,6">
+					<Grid.ColumnDefinitions>
+						<ColumnDefinition Width="Auto"/>
+						<ColumnDefinition Width="Auto"/>
+						<ColumnDefinition Width="*"/>
+						<ColumnDefinition Width="Auto"/>
+					</Grid.ColumnDefinitions>
+
+					<!-- Session actions and the Agent/Model/Effort/Permissions selectors are always fully
+					     visible — they never scroll out of reach, only the mirrored config buttons after them
+					     (which are the least essential — duplicates of controls the panel already has) do. -->
+					<DockPanel Grid.Column="0" LastChildFill="False">
+						<Button x:Name="ComposerClearButton" DockPanel.Dock="Left"
+						        Style="{StaticResource ComposerSelectorStyle}"
+						        Content="↻"
+						        FontSize="13"
+						        ToolTip="Clear this conversation and start fresh"
+						        Click="ComposerClearButton_Click"/>
+
+						<Button x:Name="ComposerNewChatButton" DockPanel.Dock="Left"
+						        Style="{StaticResource ComposerSelectorStyle}"
+						        Content="✚"
+						        FontSize="13"
+						        ToolTip="Open new chat session in parallel tab"
+						        Click="ComposerNewChatButton_Click"/>
+
+						<Button x:Name="ComposerRenameSessionButton" DockPanel.Dock="Left"
+						        Style="{StaticResource ComposerSelectorStyle}"
+						        Content="✎"
+						        FontSize="13"
+						        ToolTip="Rename this session"
+						        Click="ComposerRenameSessionButton_Click"/>
+
+						<!-- Independent from rename — the header's own swatch only exists once a session has a
+						     title, so this is the entry point that works even for a not-yet-renamed session. -->
+						<Button x:Name="ComposerColorButton" DockPanel.Dock="Left"
+						        Style="{StaticResource ComposerSelectorStyle}"
+						        Content="🎨"
+						        FontSize="13"
+						        ToolTip="Change this session's color"
+						        Click="ComposerColorButton_Click"/>
+
+						<Rectangle DockPanel.Dock="Left" Width="1" Margin="4,4,6,4" Opacity="0.25"
+						           Fill="{DynamicResource {x:Static vsshell:VsBrushes.WindowTextKey}}"/>
+
+						<Button x:Name="ComposerProviderButton" DockPanel.Dock="Left"
+						        Style="{StaticResource ComposerSelectorStyle}"
+						        Content="Agent ▾"
+						        ToolTip="Change the AI agent"
+						        Click="ComposerProviderButton_Click"/>
+
+						<Button x:Name="ComposerModelButton" DockPanel.Dock="Left"
+						        Style="{StaticResource ComposerSelectorStyle}"
+						        Content="Model ▾"
+						        ToolTip="Change the model"
+						        Click="ComposerModelButton_Click"/>
+
+						<Button x:Name="ComposerEffortButton" DockPanel.Dock="Left"
+						        Style="{StaticResource ComposerSelectorStyle}"
+						        Content="Effort ▾"
+						        ToolTip="Change the effort level"
+						        Click="ComposerEffortButton_Click"/>
+
+						<Button x:Name="ComposerPermissionButton" DockPanel.Dock="Left"
+						        Style="{StaticResource ComposerSelectorStyle}"
+						        Content="Permissions ▾"
+						        ToolTip="Change how tool permissions are handled"
+						        Click="ComposerPermissionButton_Click"/>
+
+						<Rectangle DockPanel.Dock="Left" Width="1" Margin="4,4,6,4" Opacity="0.25"
+						           Fill="{DynamicResource {x:Static vsshell:VsBrushes.WindowTextKey}}"/>
+					</DockPanel>
+
+					<Button x:Name="ComposerActionsScrollLeftButton" Grid.Column="1"
 					        Style="{StaticResource ComposerSelectorStyle}"
-					        Content="↻"
-					        FontSize="13"
-					        ToolTip="Clear this conversation and start fresh"
-					        Click="ComposerClearButton_Click"/>
+					        Content="◀" FontSize="9" Padding="4,2,4,2"
+					        ToolTip="Scroll left"
+					        Visibility="Hidden"
+					        Click="ComposerActionsScrollLeftButton_Click"/>
 
-					<Button x:Name="ComposerNewChatButton" DockPanel.Dock="Left"
+					<!-- Only the mirrored config buttons (⚙/☰/⚡ and whatever the user promoted to the
+					     toolbar) scroll — they're the least essential controls in this row (duplicates of
+					     things the panel already has), so when space runs out they're what gives way, not the
+					     session actions or the selectors next to them. -->
+					<ScrollViewer x:Name="ComposerActionsScroller" Grid.Column="2"
+					              HorizontalScrollBarVisibility="Hidden" VerticalScrollBarVisibility="Disabled"
+					              PreviewMouseWheel="ComposerActionsScroller_PreviewMouseWheel"
+					              ScrollChanged="ComposerActionsScroller_ScrollChanged">
+						<DockPanel LastChildFill="False">
+							<!-- Mirrors of the panel's own config surfaces (⚙/☰/⚡ and whatever the user promoted
+							     to the toolbar): native mode hides most of the panel's toolbar in favor of these,
+							     since the panel's prompt box is auto-collapsed once the chat is in this tab. Every
+							     button here opens the panel's actual ContextMenu instance re-anchored to itself,
+							     or invokes the same click handler the panel button does — there is no separate
+							     copy of the menu contents or the feature logic. Populated by RefreshToolbarLayout. -->
+							<StackPanel x:Name="ComposerPromotedButtons" DockPanel.Dock="Left" Orientation="Horizontal"/>
+
+							<Button x:Name="ComposerCustomCommandsButton" DockPanel.Dock="Left"
+							        Style="{StaticResource ComposerSelectorStyle}"
+							        Content="⚡"
+							        FontSize="13"
+							        ToolTip="Custom commands"
+							        Click="ComposerCustomCommandsButton_Click"/>
+
+							<Button x:Name="ComposerToolsButton" DockPanel.Dock="Left"
+							        Style="{StaticResource ComposerSelectorStyle}"
+							        Content="☰"
+							        FontSize="13"
+							        ToolTip="Tools"
+							        Click="ComposerToolsButton_Click"/>
+
+							<Button x:Name="ComposerSettingsButton" DockPanel.Dock="Left"
+							        Style="{StaticResource ComposerSelectorStyle}"
+							        Content="⚙"
+							        FontSize="13"
+							        ToolTip="Settings"
+							        Click="ComposerSettingsButton_Click"/>
+						</DockPanel>
+					</ScrollViewer>
+
+					<Button x:Name="ComposerActionsScrollRightButton" Grid.Column="3"
 					        Style="{StaticResource ComposerSelectorStyle}"
-					        Content="✚"
-					        FontSize="13"
-					        ToolTip="Open new chat session in parallel tab"
-					        Click="ComposerNewChatButton_Click"/>
-
-					<Button x:Name="ComposerRenameSessionButton" DockPanel.Dock="Left"
-					        Style="{StaticResource ComposerSelectorStyle}"
-					        Content="✎"
-					        FontSize="13"
-					        ToolTip="Rename this session"
-					        Click="ComposerRenameSessionButton_Click"/>
-
-					<!-- Independent from rename — the header's own swatch only exists once a session has a
-					     title, so this is the entry point that works even for a not-yet-renamed session. -->
-					<Button x:Name="ComposerColorButton" DockPanel.Dock="Left"
-					        Style="{StaticResource ComposerSelectorStyle}"
-					        Content="🎨"
-					        FontSize="13"
-					        ToolTip="Change this session's color"
-					        Click="ComposerColorButton_Click"/>
-
-					<Button x:Name="ComposerAttachButton" DockPanel.Dock="Left"
-					        Style="{StaticResource ComposerSelectorStyle}"
-					        Content="📎"
-					        ToolTip="Attach a file to the next prompt (Ctrl+V pastes an image)"
-					        Click="ComposerAttachButton_Click"/>
-
-					<Rectangle DockPanel.Dock="Left" Width="1" Margin="4,4,6,4" Opacity="0.25"
-					           Fill="{DynamicResource {x:Static vsshell:VsBrushes.WindowTextKey}}"/>
-
-					<Button x:Name="ComposerProviderButton" DockPanel.Dock="Left"
-					        Style="{StaticResource ComposerSelectorStyle}"
-					        Content="Agent ▾"
-					        ToolTip="Change the AI agent"
-					        Click="ComposerProviderButton_Click"/>
-
-					<Button x:Name="ComposerModelButton" DockPanel.Dock="Left"
-					        Style="{StaticResource ComposerSelectorStyle}"
-					        Content="Model ▾"
-					        ToolTip="Change the model"
-					        Click="ComposerModelButton_Click"/>
-
-					<Button x:Name="ComposerEffortButton" DockPanel.Dock="Left"
-					        Style="{StaticResource ComposerSelectorStyle}"
-					        Content="Effort ▾"
-					        ToolTip="Change the effort level"
-					        Click="ComposerEffortButton_Click"/>
-
-					<Button x:Name="ComposerPermissionButton" DockPanel.Dock="Left"
-					        Style="{StaticResource ComposerSelectorStyle}"
-					        Content="Permissions ▾"
-					        ToolTip="Change how tool permissions are handled"
-					        Click="ComposerPermissionButton_Click"/>
-
-					<Button x:Name="ComposerSendButton" DockPanel.Dock="Right"
-					        Style="{StaticResource ComposerSendStyle}"
-					        Content="➤  Send"
-					        ToolTip="Send the prompt"
-					        Click="ComposerSendButton_Click"/>
-				</DockPanel>
+					        Content="▶" FontSize="9" Padding="4,2,4,2"
+					        ToolTip="Scroll right"
+					        Visibility="Hidden"
+					        Click="ComposerActionsScrollRightButton_Click"/>
+				</Grid>
 			</Grid>
 		</Border>
 

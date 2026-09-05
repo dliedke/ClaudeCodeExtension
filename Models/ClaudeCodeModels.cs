@@ -441,9 +441,15 @@ namespace ClaudeCodeVS
         public bool AutoSendRuntimeErrorsToAgent { get; set; } = false;
 
         /// <summary>
+        /// Pixel height the prompt section starts at, and the value a corrupt saved
+        /// position is healed back to (see ClaudeCodeControl.ResolveRestoredSplitterPosition).
+        /// </summary>
+        public const double DefaultSplitterPosition = 236.0;
+
+        /// <summary>
         /// Saved position of the grid splitter (in pixels)
         /// </summary>
-        public double SplitterPosition { get; set; } = 236.0; // Default pixel height for first row
+        public double SplitterPosition { get; set; } = DefaultSplitterPosition;
 
         /// <summary>
         /// Currently selected AI provider
@@ -457,6 +463,18 @@ namespace ClaudeCodeVS
         /// Off by default — the embedded terminal stays the standard experience.
         /// </summary>
         public bool UseNativeMode { get; set; } = false;
+
+        /// <summary>
+        /// If true, the panel's prompt box auto-collapses while native mode is on and the chat is
+        /// showing in its own document tab — that tab's composer is a full replacement for it, so
+        /// the panel box would just be a second, out-of-sync place to type. Ignored (the prompt box
+        /// stays visible) whenever the chat is docked back in the panel: there it is still the only
+        /// input surface, and the composer only shows its action row (see
+        /// <see cref="ClaudeCodeControl"/>'s <c>ResolveComposerMode</c>). On by default —
+        /// this is the panel decluttering issue #151 asked for. Independent of
+        /// <see cref="HidePromptPanel"/>, which hides the box unconditionally.
+        /// </summary>
+        public bool AutoHidePromptInNativeMode { get; set; } = true;
 
         /// <summary>
         /// Zoom factor of the native-mode chat tab, set with Ctrl+Scroll. 1.0 is 100%.

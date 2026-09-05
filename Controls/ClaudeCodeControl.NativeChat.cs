@@ -41,6 +41,15 @@ namespace ClaudeCodeVS
         /// <summary>True while the transcript is parented into the document tab instead of the panel.</summary>
         private bool _chatIsInTab;
 
+        /// <summary>
+        /// True once the chat has actually left the panel for its own tab — the point at which every
+        /// panel control it mirrors (RefreshToolbarLayout's promoted buttons, ⚙/☰/⚡/🤖, and
+        /// AttachDropdownButton/SendPromptButton next to the now-hidden prompt box) becomes redundant.
+        /// Deliberately not just <see cref="IsNativeModeActive"/>: while the chat is still docked
+        /// (ComposerMode.ActionsOnly) the panel is the only surface open, so its own toolbar must stay.
+        /// </summary>
+        private bool IsChatDetachedToOwnTab => IsNativeModeActive && _chatIsInTab;
+
         /// <summary>Composer events are wired once for the lifetime of the control.</summary>
         private bool _composerWired;
 
@@ -80,6 +89,22 @@ namespace ClaudeCodeVS
         #endregion
 
         #region Chat Tab Hosting
+
+        /// <summary>
+        /// Pure decision behind how much of the default session's composer shows, split out so it is
+        /// testable without a WPF tree. Native mode off is the only case with nothing to show; docked in
+        /// the panel keeps just the action row (the panel's own prompt box is still the text input);
+        /// in its own tab the composer is the only input surface, so it needs everything.
+        /// </summary>
+        internal static ChatTranscriptView.ComposerMode ResolveComposerMode(bool nativeActive, bool chatInTab)
+        {
+            if (!nativeActive)
+            {
+                return ChatTranscriptView.ComposerMode.Hidden;
+            }
+
+            return chatInTab ? ChatTranscriptView.ComposerMode.Full : ChatTranscriptView.ComposerMode.ActionsOnly;
+        }
 
         /// <summary>
         /// Moves the transcript into its own document tab — the default home for native mode, so the
@@ -138,10 +163,17 @@ namespace ClaudeCodeVS
                 }
 
                 ChatTranscript.Visibility = Visibility.Visible;
-                ChatTranscript.ShowComposer(true);
+                ChatTranscript.SetComposerMode(ResolveComposerMode(IsNativeModeActive, _chatIsInTab));
                 UpdateChatComposerState();
                 UpdateChatTabCaption();
                 SetPanelTerminalAreaVisible(false);
+                ApplyPromptPanelHiddenState();
+
+                // Issue #151 follow-up: RefreshToolbarLayout is what actually collapses the panel's
+                // own promoted buttons/⚙/☰/⚡/🤖 once _chatIsInTab is true — without this call here the
+                // panel keeps showing its full toolbar (duplicated with the composer's mirrors) until
+                // something unrelated happens to trigger a refresh.
+                RefreshToolbarLayout();
 
                 var frame = _nativeChatWindow.Frame as IVsWindowFrame;
                 frame?.Show();
@@ -186,11 +218,17 @@ namespace ClaudeCodeVS
                 _chatIsInTab = false;
 
                 // Inside the panel the prompt box sits directly above the transcript, so the composer
-                // would only be a second input box saying the same thing.
-                ChatTranscript.ShowComposer(false);
+                // only keeps its action row (selectors + mirrored config buttons) rather than a second
+                // input box saying the same thing — see ResolveComposerMode.
+                ChatTranscript.SetComposerMode(ResolveComposerMode(IsNativeModeActive, _chatIsInTab));
                 ChatTranscript.Visibility = IsNativeModeActive ? Visibility.Visible : Visibility.Collapsed;
 
                 SetPanelTerminalAreaVisible(true);
+                ApplyPromptPanelHiddenState();
+
+                // Mirror image of the ShowNativeChatTabAsync call: now that the chat is back in the
+                // panel, its own toolbar controls need to reappear.
+                RefreshToolbarLayout();
             }
             catch (Exception ex)
             {
@@ -406,7 +444,8 @@ namespace ClaudeCodeVS
                 // Wire composer events for this session
                 WireSessionComposerEvents(session.ChatTranscript, sessionId);
 
-                session.ChatTranscript.ShowComposer(true);
+                // Parallel session tabs have no docked-in-panel counterpart, so they are always Full.
+                session.ChatTranscript.SetComposerMode(ChatTranscriptView.ComposerMode.Full);
                 UpdateChatComposerState();
                 UpdateSessionTabCaption(session);
 
@@ -463,7 +502,6 @@ namespace ClaudeCodeVS
 
             // Toolbar and composer affordances. These were missing entirely, which is why none of the
             // buttons under the prompt box did anything in a new tab.
-            transcript.AttachRequested += OnComposerAttachRequested;
             transcript.FilesDropped += OnComposerFilesDropped;
             transcript.ClearChatRequested += OnComposerClearChatRequested;
             transcript.NewChatRequested += OnComposerNewChatRequested;
@@ -476,6 +514,16 @@ namespace ClaudeCodeVS
             transcript.HistoryNextRequested += OnComposerHistoryNextRequested;
             transcript.LinkClicked += OnChatLinkClicked;
             transcript.ToolFileOpenRequested += OnToolFileOpenRequested;
+
+            // Same shared handlers as the default session's composer: the menus they open (Settings,
+            // Tools, Custom Commands) and the toolbar actions they invoke already resolve the focused
+            // session on their own (ResolveFocusedNativeSessionId), so there is nothing session-specific
+            // to close over here.
+            transcript.ConfigMenuClicked -= OnComposerConfigMenuClicked;
+            transcript.ConfigMenuClicked += OnComposerConfigMenuClicked;
+
+            transcript.PromotedButtonClicked -= OnComposerPromotedButtonClicked;
+            transcript.PromotedButtonClicked += OnComposerPromotedButtonClicked;
         }
 
         /// <summary>Handles send request from a specific session's composer.</summary>
@@ -759,7 +807,6 @@ namespace ClaudeCodeVS
             }
 
             ChatTranscript.SendRequested += OnComposerSendRequested;
-            ChatTranscript.AttachRequested += OnComposerAttachRequested;
             ChatTranscript.FilesDropped += OnComposerFilesDropped;
             ChatTranscript.SelectorClicked += OnComposerSelectorClicked;
             ChatTranscript.EffortChanged += OnComposerEffortChanged;
@@ -776,6 +823,8 @@ namespace ClaudeCodeVS
             ChatTranscript.ComposerInputBox.TextChanged += ComposerInput_AtMentionTextChanged;
             ChatTranscript.LinkClicked += OnChatLinkClicked;
             ChatTranscript.ToolFileOpenRequested += OnToolFileOpenRequested;
+            ChatTranscript.ConfigMenuClicked += OnComposerConfigMenuClicked;
+            ChatTranscript.PromotedButtonClicked += OnComposerPromotedButtonClicked;
 
             // Null = the default session. The transcript object survives being re-parented between the
             // panel and its tab, so this one subscription covers both homes for the rest of its life.
@@ -1117,13 +1166,15 @@ namespace ClaudeCodeVS
 
         /// <summary>
         /// Refreshes everything the composer shows about the running agent: the four selector captions,
-        /// which of them apply, and the send-key preference.
+        /// which of them apply, and the send-key preference. Runs whenever native mode is active, not
+        /// only while the chat is in its own tab — <see cref="ComposerMode.ActionsOnly"/> keeps those
+        /// selectors visible while docked in the panel too, and they need live labels there as well.
         /// </summary>
         private void UpdateChatComposerState()
         {
             ThreadHelper.ThrowIfNotOnUIThread();
 
-            if (ChatTranscript == null || !_chatIsInTab)
+            if (ChatTranscript == null || !IsNativeModeActive)
             {
                 return;
             }
@@ -2140,7 +2191,7 @@ namespace ClaudeCodeVS
             var tips = new List<string>
             {
                 "Press Ctrl+Up/Down in the prompt box for prompt history.",
-                "Ctrl+V pastes an image from the clipboard; 📎 attaches files.",
+                "Ctrl+V pastes an image from the clipboard, or drag & drop files onto the chat.",
                 "Ctrl+Scroll zooms the conversation, and the top edge of the prompt box can be dragged.",
                 "The buttons below switch agent, model, effort and permissions mid-conversation."
             };
@@ -2917,24 +2968,6 @@ namespace ClaudeCodeVS
             }
         }
 
-        private void OnComposerAttachRequested(object sender, EventArgs e)
-        {
-            ThreadHelper.ThrowIfNotOnUIThread();
-
-            NativeChatSessionState owner = ResolveSessionFromSender(sender);
-            if (owner == null)
-            {
-                ImageDropBorder_Click(sender, null);
-                return;
-            }
-
-            string[] chosen = PickAttachmentFiles();
-            if (chosen != null)
-            {
-                AddSessionAttachments(owner, chosen);
-            }
-        }
-
         private void OnComposerFilesDropped(object sender, string[] files)
         {
             ThreadHelper.ThrowIfNotOnUIThread();
@@ -3042,6 +3075,28 @@ namespace ClaudeCodeVS
 
         #region Composer Selectors
 
+        /// <summary>
+        /// Opens a <see cref="ContextMenu"/> anchored to a button that may live in a different window
+        /// than the menu was declared in — a <see cref="ContextMenu"/> is its own popup, so retargeting
+        /// <see cref="ContextMenu.PlacementTarget"/> across visual trees works. Shared by the composer's
+        /// selector/config buttons (which open upward, since the composer sits at the bottom of the
+        /// chat) and the panel toolbar's own dropdown buttons (which open downward).
+        /// </summary>
+        private static void OpenMenuAt(
+            ContextMenu menu,
+            UIElement anchor,
+            System.Windows.Controls.Primitives.PlacementMode placement = System.Windows.Controls.Primitives.PlacementMode.Bottom)
+        {
+            if (menu == null || anchor == null)
+            {
+                return;
+            }
+
+            menu.PlacementTarget = anchor;
+            menu.Placement = placement;
+            menu.IsOpen = true;
+        }
+
         private void OnComposerSelectorClicked(object sender, ChatSelector selector)
         {
             ThreadHelper.ThrowIfNotOnUIThread();
@@ -3088,9 +3143,61 @@ namespace ClaudeCodeVS
                 return;
             }
 
-            menu.PlacementTarget = anchor;
-            menu.Placement = System.Windows.Controls.Primitives.PlacementMode.Top;
-            menu.IsOpen = true;
+            OpenMenuAt(menu, anchor, System.Windows.Controls.Primitives.PlacementMode.Top);
+        }
+
+        /// <summary>
+        /// Opens the panel's actual ⚙/☰/⚡ <see cref="ContextMenu"/> anchored to its mirror button in
+        /// the composer, rather than building a second copy of the menu contents. Works from any chat
+        /// tab (default or parallel session) the same way, since the menus themselves resolve the
+        /// focused session where that matters.
+        /// </summary>
+        private void OnComposerConfigMenuClicked(object sender, ChatConfigMenu menu)
+        {
+            ThreadHelper.ThrowIfNotOnUIThread();
+
+            var transcript = sender as ChatTranscriptView;
+            UIElement anchor = transcript?.GetConfigMenuAnchor(menu);
+            if (anchor == null)
+            {
+                return;
+            }
+
+            ContextMenu target;
+            switch (menu)
+            {
+                case ChatConfigMenu.Tools: target = ToolsContextMenu; break;
+                case ChatConfigMenu.CustomCommands: target = CustomCommandsContextMenu; break;
+                default: target = ProviderContextMenu; break;
+            }
+
+            OpenMenuAt(target, anchor, System.Windows.Controls.Primitives.PlacementMode.Top);
+        }
+
+        /// <summary>
+        /// Invokes whatever the panel's own promoted <see cref="ToolbarButton"/> would do, by raising
+        /// its real <see cref="Button.Click"/> event — this stays correct if a handler changes, with no
+        /// second switch statement to keep in sync. See <see cref="RefreshToolbarLayout"/> for how the
+        /// composer's button list (<see cref="ChatTranscriptView.SetPromotedButtons"/>) is populated.
+        /// </summary>
+        private void OnComposerPromotedButtonClicked(object sender, string toolbarButtonName)
+        {
+            ThreadHelper.ThrowIfNotOnUIThread();
+
+            var transcript = sender as ChatTranscriptView;
+            UIElement anchor = transcript?.GetPromotedButtonAnchor(toolbarButtonName);
+            if (anchor == null)
+            {
+                return;
+            }
+
+            if (!Enum.TryParse(toolbarButtonName, out ToolbarButton button))
+            {
+                return;
+            }
+
+            Button panelButton = GetToolbarButtonControl(button);
+            panelButton?.RaiseEvent(new RoutedEventArgs(System.Windows.Controls.Primitives.ButtonBase.ClickEvent));
         }
 
         /// <summary>
@@ -4114,6 +4221,11 @@ namespace ClaudeCodeVS
 
             _nativeSwitchInProgress = true;
 
+            // Issue #151 round 11: set when the relaunch died because the agent will not run on the
+            // selected model. The rollback to the terminal cannot happen inside the try — it starts a
+            // new session and so takes _nativeLifecycleSemaphore, which this method is still holding.
+            bool rollbackToTerminal = false;
+
             // Same lock the agent switches take: a relaunch replaces _agentSession too, so running one
             // while a switch is starting another agent leaves whichever finishes second pointing at a
             // session the other one has already disposed.
@@ -4244,6 +4356,19 @@ namespace ClaudeCodeVS
                     ShowChatWelcome(workspace);
                 }
             }
+            catch (AgentModelUnavailableException ex)
+            {
+                // Issue #151 round 11: a model switch is the most likely way to get here — the picked
+                // model is in the catalog but the agent does not list it. Leaving the chat sitting on a
+                // dead session would be the worst outcome: the panel's 🤖 menu is hidden in native mode,
+                // so the composer would be the only route back and it is attached to the session that
+                // just died. Fall back to the terminal below instead, where the model can be changed.
+                Debug.WriteLine($"Native mode: relaunch model unavailable: {ex}");
+
+                await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
+                ChatTranscript.SetStatus(string.Empty);
+                rollbackToTerminal = true;
+            }
             catch (Exception ex)
             {
                 Debug.WriteLine($"Native mode: relaunch failed: {ex}");
@@ -4256,6 +4381,15 @@ namespace ClaudeCodeVS
             {
                 _nativeLifecycleSemaphore.Release();
                 _nativeSwitchInProgress = false;
+            }
+
+            if (rollbackToTerminal)
+            {
+                // Runs the normal start path, which tries native mode once more, hits the same model
+                // and takes its own AgentModelUnavailableException branch — that is what tears the
+                // half-dead session down, explains why in the fallback notice, and launches the
+                // embedded terminal. Both locks this method held are released by now.
+                await RestartTerminalWithSelectedProviderAsync();
             }
         }
 

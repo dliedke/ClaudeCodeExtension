@@ -394,7 +394,7 @@ namespace ClaudeCodeVS
 
                 // Reasonix gets its own wording: it *does* have a working ACP channel, so telling the
                 // user it has none would be untrue — it is kept on the terminal on purpose.
-                await ShowNativeFallbackNoticeAsync(provider == AiProvider.Reasonix
+                await HandOffToEmbeddedTerminalAsync(provider == AiProvider.Reasonix
                     ? $"{GetProviderDisplayName(provider)} always runs in the embedded terminal."
                     : $"{GetProviderDisplayName(provider)} has no native chat channel — the embedded terminal was used instead.");
                 return NativeStartOutcome.Declined;
@@ -407,7 +407,7 @@ namespace ClaudeCodeVS
                 {
                     Debug.WriteLine("Native mode: no usable workspace directory; using the embedded terminal.");
                     LogTerminalLaunch($"Native mode: no usable workspace directory (workspace='{workspace}'); using the embedded terminal.");
-                    await ShowNativeFallbackNoticeAsync(
+                    await HandOffToEmbeddedTerminalAsync(
                         "Native mode needs an open folder or solution — the embedded terminal was used instead.");
                     return NativeStartOutcome.Declined;
                 }
@@ -495,6 +495,24 @@ namespace ClaudeCodeVS
                 LogTerminalLaunch($"Native mode: started successfully for provider={provider}");
                 return NativeStartOutcome.Started;
             }
+            catch (AgentModelUnavailableException ex)
+            {
+                // Issue #151 round 11: the agent started fine, it just cannot run on the model that is
+                // selected. Retrying native mode would land here every time, and native mode is the one
+                // place the user *cannot* fix it from — the 🤖 model menu is hidden while it is active
+                // (its entries drive the CLI's TUI), so the chat's own composer would be the only way
+                // out. Roll back to the embedded terminal instead: the model menu is right there, and
+                // the CLI prints its own "Unknown model / Available:" list into the console.
+                Debug.WriteLine($"Native mode: model unavailable: {ex}");
+                LogTerminalLaunch($"Native mode: provider={provider} does not offer model '{ex.ModelName}'; using the embedded terminal.");
+
+                await HandOffToEmbeddedTerminalAsync(
+                    $"{ex.AgentDisplayName} does not offer the model \"{ex.ModelName}\", so native mode could not " +
+                    "start — the embedded terminal was used instead. Pick a different model with 🤖 " +
+                    "(\"Configure Models...\" edits the list), then restart the agent.");
+
+                return NativeStartOutcome.Declined;
+            }
             catch (Exception ex)
             {
                 Debug.WriteLine($"Native mode failed to start: {ex}");
@@ -502,13 +520,90 @@ namespace ClaudeCodeVS
 
                 // Never strand the user on a dead panel: tear the half-started session down and let the
                 // caller fall back to the embedded terminal.
-                await ShutdownNativeModeAsync();
-                await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
-                ShowNativeTranscript(false);
-                await ShowNativeFallbackNoticeAsync(
+                await HandOffToEmbeddedTerminalAsync(
                     $"Native mode could not start ({ex.Message}) — the embedded terminal was used instead.");
 
                 return NativeStartOutcome.Declined;
+            }
+        }
+
+        /// <summary>
+        /// Hands the panel back to the embedded terminal after a native start has given up, and makes
+        /// sure the controls the user needs to fix whatever went wrong are on screen when it lands.
+        /// <para>
+        /// Issue #151 round 12: rolling back to the terminal (round 11) is only half an answer if the
+        /// panel arrives without its ⚙ Settings/Agent button — that is where the model, the provider
+        /// and the native-mode setting itself are changed, so a fallback without it is a dead end.
+        /// Both decline paths used to inline this sequence, and both of them depended on
+        /// <see cref="ShutdownNativeModeAsync"/> running to completion: a throw anywhere in there
+        /// escaped the catch block it was written in, which left the panel wearing native mode's
+        /// collapsed toolbar *and* denied the caller the Declined answer it needed in order to launch
+        /// the terminal at all — nothing on screen, and no ⚙ to reach the settings from.
+        /// </para>
+        /// </summary>
+        /// <param name="notice">Dismissible explanation to show once the terminal has the panel.</param>
+        private async Task HandOffToEmbeddedTerminalAsync(string notice)
+        {
+            try
+            {
+                await ShutdownNativeModeAsync();
+            }
+            catch (Exception ex)
+            {
+                // A half-torn-down session is still a better outcome than a panel with nothing on it.
+                Debug.WriteLine($"Native mode: teardown after a failed start threw: {ex}");
+                LogTerminalLaunch($"Native mode: teardown after a failed start threw: {ex.Message}");
+            }
+
+            await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
+
+            try
+            {
+                // Gives the panel slot back to the console and recomputes the toolbar, which now reads
+                // IsNativeModeActive as false and so restores the whole controls row on its own.
+                ShowNativeTranscript(false);
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"Native mode: handing the panel back to the terminal threw: {ex}");
+            }
+
+            // Deliberately unconditional, not a fallback for the call above having failed: this method
+            // is the last thing standing between a failed native start and a panel the user cannot
+            // operate, so it states the invariant outright instead of trusting the path meant to
+            // produce it.
+            EnsureSettingsButtonReachable();
+
+            if (!string.IsNullOrEmpty(notice))
+            {
+                await ShowNativeFallbackNoticeAsync(notice);
+            }
+        }
+
+        /// <summary>
+        /// Forces the ⚙ Settings/Agent button — and the rows that carry it — back on screen. Only ever
+        /// called from the terminal hand-off, where native mode is already down, which is exactly the
+        /// state in which <see cref="RefreshToolbarLayout"/> agrees all three belong there.
+        /// </summary>
+        private void EnsureSettingsButtonReachable()
+        {
+            ThreadHelper.ThrowIfNotOnUIThread();
+
+            if (ControlsRow != null) ControlsRow.Visibility = Visibility.Visible;
+            if (RightButtonsRow != null) RightButtonsRow.Visibility = Visibility.Visible;
+            if (MenuDropdownButton != null) MenuDropdownButton.Visibility = Visibility.Visible;
+
+            // A Visible button inside a prompt section a few pixels tall is still unreachable, so the
+            // sizing decision is re-run too: with native mode down it either Auto-sizes the section to
+            // the controls row or restores a sane split, and never leaves a collapsed height in place
+            // (issue #151 round 13).
+            try
+            {
+                ApplyPromptPanelHiddenState();
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"Native mode: restoring the prompt section size threw: {ex}");
             }
         }
 

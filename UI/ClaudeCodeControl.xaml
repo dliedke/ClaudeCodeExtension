@@ -225,8 +225,8 @@
 			<Grid x:Name="ControlsRow" Grid.Row="1" Margin="0,4,0,0" VerticalAlignment="Top">
 				<Grid.ColumnDefinitions>
 					<ColumnDefinition Width="Auto"/>
-					<ColumnDefinition Width="*"/>
 					<ColumnDefinition Width="Auto"/>
+					<ColumnDefinition Width="*"/>
 				</Grid.ColumnDefinitions>
 
 				<!-- Left cluster -->
@@ -268,125 +268,38 @@
 						</Button>
 				</StackPanel>
 
-                <!-- Right-aligned buttons (Restart + Model + Settings + Update) -->
-				<StackPanel x:Name="RightButtonsPanel"
-                            Grid.Column="2"
-                            Orientation="Horizontal"
-                            HorizontalAlignment="Right"
-                            VerticalAlignment="Top"
-                            Margin="6,0,0,0">
+                <!-- Right-aligned buttons row: feature buttons (promoted via Settings -> Toolbar)
+				scroll via left/right arrows when there are too many to fit; the fixed group
+				(Tools, Custom Commands, Model, Settings/Agent) never scrolls out of reach,
+				mirroring the split already used for the native-mode composer's action row
+				(issue #151 round 6). ControlsRow's column 2 is Star so this row is measured
+				against a real width rather than growing past the tool window's edge the way
+				an Auto column does (issue #151 round 7).
 
+				A DockPanel, not a Grid: docked children are laid out against the space actually
+				left over, so the fixed group is always inside the panel and the ScrollViewer
+				(the fill child) gets exactly what remains - which is what makes it scroll. Star
+				columns split the row's width proportionally instead, which left ⚙ arranged past
+				the visible edge and the scroller sized to a viewport wider than the panel
+				(issue #151 round 9). -->
+				<DockPanel x:Name="RightButtonsRow" Grid.Column="2" Margin="6,0,0,0" LastChildFill="True">
 
-					<!--
-						One-click toolbar buttons. All collapsed by default; RefreshToolbarLayout()
-						shows the ones the user promoted (Settings → Toolbar) and removes the
-						matching entries from the "⚙" menu. See ClaudeCodeControl.ProviderManagement.cs.
-					-->
-					<Button x:Name="UpdateAgentToolbarButton"
-                            Content="🔄️"
-                            Width="30"
-                            MinWidth="30"
-                            FontSize="14"
-                            Style="{StaticResource IconButtonStyle}"
-                            Click="UpdateAgentButton_Click"
-                            ToolTip="Update Code Agent"
-                            Visibility="Collapsed"
-                            Margin="0,0,6,0"/>
+					<Button x:Name="RightButtonsScrollLeftButton" DockPanel.Dock="Left"
+					        Style="{StaticResource IconButtonStyle}"
+					        Content="◀" Width="16" MinWidth="16" FontSize="9" Padding="0"
+					        ToolTip="Scroll left"
+					        Visibility="Hidden"
+					        Click="RightButtonsScrollLeftButton_Click"
+					        Margin="0,0,4,0"/>
 
-					<!-- Detach/attach uses the original vector icon (box + arrow); the arrow
-					     direction flips with state in UpdateDetachButtonIcon. -->
-					<Button x:Name="DetachToolbarButton"
-                            Width="30"
-                            Height="30"
-                            Style="{StaticResource IconButtonStyle}"
-                            Click="DetachTerminalButton_Click"
-                            ToolTip="Detach Terminal to Separate Tab"
-                            Visibility="Collapsed"
-                            Margin="0,0,6,0">
-						<Viewbox x:Name="DetachButtonIcon" Width="16" Height="14" Stretch="Uniform"/>
-					</Button>
-
-					<Button x:Name="RestartTerminalButton"
-                            Content="♻️"
-                            Width="30"
-                            MinWidth="30"
-                            FontSize="14"
-                            Style="{StaticResource IconButtonStyle}"
-                            Click="RestartTerminalButton_Click"
-                            ToolTip="Restart Code Agent"
-                            Visibility="Collapsed"
-                            Margin="0,0,6,0"/>
-
-					<Button x:Name="ViewChangesToolbarButton"
-                            Content="📄"
-                            Width="30"
-                            MinWidth="30"
-                            FontSize="14"
-                            Style="{StaticResource IconButtonStyle}"
-                            Click="ViewChangesButton_Click"
-                            ToolTip="View Code Changes"
-                            Visibility="Collapsed"
-                            Margin="0,0,6,0"/>
-
-					<Button x:Name="SessionHistoryToolbarButton"
-                            Content="📜"
-                            Width="30"
-                            MinWidth="30"
-                            FontSize="14"
-                            Style="{StaticResource IconButtonStyle}"
-                            Click="SessionHistoryButton_Click"
-                            ToolTip="Session History"
-                            Visibility="Collapsed"
-                            Margin="0,0,6,0"/>
-
-					<Button x:Name="ShowUsageToolbarButton"
-                            Content="📊"
-                            Width="30"
-                            MinWidth="30"
-                            FontSize="14"
-                            Style="{StaticResource IconButtonStyle}"
-                            Click="ShowUsageViewMenuItem_Click"
-                            ToolTip="Show Usage"
-                            Visibility="Collapsed"
-                            Margin="0,0,6,0"/>
-
-					<Button x:Name="SetWorkingDirectoryToolbarButton"
-                            Content="📁"
-                            Width="30"
-                            MinWidth="30"
-                            FontSize="14"
-                            Style="{StaticResource IconButtonStyle}"
-                            Click="SetWorkingDirectoryMenuItem_Click"
-                            ToolTip="Set Working Directory"
-                            Visibility="Collapsed"
-                            Margin="0,0,6,0"/>
-
-					<Button x:Name="SendBuildErrorsToolbarButton"
-                            Content="🛠️"
-                            Width="30"
-                            MinWidth="30"
-                            FontSize="14"
-                            Style="{StaticResource IconButtonStyle}"
-                            Click="SendBuildErrorsButton_Click"
-                            ToolTip="Send Build Errors to Agent"
-                            Visibility="Collapsed"
-                            Margin="0,0,6,0"/>
-
-					<Button x:Name="GenerateCommitMessageToolbarButton"
-                            Content="📝"
-                            Width="30"
-                            MinWidth="30"
-                            FontSize="14"
-                            Style="{StaticResource IconButtonStyle}"
-                            Click="GenerateCommitMessageButton_Click"
-                            ToolTip="Generate Commit Message"
-                            Visibility="Collapsed"
-                            Margin="0,0,6,0"/>
-
-					<!-- Tools dropdown: holds the configurable features the user did NOT promote to
-					     their own toolbar button. Auto-hides when every feature is a button
-					     (RefreshToolbarLayout). Keeps these features out of the ⚙ menu. -->
-					<Button x:Name="ToolsDropdownButton"
+					<!-- Fixed group: never scrolls out of reach. Tools/Custom Commands are the only way to
+					     reach unpromoted features/custom commands; Model/Settings are not part of the
+					     customizable toolbar at all, so there is no fallback if they go missing. -->
+					<StackPanel x:Name="FixedRightButtonsPanel" DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Top">
+						<!-- Tools dropdown: holds the configurable features the user did NOT promote to
+						     their own toolbar button. Auto-hides when every feature is a button
+						     (RefreshToolbarLayout). Keeps these features out of the ⚙ menu. -->
+						<Button x:Name="ToolsDropdownButton"
                             Content="☰"
                             Width="30"
                             MinWidth="30"
@@ -396,22 +309,22 @@
                             Visibility="Collapsed"
                             Click="ToolsDropdownButton_Click"
                             Margin="0,0,6,0">
-						<Button.ContextMenu>
-							<ContextMenu x:Name="ToolsContextMenu" Opened="ToolsContextMenu_Opened">
-								<MenuItem Header="🔄️  Update Code Agent" x:Name="UpdateAgentMenuItem" Click="UpdateAgentButton_Click"/>
-								<MenuItem Header="♻️  Restart Code Agent" x:Name="RestartTerminalMenuItem" Click="RestartTerminalButton_Click"/>
-								<MenuItem Header="⧉  Detach Terminal to Separate Tab" x:Name="DetachTerminalMenuItem" Click="DetachTerminalButton_Click"/>
-								<MenuItem Header="📄  View Code Changes" x:Name="ViewChangesMenuItem" Click="ViewChangesButton_Click"/>
-								<MenuItem Header="📜  Session History" x:Name="SessionHistoryViewMenuItem" Click="SessionHistoryButton_Click" Visibility="Collapsed"/>
-								<MenuItem Header="📊  Show Usage" x:Name="ShowUsageViewMenuItem" Click="ShowUsageViewMenuItem_Click" IsCheckable="True" Visibility="Collapsed"/>
-								<MenuItem Header="📁  Set Working Directory..." x:Name="SetWorkingDirectoryMenuItem" Click="SetWorkingDirectoryMenuItem_Click" ToolTip="Set a custom working directory (absolute or relative to solution). Leave empty for default behavior."/>
-								<MenuItem Header="🛠️  Send Build Errors to Agent" x:Name="SendBuildErrorsMenuItem" Click="SendBuildErrorsButton_Click" ToolTip="Collect the current build errors and send them to the agent to fix, regardless of the auto-send setting."/>
-								<MenuItem Header="📝  Generate Commit Message" x:Name="GenerateCommitMessageMenuItem" Click="GenerateCommitMessageButton_Click" ToolTip="Ask the agent to write a commit message from the current git diff and fill it into the Git Changes window."/>
-							</ContextMenu>
-						</Button.ContextMenu>
-					</Button>
+							<Button.ContextMenu>
+								<ContextMenu x:Name="ToolsContextMenu" Opened="ToolsContextMenu_Opened">
+									<MenuItem Header="🔄️  Update Code Agent" x:Name="UpdateAgentMenuItem" Click="UpdateAgentButton_Click"/>
+									<MenuItem Header="♻️  Restart Code Agent" x:Name="RestartTerminalMenuItem" Click="RestartTerminalButton_Click"/>
+									<MenuItem Header="⧉  Detach Terminal to Separate Tab" x:Name="DetachTerminalMenuItem" Click="DetachTerminalButton_Click"/>
+									<MenuItem Header="📄  View Code Changes" x:Name="ViewChangesMenuItem" Click="ViewChangesButton_Click"/>
+									<MenuItem Header="📜  Session History" x:Name="SessionHistoryViewMenuItem" Click="SessionHistoryButton_Click" Visibility="Collapsed"/>
+									<MenuItem Header="📊  Show Usage" x:Name="ShowUsageViewMenuItem" Click="ShowUsageViewMenuItem_Click" IsCheckable="True" Visibility="Collapsed"/>
+									<MenuItem Header="📁  Set Working Directory..." x:Name="SetWorkingDirectoryMenuItem" Click="SetWorkingDirectoryMenuItem_Click" ToolTip="Set a custom working directory (absolute or relative to solution). Leave empty for default behavior."/>
+									<MenuItem Header="🛠️  Send Build Errors to Agent" x:Name="SendBuildErrorsMenuItem" Click="SendBuildErrorsButton_Click" ToolTip="Collect the current build errors and send them to the agent to fix, regardless of the auto-send setting."/>
+									<MenuItem Header="📝  Generate Commit Message" x:Name="GenerateCommitMessageMenuItem" Click="GenerateCommitMessageButton_Click" ToolTip="Ask the agent to write a commit message from the current git diff and fill it into the Git Changes window."/>
+								</ContextMenu>
+							</Button.ContextMenu>
+						</Button>
 
-					<Button x:Name="CustomCommandsButton"
+						<Button x:Name="CustomCommandsButton"
                             Content="⚡"
                             Width="30"
                             Height="30"
@@ -422,12 +335,12 @@
                             Visibility="Collapsed"
                             Click="CustomCommandsButton_Click"
                             Margin="0,0,6,0">
-						<Button.ContextMenu>
-							<ContextMenu x:Name="CustomCommandsContextMenu"/>
-						</Button.ContextMenu>
-					</Button>
+							<Button.ContextMenu>
+								<ContextMenu x:Name="CustomCommandsContextMenu"/>
+							</Button.ContextMenu>
+						</Button>
 
-					<Button x:Name="ModelDropdownButton"
+						<Button x:Name="ModelDropdownButton"
                             Content="🤖"
                             Width="30"
                             Height="30"
@@ -437,40 +350,40 @@
                             ToolTip="Model Selection"
                             Click="ModelDropdownButton_Click"
                             Margin="0,0,6,0">
-						<Button.ContextMenu>
-							<ContextMenu x:Name="ModelContextMenu" Opened="ModelContextMenu_Opened">
-								<!-- Claude-specific items. Not checkable: the CLI owns the active model
-									     (it can be changed with /model in the terminal), so no item is ever shown as selected. -->
-								<MenuItem Header="Fable - Most demanding tasks" x:Name="FableMenuItem" Click="FableMenuItem_Click"/>
-								<MenuItem Header="Opus - Complex tasks" x:Name="OpusMenuItem" Click="OpusMenuItem_Click"/>
-								<MenuItem Header="Sonnet - Everyday tasks" x:Name="SonnetMenuItem" Click="SonnetMenuItem_Click"/>
-								<MenuItem Header="Haiku - Easy tasks" x:Name="HaikuMenuItem" Click="HaikuMenuItem_Click"/>
-								<Separator x:Name="OpusPlanSeparator"/>
-								<MenuItem Header="Opus Plan - Opus for planning, Sonnet for execution" x:Name="OpusPlanMenuItem" Click="OpusPlanMenuItem_Click"/>
-								<Separator x:Name="EffortSeparator"/>
-								<MenuItem x:Name="EffortSliderMenuItem" StaysOpenOnClick="True">
-									<MenuItem.Header>
-										<StackPanel Margin="2,3" MinWidth="190">
-											<TextBlock x:Name="EffortSliderLabel" Text="Effort (Auto)" Margin="0,0,0,5" FontWeight="SemiBold"/>
-											<Slider x:Name="EffortSlider" Style="{StaticResource EffortSliderStyle}"
-											        HorizontalAlignment="Left"
-											        ValueChanged="EffortSlider_ValueChanged"
-											        Thumb.DragStarted="EffortSlider_DragStarted"
-											        Thumb.DragCompleted="EffortSlider_DragCompleted"/>
-										</StackPanel>
-									</MenuItem.Header>
-								</MenuItem>
-								<Separator x:Name="ClaudeAccountSeparator"/>
-								<MenuItem Header="Change Account" x:Name="ChangeAccountMenuItem" Click="ChangeAccountMenuItem_Click"/>
-								<MenuItem Header="Set Language" x:Name="SetLanguageMenuItem" Click="SetLanguageMenuItem_Click"/>
-								<MenuItem Header="Install Caveman" x:Name="InstallCavemanMenuItem" Click="InstallCavemanMenuItem_Click" ToolTip="Install the Caveman plugin (JuliusBrussee/caveman) — ultra-compressed communication mode for Claude Code"/>
-								<!-- The per-provider model entries are built dynamically in
-								     ModelContextMenu_Opened and inserted above this separator. -->
-								<Separator x:Name="DevinModelsSeparator"/>
-							</ContextMenu>
-						</Button.ContextMenu>
-					</Button>
-					<Button x:Name="MenuDropdownButton"
+							<Button.ContextMenu>
+								<ContextMenu x:Name="ModelContextMenu" Opened="ModelContextMenu_Opened">
+									<!-- Claude-specific items. Not checkable: the CLI owns the active model
+										     (it can be changed with /model in the terminal), so no item is ever shown as selected. -->
+									<MenuItem Header="Fable - Most demanding tasks" x:Name="FableMenuItem" Click="FableMenuItem_Click"/>
+									<MenuItem Header="Opus - Complex tasks" x:Name="OpusMenuItem" Click="OpusMenuItem_Click"/>
+									<MenuItem Header="Sonnet - Everyday tasks" x:Name="SonnetMenuItem" Click="SonnetMenuItem_Click"/>
+									<MenuItem Header="Haiku - Easy tasks" x:Name="HaikuMenuItem" Click="HaikuMenuItem_Click"/>
+									<Separator x:Name="OpusPlanSeparator"/>
+									<MenuItem Header="Opus Plan - Opus for planning, Sonnet for execution" x:Name="OpusPlanMenuItem" Click="OpusPlanMenuItem_Click"/>
+									<Separator x:Name="EffortSeparator"/>
+									<MenuItem x:Name="EffortSliderMenuItem" StaysOpenOnClick="True">
+										<MenuItem.Header>
+												<StackPanel Margin="2,3" MinWidth="190">
+													<TextBlock x:Name="EffortSliderLabel" Text="Effort (Auto)" Margin="0,0,0,5" FontWeight="SemiBold"/>
+													<Slider x:Name="EffortSlider" Style="{StaticResource EffortSliderStyle}"
+													        HorizontalAlignment="Left"
+													        ValueChanged="EffortSlider_ValueChanged"
+													        Thumb.DragStarted="EffortSlider_DragStarted"
+													        Thumb.DragCompleted="EffortSlider_DragCompleted"/>
+												</StackPanel>
+										</MenuItem.Header>
+									</MenuItem>
+									<Separator x:Name="ClaudeAccountSeparator"/>
+									<MenuItem Header="Change Account" x:Name="ChangeAccountMenuItem" Click="ChangeAccountMenuItem_Click"/>
+									<MenuItem Header="Set Language" x:Name="SetLanguageMenuItem" Click="SetLanguageMenuItem_Click"/>
+									<MenuItem Header="Install Caveman" x:Name="InstallCavemanMenuItem" Click="InstallCavemanMenuItem_Click" ToolTip="Install the Caveman plugin (JuliusBrussee/caveman) — ultra-compressed communication mode for Claude Code"/>
+									<!-- The per-provider model entries are built dynamically in
+									     ModelContextMenu_Opened and inserted above this separator. -->
+									<Separator x:Name="DevinModelsSeparator"/>
+								</ContextMenu>
+							</Button.ContextMenu>
+						</Button>
+						<Button x:Name="MenuDropdownButton"
                             Content="⚙"
                             Width="30"
                             Height="30"
@@ -480,40 +393,169 @@
                             ToolTip="Code Agent Selection"
                             Click="MenuDropdownButton_Click"
                             Margin="0,0,6,0">
-						<Button.ContextMenu>
-							<ContextMenu x:Name="ProviderContextMenu" Opened="ProviderContextMenu_Opened">
-								<MenuItem Header="Claude Code" x:Name="ClaudeCodeMenuItem" Click="ClaudeCodeMenuItem_Click" IsCheckable="True" IsChecked="True"/>
-								<MenuItem Header="Claude Code (WSL)" x:Name="ClaudeCodeWSLMenuItem" Click="ClaudeCodeWSLMenuItem_Click" IsCheckable="True"/>
-								<MenuItem Header="Codex" x:Name="CodexNativeMenuItem" Click="CodexNativeMenuItem_Click" IsCheckable="True"/>
-								<MenuItem Header="Codex (WSL)" x:Name="CodexMenuItem" Click="CodexMenuItem_Click" IsCheckable="True"/>
-								<MenuItem Header="Cursor Agent" x:Name="CursorAgentNativeMenuItem" Click="CursorAgentNativeMenuItem_Click" IsCheckable="True"/>
-								<MenuItem Header="Cursor Agent (WSL)" x:Name="CursorAgentMenuItem" Click="CursorAgentMenuItem_Click" IsCheckable="True"/>
-								<MenuItem Header="Open Code" x:Name="OpenCodeMenuItem" Click="OpenCodeMenuItem_Click" IsCheckable="True"/>
-								<MenuItem Header="Devin" x:Name="DevinNativeMenuItem" Click="DevinNativeMenuItem_Click" IsCheckable="True"/>
-								<MenuItem Header="Devin (WSL)" x:Name="DevinMenuItem" Click="DevinMenuItem_Click" IsCheckable="True"/>
-								<MenuItem Header="PI" x:Name="PiMenuItem" Click="PiMenuItem_Click" IsCheckable="True"/>
-								<MenuItem Header="Antigravity" x:Name="AntigravityMenuItem" Click="AntigravityMenuItem_Click" IsCheckable="True"/>
-								<MenuItem Header="Reasonix" x:Name="ReasonixMenuItem" Click="ReasonixMenuItem_Click" IsCheckable="True"/>
-								<Separator x:Name="ProviderListSeparator"/>
-								<MenuItem Header="Configure Visible Code Agents..." x:Name="ConfigureVisibleAgentsMenuItem" Click="ConfigureVisibleAgentsMenuItem_Click" ToolTip="Choose which code agents appear in this menu. The active agent always remains visible."/>
-								<Separator x:Name="AutoOpenChangesSeparator"/>
-								<MenuItem Header="Claude Code: Skip Permissions" x:Name="ClaudeDangerouslySkipPermissionsMenuItem" Click="ClaudeDangerouslySkipPermissionsMenuItem_Click" IsCheckable="True" ToolTip="When enabled, Claude Code starts with --dangerously-skip-permissions"/>
-								<MenuItem Header="Codex: Approval Never" x:Name="CodexFullAutoMenuItem" Click="CodexFullAutoMenuItem_Click" IsCheckable="True" ToolTip="When enabled, Codex starts with --ask-for-approval never"/>
-								<MenuItem Header="Cursor Agent: Yolo Mode" x:Name="CursorAgentAutoRunMenuItem" Click="CursorAgentAutoRunMenuItem_Click" IsCheckable="True" ToolTip="When enabled, Cursor Agent starts with --yolo to skip all approvals"/>
-								<MenuItem Header="Devin: Dangerous Mode" x:Name="DevinDangerousModeMenuItem" Click="DevinDangerousModeMenuItem_Click" IsCheckable="True" ToolTip="When enabled, Devin starts with --permission-mode dangerous"/>
-								<MenuItem Header="Antigravity: Skip Permissions" x:Name="AntigravityDangerouslySkipPermissionsMenuItem" Click="AntigravityDangerouslySkipPermissionsMenuItem_Click" IsCheckable="True" ToolTip="When enabled, Antigravity starts with --dangerously-skip-permissions"/>
-								<Separator x:Name="ChangeAccountNativeSeparator"/>
-								<MenuItem Header="Change Account" x:Name="ChangeAccountNativeMenuItem" Click="ChangeAccountNativeMenuItem_Click" ToolTip="Sign out and switch which Claude account this conversation uses."/>
-								<Separator/>
-								<MenuItem Header="Configure Custom Commands..." x:Name="ConfigureCustomCommandsMenuItem" Click="ConfigureCustomCommandsMenuItem_Click" ToolTip="Add, edit, or remove custom commands surfaced in the toolbar dropdown next to the agent menu."/>
-								<MenuItem Header="Hide Prompt Input Box" x:Name="HidePromptPanelMenuItem" Click="HidePromptPanelMenuItem_Click" IsCheckable="True" ToolTip="Collapse the multi-line prompt box to give the terminal more vertical space. This menu, the model and provider buttons, and file chips stay reachable so you can turn it back on."/>
-								<MenuItem Header="Settings..." x:Name="SettingsMenuItem" Click="SettingsMenuItem_Click" ToolTip="Open the consolidated settings dialog (layout, terminal type, theme, send behavior, auto-zoom, auto-open changes)."/>
-								<Separator/>
-								<MenuItem Header="About" x:Name="AboutMenuItem" Click="AboutMenuItem_Click"/>
-							</ContextMenu>
-						</Button.ContextMenu>
-					</Button>
-				</StackPanel>
+							<Button.ContextMenu>
+								<ContextMenu x:Name="ProviderContextMenu" Opened="ProviderContextMenu_Opened">
+									<MenuItem Header="Claude Code" x:Name="ClaudeCodeMenuItem" Click="ClaudeCodeMenuItem_Click" IsCheckable="True" IsChecked="True"/>
+									<MenuItem Header="Claude Code (WSL)" x:Name="ClaudeCodeWSLMenuItem" Click="ClaudeCodeWSLMenuItem_Click" IsCheckable="True"/>
+									<MenuItem Header="Codex" x:Name="CodexNativeMenuItem" Click="CodexNativeMenuItem_Click" IsCheckable="True"/>
+									<MenuItem Header="Codex (WSL)" x:Name="CodexMenuItem" Click="CodexMenuItem_Click" IsCheckable="True"/>
+									<MenuItem Header="Cursor Agent" x:Name="CursorAgentNativeMenuItem" Click="CursorAgentNativeMenuItem_Click" IsCheckable="True"/>
+									<MenuItem Header="Cursor Agent (WSL)" x:Name="CursorAgentMenuItem" Click="CursorAgentMenuItem_Click" IsCheckable="True"/>
+									<MenuItem Header="Open Code" x:Name="OpenCodeMenuItem" Click="OpenCodeMenuItem_Click" IsCheckable="True"/>
+									<MenuItem Header="Devin" x:Name="DevinNativeMenuItem" Click="DevinNativeMenuItem_Click" IsCheckable="True"/>
+									<MenuItem Header="Devin (WSL)" x:Name="DevinMenuItem" Click="DevinMenuItem_Click" IsCheckable="True"/>
+									<MenuItem Header="PI" x:Name="PiMenuItem" Click="PiMenuItem_Click" IsCheckable="True"/>
+									<MenuItem Header="Antigravity" x:Name="AntigravityMenuItem" Click="AntigravityMenuItem_Click" IsCheckable="True"/>
+									<MenuItem Header="Reasonix" x:Name="ReasonixMenuItem" Click="ReasonixMenuItem_Click" IsCheckable="True"/>
+									<Separator x:Name="ProviderListSeparator"/>
+									<MenuItem Header="Configure Visible Code Agents..." x:Name="ConfigureVisibleAgentsMenuItem" Click="ConfigureVisibleAgentsMenuItem_Click" ToolTip="Choose which code agents appear in this menu. The active agent always remains visible."/>
+									<Separator x:Name="AutoOpenChangesSeparator"/>
+									<MenuItem Header="Claude Code: Skip Permissions" x:Name="ClaudeDangerouslySkipPermissionsMenuItem" Click="ClaudeDangerouslySkipPermissionsMenuItem_Click" IsCheckable="True" ToolTip="When enabled, Claude Code starts with --dangerously-skip-permissions"/>
+									<MenuItem Header="Codex: Approval Never" x:Name="CodexFullAutoMenuItem" Click="CodexFullAutoMenuItem_Click" IsCheckable="True" ToolTip="When enabled, Codex starts with --ask-for-approval never"/>
+									<MenuItem Header="Cursor Agent: Yolo Mode" x:Name="CursorAgentAutoRunMenuItem" Click="CursorAgentAutoRunMenuItem_Click" IsCheckable="True" ToolTip="When enabled, Cursor Agent starts with --yolo to skip all approvals"/>
+									<MenuItem Header="Devin: Dangerous Mode" x:Name="DevinDangerousModeMenuItem" Click="DevinDangerousModeMenuItem_Click" IsCheckable="True" ToolTip="When enabled, Devin starts with --permission-mode dangerous"/>
+									<MenuItem Header="Antigravity: Skip Permissions" x:Name="AntigravityDangerouslySkipPermissionsMenuItem" Click="AntigravityDangerouslySkipPermissionsMenuItem_Click" IsCheckable="True" ToolTip="When enabled, Antigravity starts with --dangerously-skip-permissions"/>
+									<Separator x:Name="ChangeAccountNativeSeparator"/>
+									<MenuItem Header="Change Account" x:Name="ChangeAccountNativeMenuItem" Click="ChangeAccountNativeMenuItem_Click" ToolTip="Sign out and switch which Claude account this conversation uses."/>
+									<Separator/>
+									<MenuItem Header="Configure Custom Commands..." x:Name="ConfigureCustomCommandsMenuItem" Click="ConfigureCustomCommandsMenuItem_Click" ToolTip="Add, edit, or remove custom commands surfaced in the toolbar dropdown next to the agent menu."/>
+									<MenuItem Header="Hide Prompt Input Box" x:Name="HidePromptPanelMenuItem" Click="HidePromptPanelMenuItem_Click" IsCheckable="True" ToolTip="Collapse the multi-line prompt box to give the terminal more vertical space. This menu, the model and provider buttons, and file chips stay reachable so you can turn it back on."/>
+									<MenuItem Header="Settings..." x:Name="SettingsMenuItem" Click="SettingsMenuItem_Click" ToolTip="Open the consolidated settings dialog (layout, terminal type, theme, send behavior, auto-zoom, auto-open changes)."/>
+									<Separator/>
+									<MenuItem Header="About" x:Name="AboutMenuItem" Click="AboutMenuItem_Click"/>
+								</ContextMenu>
+							</Button.ContextMenu>
+						</Button>
+									</StackPanel>
+
+					<Button x:Name="RightButtonsScrollRightButton" DockPanel.Dock="Right"
+					        Style="{StaticResource IconButtonStyle}"
+					        Content="▶" Width="16" MinWidth="16" FontSize="9" Padding="0"
+					        ToolTip="Scroll right"
+					        Visibility="Hidden"
+					        Click="RightButtonsScrollRightButton_Click"
+					        Margin="4,0,6,0"/>
+
+					<!-- Last child, so it fills whatever the docked controls above leave over: a genuinely
+					     bounded width is what makes the ScrollViewer scroll instead of overflowing, and docking
+					     the fixed group means ⚙ can never be pushed outside the panel the way a Grid column
+					     could push it (issue #151 round 9). Right-aligned so the slack when everything fits
+					     lands on its own left edge rather than between these buttons and the fixed group. -->
+					<ScrollViewer x:Name="RightButtonsScroller"
+					              HorizontalAlignment="Right"
+					              HorizontalScrollBarVisibility="Hidden" VerticalScrollBarVisibility="Disabled"
+					              PreviewMouseWheel="RightButtonsScroller_PreviewMouseWheel"
+					              ScrollChanged="RightButtonsScroller_ScrollChanged">
+						<StackPanel x:Name="RightButtonsPanel" Orientation="Horizontal" VerticalAlignment="Top">
+						<!--
+							One-click toolbar buttons. All collapsed by default; RefreshToolbarLayout()
+							shows the ones the user promoted (Settings → Toolbar) and removes the
+							matching entries from the "⚙" menu. See ClaudeCodeControl.ProviderManagement.cs.
+						-->
+						<Button x:Name="UpdateAgentToolbarButton"
+                            Content="🔄️"
+                            Width="30"
+                            MinWidth="30"
+                            FontSize="14"
+                            Style="{StaticResource IconButtonStyle}"
+                            Click="UpdateAgentButton_Click"
+                            ToolTip="Update Code Agent"
+                            Visibility="Collapsed"
+                            Margin="0,0,6,0"/>
+
+						<!-- Detach/attach uses the original vector icon (box + arrow); the arrow
+						     direction flips with state in UpdateDetachButtonIcon. -->
+						<Button x:Name="DetachToolbarButton"
+                            Width="30"
+                            Height="30"
+                            Style="{StaticResource IconButtonStyle}"
+                            Click="DetachTerminalButton_Click"
+                            ToolTip="Detach Terminal to Separate Tab"
+                            Visibility="Collapsed"
+                            Margin="0,0,6,0">
+							<Viewbox x:Name="DetachButtonIcon" Width="16" Height="14" Stretch="Uniform"/>
+						</Button>
+
+						<Button x:Name="RestartTerminalButton"
+                            Content="♻️"
+                            Width="30"
+                            MinWidth="30"
+                            FontSize="14"
+                            Style="{StaticResource IconButtonStyle}"
+                            Click="RestartTerminalButton_Click"
+                            ToolTip="Restart Code Agent"
+                            Visibility="Collapsed"
+                            Margin="0,0,6,0"/>
+
+						<Button x:Name="ViewChangesToolbarButton"
+                            Content="📄"
+                            Width="30"
+                            MinWidth="30"
+                            FontSize="14"
+                            Style="{StaticResource IconButtonStyle}"
+                            Click="ViewChangesButton_Click"
+                            ToolTip="View Code Changes"
+                            Visibility="Collapsed"
+                            Margin="0,0,6,0"/>
+
+						<Button x:Name="SessionHistoryToolbarButton"
+                            Content="📜"
+                            Width="30"
+                            MinWidth="30"
+                            FontSize="14"
+                            Style="{StaticResource IconButtonStyle}"
+                            Click="SessionHistoryButton_Click"
+                            ToolTip="Session History"
+                            Visibility="Collapsed"
+                            Margin="0,0,6,0"/>
+
+						<Button x:Name="ShowUsageToolbarButton"
+                            Content="📊"
+                            Width="30"
+                            MinWidth="30"
+                            FontSize="14"
+                            Style="{StaticResource IconButtonStyle}"
+                            Click="ShowUsageViewMenuItem_Click"
+                            ToolTip="Show Usage"
+                            Visibility="Collapsed"
+                            Margin="0,0,6,0"/>
+
+						<Button x:Name="SetWorkingDirectoryToolbarButton"
+                            Content="📁"
+                            Width="30"
+                            MinWidth="30"
+                            FontSize="14"
+                            Style="{StaticResource IconButtonStyle}"
+                            Click="SetWorkingDirectoryMenuItem_Click"
+                            ToolTip="Set Working Directory"
+                            Visibility="Collapsed"
+                            Margin="0,0,6,0"/>
+
+						<Button x:Name="SendBuildErrorsToolbarButton"
+                            Content="🛠️"
+                            Width="30"
+                            MinWidth="30"
+                            FontSize="14"
+                            Style="{StaticResource IconButtonStyle}"
+                            Click="SendBuildErrorsButton_Click"
+                            ToolTip="Send Build Errors to Agent"
+                            Visibility="Collapsed"
+                            Margin="0,0,6,0"/>
+
+						<Button x:Name="GenerateCommitMessageToolbarButton"
+                            Content="📝"
+                            Width="30"
+                            MinWidth="30"
+                            FontSize="14"
+                            Style="{StaticResource IconButtonStyle}"
+                            Click="GenerateCommitMessageButton_Click"
+                            ToolTip="Generate Commit Message"
+                            Visibility="Collapsed"
+                            Margin="0,0,6,0"/>
+
+						</StackPanel>
+					</ScrollViewer>
+				</DockPanel>
 			</Grid>
 
 			<!-- File chips row -->

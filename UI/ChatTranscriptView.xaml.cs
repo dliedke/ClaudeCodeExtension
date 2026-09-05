@@ -116,9 +116,6 @@ namespace ClaudeCodeVS.UI
         /// <summary>Raised when the composer's text should be sent as a prompt.</summary>
         public event EventHandler SendRequested;
 
-        /// <summary>Raised by the paperclip button. The parent owns the file dialog and the list.</summary>
-        public event EventHandler AttachRequested;
-
         /// <summary>Files dropped onto the composer, so drag-and-drop attaches like the prompt box does.</summary>
         public event EventHandler<string[]> FilesDropped;
 
@@ -148,6 +145,20 @@ namespace ClaudeCodeVS.UI
 
         /// <summary>Raised by the ✎ button: rename the session currently in the tab.</summary>
         public event EventHandler RenameSessionRequested;
+
+        /// <summary>
+        /// Raised by the ⚙/☰/⚡ mirror buttons. The sender is this view, so the parent can anchor the
+        /// panel's actual context menu (there is no separate copy of its contents) to whichever button
+        /// was clicked via <see cref="GetConfigMenuAnchor"/>.
+        /// </summary>
+        public event EventHandler<ChatConfigMenu> ConfigMenuClicked;
+
+        /// <summary>
+        /// Raised by one of the mirrored promoted-toolbar buttons (<see cref="SetPromotedButtons"/>).
+        /// The argument is the same id passed into that call, so the parent can map it back to the
+        /// toolbar feature and invoke the same click handler the panel button does.
+        /// </summary>
+        public event EventHandler<string> PromotedButtonClicked;
 
         /// <summary>Raised when Ctrl+Scroll changes the zoom, so the parent can persist it.</summary>
         public event EventHandler<double> ZoomChanged;
@@ -250,13 +261,69 @@ namespace ClaudeCodeVS.UI
         public bool SendWithCtrlEnter { get; set; }
 
         /// <summary>
-        /// Shows the in-view composer. It is only wanted when the chat is in its own tab: inside the
-        /// panel the existing prompt box sits directly above the transcript, and two input boxes one
-        /// on top of the other is just confusing.
+        /// How much of the composer is showing. <see cref="Hidden"/> outside native mode;
+        /// <see cref="ActionsOnly"/> while the chat is docked in the panel, where the panel's own
+        /// prompt box sits directly above the transcript and a second input box would just be
+        /// confusing — but the agent/model/effort/permission selectors and the mirrored config
+        /// buttons still need somewhere to live, since the panel hides its own equivalents in native
+        /// mode; <see cref="Full"/> once the chat has its own tab.
         /// </summary>
-        public void ShowComposer(bool show)
+        public enum ComposerMode
         {
-            ComposerBar.Visibility = show ? Visibility.Visible : Visibility.Collapsed;
+            Hidden,
+            ActionsOnly,
+            Full
+        }
+
+        private ComposerMode _composerMode = ComposerMode.Hidden;
+        private bool _toolsMenuHasItems = true;
+        private bool _customCommandsHasItems = true;
+
+        /// <summary>
+        /// Shows or hides the composer, and — in <see cref="ComposerMode.ActionsOnly"/> — trims it
+        /// down to just the selectors and ↻/✚/✎/🎨, collapsing the resize grip, attachment chips,
+        /// text input and the mirrored config buttons (⚙/☰/⚡ and the promoted-toolbar mirrors). Those
+        /// mirrors only earn their keep once the chat has left for its own tab (<see cref="Full"/>) —
+        /// while docked in the panel (<see cref="ActionsOnly"/>) the panel's own copies are right
+        /// there in the same window, so showing both would just be clutter.
+        /// </summary>
+        public void SetComposerMode(ComposerMode mode)
+        {
+            _composerMode = mode;
+
+            ComposerBar.Visibility = mode == ComposerMode.Hidden ? Visibility.Collapsed : Visibility.Visible;
+
+            Visibility fullOnly = mode == ComposerMode.Full ? Visibility.Visible : Visibility.Collapsed;
+            ComposerResizeGrip.Visibility = fullOnly;
+            ComposerAttachments.Visibility = fullOnly;
+            ComposerInputBorder.Visibility = fullOnly;
+            ComposerSettingsButton.Visibility = fullOnly;
+            ComposerPromotedButtons.Visibility = fullOnly;
+            UpdateToolsButtonVisibility();
+            UpdateCustomCommandsButtonVisibility();
+
+            // Only reachable while native mode is on (Hidden is the only mode outside it), so this is
+            // also the one place that needs to know: "Clear this conversation" doubles as "restart the
+            // agent" here, and the default tooltip doesn't say that.
+            ComposerClearButton.ToolTip = mode == ComposerMode.Hidden
+                ? "Clear this conversation and start fresh"
+                : "Restart the agent and start a fresh conversation";
+        }
+
+        /// <summary>Combines the Full-only gate above with the "menu would be empty" gate below.</summary>
+        private void UpdateToolsButtonVisibility()
+        {
+            ComposerToolsButton.Visibility = _composerMode == ComposerMode.Full && _toolsMenuHasItems
+                ? Visibility.Visible
+                : Visibility.Collapsed;
+        }
+
+        /// <summary>Combines the Full-only gate above with the "no commands configured" gate below.</summary>
+        private void UpdateCustomCommandsButtonVisibility()
+        {
+            ComposerCustomCommandsButton.Visibility = _composerMode == ComposerMode.Full && _customCommandsHasItems
+                ? Visibility.Visible
+                : Visibility.Collapsed;
         }
 
         /// <summary>Captions of the agent / model / effort / permission selectors.</summary>
@@ -270,9 +337,10 @@ namespace ClaudeCodeVS.UI
 
         /// <summary>
         /// The composer button a selector's menu should hang off, or null when there is nothing to hang
-        /// it on — the composer is hidden (the transcript is back in the panel) or that particular
-        /// selector does not apply to the running agent. Used by the typed slash commands, which open
-        /// the same menus the buttons do; the caller falls back to its own anchor on null.
+        /// it on — native mode is off (<see cref="ComposerMode.Hidden"/>) or that particular selector
+        /// does not apply to the running agent. Resolves in <see cref="ComposerMode.ActionsOnly"/> too,
+        /// since the action row stays visible there. Used by the typed slash commands, which open the
+        /// same menus the buttons do; the caller falls back to its own anchor on null.
         /// </summary>
         public UIElement GetSelectorAnchor(ChatSelector selector)
         {
@@ -301,9 +369,110 @@ namespace ClaudeCodeVS.UI
             ComposerPermissionButton.Visibility = permission ? Visibility.Visible : Visibility.Collapsed;
         }
 
+        /// <summary>
+        /// Mirrors the panel's own "collapse ☰ when its dropdown would be empty" rule
+        /// (<c>RefreshToolbarLayout</c>'s <c>anyInDropdown</c>) onto the composer's ☰ mirror, so the
+        /// chat tab never offers a menu with nothing in it.
+        /// </summary>
+        public void SetToolsMenuHasItems(bool hasItems)
+        {
+            _toolsMenuHasItems = hasItems;
+            UpdateToolsButtonVisibility();
+        }
+
+        /// <summary>
+        /// Mirrors the panel's own "hide ⚡ when no custom commands are configured" rule
+        /// (<c>RefreshCustomCommandsButton</c>'s <c>hasAny</c>) onto the composer's ⚡ mirror, so the
+        /// chat tab never offers an empty custom-commands menu (issue #151 round 7).
+        /// </summary>
+        public void SetCustomCommandsMenuHasItems(bool hasItems)
+        {
+            _customCommandsHasItems = hasItems;
+            UpdateCustomCommandsButtonVisibility();
+        }
+
+        /// <summary>
+        /// The composer button a config menu should hang off, or null while the composer is
+        /// <see cref="ComposerMode.Hidden"/>. Same shape as <see cref="GetSelectorAnchor"/>.
+        /// </summary>
+        public UIElement GetConfigMenuAnchor(ChatConfigMenu menu)
+        {
+            if (ComposerBar.Visibility != Visibility.Visible)
+            {
+                return null;
+            }
+
+            Button button;
+            switch (menu)
+            {
+                case ChatConfigMenu.Tools: button = ComposerToolsButton; break;
+                case ChatConfigMenu.CustomCommands: button = ComposerCustomCommandsButton; break;
+                default: button = ComposerSettingsButton; break;
+            }
+
+            return button != null && button.Visibility == Visibility.Visible ? button : null;
+        }
+
+        /// <summary>
+        /// The mirrored promoted-toolbar button with the given id, or null while the composer is
+        /// <see cref="ComposerMode.Hidden"/> or no button with that id was passed to
+        /// <see cref="SetPromotedButtons"/>.
+        /// </summary>
+        public UIElement GetPromotedButtonAnchor(string id)
+        {
+            if (ComposerBar.Visibility != Visibility.Visible
+                || ComposerPromotedButtons.Visibility != Visibility.Visible
+                || string.IsNullOrEmpty(id))
+            {
+                return null;
+            }
+
+            foreach (Button button in ComposerPromotedButtons.Children)
+            {
+                if (id.Equals(button.Tag as string, StringComparison.Ordinal))
+                {
+                    return button;
+                }
+            }
+
+            return null;
+        }
+
+        /// <summary>
+        /// Rebuilds the mirrored promoted-toolbar buttons from the panel's own set. Each entry's
+        /// content and tooltip are copied from the panel button that owns it, so there is only one
+        /// place (<c>RefreshToolbarLayout</c>) that decides the glyph or wording — this never drifts
+        /// out of sync with what the panel itself shows.
+        /// </summary>
+        public void SetPromotedButtons(IEnumerable<(string Id, object Content, object ToolTip)> buttons)
+        {
+            ComposerPromotedButtons.Children.Clear();
+
+            if (buttons == null)
+            {
+                return;
+            }
+
+            foreach (var entry in buttons)
+            {
+                var button = new Button
+                {
+                    Style = (Style)FindResource("ComposerSelectorStyle"),
+                    Content = entry.Content,
+                    ToolTip = entry.ToolTip,
+                    FontSize = 13,
+                    Tag = entry.Id
+                };
+                button.Click += (s, e) => PromotedButtonClicked?.Invoke(this, ((Button)s).Tag as string);
+                ComposerPromotedButtons.Children.Add(button);
+            }
+        }
+
         public void FocusComposer()
         {
-            if (ComposerBar.Visibility != Visibility.Visible) return;
+            // In ActionsOnly the text input is collapsed (the panel's own prompt box is still the one
+            // being typed into), so there is nothing here to focus.
+            if (_composerMode != ComposerMode.Full) return;
 
             ComposerInput.Focus();
             ComposerInput.CaretIndex = ComposerInput.Text.Length;
@@ -593,14 +762,49 @@ namespace ClaudeCodeVS.UI
 
         #region Composer
 
-        private void ComposerSendButton_Click(object sender, RoutedEventArgs e)
+        // The row scrolls horizontally but the mouse wheel is vertical by default, and there is no
+        // vertical content here for it to act on — without this, hovering the action row and scrolling
+        // does nothing instead of the horizontal scroll a user would expect.
+        private void ComposerActionsScroller_PreviewMouseWheel(object sender, System.Windows.Input.MouseWheelEventArgs e)
         {
-            SendRequested?.Invoke(this, EventArgs.Empty);
+            if (ComposerActionsScroller.ScrollableWidth <= 0)
+            {
+                return;
+            }
+
+            ComposerActionsScroller.ScrollToHorizontalOffset(ComposerActionsScroller.HorizontalOffset - e.Delta);
+            e.Handled = true;
         }
 
-        private void ComposerAttachButton_Click(object sender, RoutedEventArgs e)
+        private const double ComposerActionsScrollStep = 90;
+
+        private void ComposerActionsScrollLeftButton_Click(object sender, RoutedEventArgs e)
         {
-            AttachRequested?.Invoke(this, EventArgs.Empty);
+            ComposerActionsScroller.ScrollToHorizontalOffset(ComposerActionsScroller.HorizontalOffset - ComposerActionsScrollStep);
+        }
+
+        private void ComposerActionsScrollRightButton_Click(object sender, RoutedEventArgs e)
+        {
+            ComposerActionsScroller.ScrollToHorizontalOffset(ComposerActionsScroller.HorizontalOffset + ComposerActionsScrollStep);
+        }
+
+        // Small ◀/▶ buttons stand in for the scrollbar track (too heavy visually for a row this
+        // thin), so this is the only signal for whether either end still has something to reach —
+        // fires whenever the row's content width, viewport, or offset changes. They toggle
+        // Hidden, not Collapsed: both arrow columns are Grid "Auto" width, so a Collapsed button
+        // would drop its column to zero width, which would widen the scroller column and make the
+        // whole toolbar's visible content shift/resize every time an arrow appeared or
+        // disappeared. Hidden keeps the column's layout space reserved either way — only the
+        // buttons underneath scroll, the toolbar's own footprint never changes size.
+        private void ComposerActionsScroller_ScrollChanged(object sender, ScrollChangedEventArgs e)
+        {
+            bool canScroll = ComposerActionsScroller.ScrollableWidth > 0.5;
+            ComposerActionsScrollLeftButton.Visibility = canScroll && ComposerActionsScroller.HorizontalOffset > 0.5
+                ? Visibility.Visible
+                : Visibility.Hidden;
+            ComposerActionsScrollRightButton.Visibility = canScroll && ComposerActionsScroller.HorizontalOffset < ComposerActionsScroller.ScrollableWidth - 0.5
+                ? Visibility.Visible
+                : Visibility.Hidden;
         }
 
         private void ComposerProviderButton_Click(object sender, RoutedEventArgs e)
@@ -922,6 +1126,21 @@ namespace ClaudeCodeVS.UI
         private void ComposerPermissionButton_Click(object sender, RoutedEventArgs e)
         {
             SelectorClicked?.Invoke(this, ChatSelector.Permission);
+        }
+
+        private void ComposerSettingsButton_Click(object sender, RoutedEventArgs e)
+        {
+            ConfigMenuClicked?.Invoke(this, ChatConfigMenu.Settings);
+        }
+
+        private void ComposerToolsButton_Click(object sender, RoutedEventArgs e)
+        {
+            ConfigMenuClicked?.Invoke(this, ChatConfigMenu.Tools);
+        }
+
+        private void ComposerCustomCommandsButton_Click(object sender, RoutedEventArgs e)
+        {
+            ConfigMenuClicked?.Invoke(this, ChatConfigMenu.CustomCommands);
         }
 
         private void ComposerInput_TextChanged(object sender, TextChangedEventArgs e)
@@ -1315,6 +1534,14 @@ namespace ClaudeCodeVS.UI
         Model,
         Effort,
         Permission
+    }
+
+    /// <summary>Which of the composer's mirrored config menus the user clicked.</summary>
+    public enum ChatConfigMenu
+    {
+        Settings,
+        Tools,
+        CustomCommands
     }
 
     /// <summary>

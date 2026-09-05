@@ -2226,8 +2226,10 @@ For more details, visit: https://pi.dev";
             // Native mode runs the agent headless, so anything whose only implementation is typing
             // into a console window has nothing to act on. Those controls are hidden rather than
             // disabled: a permanently greyed button in a mode the user chose reads as breakage.
-            // Everything else stays — Restart, Detach, View Changes, Session History, Show Usage,
+            // Everything else stays — Restart, View Changes, Session History, Show Usage,
             // Set Working Directory and Send Build Errors all work through paths native mode shares.
+            // Detach is the one exception: it is dropped from native mode's own toolbar entirely
+            // (see the dedicated comment at its Apply call below).
             bool hasConsole = !IsNativeModeActive;
 
             // Every configurable feature is always offered (button when promoted, otherwise menu
@@ -2240,9 +2242,17 @@ For more details, visit: https://pi.dev";
             // and native mode runs it in its own console window and resumes the conversation afterward
             // (UpdateNativeAgentAsync).
             Apply(ToolbarButton.UpdateAgent, true, UpdateAgentToolbarButton, UpdateAgentMenuItem);
-            // Detach means "give this conversation its own tab" in both worlds: it re-parents the
-            // embedded console window for the terminal, and moves the chat view for native mode.
-            Apply(ToolbarButton.DetachTerminal, true, DetachToolbarButton, DetachTerminalMenuItem);
+            // Detach means "give this conversation its own tab" for the terminal — it re-parents the
+            // embedded console window. Native mode reuses the same button/click handler to move the
+            // chat view instead (ToggleChatTabAsync), but issue #151 round 4 dropped it from native
+            // mode's own toolbar entirely: the panel already re-shows the chat tab automatically every
+            // time a native session (re)starts (ShowNativeChatTabAsync), and a lone floating ⧉ icon in
+            // an otherwise-empty panel (once everything else collapses below) read as confusing
+            // clutter rather than a useful control. Closing the tab still doesn't lose the
+            // conversation — ReturnNativeChatToPanel re-embeds it, just without a button to pop it
+            // back out again until the next native-mode restart.
+            Apply(ToolbarButton.DetachTerminal, !IsNativeModeActive, DetachToolbarButton, DetachTerminalMenuItem);
+
             Apply(ToolbarButton.RestartAgent, true, RestartTerminalButton, RestartTerminalMenuItem);
             Apply(ToolbarButton.ViewChanges, true, ViewChangesToolbarButton, ViewChangesMenuItem);
             Apply(ToolbarButton.SessionHistory, true, SessionHistoryToolbarButton, SessionHistoryViewMenuItem);
@@ -2281,9 +2291,99 @@ For more details, visit: https://pi.dev";
                 IsMenuItemVisible(GenerateCommitMessageMenuItem);
             if (ToolsDropdownButton != null)
                 ToolsDropdownButton.Visibility = anyInDropdown ? Visibility.Visible : Visibility.Collapsed;
+            ChatTranscript?.SetToolsMenuHasItems(anyInDropdown);
+
+            // Issue #151 follow-up: once the chat has its own tab, every one of these controls is
+            // mirrored there (Change C) and reachable through the exact same menus/handlers — leaving
+            // both copies visible is just clutter (and the reporter's screenshot). Collapse the
+            // panel's copies down to ⧉ (the only way back) whenever the chat has actually left; while
+            // it's still docked (ActionsOnly) the panel is the only surface open, so its own toolbar
+            // stays put.
+            if (IsChatDetachedToOwnTab)
+            {
+                foreach (ToolbarButton id in DefaultToolbarButtonOrder)
+                {
+                    System.Windows.Controls.Button btn = GetToolbarButtonControl(id);
+                    if (btn != null) btn.Visibility = Visibility.Collapsed;
+                    System.Windows.Controls.MenuItem item = GetToolbarMenuItemControl(id);
+                    if (item != null) item.Visibility = Visibility.Collapsed;
+                }
+                if (ModelDropdownButton != null) ModelDropdownButton.Visibility = Visibility.Collapsed;
+                if (ToolsDropdownButton != null) ToolsDropdownButton.Visibility = Visibility.Collapsed;
+                if (CustomCommandsButton != null) CustomCommandsButton.Visibility = Visibility.Collapsed;
+                if (MenuDropdownButton != null) MenuDropdownButton.Visibility = Visibility.Collapsed;
+
+                // AttachDropdownButton/SendPromptButton sit in ControlsRow next to RightButtonsPanel,
+                // not inside PromptGroupBox — so auto-hiding the prompt box (ApplyPromptPanelHiddenState)
+                // does not take them with it. Both only make sense next to the prompt text box they act
+                // on, which is exactly what just got hidden.
+                if (AttachDropdownButton != null) AttachDropdownButton.Visibility = Visibility.Collapsed;
+                if (SendPromptButton != null) SendPromptButton.Visibility = Visibility.Collapsed;
+            }
+            else
+            {
+                // Issue #151 round 10: the collapses above were one-way for ⚙, ⚡, 📎 and ▶. Every other
+                // control in that block is recomputed from scratch earlier in this method (the Apply()
+                // loop for the feature buttons, the hasConsole/hasModelMenu gate for 🤖, anyInDropdown
+                // for ☰), so it comes back by itself — these four have no such authority, so once the
+                // chat had been detached to its own tab they stayed collapsed forever. Turning native
+                // mode back off dropped straight into this else-branch with nothing restoring them,
+                // which is how the classic terminal panel lost its ⚙ Settings/Agent button (and the 📎
+                // attach button) with no way left to reach either.
+                if (MenuDropdownButton != null) MenuDropdownButton.Visibility = Visibility.Visible;
+                if (AttachDropdownButton != null) AttachDropdownButton.Visibility = Visibility.Visible;
+
+                // Each of these two has its own rule, so defer rather than forcing Visible: ▶ Send is
+                // for send-with-Enter-off only, and ⚡ hides when no custom commands are configured.
+                if (SendPromptButton != null)
+                {
+                    SendPromptButton.Visibility = (_settings != null && _settings.SendWithEnter)
+                        ? Visibility.Collapsed
+                        : Visibility.Visible;
+                }
+                RefreshCustomCommandsButton();
+            }
+
+            // Issue #151 round 9: collapsing every control inside ControlsRow/CheckboxRow still left
+            // both rows reserving height — the ◀/▶ scroll arrows are Hidden rather than Collapsed by
+            // design (so the row's footprint doesn't jump as they come and go), and the empty file-chips
+            // row contributes its own margins. With the prompt box auto-hidden in this state too, that
+            // showed up as a dead strip between the panel's title bar and the usage bars, which are the
+            // only thing left in the panel once the chat owns its tab.
+            Visibility panelRows = IsChatDetachedToOwnTab ? Visibility.Collapsed : Visibility.Visible;
+            if (ControlsRow != null) ControlsRow.Visibility = panelRows;
+            if (CheckboxRow != null) CheckboxRow.Visibility = panelRows;
 
             // Keep the detach control's icon/tooltip in sync with the detached state.
             UpdateDetachButtonIcon(_isTerminalDetached);
+
+            // Issue #151 (Change C): mirror the same promoted set into the chat tab's own composer,
+            // reading each button's actual glyph/tooltip off the panel control so the mirror can never
+            // drift out of sync with it. DetachTerminal and RestartAgent are left out — the former is
+            // the panel's own ⧉ button (meaningless inside the tab it opens), the latter is already
+            // covered by the composer's own ↻ restart button (see ComposerClearButton).
+            if (ChatTranscript != null)
+            {
+                if (IsNativeModeActive)
+                {
+                    var mirrored = new System.Collections.Generic.List<(string Id, object Content, object ToolTip)>();
+                    foreach (ToolbarButton id in GetEffectiveToolbarOrder())
+                    {
+                        if (id == ToolbarButton.DetachTerminal || id == ToolbarButton.RestartAgent) continue;
+                        if (!promoted.Contains(id)) continue;
+
+                        System.Windows.Controls.Button source = GetToolbarButtonControl(id);
+                        if (source == null) continue;
+
+                        mirrored.Add((id.ToString(), source.Content, source.ToolTip));
+                    }
+                    ChatTranscript.SetPromotedButtons(mirrored);
+                }
+                else
+                {
+                    ChatTranscript.SetPromotedButtons(null);
+                }
+            }
         }
 
         private static bool IsMenuItemVisible(System.Windows.Controls.MenuItem item)
@@ -2385,6 +2485,56 @@ For more details, visit: https://pi.dev";
                     ToolsContextMenu.Items.Insert(0, item);
                 }
             }
+        }
+
+        // Issue #151 round 7: the panel's own feature-button row (RightButtonsPanel) had no
+        // overflow handling, so a narrow tool window with several buttons promoted would push the
+        // fixed group (☰/⚡/🤖/⚙) — including Settings, which has no fallback anywhere else — past
+        // the visible edge with no indication anything was hidden. Mirrors the ◀/▶ scroll handling
+        // already used by the native-mode composer's action row (ChatTranscriptView.xaml.cs).
+        private void RightButtonsScroller_PreviewMouseWheel(object sender, System.Windows.Input.MouseWheelEventArgs e)
+        {
+            if (RightButtonsScroller.ScrollableWidth <= 0)
+            {
+                return;
+            }
+
+            RightButtonsScroller.ScrollToHorizontalOffset(RightButtonsScroller.HorizontalOffset - e.Delta);
+            e.Handled = true;
+        }
+
+        private const double RightButtonsScrollStep = 90;
+
+        private void RightButtonsScrollLeftButton_Click(object sender, RoutedEventArgs e)
+        {
+            RightButtonsScroller.ScrollToHorizontalOffset(RightButtonsScroller.HorizontalOffset - RightButtonsScrollStep);
+        }
+
+        private void RightButtonsScrollRightButton_Click(object sender, RoutedEventArgs e)
+        {
+            RightButtonsScroller.ScrollToHorizontalOffset(RightButtonsScroller.HorizontalOffset + RightButtonsScrollStep);
+        }
+
+        // Hidden, not Collapsed: both arrows are docked, so a Collapsed button would give its slice
+        // back and shift the scroller/fixed group every time an arrow appeared or disappeared.
+        // Hidden keeps the slice reserved either way — only the buttons underneath scroll, the
+        // toolbar's own footprint never changes.
+        //
+        // Issue #151 round 9: both arrows now show together as soon as the row can scroll at all,
+        // greyed out at each end instead of vanishing. Hiding the one that has nowhere to go left
+        // a single lone arrow on screen, which reads as decoration rather than as "there is more
+        // over here" — the reporter didn't recognize the row as scrollable at all.
+        private void RightButtonsScroller_ScrollChanged(object sender, ScrollChangedEventArgs e)
+        {
+            bool canScroll = RightButtonsScroller.ScrollableWidth > 0.5;
+            Visibility arrows = canScroll ? Visibility.Visible : Visibility.Hidden;
+
+            RightButtonsScrollLeftButton.Visibility = arrows;
+            RightButtonsScrollRightButton.Visibility = arrows;
+
+            RightButtonsScrollLeftButton.IsEnabled = canScroll && RightButtonsScroller.HorizontalOffset > 0.5;
+            RightButtonsScrollRightButton.IsEnabled = canScroll
+                && RightButtonsScroller.HorizontalOffset < RightButtonsScroller.ScrollableWidth - 0.5;
         }
 
         private AiProvider? GetActiveOrSelectedProvider()
@@ -2860,12 +3010,7 @@ For more details, visit: https://pi.dev";
         {
             // Show the context menu when the dropdown button is clicked
             var button = sender as System.Windows.Controls.Button;
-            if (button?.ContextMenu != null)
-            {
-                button.ContextMenu.PlacementTarget = button;
-                button.ContextMenu.Placement = System.Windows.Controls.Primitives.PlacementMode.Bottom;
-                button.ContextMenu.IsOpen = true;
-            }
+            OpenMenuAt(button?.ContextMenu, button);
         }
 
         /// <summary>
@@ -2891,12 +3036,7 @@ For more details, visit: https://pi.dev";
             }
 
             var button = sender as System.Windows.Controls.Button;
-            if (button?.ContextMenu != null)
-            {
-                button.ContextMenu.PlacementTarget = button;
-                button.ContextMenu.Placement = System.Windows.Controls.Primitives.PlacementMode.Bottom;
-                button.ContextMenu.IsOpen = true;
-            }
+            OpenMenuAt(button?.ContextMenu, button);
         }
 
         /// <summary>
@@ -3972,11 +4112,7 @@ For more details, visit: https://pi.dev";
         /// </summary>
         private void ToolsDropdownButton_Click(object sender, RoutedEventArgs e)
         {
-            if (ToolsDropdownButton?.ContextMenu != null)
-            {
-                ToolsDropdownButton.ContextMenu.PlacementTarget = ToolsDropdownButton;
-                ToolsDropdownButton.ContextMenu.IsOpen = true;
-            }
+            OpenMenuAt(ToolsDropdownButton?.ContextMenu, ToolsDropdownButton);
         }
 
         /// <summary>

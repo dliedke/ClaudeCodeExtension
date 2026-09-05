@@ -56,6 +56,7 @@
     <Compile Include="Agents\ModelCatalog.cs" />
     <Compile Include="Agents\AcpSession.cs" />
     <Compile Include="Agents\AgentEvent.cs" />
+    <Compile Include="Agents\AgentModelUnavailableException.cs" />
     <Compile Include="Agents\ClaudeCommandBuilder.cs" />
     <Compile Include="Agents\ClaudeStreamJsonSession.cs" />
     <Compile Include="Agents\ClaudeStreamParser.cs" />

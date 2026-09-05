@@ -156,7 +156,8 @@ namespace ClaudeCodeVS
                 if (_settings != null)
                 {
                     var currentPos = FindSplitterPosition();
-                    if (currentPos.HasValue && currentPos.Value > 0)
+                    if (currentPos.HasValue &&
+                        ShouldPersistSplitterPosition(currentPos.Value, false, PromptBoxIsHidden))
                     {
                         _settings.SplitterPosition = currentPos.Value;
                         // Expand prompt area by 80px for more comfortable editing while detached
@@ -223,9 +224,13 @@ namespace ClaudeCodeVS
                 RestoreTerminalSlotMinimumSize();
 
                 // Restore splitter to pre-detach position
-                if (_settings != null && _settings.SplitterPosition > 0)
+                double restoredPosition = _settings != null
+                    ? ResolveRestoredSplitterPosition(_settings.SplitterPosition)
+                    : 0;
+                if (restoredPosition > 0)
                 {
-                    SetSplitterPosition(_settings.SplitterPosition);
+                    _settings.SplitterPosition = restoredPosition;
+                    SetSplitterPosition(restoredPosition);
                 }
 
                 // Force layout recalculation

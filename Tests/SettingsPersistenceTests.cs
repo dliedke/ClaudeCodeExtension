@@ -149,5 +149,28 @@ namespace ClaudeCodeExtension.Tests
 
             Assert.IsFalse((bool)JObject.Parse(json)["KeepTerminalCodePage"]);
         }
+
+        /// <summary>
+        /// Issue #151/v170.0: a settings file saved by an older build has no
+        /// <see cref="ClaudeCodeSettings.AutoHidePromptInNativeMode"/> property at all, and the
+        /// feature it gates (auto-collapsing the panel's prompt box once native mode's chat has
+        /// left for its own tab) is meant to be on for everyone by default, not just new installs.
+        /// </summary>
+        [TestMethod]
+        public void AutoHidePromptInNativeMode_DefaultsToOnAndRoundTrips()
+        {
+            Assert.IsTrue(new ClaudeCodeSettings().AutoHidePromptInNativeMode);
+
+            var deserializedFromOlderFile =
+                Newtonsoft.Json.JsonConvert.DeserializeObject<ClaudeCodeSettings>("{ \"SelectedProvider\": 0 }");
+            Assert.IsTrue(deserializedFromOlderFile.AutoHidePromptInNativeMode,
+                "A settings file predating this setting must still behave as if it were turned on.");
+
+            var settings = new ClaudeCodeSettings { AutoHidePromptInNativeMode = false };
+
+            string json = ClaudeCodeControl.SerializeJsonIndented(settings);
+
+            Assert.IsFalse((bool)JObject.Parse(json)["AutoHidePromptInNativeMode"]);
+        }
     }
 }

@@ -440,11 +440,22 @@ namespace ClaudeCodeVS.Agents
 
             if (_modelOption == null)
             {
+                // Nothing failed to load here — the agent simply has no model concept over ACP, so
+                // there is no picked model to honor and no reason to refuse the launch.
                 Debug.WriteLine($"ACP: {_options.DisplayName} offers no model picker; keeping its default.");
                 return;
             }
 
-            await ApplyModelAsync(_options.ModelName, true, cancellationToken);
+            if (!await ApplyModelAsync(_options.ModelName, cancellationToken))
+            {
+                // Fatal on purpose (issue #151 round 11). This used to print a notice into the chat and
+                // carry on, which meant the composer kept showing the model the user picked while every
+                // answer came from the agent's default one — a silent, invisible substitution. The
+                // caller turns this into a rollback to the embedded terminal, where the model menu is
+                // reachable and the CLI prints its own list of what it does accept.
+                throw new AgentModelUnavailableException(_options.DisplayName, _options.ModelName,
+                    $"{_options.DisplayName} does not offer the model \"{_options.ModelName}\".");
+            }
         }
 
         /// <summary>
@@ -458,27 +469,16 @@ namespace ClaudeCodeVS.Agents
                 return false;
             }
 
-            return await ApplyModelAsync(model, false, cancellationToken);
+            return await ApplyModelAsync(model, cancellationToken);
         }
 
-        private async Task<bool> ApplyModelAsync(string model, bool announceMismatch,
-            CancellationToken cancellationToken)
+        private async Task<bool> ApplyModelAsync(string model, CancellationToken cancellationToken)
         {
             string value = ResolveModelValue(_modelOption, model);
 
             if (string.IsNullOrEmpty(value))
             {
                 Debug.WriteLine($"ACP: {_options.DisplayName} does not offer model '{model}'.");
-
-                // Said out loud on launch: the composer keeps showing the model that was picked, so a
-                // silent miss leaves the user reading answers from a model they did not choose.
-                if (announceMismatch)
-                {
-                    Raise(AgentEvent.SessionError(
-                        $"{_options.DisplayName} does not offer the model \"{model}\" — it is running on its " +
-                        "default model. Pick another one in the model menu (\"Configure Models...\" edits the list)."));
-                }
-
                 return false;
             }
 

@@ -40,7 +40,21 @@ namespace ClaudeCodeVS
                 var commands = _settings?.CustomCommands;
                 bool hasAny = commands != null && commands.Count > 0;
 
-                CustomCommandsButton.Visibility = hasAny ? Visibility.Visible : Visibility.Collapsed;
+                // Issue #151 round 8: this used to set Visibility unconditionally, so calling this
+                // method (e.g. from ApplyLoadedSettings, or after the configure-commands dialog
+                // closes) while the chat was already detached to its own tab would pop ⚡ back onto
+                // the panel's toolbar, undoing RefreshToolbarLayout()'s IsChatDetachedToOwnTab
+                // collapse — the button would then float there alone since nothing else in that
+                // row is visible in that state. Only show it here when the panel toolbar is
+                // actually the active surface; the composer's mirror covers the detached case.
+                CustomCommandsButton.Visibility = hasAny && !IsChatDetachedToOwnTab
+                    ? Visibility.Visible
+                    : Visibility.Collapsed;
+
+                // Issue #151 round 7: the composer's ⚡ mirror (ComposerCustomCommandsButton) was
+                // gated only on composer mode, not on whether any commands actually exist — keep it
+                // in sync with the panel's own gate so it never offers an empty menu.
+                ChatTranscript?.SetCustomCommandsMenuHasItems(hasAny);
 
                 var menu = CustomCommandsButton.ContextMenu;
                 if (menu == null) return;
@@ -73,12 +87,7 @@ namespace ClaudeCodeVS
         private void CustomCommandsButton_Click(object sender, RoutedEventArgs e)
         {
             var button = sender as Button;
-            if (button?.ContextMenu != null)
-            {
-                button.ContextMenu.PlacementTarget = button;
-                button.ContextMenu.Placement = System.Windows.Controls.Primitives.PlacementMode.Bottom;
-                button.ContextMenu.IsOpen = true;
-            }
+            OpenMenuAt(button?.ContextMenu, button);
         }
 
         /// <summary>

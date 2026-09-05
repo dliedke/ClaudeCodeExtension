@@ -86,6 +86,7 @@ namespace ClaudeCodeVS
             bool origInvertLayout             = _settings.InvertLayout;
             LayoutOrientation origOrientation = _settings.SelectedLayoutOrientation;
             bool origHidePromptPanel          = _settings.HidePromptPanel;
+            bool origAutoHidePromptInNative   = _settings.AutoHidePromptInNativeMode;
             TerminalType origTerminalType     = _settings.SelectedTerminalType;
             string origConsoleFont            = string.IsNullOrWhiteSpace(_settings.ConsoleFontFaceName)
                                                 ? "Cascadia Mono" : _settings.ConsoleFontFaceName;
@@ -321,6 +322,14 @@ namespace ClaudeCodeVS
                 "stay visible so you can turn it back on here or from the ⚙ menu.",
                 origHidePromptPanel, themeFg);
             layoutStack.Children.Add(hidePromptPanelCheck);
+
+            var autoHidePromptInNativeCheck = MakeCheckBox(
+                "Hide prompt box while the native chat is in its own tab",
+                "In native mode, the chat tab's own composer carries the agent/model/effort/permission " +
+                "selectors, so this panel's prompt box auto-collapses once the chat leaves for its tab. " +
+                "It comes back automatically whenever the chat is docked back in the panel.",
+                origAutoHidePromptInNative, themeFg);
+            layoutStack.Children.Add(autoHidePromptInNativeCheck);
 
             // ========================= Terminal tab =========================
             var terminalStack = AddTab("Terminal");
@@ -1039,6 +1048,7 @@ namespace ClaudeCodeVS
                 ? LayoutOrientation.Vertical
                 : LayoutOrientation.Horizontal;
             bool newHidePromptPanel = hidePromptPanelCheck.IsChecked == true;
+            bool newAutoHidePromptInNative = autoHidePromptInNativeCheck.IsChecked == true;
             bool newUseNativeMode = nativeModeCheck.IsChecked == true;
             bool newKeepTerminalCodePage = keepCodePageCheck.IsChecked == true;
             // Native mode launches no console at all, so the terminal type is pinned rather than left
@@ -1119,6 +1129,7 @@ namespace ClaudeCodeVS
             _settings.InvertLayout            = newInvertLayout;
             _settings.SelectedLayoutOrientation = newOrientation;
             _settings.HidePromptPanel         = newHidePromptPanel;
+            _settings.AutoHidePromptInNativeMode = newAutoHidePromptInNative;
             _settings.SelectedTerminalType    = newTerminalType;
             _settings.UseNativeMode           = newUseNativeMode;
             _settings.ConsoleFontFaceName     = newConsoleFont;
@@ -1181,10 +1192,14 @@ namespace ClaudeCodeVS
             // On Agent Finish is configured in its own dialog (opened by the button above),
             // which persists its own changes; nothing to apply here.
 
-            // Send button visibility tied to SendWithEnter
-            SendPromptButton.Visibility = _settings.SendWithEnter
-                ? Visibility.Collapsed
-                : Visibility.Visible;
+            // Send button visibility tied to SendWithEnter. Suppressed while the chat has its own tab —
+            // that button lives next to the now-hidden panel prompt box and has nothing to act on.
+            if (!IsChatDetachedToOwnTab)
+            {
+                SendPromptButton.Visibility = _settings.SendWithEnter
+                    ? Visibility.Collapsed
+                    : Visibility.Visible;
+            }
 
             // Apply prompt font size immediately
             if (PromptTextBox != null) PromptTextBox.FontSize = newFontSize;
@@ -1196,7 +1211,7 @@ namespace ClaudeCodeVS
             }
 
             // Hide/show the prompt input box
-            if (newHidePromptPanel != origHidePromptPanel)
+            if (newHidePromptPanel != origHidePromptPanel || newAutoHidePromptInNative != origAutoHidePromptInNative)
             {
                 ApplyPromptPanelHiddenState();
             }

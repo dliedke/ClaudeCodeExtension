@@ -210,14 +210,18 @@ namespace ClaudeCodeVS
                     SaveDefaultSettings();
                 }
 
-                if (_settings.SplitterPosition > 0)
+                double restoredPosition = ResolveRestoredSplitterPosition(_settings.SplitterPosition);
+                if (restoredPosition > 0)
                 {
-                    SetSplitterPosition(_settings.SplitterPosition);
+                    // Write the healed value back so a position captured while the prompt
+                    // section was collapsed cannot survive another save (issue #151 round 13).
+                    _settings.SplitterPosition = restoredPosition;
+                    SetSplitterPosition(restoredPosition);
 
                     // Re-apply after first layout pass completes — during Loaded the
                     // control may not have its final size yet, so the pixel value can
                     // be overridden by WPF layout recalculation
-                    double savedPos = _settings.SplitterPosition;
+                    double savedPos = restoredPosition;
 #pragma warning disable VSTHRD001, VSTHRD110
                     _ = Dispatcher.BeginInvoke(
                         System.Windows.Threading.DispatcherPriority.Loaded,
@@ -414,19 +418,20 @@ namespace ClaudeCodeVS
                 if (_settings == null)
                     _settings = new ClaudeCodeSettings();
 
-                // Only update splitter position if we can get a valid value (not 0.0)
+                // Only update splitter position if we can get a usable value.
                 // Skip when terminal is detached because the grid layout is collapsed
                 // and FindSplitterPosition would return the full control height.
-                // Skip when the prompt panel is hidden for the same reason: the prompt
+                // Skip when the prompt box is hidden for the same reason: the prompt
                 // slot is Auto-collapsed to the controls row, so saving here would
-                // replace the user's real split size with the collapsed height.
-                if (!_isTerminalDetached && !_settings.HidePromptPanel)
+                // replace the user's real split size with the collapsed height. The
+                // test is the effective hidden state, not the HidePromptPanel setting:
+                // the native-mode auto-hide collapses the same slot with that setting
+                // still off, which is how a 6px position reached disk (issue #151 round 13).
+                var splitterPosition = FindSplitterPosition();
+                if (splitterPosition.HasValue &&
+                    ShouldPersistSplitterPosition(splitterPosition.Value, _isTerminalDetached, PromptBoxIsHidden))
                 {
-                    var splitterPosition = FindSplitterPosition();
-                    if (splitterPosition.HasValue && splitterPosition.Value > 0)
-                    {
-                        _settings.SplitterPosition = splitterPosition.Value;
-                    }
+                    _settings.SplitterPosition = splitterPosition.Value;
                 }
 
                 // Save to file
@@ -599,13 +604,15 @@ namespace ClaudeCodeVS
                     return;
                 }
 
-                // While the prompt panel is hidden its slot must stay Auto-collapsed
+                // While the prompt box is hidden its slot must stay Auto-collapsed
                 // (see ApplyPromptPanelHiddenState). LoadSettings re-runs on every
                 // tool-window tab activation and re-applies the saved splitter position
                 // through a deferred dispatcher call, which would resize the collapsed
                 // slot back to the saved pixel height and leave a dead blank strip
-                // where the prompt box used to be (issue #101).
-                if (_settings?.HidePromptPanel == true)
+                // where the prompt box used to be (issue #101). The effective hidden
+                // state is what matters, not the setting: the native-mode auto-hide
+                // collapses the same slot (issue #151 round 13).
+                if (PromptBoxIsHidden)
                 {
                     return;
                 }
@@ -866,7 +873,8 @@ namespace ClaudeCodeVS
                     MainGrid?.UpdateLayout();
 
                     var splitterPosition = FindSplitterPosition();
-                    if (splitterPosition.HasValue && splitterPosition.Value > 0)
+                    if (splitterPosition.HasValue &&
+                        ShouldPersistSplitterPosition(splitterPosition.Value, _isTerminalDetached, PromptBoxIsHidden))
                     {
                         if (_settings == null)
                         {
@@ -1043,8 +1051,10 @@ namespace ClaudeCodeVS
             // Apply layout inversion if enabled
             ApplyLayout();
 
-            // Reflect Send-with-Enter setting on the Send button visibility
-            if (_settings != null)
+            // Reflect Send-with-Enter setting on the Send button visibility. Suppressed while the chat
+            // has its own tab — RefreshToolbarLayout (called by UpdateProviderSelection below) is what
+            // actually owns that state, and would just collapse this again if it disagreed.
+            if (_settings != null && !IsChatDetachedToOwnTab)
             {
                 SendPromptButton.Visibility = _settings.SendWithEnter ? Visibility.Collapsed : Visibility.Visible;
             }
@@ -1122,17 +1132,20 @@ namespace ClaudeCodeVS
         }
 
         /// <summary>
-        /// Applies the "Hide prompt input box" state (<see cref="ClaudeCodeSettings.HidePromptPanel"/>):
-        /// collapses just the multi-line text box so the terminal reclaims the space it
-        /// occupied. The controls row (Send/Attach, Restart, Model, "⚙" menu), file chips,
-        /// and inline usage bars stay visible and reachable so the user can always turn the
-        /// box back on. Called at the end of <see cref="ApplyLayout"/>, so it runs after
-        /// every layout rebuild (startup, orientation/position change).
-        /// When native mode is active and the chat is docked in the panel (not detached to
-        /// its own tab), <see cref="ChatTranscriptView.ComposerBar"/> is hidden and the prompt
-        /// box is the only surface that can reach the model/effort/permission selectors (via
-        /// "/model", "/effort", etc.) — so the setting is ignored while native mode is active
-        /// to avoid stranding the user with no way to reach them (issue #151).
+        /// Applies the "Hide prompt input box" state (<see cref="ClaudeCodeSettings.HidePromptPanel"/>),
+        /// combined with the native-mode auto-hide (<see cref="ClaudeCodeSettings.AutoHidePromptInNativeMode"/>,
+        /// see <see cref="ShouldHidePromptBox"/>): collapses just the multi-line text box so the terminal
+        /// reclaims the space it occupied. The controls row (Send/Attach, Restart, Model, "⚙" menu), file
+        /// chips, and inline usage bars stay visible and reachable so the user can always turn the box
+        /// back on. Called at the end of <see cref="ApplyLayout"/>, so it runs after every layout rebuild
+        /// (startup, orientation/position change), and again whenever the chat moves between the panel
+        /// and its own tab (<c>ShowNativeChatTabAsync</c>/<c>ReturnNativeChatToPanel</c> in NativeChat.cs).
+        /// <para>
+        /// While the chat is docked back in the panel (not in its own tab), the prompt box is never
+        /// auto-hidden even in native mode: the composer there only shows its action row
+        /// (<c>ComposerMode.ActionsOnly</c>), not a text input, so the prompt box is still the only
+        /// place to type (issue #151).
+        /// </para>
         /// </summary>
         private void ApplyPromptPanelHiddenState()
         {
@@ -1143,7 +1156,7 @@ namespace ClaudeCodeVS
                     return;
                 }
 
-                bool hidden = _settings.HidePromptPanel && !IsNativeModeActive;
+                bool hidden = ShouldHidePromptBox(_settings.HidePromptPanel, IsNativeModeActive, _chatIsInTab, _settings.AutoHidePromptInNativeMode);
 
                 PromptGroupBox.Visibility = hidden ? Visibility.Collapsed : Visibility.Visible;
                 MainGridSplitter.Visibility = hidden ? Visibility.Collapsed : Visibility.Visible;
@@ -1214,9 +1227,11 @@ namespace ClaudeCodeVS
                     return;
                 }
 
-                if (_settings.SplitterPosition > 0)
+                double restored = ResolveRestoredSplitterPosition(_settings.SplitterPosition);
+                if (restored > 0)
                 {
-                    SetSplitterPosition(_settings.SplitterPosition);
+                    _settings.SplitterPosition = restored;
+                    SetSplitterPosition(restored);
                 }
                 else if (vertical)
                 {
@@ -1233,6 +1248,65 @@ namespace ClaudeCodeVS
             {
                 Debug.WriteLine($"Error applying prompt panel hidden state: {ex.Message}");
             }
+        }
+
+        /// <summary>
+        /// Pure decision behind <see cref="ApplyPromptPanelHiddenState"/>, split out so it is testable
+        /// without a WPF tree. The explicit "Hide prompt input box" setting always wins; the native-mode
+        /// auto-hide only kicks in once the chat has actually left for its own tab, because a chat still
+        /// docked in the panel relies on the same prompt box to type into (its own composer only shows
+        /// the action row there).
+        /// </summary>
+        internal static bool ShouldHidePromptBox(bool hidePromptPanel, bool nativeActive, bool chatInTab, bool autoHideInNative)
+        {
+            return hidePromptPanel || (nativeActive && chatInTab && autoHideInNative);
+        }
+
+        /// <summary>
+        /// The prompt box's effective hidden state — what <see cref="ApplyPromptPanelHiddenState"/> just
+        /// did, as opposed to the <c>HidePromptPanel</c> setting on its own.
+        /// </summary>
+        private bool PromptBoxIsHidden
+        {
+            get
+            {
+                return _settings != null &&
+                       ShouldHidePromptBox(_settings.HidePromptPanel, IsNativeModeActive, _chatIsInTab, _settings.AutoHidePromptInNativeMode);
+            }
+        }
+
+        /// <summary>
+        /// Smallest prompt-section height worth remembering. Matches the prompt box row's own MinHeight,
+        /// so anything under it cannot be a split the user dragged — it is the collapsed section measured
+        /// while the box was hidden.
+        /// </summary>
+        internal const double MinUsableSplitterPosition = 80.0;
+
+        /// <summary>
+        /// Whether a measured prompt-section height is worth writing to disk. A collapsed section measures
+        /// a few pixels tall, and persisting that silently restores a panel with no prompt box, no controls
+        /// row and therefore no settings button on the next launch — issue #151 round 13, where a saved 6.0
+        /// kept reproducing a "blank panel" that three rounds of visibility fixes could not touch.
+        /// </summary>
+        internal static bool ShouldPersistSplitterPosition(double measured, bool terminalDetached, bool promptBoxHidden)
+        {
+            return !terminalDetached && !promptBoxHidden && measured >= MinUsableSplitterPosition;
+        }
+
+        /// <summary>
+        /// The position to actually restore from settings. 0 (or less) means "never set" and keeps the
+        /// caller's proportional-split fallback; anything positive but below
+        /// <see cref="MinUsableSplitterPosition"/> is a collapsed height that an older build persisted, and
+        /// is healed back to the default rather than reproducing an unusable panel.
+        /// </summary>
+        internal static double ResolveRestoredSplitterPosition(double saved)
+        {
+            if (saved <= 0)
+            {
+                return 0;
+            }
+
+            return saved >= MinUsableSplitterPosition ? saved : ClaudeCodeSettings.DefaultSplitterPosition;
         }
 
         /// <summary>
