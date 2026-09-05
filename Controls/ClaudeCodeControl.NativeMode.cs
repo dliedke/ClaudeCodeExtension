@@ -412,6 +412,18 @@ namespace ClaudeCodeVS
                     return NativeStartOutcome.Declined;
                 }
 
+                // Unlike the embedded terminal path (ClaudeCodeControl.Terminal.cs), this was never
+                // recorded here, so _lastWorkspaceDirectory stayed pointed at whatever directory native
+                // mode had last started in — stale the moment the user changed or cleared Set Working
+                // Directory. HandleWorkspaceDirectoryChangedAsync compares against that field to decide
+                // whether the workspace actually changed; with it stale, the next unrelated
+                // solution/project event (build, switch active file, etc.) saw a false mismatch and
+                // reinitialized native mode a second time, discarding the conversation the user had just
+                // started in the new directory. Diff baselining (ClaudeCodeControl.Diff.cs) and attachment
+                // relative-path resolution (ClaudeCodeControl.UserInput.cs) also read this field directly,
+                // so they were quietly diffing/resolving against the old directory too.
+                _lastWorkspaceDirectory = NormalizeWorkspaceDirectory(workspace);
+
                 // Read before the session consumes it. Only a resume the *user* asked for — from the
                 // Session History window — replays a transcript into the chat; the resumes a relaunch
                 // does for itself (model, effort, permission, plan) go through the same field and would

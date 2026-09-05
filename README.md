@@ -138,6 +138,13 @@ Use native mode to avoid this issue.
 
 ## Version History
 
+### Version 171.0
+Fixed the ☰ Tools menu in native mode's chat tab showing up empty instead of listing the features you haven't promoted to the toolbar.
+
+Fixed changing or clearing the Set Working Directory path in native mode not taking effect properly.
+
+The Settings → Toolbar tab no longer offers "Detach / Attach Terminal" while native mode is active, since it has nothing to do there.
+
 ### Version 170.0
 Native mode's chat tab now carries its own ⚙ Settings, ☰ Tools and ⚡ Custom Commands buttons, plus whatever you've promoted to the toolbar (View Changes, Session History, Show Usage, etc.) — mirrors of the same buttons and menus the panel has, so you rarely need to switch back to it. The panel's prompt box auto-collapses once the chat has moved to its own tab (toggle this with the new "Hide prompt box while the native chat is in its own tab" setting). The Agent/Model/Effort/Permissions selectors are also now reachable no matter which of these panel states you're in, and ↻'s tooltip now says it restarts the agent, addressing issue #151.
 

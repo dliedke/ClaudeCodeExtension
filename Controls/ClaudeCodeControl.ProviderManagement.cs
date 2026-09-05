@@ -2293,20 +2293,24 @@ For more details, visit: https://pi.dev";
                 ToolsDropdownButton.Visibility = anyInDropdown ? Visibility.Visible : Visibility.Collapsed;
             ChatTranscript?.SetToolsMenuHasItems(anyInDropdown);
 
-            // Issue #151 follow-up: once the chat has its own tab, every one of these controls is
-            // mirrored there (Change C) and reachable through the exact same menus/handlers — leaving
-            // both copies visible is just clutter (and the reporter's screenshot). Collapse the
-            // panel's copies down to ⧉ (the only way back) whenever the chat has actually left; while
-            // it's still docked (ActionsOnly) the panel is the only surface open, so its own toolbar
-            // stays put.
+            // Issue #151 follow-up: once the chat has its own tab, every one of these toolbar Buttons is
+            // mirrored there (Change C) — leaving both copies visible is just clutter (and the reporter's
+            // screenshot). Collapse the panel's own copies down to ⧉ (the only way back) whenever the
+            // chat has actually left; while it's still docked (ActionsOnly) the panel is the only surface
+            // open, so its own toolbar stays put.
+            //
+            // The MenuItems are a different story: unlike the toolbar buttons, the composer's ☰ Tools
+            // mirror has no menu items of its own to fall back on — OnComposerConfigMenuClicked reopens
+            // this exact ToolsContextMenu instance re-anchored to the composer button, rather than a
+            // second copy. Collapsing these MenuItems here used to undo the button/menu swap the Apply()
+            // calls above had just computed, so every unpromoted feature vanished the moment native mode
+            // put the chat in its own tab — the ☰ button opened, but the dropdown was empty.
             if (IsChatDetachedToOwnTab)
             {
                 foreach (ToolbarButton id in DefaultToolbarButtonOrder)
                 {
                     System.Windows.Controls.Button btn = GetToolbarButtonControl(id);
                     if (btn != null) btn.Visibility = Visibility.Collapsed;
-                    System.Windows.Controls.MenuItem item = GetToolbarMenuItemControl(id);
-                    if (item != null) item.Visibility = Visibility.Collapsed;
                 }
                 if (ModelDropdownButton != null) ModelDropdownButton.Visibility = Visibility.Collapsed;
                 if (ToolsDropdownButton != null) ToolsDropdownButton.Visibility = Visibility.Collapsed;

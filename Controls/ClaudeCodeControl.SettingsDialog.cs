@@ -1465,6 +1465,18 @@ namespace ClaudeCodeVS
                     Margin = new Thickness(0, 1, 0, 1)
                 };
 
+                // Detach/Attach has nothing to do in native mode — RefreshToolbarLayout already hides
+                // its button and Tools-menu entry outright (Apply's constraintOk is !IsNativeModeActive),
+                // so offering it here would toggle a preference that cannot take effect until native mode
+                // is turned off. The row (and its checkbox/order position) stays in the data structures
+                // below — only collapsed, not removed — so the user's saved preference survives switching
+                // native mode off again instead of silently dropping out of VisibleToolbarButtons/
+                // ToolbarButtonOrder on the next Settings save.
+                if (id == ToolbarButton.DetachTerminal && IsNativeModeActive)
+                {
+                    row.Visibility = Visibility.Collapsed;
+                }
+
                 Border thisRow = row; // capture per-iteration
 
                 // Drag starts on the grip only. Capture the mouse on press so we keep getting moves even
