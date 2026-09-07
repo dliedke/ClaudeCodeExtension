@@ -138,6 +138,11 @@ Use native mode to avoid this issue.
 
 ## Version History
 
+### Version 172.0
+Fixed Set Working Directory not actually returning to the project's own folder when cleared — a leftover custom directory from before per-solution overrides existed (or set once with no solution open) could keep silently overriding solutions that never set their own.
+
+In native mode, recalling a prompt with Ctrl+Up/Ctrl+Down now leaves the cursor at the end of the text instead of the start, so you can keep typing or trim the last few words without moving the caret first (issue #152).
+
 ### Version 171.0
 Fixed the ☰ Tools menu in native mode's chat tab showing up empty instead of listing the features you haven't promoted to the toolbar.
 

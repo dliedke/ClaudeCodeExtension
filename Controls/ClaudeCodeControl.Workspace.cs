@@ -164,15 +164,26 @@ namespace ClaudeCodeVS
             if (_settings == null) return string.Empty;
 
             string name = GetCurrentSolutionName();
-            if (!string.IsNullOrEmpty(name)
-                && _settings.ProjectWorkingDirectories != null
+            if (string.IsNullOrEmpty(name))
+            {
+                // No solution open (e.g. Open Folder mode) — the only case the global default applies.
+                return _settings.CustomWorkingDirectory ?? string.Empty;
+            }
+
+            // A solution is open: only its own per-solution entry may supply a custom directory.
+            // Falling through to the global default here (as this used to do) let a stale value —
+            // set before per-solution overrides existed, or while working in Open Folder mode with
+            // no solution open — leak into every solution that has no override of its own, and made
+            // it impossible to ever clear back to the solution's real directory: clearing removes
+            // only the per-solution entry, so the global value kept winning right back.
+            if (_settings.ProjectWorkingDirectories != null
                 && _settings.ProjectWorkingDirectories.TryGetValue(name, out var projectDir)
                 && !string.IsNullOrWhiteSpace(projectDir))
             {
                 return projectDir;
             }
 
-            return _settings.CustomWorkingDirectory ?? string.Empty;
+            return string.Empty;
         }
 
         /// <summary>

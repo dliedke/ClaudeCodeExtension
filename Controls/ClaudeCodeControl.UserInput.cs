@@ -680,18 +680,24 @@ namespace ClaudeCodeVS
         }
 
         /// <summary>
-        /// Shows a recalled prompt. Walking backwards puts the caret at the start in the composer, so a
-        /// second ↑ is still "on the first line" and keeps going through older prompts rather than
-        /// moving around inside the one just recalled.
+        /// Shows a recalled prompt with the caret on a fresh blank line after it, so the user can
+        /// immediately keep typing without disturbing the recalled text, or backspace once to get to
+        /// its end and trim the last few words (issue #152). The blank line is only added for actual
+        /// history entries — restoring the user's own in-progress draft (<paramref name="isHistoryEntry"/>
+        /// false) must not silently append a newline to text they never typed.
         /// </summary>
-        private void SetHistoryPromptText(string text, bool goingUp)
+        private void SetHistoryPromptText(string text, bool isHistoryEntry)
         {
             string value = text ?? string.Empty;
+            if (isHistoryEntry && value.Length > 0)
+            {
+                value += Environment.NewLine;
+            }
 
             ChatTranscriptView target = HistoryTargetTranscript;
             if (target != null)
             {
-                target.SetComposerText(value, caretAtStart: goingUp);
+                target.SetComposerText(value);
                 return;
             }
 
@@ -741,7 +747,7 @@ namespace ClaudeCodeVS
             {
                 _historyIndex--;
                 var entry = _settings.PromptHistory[_historyIndex];
-                SetHistoryPromptText(entry.Text, goingUp: true);
+                SetHistoryPromptText(entry.Text, isHistoryEntry: true);
                 RestoreHistoryAttachments(entry.FilePaths);
             }
         }
@@ -762,7 +768,7 @@ namespace ClaudeCodeVS
             // If we've gone past the end, restore the temp text and files
             if (_historyIndex >= _settings.PromptHistory.Count)
             {
-                SetHistoryPromptText(_tempCurrentText, goingUp: false);
+                SetHistoryPromptText(_tempCurrentText, isHistoryEntry: false);
                 RestoreHistoryAttachments(_tempCurrentFiles);
                 _historyIndex = -1;
                 _tempCurrentText = string.Empty;
@@ -771,7 +777,7 @@ namespace ClaudeCodeVS
             else
             {
                 var entry = _settings.PromptHistory[_historyIndex];
-                SetHistoryPromptText(entry.Text, goingUp: false);
+                SetHistoryPromptText(entry.Text, isHistoryEntry: true);
                 RestoreHistoryAttachments(entry.FilePaths);
             }
         }

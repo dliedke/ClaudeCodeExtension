@@ -1151,13 +1151,13 @@ namespace ClaudeCodeVS.UI
         }
 
         /// <summary>
-        /// Text of the composer, with the caret placed for what comes next: history navigation puts it
-        /// at the start so ↑ keeps walking backwards instead of moving inside the recalled prompt.
+        /// Sets the composer text with the caret at the end, so the user can immediately keep typing
+        /// or delete the last few words of a recalled prompt (issue #152).
         /// </summary>
-        public void SetComposerText(string text, bool caretAtStart)
+        public void SetComposerText(string text)
         {
             ComposerInput.Text = text ?? string.Empty;
-            ComposerInput.CaretIndex = caretAtStart ? 0 : ComposerInput.Text.Length;
+            ComposerInput.CaretIndex = ComposerInput.Text.Length;
         }
 
         /// <summary>
