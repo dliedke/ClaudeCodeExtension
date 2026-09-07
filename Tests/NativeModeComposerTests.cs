@@ -1,4 +1,4 @@
-/* *******************************************************************************************************************
+﻿/* *******************************************************************************************************************
  * Application: ClaudeCodeExtension
  *
  * Autor:  Daniel Carvalho Liedke / Claude Code
@@ -84,6 +84,7 @@ namespace ClaudeCodeExtension.Tests
         private static string SettingsSource => RepositoryLayout.ReadText("Controls", "ClaudeCodeControl.Settings.cs");
         private static string ProviderManagementSource => RepositoryLayout.ReadText("Controls", "ClaudeCodeControl.ProviderManagement.cs");
         private static string ChatTranscriptXaml => RepositoryLayout.ReadText("UI", "ChatTranscriptView.xaml");
+        private static string ChatTranscriptCode => RepositoryLayout.ReadText("UI", "ChatTranscriptView.xaml.cs");
         private static string PanelXaml => RepositoryLayout.ReadText("UI", "ClaudeCodeControl.xaml");
 
         [TestMethod]
@@ -268,15 +269,19 @@ namespace ClaudeCodeExtension.Tests
 
         /// <summary>
         /// Round 6: a screenshot showed the session actions and the Agent/Model/Effort/Permissions
-        /// selectors scrolling out of view along with everything else, with the ◀ arrow sitting all
-        /// the way at the far left of the whole row instead of next to what it actually scrolls. Only
-        /// the mirrored config buttons (⚙/☰/⚡ and the promoted-toolbar mirrors) are meant to give way
-        /// when space runs out — the session actions and selectors are what actually drive the agent,
-        /// so they must always be fully visible, and the ◀/▶ arrows must flank the scrollable section
-        /// directly rather than bookending the entire row.
+        /// selectors scrolling out of view along with everything else. Only the mirrored config
+        /// buttons (⚙/☰/⚡ and the promoted-toolbar mirrors) are meant to give way when space runs
+        /// out — the session actions and selectors are what actually drive the agent.
+        ///
+        /// v174.0 keeps that guarantee but moves where it comes from: the whole row now scrolls (so a
+        /// tab too narrow even for the shortest captions can still reach every control), and the
+        /// essentials are protected by coming *first* in scroll order plus the density tiers that
+        /// shrink them before anything is clipped. So the invariant this test enforces is the
+        /// ordering: essentials in ComposerEssentialGroup ahead of the mirrors in ComposerMirrorGroup,
+        /// both inside the scroller, with the arrows bookending the row.
         /// </summary>
         [TestMethod]
-        public void ComposerActionRow_OnlyMirroredConfigButtonsScroll_SelectorsStayFixed()
+        public void ComposerActionRow_EssentialsScrollAheadOfTheMirroredConfigButtons()
         {
             string xaml = ChatTranscriptXaml;
 
@@ -285,44 +290,90 @@ namespace ClaudeCodeExtension.Tests
             Assert.IsTrue(scrollerOpenIdx >= 0 && scrollerCloseIdx > scrollerOpenIdx,
                 "ComposerActionsScroller must exist as a ScrollViewer with a matching close tag.");
 
-            int leftArrowIdx = xaml.IndexOf("x:Name=\"ComposerActionsScrollLeftButton\"", System.StringComparison.Ordinal);
-            int rightArrowIdx = xaml.IndexOf("x:Name=\"ComposerActionsScrollRightButton\"", System.StringComparison.Ordinal);
+            int essentialIdx = xaml.IndexOf("x:Name=\"ComposerEssentialGroup\"", System.StringComparison.Ordinal);
+            int mirrorIdx = xaml.IndexOf("x:Name=\"ComposerMirrorGroup\"", System.StringComparison.Ordinal);
+            Assert.IsTrue(essentialIdx > scrollerOpenIdx && essentialIdx < scrollerCloseIdx,
+                "ComposerEssentialGroup must sit inside ComposerActionsScroller.");
+            Assert.IsTrue(mirrorIdx > essentialIdx && mirrorIdx < scrollerCloseIdx,
+                "ComposerMirrorGroup must follow ComposerEssentialGroup inside the scroller, so the mirrors are what runs off the right edge first.");
 
-            // Session actions + selectors sit before the left arrow, entirely outside the scroller —
-            // they never scroll, and the ◀ arrow is what immediately precedes the scrollable section.
-            foreach (string fixedControl in new[]
+            // The controls that drive the agent lead the scrolled content.
+            foreach (string essential in new[]
             {
-                "ComposerClearButton", "ComposerNewChatButton", "ComposerRenameSessionButton",
-                "ComposerColorButton", "ComposerProviderButton", "ComposerModelButton",
-                "ComposerEffortButton", "ComposerPermissionButton"
+                "ComposerOverflowButton", "ComposerClearButton", "ComposerNewChatButton",
+                "ComposerRenameSessionButton", "ComposerColorButton", "ComposerProviderButton",
+                "ComposerModelButton", "ComposerEffortButton", "ComposerPermissionButton"
             })
             {
-                int idx = xaml.IndexOf($"x:Name=\"{fixedControl}\"", System.StringComparison.Ordinal);
-                Assert.IsTrue(idx >= 0, $"{fixedControl} not found.");
-                Assert.IsTrue(idx < leftArrowIdx,
-                    $"{fixedControl} must appear before the ◀ arrow — it must never be inside the scrollable section.");
-                Assert.IsTrue(idx < scrollerOpenIdx || idx > scrollerCloseIdx,
-                    $"{fixedControl} must sit outside ComposerActionsScroller so it never scrolls.");
+                int idx = xaml.IndexOf($"x:Name=\"{essential}\"", System.StringComparison.Ordinal);
+                Assert.IsTrue(idx >= 0, $"{essential} not found.");
+                Assert.IsTrue(idx > essentialIdx && idx < mirrorIdx,
+                    $"{essential} must sit in ComposerEssentialGroup, ahead of the mirrored config buttons.");
             }
 
-            // Only the mirrored config buttons scroll — they sit between the arrows, inside the scroller.
-            foreach (string scrollingControl in new[]
+            // The mirrors trail behind — they are duplicates of controls the panel already has.
+            foreach (string mirror in new[]
             {
                 "ComposerPromotedButtons", "ComposerCustomCommandsButton", "ComposerToolsButton", "ComposerSettingsButton"
             })
             {
-                int idx = xaml.IndexOf($"x:Name=\"{scrollingControl}\"", System.StringComparison.Ordinal);
-                Assert.IsTrue(idx >= 0, $"{scrollingControl} not found.");
-                Assert.IsTrue(idx > scrollerOpenIdx && idx < scrollerCloseIdx,
-                    $"{scrollingControl} must sit inside ComposerActionsScroller so it scrolls with the rest of the mirrored buttons.");
-                Assert.IsTrue(idx > leftArrowIdx && idx < rightArrowIdx,
-                    $"{scrollingControl} must be between the ◀ and ▶ arrows.");
+                int idx = xaml.IndexOf($"x:Name=\"{mirror}\"", System.StringComparison.Ordinal);
+                Assert.IsTrue(idx >= 0, $"{mirror} not found.");
+                Assert.IsTrue(idx > mirrorIdx && idx < scrollerCloseIdx,
+                    $"{mirror} must sit in ComposerMirrorGroup so it scrolls out of view before the selectors do.");
             }
 
-            Assert.IsTrue(leftArrowIdx < scrollerOpenIdx,
-                "The ◀ arrow must immediately precede the scrollable section, not sit at the start of the whole row.");
+            int leftArrowIdx = xaml.IndexOf("x:Name=\"ComposerActionsScrollLeftButton\"", System.StringComparison.Ordinal);
+            int rightArrowIdx = xaml.IndexOf("x:Name=\"ComposerActionsScrollRightButton\"", System.StringComparison.Ordinal);
+
+            Assert.IsTrue(leftArrowIdx >= 0 && leftArrowIdx < scrollerOpenIdx,
+                "The ◀ arrow must precede the scrollable section.");
             Assert.IsTrue(rightArrowIdx > scrollerCloseIdx,
-                "The ▶ arrow must immediately follow the scrollable section.");
+                "The ▶ arrow must follow the scrollable section.");
+        }
+
+        /// <summary>
+        /// v174.0: a narrow chat tab used to clip the row — "Sonnet ▾" was cut in half and the effort,
+        /// permission and mirrored buttons after it were unreachable. The density pass is what prevents
+        /// that, so it must measure the essential group (never the mirrors, which are meant to scroll)
+        /// and must walk its tiers from the widest one every time, or a tab that is widened again would
+        /// stay stuck on the short captions.
+        /// </summary>
+        [TestMethod]
+        public void ComposerDensity_MeasuresTheEssentialGroupAndStartsFromTheWidestTier()
+        {
+            string cs = ChatTranscriptCode;
+
+            StringAssert.Contains(cs, "ComposerEssentialGroup.Measure(",
+                "RefreshComposerDensity must measure ComposerEssentialGroup to choose the tier.");
+            Assert.IsFalse(cs.Contains("ComposerMirrorGroup.Measure("),
+                "The mirrored config buttons must not drive the density tier — they are meant to scroll out of view instead.");
+
+            int orderIdx = cs.IndexOf("_composerDensityOrder", System.StringComparison.Ordinal);
+            Assert.IsTrue(orderIdx >= 0, "The density tiers must be walked from a declared order.");
+
+            int fullIdx = cs.IndexOf("ComposerDensity.Full", orderIdx, System.StringComparison.Ordinal);
+            int compactIdx = cs.IndexOf("ComposerDensity.Compact", orderIdx, System.StringComparison.Ordinal);
+            int tightIdx = cs.IndexOf("ComposerDensity.Tight", orderIdx, System.StringComparison.Ordinal);
+            Assert.IsTrue(fullIdx >= 0 && fullIdx < compactIdx && compactIdx < tightIdx,
+                "The tier order must run widest first (Full, Compact, Tight) so widening the tab restores the full captions.");
+
+            // The ⋯ menu is the only place the folded session actions remain reachable, so it has to
+            // invoke the same handlers rather than a second copy of the logic.
+            string xaml = ChatTranscriptXaml;
+            int overflowIdx = xaml.IndexOf("x:Name=\"ComposerOverflowButton\"", System.StringComparison.Ordinal);
+            int overflowEndIdx = xaml.IndexOf("</Button>", overflowIdx, System.StringComparison.Ordinal);
+            string overflow = xaml.Substring(overflowIdx, overflowEndIdx - overflowIdx);
+
+            foreach (string handler in new[]
+            {
+                "ComposerClearButton_Click", "ComposerNewChatButton_Click",
+                "ComposerRenameSessionButton_Click", "ComposerColorButton_Click"
+            })
+            {
+                StringAssert.Contains(overflow, handler,
+                    $"The ⋯ menu must reuse {handler} instead of duplicating the action.");
+            }
         }
 
         /// <summary>

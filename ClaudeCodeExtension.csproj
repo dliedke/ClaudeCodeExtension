@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-8"?>
+﻿<?xml version="1.0" encoding="utf-8"?>
 <Project ToolsVersion="15.0" DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <PropertyGroup>
     <MinimumVisualStudioVersion>17.0</MinimumVisualStudioVersion>
@@ -105,6 +105,7 @@
     <Compile Include="UI\ChatMessages.cs" />
     <Compile Include="UI\ChatInteractionViewModels.cs" />
     <Compile Include="UI\ChatToolPresentation.cs" />
+    <Compile Include="UI\ComposerLabels.cs" />
     <Compile Include="UI\MarkdownFlowRenderer.cs" />
     <Compile Include="UI\ChatTranscriptView.xaml.cs">
       <DependentUpon>ChatTranscriptView.xaml</DependentUpon>

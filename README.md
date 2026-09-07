@@ -1,4 +1,4 @@
-# Claude Code Extension for Visual Studio
+﻿# Claude Code Extension for Visual Studio
 
 Please also check [Claude Code Studio from wluisdev](https://marketplace.visualstudio.com/items?itemName=wluisdev.ClaudeCodeStudio)
 
@@ -137,6 +137,9 @@ https://github.com/anthropics/claude-code/issues/41501
 Use native mode to avoid this issue.
 
 ## Version History
+
+### Version 174.0
+Native mode's chat toolbar now adapts when the window is narrow instead of being cut off: the Agent/Model/Effort/Permissions names shorten, the session buttons (↻✚✎🎨) fold into a single ⋯ menu, and if it still doesn't fit the whole row scrolls with the ◀/▶ arrows. Full labels come back as soon as there's room again.
 
 ### Version 173.0
 Native mode's composer toolbar now sits flush against its own buttons instead of leaving stray gaps: the mirrored icon buttons (🔄📄📁⚡☰⚙ etc.) no longer leave a gap next to the Agent/Model/Effort/Permissions selectors, the space below the toolbar (before the message box) is tighter, and the ◀/▶ scroll arrows that appear when the toolbar doesn't fit no longer leave a gap behind when hidden.

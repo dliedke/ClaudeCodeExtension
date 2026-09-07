@@ -316,6 +316,11 @@ namespace ClaudeCodeVS.UI
             ComposerBar.Padding = mode == ComposerMode.Full
                 ? new Thickness(8, 6, 8, 8)
                 : new Thickness(8, 6, 8, 2);
+
+            // Docked in the panel the row has far less width than it does in a tab, and the switch
+            // between the two does not always change the row's own width — so the tier is re-picked
+            // here rather than waiting for a resize that may never come.
+            QueueComposerDensityRefresh();
         }
 
         /// <summary>Combines the Full-only gate above with the "menu would be empty" gate below.</summary>
@@ -337,10 +342,16 @@ namespace ClaudeCodeVS.UI
         /// <summary>Captions of the agent / model / effort / permission selectors.</summary>
         public void SetSelectorLabels(string provider, string model, string effort, string permission)
         {
-            ComposerProviderButton.Content = (provider ?? "Agent") + " ▾";
-            ComposerModelButton.Content = (model ?? "Model") + " ▾";
-            ComposerEffortButton.Content = (effort ?? "Effort") + " ▾";
-            ComposerPermissionButton.Content = (permission ?? "Permissions") + " ▾";
+            _providerLabel = provider ?? "Agent";
+            _modelLabel = model ?? "Model";
+            _effortLabel = effort ?? "Effort";
+            _permissionLabel = permission ?? "Permissions";
+
+            // A longer caption can be what pushes the row past the edge, so the tier is re-picked here
+            // rather than only on resize — switching from "Ask" to "Skip permissions" is a resize as far
+            // as this row is concerned.
+            ApplyComposerDensity(_composerDensity);
+            QueueComposerDensityRefresh();
         }
 
         /// <summary>
@@ -375,7 +386,182 @@ namespace ClaudeCodeVS.UI
             ComposerModelButton.Visibility = model ? Visibility.Visible : Visibility.Collapsed;
             ComposerEffortButton.Visibility = effort ? Visibility.Visible : Visibility.Collapsed;
             ComposerPermissionButton.Visibility = permission ? Visibility.Visible : Visibility.Collapsed;
+
+            // Fewer selectors may mean the full captions fit again, so this can widen the row as well
+            // as narrow it — the refresh always starts from the roomiest tier.
+            QueueComposerDensityRefresh();
         }
+
+        #region Composer density
+
+        /// <summary>
+        /// How much room the composer's action row is willing to spend on itself. Ordered widest
+        /// first: <see cref="RefreshComposerDensity"/> walks down the list and stops at the first tier
+        /// that fits, so a tab that is later widened climbs straight back to <see cref="Full"/>.
+        /// </summary>
+        private enum ComposerDensity
+        {
+            /// <summary>Full captions, roomy padding — what a docked-wide or floating tab shows.</summary>
+            Full,
+
+            /// <summary>Shortened captions ("Skip" for "Skip permissions") and tighter button padding.</summary>
+            Compact,
+
+            /// <summary>Compact, plus ↻/✚/✎/🎨 folded into the single "⋯" menu.</summary>
+            Tight
+        }
+
+        private static readonly ComposerDensity[] _composerDensityOrder =
+        {
+            ComposerDensity.Full,
+            ComposerDensity.Compact,
+            ComposerDensity.Tight
+        };
+
+        private ComposerDensity _composerDensity = ComposerDensity.Full;
+        private bool _composerDensityRefreshQueued;
+
+        private string _providerLabel = "Agent";
+        private string _modelLabel = "Model";
+        private string _effortLabel = "Effort";
+        private string _permissionLabel = "Permissions";
+
+        private static readonly Thickness _composerFullPadding = new Thickness(7, 2, 7, 2);
+        private static readonly Thickness _composerTightPadding = new Thickness(4, 2, 4, 2);
+
+        private void ComposerActionRow_SizeChanged(object sender, SizeChangedEventArgs e)
+        {
+            if (!e.WidthChanged)
+            {
+                return;
+            }
+
+            QueueComposerDensityRefresh();
+        }
+
+        /// <summary>
+        /// Defers the tier decision to the end of the current layout pass. The refresh measures the
+        /// button row itself, which cannot be done from inside the arrange it would be reacting to, and
+        /// several of its triggers (labels, availability, mode) fire in a burst when the agent changes
+        /// — the queue collapses those into one pass.
+        /// </summary>
+        private void QueueComposerDensityRefresh()
+        {
+            if (_composerDensityRefreshQueued)
+            {
+                return;
+            }
+
+            _composerDensityRefreshQueued = true;
+
+            // Loaded priority so the row has been arranged (and therefore has an ActualWidth to
+            // measure against) before the tier is picked. The VS threading helpers cannot express a
+            // dispatcher priority, so the WPF dispatcher is the right tool here — every caller is
+            // already on the UI thread.
+#pragma warning disable VSTHRD001, VSTHRD110
+            Dispatcher.BeginInvoke(new Action(() =>
+            {
+                _composerDensityRefreshQueued = false;
+                RefreshComposerDensity();
+            }), System.Windows.Threading.DispatcherPriority.Loaded);
+#pragma warning restore VSTHRD001, VSTHRD110
+        }
+
+        /// <summary>
+        /// Picks the widest density tier whose essential group (session actions + selectors) still fits
+        /// the row, so the controls that drive the agent stay readable in a narrow tab instead of being
+        /// clipped off the edge. The mirrored config buttons are deliberately not measured: they sit
+        /// after the essentials in the same scroller and are meant to be what scrolls out of view, so
+        /// promoting a row of toolbar buttons must not cost the selectors their captions.
+        /// </summary>
+        private void RefreshComposerDensity()
+        {
+            if (ComposerBar.Visibility != Visibility.Visible)
+            {
+                return;
+            }
+
+            double available = ComposerActionRow.ActualWidth - 2;
+            if (available <= 0)
+            {
+                return;
+            }
+
+            foreach (ComposerDensity density in _composerDensityOrder)
+            {
+                ApplyComposerDensity(density);
+
+                // Unconstrained width on purpose: the group's own natural width is what has to be
+                // compared against the row, and the ScrollViewer above it measures with infinity too,
+                // so this asks exactly the question the scroller will answer.
+                ComposerEssentialGroup.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
+
+                if (ComposerEssentialGroup.DesiredSize.Width <= available)
+                {
+                    break;
+                }
+            }
+
+            // The measurements above ran against a constraint the layout system did not ask for; drop
+            // them so the next real pass measures the group the way its parent wants it.
+            ComposerEssentialGroup.InvalidateMeasure();
+        }
+
+        private void ApplyComposerDensity(ComposerDensity density)
+        {
+            _composerDensity = density;
+
+            bool full = density == ComposerDensity.Full;
+            int maxChars = density == ComposerDensity.Compact
+                ? ComposerLabels.CompactMaxChars
+                : ComposerLabels.TightMaxChars;
+
+            ApplySelectorCaption(ComposerProviderButton, _providerLabel, "Change the AI agent", full, maxChars);
+            ApplySelectorCaption(ComposerModelButton, _modelLabel, "Change the model", full, maxChars);
+            ApplySelectorCaption(ComposerEffortButton, _effortLabel, "Change the effort level", full, maxChars);
+            ApplySelectorCaption(ComposerPermissionButton, _permissionLabel, "Change how tool permissions are handled", full, maxChars);
+
+            Thickness padding = full ? _composerFullPadding : _composerTightPadding;
+            ComposerOverflowButton.Padding = padding;
+            ComposerClearButton.Padding = padding;
+            ComposerNewChatButton.Padding = padding;
+            ComposerRenameSessionButton.Padding = padding;
+            ComposerColorButton.Padding = padding;
+            ComposerProviderButton.Padding = padding;
+            ComposerModelButton.Padding = padding;
+            ComposerEffortButton.Padding = padding;
+            ComposerPermissionButton.Padding = padding;
+
+            // The four session actions are the only controls here with an equivalent elsewhere in the
+            // UI (the ⋯ menu, the tab's own context menu), which is why they are what gives way before
+            // the selectors do.
+            bool folded = density == ComposerDensity.Tight;
+            Visibility unfolded = folded ? Visibility.Collapsed : Visibility.Visible;
+
+            ComposerOverflowButton.Visibility = folded ? Visibility.Visible : Visibility.Collapsed;
+            ComposerClearButton.Visibility = unfolded;
+            ComposerNewChatButton.Visibility = unfolded;
+            ComposerRenameSessionButton.Visibility = unfolded;
+            ComposerColorButton.Visibility = unfolded;
+            ComposerActionsSeparator.Visibility = unfolded;
+        }
+
+        /// <summary>
+        /// Sets one selector's caption at the current tier, and — when the caption had to be shortened
+        /// — spells the full value out in the tooltip, so a truncated model id is never the only place
+        /// the selection is shown.
+        /// </summary>
+        private static void ApplySelectorCaption(Button button, string label, string tooltip, bool full, int maxChars)
+        {
+            string caption = full ? label : ComposerLabels.Shorten(label, maxChars);
+
+            button.Content = caption + " ▾";
+            button.ToolTip = string.Equals(caption, label, StringComparison.Ordinal)
+                ? tooltip
+                : tooltip + " (" + label + ")";
+        }
+
+        #endregion
 
         /// <summary>
         /// Mirrors the panel's own "collapse ☰ when its dropdown would be empty" rule
@@ -799,8 +985,8 @@ namespace ClaudeCodeVS.UI
         // Small ◀/▶ buttons stand in for the scrollbar track (too heavy visually for a row this
         // thin), so this is the only signal for whether either end still has something to reach —
         // fires whenever the row's content width, viewport, or offset changes. They toggle
-        // Collapsed, not Hidden: both arrow columns are Grid "Auto" width, and Column 2 (the
-        // scroller) is the row's only Star column, so collapsing an arrow's column only hands its
+        // Collapsed, not Hidden: both arrow columns are Grid "Auto" width, and the middle column
+        // (the scroller) is the row's only Star column, so collapsing an arrow's column only hands its
         // few pixels to the scroller — it doesn't change ComposerActionRow's own width, which is
         // already bounded by ComposerBar. Hidden was tried first, but it reserves an arrow-sized
         // blank gap next to the scroller even when that arrow isn't needed, which read as dead
@@ -942,6 +1128,23 @@ namespace ClaudeCodeVS.UI
         private void ComposerColorButton_Click(object sender, RoutedEventArgs e)
         {
             ColorPickerRequested?.Invoke(this, EventArgs.Empty);
+        }
+
+        /// <summary>
+        /// Drops the folded session actions (↻/✚/✎/🎨) on left-click, in the tightest density tier
+        /// where those four buttons are collapsed into this one. Placed above the button for the same
+        /// reason every other composer dropdown is: the row sits at the bottom of the tab.
+        /// </summary>
+        private void ComposerOverflowButton_Click(object sender, RoutedEventArgs e)
+        {
+            if (ComposerOverflowButton.ContextMenu == null)
+            {
+                return;
+            }
+
+            ComposerOverflowButton.ContextMenu.PlacementTarget = ComposerOverflowButton;
+            ComposerOverflowButton.ContextMenu.Placement = PlacementMode.Top;
+            ComposerOverflowButton.ContextMenu.IsOpen = true;
         }
 
         private void SessionTitleBar_MouseLeftButtonUp(object sender, System.Windows.Input.MouseButtonEventArgs e)
