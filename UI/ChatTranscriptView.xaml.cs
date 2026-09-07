@@ -308,6 +308,14 @@ namespace ClaudeCodeVS.UI
             ComposerClearButton.ToolTip = mode == ComposerMode.Hidden
                 ? "Clear this conversation and start fresh"
                 : "Restart the agent and start a fresh conversation";
+
+            // ComposerBar's own Padding reserves room for the resize grip above and the input box
+            // below the action row — but in ActionsOnly those rows are collapsed (only the action
+            // row shows, docked in the panel), so the full bottom padding was rendering as dead
+            // space under the toolbar with nothing left to justify it.
+            ComposerBar.Padding = mode == ComposerMode.Full
+                ? new Thickness(8, 6, 8, 8)
+                : new Thickness(8, 6, 8, 2);
         }
 
         /// <summary>Combines the Full-only gate above with the "menu would be empty" gate below.</summary>
@@ -791,20 +799,21 @@ namespace ClaudeCodeVS.UI
         // Small ◀/▶ buttons stand in for the scrollbar track (too heavy visually for a row this
         // thin), so this is the only signal for whether either end still has something to reach —
         // fires whenever the row's content width, viewport, or offset changes. They toggle
-        // Hidden, not Collapsed: both arrow columns are Grid "Auto" width, so a Collapsed button
-        // would drop its column to zero width, which would widen the scroller column and make the
-        // whole toolbar's visible content shift/resize every time an arrow appeared or
-        // disappeared. Hidden keeps the column's layout space reserved either way — only the
-        // buttons underneath scroll, the toolbar's own footprint never changes size.
+        // Collapsed, not Hidden: both arrow columns are Grid "Auto" width, and Column 2 (the
+        // scroller) is the row's only Star column, so collapsing an arrow's column only hands its
+        // few pixels to the scroller — it doesn't change ComposerActionRow's own width, which is
+        // already bounded by ComposerBar. Hidden was tried first, but it reserves an arrow-sized
+        // blank gap next to the scroller even when that arrow isn't needed, which read as dead
+        // space between the fixed selectors and the mirrored buttons (or after the last one).
         private void ComposerActionsScroller_ScrollChanged(object sender, ScrollChangedEventArgs e)
         {
             bool canScroll = ComposerActionsScroller.ScrollableWidth > 0.5;
             ComposerActionsScrollLeftButton.Visibility = canScroll && ComposerActionsScroller.HorizontalOffset > 0.5
                 ? Visibility.Visible
-                : Visibility.Hidden;
+                : Visibility.Collapsed;
             ComposerActionsScrollRightButton.Visibility = canScroll && ComposerActionsScroller.HorizontalOffset < ComposerActionsScroller.ScrollableWidth - 0.5
                 ? Visibility.Visible
-                : Visibility.Hidden;
+                : Visibility.Collapsed;
         }
 
         private void ComposerProviderButton_Click(object sender, RoutedEventArgs e)

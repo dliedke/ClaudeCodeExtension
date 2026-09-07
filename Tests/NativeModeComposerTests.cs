@@ -231,37 +231,39 @@ namespace ClaudeCodeExtension.Tests
         }
 
         /// <summary>
-        /// Round 5: toggling an arrow with <c>Visibility.Collapsed</c> would drop its "Auto" Grid
-        /// column to zero width, which widens the scroller column and makes the whole toolbar's
-        /// visible footprint shift/resize every time an arrow appears or disappears. The fix is
-        /// <c>Visibility.Hidden</c> everywhere the arrows are toggled (both their XAML default and
-        /// the ScrollChanged handler) so the column keeps reserving the same space regardless —
-        /// only the buttons underneath scroll, the toolbar's own size never changes.
+        /// Round 5 originally toggled the arrows with <c>Visibility.Hidden</c> instead of
+        /// <c>Collapsed</c>, reasoning that a collapsed "Auto" Grid column would widen the
+        /// scroller column and shift the toolbar's footprint whenever an arrow appeared or
+        /// disappeared. Round 11: a screenshot showed that reserved space rendering as a visible
+        /// dead gap next to the scroller whenever an arrow wasn't needed — worse than the
+        /// footprint concern, since Column 2 (the scroller) is this row's only Star column and
+        /// already bounded by <c>ComposerBar</c>, so collapsing an arrow's column only hands its
+        /// few pixels to the scroller rather than resizing the row itself. Switched both the XAML
+        /// default and the ScrollChanged handler to <c>Visibility.Collapsed</c> so unused arrow
+        /// space is never reserved.
         /// </summary>
         [TestMethod]
-        public void ComposerActionRow_ArrowButtonsReserveSpaceInsteadOfCollapsing()
+        public void ComposerActionRow_ArrowButtonsCollapseInsteadOfReservingSpace()
         {
             string xaml = ChatTranscriptXaml;
             string cs = RepositoryLayout.ReadText("UI", "ChatTranscriptView.xaml.cs");
 
-            StringAssert.DoesNotMatch(xaml, new System.Text.RegularExpressions.Regex("ComposerActionsScroll(Left|Right)Button[\\s\\S]{0,200}Visibility=\"Collapsed\""),
-                "The arrow buttons must default to Hidden, not Collapsed, or their Auto column would collapse to zero width.");
             StringAssert.Contains(xaml, "x:Name=\"ComposerActionsScrollLeftButton\"");
             StringAssert.Contains(xaml, "x:Name=\"ComposerActionsScrollRightButton\"");
 
             int leftIndex = xaml.IndexOf("x:Name=\"ComposerActionsScrollLeftButton\"", System.StringComparison.Ordinal);
             int rightIndex = xaml.IndexOf("x:Name=\"ComposerActionsScrollRightButton\"", System.StringComparison.Ordinal);
-            Assert.IsTrue(leftIndex >= 0 && xaml.IndexOf("Visibility=\"Hidden\"", leftIndex, System.StringComparison.Ordinal) - leftIndex < 300,
-                "ComposerActionsScrollLeftButton must default to Visibility=\"Hidden\".");
-            Assert.IsTrue(rightIndex >= 0 && xaml.IndexOf("Visibility=\"Hidden\"", rightIndex, System.StringComparison.Ordinal) - rightIndex < 300,
-                "ComposerActionsScrollRightButton must default to Visibility=\"Hidden\".");
+            Assert.IsTrue(leftIndex >= 0 && xaml.IndexOf("Visibility=\"Collapsed\"", leftIndex, System.StringComparison.Ordinal) - leftIndex < 300,
+                "ComposerActionsScrollLeftButton must default to Visibility=\"Collapsed\".");
+            Assert.IsTrue(rightIndex >= 0 && xaml.IndexOf("Visibility=\"Collapsed\"", rightIndex, System.StringComparison.Ordinal) - rightIndex < 300,
+                "ComposerActionsScrollRightButton must default to Visibility=\"Collapsed\".");
 
             StringAssert.Matches(cs, new System.Text.RegularExpressions.Regex(
-                "ComposerActionsScrollLeftButton\\.Visibility = canScroll && ComposerActionsScroller\\.HorizontalOffset > 0\\.5\\s*\\?\\s*Visibility\\.Visible\\s*:\\s*Visibility\\.Hidden;"),
-                "ComposerActionsScrollLeftButton must toggle to Hidden, not Collapsed.");
+                "ComposerActionsScrollLeftButton\\.Visibility = canScroll && ComposerActionsScroller\\.HorizontalOffset > 0\\.5\\s*\\?\\s*Visibility\\.Visible\\s*:\\s*Visibility\\.Collapsed;"),
+                "ComposerActionsScrollLeftButton must toggle to Collapsed, not Hidden.");
             StringAssert.Matches(cs, new System.Text.RegularExpressions.Regex(
-                "ComposerActionsScrollRightButton\\.Visibility = canScroll && ComposerActionsScroller\\.HorizontalOffset < ComposerActionsScroller\\.ScrollableWidth - 0\\.5\\s*\\?\\s*Visibility\\.Visible\\s*:\\s*Visibility\\.Hidden;"),
-                "ComposerActionsScrollRightButton must toggle to Hidden, not Collapsed.");
+                "ComposerActionsScrollRightButton\\.Visibility = canScroll && ComposerActionsScroller\\.HorizontalOffset < ComposerActionsScroller\\.ScrollableWidth - 0\\.5\\s*\\?\\s*Visibility\\.Visible\\s*:\\s*Visibility\\.Collapsed;"),
+                "ComposerActionsScrollRightButton must toggle to Collapsed, not Hidden.");
         }
 
         /// <summary>

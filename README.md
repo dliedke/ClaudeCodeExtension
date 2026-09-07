@@ -138,6 +138,9 @@ Use native mode to avoid this issue.
 
 ## Version History
 
+### Version 173.0
+Native mode's composer toolbar now sits flush against its own buttons instead of leaving stray gaps: the mirrored icon buttons (🔄📄📁⚡☰⚙ etc.) no longer leave a gap next to the Agent/Model/Effort/Permissions selectors, the space below the toolbar (before the message box) is tighter, and the ◀/▶ scroll arrows that appear when the toolbar doesn't fit no longer leave a gap behind when hidden.
+
 ### Version 172.0
 Fixed Set Working Directory not actually returning to the project's own folder when cleared — a leftover custom directory from before per-solution overrides existed (or set once with no solution open) could keep silently overriding solutions that never set their own.
 

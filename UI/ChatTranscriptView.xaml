@@ -613,14 +613,18 @@
 			<Setter Property="Height" Value="22"/>
 			<Setter Property="Cursor" Value="Hand"/>
 			<Setter Property="Focusable" Value="False"/>
+			<Setter Property="SnapsToDevicePixels" Value="True"/>
+			<Setter Property="UseLayoutRounding" Value="True"/>
 			<Setter Property="Template">
 				<Setter.Value>
 					<ControlTemplate TargetType="Button">
 						<Border Background="{TemplateBinding Background}"
 						        BorderBrush="{TemplateBinding BorderBrush}"
 						        BorderThickness="{TemplateBinding BorderThickness}"
+						        SnapsToDevicePixels="True"
 						        CornerRadius="3">
 							<ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"
+							                  SnapsToDevicePixels="True"
 							                  Margin="{TemplateBinding Padding}"/>
 						</Border>
 						<ControlTemplate.Triggers>
@@ -895,7 +899,9 @@
 				</Thumb>
 
 				<!-- Attachment chips, filled by the parent control from its own attachment list -->
-				<WrapPanel x:Name="ComposerAttachments" Grid.Row="2" Margin="0,0,0,4"/>
+				<!-- Margin is set in code (0 when empty) rather than fixed here, so an empty strip
+				     doesn't leave dead space between the action row and the input box. -->
+				<WrapPanel x:Name="ComposerAttachments" Grid.Row="2" Margin="0"/>
 
 				<Border x:Name="ComposerInputBorder" Grid.Row="3" CornerRadius="4" Padding="6,4,6,4"
 				        Background="{DynamicResource {x:Static vsshell:VsBrushes.WindowKey}}"
@@ -939,7 +945,7 @@
 				     a row this thin. The session actions and the Agent/Model/Effort/Permissions
 				     selectors sit in their own fixed, non-scrolling section before the arrows, since
 				     they're the controls actually needed to drive the agent. -->
-				<Grid x:Name="ComposerActionRow" Grid.Row="1" Margin="0,0,0,6">
+				<Grid x:Name="ComposerActionRow" Grid.Row="1" Margin="0,0,0,4">
 					<Grid.ColumnDefinitions>
 						<ColumnDefinition Width="Auto"/>
 						<ColumnDefinition Width="Auto"/>
@@ -1016,14 +1022,26 @@
 					        Style="{StaticResource ComposerSelectorStyle}"
 					        Content="◀" FontSize="9" Padding="4,2,4,2"
 					        ToolTip="Scroll left"
-					        Visibility="Hidden"
+					        Visibility="Collapsed"
 					        Click="ComposerActionsScrollLeftButton_Click"/>
 
 					<!-- Only the mirrored config buttons (⚙/☰/⚡ and whatever the user promoted to the
 					     toolbar) scroll — they're the least essential controls in this row (duplicates of
 					     things the panel already has), so when space runs out they're what gives way, not the
-					     session actions or the selectors next to them. -->
+					     session actions or the selectors next to them.
+
+					     HorizontalAlignment="Left": Grid.Column="2" is Star-width, so it always claims its
+					     full proportional share of the row even when the mirrored buttons are narrower than
+					     that share — at the default Stretch alignment the unused slack rendered as a visible
+					     gap between the fixed group (column 0, to this scroller's left) and the first mirrored
+					     button. Left-aligning shrinks the scroller to its content's own width and pins it
+					     against that left edge, so the slack lands on the far right instead, off past the
+					     scroll arrows where nothing sits next to it. This is the mirror image of the
+					     classic-mode toolbar's RightButtonsScroller fix (issue #151 round 8): there the fixed
+					     group is docked to the row's right, so the scroller to its left needed
+					     HorizontalAlignment="Right" to close the gap on that side instead. -->
 					<ScrollViewer x:Name="ComposerActionsScroller" Grid.Column="2"
+					              HorizontalAlignment="Left"
 					              HorizontalScrollBarVisibility="Hidden" VerticalScrollBarVisibility="Disabled"
 					              PreviewMouseWheel="ComposerActionsScroller_PreviewMouseWheel"
 					              ScrollChanged="ComposerActionsScroller_ScrollChanged">
@@ -1063,7 +1081,7 @@
 					        Style="{StaticResource ComposerSelectorStyle}"
 					        Content="▶" FontSize="9" Padding="4,2,4,2"
 					        ToolTip="Scroll right"
-					        Visibility="Hidden"
+					        Visibility="Collapsed"
 					        Click="ComposerActionsScrollRightButton_Click"/>
 				</Grid>
 			</Grid>

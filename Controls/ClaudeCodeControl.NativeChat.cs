@@ -3049,6 +3049,8 @@ namespace ClaudeCodeVS
                     UpdateSessionAttachmentChips(session);
                 }));
             }
+
+            host.Margin = new Thickness(0, 0, 0, host.Children.Count > 0 ? 4 : 0);
         }
 
         /// <summary>
@@ -3069,6 +3071,8 @@ namespace ClaudeCodeVS
             {
                 host.Children.Add(CreateAttachmentChip(path));
             }
+
+            host.Margin = new Thickness(0, 0, 0, host.Children.Count > 0 ? 4 : 0);
         }
 
         #endregion
