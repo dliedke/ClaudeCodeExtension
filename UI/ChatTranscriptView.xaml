@@ -245,6 +245,7 @@
 			<Setter Property="Height" Value="18"/>
 			<Setter Property="Cursor" Value="Hand"/>
 			<Setter Property="Focusable" Value="False"/>
+			<Setter Property="local:GlyphIcon.Center" Value="True"/>
 			<Setter Property="Template">
 				<Setter.Value>
 					<ControlTemplate TargetType="Button">
@@ -253,6 +254,7 @@
 						        BorderThickness="{TemplateBinding BorderThickness}"
 						        CornerRadius="3">
 							<ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"
+							                  RenderTransform="{Binding Path=(local:GlyphIcon.Offset), RelativeSource={RelativeSource TemplatedParent}}"
 							                  Margin="{TemplateBinding Padding}"/>
 						</Border>
 						<ControlTemplate.Triggers>
@@ -607,7 +609,11 @@
 			<Setter Property="Foreground" Value="{DynamicResource {x:Static vsshell:VsBrushes.ToolWindowTextKey}}"/>
 			<Setter Property="BorderBrush" Value="Transparent"/>
 			<Setter Property="BorderThickness" Value="1"/>
-			<Setter Property="Padding" Value="7,2,7,2"/>
+			<!-- No vertical padding: Height is fixed at 22, so 2px top and bottom only shrank the
+			     content slot below the line height of a 13pt glyph — WPF then top-aligned the content
+			     in the slot it did not fit and clipped the overflow, which is what sliced the bottom
+			     off the taller emoji. -->
+			<Setter Property="Padding" Value="7,0,7,0"/>
 			<Setter Property="Margin" Value="0,0,2,0"/>
 			<Setter Property="FontSize" Value="{DynamicResource ChatSmallFontSize}"/>
 			<Setter Property="Height" Value="22"/>
@@ -615,6 +621,10 @@
 			<Setter Property="Focusable" Value="False"/>
 			<Setter Property="SnapsToDevicePixels" Value="True"/>
 			<Setter Property="UseLayoutRounding" Value="True"/>
+			<!-- Icon-only buttons (↻ ✚ ✎ 🎨 ⚡ ☰ ⚙ and the mirrored toolbar glyphs) are centered by
+			     their ink rather than by the text line box, which parks an emoji low against the
+			     bottom edge. Caption buttons ("Agent ▾") are left untouched by the behavior. -->
+			<Setter Property="local:GlyphIcon.Center" Value="True"/>
 			<Setter Property="Template">
 				<Setter.Value>
 					<ControlTemplate TargetType="Button">
@@ -625,6 +635,7 @@
 						        CornerRadius="3">
 							<ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"
 							                  SnapsToDevicePixels="True"
+							                  RenderTransform="{Binding Path=(local:GlyphIcon.Offset), RelativeSource={RelativeSource TemplatedParent}}"
 							                  Margin="{TemplateBinding Padding}"/>
 						</Border>
 						<ControlTemplate.Triggers>
@@ -963,7 +974,7 @@
 
 					<Button x:Name="ComposerActionsScrollLeftButton" Grid.Column="0"
 					        Style="{StaticResource ComposerSelectorStyle}"
-					        Content="◀" FontSize="9" Padding="4,2,4,2"
+					        Content="◀" FontSize="9" Padding="4,0,4,0"
 					        ToolTip="Scroll left"
 					        Visibility="Collapsed"
 					        Click="ComposerActionsScrollLeftButton_Click"/>
@@ -1110,7 +1121,7 @@
 
 					<Button x:Name="ComposerActionsScrollRightButton" Grid.Column="2"
 					        Style="{StaticResource ComposerSelectorStyle}"
-					        Content="▶" FontSize="9" Padding="4,2,4,2"
+					        Content="▶" FontSize="9" Padding="4,0,4,0"
 					        ToolTip="Scroll right"
 					        Visibility="Collapsed"
 					        Click="ComposerActionsScrollRightButton_Click"/>

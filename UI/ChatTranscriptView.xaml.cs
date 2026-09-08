@@ -1,4 +1,4 @@
-/* *******************************************************************************************************************
+﻿/* *******************************************************************************************************************
  * Application: ClaudeCodeExtension
  *
  * Autor:  Daniel Carvalho Liedke / Claude Code
@@ -426,8 +426,11 @@ namespace ClaudeCodeVS.UI
         private string _effortLabel = "Effort";
         private string _permissionLabel = "Permissions";
 
-        private static readonly Thickness _composerFullPadding = new Thickness(7, 2, 7, 2);
-        private static readonly Thickness _composerTightPadding = new Thickness(4, 2, 4, 2);
+        // No vertical padding, matching ComposerSelectorStyle: the buttons are a fixed 22 tall, and
+        // padding there only shrinks the content slot below the glyph's own line height — which WPF
+        // answers by top-aligning the content and clipping what hangs out the bottom.
+        private static readonly Thickness _composerFullPadding = new Thickness(7, 0, 7, 0);
+        private static readonly Thickness _composerTightPadding = new Thickness(4, 0, 4, 0);
 
         private void ComposerActionRow_SizeChanged(object sender, SizeChangedEventArgs e)
         {

@@ -138,6 +138,9 @@ Use native mode to avoid this issue.
 
 ## Version History
 
+### Version 175.0
+Toolbar icons are now centered inside their buttons instead of sitting low against the bottom edge, where they looked clipped. Applies to the panel toolbar and to native mode's chat toolbar.
+
 ### Version 174.0
 Native mode's chat toolbar now adapts when the window is narrow instead of being cut off: the Agent/Model/Effort/Permissions names shorten, the session buttons (↻✚✎🎨) fold into a single ⋯ menu, and if it still doesn't fit the whole row scrolls with the ◀/▶ arrows. Full labels come back as soon as there's room again.
 

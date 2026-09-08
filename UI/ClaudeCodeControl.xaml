@@ -75,7 +75,10 @@
                                 BorderBrush="{TemplateBinding BorderBrush}"
                                 BorderThickness="{TemplateBinding BorderThickness}"
                                 CornerRadius="4">
-							<ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+							<!-- RenderTransform: optical centering for icon-only buttons, see
+							     UI/GlyphIcon.cs. Identity for every button whose content is a caption. -->
+							<ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"
+							                  RenderTransform="{Binding Path=(ui:GlyphIcon.Offset), RelativeSource={RelativeSource TemplatedParent}}"/>
 						</Border>
 						<ControlTemplate.Triggers>
 							<Trigger Property="IsMouseOver" Value="True">
@@ -130,6 +133,9 @@
 		<!-- Icon button style (slightly dimmed for icon-only buttons) -->
 		<Style x:Key="IconButtonStyle" TargetType="Button" BasedOn="{StaticResource AdaptiveButtonStyle}">
 			<Setter Property="Opacity" Value="0.93"/>
+			<!-- Centers the glyph by its ink instead of by the text line box, which otherwise leaves
+			     emoji sitting low against the button's bottom edge (see UI/GlyphIcon.cs). -->
+			<Setter Property="ui:GlyphIcon.Center" Value="True"/>
 		</Style>
 
 		</ResourceDictionary>

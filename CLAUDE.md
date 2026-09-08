@@ -127,6 +127,7 @@ ClaudeCodeExtension/
 │   ├── ChatInteractionViewModels.cs     # Question/permission/plan card view-models (transcript rows)
 │   ├── ChatToolPresentation.cs          # Tool call → header line + rendered diff (pure, unit-tested)
 │   ├── ChatStyles.xaml                  # Chat resource dictionary (composer menu styles, brushes)
+│   ├── GlyphIcon.cs                     # Ink-centering of icon-only buttons (attached property, pure math unit-tested)
 │   ├── MarkdownFlowRenderer.cs          # Markdown → FlowDocument + the MarkdownBlock control
 │   └── DiffViewerControl.xaml(.cs)
 ├── ToolWindows/                         # VS tool window hosts

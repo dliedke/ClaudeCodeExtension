@@ -105,6 +105,7 @@
     <Compile Include="UI\ChatMessages.cs" />
     <Compile Include="UI\ChatInteractionViewModels.cs" />
     <Compile Include="UI\ChatToolPresentation.cs" />
+    <Compile Include="UI\GlyphIcon.cs" />
     <Compile Include="UI\ComposerLabels.cs" />
     <Compile Include="UI\MarkdownFlowRenderer.cs" />
     <Compile Include="UI\ChatTranscriptView.xaml.cs">
