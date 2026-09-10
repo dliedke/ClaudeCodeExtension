@@ -8,6 +8,9 @@ Visual Studio Extension (VSIX) for VS 2022/2026 — integrates AI code assistant
 - Repository: https://github.com/dliedke/ClaudeCodeExtension
 - Current Version: 160.0 | Target Framework: .NET Framework 4.7.2
 
+Step-by-step procedures for recurring tasks (release, Exp-hive debugging, publish, adding a
+provider/setting/UI file) live in `SKILLS.md`.
+
 ---
 
 ## MANDATORY: Version & Documentation Updates
