@@ -405,7 +405,16 @@ namespace ClaudeCodeVS
         /// <summary>
         /// Saves current settings to the configuration file
         /// </summary>
-        private void SaveSettings()
+        /// <param name="volatileFieldJustChanged">
+        /// The name (via <c>nameof</c>) of a <see cref="VolatileSettingsFields"/> entry the caller just
+        /// set on <see cref="_settings"/> as a direct, explicit user pick (e.g. choosing a model from a
+        /// menu). That one field is written straight to disk immediately instead of being preserved
+        /// from whatever is already there, so the pick survives even if this window never reaches a
+        /// clean shutdown — the only other time volatile fields are written for real. Every other
+        /// volatile field is still preserved from disk as before. Null (the default) preserves all of
+        /// them, unchanged from prior behavior.
+        /// </param>
+        private void SaveSettings(string volatileFieldJustChanged = null)
         {
             try
             {
@@ -454,7 +463,7 @@ namespace ClaudeCodeVS
                     {
                         if (File.Exists(ConfigurationPath))
                         {
-                            PreserveVolatileFieldsFromDisk(toSave, File.ReadAllText(ConfigurationPath));
+                            PreserveVolatileFieldsFromDisk(toSave, File.ReadAllText(ConfigurationPath), volatileFieldJustChanged);
                         }
                     }
                     catch (Exception diskEx)
@@ -492,7 +501,12 @@ namespace ClaudeCodeVS
         /// content leaves <paramref name="toSave"/> untouched — writing this instance's values is
         /// better than losing every setting.
         /// </summary>
-        internal static void PreserveVolatileFieldsFromDisk(Newtonsoft.Json.Linq.JObject toSave, string diskJson)
+        /// <param name="fieldJustChanged">
+        /// A <see cref="VolatileSettingsFields"/> entry to skip: this window just changed it as a
+        /// direct user pick, so <paramref name="toSave"/>'s own value is the one that should reach
+        /// disk instead of whatever another window last wrote there.
+        /// </param>
+        internal static void PreserveVolatileFieldsFromDisk(Newtonsoft.Json.Linq.JObject toSave, string diskJson, string fieldJustChanged = null)
         {
             if (toSave == null || string.IsNullOrWhiteSpace(diskJson))
                 return;
@@ -503,6 +517,9 @@ namespace ClaudeCodeVS
 
                 foreach (var field in VolatileSettingsFields)
                 {
+                    if (field == fieldJustChanged)
+                        continue;
+
                     if (diskObj.TryGetValue(field, out var diskValue))
                     {
                         toSave[field] = diskValue;

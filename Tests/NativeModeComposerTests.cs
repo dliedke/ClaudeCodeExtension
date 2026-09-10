@@ -169,25 +169,28 @@ namespace ClaudeCodeExtension.Tests
         }
 
         /// <summary>
-        /// Issue #151 round 3: attaching a file has no meaning distinct from Ctrl+V paste or drag-and-drop
-        /// in native mode, so the paperclip button was pure clutter. It must be gone from the composer's
-        /// XAML, its click handler, its raised event, and every subscription to that event.
+        /// Reinstated after issue #151 round 3 removed it: a file picker is still the only way to
+        /// browse to a file outside the editor (drag-and-drop and Ctrl+V paste don't cover that), and
+        /// its absence was reported directly. The button, its click handler, its raised event and the
+        /// panel's subscriptions to it must all be present, and reuse the same file-picking helper the
+        /// terminal panel's own attach button uses so both paths share one implementation.
         /// </summary>
         [TestMethod]
-        public void ChatTranscriptView_NoLongerHasAnAttachButton()
+        public void ChatTranscriptView_HasAnAttachButton()
         {
             string xaml = ChatTranscriptXaml;
             string cs = RepositoryLayout.ReadText("UI", "ChatTranscriptView.xaml.cs");
             string nativeChatCs = RepositoryLayout.ReadText("Controls", "ClaudeCodeControl.NativeChat.cs");
 
-            StringAssert.DoesNotMatch(xaml, new System.Text.RegularExpressions.Regex("ComposerAttachButton"),
-                "The attach button must be removed from the composer bar (issue #151 round 3).");
-            StringAssert.DoesNotMatch(cs, new System.Text.RegularExpressions.Regex("ComposerAttachButton|AttachRequested"),
-                "No leftover reference to the removed attach button or its event should remain in the code-behind.");
-            StringAssert.DoesNotMatch(nativeChatCs, new System.Text.RegularExpressions.Regex("AttachRequested|OnComposerAttachRequested"),
-                "No leftover subscription or handler for the removed attach button should remain.");
+            StringAssert.Matches(xaml, new System.Text.RegularExpressions.Regex("ComposerAttachButton"),
+                "The attach button must be present in the composer bar.");
+            StringAssert.Contains(cs, "public event EventHandler AttachRequested;");
+            StringAssert.Contains(cs, "ComposerAttachButton_Click");
+            StringAssert.Contains(nativeChatCs, "ChatTranscript.AttachRequested += OnComposerAttachRequested;");
+            StringAssert.Contains(nativeChatCs, "transcript.AttachRequested += OnComposerAttachRequested;");
+            StringAssert.Contains(nativeChatCs, "PickAttachmentFiles()");
 
-            // Drag-and-drop and Ctrl+V paste are independent of the removed button and must still work.
+            // Drag-and-drop and Ctrl+V paste remain independent of the button and must still work.
             StringAssert.Contains(cs, "public event EventHandler<string[]> FilesDropped;");
         }
 

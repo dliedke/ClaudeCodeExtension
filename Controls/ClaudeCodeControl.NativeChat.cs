@@ -503,6 +503,7 @@ namespace ClaudeCodeVS
             // Toolbar and composer affordances. These were missing entirely, which is why none of the
             // buttons under the prompt box did anything in a new tab.
             transcript.FilesDropped += OnComposerFilesDropped;
+            transcript.AttachRequested += OnComposerAttachRequested;
             transcript.ClearChatRequested += OnComposerClearChatRequested;
             transcript.NewChatRequested += OnComposerNewChatRequested;
             transcript.RenameSessionRequested += OnComposerRenameSessionRequested;
@@ -808,6 +809,7 @@ namespace ClaudeCodeVS
 
             ChatTranscript.SendRequested += OnComposerSendRequested;
             ChatTranscript.FilesDropped += OnComposerFilesDropped;
+            ChatTranscript.AttachRequested += OnComposerAttachRequested;
             ChatTranscript.SelectorClicked += OnComposerSelectorClicked;
             ChatTranscript.EffortChanged += OnComposerEffortChanged;
             ChatTranscript.ClearChatRequested += OnComposerClearChatRequested;
@@ -963,8 +965,14 @@ namespace ClaudeCodeVS
         }
 
         /// <summary>
-        /// Opens a new parallel chat session. Tries to create a new session with the same provider
-        /// as the current one. For now, displays in the same area; future versions will show in separate tabs.
+        /// Opens a new parallel chat session with the same provider (and model/effort/permission/plan
+        /// mode) as whichever chat raised the "+": the tab itself when clicked from a parallel session
+        /// (<see cref="ResolveSessionFromSender"/>), or this session's own live state for the panel's
+        /// default session. Reading <c>_settings.SelectedProvider</c> unconditionally used to violate
+        /// the Active Provider UI rule — that field only tracks the panel's own selection and goes
+        /// stale the moment a parallel tab picks a different provider, so a "+" clicked from any tab
+        /// silently opened a session for whatever the settings field happened to hold instead of the
+        /// tab that was actually clicked.
         /// </summary>
 #pragma warning disable VSTHRD100 // Async void is required by the UI event signature
         private async void OnComposerNewChatRequested(object sender, EventArgs e)
@@ -974,7 +982,9 @@ namespace ClaudeCodeVS
             {
                 await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
 
-                if (_agentSession == null)
+                NativeChatSessionState owner = ResolveSessionFromSender(sender);
+                IAgentSession referenceSession = owner?.AgentSession ?? _agentSession;
+                if (referenceSession == null)
                 {
                     MessageBox.Show("No active session. Start native mode first.", "New Session", MessageBoxButton.OK, MessageBoxImage.Information);
                     return;
@@ -988,11 +998,14 @@ namespace ClaudeCodeVS
                     return;
                 }
 
-                // Use same provider as current session
-                AiProvider provider = _settings.SelectedProvider;
+                // Owner's own provider for a parallel tab; otherwise the provider actually running in
+                // the panel, not the possibly-stale _settings value (see the Active Provider UI rule).
+                AiProvider provider = owner?.SelectedProvider ?? _currentRunningProvider ?? _settings.SelectedProvider;
 
-                // Create new session
-                var newSession = CreateAndRegisterSession(provider, workspace);
+                // Create new session, seeded from the owner tab's own model/effort/permission/plan-mode
+                // snapshot so a "+" clicked inside e.g. a Devin tab running a non-default model opens
+                // another Devin tab on that same model, not the global settings' defaults.
+                var newSession = CreateAndRegisterSession(provider, workspace, owner);
                 if (newSession?.AgentSession == null)
                 {
                     MessageBox.Show("Failed to create new session.", "New Session", MessageBoxButton.OK, MessageBoxImage.Error);
@@ -2968,6 +2981,25 @@ namespace ClaudeCodeVS
             }
         }
 
+        /// <summary>
+        /// Raised by the composer's 📎 button. Mirrors the panel's own AttachDropdownButton — drag-and-
+        /// drop and Ctrl+V paste already attach files and images, but a picker is still the only way to
+        /// browse to a file outside the editor. Reuses <see cref="OnComposerFilesDropped"/> for the
+        /// owner-resolution, existence checks and chip refresh, so a pick behaves exactly like a drop.
+        /// </summary>
+        private void OnComposerAttachRequested(object sender, EventArgs e)
+        {
+            ThreadHelper.ThrowIfNotOnUIThread();
+
+            string[] chosen = PickAttachmentFiles();
+            if (chosen == null || chosen.Length == 0)
+            {
+                return;
+            }
+
+            OnComposerFilesDropped(sender, chosen);
+        }
+
         private void OnComposerFilesDropped(object sender, string[] files)
         {
             ThreadHelper.ThrowIfNotOnUIThread();
@@ -3324,7 +3356,7 @@ namespace ClaudeCodeVS
                 return menu;
             }
 
-            ClaudeModel selected = _settings != null ? _settings.SelectedClaudeModel : ClaudeModel.Fable;
+            ClaudeModel selected = _settings != null ? _settings.SelectedClaudeModel : ClaudeModel.Sonnet;
 
             AddComposerMenuItem(menu, "Fable", selected == ClaudeModel.Fable,
                 delegate { ThreadHelper.ThrowIfNotOnUIThread(); OnChatClaudeModelSelected(ClaudeModel.Fable); });
@@ -3883,7 +3915,7 @@ namespace ClaudeCodeVS
 
                 _settings.SelectedClaudeModel = model;
                 UpdateModelSelection();
-                SaveSettings();
+                SaveSettings(nameof(ClaudeCodeSettings.SelectedClaudeModel));
                 UpdateChatComposerState();
 
                 await RelaunchNativeSessionAsync($"🤖 Switched to {GetChatModelLabel(GetActiveOrSelectedProvider())}");

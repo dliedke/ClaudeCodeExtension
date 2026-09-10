@@ -138,6 +138,9 @@ Use native mode to avoid this issue.
 
 ## Version History
 
+### Version 176.0
+A "New chat" opened from a parallel native mode tab now matches the agent and model that tab was actually running, instead of sometimes opening a different one. Picking a Claude model in native mode now sticks even if Visual Studio doesn't shut down cleanly afterward, instead of reverting to Fable. Native mode's chat toolbar also gets a File Attach icon (📎), matching the terminal toolbar's.
+
 ### Version 175.0
 Toolbar icons are now centered inside their buttons instead of sitting low against the bottom edge, where they looked clipped. Applies to the panel toolbar and to native mode's chat toolbar.
 

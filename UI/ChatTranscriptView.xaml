@@ -1019,6 +1019,9 @@
 											<MenuItem Header="Change this session color"
 											          Style="{StaticResource ComposerMenuItemStyle}"
 											          Click="ComposerColorButton_Click"/>
+											<MenuItem Header="Attach a file..."
+											          Style="{StaticResource ComposerMenuItemStyle}"
+											          Click="ComposerAttachButton_Click"/>
 										</ContextMenu>
 									</Button.ContextMenu>
 								</Button>
@@ -1052,6 +1055,13 @@
 								        FontSize="13"
 								        ToolTip="Change this session's color"
 								        Click="ComposerColorButton_Click"/>
+
+								<Button x:Name="ComposerAttachButton" DockPanel.Dock="Left"
+								        Style="{StaticResource ComposerSelectorStyle}"
+								        Content="📎"
+								        FontSize="13"
+								        ToolTip="Attach a file to the next prompt (Ctrl+V pastes an image)"
+								        Click="ComposerAttachButton_Click"/>
 
 								<Rectangle x:Name="ComposerActionsSeparator" DockPanel.Dock="Left"
 								           Width="1" Margin="4,4,6,4" Opacity="0.25"

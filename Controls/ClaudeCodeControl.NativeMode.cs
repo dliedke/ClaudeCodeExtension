@@ -2900,8 +2900,13 @@ namespace ClaudeCodeVS
 
         #region Session Management Helpers
 
-        /// <summary>Creates a new session and registers it (future: for parallel session support).</summary>
-        internal NativeChatSessionState CreateAndRegisterSession(AiProvider provider, string workspace)
+        /// <summary>
+        /// Creates a new session and registers it. <paramref name="seed"/> is the tab whose "+" raised
+        /// this (null for the panel's default session): when set, its own model/effort/permission/
+        /// plan-mode snapshot is copied instead of the global <c>_settings</c>, so a new tab opened
+        /// from a parallel session matches that session, not whatever the panel last had selected.
+        /// </summary>
+        internal NativeChatSessionState CreateAndRegisterSession(AiProvider provider, string workspace, NativeChatSessionState seed = null)
         {
             _sessionIdCounter++;
             string sessionId = $"session_{_sessionIdCounter}";
@@ -2916,12 +2921,12 @@ namespace ClaudeCodeVS
             // Settings from here on, which is what lets one tab run Opus while another runs Sonnet.
             var state = new NativeChatSessionState(sessionId, null, transcript, windowId);
             state.SelectedProvider = provider;
-            state.SelectedModel = GetSelectedProviderModelId(provider);
-            state.SelectedClaudeModel = _settings?.SelectedClaudeModel ?? ClaudeModel.Fable;
-            state.SelectedEffortLevel = _settings?.SelectedEffortLevel ?? EffortLevel.High;
-            state.SelectedCodexReasoningLevel = _settings?.SelectedCodexReasoningLevel ?? CodexReasoningLevel.Default;
-            state.SkipPermissions = GetChatPermissionSkipFlag(provider) ?? false;
-            state.PlanMode = IsClaudeProvider(provider) && _settings?.ClaudePlanMode == true;
+            state.SelectedModel = seed != null ? seed.SelectedModel : GetSelectedProviderModelId(provider);
+            state.SelectedClaudeModel = seed?.SelectedClaudeModel ?? _settings?.SelectedClaudeModel ?? ClaudeModel.Sonnet;
+            state.SelectedEffortLevel = seed?.SelectedEffortLevel ?? _settings?.SelectedEffortLevel ?? EffortLevel.High;
+            state.SelectedCodexReasoningLevel = seed?.SelectedCodexReasoningLevel ?? _settings?.SelectedCodexReasoningLevel ?? CodexReasoningLevel.Default;
+            state.SkipPermissions = seed?.SkipPermissions ?? GetChatPermissionSkipFlag(provider) ?? false;
+            state.PlanMode = seed != null ? seed.PlanMode : (IsClaudeProvider(provider) && _settings?.ClaudePlanMode == true);
 
             // Create agent session from this tab's own snapshot rather than the global settings.
             var agentSession = CreateAgentSession(provider, workspace, state);

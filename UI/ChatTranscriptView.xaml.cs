@@ -147,6 +147,13 @@ namespace ClaudeCodeVS.UI
         public event EventHandler RenameSessionRequested;
 
         /// <summary>
+        /// Raised by the 📎 button. The parent owns the file dialog and the attachment list, matching
+        /// the panel's own AttachDropdownButton — drag-and-drop and Ctrl+V paste already attach files
+        /// and images, but a picker is still the only way to browse to a file outside the editor.
+        /// </summary>
+        public event EventHandler AttachRequested;
+
+        /// <summary>
         /// Raised by the ⚙/☰/⚡ mirror buttons. The sender is this view, so the parent can anchor the
         /// panel's actual context menu (there is no separate copy of its contents) to whichever button
         /// was clicked via <see cref="GetConfigMenuAnchor"/>.
@@ -530,12 +537,13 @@ namespace ClaudeCodeVS.UI
             ComposerNewChatButton.Padding = padding;
             ComposerRenameSessionButton.Padding = padding;
             ComposerColorButton.Padding = padding;
+            ComposerAttachButton.Padding = padding;
             ComposerProviderButton.Padding = padding;
             ComposerModelButton.Padding = padding;
             ComposerEffortButton.Padding = padding;
             ComposerPermissionButton.Padding = padding;
 
-            // The four session actions are the only controls here with an equivalent elsewhere in the
+            // The five session actions are the only controls here with an equivalent elsewhere in the
             // UI (the ⋯ menu, the tab's own context menu), which is why they are what gives way before
             // the selectors do.
             bool folded = density == ComposerDensity.Tight;
@@ -546,6 +554,7 @@ namespace ClaudeCodeVS.UI
             ComposerNewChatButton.Visibility = unfolded;
             ComposerRenameSessionButton.Visibility = unfolded;
             ComposerColorButton.Visibility = unfolded;
+            ComposerAttachButton.Visibility = unfolded;
             ComposerActionsSeparator.Visibility = unfolded;
         }
 
@@ -1133,9 +1142,14 @@ namespace ClaudeCodeVS.UI
             ColorPickerRequested?.Invoke(this, EventArgs.Empty);
         }
 
+        private void ComposerAttachButton_Click(object sender, RoutedEventArgs e)
+        {
+            AttachRequested?.Invoke(this, EventArgs.Empty);
+        }
+
         /// <summary>
-        /// Drops the folded session actions (↻/✚/✎/🎨) on left-click, in the tightest density tier
-        /// where those four buttons are collapsed into this one. Placed above the button for the same
+        /// Drops the folded session actions (↻/✚/✎/🎨/📎) on left-click, in the tightest density tier
+        /// where those five buttons are collapsed into this one. Placed above the button for the same
         /// reason every other composer dropdown is: the row sits at the bottom of the tab.
         /// </summary>
         private void ComposerOverflowButton_Click(object sender, RoutedEventArgs e)

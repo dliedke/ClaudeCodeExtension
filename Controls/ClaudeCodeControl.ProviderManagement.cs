@@ -3329,7 +3329,7 @@ For more details, visit: https://pi.dev";
 
             _settings.SelectedClaudeModel = ClaudeModel.Opus;
             UpdateModelSelection();
-            SaveSettings();
+            SaveSettings(nameof(ClaudeCodeSettings.SelectedClaudeModel));
 
             // Send /model command directly without restarting terminal
             if (_currentRunningProvider == AiProvider.ClaudeCode ||
@@ -3352,7 +3352,7 @@ For more details, visit: https://pi.dev";
 
             _settings.SelectedClaudeModel = ClaudeModel.Sonnet;
             UpdateModelSelection();
-            SaveSettings();
+            SaveSettings(nameof(ClaudeCodeSettings.SelectedClaudeModel));
 
             // Send /model command directly without restarting terminal
             if (_currentRunningProvider == AiProvider.ClaudeCode ||
@@ -3375,7 +3375,7 @@ For more details, visit: https://pi.dev";
 
             _settings.SelectedClaudeModel = ClaudeModel.Haiku;
             UpdateModelSelection();
-            SaveSettings();
+            SaveSettings(nameof(ClaudeCodeSettings.SelectedClaudeModel));
 
             // Send /model command directly without restarting terminal
             if (_currentRunningProvider == AiProvider.ClaudeCode ||
@@ -3399,7 +3399,7 @@ For more details, visit: https://pi.dev";
 
             _settings.SelectedClaudeModel = ClaudeModel.Fable;
             UpdateModelSelection();
-            SaveSettings();
+            SaveSettings(nameof(ClaudeCodeSettings.SelectedClaudeModel));
 
             // Send /model command directly without restarting terminal
             if (_currentRunningProvider == AiProvider.ClaudeCode ||
@@ -3423,7 +3423,7 @@ For more details, visit: https://pi.dev";
 
             _settings.SelectedClaudeModel = ClaudeModel.OpusPlan;
             UpdateModelSelection();
-            SaveSettings();
+            SaveSettings(nameof(ClaudeCodeSettings.SelectedClaudeModel));
 
             // Send /model command directly without restarting terminal
             if (_currentRunningProvider == AiProvider.ClaudeCode ||
