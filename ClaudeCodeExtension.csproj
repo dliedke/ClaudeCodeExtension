@@ -137,6 +137,7 @@
     <None Include="publish.cmd" />
     <None Include="publishManifest.json" />
     <None Include="README.md" />
+    <None Include="SKILLS.md" />
     <None Include="source.extension.vsixmanifest">
       <SubType>Designer</SubType>
     </None>
@@ -202,6 +203,7 @@
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
       <IncludeInVSIX>true</IncludeInVSIX>
     </Content>
+    <Content Include="app.png" />
     <Content Include="docs\images\native-mode-diff.png" />
     <Content Include="docs\images\native-mode-plan.png" />
     <Content Include="docs\images\native-mode-question.png" />

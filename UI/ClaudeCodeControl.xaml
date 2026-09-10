@@ -227,7 +227,10 @@
 				</Thumb.Template>
 			</Thumb>
 
-			<!-- Controls row: [Send + Add Image] | [Restart (right-aligned)] -->
+			<!-- Controls row: holds the single scrollable toolbar strip (RightButtonsRow) in its
+			     Star column. Columns 0/1 are kept unused so the rightmost column stays Star and the
+			     strip is measured against a real width, not an Auto column that grows past the edge
+			     (issue #151 round 7). -->
 			<Grid x:Name="ControlsRow" Grid.Row="1" Margin="0,4,0,0" VerticalAlignment="Top">
 				<Grid.ColumnDefinitions>
 					<ColumnDefinition Width="Auto"/>
@@ -235,59 +238,19 @@
 					<ColumnDefinition Width="*"/>
 				</Grid.ColumnDefinitions>
 
-				<!-- Left cluster -->
-				<StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Top">
-					<!-- Send button (visible only when Send-with-Enter is off) -->
-					<Button x:Name="SendPromptButton"
-                            Content="▶"
-                            Width="30"
-                            MinWidth="30"
-                            FontSize="14"
-                            Style="{StaticResource IconButtonStyle}"
-                            Click="SendButton_Click"
-                            Visibility="Collapsed"
-                            ToolTip="Send Prompt to Code Agent"
-                            Margin="0,0,6,0"/>
+				<!-- The whole extension-panel toolbar is one horizontally-scrollable strip: the
+				     promoted feature buttons AND the always-present controls (Send, Attach, Tools,
+				     Custom Commands, Model, Settings/Agent) all live in RightButtonsPanel inside the
+				     scroller, so the single ◀ / ▶ pair scrolls every button when the window is too
+				     narrow to show them all. No right-pinned group, so there is no star-column slack
+				     rendering as a wide gap mid-row (issue #151). ControlsRow's column 2 is Star so
+				     this row is measured against a real width rather than growing past the tool
+				     window's edge the way an Auto column does (issue #151 round 7).
 
-					<Button x:Name="AttachDropdownButton"
-                            Content="📎"
-                            Style="{StaticResource IconButtonStyle}"
-                            Width="30"
-                            MinWidth="30"
-                            FontSize="14"
-                            HorizontalAlignment="Left"
-                            ToolTip="Attach / Insert Content"
-                            Click="AttachDropdownButton_Click">
-							<Button.ContextMenu>
-								<ContextMenu x:Name="AttachContextMenu">
-									<MenuItem Header="📎  Attach File..." x:Name="AttachFileMenuItem" Click="AttachFileMenuItem_Click"/>
-									<MenuItem Header="📋  Insert Editor Selection" x:Name="InsertSelectionMenuItem" Click="GrabSelectionButton_Click"/>
-									<MenuItem Header="📄  Insert Active File Path" x:Name="InsertActiveFilePathMenuItem" Click="InsertActiveFilePathMenuItem_Click" ToolTip="Inserts an @-reference to the file open in the active editor tab, like GitHub Copilot's &quot;Active Document&quot; context."/>
-									<!--
-										Optional menu entry. Hidden by default. Set
-										EnablePasteFromClipboardMenu = true in ClaudeCodeControl.UserInput.cs
-										to expose it.
-									-->
-									<MenuItem Header="📥  Paste from Clipboard" x:Name="PasteFromClipboardMenuItem" Click="PasteFromClipboardMenuItem_Click" Visibility="Collapsed" ToolTip="When clipboard text is short it is inserted into the prompt directly. When it exceeds the truncation threshold it is saved to a temp file and attached, avoiding paste truncation."/>
-								</ContextMenu>
-							</Button.ContextMenu>
-						</Button>
-				</StackPanel>
-
-                <!-- Right-aligned buttons row: feature buttons (promoted via Settings -> Toolbar)
-				scroll via left/right arrows when there are too many to fit; the fixed group
-				(Tools, Custom Commands, Model, Settings/Agent) never scrolls out of reach,
-				mirroring the split already used for the native-mode composer's action row
-				(issue #151 round 6). ControlsRow's column 2 is Star so this row is measured
-				against a real width rather than growing past the tool window's edge the way
-				an Auto column does (issue #151 round 7).
-
-				A DockPanel, not a Grid: docked children are laid out against the space actually
-				left over, so the fixed group is always inside the panel and the ScrollViewer
-				(the fill child) gets exactly what remains - which is what makes it scroll. Star
-				columns split the row's width proportionally instead, which left ⚙ arranged past
-				the visible edge and the scroller sized to a viewport wider than the panel
-				(issue #151 round 9). -->
+				     A DockPanel, not a Grid: the two arrow buttons dock left/right and the
+				     ScrollViewer (the fill child) gets exactly what remains — a genuinely bounded
+				     width is what makes it scroll instead of overflowing past the panel edge
+				     (issue #151 round 9). -->
 				<DockPanel x:Name="RightButtonsRow" Grid.Column="2" Margin="6,0,0,0" LastChildFill="True">
 
 					<Button x:Name="RightButtonsScrollLeftButton" DockPanel.Dock="Left"
@@ -298,10 +261,175 @@
 					        Click="RightButtonsScrollLeftButton_Click"
 					        Margin="0,0,4,0"/>
 
-					<!-- Fixed group: never scrolls out of reach. Tools/Custom Commands are the only way to
-					     reach unpromoted features/custom commands; Model/Settings are not part of the
-					     customizable toolbar at all, so there is no fallback if they go missing. -->
-					<StackPanel x:Name="FixedRightButtonsPanel" DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Top">
+					<Button x:Name="RightButtonsScrollRightButton" DockPanel.Dock="Right"
+					        Style="{StaticResource IconButtonStyle}"
+					        Content="▶" Width="16" MinWidth="16" FontSize="9" Padding="0"
+					        ToolTip="Scroll right"
+					        Visibility="Hidden"
+					        Click="RightButtonsScrollRightButton_Click"
+					        Margin="4,0,6,0"/>
+
+					<!-- Last child, so it fills whatever the two docked arrows leave over: a genuinely
+					     bounded width is what makes the ScrollViewer scroll instead of overflowing
+					     (issue #151 round 9). Left-aligned so that when every button fits, the strip
+					     starts flush against the ◀ arrow and the slack pools harmlessly on the right
+					     rather than as a gap between buttons. -->
+					<ScrollViewer x:Name="RightButtonsScroller"
+					              HorizontalAlignment="Left"
+					              HorizontalScrollBarVisibility="Hidden" VerticalScrollBarVisibility="Disabled"
+					              PreviewMouseWheel="RightButtonsScroller_PreviewMouseWheel"
+					              ScrollChanged="RightButtonsScroller_ScrollChanged">
+						<StackPanel x:Name="RightButtonsPanel" Orientation="Horizontal" VerticalAlignment="Top">
+						<!--
+							One-click toolbar buttons. All collapsed by default; RefreshToolbarLayout()
+							shows the ones the user promoted (Settings → Toolbar) and removes the
+							matching entries from the "⚙" menu. See ClaudeCodeControl.ProviderManagement.cs.
+						-->
+						<Button x:Name="UpdateAgentToolbarButton"
+                            Content="🔄️"
+                            Width="30"
+                            MinWidth="30"
+                            FontSize="14"
+                            Style="{StaticResource IconButtonStyle}"
+                            Click="UpdateAgentButton_Click"
+                            ToolTip="Update Code Agent"
+                            Visibility="Collapsed"
+                            Margin="0,0,6,0"/>
+
+						<!-- Detach/attach uses the original vector icon (box + arrow); the arrow
+						     direction flips with state in UpdateDetachButtonIcon. -->
+						<Button x:Name="DetachToolbarButton"
+                            Width="30"
+                            Height="30"
+                            Style="{StaticResource IconButtonStyle}"
+                            Click="DetachTerminalButton_Click"
+                            ToolTip="Detach Terminal to Separate Tab"
+                            Visibility="Collapsed"
+                            Margin="0,0,6,0">
+							<Viewbox x:Name="DetachButtonIcon" Width="16" Height="14" Stretch="Uniform"/>
+						</Button>
+
+						<Button x:Name="RestartTerminalButton"
+                            Content="♻️"
+                            Width="30"
+                            MinWidth="30"
+                            FontSize="14"
+                            Style="{StaticResource IconButtonStyle}"
+                            Click="RestartTerminalButton_Click"
+                            ToolTip="Restart Code Agent"
+                            Visibility="Collapsed"
+                            Margin="0,0,6,0"/>
+
+						<Button x:Name="ViewChangesToolbarButton"
+                            Content="📄"
+                            Width="30"
+                            MinWidth="30"
+                            FontSize="14"
+                            Style="{StaticResource IconButtonStyle}"
+                            Click="ViewChangesButton_Click"
+                            ToolTip="View Code Changes"
+                            Visibility="Collapsed"
+                            Margin="0,0,6,0"/>
+
+						<Button x:Name="SessionHistoryToolbarButton"
+                            Content="📜"
+                            Width="30"
+                            MinWidth="30"
+                            FontSize="14"
+                            Style="{StaticResource IconButtonStyle}"
+                            Click="SessionHistoryButton_Click"
+                            ToolTip="Session History"
+                            Visibility="Collapsed"
+                            Margin="0,0,6,0"/>
+
+						<Button x:Name="ShowUsageToolbarButton"
+                            Content="📊"
+                            Width="30"
+                            MinWidth="30"
+                            FontSize="14"
+                            Style="{StaticResource IconButtonStyle}"
+                            Click="ShowUsageViewMenuItem_Click"
+                            ToolTip="Show Usage"
+                            Visibility="Collapsed"
+                            Margin="0,0,6,0"/>
+
+						<Button x:Name="SetWorkingDirectoryToolbarButton"
+                            Content="📁"
+                            Width="30"
+                            MinWidth="30"
+                            FontSize="14"
+                            Style="{StaticResource IconButtonStyle}"
+                            Click="SetWorkingDirectoryMenuItem_Click"
+                            ToolTip="Set Working Directory"
+                            Visibility="Collapsed"
+                            Margin="0,0,6,0"/>
+
+						<Button x:Name="SendBuildErrorsToolbarButton"
+                            Content="🛠️"
+                            Width="30"
+                            MinWidth="30"
+                            FontSize="14"
+                            Style="{StaticResource IconButtonStyle}"
+                            Click="SendBuildErrorsButton_Click"
+                            ToolTip="Send Build Errors to Agent"
+                            Visibility="Collapsed"
+                            Margin="0,0,6,0"/>
+
+						<Button x:Name="GenerateCommitMessageToolbarButton"
+                            Content="📝"
+                            Width="30"
+                            MinWidth="30"
+                            FontSize="14"
+                            Style="{StaticResource IconButtonStyle}"
+                            Click="GenerateCommitMessageButton_Click"
+                            ToolTip="Generate Commit Message"
+                            Visibility="Collapsed"
+                            Margin="0,0,6,0"/>
+
+						<!-- These used to be a separate right-pinned group that never scrolled; moved
+						     inside the scroller in v177.0 so one ◀ / ▶ pair scrolls the whole panel
+						     toolbar and no slack pools mid-row. Tools/Custom Commands still reach
+						     unpromoted features/custom commands; Model and Settings/Agent are always here. -->
+						<!-- ReorderToolbarControls keeps the promoted feature buttons ahead of this
+						     block, so Send/Attach/Tools/Custom Commands/Model/Settings stay in this
+						     fixed order at the tail of the strip. -->
+						<!-- Send button (visible only when Send-with-Enter is off). Kept just left of
+						     the attach button. -->
+						<Button x:Name="SendPromptButton"
+                            Content="▶"
+                            Width="30"
+                            MinWidth="30"
+                            FontSize="14"
+                            Style="{StaticResource IconButtonStyle}"
+                            Click="SendButton_Click"
+                            Visibility="Collapsed"
+                            ToolTip="Send Prompt to Code Agent"
+                            Margin="0,0,6,0"/>
+
+						<Button x:Name="AttachDropdownButton"
+                            Content="📎"
+                            Style="{StaticResource IconButtonStyle}"
+                            Width="30"
+                            MinWidth="30"
+                            FontSize="14"
+                            ToolTip="Attach / Insert Content"
+                            Click="AttachDropdownButton_Click"
+                            Margin="0,0,6,0">
+								<Button.ContextMenu>
+									<ContextMenu x:Name="AttachContextMenu">
+										<MenuItem Header="📎  Attach File..." x:Name="AttachFileMenuItem" Click="AttachFileMenuItem_Click"/>
+										<MenuItem Header="📋  Insert Editor Selection" x:Name="InsertSelectionMenuItem" Click="GrabSelectionButton_Click"/>
+										<MenuItem Header="📄  Insert Active File Path" x:Name="InsertActiveFilePathMenuItem" Click="InsertActiveFilePathMenuItem_Click" ToolTip="Inserts an @-reference to the file open in the active editor tab, like GitHub Copilot's &quot;Active Document&quot; context."/>
+										<!--
+											Optional menu entry. Hidden by default. Set
+											EnablePasteFromClipboardMenu = true in ClaudeCodeControl.UserInput.cs
+											to expose it.
+										-->
+										<MenuItem Header="📥  Paste from Clipboard" x:Name="PasteFromClipboardMenuItem" Click="PasteFromClipboardMenuItem_Click" Visibility="Collapsed" ToolTip="When clipboard text is short it is inserted into the prompt directly. When it exceeds the truncation threshold it is saved to a temp file and attached, avoiding paste truncation."/>
+									</ContextMenu>
+								</Button.ContextMenu>
+							</Button>
+
 						<!-- Tools dropdown: holds the configurable features the user did NOT promote to
 						     their own toolbar button. Auto-hides when every feature is a button
 						     (RefreshToolbarLayout). Keeps these features out of the ⚙ menu. -->
@@ -432,133 +560,6 @@
 								</ContextMenu>
 							</Button.ContextMenu>
 						</Button>
-									</StackPanel>
-
-					<Button x:Name="RightButtonsScrollRightButton" DockPanel.Dock="Right"
-					        Style="{StaticResource IconButtonStyle}"
-					        Content="▶" Width="16" MinWidth="16" FontSize="9" Padding="0"
-					        ToolTip="Scroll right"
-					        Visibility="Hidden"
-					        Click="RightButtonsScrollRightButton_Click"
-					        Margin="4,0,6,0"/>
-
-					<!-- Last child, so it fills whatever the docked controls above leave over: a genuinely
-					     bounded width is what makes the ScrollViewer scroll instead of overflowing, and docking
-					     the fixed group means ⚙ can never be pushed outside the panel the way a Grid column
-					     could push it (issue #151 round 9). Right-aligned so the slack when everything fits
-					     lands on its own left edge rather than between these buttons and the fixed group. -->
-					<ScrollViewer x:Name="RightButtonsScroller"
-					              HorizontalAlignment="Right"
-					              HorizontalScrollBarVisibility="Hidden" VerticalScrollBarVisibility="Disabled"
-					              PreviewMouseWheel="RightButtonsScroller_PreviewMouseWheel"
-					              ScrollChanged="RightButtonsScroller_ScrollChanged">
-						<StackPanel x:Name="RightButtonsPanel" Orientation="Horizontal" VerticalAlignment="Top">
-						<!--
-							One-click toolbar buttons. All collapsed by default; RefreshToolbarLayout()
-							shows the ones the user promoted (Settings → Toolbar) and removes the
-							matching entries from the "⚙" menu. See ClaudeCodeControl.ProviderManagement.cs.
-						-->
-						<Button x:Name="UpdateAgentToolbarButton"
-                            Content="🔄️"
-                            Width="30"
-                            MinWidth="30"
-                            FontSize="14"
-                            Style="{StaticResource IconButtonStyle}"
-                            Click="UpdateAgentButton_Click"
-                            ToolTip="Update Code Agent"
-                            Visibility="Collapsed"
-                            Margin="0,0,6,0"/>
-
-						<!-- Detach/attach uses the original vector icon (box + arrow); the arrow
-						     direction flips with state in UpdateDetachButtonIcon. -->
-						<Button x:Name="DetachToolbarButton"
-                            Width="30"
-                            Height="30"
-                            Style="{StaticResource IconButtonStyle}"
-                            Click="DetachTerminalButton_Click"
-                            ToolTip="Detach Terminal to Separate Tab"
-                            Visibility="Collapsed"
-                            Margin="0,0,6,0">
-							<Viewbox x:Name="DetachButtonIcon" Width="16" Height="14" Stretch="Uniform"/>
-						</Button>
-
-						<Button x:Name="RestartTerminalButton"
-                            Content="♻️"
-                            Width="30"
-                            MinWidth="30"
-                            FontSize="14"
-                            Style="{StaticResource IconButtonStyle}"
-                            Click="RestartTerminalButton_Click"
-                            ToolTip="Restart Code Agent"
-                            Visibility="Collapsed"
-                            Margin="0,0,6,0"/>
-
-						<Button x:Name="ViewChangesToolbarButton"
-                            Content="📄"
-                            Width="30"
-                            MinWidth="30"
-                            FontSize="14"
-                            Style="{StaticResource IconButtonStyle}"
-                            Click="ViewChangesButton_Click"
-                            ToolTip="View Code Changes"
-                            Visibility="Collapsed"
-                            Margin="0,0,6,0"/>
-
-						<Button x:Name="SessionHistoryToolbarButton"
-                            Content="📜"
-                            Width="30"
-                            MinWidth="30"
-                            FontSize="14"
-                            Style="{StaticResource IconButtonStyle}"
-                            Click="SessionHistoryButton_Click"
-                            ToolTip="Session History"
-                            Visibility="Collapsed"
-                            Margin="0,0,6,0"/>
-
-						<Button x:Name="ShowUsageToolbarButton"
-                            Content="📊"
-                            Width="30"
-                            MinWidth="30"
-                            FontSize="14"
-                            Style="{StaticResource IconButtonStyle}"
-                            Click="ShowUsageViewMenuItem_Click"
-                            ToolTip="Show Usage"
-                            Visibility="Collapsed"
-                            Margin="0,0,6,0"/>
-
-						<Button x:Name="SetWorkingDirectoryToolbarButton"
-                            Content="📁"
-                            Width="30"
-                            MinWidth="30"
-                            FontSize="14"
-                            Style="{StaticResource IconButtonStyle}"
-                            Click="SetWorkingDirectoryMenuItem_Click"
-                            ToolTip="Set Working Directory"
-                            Visibility="Collapsed"
-                            Margin="0,0,6,0"/>
-
-						<Button x:Name="SendBuildErrorsToolbarButton"
-                            Content="🛠️"
-                            Width="30"
-                            MinWidth="30"
-                            FontSize="14"
-                            Style="{StaticResource IconButtonStyle}"
-                            Click="SendBuildErrorsButton_Click"
-                            ToolTip="Send Build Errors to Agent"
-                            Visibility="Collapsed"
-                            Margin="0,0,6,0"/>
-
-						<Button x:Name="GenerateCommitMessageToolbarButton"
-                            Content="📝"
-                            Width="30"
-                            MinWidth="30"
-                            FontSize="14"
-                            Style="{StaticResource IconButtonStyle}"
-                            Click="GenerateCommitMessageButton_Click"
-                            ToolTip="Generate Commit Message"
-                            Visibility="Collapsed"
-                            Margin="0,0,6,0"/>
-
 						</StackPanel>
 					</ScrollViewer>
 				</DockPanel>

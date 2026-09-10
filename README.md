@@ -138,6 +138,9 @@ Use native mode to avoid this issue.
 
 ## Version History
 
+### Version 177.0
+In native mode, closing the chat's document tab now docks the conversation back into the extension panel instead of losing it. Reopening the extension panel after it has been closed brings the chat back out into its own tab, so closing everything and reopening the panel from View → Other Windows lands you back on the usual layout (usage bars in the panel, chat in its own tab) rather than a panel showing only the usage bars. The ⧉ dock/undock command is available again in native mode from the ☰ Tools menu, so you can move the chat between its own tab and the panel yourself. The extension panel's toolbar is now a single strip that scrolls all of its buttons with the ◀ ▶ arrows on a narrow window, instead of leaving a wide gap in the middle.
+
 ### Version 176.0
 A "New chat" opened from a parallel native mode tab now matches the agent and model that tab was actually running, instead of sometimes opening a different one. Picking a Claude model in native mode now sticks even if Visual Studio doesn't shut down cleanly afterward, instead of reverting to Fable. Native mode's chat toolbar also gets a File Attach icon (📎), matching the terminal toolbar's.
 

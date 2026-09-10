@@ -27,6 +27,7 @@ using System.Windows.Media;
 using Newtonsoft.Json.Linq;
 using ClaudeCodeVS.Agents;
 using ClaudeCodeVS.UI;
+using Microsoft.VisualStudio;
 using Microsoft.VisualStudio.Shell;
 using Microsoft.VisualStudio.Shell.Interop;
 
@@ -134,33 +135,61 @@ namespace ClaudeCodeVS
 
                 await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
 
+                // A pane whose frame VS has already torn down (tab closed, layout reset, panel closed
+                // together with the tab) is still handed back by FindToolWindow. Reusing it gives a
+                // null frame, `frame?.Show()` no-ops, and the panel is left collapsed around a tab that
+                // never appears — the "blank panel, only usage bars" state. Drop the stale pane so the
+                // block below builds a fresh one.
+                if (_nativeChatWindow != null && !(_nativeChatWindow.Frame is IVsWindowFrame))
+                {
+                    _nativeChatWindow.Closed -= OnNativeChatWindowClosed;
+                    _nativeChatWindow.Activated -= OnDefaultNativeChatWindowActivated;
+                    _nativeChatWindow = null;
+                }
+
                 if (_nativeChatWindow == null)
                 {
                     _nativeChatWindow = package.FindToolWindow(typeof(NativeChatToolWindow), 0, true) as NativeChatToolWindow;
-                    if (_nativeChatWindow == null)
+                    if (_nativeChatWindow != null)
                     {
-                        Debug.WriteLine("ShowNativeChatTabAsync: could not create the chat tab; the chat stays in the panel.");
-                        return;
+                        _nativeChatWindow.Closed += OnNativeChatWindowClosed;
+                        _nativeChatWindow.Activated += OnDefaultNativeChatWindowActivated;
+                    }
+                }
+
+                IVsWindowFrame frame = _nativeChatWindow?.Frame as IVsWindowFrame;
+                if (_nativeChatWindow == null || frame == null)
+                {
+                    // VS would not give us a document tab. Never leave the panel collapsed with the
+                    // conversation nowhere: keep it in the panel so it stays usable, and let a later
+                    // panel activation or ⧉ click try the tab again.
+                    Debug.WriteLine("ShowNativeChatTabAsync: no usable chat tab frame; keeping the chat in the panel.");
+                    if (_nativeChatWindow != null)
+                    {
+                        _nativeChatWindow.Closed -= OnNativeChatWindowClosed;
+                        _nativeChatWindow.Activated -= OnDefaultNativeChatWindowActivated;
+                        _nativeChatWindow = null;
                     }
 
-                    _nativeChatWindow.Closed += OnNativeChatWindowClosed;
-                    _nativeChatWindow.Activated += OnDefaultNativeChatWindowActivated;
+                    EnsureNativeChatVisibleInPanel();
+                    UpdateDetachButtonIcon(false);
+                    return;
                 }
 
                 WireChatComposer();
 
-                if (!_chatIsInTab)
+                // Re-parent whenever the transcript is not already sitting in this pane — covers both
+                // the first move out of the panel and a panel-reopen that pulls the chat back out of
+                // the panel slot into a fresh tab.
+                if (!_nativeChatWindow.HasChatContent)
                 {
-                    // A WPF element lives in exactly one visual tree, so it has to leave the panel grid
+                    // A WPF element lives in exactly one visual tree, so it has to leave its old parent
                     // before the pane can take it.
-                    if (TerminalSlotGrid != null && TerminalSlotGrid.Children.Contains(ChatTranscript))
-                    {
-                        TerminalSlotGrid.Children.Remove(ChatTranscript);
-                    }
-
+                    DetachTranscriptFromCurrentParent();
                     _nativeChatWindow.SetChatContent(ChatTranscript);
-                    _chatIsInTab = true;
                 }
+
+                _chatIsInTab = true;
 
                 ChatTranscript.Visibility = Visibility.Visible;
                 ChatTranscript.SetComposerMode(ResolveComposerMode(IsNativeModeActive, _chatIsInTab));
@@ -175,8 +204,16 @@ namespace ClaudeCodeVS
                 // something unrelated happens to trigger a refresh.
                 RefreshToolbarLayout();
 
-                var frame = _nativeChatWindow.Frame as IVsWindowFrame;
-                frame?.Show();
+                int showHr = frame.Show();
+                if (ErrorHandler.Failed(showHr))
+                {
+                    // The frame existed but would not surface. Same recovery as a null frame: fall
+                    // back to the panel rather than leaving it collapsed around an invisible tab.
+                    Debug.WriteLine($"ShowNativeChatTabAsync: frame.Show() failed (hr={showHr}); keeping the chat in the panel.");
+                    EnsureNativeChatVisibleInPanel();
+                    UpdateDetachButtonIcon(false);
+                    return;
+                }
 
                 UpdateDetachButtonIcon(true);
 
@@ -237,6 +274,77 @@ namespace ClaudeCodeVS
         }
 
         /// <summary>
+        /// Recovery path for a transcript that ended up parented nowhere — its document tab was torn
+        /// down by VS without a <see cref="NativeChatToolWindow.Closed"/> notification we could act on
+        /// (closing the panel and the tab together is the repro). Unlike
+        /// <see cref="ReturnNativeChatToPanel"/> this does not require <see cref="_chatIsInTab"/> to be
+        /// set, and it re-parents the transcript wherever it currently is. The result is always a
+        /// usable panel; the caller decides whether to try the tab again afterwards.
+        /// </summary>
+        private void EnsureNativeChatVisibleInPanel()
+        {
+            ThreadHelper.ThrowIfNotOnUIThread();
+
+            if (ChatTranscript == null)
+            {
+                return;
+            }
+
+            try
+            {
+                DetachTranscriptFromCurrentParent();
+
+                if (TerminalSlotGrid != null && !TerminalSlotGrid.Children.Contains(ChatTranscript))
+                {
+                    TerminalSlotGrid.Children.Add(ChatTranscript);
+                }
+
+                _chatIsInTab = false;
+
+                ChatTranscript.SetComposerMode(ResolveComposerMode(IsNativeModeActive, _chatIsInTab));
+                ChatTranscript.Visibility = IsNativeModeActive ? Visibility.Visible : Visibility.Collapsed;
+
+                SetPanelTerminalAreaVisible(true);
+                ApplyPromptPanelHiddenState();
+                RefreshToolbarLayout();
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"Error restoring the chat into the panel: {ex.Message}");
+            }
+        }
+
+        /// <summary>
+        /// Unhooks the transcript from whatever visual tree it is in (the panel slot, the chat tab's
+        /// host grid, or a stray parent) so it can be added to a new one without WPF's "element already
+        /// has a parent" exception. Callers re-add it wherever it belongs afterwards.
+        /// </summary>
+        private void DetachTranscriptFromCurrentParent()
+        {
+            ThreadHelper.ThrowIfNotOnUIThread();
+
+            if (ChatTranscript == null)
+            {
+                return;
+            }
+
+            if (_nativeChatWindow != null && _nativeChatWindow.HasChatContent)
+            {
+                _nativeChatWindow.SetChatContent(null);
+            }
+
+            if (TerminalSlotGrid != null && TerminalSlotGrid.Children.Contains(ChatTranscript))
+            {
+                TerminalSlotGrid.Children.Remove(ChatTranscript);
+            }
+
+            if (ChatTranscript.Parent is System.Windows.Controls.Panel host)
+            {
+                host.Children.Remove(ChatTranscript);
+            }
+        }
+
+        /// <summary>
         /// Shows or hides the panel's terminal group box. While the chat is in its own tab that slot has
         /// nothing to draw, so it is collapsed and its minimum size released — the same treatment a
         /// detached terminal gets, and the prompt box expands into the freed space.
@@ -280,6 +388,11 @@ namespace ClaudeCodeVS
         private void OnNativeChatWindowClosed(object sender, EventArgs e)
         {
             ThreadHelper.ThrowIfNotOnUIThread();
+
+            // The user (or VS) closed the chat's document tab. Dock the conversation back into the
+            // panel so it is never lost — the panel's prompt box drives it from there. Reopening the
+            // panel after it too has been closed is what restores the chat to its own tab
+            // (see ReconcileNativeChatHomeOnPanelShow).
             ReturnNativeChatToPanel();
 
             // The pane is transient: once closed it is gone, so the next open has to build a new one.
@@ -615,8 +728,10 @@ namespace ClaudeCodeVS
         }
 
         /// <summary>
-        /// Moves the chat between its tab and the panel. This is what the Detach control does while
-        /// native mode is running, and the way back after the user closes the tab.
+        /// The ⧉ dock/undock control for native mode: docks the chat back into the panel when it is
+        /// in its own tab, or pops it out to its own tab when it is docked. Closing the tab directly
+        /// docks it into the panel too (see <see cref="OnNativeChatWindowClosed"/>); reopening the
+        /// panel after it has been closed is what restores the chat to its own tab.
         /// </summary>
         private async Task ToggleChatTabAsync()
         {
@@ -624,6 +739,8 @@ namespace ClaudeCodeVS
 
             if (_chatIsInTab)
             {
+                // Dock the chat back into the panel. CloseNativeChatTab tears the tab down, which
+                // fires OnNativeChatWindowClosed -> ReturnNativeChatToPanel.
                 CloseNativeChatTab();
                 UpdateDetachButtonIcon(false);
                 return;

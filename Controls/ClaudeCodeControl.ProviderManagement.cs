@@ -2244,15 +2244,14 @@ For more details, visit: https://pi.dev";
             Apply(ToolbarButton.UpdateAgent, true, UpdateAgentToolbarButton, UpdateAgentMenuItem);
             // Detach means "give this conversation its own tab" for the terminal — it re-parents the
             // embedded console window. Native mode reuses the same button/click handler to move the
-            // chat view instead (ToggleChatTabAsync), but issue #151 round 4 dropped it from native
-            // mode's own toolbar entirely: the panel already re-shows the chat tab automatically every
-            // time a native session (re)starts (ShowNativeChatTabAsync), and a lone floating ⧉ icon in
-            // an otherwise-empty panel (once everything else collapses below) read as confusing
-            // clutter rather than a useful control. Closing the tab still doesn't lose the
-            // conversation — ReturnNativeChatToPanel re-embeds it, just without a button to pop it
-            // back out again until the next native-mode restart.
-            Apply(ToolbarButton.DetachTerminal, !IsNativeModeActive, DetachToolbarButton, DetachTerminalMenuItem);
-
+            // chat view between the panel and its own document tab (ToggleChatTabAsync). Re-enabled
+            // for native mode in v177.0: closing the tab now reopens it rather than leaving the
+            // conversation docked in the panel, so this ⧉ is the deliberate way to dock it there and
+            // back. Issue #151 round 4's "lone floating ⧉ in an empty panel" concern still holds for
+            // the chat-in-its-own-tab state — the IsChatDetachedToOwnTab block below collapses the
+            // whole panel toolbar there, and the reachable copy in that state is the composer mirror
+            // added at the end of this method.
+            Apply(ToolbarButton.DetachTerminal, true, DetachToolbarButton, DetachTerminalMenuItem);
             Apply(ToolbarButton.RestartAgent, true, RestartTerminalButton, RestartTerminalMenuItem);
             Apply(ToolbarButton.ViewChanges, true, ViewChangesToolbarButton, ViewChangesMenuItem);
             Apply(ToolbarButton.SessionHistory, true, SessionHistoryToolbarButton, SessionHistoryViewMenuItem);
@@ -2317,7 +2316,7 @@ For more details, visit: https://pi.dev";
                 if (CustomCommandsButton != null) CustomCommandsButton.Visibility = Visibility.Collapsed;
                 if (MenuDropdownButton != null) MenuDropdownButton.Visibility = Visibility.Collapsed;
 
-                // AttachDropdownButton/SendPromptButton sit in ControlsRow next to RightButtonsPanel,
+                // AttachDropdownButton/SendPromptButton sit in the toolbar strip (RightButtonsPanel),
                 // not inside PromptGroupBox — so auto-hiding the prompt box (ApplyPromptPanelHiddenState)
                 // does not take them with it. Both only make sense next to the prompt text box they act
                 // on, which is exactly what just got hidden.
@@ -2358,14 +2357,26 @@ For more details, visit: https://pi.dev";
             if (ControlsRow != null) ControlsRow.Visibility = panelRows;
             if (CheckboxRow != null) CheckboxRow.Visibility = panelRows;
 
-            // Keep the detach control's icon/tooltip in sync with the detached state.
-            UpdateDetachButtonIcon(_isTerminalDetached);
+            // Keep the detach control's icon/tooltip in sync with the detached state. Native mode
+            // tracks its own "detached" concept (the chat owns its tab, IsChatDetachedToOwnTab) rather
+            // than _isTerminalDetached, which never gets set while native mode is active — passing
+            // _isTerminalDetached unconditionally left the ☰ Tools menu's "Detach Chat to Separate Tab"
+            // header stuck on the un-detached wording every time this ran after the chat had already
+            // moved to its tab (e.g. ToolsContextMenu_Opened calls RefreshToolbarLayout on every open).
+            UpdateDetachButtonIcon(IsNativeModeActive ? IsChatDetachedToOwnTab : _isTerminalDetached);
 
             // Issue #151 (Change C): mirror the same promoted set into the chat tab's own composer,
             // reading each button's actual glyph/tooltip off the panel control so the mirror can never
-            // drift out of sync with it. DetachTerminal and RestartAgent are left out — the former is
-            // the panel's own ⧉ button (meaningless inside the tab it opens), the latter is already
+            // drift out of sync with it. RestartAgent is left out of the promoted loop — it is already
             // covered by the composer's own ↻ restart button (see ComposerClearButton).
+            //
+            // v177.0 round 4 (Daniel: "leave detach icon only in the tools menu, it will not be very
+            // used" — extended to the tab): DetachTerminal used to be force-mirrored here as a
+            // standalone "⧉" icon regardless of promotion, so it wouldn't be stranded once the panel's
+            // whole toolbar (☰ included) collapsed behind the chat's own tab. That is no longer needed
+            // — the composer's ☰ Tools button reopens this exact ToolsContextMenu (OnComposerConfigMenuClicked),
+            // which already carries DetachTerminalMenuItem whenever Detach isn't promoted — so ⧉ now
+            // follows the same promoted/menu rule as every other feature, on both surfaces.
             if (ChatTranscript != null)
             {
                 if (IsNativeModeActive)
@@ -2373,14 +2384,23 @@ For more details, visit: https://pi.dev";
                     var mirrored = new System.Collections.Generic.List<(string Id, object Content, object ToolTip)>();
                     foreach (ToolbarButton id in GetEffectiveToolbarOrder())
                     {
-                        if (id == ToolbarButton.DetachTerminal || id == ToolbarButton.RestartAgent) continue;
+                        if (id == ToolbarButton.RestartAgent) continue;
                         if (!promoted.Contains(id)) continue;
 
                         System.Windows.Controls.Button source = GetToolbarButtonControl(id);
                         if (source == null) continue;
 
-                        mirrored.Add((id.ToString(), source.Content, source.ToolTip));
+                        // DetachToolbarButton's Content is a live Viewbox (DetachButtonIcon, a hand-drawn
+                        // vector arrow) that WPF can only parent once — reusing that same reference here
+                        // would rip the icon out of the panel's own button the moment this mirror runs.
+                        // Every other toolbar button's Content is a plain string/emoji, which is a value
+                        // safe to reuse on a second Button. This only matters if the user promotes ⧉ to a
+                        // real toolbar button (it defaults to the ☰ Tools menu — see round 4 above).
+                        object mirroredContent = id == ToolbarButton.DetachTerminal ? "⧉" : source.Content;
+
+                        mirrored.Add((id.ToString(), mirroredContent, source.ToolTip));
                     }
+
                     ChatTranscript.SetPromotedButtons(mirrored);
                 }
                 else
@@ -2491,11 +2511,12 @@ For more details, visit: https://pi.dev";
             }
         }
 
-        // Issue #151 round 7: the panel's own feature-button row (RightButtonsPanel) had no
-        // overflow handling, so a narrow tool window with several buttons promoted would push the
-        // fixed group (☰/⚡/🤖/⚙) — including Settings, which has no fallback anywhere else — past
-        // the visible edge with no indication anything was hidden. Mirrors the ◀/▶ scroll handling
-        // already used by the native-mode composer's action row (ChatTranscriptView.xaml.cs).
+        // Issue #151 round 7: the panel's toolbar row (RightButtonsPanel) had no overflow handling,
+        // so a narrow tool window with several buttons promoted would push ☰/⚡/🤖/⚙ — including
+        // Settings, which has no fallback anywhere else — past the visible edge with no indication
+        // anything was hidden. v177.0 folded every panel-toolbar button into this one strip, so the
+        // ◀/▶ pair now scrolls the whole toolbar. Mirrors the ◀/▶ scroll handling already used by
+        // the native-mode composer's action row (ChatTranscriptView.xaml.cs).
         private void RightButtonsScroller_PreviewMouseWheel(object sender, System.Windows.Input.MouseWheelEventArgs e)
         {
             if (RightButtonsScroller.ScrollableWidth <= 0)
@@ -2520,9 +2541,9 @@ For more details, visit: https://pi.dev";
         }
 
         // Hidden, not Collapsed: both arrows are docked, so a Collapsed button would give its slice
-        // back and shift the scroller/fixed group every time an arrow appeared or disappeared.
-        // Hidden keeps the slice reserved either way — only the buttons underneath scroll, the
-        // toolbar's own footprint never changes.
+        // back and shift the scroller every time an arrow appeared or disappeared. Hidden keeps the
+        // slice reserved either way — only the buttons underneath scroll, the toolbar's own
+        // footprint never changes.
         //
         // Issue #151 round 9: both arrows now show together as soon as the row can scroll at all,
         // greyed out at each end instead of vanishing. Hiding the one that has nowhere to go left

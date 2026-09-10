@@ -51,6 +51,14 @@ namespace ClaudeCodeVS
         /// </summary>
         private bool _detachedVisibilitySubscribed;
 
+        /// <summary>
+        /// True once the panel's frame has been hidden (the user closed the panel — a non-transient
+        /// tool window is hidden, not destroyed) and not shown again since. The next show consumes it
+        /// to restore the native chat to its own document tab, so a plain tab-activation of the panel
+        /// never does. See <see cref="ReconcileNativeChatHomeOnPanelShow"/>.
+        /// </summary>
+        private bool _panelHiddenSinceShow;
+
         #endregion
 
         #region Active Panel Property
@@ -348,6 +356,16 @@ namespace ClaudeCodeVS
 
             var frameShow = (__FRAMESHOW)fShow;
 
+            if (frameShow == __FRAMESHOW.FRAMESHOW_WinHidden ||
+                frameShow == __FRAMESHOW.FRAMESHOW_WinClosed)
+            {
+                // Closing the panel hides its frame (the tool window is not transient). Remember it so
+                // the next show restores the native chat to its own tab; a plain tab switch raises
+                // TabDeactivated, not WinHidden/WinClosed, so it will not.
+                _panelHiddenSinceShow = true;
+                return;
+            }
+
             bool activated = frameShow == __FRAMESHOW.FRAMESHOW_WinShown ||
                              frameShow == __FRAMESHOW.FRAMESHOW_WinRestored ||
                              frameShow == __FRAMESHOW.FRAMESHOW_WinMaximized ||
@@ -366,6 +384,45 @@ namespace ClaudeCodeVS
                     ResizeEmbeddedTerminal();
                 }
             }
+
+            if (activated && _panelHiddenSinceShow)
+            {
+                _panelHiddenSinceShow = false;
+
+                if (IsNativeModeActive && !_isShuttingDown)
+                {
+                    ReconcileNativeChatHomeOnPanelShow();
+                }
+            }
+        }
+
+        /// <summary>
+        /// Reopening the panel after it was closed must bring the native chat back to its own document
+        /// tab — the panel's steady state in native mode is "usage bars only", with the chat in a tab
+        /// beside it. Closing the chat tab on its own docks the conversation into the panel
+        /// (<see cref="OnNativeChatWindowClosed"/>); this is what undoes that once the panel itself is
+        /// closed and brought back. A chat that already has a live tab is left alone.
+        /// </summary>
+        private void ReconcileNativeChatHomeOnPanelShow()
+        {
+            ThreadHelper.ThrowIfNotOnUIThread();
+
+            bool liveTab = _nativeChatWindow != null
+                           && _nativeChatWindow.Frame is IVsWindowFrame
+                           && _nativeChatWindow.HasChatContent;
+
+            if (liveTab)
+            {
+                return;
+            }
+
+#pragma warning disable VSSDK007, VSTHRD110
+            _ = ThreadHelper.JoinableTaskFactory.RunAsync(async () =>
+            {
+                await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
+                await ShowNativeChatTabAsync(focusComposer: false);
+            });
+#pragma warning restore VSSDK007, VSTHRD110
         }
 
         /// <summary>

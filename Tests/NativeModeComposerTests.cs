@@ -110,32 +110,66 @@ namespace ClaudeCodeExtension.Tests
         }
 
         /// <summary>
-        /// Issue #151 round 4: a lone floating ⧉ in an otherwise-empty panel (everything else
-        /// collapses once the chat leaves for its own tab) read as confusing clutter rather than a
-        /// useful control, so it was dropped from native mode's own toolbar entirely — the panel
-        /// already re-shows the chat tab automatically whenever a native session (re)starts.
+        /// v177.0 re-enabled ⧉ for native mode as the deliberate dock/undock control: closing the
+        /// chat tab now reopens it instead of leaving the conversation docked in the panel, so the
+        /// button is the only route that puts it there and back. Issue #151 round 4's "lone floating
+        /// ⧉ in an empty panel" concern is still handled — while the chat owns its tab the whole
+        /// panel toolbar collapses (IsChatDetachedToOwnTab), and the reachable copy is the composer
+        /// mirror instead.
         /// </summary>
         [TestMethod]
-        public void RefreshToolbarLayout_NeverShowsTheDetachButtonInNativeMode()
+        public void RefreshToolbarLayout_EnablesTheDetachButtonForNativeMode()
         {
             string body = ExtractMethodBody(ProviderManagementSource, "private void RefreshToolbarLayout()");
 
-            StringAssert.Contains(body, "Apply(ToolbarButton.DetachTerminal, !IsNativeModeActive, DetachToolbarButton, DetachTerminalMenuItem);",
-                "⧉ must never show while native mode is active, whether the chat is docked or in its own tab.");
+            StringAssert.Contains(body, "Apply(ToolbarButton.DetachTerminal, true, DetachToolbarButton, DetachTerminalMenuItem);",
+                "⧉ must be available in native mode again so the chat can be docked into the panel and back.");
         }
 
         /// <summary>
-        /// The chat tab already has a restart-agent button (↻ ComposerClearButton) — the mirrored
-        /// toolbar feed must not add a second one, and DetachTerminal (the panel's own ⧉) makes no
-        /// sense mirrored into the tab it opens.
+        /// v177.0 round 3 (Daniel: "Leave detach icon only in the tools menu please, it will not be
+        /// very used"): while the chat is docked in the panel the ⧉ control stays a ☰ Tools menu item
+        /// only — RefreshToolbarLayout must NOT force the panel's own ⧉ toolbar button visible. The
+        /// round-2 forced-visible block was reverted.
         /// </summary>
         [TestMethod]
-        public void RefreshToolbarLayout_PromotedButtonMirrorSkipsDetachAndRestart()
+        public void RefreshToolbarLayout_DoesNotForceTheDetachButtonVisibleWhileTheChatIsDockedInThePanel()
         {
             string body = ExtractMethodBody(ProviderManagementSource, "private void RefreshToolbarLayout()");
 
-            StringAssert.Contains(body, "id == ToolbarButton.DetachTerminal || id == ToolbarButton.RestartAgent",
-                "The composer's mirrored button feed must skip both DetachTerminal and RestartAgent.");
+            StringAssert.DoesNotMatch(body,
+                new System.Text.RegularExpressions.Regex(@"DetachToolbarButton\.Visibility\s*=\s*Visibility\.Visible"),
+                "⧉ must stay in the ☰ Tools menu unless the user promoted it — RefreshToolbarLayout must not force the panel's own ⧉ button on.");
+        }
+
+        /// <summary>
+        /// The chat tab already has a restart-agent button (↻ ComposerClearButton), so the mirrored
+        /// toolbar feed's promoted loop must not add a second one — RestartAgent stays skipped.
+        /// DetachTerminal is skipped by that loop too, then re-added unconditionally right after: the
+        /// panel's own ⧉ is inside the collapsed toolbar while the chat owns its tab, so the composer
+        /// mirror is the only reachable way to dock the conversation back (v177.0).
+        /// </summary>
+        [TestMethod]
+        public void RefreshToolbarLayout_PromotedButtonMirrorSkipsRestart_AndNeverStealsTheLiveDetachIcon()
+        {
+            string body = ExtractMethodBody(ProviderManagementSource, "private void RefreshToolbarLayout()");
+
+            // v177.0 round 4 (Daniel: "leave detach icon only in the tools menu" extended to the tab
+            // surface too): ⧉ is no longer force-mirrored into the composer as a standalone icon — the
+            // composer's ☰ Tools button reopens the same ToolsContextMenu as the panel, so ⧉ now follows
+            // the ordinary promoted/menu rule for both surfaces.
+            StringAssert.DoesNotMatch(body,
+                new System.Text.RegularExpressions.Regex(@"mirrored\.Insert\(0,\s*\(ToolbarButton\.DetachTerminal\.ToString\(\),\s*""⧉"""),
+                "⧉ must no longer be force-inserted into the composer mirror — the ☰ Tools menu is the only dock/undock control now.");
+            StringAssert.Contains(body, "if (id == ToolbarButton.RestartAgent) continue;",
+                "RestartAgent must still be skipped from the promoted mirror loop (it has its own ↻ composer button).");
+
+            // DetachTerminal is allowed through the ordinary loop now, but its Content is a live Viewbox
+            // (DetachButtonIcon) that WPF can only parent once — the mirror must substitute a plain glyph
+            // rather than reusing source.Content directly, or promoting ⧉ would strip the icon off the
+            // panel's own button.
+            StringAssert.Contains(body, "id == ToolbarButton.DetachTerminal ? \"⧉\" : source.Content",
+                "A promoted ⧉ must be mirrored with an independent glyph, not the panel's live Viewbox reference.");
             StringAssert.Contains(body, "ChatTranscript.SetPromotedButtons(",
                 "RefreshToolbarLayout must push the mirrored set into the chat tab's composer.");
         }
@@ -500,6 +534,75 @@ namespace ClaudeCodeExtension.Tests
         }
 
         /// <summary>
+        /// The "blank panel, only usage bars" regression: ShowNativeChatTabAsync collapsed the panel
+        /// (SetPanelTerminalAreaVisible(false) + RefreshToolbarLayout) and then called frame?.Show() on
+        /// a frame that could be null — a stale pane handed back by FindToolWindow after its tab was
+        /// torn down. The result was a collapsed panel wrapped around a tab that never appeared. The
+        /// method must now drop a stale window, verify it has a real frame before collapsing anything,
+        /// and fall back to the panel (never leave it collapsed with the chat nowhere) when it does not.
+        /// </summary>
+        [TestMethod]
+        public void ShowNativeChatTabAsync_FallsBackToThePanelWhenThereIsNoUsableTabFrame()
+        {
+            string showBody = ExtractMethodBody(NativeChatSource, "private async Task ShowNativeChatTabAsync(bool focusComposer)");
+
+            StringAssert.Contains(showBody, "!(_nativeChatWindow.Frame is IVsWindowFrame)",
+                "A cached window whose frame VS already tore down must be dropped, not reused into a null-frame no-op.");
+            StringAssert.Contains(showBody, "_nativeChatWindow == null || frame == null",
+                "The panel must not be collapsed until a real document-tab frame has been obtained.");
+            StringAssert.Contains(showBody, "EnsureNativeChatVisibleInPanel();",
+                "No usable frame must fall back to a working panel rather than a blank one.");
+            StringAssert.Contains(showBody, "ErrorHandler.Failed(showHr)",
+                "A frame that will not surface must trigger the same panel fallback.");
+        }
+
+        /// <summary>
+        /// The panel's steady state in native mode is "usage bars only", with the chat in its own
+        /// document tab beside it. Closing the chat tab docks the conversation into the panel; closing
+        /// and reopening the panel must then pull it back out into a tab. That restore must fire only
+        /// on a real panel close (FRAMESHOW_WinHidden then a show), never on a plain tab activation,
+        /// or a docked chat would jump to a tab every time the panel got focus.
+        /// </summary>
+        [TestMethod]
+        public void PanelFrameShow_RestoresTheNativeChatTab_OnlyAfterThePanelWasClosed()
+        {
+            string detachCs = RepositoryLayout.ReadText("Controls", "ClaudeCodeControl.Detach.cs");
+            string showBody = ExtractMethodBody(detachCs, "private void OnToolWindowFrameShow(object sender, int fShow)");
+
+            StringAssert.Contains(showBody, "__FRAMESHOW.FRAMESHOW_WinHidden",
+                "Closing the panel hides its frame — that is the signal a restore is due on the next show.");
+            StringAssert.Contains(showBody, "_panelHiddenSinceShow = true;",
+                "The hide must be latched so the following show can consume it.");
+            StringAssert.Contains(showBody, "if (activated && _panelHiddenSinceShow)",
+                "The reconcile must be gated on the panel having actually been closed, not on every activation.");
+            StringAssert.Contains(showBody, "ReconcileNativeChatHomeOnPanelShow();",
+                "The panel's frame-show handler must reconcile the native chat's home after a close.");
+
+            string reconcileBody = ExtractMethodBody(detachCs, "private void ReconcileNativeChatHomeOnPanelShow()");
+            StringAssert.Contains(reconcileBody, "if (liveTab)",
+                "A chat that already has a live tab is left alone; anything else is pulled into a tab.");
+            StringAssert.DoesNotMatch(reconcileBody, new System.Text.RegularExpressions.Regex(@"dockedInPanel"),
+                "A chat docked in the panel is no longer an accepted resting state on panel reopen — it must go back to its tab.");
+            StringAssert.Contains(reconcileBody, "await ShowNativeChatTabAsync(focusComposer: false);",
+                "A chat without a live tab must be put back into its own tab.");
+        }
+
+        /// <summary>
+        /// Closing the chat's document tab must dock the conversation into the panel (never lose it,
+        /// never leave it homeless) — the auto-reopen-as-a-tab behavior and its guard flags are gone.
+        /// </summary>
+        [TestMethod]
+        public void OnNativeChatWindowClosed_DocksTheChatBackIntoThePanel()
+        {
+            string body = ExtractMethodBody(NativeChatSource, "private void OnNativeChatWindowClosed(object sender, EventArgs e)");
+
+            StringAssert.Contains(body, "ReturnNativeChatToPanel();",
+                "Closing the tab docks the chat into the panel.");
+            StringAssert.DoesNotMatch(body, new System.Text.RegularExpressions.Regex(@"reopenAsTab|_reopeningNativeChatTab|ShowNativeChatTabAsync"),
+                "The tab must not reopen itself on close anymore — reopening the panel is what restores the tab.");
+        }
+
+        /// <summary>
         /// Two other call sites unconditionally reset <c>SendPromptButton.Visibility</c> from the
         /// <c>SendWithEnter</c> setting (initial load and the Settings dialog's Apply). Both must defer
         /// to <c>IsChatDetachedToOwnTab</c> or a settings change while the chat is in its own tab would
@@ -568,41 +671,44 @@ namespace ClaudeCodeExtension.Tests
         }
 
         /// <summary>
-        /// The fixed group (☰ Tools, ⚡ Custom Commands, 🤖 Model, ⚙ Settings/Agent) must never scroll
-        /// out of reach — none of them have a fallback elsewhere if they silently disappear. Only the
-        /// customizable feature buttons (which already fall back to the ☰ menu when not promoted) are
-        /// allowed to scroll, mirroring the split already used for the native-mode composer's action
-        /// row (issue #151 round 6).
+        /// v177.0: the whole extension-panel toolbar is one horizontally-scrollable strip. Every
+        /// button — the customizable feature buttons AND the always-present controls (☰ Tools,
+        /// ⚡ Custom Commands, 🤖 Model, ⚙ Settings/Agent, 📎 Attach, ▶ Send) — lives inside
+        /// RightButtonsScroller, so the single ◀ / ▶ pair scrolls all of them. There is no separate
+        /// right-pinned FixedRightButtonsPanel anymore (that split was the source of the mid-row gap).
         /// </summary>
         [TestMethod]
-        public void RightButtonsPanel_FeatureButtonsScroll_FixedGroupNeverDoes()
+        public void RightButtonsPanel_HoldsTheEntirePanelToolbarInOneScroller()
         {
             string xaml = PanelXaml;
+
+            Assert.IsFalse(xaml.Contains("FixedRightButtonsPanel"),
+                "The right-pinned fixed group was folded into RightButtonsScroller in v177.0 — no element " +
+                "should reference FixedRightButtonsPanel anymore.");
 
             int leftArrowIdx = xaml.IndexOf("x:Name=\"RightButtonsScrollLeftButton\"", System.StringComparison.Ordinal);
             int scrollerOpen = xaml.IndexOf("x:Name=\"RightButtonsScroller\"", System.StringComparison.Ordinal);
             int scrollerClose = xaml.IndexOf("</ScrollViewer>", scrollerOpen, System.StringComparison.Ordinal);
             int rightArrowIdx = xaml.IndexOf("x:Name=\"RightButtonsScrollRightButton\"", System.StringComparison.Ordinal);
-            int fixedGroupIdx = xaml.IndexOf("x:Name=\"FixedRightButtonsPanel\"", System.StringComparison.Ordinal);
 
-            Assert.IsTrue(leftArrowIdx >= 0 && scrollerOpen >= 0 && scrollerClose > scrollerOpen
-                && rightArrowIdx >= 0 && fixedGroupIdx >= 0,
+            Assert.IsTrue(leftArrowIdx >= 0 && scrollerOpen >= 0 && scrollerClose > scrollerOpen && rightArrowIdx >= 0,
                 "One of the right-buttons row's elements could not be found — update this guard with the rename.");
 
-            foreach (string essential in new[] { "MenuDropdownButton", "ModelDropdownButton", "ToolsDropdownButton", "CustomCommandsButton" })
+            foreach (string name in new[]
             {
-                int idx = xaml.IndexOf($"x:Name=\"{essential}\"", System.StringComparison.Ordinal);
-                Assert.IsTrue(idx >= 0 && idx > fixedGroupIdx,
-                    $"{essential} must live in the fixed group (FixedRightButtonsPanel) — it has no fallback " +
-                    "if it scrolls out of reach and silently disappears (issue #151 round 7).");
-                Assert.IsFalse(idx > scrollerOpen && idx < scrollerClose,
-                    $"{essential} must not be inside RightButtonsScroller.");
+                "MenuDropdownButton", "ModelDropdownButton", "ToolsDropdownButton", "CustomCommandsButton",
+                "AttachDropdownButton", "SendPromptButton",
+                "UpdateAgentToolbarButton", "GenerateCommitMessageToolbarButton",
+            })
+            {
+                int idx = xaml.IndexOf($"x:Name=\"{name}\"", System.StringComparison.Ordinal);
+                Assert.IsTrue(idx > scrollerOpen && idx < scrollerClose,
+                    $"{name} must live inside RightButtonsScroller so the single ◀/▶ pair scrolls the whole toolbar.");
             }
 
-            Assert.IsTrue(leftArrowIdx < fixedGroupIdx && fixedGroupIdx < rightArrowIdx && rightArrowIdx < scrollerOpen,
-                "Expected document order: ◀ arrow (docked left), then the fixed group and ▶ arrow (both docked " +
-                "right, fixed group first so it ends up rightmost), then the scroller last as the fill child " +
-                "(issue #151 round 9).");
+            Assert.IsTrue(leftArrowIdx < scrollerOpen && rightArrowIdx < scrollerOpen,
+                "Expected document order: ◀ arrow (docked left) and ▶ arrow (docked right) both before the " +
+                "scroller, which is the DockPanel's last child (the fill child).");
         }
 
         /// <summary>
@@ -611,11 +717,10 @@ namespace ClaudeCodeExtension.Tests
         /// arranged ⚙ past the tool window's visible right edge and handed the ScrollViewer a viewport
         /// wider than the panel — so it never had anything to scroll and the ◀/▶ arrows never appeared.
         /// A DockPanel measures each docked child against the space genuinely left over and gives the fill
-        /// child exactly the remainder, so the fixed group is always on screen and the scroller's viewport
-        /// is always the real available width.
+        /// child exactly the remainder, so the scroller's viewport is always the real available width.
         /// </summary>
         [TestMethod]
-        public void RightButtonsRow_IsADockPanel_SoTheFixedGroupIsNeverArrangedOffScreen()
+        public void RightButtonsRow_IsADockPanel_SoTheScrollerViewportIsTheRealAvailableWidth()
         {
             string xaml = PanelXaml;
 
@@ -638,14 +743,11 @@ namespace ClaudeCodeExtension.Tests
             StringAssert.Contains(xaml.Substring(leftArrow, 200), "DockPanel.Dock=\"Left\"",
                 "The ◀ arrow must be docked left.");
 
-            foreach (string dockedRight in new[] { "FixedRightButtonsPanel", "RightButtonsScrollRightButton" })
-            {
-                int idx = xaml.IndexOf($"x:Name=\"{dockedRight}\"", System.StringComparison.Ordinal);
-                Assert.IsTrue(idx >= 0, $"{dockedRight} not found.");
-                StringAssert.Contains(xaml.Substring(idx, 200), "DockPanel.Dock=\"Right\"",
-                    $"{dockedRight} must be docked right so it is laid out before the fill child and can " +
-                    "never be pushed outside the panel.");
-            }
+            int rightArrow = xaml.IndexOf("x:Name=\"RightButtonsScrollRightButton\"", System.StringComparison.Ordinal);
+            Assert.IsTrue(rightArrow >= 0, "RightButtonsScrollRightButton not found.");
+            StringAssert.Contains(xaml.Substring(rightArrow, 200), "DockPanel.Dock=\"Right\"",
+                "The ▶ arrow must be docked right so it is laid out before the fill child and can never be " +
+                "pushed outside the panel.");
 
             // The scroller must be the panel's last child, otherwise LastChildFill hands the leftover
             // width to something else and the scroller falls back to its (unbounded) desired size.
@@ -676,17 +778,13 @@ namespace ClaudeCodeExtension.Tests
         }
 
         /// <summary>
-        /// Issue #151 round 8: a Grid Star column, when given a genuinely bounded (not infinite)
-        /// available width by its parent, always consumes its full proportional share for both
-        /// measure and arrange — even when its content is narrower than that share. Left at the
-        /// default Stretch alignment, RightButtonsScroller therefore left extra blank space between
-        /// the last promoted button and the always-visible ▶ arrow / fixed group (⚙/🤖/☰/⚡),
-        /// visually splitting one toolbar into two. Right-aligning the scroller moves any unused
-        /// slack to its own left edge (next to the ◀ arrow) instead, so it always sits flush against
-        /// the fixed group with no gap when everything fits.
+        /// v177.0: with every panel-toolbar button inside the one scroller, the scroller must be
+        /// Left-aligned so that when all buttons fit, the strip starts flush against the ◀ arrow and
+        /// any unused slack pools on the right edge — not as a gap between buttons. (Right alignment
+        /// only made sense while a separate fixed group was pinned to the right.)
         /// </summary>
         [TestMethod]
-        public void RightButtonsScroller_IsRightAligned_SoItHugsTheFixedGroupWithNoGap()
+        public void RightButtonsScroller_IsLeftAligned_SoTheStripStartsFlushWithNoMidRowGap()
         {
             string xaml = PanelXaml;
 
@@ -695,9 +793,40 @@ namespace ClaudeCodeExtension.Tests
             Assert.IsTrue(scrollerIdx >= 0 && scrollerTagEnd > scrollerIdx, "RightButtonsScroller not found.");
 
             string openTag = xaml.Substring(scrollerIdx, scrollerTagEnd - scrollerIdx);
-            StringAssert.Contains(openTag, "HorizontalAlignment=\"Right\"",
-                "Without this, the Star column's unused slack renders as a visible gap between the " +
-                "scrollable feature buttons and the always-visible fixed group instead of at the row's own start.");
+            StringAssert.Contains(openTag, "HorizontalAlignment=\"Left\"",
+                "The unified toolbar strip must start flush against the ◀ arrow; slack pools on the right, " +
+                "never as a gap between buttons.");
+        }
+
+        /// <summary>
+        /// The attach (📎) and send (▶) buttons used to sit in ControlsRow's column 0, pinned far left
+        /// while every other toolbar button hugged the right edge — so the Star column's unused width
+        /// showed as one wide gap down the middle of the toolbar. v177.0 folds them into the single
+        /// scrollable strip with every other button, so there is no mid-row split at all.
+        /// </summary>
+        [TestMethod]
+        public void AttachAndSendButtons_LiveInTheScrollableStrip_SoTheToolbarHasNoMidRowGap()
+        {
+            string xaml = PanelXaml;
+
+            int scrollerOpen = xaml.IndexOf("x:Name=\"RightButtonsScroller\"", System.StringComparison.Ordinal);
+            int scrollerClose = xaml.IndexOf("</ScrollViewer>", scrollerOpen, System.StringComparison.Ordinal);
+            Assert.IsTrue(scrollerOpen >= 0 && scrollerClose > scrollerOpen, "RightButtonsScroller not found.");
+
+            foreach (string name in new[] { "AttachDropdownButton", "SendPromptButton" })
+            {
+                int idx = xaml.IndexOf($"x:Name=\"{name}\"", System.StringComparison.Ordinal);
+                Assert.IsTrue(idx > scrollerOpen && idx < scrollerClose,
+                    $"{name} must live inside RightButtonsScroller so the panel toolbar is one contiguous " +
+                    "scrollable strip with no wide Star-column gap (v177.0).");
+            }
+
+            int controlsRowIdx = xaml.IndexOf("x:Name=\"ControlsRow\"", System.StringComparison.Ordinal);
+            int controlsRowEnd = xaml.IndexOf("x:Name=\"CheckboxRow\"", controlsRowIdx, System.StringComparison.Ordinal);
+            Assert.IsTrue(controlsRowIdx >= 0 && controlsRowEnd > controlsRowIdx, "ControlsRow / CheckboxRow not found.");
+            string controlsRow = xaml.Substring(controlsRowIdx, controlsRowEnd - controlsRowIdx);
+            StringAssert.DoesNotMatch(controlsRow, new System.Text.RegularExpressions.Regex("Grid\\.Column=\"0\""),
+                "ControlsRow no longer has a left-pinned column-0 cluster — that split was the mid-row gap.");
         }
 
         /// <summary>
