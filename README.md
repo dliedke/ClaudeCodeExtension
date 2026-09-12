@@ -138,6 +138,9 @@ Use native mode to avoid this issue.
 
 ## Version History
 
+### Version 178.0
+Switching Claude's model or effort level in native mode now applies instantly on the running conversation instead of restarting it, so replies keep going and previous cost savings from prompt caching are no longer thrown away. If a live switch isn't possible, the previous restart behavior is still used as a fallback.
+
 ### Version 177.0
 In native mode, closing the chat's document tab now docks the conversation back into the extension panel instead of losing it. Reopening the extension panel after it has been closed brings the chat back out into its own tab, so closing everything and reopening the panel from View → Other Windows lands you back on the usual layout (usage bars in the panel, chat in its own tab) rather than a panel showing only the usage bars. The ⧉ dock/undock command is available again in native mode from the ☰ Tools menu, so you can move the chat between its own tab and the panel yourself. The extension panel's toolbar is now a single strip that scrolls all of its buttons with the ◀ ▶ arrows on a narrow window, instead of leaving a wide gap in the middle.
 

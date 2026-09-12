@@ -67,6 +67,15 @@ namespace ClaudeCodeVS.Agents
         /// </summary>
         public Action<string, object> ControlResponder { get; set; }
 
+        /// <summary>
+        /// Fired for every inbound <c>control_response</c> line — the CLI's answer to a request the
+        /// session itself sent (<c>set_model</c>, <c>apply_flag_settings</c>, …), as opposed to
+        /// <see cref="ControlResponder"/> which writes the extension's own answers to the CLI's
+        /// permission requests. The session correlates these by <c>request_id</c>; the parser does not
+        /// track pending requests itself.
+        /// </summary>
+        public Action<JObject> ControlResponseReceived { get; set; }
+
         public IReadOnlyList<AgentEvent> Parse(string line)
         {
             if (string.IsNullOrWhiteSpace(line))
@@ -105,8 +114,10 @@ namespace ClaudeCodeVS.Agents
                     return ParseResult(root);
                 case "control_request":
                     return ParseControlRequest(root);
+                case "control_response":
+                    return ParseControlResponse(root);
                 default:
-                    // control_response, control_cancel_request, and anything a future CLI version adds.
+                    // control_cancel_request and anything a future CLI version adds.
                     return Empty;
             }
         }
@@ -338,6 +349,24 @@ namespace ClaudeCodeVS.Agents
             events.Add(AgentEvent.TurnCompleted(usage, denials, wasInterrupted));
 
             return events;
+        }
+
+        /// <summary>
+        /// Hands the CLI's answer to a session-initiated control request (<c>set_model</c>,
+        /// <c>apply_flag_settings</c>, …) to whoever is waiting on it. Wire shape:
+        /// <c>{"type":"control_response","response":{"subtype":"success"|"error","request_id":R,…}}</c>.
+        /// Never surfaced as an <see cref="AgentEvent"/> — this is a reply to something the session
+        /// itself asked, not something the UI needs to render.
+        /// </summary>
+        private IReadOnlyList<AgentEvent> ParseControlResponse(JObject root)
+        {
+            var response = root["response"] as JObject;
+            if (response != null)
+            {
+                ControlResponseReceived?.Invoke(response);
+            }
+
+            return Empty;
         }
 
         /// <summary>

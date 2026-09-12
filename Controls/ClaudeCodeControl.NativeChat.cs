@@ -4035,7 +4035,15 @@ namespace ClaudeCodeVS
                 SaveSettings(nameof(ClaudeCodeSettings.SelectedClaudeModel));
                 UpdateChatComposerState();
 
-                await RelaunchNativeSessionAsync($"🤖 Switched to {GetChatModelLabel(GetActiveOrSelectedProvider())}");
+                string modelLabel = GetChatModelLabel(GetActiveOrSelectedProvider());
+
+                if (await TrySwitchClaudeModelAsync(MapClaudeModelArgument(model)))
+                {
+                    AddNativeMessage(ChatMessageKind.Notice, $"🤖 Switched to {modelLabel}.");
+                    return;
+                }
+
+                await RelaunchNativeSessionAsync($"🤖 Switched to {modelLabel}");
             }
             catch (Exception ex)
             {
@@ -4120,6 +4128,63 @@ namespace ClaudeCodeVS
         }
 
         /// <summary>
+        /// Asks a live Claude session to change its model over <c>set_model</c> instead of relaunching.
+        /// False when there is no such session running or the CLI declines, and the caller then falls
+        /// back to <see cref="RelaunchNativeSessionAsync"/>/<see cref="RelaunchSessionAsync"/> exactly as
+        /// it always has. See <see cref="ClaudeStreamJsonSession.SetModelAsync"/> for the measured
+        /// cache-hit numbers behind this.
+        /// </summary>
+        private Task<bool> TrySwitchClaudeModelAsync(string model) => TrySwitchClaudeModelAsync(_agentSession, model);
+
+        /// <summary>Same live switch, for a specific agent session — a parallel tab's own, not the panel's global one.</summary>
+        private async Task<bool> TrySwitchClaudeModelAsync(IAgentSession agentSession, string model)
+        {
+            var claudeSession = agentSession as ClaudeStreamJsonSession;
+            if (claudeSession == null || string.IsNullOrWhiteSpace(model))
+            {
+                return false;
+            }
+
+            try
+            {
+                return await claudeSession.SetModelAsync(model, CancellationToken.None);
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"Native chat: switching the Claude model on the live session failed: {ex.Message}");
+                return false;
+            }
+        }
+
+        /// <summary>
+        /// Asks a live Claude session to change its effort over <c>apply_flag_settings</c> instead of
+        /// relaunching. "Auto" has no live equivalent (it is the extension's own concept of omitting
+        /// <c>--effort</c> at launch) and always returns false so the caller relaunches for that one
+        /// value. See <see cref="ClaudeStreamJsonSession.SetEffortAsync"/> for the measured numbers.
+        /// </summary>
+        private Task<bool> TrySwitchClaudeEffortAsync(string effort) => TrySwitchClaudeEffortAsync(_agentSession, effort);
+
+        /// <summary>Same live switch, for a specific agent session — a parallel tab's own, not the panel's global one.</summary>
+        private async Task<bool> TrySwitchClaudeEffortAsync(IAgentSession agentSession, string effort)
+        {
+            var claudeSession = agentSession as ClaudeStreamJsonSession;
+            if (claudeSession == null || string.IsNullOrWhiteSpace(effort))
+            {
+                return false;
+            }
+
+            try
+            {
+                return await claudeSession.SetEffortAsync(effort, CancellationToken.None);
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"Native chat: switching the Claude effort on the live session failed: {ex.Message}");
+                return false;
+            }
+        }
+
+        /// <summary>
         /// The composer's effort popup closed on a stop other than the one it opened on. Same slider
         /// order as the panel, so both controls always agree on what "High" means.
         /// </summary>
@@ -4184,7 +4249,15 @@ namespace ClaudeCodeVS
                 SaveSettings();
                 UpdateChatComposerState();
 
-                await RelaunchNativeSessionAsync($"🤖 Effort switched to {GetChatEffortLabel()}");
+                string effortLabel = GetChatEffortLabel();
+
+                if (await TrySwitchClaudeEffortAsync(MapEffortArgument(level)))
+                {
+                    AddNativeMessage(ChatMessageKind.Notice, $"🤖 Effort switched to {effortLabel}.");
+                    return;
+                }
+
+                await RelaunchNativeSessionAsync($"🤖 Effort switched to {effortLabel}");
             }
             catch (Exception ex)
             {
@@ -4689,7 +4762,15 @@ namespace ClaudeCodeVS
                 session.SelectedClaudeModel = model;
                 UpdateChatComposerState(session);
 
-                await RelaunchSessionAsync(session, $"🤖 Switched to {GetChatModelLabel(session)}");
+                string modelLabel = GetChatModelLabel(session);
+
+                if (await TrySwitchClaudeModelAsync(session.AgentSession, MapClaudeModelArgument(model)))
+                {
+                    AddNativeMessageToSession(session, ChatMessageKind.Notice, $"🤖 Switched to {modelLabel}.");
+                    return;
+                }
+
+                await RelaunchSessionAsync(session, $"🤖 Switched to {modelLabel}");
             }
             catch (Exception ex)
             {
@@ -4756,7 +4837,15 @@ namespace ClaudeCodeVS
                 session.SelectedEffortLevel = level;
                 UpdateChatComposerState(session);
 
-                await RelaunchSessionAsync(session, $"🤖 Effort switched to {GetChatEffortLabel(level)}");
+                string effortLabel = GetChatEffortLabel(level);
+
+                if (await TrySwitchClaudeEffortAsync(session.AgentSession, MapEffortArgument(level)))
+                {
+                    AddNativeMessageToSession(session, ChatMessageKind.Notice, $"🤖 Effort switched to {effortLabel}.");
+                    return;
+                }
+
+                await RelaunchSessionAsync(session, $"🤖 Effort switched to {effortLabel}");
             }
             catch (Exception ex)
             {

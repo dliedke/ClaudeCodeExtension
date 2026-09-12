@@ -11,11 +11,13 @@
  * *******************************************************************************************************************/
 
 using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Threading;
 using System.Threading.Tasks;
 using Newtonsoft.Json;
+using Newtonsoft.Json.Linq;
 
 namespace ClaudeCodeVS.Agents
 {
@@ -51,6 +53,15 @@ namespace ClaudeCodeVS.Agents
         // same tool are answered here without surfacing another card. Scoped to this session object, so
         // a "New chat" / model switch (which builds a fresh session) starts asking again.
         private readonly HashSet<string> _sessionAllowedTools = new HashSet<string>(StringComparer.Ordinal);
+
+        // Control requests this session sent to the CLI (set_model, apply_flag_settings, …) awaiting
+        // their control_response, keyed by request_id. Survives a relaunch by design — an in-flight
+        // request against a process that just died simply times out and is removed, same as a lost
+        // pipe write would; nothing here is tied to the parser instance that will be replaced.
+        private readonly ConcurrentDictionary<string, TaskCompletionSource<JObject>> _pendingControlResponses =
+            new ConcurrentDictionary<string, TaskCompletionSource<JObject>>(StringComparer.Ordinal);
+
+        private static readonly TimeSpan ControlRequestTimeout = TimeSpan.FromSeconds(10);
 
         private JsonLineProcessHost _host;
         private ClaudeStreamParser _parser;
@@ -200,6 +211,138 @@ namespace ClaudeCodeVS.Agents
             }
         }
 
+        /// <summary>
+        /// Switches the running session to a different model via the <c>set_model</c> control request —
+        /// no relaunch, no <c>--resume</c> replay. Measured against CLI 2.1.269: about half the prompt
+        /// prefix still hits the cache afterwards (the model name is baked into the system prompt, so
+        /// that portion cannot avoid a rewrite either way), against a complete cache miss when the
+        /// caller instead relaunches with a different <c>--model</c> flag. Returns false — never throws
+        /// — on anything short of a clean CLI-confirmed switch, so the caller's existing relaunch stays
+        /// the fallback for an older CLI, a rejected model, or no live process at all.
+        /// </summary>
+        /// <param name="model">The CLI's own alias, e.g. <c>opus</c>/<c>sonnet</c> — the same string
+        /// <see cref="ClaudeCommandBuilder"/> would have put on <c>--model</c>.</param>
+        public async Task<bool> SetModelAsync(string model, CancellationToken cancellationToken)
+        {
+            if (_disposed || string.IsNullOrWhiteSpace(model))
+            {
+                return false;
+            }
+
+            JObject response = await SendControlRequestAsync(
+                new { subtype = "set_model", model }, "set_model", cancellationToken).ConfigureAwait(false);
+
+            if (!IsSuccess(response))
+            {
+                return false;
+            }
+
+            // Optimistic — the CLI does not echo the resolved canonical name back on this response, only
+            // "success". A stale value here only ever affected diagnostics; no Claude native-mode caption
+            // reads IAgentSession.Model (see ARCHITECTURE.md).
+            Model = model;
+            return true;
+        }
+
+        /// <summary>
+        /// Switches the running session's effort via <c>apply_flag_settings</c> — the live counterpart
+        /// of the CLI's own <c>/effort</c> command, not the client-side <c>set_max_thinking_tokens</c>
+        /// request (a different, unrelated knob measured during the same investigation). Measured
+        /// against CLI 2.1.269: near-total cache hit afterwards, against a complete miss when the caller
+        /// instead relaunches with a different <c>--effort</c> flag. "Auto" — the extension's own concept
+        /// of omitting <c>--effort</c> at launch — has no live equivalent, so the caller must keep
+        /// relaunching for that one value.
+        /// </summary>
+        /// <param name="effort">The CLI's own level name, e.g. <c>low</c>/<c>high</c>/<c>xhigh</c> — the
+        /// same string <see cref="ClaudeCommandBuilder"/> would have put on <c>--effort</c>.</param>
+        public async Task<bool> SetEffortAsync(string effort, CancellationToken cancellationToken)
+        {
+            if (_disposed || string.IsNullOrWhiteSpace(effort))
+            {
+                return false;
+            }
+
+            JObject response = await SendControlRequestAsync(
+                new { subtype = "apply_flag_settings", settings = new { effort } },
+                "apply_flag_settings(effort)",
+                cancellationToken).ConfigureAwait(false);
+
+            return IsSuccess(response);
+        }
+
+        /// <summary>
+        /// Sends a control request the session itself originates (as opposed to <see cref="WriteControlResponse"/>,
+        /// which answers one the CLI sent) and awaits the matching <c>control_response</c>, correlated by
+        /// a fresh <c>request_id</c>. Null on no live process, a write failure, or a timeout — every
+        /// caller treats null as "could not switch live" and falls back to a relaunch, so nothing here
+        /// needs to throw.
+        /// </summary>
+        private async Task<JObject> SendControlRequestAsync(object request, string label, CancellationToken cancellationToken)
+        {
+            JsonLineProcessHost host = _host;
+            if (host == null || !host.IsRunning)
+            {
+                return null;
+            }
+
+            string requestId = Guid.NewGuid().ToString("N");
+            var tcs = new TaskCompletionSource<JObject>(TaskCreationOptions.RunContinuationsAsynchronously);
+            _pendingControlResponses[requestId] = tcs;
+
+            try
+            {
+                var payload = new { type = "control_request", request_id = requestId, request };
+                await host.WriteLineAsync(JsonConvert.SerializeObject(payload), cancellationToken).ConfigureAwait(false);
+            }
+            catch (Exception ex)
+            {
+                _pendingControlResponses.TryRemove(requestId, out _);
+                Debug.WriteLine($"ClaudeStreamJsonSession: '{label}' not delivered: {ex.Message}");
+                return null;
+            }
+
+            using (cancellationToken.Register(() => tcs.TrySetCanceled()))
+            {
+                Task finished = await Task.WhenAny(tcs.Task, Task.Delay(ControlRequestTimeout, cancellationToken))
+                    .ConfigureAwait(false);
+                _pendingControlResponses.TryRemove(requestId, out _);
+
+                if (finished != tcs.Task)
+                {
+                    Debug.WriteLine($"ClaudeStreamJsonSession: '{label}' timed out waiting for a response.");
+                    return null;
+                }
+
+                try
+                {
+                    return await tcs.Task.ConfigureAwait(false);
+                }
+                catch (OperationCanceledException)
+                {
+                    return null;
+                }
+            }
+        }
+
+        private void OnControlResponseReceived(JObject response)
+        {
+            string requestId = (string)response["request_id"];
+            if (string.IsNullOrEmpty(requestId))
+            {
+                return;
+            }
+
+            if (_pendingControlResponses.TryRemove(requestId, out TaskCompletionSource<JObject> tcs))
+            {
+                tcs.TrySetResult(response);
+            }
+        }
+
+        private static bool IsSuccess(JObject response)
+        {
+            return response != null && string.Equals((string)response["subtype"], "success", StringComparison.OrdinalIgnoreCase);
+        }
+
         private async Task LaunchAsync(CancellationToken cancellationToken)
         {
             // The flag describes the process being replaced, so a fresh one always starts without it.
@@ -235,7 +378,8 @@ namespace ClaudeCodeVS.Agents
 
             _parser = new ClaudeStreamParser(_options.IncludePartialMessages)
             {
-                ControlResponder = WriteControlResponse
+                ControlResponder = WriteControlResponse,
+                ControlResponseReceived = OnControlResponseReceived
             };
 
             var host = new JsonLineProcessHost(hostOptions);
