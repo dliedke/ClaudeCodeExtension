@@ -361,7 +361,7 @@ Re-parents terminal to/from `DetachedTerminalToolWindow` via `SetParent()`. Auto
 
 ## Native Mode — Agent Sessions (Agents/, NativeMode.cs, UI/ChatTranscriptView.xaml, v82.0)
 
-Opt-in alternative to the embedded terminal: the panel renders the conversation as a WPF chat and talks to the CLI over its headless JSON protocol instead of screen-scraping a console. Gated by `_settings.UseNativeMode` (single global bool, default false, Settings → Terminal tab); changing it restarts the agent like a terminal-type change.
+Alternative to the embedded terminal: the panel renders the conversation as a WPF chat and talks to the CLI over its headless JSON protocol instead of screen-scraping a console. Gated by `_settings.UseNativeMode` (single global bool, default true since v179.0 — new installs with no settings file land in native mode; upgrades keep whatever was already saved, since `LoadSettings` only applies the class default when no settings file exists. Settings → Terminal tab); changing it restarts the agent like a terminal-type change.
 
 - Why a protocol and not a hidden `cmd.exe`: plain stdio redirection does *not* work — these CLIs are TUI apps that detect the missing TTY and either refuse interactive mode or emit raw ANSI. Every supported provider instead exposes a documented headless mode, which is what the adapters drive.
 - `Agents/` has no WPF and no VS SDK reference — deliberate, so the parsers are unit-testable with no process and no running Visual Studio (`Tests/AgentStreamParsingTests.cs`).

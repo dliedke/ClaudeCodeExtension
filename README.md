@@ -5,7 +5,7 @@ Please also check [Claude Code Studio from wluisdev](https://marketplace.visuals
 Native or terminal inside Visual Studio for **Claude Code, OpenAI Codex, Cursor Agent, Open Code, Devin, PI, Google Antigravity, and Reasonix** — with multi-line prompts, file attachments, and an integrated diff viewer.
 
 <center>
-<img src="https://i.ibb.co/mFcsh3nt/BFB9-B830-8122-4091-9-C8-B-869959-B1-B391.png" alt="Claude Code Extension Screenshot" width=350 height=450 />
+<img src="https://raw.githubusercontent.com/dliedke/ClaudeCodeExtension/master/docs/images/extension-screenshot.png" alt="Claude Code Extension Screenshot" width=900 />
 </center>
 
 Enjoying the extension? [Buy me a coffee](https://www.buymeacoffee.com/dliedke) — every cup helps keep it free. Bug reports, suggestions, and pull requests are welcome on [GitHub](https://github.com/dliedke/ClaudeCodeExtension).
@@ -15,7 +15,7 @@ Enjoying the extension? [Buy me a coffee](https://www.buymeacoffee.com/dliedke) 
 ## Features
 
 - **Embedded AI terminal** — Run any supported AI coding agent inside a Visual Studio tool window. Auto-detects the solution directory; restarts when you switch solutions. Optionally use Windows Terminal instead of Command Prompt for better emoji/Unicode rendering.
-- **Native mode (optional)** — Show the conversation as a chat in its own document tab instead of an embedded terminal: answers arrive as formatted text, file edits open into a colored diff, and each turn ends with how long it took and what it cost. The tab has its own message box with image paste and file attachments, plus agent, model, effort and permission selectors you can change mid-conversation. Opt-in via *⚙ → Settings... → Terminal*; Reasonix and any agent that can't run this way keep using the terminal.
+- **Native mode (default for new installs)** — Show the conversation as a chat in its own document tab instead of an embedded terminal: answers arrive as formatted text, file edits open into a colored diff, and each turn ends with how long it took and what it cost. The tab has its own message box with image paste and file attachments, plus agent, model, effort and permission selectors you can change mid-conversation. Turn off via *⚙ → Settings... → Terminal* to use the embedded terminal instead; Reasonix and any agent that can't run this way keep using the terminal.
 - **Multi-line prompts** — Press **Enter** to send, **Shift+Enter** or **Ctrl+Enter** for a new line. Toggle "Send with Enter" off in the ⚙ menu to make Enter insert a newline and reveal a Send button.
 - **File and image attachments** — Paste images with **Ctrl+V**, drag & drop files onto the prompt area, or use the 📎 button. Any file type is accepted (no limit). Text content like Excel cells pastes as text, not as an image.
 - **Editor selection → prompt** — Click 📋 or right-click selected code → *Send Selection to Claude Code* to insert a formatted snippet (file path + line numbers + syntax-highlighted code fence) into the prompt.
@@ -35,7 +35,7 @@ Enjoying the extension? [Buy me a coffee](https://www.buymeacoffee.com/dliedke) 
 
 ## Native Mode
 
-Currently in beta — turn it on via *⚙ → Settings... → Terminal → Use native mode*.
+The default chat experience for new installs — turn it off via *⚙ → Settings... → Terminal → Use native mode* to go back to the embedded terminal.
 
 <!-- Images are served from this repository's raw URLs, which the VS Marketplace can also reach — the
      overview is rendered from this file with no repo context, so relative paths would not resolve there.
@@ -137,6 +137,9 @@ https://github.com/anthropics/claude-code/issues/41501
 Use native mode to avoid this issue.
 
 ## Version History
+
+### Version 179.0
+Native mode is now the default chat experience for new installs, replacing the embedded terminal as the first thing you see; switch back to the terminal any time via *⚙ → Settings... → Terminal → Use native mode*. Existing installs keep whatever they already had configured.
 
 ### Version 178.0
 Switching Claude's model or effort level in native mode now applies instantly on the running conversation instead of restarting it, so replies keep going and previous cost savings from prompt caching are no longer thrown away. If a live switch isn't possible, the previous restart behavior is still used as a fallback.

@@ -460,9 +460,10 @@ namespace ClaudeCodeVS
         /// If true, the panel shows a native chat transcript instead of the embedded terminal, driven
         /// by the agent CLI's headless JSON protocol. One global switch rather than one per provider:
         /// providers with no structured channel simply keep using the terminal.
-        /// Off by default — the embedded terminal stays the standard experience.
+        /// On by default (since v179.0) — native chat is now the standard first-run experience;
+        /// existing users keep whatever they already had saved in their settings file.
         /// </summary>
-        public bool UseNativeMode { get; set; } = false;
+        public bool UseNativeMode { get; set; } = true;
 
         /// <summary>
         /// If true, the panel's prompt box auto-collapses while native mode is on and the chat is
