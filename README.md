@@ -138,6 +138,9 @@ Use native mode to avoid this issue.
 
 ## Version History
 
+### Version 180.0
+Security fix for Antigravity in native mode: text in a prompt, such as build errors or exception messages from the opened code, can no longer be read as extra command-line options that turn off permission prompts.
+
 ### Version 179.0
 Native mode is now the default chat experience for new installs, replacing the embedded terminal as the first thing you see; switch back to the terminal any time via *⚙ → Settings... → Terminal → Use native mode*. Existing installs keep whatever they already had configured.
 

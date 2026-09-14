@@ -327,9 +327,11 @@ namespace ClaudeCodeVS.Agents
             // agy ignores the process's working directory for its own notion of "workspace" — without
             // --add-dir it reports no active workspace and offers to scaffold a project under its own
             // scratch folder instead of seeing the one VS opened.
+            bool viaCmd = IsBatchScript(options.ExecutablePath);
+
             if (!string.IsNullOrWhiteSpace(workingDirectory))
             {
-                arguments.Append("--add-dir ").Append(Quote(workingDirectory)).Append(' ');
+                arguments.Append("--add-dir ").Append(QuoteForWindowsArgument(workingDirectory)).Append(' ');
             }
 
             if (!string.IsNullOrWhiteSpace(options.Model))
@@ -347,14 +349,36 @@ namespace ClaudeCodeVS.Agents
                 arguments.Append(options.ExtraArguments.Trim()).Append(' ');
             }
 
-            arguments.Append("--print ").Append(Quote(prompt));
+            // The prompt is the one piece of this command line that is not under the user's control — build
+            // errors and exception messages from the opened code are sent through here too — so it must stay
+            // a single argument no matter what it contains. A naive "\"" escape was not enough: a backslash
+            // before a quote closed the argument early and let the rest be read as extra CLI flags.
+            arguments.Append("--print ").Append(QuoteForWindowsArgument(viaCmd ? SanitizeForCmd(prompt) : prompt));
 
-            if (IsBatchScript(options.ExecutablePath))
+            if (viaCmd)
             {
-                return "/c " + Quote(options.ExecutablePath + " " + arguments);
+                // cmd /c strips the first and last quote, leaving: "exe" args. Nothing inside may contain
+                // a quote of its own (see SanitizeForCmd), or cmd's quote state flips and & | < > run.
+                return "/c \"" + QuoteForWindowsArgument(options.ExecutablePath) + " " + arguments + "\"";
             }
 
             return arguments.ToString();
+        }
+
+        /// <summary>
+        /// cmd.exe has no escape for a double quote inside a quoted argument and ends the command at a line
+        /// break, so for a .cmd/.bat shim those are replaced rather than escaped. Only this path loses them;
+        /// a real executable gets the prompt verbatim.
+        /// </summary>
+        internal static string SanitizeForCmd(string value)
+        {
+            if (string.IsNullOrEmpty(value)) return string.Empty;
+
+            return value
+                .Replace("\r\n", " ")
+                .Replace('\r', ' ')
+                .Replace('\n', ' ')
+                .Replace('"', '\'');
         }
 
         private static bool IsBatchScript(string path)
@@ -365,9 +389,41 @@ namespace ClaudeCodeVS.Agents
                 || path.EndsWith(".bat", StringComparison.OrdinalIgnoreCase);
         }
 
-        private static string Quote(string value)
+        /// <summary>
+        /// Quotes for the Windows command-line parser: backslashes immediately before a quote (embedded or
+        /// closing) have to be doubled, otherwise they escape it and the argument ends in the wrong place.
+        /// </summary>
+        internal static string QuoteForWindowsArgument(string value)
         {
-            return "\"" + (value ?? string.Empty).Replace("\"", "\\\"") + "\"";
+            if (value == null) value = string.Empty;
+
+            var sb = new StringBuilder("\"");
+            int backslashes = 0;
+
+            foreach (char c in value)
+            {
+                if (c == '\\')
+                {
+                    backslashes++;
+                    continue;
+                }
+
+                if (c == '"')
+                {
+                    sb.Append('\\', (backslashes * 2) + 1);
+                    backslashes = 0;
+                    sb.Append('"');
+                    continue;
+                }
+
+                sb.Append('\\', backslashes);
+                backslashes = 0;
+                sb.Append(c);
+            }
+
+            sb.Append('\\', backslashes * 2);
+            sb.Append('"');
+            return sb.ToString();
         }
     }
 }
