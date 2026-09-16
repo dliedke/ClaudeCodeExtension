@@ -138,6 +138,12 @@ Use native mode to avoid this issue.
 
 ## Version History
 
+### Version 181.0
+- Native mode: fixed replies sometimes not appearing — the chat showed "Done in X seconds" with no answer while the terminal worked.
+- Native mode: if Claude Code is not installed, you are signed out, or the agent stops unexpectedly, the chat now says so and tells you how to fix it, instead of staying silent or falling back to the terminal.
+- Native mode: links in status notices and error messages, such as the "what's new" changelog link, can now be clicked.
+- Terminal mode: the Command Prompt terminal now always has a scrollbar and full scrollback, even when the Windows console defaults leave no scrollback.
+
 ### Version 180.0
 Security fix for Antigravity in native mode: text in a prompt, such as build errors or exception messages from the opened code, can no longer be read as extra command-line options that turn off permission prompts.
 

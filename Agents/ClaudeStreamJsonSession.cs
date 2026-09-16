@@ -13,6 +13,7 @@
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.ComponentModel;
 using System.Diagnostics;
 using System.Threading;
 using System.Threading.Tasks;
@@ -72,6 +73,19 @@ namespace ClaudeCodeVS.Agents
         private volatile bool _sessionIdConfirmed;
         private volatile bool _disposed;
         private int _busy;
+
+        // Last stderr line of the current process, quoted in the "exited unexpectedly" error so the
+        // user sees why (bad flag, missing CLI under WSL) instead of only an exit code.
+        private volatile string _lastErrorLine;
+
+        /// <summary>Shown when the CLI cannot be launched because it is not installed (or the custom path is wrong).</summary>
+        internal const string CliNotFoundMessage =
+            "Claude Code was not found on this machine. Install it (https://code.claude.com/docs/en/setup) " +
+            "or point Settings → CLI Paths at claude.exe, then send your message again.";
+
+        internal const string WslCliNotFoundMessage =
+            "Claude Code was not found in WSL. Install it inside your distro (https://code.claude.com/docs/en/setup), " +
+            "then send your message again.";
 
         public ClaudeStreamJsonSession(ClaudeSessionOptions options)
         {
@@ -134,6 +148,13 @@ namespace ClaudeCodeVS.Agents
                 }
 
                 await LaunchAsync(cancellationToken).ConfigureAwait(false);
+            }
+            catch (AgentCliNotFoundException ex)
+            {
+                // Not thrown: failing the start makes the panel fall back to the embedded terminal,
+                // where the user only sees "'claude' is not recognized". The chat opens instead and says
+                // what is missing; the next prompt retries the launch, so installing the CLI is enough.
+                Raise(AgentEvent.SessionError(ex.Message));
             }
             finally
             {
@@ -388,9 +409,19 @@ namespace ClaudeCodeVS.Agents
             host.Exited += OnHostExited;
 
             _host = host;
+            _lastErrorLine = null;
 
             Debug.WriteLine($"ClaudeStreamJsonSession: launching {hostOptions.FileName} {hostOptions.Arguments}");
-            await host.StartAsync(cancellationToken).ConfigureAwait(false);
+            try
+            {
+                await host.StartAsync(cancellationToken).ConfigureAwait(false);
+            }
+            catch (Win32Exception ex) when (ex.NativeErrorCode == 2 || ex.NativeErrorCode == 3)
+            {
+                // ERROR_FILE_NOT_FOUND / ERROR_PATH_NOT_FOUND: the executable does not exist.
+                DisposeHost();
+                throw new AgentCliNotFoundException(_options.UseWsl ? WslCliNotFoundMessage : CliNotFoundMessage, ex);
+            }
         }
 
         /// <summary>
@@ -519,6 +550,11 @@ namespace ClaudeCodeVS.Agents
             // These CLIs use stderr for progress and deprecation notices, so this is diagnostics only —
             // promoting it to a user-visible error would cry wolf on every launch.
             Debug.WriteLine($"ClaudeStreamJsonSession [stderr]: {line}");
+
+            if (!string.IsNullOrWhiteSpace(line))
+            {
+                _lastErrorLine = line.Trim();
+            }
         }
 
         private void OnHostExited(object sender, int exitCode)
@@ -566,9 +602,29 @@ namespace ClaudeCodeVS.Agents
 
             if (exitCode != 0)
             {
-                Raise(AgentEvent.SessionError(
-                    $"The agent process exited unexpectedly (code {exitCode}). Restart the agent to continue."));
+                Raise(AgentEvent.SessionError(DescribeUnexpectedExit(exitCode, _lastErrorLine, _options.UseWsl)));
             }
+        }
+
+        /// <summary>
+        /// Error text for a process that died on its own. Under WSL a missing CLI is not a launch failure
+        /// — <c>wsl.exe</c> starts fine and bash exits 127 with "claude: command not found" — so that case
+        /// gets the install message; anything else quotes the CLI's last stderr line when there is one.
+        /// </summary>
+        internal static string DescribeUnexpectedExit(int exitCode, string lastErrorLine, bool isWsl)
+        {
+            bool notFound = exitCode == 127 ||
+                (!string.IsNullOrEmpty(lastErrorLine) &&
+                 (lastErrorLine.IndexOf("command not found", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                  lastErrorLine.IndexOf("is not recognized", StringComparison.OrdinalIgnoreCase) >= 0));
+
+            if (notFound)
+            {
+                return isWsl ? WslCliNotFoundMessage : CliNotFoundMessage;
+            }
+
+            string detail = string.IsNullOrWhiteSpace(lastErrorLine) ? string.Empty : $": {lastErrorLine}";
+            return $"The agent process exited unexpectedly (code {exitCode}){detail}. Restart the agent to continue.";
         }
 
         /// <summary>

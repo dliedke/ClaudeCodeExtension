@@ -128,6 +128,108 @@ namespace ClaudeCodeExtension.Tests
         }
 
         [TestMethod]
+        public void ClaudeParser_ASyntheticErrorMessageAfterAStreamedOneIsStillShown()
+        {
+            // Measured shape: an API error arrives as a complete assistant message with its own id and
+            // no stream_event of its own. An earlier streamed message must not cause it to be skipped.
+            var parser = new ClaudeStreamParser(expectDeltas: true);
+
+            List<AgentEvent> events = ParseAll(parser,
+                "{\"type\":\"stream_event\",\"event\":{\"type\":\"message_start\",\"message\":{\"id\":\"msg_1\"}}}",
+                "{\"type\":\"stream_event\",\"event\":{\"type\":\"content_block_delta\"," +
+                "\"delta\":{\"type\":\"text_delta\",\"text\":\"reading\"}}}",
+                "{\"type\":\"assistant\",\"message\":{\"id\":\"msg_1\",\"content\":[{\"type\":\"text\",\"text\":\"reading\"}]}}",
+                "{\"type\":\"assistant\",\"message\":{\"id\":\"0cd8dfed\",\"model\":\"<synthetic>\"," +
+                "\"content\":[{\"type\":\"text\",\"text\":\"API Error: overloaded\"}]}}");
+
+            List<string> texts = events.Where(e => e.Kind == AgentEventKind.AssistantText).Select(e => e.Text).ToList();
+            CollectionAssert.AreEqual(new[] { "reading", "API Error: overloaded" }, texts);
+        }
+
+        [TestMethod]
+        public void ClaudeParser_StreamedTextInAnEarlierTurnDoesNotHideTheNextTurnsCompleteMessage()
+        {
+            var parser = new ClaudeStreamParser(expectDeltas: true);
+
+            ParseAll(parser,
+                "{\"type\":\"stream_event\",\"event\":{\"type\":\"content_block_delta\"," +
+                "\"delta\":{\"type\":\"text_delta\",\"text\":\"first\"}}}",
+                "{\"type\":\"result\",\"subtype\":\"success\",\"result\":\"first\",\"usage\":{}}");
+
+            List<AgentEvent> events = ParseAll(parser,
+                "{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"text\",\"text\":\"You've hit your limit\"}]}}");
+
+            Assert.AreEqual("You've hit your limit", events.Single(e => e.Kind == AgentEventKind.AssistantText).Text);
+        }
+
+        [TestMethod]
+        public void ClaudeParser_ResultTextFillsInWhenTheTurnShowedNoAnswer()
+        {
+            var parser = new ClaudeStreamParser(expectDeltas: true);
+
+            List<AgentEvent> events = ParseAll(parser,
+                "{\"type\":\"result\",\"subtype\":\"success\",\"result\":\"PONG\",\"usage\":{}}");
+
+            Assert.AreEqual(2, events.Count);
+            Assert.AreEqual(AgentEventKind.AssistantText, events[0].Kind);
+            Assert.AreEqual("PONG", events[0].Text);
+            Assert.AreEqual(AgentEventKind.TurnCompleted, events[1].Kind);
+        }
+
+        [TestMethod]
+        public void ClaudeParser_ResultTextIsNotRepeatedWhenTheAnswerAlreadyStreamed()
+        {
+            var parser = new ClaudeStreamParser(expectDeltas: true);
+
+            List<AgentEvent> events = ParseAll(parser,
+                "{\"type\":\"stream_event\",\"event\":{\"type\":\"content_block_delta\"," +
+                "\"delta\":{\"type\":\"text_delta\",\"text\":\"PONG\"}}}",
+                "{\"type\":\"result\",\"subtype\":\"success\",\"result\":\"PONG\",\"usage\":{}}");
+
+            Assert.AreEqual(1, events.Count(e => e.Kind == AgentEventKind.AssistantText));
+        }
+
+        [TestMethod]
+        public void ClaudeParser_AnErrorResultWithNothingShownBecomesASessionError()
+        {
+            // Measured: "Not logged in" ends as subtype success with is_error true.
+            var parser = new ClaudeStreamParser(expectDeltas: true);
+
+            List<AgentEvent> events = ParseAll(parser,
+                "{\"type\":\"result\",\"subtype\":\"success\",\"is_error\":true," +
+                "\"terminal_reason\":\"api_error\",\"result\":\"Not logged in · Please run /login\",\"usage\":{}}");
+
+            Assert.AreEqual(AgentEventKind.SessionError, events[0].Kind);
+            Assert.AreEqual("Not logged in · Please run /login", events[0].Text);
+            Assert.AreEqual(AgentEventKind.TurnCompleted, events[1].Kind);
+        }
+
+        [TestMethod]
+        public void ClaudeParser_NotLoggedInBecomesOneErrorWithTheSignInHint()
+        {
+            var parser = new ClaudeStreamParser(expectDeltas: true);
+
+            List<AgentEvent> events = ParseAll(parser,
+                "{\"type\":\"assistant\",\"message\":{\"id\":\"msg_x\",\"model\":\"<synthetic>\",\"content\":[" +
+                "{\"type\":\"text\",\"text\":\"Not logged in · Please run /login\"}]}," +
+                "\"error\":\"authentication_failed\",\"is_api_error_message\":true}",
+                "{\"type\":\"result\",\"subtype\":\"success\",\"is_error\":true," +
+                "\"terminal_reason\":\"api_error\",\"result\":\"Not logged in · Please run /login\",\"usage\":{}}");
+
+            Assert.AreEqual(1, events.Count(e => e.Kind == AgentEventKind.SessionError));
+            Assert.AreEqual(0, events.Count(e => e.Kind == AgentEventKind.AssistantText));
+            Assert.AreEqual("Not logged in · Please run /login" + ClaudeStreamParser.AuthenticationHint, events[0].Text);
+        }
+
+        [TestMethod]
+        public void ClaudeStreamJsonSession_ExitCode127IsReportedAsCliNotFound()
+        {
+            Assert.AreEqual(ClaudeStreamJsonSession.WslCliNotFoundMessage,
+                ClaudeStreamJsonSession.DescribeUnexpectedExit(127, "bash: line 1: claude: command not found", isWsl: true));
+            StringAssert.Contains(ClaudeStreamJsonSession.DescribeUnexpectedExit(1, "boom", isWsl: false), "(code 1): boom");
+        }
+
+        [TestMethod]
         public void ClaudeParser_ToolUseAlwaysComesFromTheCompleteMessage()
         {
             var parser = new ClaudeStreamParser(expectDeltas: true);

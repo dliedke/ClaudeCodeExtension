@@ -96,6 +96,58 @@ namespace ClaudeCodeVS.UI
             return document;
         }
 
+        /// <summary>
+        /// Plain text with only its http(s) URLs turned into links — for status notices and errors, whose
+        /// text is not markdown: an underscore in a path or a "#" in a CLI message must stay literal.
+        /// </summary>
+        public static FlowDocument BuildPlain(string text, MarkdownStyleOptions options)
+        {
+            if (options == null) options = new MarkdownStyleOptions();
+
+            var document = new FlowDocument
+            {
+                PagePadding = new Thickness(0),
+                FontSize = options.BaseFontSize
+            };
+
+            var paragraph = new Paragraph { Margin = new Thickness(0) };
+            string[] lines = (text ?? string.Empty).Replace("\r\n", "\n").Replace('\r', '\n').Split('\n');
+            for (int l = 0; l < lines.Length; l++)
+            {
+                if (l > 0)
+                {
+                    paragraph.Inlines.Add(new LineBreak());
+                }
+
+                string line = lines[l];
+                int start = 0;
+                foreach (Match match in AutoUrlPattern.Matches(line))
+                {
+                    if (match.Index < start)
+                    {
+                        continue;
+                    }
+
+                    string url = TrimTrailingPunctuation(match.Value);
+                    if (match.Index > start)
+                    {
+                        paragraph.Inlines.Add(new Run(line.Substring(start, match.Index - start)));
+                    }
+
+                    paragraph.Inlines.Add(BuildLink(url, url, options));
+                    start = match.Index + url.Length;
+                }
+
+                if (start < line.Length)
+                {
+                    paragraph.Inlines.Add(new Run(line.Substring(start)));
+                }
+            }
+
+            document.Blocks.Add(paragraph);
+            return document;
+        }
+
         #region Block level
 
         private static IEnumerable<Block> BuildBlocks(string markdown, MarkdownStyleOptions options)
@@ -728,6 +780,11 @@ namespace ClaudeCodeVS.UI
             "Markdown", typeof(string), typeof(MarkdownBlock),
             new PropertyMetadata(string.Empty, OnVisualInputChanged));
 
+        /// <summary>When true the text is shown as-is with only URLs linked (notices, errors), not parsed as markdown.</summary>
+        public static readonly DependencyProperty IsPlainTextProperty = DependencyProperty.Register(
+            "IsPlainText", typeof(bool), typeof(MarkdownBlock),
+            new PropertyMetadata(false, OnVisualInputChanged));
+
         public static readonly DependencyProperty CodeBackgroundProperty = DependencyProperty.Register(
             "CodeBackground", typeof(Brush), typeof(MarkdownBlock),
             new PropertyMetadata(Brushes.Transparent, OnVisualInputChanged));
@@ -840,6 +897,12 @@ namespace ClaudeCodeVS.UI
             set { SetValue(MarkdownProperty, value); }
         }
 
+        public bool IsPlainText
+        {
+            get { return (bool)GetValue(IsPlainTextProperty); }
+            set { SetValue(IsPlainTextProperty, value); }
+        }
+
         public Brush CodeBackground
         {
             get { return (Brush)GetValue(CodeBackgroundProperty); }
@@ -885,7 +948,7 @@ namespace ClaudeCodeVS.UI
 
         private void Rebuild()
         {
-            Document = MarkdownFlowRenderer.Build(Markdown, new MarkdownStyleOptions
+            var options = new MarkdownStyleOptions
             {
                 BaseFontSize = FontSize,
                 CodeFontFamily = CodeFontFamily,
@@ -893,7 +956,11 @@ namespace ClaudeCodeVS.UI
                 CodeBorderBrush = CodeBorderBrush,
                 AccentBrush = AccentBrush,
                 MutedBrush = Foreground
-            });
+            };
+
+            Document = IsPlainText
+                ? MarkdownFlowRenderer.BuildPlain(Markdown, options)
+                : MarkdownFlowRenderer.Build(Markdown, options);
         }
     }
 }

@@ -77,5 +77,19 @@ namespace ClaudeCodeExtension.Tests
             Assert.AreEqual(6, ClaudeCodeControl.LegacyZoomDeltaToConsoleFontPt(-100));
             Assert.AreEqual(36, ClaudeCodeControl.LegacyZoomDeltaToConsoleFontPt(100));
         }
+
+        /// <summary>
+        /// A console default whose buffer is no taller than the window leaves the embedded terminal with
+        /// no scrollbar; the launch raises the height and keeps the width, and leaves a tall one alone.
+        /// </summary>
+        [TestMethod]
+        public void EnsureConsoleScrollback_RaisesOnlyAShortBufferHeight()
+        {
+            Assert.AreEqual((9001 << 16) | 120, ClaudeCodeControl.EnsureConsoleScrollback((30 << 16) | 120));
+            Assert.AreEqual((9001 << 16) | 200, ClaudeCodeControl.EnsureConsoleScrollback((50 << 16) | 200));
+            Assert.AreEqual((9001 << 16) | 120, ClaudeCodeControl.EnsureConsoleScrollback(null));
+            Assert.IsNull(ClaudeCodeControl.EnsureConsoleScrollback(0x23290078));
+            Assert.IsNull(ClaudeCodeControl.EnsureConsoleScrollback((32766 << 16) | 120));
+        }
     }
 }

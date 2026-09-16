@@ -2023,6 +2023,15 @@ namespace ClaudeCodeVS
         private object _savedConsoleCodePage;
 
         /// <summary>
+        /// The conhost.exe subkey's own ScreenBufferSize before we raised the scrollback height, restored
+        /// alongside CodePage. Null when the subkey had no such value.
+        /// </summary>
+        private object _savedConsoleScreenBufferSize;
+
+        /// <summary>Scrollback lines conhost gets when the user's console default is shorter (Windows' own default).</summary>
+        internal const int EmbeddedConsoleScrollbackLines = 9001;
+
+        /// <summary>
         /// Whether the conhost.exe-specific subkey existed before we touched it.
         /// If false, we created it ourselves and will delete it entirely on restore.
         /// </summary>
@@ -2117,11 +2126,31 @@ namespace ClaudeCodeVS
                     // and the restore would never delete the key again.
                     _cmdConhostSubkeyExisted = existing != null && existing.GetValueNames().Length > 0;
                     _savedConsoleCodePage = existing?.GetValue("CodePage");
+                    _savedConsoleScreenBufferSize = existing?.GetValue("ScreenBufferSize");
                 }
+
+                // Conhost draws its vertical scrollbar only when the screen buffer is taller than the
+                // window. A console default whose buffer height equals its window height (left behind by
+                // some tools and older console tweaks) gives the embedded terminal no scrollbar and no
+                // scrollback at all — reported on the marketplace Q&A. Raise just the height, per launch.
+                object bufferSource = _savedConsoleScreenBufferSize;
+                if (bufferSource == null)
+                {
+                    using (var consoleKey = Microsoft.Win32.Registry.CurrentUser.OpenSubKey("Console", writable: false))
+                    {
+                        bufferSource = consoleKey?.GetValue("ScreenBufferSize");
+                    }
+                }
+
+                int? screenBufferSize = EnsureConsoleScrollback(bufferSource as int?);
 
                 using (var cmdKey = Microsoft.Win32.Registry.CurrentUser.CreateSubKey(ConsoleConhostSubkeyPath))
                 {
                     cmdKey?.SetValue("CodePage", 65001, Microsoft.Win32.RegistryValueKind.DWord);
+                    if (screenBufferSize.HasValue)
+                    {
+                        cmdKey?.SetValue("ScreenBufferSize", screenBufferSize.Value, Microsoft.Win32.RegistryValueKind.DWord);
+                    }
                 }
             }
             catch (Exception ex)
@@ -2177,6 +2206,11 @@ namespace ClaudeCodeVS
                                 cmdKey.SetValue("CodePage", _savedConsoleCodePage, Microsoft.Win32.RegistryValueKind.DWord);
                             else
                                 cmdKey.DeleteValue("CodePage", throwOnMissingValue: false);
+
+                            if (_savedConsoleScreenBufferSize != null)
+                                cmdKey.SetValue("ScreenBufferSize", _savedConsoleScreenBufferSize, Microsoft.Win32.RegistryValueKind.DWord);
+                            else
+                                cmdKey.DeleteValue("ScreenBufferSize", throwOnMissingValue: false);
                         }
                     }
                 }
@@ -4037,6 +4071,29 @@ namespace ClaudeCodeVS
             {
                 Debug.WriteLine($"PersistConhostZoomFontSize error: {ex.Message}");
             }
+        }
+
+        /// <summary>
+        /// The <c>ScreenBufferSize</c> DWORD (height &lt;&lt; 16 | width) to launch conhost with, or null
+        /// when the existing value already has at least <see cref="EmbeddedConsoleScrollbackLines"/>
+        /// lines. Only the height changes; the width is kept (120 when there is no value to keep).
+        /// </summary>
+        internal static int? EnsureConsoleScrollback(int? screenBufferSize)
+        {
+            int height = screenBufferSize.HasValue ? (screenBufferSize.Value >> 16) & 0xFFFF : 0;
+            int width = screenBufferSize.HasValue ? screenBufferSize.Value & 0xFFFF : 0;
+
+            if (screenBufferSize.HasValue && height >= EmbeddedConsoleScrollbackLines)
+            {
+                return null;
+            }
+
+            if (width <= 0)
+            {
+                width = 120;
+            }
+
+            return (EmbeddedConsoleScrollbackLines << 16) | width;
         }
 
         /// <summary>

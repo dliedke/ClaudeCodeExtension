@@ -41,10 +41,25 @@ namespace ClaudeCodeVS.Agents
         private readonly bool _expectDeltas;
         private bool _sawDeltas;
 
+        // Ids of the API messages whose content arrived as deltas (from message_start). The complete
+        // assistant message is only skipped for those: the CLI also emits synthetic assistant messages
+        // with no stream at all — "API Error: …", usage-limit and auth notices — and dropping their
+        // text just because an earlier message streamed left the turn ending on "Done in 2s" with no
+        // answer in the transcript.
+        private readonly HashSet<string> _streamedMessageIds = new HashSet<string>(StringComparer.Ordinal);
+
+        // Whether any assistant text reached the UI this turn, so the result can fill in the answer
+        // (or surface an is_error message) when nothing else did.
+        private bool _shownTextThisTurn;
+
         /// <param name="expectDeltas">
         /// True when the CLI was launched with <c>--include-partial-messages</c>. When false, text and
         /// thinking come from the complete assistant messages instead.
         /// </param>
+        /// <summary>Appended to a sign-in failure: native mode has no console to type /login into.</summary>
+        internal const string AuthenticationHint =
+            " — sign in with ⚙ → Change Account, or run \"claude auth login\" in a terminal, then send your message again.";
+
         public ClaudeStreamParser(bool expectDeltas)
         {
             _expectDeltas = expectDeltas;
@@ -149,7 +164,19 @@ namespace ClaudeCodeVS.Agents
                 return Empty;
             }
 
-            if ((string)inner["type"] != "content_block_delta")
+            string innerType = (string)inner["type"];
+
+            if (innerType == "message_start")
+            {
+                string messageId = (string)inner["message"]?["id"];
+                if (!string.IsNullOrEmpty(messageId))
+                {
+                    _streamedMessageIds.Add(messageId);
+                }
+                return Empty;
+            }
+
+            if (innerType != "content_block_delta")
             {
                 return Empty;
             }
@@ -164,7 +191,12 @@ namespace ClaudeCodeVS.Agents
             {
                 case "text_delta":
                     _sawDeltas = true;
-                    return One(AgentEvent.AssistantText((string)delta["text"] ?? string.Empty));
+                    string text = (string)delta["text"] ?? string.Empty;
+                    if (text.Length > 0)
+                    {
+                        _shownTextThisTurn = true;
+                    }
+                    return One(AgentEvent.AssistantText(text));
 
                 case "thinking_delta":
                     _sawDeltas = true;
@@ -185,10 +217,38 @@ namespace ClaudeCodeVS.Agents
                 return Empty;
             }
 
+            // Measured: "Not logged in", a failed API call or an exhausted plan arrives as a synthetic
+            // assistant message flagged with "error" (e.g. authentication_failed) — never streamed. It
+            // is a failure, not an answer, so it goes to the transcript as an error with the way out.
+            string apiError = root["error"]?.Type == JTokenType.String ? (string)root["error"] : null;
+            if (!string.IsNullOrEmpty(apiError) || (bool?)root["is_api_error_message"] == true)
+            {
+                var errorText = new List<string>();
+                foreach (JToken block in content)
+                {
+                    if ((string)block["type"] == "text" && !string.IsNullOrWhiteSpace((string)block["text"]))
+                    {
+                        errorText.Add(((string)block["text"]).Trim());
+                    }
+                }
+
+                string message = errorText.Count > 0 ? string.Join("\n", errorText) : "The agent reported an error: " + apiError;
+                if (apiError == "authentication_failed")
+                {
+                    message += AuthenticationHint;
+                }
+
+                _shownTextThisTurn = true;
+                return One(AgentEvent.SessionError(message));
+            }
+
             // Text and thinking are skipped once deltas have actually arrived, not merely because they
             // were requested: if --include-partial-messages is silently ignored by an older CLI, this
-            // falls back to the complete messages instead of showing nothing at all.
-            bool skipStreamedContent = _expectDeltas && _sawDeltas;
+            // falls back to the complete messages instead of showing nothing at all. When the message
+            // carries an id, only a message that was itself streamed is skipped (see _streamedMessageIds).
+            string id = (string)root["message"]?["id"];
+            bool skipStreamedContent = _expectDeltas && _sawDeltas &&
+                (string.IsNullOrEmpty(id) || _streamedMessageIds.Count == 0 || _streamedMessageIds.Contains(id));
 
             var events = new List<AgentEvent>();
 
@@ -199,7 +259,12 @@ namespace ClaudeCodeVS.Agents
                     case "text":
                         if (!skipStreamedContent)
                         {
-                            events.Add(AgentEvent.AssistantText((string)block["text"] ?? string.Empty));
+                            string text = (string)block["text"] ?? string.Empty;
+                            if (text.Length > 0)
+                            {
+                                _shownTextThisTurn = true;
+                            }
+                            events.Add(AgentEvent.AssistantText(text));
                         }
                         break;
 
@@ -335,16 +400,31 @@ namespace ClaudeCodeVS.Agents
             }
 
             var events = new List<AgentEvent>();
+            string resultText = root["result"]?.Type == JTokenType.String ? (string)root["result"] : null;
+            bool isError = (bool?)root["is_error"] ?? false;
 
             // A hard failure (auth, quota, bad flag) has no terminal_reason and carries the message in
             // "result"; surface it before closing the turn so the transcript explains itself.
             if (subtype != "success" && !wasInterrupted)
             {
-                string message = (string)root["result"] ?? (string)root["error"] ?? subtype;
+                string message = resultText ?? (string)root["error"] ?? subtype;
                 events.Add(AgentEvent.SessionError(string.IsNullOrWhiteSpace(message)
                     ? "The agent ended the turn with an error."
                     : message));
             }
+            else if (!wasInterrupted && !_shownTextThisTurn && !string.IsNullOrWhiteSpace(resultText))
+            {
+                // Measured: an API error or "Not logged in" ends as subtype "success" with is_error
+                // true, and its only other copy is a synthetic assistant message. If no text made it to
+                // the transcript this turn, the result is the answer (or the error) — never let a turn
+                // end on a bare "Done in" footer.
+                events.Add(isError ? AgentEvent.SessionError(resultText) : AgentEvent.AssistantText(resultText));
+                _shownTextThisTurn = true;
+            }
+
+            _shownTextThisTurn = false;
+            _sawDeltas = false;
+            _streamedMessageIds.Clear();
 
             events.Add(AgentEvent.TurnCompleted(usage, denials, wasInterrupted));
 

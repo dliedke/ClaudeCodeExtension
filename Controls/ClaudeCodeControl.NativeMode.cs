@@ -1469,7 +1469,9 @@ namespace ClaudeCodeVS
             catch (Exception ex)
             {
                 Debug.WriteLine($"Native mode: send failed: {ex}");
-                AddNativeMessageToSession(sessionState, ChatMessageKind.Error, $"The prompt could not be delivered: {ex.Message}");
+                AddNativeMessageToSession(sessionState, ChatMessageKind.Error, DescribeNativeSendFailure(ex));
+                sessionState.TurnInFlight = false;
+                sessionState.ChatTranscript.EndActivity(string.Empty);
                 sessionState.ChatTranscript.SetStatus(string.Empty);
                 sessionState.ChatTranscript.SetBusy(false);
             }
@@ -1515,10 +1517,23 @@ namespace ClaudeCodeVS
             catch (Exception ex)
             {
                 Debug.WriteLine($"Native mode: send failed: {ex}");
-                AddNativeMessage(ChatMessageKind.Error, $"The prompt could not be delivered: {ex.Message}");
+                AddNativeMessage(ChatMessageKind.Error, DescribeNativeSendFailure(ex));
+                _nativeTurnInFlight = false;
+                ChatTranscript.EndActivity(string.Empty);
                 ChatTranscript.SetStatus(string.Empty);
                 ChatTranscript.SetBusy(false);
             }
+        }
+
+        /// <summary>
+        /// A missing CLI already carries the whole explanation (what to install, where to set the path);
+        /// anything else gets the generic prefix.
+        /// </summary>
+        private static string DescribeNativeSendFailure(Exception ex)
+        {
+            return ex is AgentCliNotFoundException
+                ? ex.Message
+                : $"The prompt could not be delivered: {ex.Message}";
         }
 
         /// <summary>Longest a side question is given before its process is killed.</summary>

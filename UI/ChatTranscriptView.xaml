@@ -392,11 +392,15 @@
 		<DataTemplate x:Key="ErrorTemplate">
 			<Border Margin="2,6,24,6" Padding="10,8,10,8" CornerRadius="4"
 			        Background="#22E51400" BorderBrush="#88E51400" BorderThickness="1">
-				<StackPanel Orientation="Horizontal">
-					<TextBlock Text="✕" Margin="0,0,8,0" FontWeight="Bold"
+				<!-- DockPanel, not a horizontal StackPanel: that measures at infinite width and a long
+				     message (the install hint) would never wrap. -->
+				<DockPanel>
+					<TextBlock DockPanel.Dock="Left" Text="✕" Margin="0,0,8,0" FontWeight="Bold"
 					           Foreground="{StaticResource ChatErrorBrush}"/>
-					<TextBox Style="{StaticResource SelectableTextStyle}" Text="{Binding Text, Mode=OneWay}"/>
-				</StackPanel>
+					<local:MarkdownBlock Style="{StaticResource MarkdownBodyStyle}" IsPlainText="True"
+					                     Markdown="{Binding Text, Mode=OneWay}"
+					                     LinkClicked="MarkdownBlock_LinkClicked"/>
+				</DockPanel>
 			</Border>
 		</DataTemplate>
 
@@ -405,8 +409,11 @@
 			<Border Margin="2,5,24,5" Padding="9,5,9,5" CornerRadius="4"
 			        HorizontalAlignment="Left"
 			        Background="{DynamicResource {x:Static vsshell:VsBrushes.WindowKey}}">
-				<TextBlock Text="{Binding Text}" TextWrapping="Wrap"
-				           FontSize="{DynamicResource ChatSmallFontSize}" Opacity="0.75"/>
+				<!-- Selectable, with URLs clickable (e.g. the changelog link in the "Claude Code updated" notice) -->
+				<local:MarkdownBlock Style="{StaticResource MarkdownBodyStyle}" IsPlainText="True"
+				                     Markdown="{Binding Text, Mode=OneWay}"
+				                     FontSize="{DynamicResource ChatSmallFontSize}" Opacity="0.75"
+				                     LinkClicked="MarkdownBlock_LinkClicked"/>
 			</Border>
 		</DataTemplate>
 
