@@ -714,6 +714,16 @@ namespace ClaudeCodeVS
         /// <summary>
         /// Whether the terminal is currently detached into a separate tool window tab
         /// </summary>
+        /// <summary>
+        /// Whether the panel toolbar strip sits at the right edge of its row instead of starting
+        /// flush against the scroll arrow. Off by default, which is the layout introduced in v177
+        /// when every button moved into the single scroller. Users who prefer the pre-v177 look,
+        /// where the feature buttons sat on the right, can turn it on. Alignment only decides where
+        /// a strip narrower than the row sits; once the buttons no longer fit, the row scrolls the
+        /// same way either way.
+        /// </summary>
+        public bool ToolbarButtonsRightAligned { get; set; } = false;
+
         public bool IsTerminalDetached { get; set; } = false;
 
         /// <summary>

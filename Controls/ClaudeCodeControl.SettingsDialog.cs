@@ -892,6 +892,17 @@ namespace ClaudeCodeVS
             var toolbarButtonChecks = toolbarTab.Checks;
             var toolbarRowsPanel = toolbarTab.RowsPanel;
 
+            toolbarStack.Children.Add(MakeSectionHeader("Alignment", themeFg));
+
+            var toolbarRightAlignCheck = MakeCheckBox(
+                "Align the toolbar buttons to the right edge",
+                "By default the button strip starts on the left, next to the scroll arrow. Turn this on to " +
+                "push it to the right edge of the row instead, the way the feature buttons sat before the " +
+                "toolbar became a single scrollable strip. Scrolling when the buttons no longer fit is " +
+                "unaffected either way.",
+                _settings.ToolbarButtonsRightAligned, themeFg);
+            toolbarStack.Children.Add(toolbarRightAlignCheck);
+
             // ========================= CLI Paths tab (last) =========================
             var cliPathsStack = AddTab("CLI Paths");
             var cliPathEditors = BuildCliPathsTabContent(cliPathsStack, themeBg, themeFg);
@@ -1050,6 +1061,7 @@ namespace ClaudeCodeVS
             bool newHidePromptPanel = hidePromptPanelCheck.IsChecked == true;
             bool newAutoHidePromptInNative = autoHidePromptInNativeCheck.IsChecked == true;
             bool newUseNativeMode = nativeModeCheck.IsChecked == true;
+            bool newToolbarRightAligned = toolbarRightAlignCheck.IsChecked == true;
             bool newKeepTerminalCodePage = keepCodePageCheck.IsChecked == true;
             // Native mode launches no console at all, so the terminal type is pinned rather than left
             // pointing at a Windows Terminal that would never be started (and never be validated).
@@ -1132,6 +1144,7 @@ namespace ClaudeCodeVS
             _settings.AutoHidePromptInNativeMode = newAutoHidePromptInNative;
             _settings.SelectedTerminalType    = newTerminalType;
             _settings.UseNativeMode           = newUseNativeMode;
+            _settings.ToolbarButtonsRightAligned = newToolbarRightAligned;
             _settings.ConsoleFontFaceName     = newConsoleFont;
             _settings.ConsoleFontSizePt       = newConsoleFontSize;
             _settings.KeepTerminalCodePage    = newKeepTerminalCodePage;
