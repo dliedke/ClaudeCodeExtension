@@ -158,8 +158,8 @@ namespace ClaudeCodeVS
             var sendButtonRadio = MakeRadioButton(
                 "Button only — Enter inserts a newline, click Send to submit",
                 !origSendWithEnter && !origSendWithCtrlEnter, themeFg, "sendKey");
-            sendCtrlEnterRadio.ToolTip =
-                "Avoids accidentally sending an incomplete prompt with a stray Enter tap, while keeping a keyboard send shortcut (Ctrl+Enter).";
+            sendCtrlEnterRadio.ToolTip = MakeToolTip(
+                "Avoids accidentally sending an incomplete prompt with a stray Enter tap, while keeping a keyboard send shortcut (Ctrl+Enter).");
             behaviorStack.Children.Add(sendEnterRadio);
             behaviorStack.Children.Add(sendCtrlEnterRadio);
             behaviorStack.Children.Add(sendButtonRadio);
@@ -565,7 +565,7 @@ namespace ClaudeCodeVS
                     Tag = face,
                     Foreground = themeFg,
                     Background = Brushes.Transparent,
-                    ToolTip = isMono ? null : "Not monospaced — the terminal will render this font jumbled."
+                    ToolTip = MakeToolTip(isMono ? null : "Not monospaced — the terminal will render this font jumbled.")
                 };
                 fontList.Items.Add(item);
                 if (string.Equals(face, chosenFont, StringComparison.OrdinalIgnoreCase))
@@ -1442,7 +1442,7 @@ namespace ClaudeCodeVS
                     VerticalAlignment = VerticalAlignment.Center,
                     Margin = new Thickness(2, 0, 8, 0),
                     Cursor = Cursors.SizeAll,
-                    ToolTip = "Drag to reorder"
+                    ToolTip = MakeToolTip("Drag to reorder")
                 };
 
                 var grid = new Grid();
@@ -1601,6 +1601,35 @@ namespace ClaudeCodeVS
                 .ToList();
         }
 
+        /// <summary>
+        /// Maximum width of a wrapped tooltip, in device-independent pixels.
+        /// </summary>
+        private const double ToolTipMaxWidth = 420;
+
+        /// <summary>
+        /// Builds a tooltip that wraps instead of running off the screen.
+        ///
+        /// A plain string assigned to ToolTip is laid out on a single line, so everything past
+        /// the screen edge is simply cut off. Most tooltips in this dialog are full sentences -
+        /// the longest is around 500 characters - so the explanation is unreadable exactly where
+        /// it matters. Hosting the text in a wrapping TextBlock with a bounded width keeps it on
+        /// screen. Returns null for empty text so "no tooltip" still means no tooltip.
+        /// </summary>
+        private static ToolTip MakeToolTip(string text)
+        {
+            if (string.IsNullOrEmpty(text)) return null;
+
+            return new ToolTip
+            {
+                Content = new TextBlock
+                {
+                    Text = text,
+                    TextWrapping = TextWrapping.Wrap,
+                    MaxWidth = ToolTipMaxWidth
+                }
+            };
+        }
+
         private static CheckBox MakeCheckBox(string label, string tooltip, bool isChecked, Brush fg)
         {
             return new CheckBox
@@ -1609,7 +1638,7 @@ namespace ClaudeCodeVS
                 IsChecked = isChecked,
                 Foreground = fg,
                 Margin = new Thickness(4, 4, 0, 4),
-                ToolTip = tooltip
+                ToolTip = MakeToolTip(tooltip)
             };
         }
 
