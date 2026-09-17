@@ -138,6 +138,10 @@ Use native mode to avoid this issue.
 
 ## Version History
 
+### Version 182.0
+- Long tooltips in the Settings dialog now wrap instead of running off the screen and being cut off mid-sentence. Thanks to [@rbuss93](https://github.com/rbuss93) for the contribution (issue #156).
+- New *⚙ → Settings... → Toolbar → Alignment* option to push the toolbar buttons back to the right edge of the row, the way they sat before; left-aligned stays the default. Thanks to [@rbuss93](https://github.com/rbuss93) for the contribution (issue #158).
+
 ### Version 181.0
 - Native mode: fixed replies sometimes not appearing — the chat showed "Done in X seconds" with no answer while the terminal worked.
 - Native mode: if Claude Code is not installed, you are signed out, or the agent stops unexpectedly, the chat now says so and tells you how to fix it, instead of staying silent or falling back to the terminal.
