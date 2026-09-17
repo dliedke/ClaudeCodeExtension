@@ -2210,6 +2210,17 @@ For more details, visit: https://pi.dev";
 
             if (_settings == null) return;
 
+            // The strip is Left-aligned in XAML (v177: one scroller holding every button). This
+            // pins it back to the right edge for users who want the older look. Only the position
+            // of a strip narrower than the row changes - the DockPanel still caps the scroller at
+            // the remaining width, so overflow scrolling behaves identically.
+            if (RightButtonsScroller != null)
+            {
+                RightButtonsScroller.HorizontalAlignment = _settings.ToolbarButtonsRightAligned
+                    ? System.Windows.HorizontalAlignment.Right
+                    : System.Windows.HorizontalAlignment.Left;
+            }
+
             var promoted = _settings.VisibleToolbarButtons
                 ?? new System.Collections.Generic.List<ToolbarButton>();
 

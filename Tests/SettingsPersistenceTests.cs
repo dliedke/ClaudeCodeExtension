@@ -172,5 +172,28 @@ namespace ClaudeCodeExtension.Tests
 
             Assert.IsFalse((bool)JObject.Parse(json)["AutoHidePromptInNativeMode"]);
         }
+
+        /// <summary>
+        /// The toolbar strip stays left-aligned by default - that is the v177 layout the XAML and
+        /// RightButtonsScroller_IsLeftAligned_... pin down. Turning it on is opt-in for users who
+        /// want the pre-v177 look back, and an older settings file must not silently move their
+        /// toolbar.
+        /// </summary>
+        [TestMethod]
+        public void ToolbarButtonsRightAligned_IsOffByDefaultAndRoundTrips()
+        {
+            Assert.IsFalse(new ClaudeCodeSettings().ToolbarButtonsRightAligned);
+
+            var fromOlderFile =
+                Newtonsoft.Json.JsonConvert.DeserializeObject<ClaudeCodeSettings>("{ \"SelectedProvider\": 0 }");
+            Assert.IsFalse(fromOlderFile.ToolbarButtonsRightAligned,
+                "A settings file predating this setting must keep the current left-aligned toolbar.");
+
+            var settings = new ClaudeCodeSettings { ToolbarButtonsRightAligned = true };
+
+            string json = ClaudeCodeControl.SerializeJsonIndented(settings);
+
+            Assert.IsTrue((bool)JObject.Parse(json)["ToolbarButtonsRightAligned"]);
+        }
     }
 }
