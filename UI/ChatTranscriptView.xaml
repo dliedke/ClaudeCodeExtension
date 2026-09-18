@@ -568,9 +568,25 @@
 						</Border>
 
 						<StackPanel Visibility="{Binding IsToolApproval, Converter={StaticResource BoolToVis}}">
+							<!-- Diff for the editing tools, same as the post-approval tool-call row, so the
+							     approval prompt itself shows what will change (issue #160). -->
+							<Border Visibility="{Binding HasDiff, Converter={StaticResource BoolToVis}}"
+							        CornerRadius="3" Margin="0,0,0,4"
+							        Background="{DynamicResource {x:Static vsshell:VsBrushes.ToolWindowBackgroundKey}}"
+							        BorderBrush="{DynamicResource {x:Static vsshell:VsBrushes.ToolWindowBorderKey}}"
+							        BorderThickness="1">
+								<ScrollViewer MaxHeight="340"
+								              VerticalScrollBarVisibility="Auto"
+								              HorizontalScrollBarVisibility="Auto">
+									<ItemsControl ItemsSource="{Binding Diff}"
+									              ItemTemplate="{StaticResource DiffLineTemplate}"
+									              Margin="0,4,0,4"/>
+								</ScrollViewer>
+							</Border>
+
 							<TextBox Style="{StaticResource CodeTextStyle}"
 							         Text="{Binding ToolInputJson, Mode=OneWay}"
-							         Visibility="{Binding ToolInputJson, Converter={StaticResource EmptyToVis}}"/>
+							         Visibility="{Binding ShowRawInput, Converter={StaticResource BoolToVis}}"/>
 						</StackPanel>
 
 						<DockPanel Margin="0,8,0,0" LastChildFill="False">

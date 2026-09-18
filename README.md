@@ -138,6 +138,9 @@ Use native mode to avoid this issue.
 
 ## Version History
 
+### Version 183.0
+- Native mode: the Edit/Write/MultiEdit permission prompt now shows the colored diff up front, the same way it renders after you click Allow, instead of raw JSON (issue #160).
+
 ### Version 182.0
 - Long tooltips in the Settings dialog now wrap instead of running off the screen and being cut off mid-sentence. Thanks to [@rbuss93](https://github.com/rbuss93) for the contribution (issue #156).
 - New *⚙ → Settings... → Toolbar → Alignment* option to push the toolbar buttons back to the right edge of the row, the way they sat before; left-aligned stays the default. Thanks to [@rbuss93](https://github.com/rbuss93) for the contribution (issue #158).

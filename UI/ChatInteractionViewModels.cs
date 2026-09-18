@@ -203,6 +203,12 @@ namespace ClaudeCodeVS.UI
 
             ToolName = request.ToolName ?? string.Empty;
             ToolInputJson = request.ToolInputJson ?? string.Empty;
+
+            // Same presenter the post-approval tool-call row uses, so an Edit/Write approval card shows
+            // the colored diff up front instead of raw JSON that only turns into a diff after the click
+            // (issue #160). Diff/HasDiff/ShowRawInput are inherited from the base tool-call row.
+            ChatToolPresentation presentation = ChatToolPresenter.Describe(ToolName, ToolInputJson);
+            SetDiff(presentation.Diff);
         }
 
         /// <summary>Which of the three card shapes this row is. Distinct from the row kind in the base class.</summary>
