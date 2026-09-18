@@ -1168,6 +1168,43 @@ namespace ClaudeCodeVS
         private const short ConhostZoomMaxPx = 60;
 
         /// <summary>
+        /// What one call to <see cref="TryAdjustConhostFontSize"/> did to the console's character
+        /// cell: where it started, where it ended, and - for a DPI rescale - whether the height the
+        /// ratio called for was actually reached.
+        /// <para>
+        /// The last one is the load-bearing part. <see cref="ScaleConsoleCellHeightForDpi"/> clamps
+        /// to the range the Ctrl+Scroll zoom uses, so a user already at the floor gets no rescale at
+        /// all on a DPI decrease and one near it gets a partial one. Both used to come back as a
+        /// height and were read as success: the repair adopted the new DPI, the width guard fell, and
+        /// the next resize narrowed conhost while its cells were still the old size - discarding
+        /// every column past the panel, permanently. <see cref="DeltaPx"/> is what the Ctrl+Scroll
+        /// zoom takes back out of the size it persists (see <c>_conhostDpiCellOffsetPx</c>).
+        /// </para>
+        /// </summary>
+        private struct ConsoleCellRescale
+        {
+            /// <summary>Cell height before the call; 0 when the console could not be reached.</summary>
+            public int OldCellHeightPx;
+
+            /// <summary>Cell height after it; equal to <see cref="OldCellHeightPx"/> when nothing moved.</summary>
+            public int NewCellHeightPx;
+
+            /// <summary>
+            /// True when the cell now belongs to the DPI that was asked for. False means the clamp
+            /// held it back, wholly or in part, and the caller must keep treating the cell as
+            /// belonging to the old DPI. Always true outside DPI mode - the zoom's own clamp is the
+            /// user's bound, not a failure.
+            /// </summary>
+            public bool ReachedTargetHeight;
+
+            /// <summary>Pixels the cell moved; signed, 0 when it did not.</summary>
+            public int DeltaPx
+            {
+                get { return NewCellHeightPx - OldCellHeightPx; }
+            }
+        }
+
+        /// <summary>
         /// Changes the embedded conhost's font size by <paramref name="stepUnits"/> notches (each
         /// notch = <see cref="ConhostZoomStepPx"/> pixels of cell height), the same way conhost's own
         /// Ctrl+Scroll zoom does. Unlike posting WM_MOUSEWHEEL — which a TUI in mouse-input mode
@@ -1177,15 +1214,27 @@ namespace ClaudeCodeVS
         /// std-handle hygiene restored in the finally). Returns the number of notches actually applied
         /// (signed; 0 when nothing changed or on failure) so callers can keep the persisted zoom delta
         /// accurate even when the size is clamped at the min/max bound, and reports the resulting cell
-        /// height in <paramref name="newCellHeightPx"/> (0 when nothing changed) so the caller can
-        /// persist the size the user settled on. Call off the UI thread — it briefly attaches VS's
-        /// process to the agent's console.
+        /// height in <paramref name="rescale"/> (see <see cref="ConsoleCellRescale"/>) so the caller
+        /// can persist the size the user settled on. Call off the UI thread — it briefly attaches
+        /// VS's process to the agent's console.
+        /// <para>
+        /// Passing <paramref name="scaleFromDpi"/> and <paramref name="scaleToDpi"/> switches from
+        /// notch stepping to DPI rescaling: the cell height is multiplied by the DPI ratio instead
+        /// (see <see cref="ScaleConsoleCellHeightForDpi"/>), which is what keeps the column count -
+        /// and with it the scrollback - intact across a session DPI change. In that mode the notch
+        /// return value carries no meaning; judge success by
+        /// <see cref="ConsoleCellRescale.ReachedTargetHeight"/>, not by the height alone - a cell the
+        /// zoom clamp held back comes back unchanged, and treating that as success is what let the
+        /// next resize narrow conhost against cells that still belonged to the old DPI.
+        /// </para>
         /// </summary>
-        private int TryAdjustConhostFontSize(int stepUnits, out int newCellHeightPx)
+        private int TryAdjustConhostFontSize(int stepUnits, out ConsoleCellRescale rescale,
+                                             uint scaleFromDpi = 0, uint scaleToDpi = 0)
         {
-            newCellHeightPx = 0;
+            rescale = default(ConsoleCellRescale);
 
-            if (stepUnits == 0) return 0;
+            bool dpiMode = scaleFromDpi > 0 && scaleToDpi > 0 && scaleFromDpi != scaleToDpi;
+            if (stepUnits == 0 && !dpiMode) return 0;
 
             int clientPid = ResolveConsoleClientPid(0);
             if (clientPid <= 0) return 0;
@@ -1207,7 +1256,14 @@ namespace ClaudeCodeVS
 
                     if (!AttachConsole((uint)clientPid))
                     {
-                        Debug.WriteLine($"TryAdjustConhostFontSize: AttachConsole({clientPid}) failed, Win32={Marshal.GetLastWin32Error()}");
+                        int err = Marshal.GetLastWin32Error();
+                        Debug.WriteLine($"TryAdjustConhostFontSize: AttachConsole({clientPid}) failed, Win32={err}");
+                        if (dpiMode)
+                        {
+                            // The DPI rescale is the one caller whose failure the user feels: without
+                            // it the width guard stays on and the terminal keeps overhanging.
+                            LogTerminalLaunch($"dpi rescale: AttachConsole({clientPid}) failed, Win32={err}");
+                        }
                         return 0;
                     }
                     attached = true;
@@ -1227,10 +1283,56 @@ namespace ClaudeCodeVS
                     if (!GetCurrentConsoleFontEx(handle, false, ref font)) return 0;
 
                     int oldHeight = font.dwFontSize.Y;
-                    int newHeight = oldHeight + stepUnits * ConhostZoomStepPx;
-                    if (newHeight < ConhostZoomMinPx) newHeight = ConhostZoomMinPx;
-                    if (newHeight > ConhostZoomMaxPx) newHeight = ConhostZoomMaxPx;
-                    if (newHeight == oldHeight) return 0;
+                    int newHeight;
+
+                    // The height the ratio asks for before any clamp - what tells "nothing was owed"
+                    // apart from "the clamp refused it".
+                    int idealHeight = dpiMode
+                        ? IdealConsoleCellHeightForDpi(oldHeight, scaleFromDpi, scaleToDpi)
+                        : 0;
+
+                    if (dpiMode)
+                    {
+                        // Already clamped, and 0 when the ratio leaves the height where it is.
+                        newHeight = ScaleConsoleCellHeightForDpi(oldHeight, scaleFromDpi, scaleToDpi);
+                        if (newHeight <= 0)
+                        {
+                            // Nothing moved. Report the height that IS there rather than 0: 0 is the
+                            // caller's signal for "the console could not be reached", and on that
+                            // signal the display repair keeps the width guard on for good, leaving
+                            // the terminal permanently overhanging its panel with no retry. Whether
+                            // the cell now belongs to the new DPI is a separate question, and the
+                            // ideal height answers it: equal means nothing was owed, different means
+                            // the clamp held the cell back - a user zoomed to ConhostZoomMinPx meets
+                            // that on every DPI decrease - and the caller must go on treating the
+                            // cell as the old DPI's, because narrowing conhost against it discards
+                            // every column past the new width.
+                            rescale = new ConsoleCellRescale
+                            {
+                                OldCellHeightPx = oldHeight,
+                                NewCellHeightPx = oldHeight,
+                                ReachedTargetHeight = idealHeight == oldHeight,
+                            };
+                            return 0;
+                        }
+                    }
+                    else
+                    {
+                        newHeight = oldHeight + stepUnits * ConhostZoomStepPx;
+                        if (newHeight < ConhostZoomMinPx) newHeight = ConhostZoomMinPx;
+                        if (newHeight > ConhostZoomMaxPx) newHeight = ConhostZoomMaxPx;
+                    }
+
+                    if (newHeight == oldHeight)
+                    {
+                        rescale = new ConsoleCellRescale
+                        {
+                            OldCellHeightPx = oldHeight,
+                            NewCellHeightPx = oldHeight,
+                            ReachedTargetHeight = !dpiMode || idealHeight == oldHeight,
+                        };
+                        return 0;
+                    }
 
                     font.dwFontSize.Y = (short)newHeight;
                     // For TrueType fonts (conhost's default — Cascadia/Consolas), zero the width so
@@ -1245,7 +1347,12 @@ namespace ClaudeCodeVS
 
                     // Report the notches actually applied (may be fewer than requested at the clamp bound)
                     // so the caller's persisted zoom delta stays in sync with the real font size.
-                    newCellHeightPx = newHeight;
+                    rescale = new ConsoleCellRescale
+                    {
+                        OldCellHeightPx = oldHeight,
+                        NewCellHeightPx = newHeight,
+                        ReachedTargetHeight = !dpiMode || newHeight == idealHeight,
+                    };
                     return (newHeight - oldHeight) / ConhostZoomStepPx;
                 }
                 catch (Exception ex)
@@ -1267,6 +1374,393 @@ namespace ClaudeCodeVS
                 }
             }
         }
+
+        /// <summary>
+        /// The embedded console's grid as the host reports it: buffer, viewport, cursor, the largest
+        /// viewport the host says it can show at the current font, and the character cell. It is what
+        /// tells the DPI failure modes apart - a buffer narrower than the columns the panel affords
+        /// means conhost has already discarded text (unrecoverable), a viewport that does not match
+        /// the window's pixel height over the cell height means the program inside is drawing against
+        /// a grid it no longer has. <c>Valid</c> false means the console could not be read at all.
+        /// </summary>
+        private struct ConsoleGridSnapshot
+        {
+            public bool Valid;
+            public int BufferCols;
+            public int BufferRows;
+            public int ViewLeft;
+            public int ViewTop;
+            public int ViewCols;
+            public int ViewRows;
+            public int CursorCol;
+            public int CursorRow;
+
+            /// <summary>Largest viewport the host can show at this font (dwMaximumWindowSize).</summary>
+            public int MaxViewCols;
+            public int MaxViewRows;
+
+            /// <summary>Character cell in pixels as the host reports it; 0 when the font could not be read.</summary>
+            public int CellWidthPx;
+            public int CellHeightPx;
+
+            /// <summary>
+            /// Character cell in the pixels the host actually paints with, which is the reported size
+            /// times the scale of the DPI the console was created at (see EstimatePaintedConsoleCell).
+            /// Every pixel-to-cell calculation has to use this one.
+            /// </summary>
+            public int PaintedCellWidthPx;
+            public int PaintedCellHeightPx;
+
+            /// <summary>
+            /// True when the painted size above was measured rather than assumed. False means neither
+            /// of EstimatePaintedConsoleCell's sources was available and the reported size was passed
+            /// through - a guess that must not be turned into a grid, because on a console created at
+            /// a higher DPI it is half the truth and the fit then asks for twice the columns the panel
+            /// can show.
+            /// </summary>
+            public bool PaintedCellMeasured;
+
+            /// <summary>
+            /// True while the cursor sits inside the visible viewport. A full-screen agent UI draws at
+            /// the cursor, so a cursor outside means what the user sees is a frozen screen.
+            /// </summary>
+            public bool CursorInView
+            {
+                get { return Valid && CursorRow >= ViewTop && CursorRow < ViewTop + ViewRows; }
+            }
+
+            /// <summary>
+            /// One diagnostic log line. The wording is load-bearing: users paste these lines into bug
+            /// reports, so it stays comparable across versions.
+            /// </summary>
+            public string Describe()
+            {
+                if (!Valid)
+                {
+                    return "unavailable";
+                }
+
+                return $"buffer={BufferCols}x{BufferRows} " +
+                       $"view={ViewCols}x{ViewRows}@({ViewLeft},{ViewTop}) " +
+                       $"cursor=({CursorCol},{CursorRow}) " +
+                       $"cursorInView={(CursorInView ? "yes" : "NO")} " +
+                       (CellWidthPx > 0 || CellHeightPx > 0 ? $"cell={CellWidthPx}x{CellHeightPx}px" : "cell=unknown") +
+                       $" painted={PaintedCellWidthPx}x{PaintedCellHeightPx}px{(PaintedCellMeasured ? string.Empty : " (assumed)")}" +
+                       $" max={MaxViewCols}x{MaxViewRows}";
+            }
+        }
+
+        /// <summary>
+        /// What one attempt at fitting the console grid to its host window did. <see cref="Detail"/> is
+        /// the line the caller logs; <see cref="StillOff"/> is the one the caller acts on, because a
+        /// grid that does not fill the window after the last repair pass is a terminal the user cannot
+        /// work in and has to be told about.
+        /// </summary>
+        private sealed class ConsoleGridFitOutcome
+        {
+            public string Detail;
+            public bool StillOff;
+
+            /// <summary>
+            /// True when the grid was actually rewritten - including a buffer that was grown before a
+            /// viewport the host then refused. The caller has to re-apply the window geometry
+            /// afterwards: conhost resizes its own window to whatever grid it ends up with - measured
+            /// at 1654x1014 px over an 829x623 px panel - and nothing else puts it back.
+            /// </summary>
+            public bool Changed;
+
+            /// <summary>
+            /// True when the grid could be read AND its painted cell measured, which is what makes
+            /// <see cref="StillOff"/> mean anything. False is not "nothing to repair": it is "nothing
+            /// could be judged", and the caller has to log it rather than fold it into the quiet
+            /// summary a cycle with nothing to report leaves behind.
+            /// </summary>
+            public bool Measured;
+        }
+
+        /// <summary>
+        /// Runs <paramref name="body"/> with a handle to the embedded console's active output buffer,
+        /// under the same guarded attach machinery as <see cref="TryAdjustConhostFontSize"/>: the
+        /// standard handles are snapshotted before the attach and restored after it (FreeConsole
+        /// leaves them dangling, and a dangling set poisons every later conhost spawn - issue #73),
+        /// and Ctrl+C is ignored for the duration so a user Ctrl+C in the agent cannot reach VS.
+        /// Returns <paramref name="unavailable"/> when the console cannot be attached or opened.
+        /// Must run off the UI thread; each call costs one attach cycle.
+        /// </summary>
+        private T WithConsoleOutputHandle<T>(Func<IntPtr, T> body, T unavailable)
+        {
+            int clientPid = ResolveConsoleClientPid(0);
+            if (clientPid <= 0) return unavailable;
+
+            lock (_consoleSnapshotLock)
+            {
+                CaptureOriginalStdHandlesOnce();
+
+                IntPtr handle = IntPtr.Zero;
+                bool attached = false;
+                bool ctrlGuarded = false;
+                try
+                {
+                    SetConsoleCtrlHandler(IntPtr.Zero, true);
+                    ctrlGuarded = true;
+
+                    if (!AttachConsole((uint)clientPid)) return unavailable;
+                    attached = true;
+
+                    handle = CreateFile("CONOUT$",
+                        GENERIC_READ_CONSOLE | GENERIC_WRITE_CONSOLE,
+                        FILE_SHARE_READ_CONSOLE | FILE_SHARE_WRITE_CONSOLE,
+                        IntPtr.Zero, OPEN_EXISTING_CONSOLE, 0, IntPtr.Zero);
+                    if (handle.ToInt64() == -1 || handle == IntPtr.Zero) return unavailable;
+
+                    return body(handle);
+                }
+                catch (Exception ex)
+                {
+                    Debug.WriteLine($"WithConsoleOutputHandle error: {ex.Message}");
+                    return unavailable;
+                }
+                finally
+                {
+                    if (handle != IntPtr.Zero && handle.ToInt64() != -1) CloseHandle(handle);
+                    if (attached)
+                    {
+                        FreeConsole();
+                        RestoreOriginalStdHandles();
+                    }
+                    if (ctrlGuarded) SetConsoleCtrlHandler(IntPtr.Zero, false);
+                }
+            }
+        }
+
+        /// <summary>
+        /// Reads the embedded console's grid. Off the UI thread only - see
+        /// <see cref="WithConsoleOutputHandle{T}"/>; each call costs an attach cycle, which is why the
+        /// display-change repair takes it twice per change and not once per pass.
+        /// </summary>
+        /// <param name="screenHeightPx">
+        /// Height of the monitor the terminal sits on, from <c>GetTerminalScreenHeightPx</c> - read on
+        /// the caller's side because the estimate is only meaningful against the monitor the host
+        /// measured its own maximum against.
+        /// </param>
+        /// <param name="clientWidthPx">
+        /// Client width of the embedded terminal window, the second source the painted cell can be
+        /// measured from (see <c>EstimatePaintedConsoleCell</c>). 0 where it is not available; the
+        /// snapshot then says so through <c>PaintedCellMeasured</c> rather than passing the reported
+        /// size off as the painted one.
+        /// </param>
+        private ConsoleGridSnapshot TryReadConsoleGrid(int screenHeightPx, int clientWidthPx)
+        {
+            return WithConsoleOutputHandle(handle => ReadConsoleGrid(handle, screenHeightPx, clientWidthPx),
+                                           default(ConsoleGridSnapshot));
+        }
+
+        /// <summary>
+        /// Reads the grid from an already open console output handle. The font is optional: a host
+        /// that refuses GetCurrentConsoleFontEx still yields a usable buffer/viewport/cursor reading.
+        /// </summary>
+        private static ConsoleGridSnapshot ReadConsoleGrid(IntPtr handle, int screenHeightPx, int clientWidthPx)
+        {
+            if (!GetConsoleScreenBufferInfo(handle, out CONSOLE_SCREEN_BUFFER_INFO csbi))
+            {
+                return default(ConsoleGridSnapshot);
+            }
+
+            var font = new CONSOLE_FONT_INFOEX { cbSize = (uint)Marshal.SizeOf(typeof(CONSOLE_FONT_INFOEX)) };
+            bool haveFont = GetCurrentConsoleFontEx(handle, false, ref font);
+
+            EstimatePaintedConsoleCell(haveFont ? font.dwFontSize.X : 0,
+                                       haveFont ? font.dwFontSize.Y : 0,
+                                       csbi.dwMaximumWindowSize.Y, csbi.dwSize.Y,
+                                       screenHeightPx,
+                                       clientWidthPx, csbi.srWindow.Right - csbi.srWindow.Left + 1,
+                                       out int paintedCellWidthPx, out int paintedCellHeightPx,
+                                       out bool paintedCellMeasured);
+
+            return new ConsoleGridSnapshot
+            {
+                Valid = true,
+                BufferCols = csbi.dwSize.X,
+                BufferRows = csbi.dwSize.Y,
+                ViewLeft = csbi.srWindow.Left,
+                ViewTop = csbi.srWindow.Top,
+                ViewCols = csbi.srWindow.Right - csbi.srWindow.Left + 1,
+                ViewRows = csbi.srWindow.Bottom - csbi.srWindow.Top + 1,
+                CursorCol = csbi.dwCursorPosition.X,
+                CursorRow = csbi.dwCursorPosition.Y,
+                MaxViewCols = csbi.dwMaximumWindowSize.X,
+                MaxViewRows = csbi.dwMaximumWindowSize.Y,
+                CellWidthPx = haveFont ? font.dwFontSize.X : 0,
+                CellHeightPx = haveFont ? font.dwFontSize.Y : 0,
+                PaintedCellWidthPx = paintedCellWidthPx,
+                PaintedCellHeightPx = paintedCellHeightPx,
+                PaintedCellMeasured = paintedCellMeasured,
+            };
+        }
+
+        /// <summary>
+        /// Convenience overload of the pure <see cref="TryComputeConsoleGridFit(int,int,int,int,int,int,int,int,int,int,int,int,out ConsoleGridFit)"/>
+        /// that takes a snapshot instead of its twelve measurements.
+        /// <para>
+        /// <paramref name="respectHostMaximum"/> decides whether the host's own `dwMaximumWindowSize`
+        /// caps the result. It is off for the first attempt on purpose: that value is what conhost
+        /// believes fits the screen at the cell size it is rendering with, and right after a DPI change
+        /// it is still computed against the old one. Measured on a reconnect - conhost reported 39 rows
+        /// as its maximum while the panel had room for 47, and clamping to it left 116 px of the panel
+        /// unpainted and the fit reporting success. The cap is the fallback for when the API refuses
+        /// the honest target, not the target itself.
+        /// </para>
+        /// </summary>
+        private static bool TryComputeConsoleGridFit(ConsoleGridSnapshot grid, int clientWidthPx, int clientHeightPx,
+                                                     bool respectHostMaximum, out ConsoleGridFit fit)
+        {
+            fit = default(ConsoleGridFit);
+
+            return grid.Valid &&
+                   grid.PaintedCellMeasured &&
+                   TryComputeConsoleGridFit(grid.BufferCols, grid.BufferRows,
+                                            grid.ViewTop, grid.ViewCols, grid.ViewRows,
+                                            grid.CursorRow,
+                                            grid.PaintedCellWidthPx, grid.PaintedCellHeightPx,
+                                            clientWidthPx, clientHeightPx,
+                                            respectHostMaximum ? grid.MaxViewCols : 0,
+                                            respectHostMaximum ? grid.MaxViewRows : 0,
+                                            out fit);
+        }
+
+        /// <summary>
+        /// Applies a computed viewport to an open console output handle. Absolute coordinates: the
+        /// rectangle is where the viewport goes in the buffer, not how far it moves.
+        /// </summary>
+        private static bool TryApplyConsoleViewport(IntPtr handle, ConsoleGridFit fit)
+        {
+            var viewport = new SMALL_RECT
+            {
+                Left = 0,
+                Top = (short)fit.Top,
+                Right = (short)(fit.Cols - 1),
+                Bottom = (short)(fit.Top + fit.Rows - 1),
+            };
+
+            return SetConsoleWindowInfo(handle, true, ref viewport);
+        }
+
+        /// <summary>
+        /// Grows the console's viewport - and, when it has to, its buffer - back to the window it lives
+        /// in, and reports what happened. This is the lever the window-geometry half of the display
+        /// repair does not have: resizing the host window is a hint conhost is free to act on late or
+        /// not at all, and a measured RDP reconnect left it painting 6 rows into a 623 px panel long
+        /// after the window was the right size again. Buffer columns are only ever grown; narrowing
+        /// them discards every character past the new width across the whole scrollback.
+        /// <para>
+        /// Both the read and the write happen inside one attach, so a repair costs the same single
+        /// attach cycle the old read-only probe did. Off the UI thread only. Returns null when the
+        /// console could not be attached at all.
+        /// </para>
+        /// </summary>
+        private ConsoleGridFitOutcome TryFitConsoleGridToWindow(int clientWidthPx, int clientHeightPx,
+                                                                int screenHeightPx)
+        {
+            return WithConsoleOutputHandle<ConsoleGridFitOutcome>(handle =>
+            {
+                ConsoleGridSnapshot before = ReadConsoleGrid(handle, screenHeightPx, clientWidthPx);
+
+                if (!before.Valid)
+                {
+                    return new ConsoleGridFitOutcome { Detail = "grid unavailable" };
+                }
+
+                // No grid is computed from a cell that was only assumed. Fed the reported 6x13 px of
+                // a console painting 12x26, the target comes out at twice the columns the panel can
+                // show; the buffer is grown to match, conhost sizes its own window to the wider
+                // buffer, and the window re-apply that follows narrows it straight back - dropping
+                // every column past the panel across the whole scrollback. Saying so is the repair.
+                if (!before.PaintedCellMeasured)
+                {
+                    return new ConsoleGridFitOutcome
+                    {
+                        Detail = $"grid cell size could not be measured, fit skipped: {before.Describe()}",
+                    };
+                }
+
+                // The honest target first - what the window affords - and only the host's own cap as
+                // a fallback; see the respectHostMaximum overload for why that cap cannot be trusted
+                // right after a DPI change.
+                if (!TryComputeConsoleGridFit(before, clientWidthPx, clientHeightPx, respectHostMaximum: false,
+                                              out ConsoleGridFit fit))
+                {
+                    return new ConsoleGridFitOutcome { Measured = true, Detail = $"grid ok: {before.Describe()}" };
+                }
+
+                // The viewport cannot reach past the buffer, so a wider or taller grid needs the
+                // buffer first. Both dimensions only ever grow: a narrower buffer discards text, a
+                // shorter one discards scrollback - hence Math.Max against what is there rather than
+                // the target on its own, which would shrink the buffer whenever only rows had to
+                // grow.
+                bool bufferChanged = false;
+                if (fit.BufferMustGrow)
+                {
+                    var bufferSize = new COORD
+                    {
+                        X = (short)Math.Max(fit.Cols, before.BufferCols),
+                        Y = (short)Math.Max(fit.Rows, before.BufferRows),
+                    };
+
+                    if (!SetConsoleScreenBufferSize(handle, bufferSize))
+                    {
+                        return new ConsoleGridFitOutcome
+                        {
+                            Measured = true,
+                            StillOff = true,
+                            Detail = $"grid buffer grow to {bufferSize.X}x{bufferSize.Y} failed, Win32={Marshal.GetLastWin32Error()}: {before.Describe()}",
+                        };
+                    }
+
+                    // From here on the console has been changed even if every viewport write below
+                    // fails: conhost has already sized its own window to the new buffer, and only the
+                    // caller's window re-apply puts that back.
+                    bufferChanged = true;
+                }
+
+                string asked = $"{fit.Cols}x{fit.Rows}@{fit.Top}";
+                string refused = null;
+
+                if (!TryApplyConsoleViewport(handle, fit))
+                {
+                    refused = $"{asked} refused (Win32={Marshal.GetLastWin32Error()})";
+
+                    if (!TryComputeConsoleGridFit(before, clientWidthPx, clientHeightPx, respectHostMaximum: true,
+                                                  out ConsoleGridFit capped) ||
+                        !TryApplyConsoleViewport(handle, capped))
+                    {
+                        return new ConsoleGridFitOutcome
+                        {
+                            Measured = true,
+                            Changed = bufferChanged,
+                            StillOff = true,
+                            Detail = $"grid fit {refused} and the host maximum did not take either: {before.Describe()}",
+                        };
+                    }
+
+                    asked = $"{capped.Cols}x{capped.Rows}@{capped.Top} (host maximum)";
+                }
+
+                // Read back rather than assume: this is the one place that can tell the user whether
+                // the terminal came out usable, and the host is free to have applied less than asked.
+                ConsoleGridSnapshot after = ReadConsoleGrid(handle, screenHeightPx, clientWidthPx);
+
+                return new ConsoleGridFitOutcome
+                {
+                    Measured = true,
+                    Changed = true,
+                    StillOff = TryComputeConsoleGridFit(after, clientWidthPx, clientHeightPx, respectHostMaximum: false,
+                                                        out ConsoleGridFit _),
+                    Detail = $"grid fitted to {asked}: {before.Describe()} -> {after.Describe()}" +
+                             (refused == null ? string.Empty : $" [{refused}]"),
+                };
+            }, null);
+        }
+
 
         // High-precision markers that the agent is waiting on a yes/no or "press key" prompt.
         // Kept deliberately strong to avoid mis-classifying a genuine completion (which would

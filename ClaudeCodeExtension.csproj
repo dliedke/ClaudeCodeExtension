@@ -86,6 +86,7 @@
     <Compile Include="Controls\ClaudeCodeControl.DebugVisibility.cs" />
     <Compile Include="Controls\ClaudeCodeControl.Detach.cs" />
     <Compile Include="Controls\ClaudeCodeControl.Diff.cs" />
+    <Compile Include="Controls\ClaudeCodeControl.DisplayChange.cs" />
     <Compile Include="Controls\ClaudeCodeControl.GitSync.cs" />
     <Compile Include="Controls\ClaudeCodeControl.ImageHandling.cs" />
     <Compile Include="Controls\ClaudeCodeControl.Interop.cs" />

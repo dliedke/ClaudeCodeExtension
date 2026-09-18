@@ -6,7 +6,7 @@ Visual Studio Extension (VSIX) for VS 2022/2026 — integrates AI code assistant
 
 - Author: Daniel Carvalho Liedke (dliedke@gmail.com) | License: MIT
 - Repository: https://github.com/dliedke/ClaudeCodeExtension
-- Current Version: 186.0 | Target Framework: .NET Framework 4.7.2
+- Current Version: 189.0 | Target Framework: .NET Framework 4.7.2
 
 Step-by-step procedures for recurring tasks (release, Exp-hive debugging, publish, adding a
 provider/setting/UI file) live in `docs/SKILLS.md`. Short build/style brief for non-Claude agents: `docs/AGENTS.md`.
@@ -87,6 +87,7 @@ ClaudeCodeExtension/
 │   ├── ClaudeCodeControl.ProviderManagement.cs  # AI provider detection & switching, Caveman plugin install
 │   ├── ClaudeCodeControl.TerminalIO.cs  # Terminal I/O, command execution
 │   ├── ClaudeCodeControl.Diff.cs        # Diff view integration, git polling
+│   ├── ClaudeCodeControl.DisplayChange.cs # Repairs terminal geometry/console grid when the session DPI changes (RDP reconnect, monitor switch)
 │   ├── ClaudeCodeControl.UserInput.cs   # Keyboard input, button handlers
 │   ├── ClaudeCodeControl.Workspace.cs   # Solution/workspace directory detection
 │   ├── ClaudeCodeControl.ImageHandling.cs # Image paste & file attachments
@@ -212,6 +213,7 @@ Three cross-cutting rules (full text in `docs/ARCHITECTURE.md` → *Cross-Cuttin
 | `Controls/ClaudeCodeControl.ProviderManagement.cs` | Provider Detection · Caveman Plugin · Visible Agents — caching, per-provider detect/paste quirks |
 | `Controls/ClaudeCodeControl.CustomCommands.cs` | Custom Commands |
 | `Controls/ClaudeCodeControl.DebugVisibility.cs` | Debug Visibility — always-on visibility restore for the panel and its tabs while debugging |
+| `Controls/ClaudeCodeControl.DisplayChange.cs` | Display / DPI Change Repair — reported-vs-painted cell size, width guard, console grid fit, pass schedule |
 | `Controls/ClaudeCodeControl.CliPaths.cs` | Custom CLI Paths — CLI Paths settings tab, resolution/validation |
 | `Controls/ClaudeCodeControl.CommitMessage.cs` | Generate Commit Message — assistant-turn capture tap, Git Changes window UI Automation, clipboard fallback |
 | `Controls/ClaudeCodeControl.ModelCatalog.cs`, `Agents/ModelCatalog.cs` | Model Catalog & Selection — per-CLI listing commands, cache/TTL, how each agent's model is applied |

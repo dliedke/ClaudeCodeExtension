@@ -214,6 +214,59 @@ namespace ClaudeCodeVS
         private static extern bool GetWindowRect(IntPtr hWnd, out RECT lpRect);
 
         /// <summary>
+        /// Retrieves the client area of a window - the part a console host actually paints its cell
+        /// grid into. Distinct from <see cref="GetWindowRect"/> for the embedded conhost, which keeps
+        /// its WS_VSCROLL scrollbar: the scrollbar is non-client, so the window is about 17 px (at
+        /// 96 DPI) wider than the grid that has to fit inside it.
+        /// </summary>
+        [DllImport("user32.dll")]
+        private static extern bool GetClientRect(IntPtr hWnd, out RECT lpRect);
+
+        /// <summary>Primary screen height in physical pixels (SM_CYSCREEN).</summary>
+        private const int SM_CYSCREEN = 1;
+
+        /// <summary>
+        /// Retrieves a system metric. Only the last-resort fallback of
+        /// <c>GetTerminalScreenHeightPx</c> uses it: SM_CYSCREEN is always the PRIMARY monitor, while
+        /// the console host computes its dwMaximumWindowSize against the monitor it actually sits on.
+        /// Dividing one by the other only measures the character cell when the two are the same
+        /// monitor - hence <see cref="MonitorFromWindow"/> for the normal path.
+        /// </summary>
+        [DllImport("user32.dll")]
+        private static extern int GetSystemMetrics(int nIndex);
+
+        /// <summary>Return the monitor closest to the window when it lies outside all of them.</summary>
+        private const uint MONITOR_DEFAULTTONEAREST = 2;
+
+        /// <summary>
+        /// The monitor a window sits on. Needed because the cell-size estimate divides a screen
+        /// height by the host's own dwMaximumWindowSize, and the host measures that against ITS
+        /// monitor - on a second monitor of a different height the primary screen's metrics turn the
+        /// estimate into the ratio of the two monitors instead of the ratio the estimate is after.
+        /// </summary>
+        [DllImport("user32.dll")]
+        private static extern IntPtr MonitorFromWindow(IntPtr hwnd, uint dwFlags);
+
+        /// <summary>
+        /// Monitor geometry. <c>rcMonitor</c> is the full bounds in physical pixels, which is what the
+        /// console host's dwMaximumWindowSize is derived from (rcWork would deduct the taskbar).
+        /// </summary>
+        [StructLayout(LayoutKind.Sequential)]
+        private struct MONITORINFO
+        {
+            public uint cbSize;
+            public RECT rcMonitor;
+            public RECT rcWork;
+            public uint dwFlags;
+        }
+
+        /// <summary>
+        /// Fills a <see cref="MONITORINFO"/> for a monitor handle from <see cref="MonitorFromWindow"/>.
+        /// </summary>
+        [DllImport("user32.dll", CharSet = CharSet.Unicode)]
+        private static extern bool GetMonitorInfo(IntPtr hMonitor, ref MONITORINFO lpmi);
+
+        /// <summary>
         /// Invalidates the client area of a window
         /// </summary>
         [DllImport("user32.dll", SetLastError = true)]
@@ -553,6 +606,25 @@ namespace ClaudeCodeVS
         /// </summary>
         [DllImport("kernel32.dll", SetLastError = true)]
         private static extern bool GetConsoleScreenBufferInfo(IntPtr hConsoleOutput, out CONSOLE_SCREEN_BUFFER_INFO lpConsoleScreenBufferInfo);
+
+        /// <summary>
+        /// Sets the visible viewport of a console screen buffer, in character cells. This is the only
+        /// lever that grows a viewport conhost shrank and did not grow back (see the display-change
+        /// repair): resizing the host window is a hint conhost is free to ignore, this is not.
+        /// The rectangle is absolute (buffer coordinates) when <paramref name="bAbsolute"/> is true,
+        /// and must fit inside the buffer - hence <see cref="SetConsoleScreenBufferSize"/> first when
+        /// the viewport is to grow past it.
+        /// </summary>
+        [DllImport("kernel32.dll", SetLastError = true)]
+        private static extern bool SetConsoleWindowInfo(IntPtr hConsoleOutput, bool bAbsolute, ref SMALL_RECT lpConsoleWindow);
+
+        /// <summary>
+        /// Changes the size of a console screen buffer, in character cells. Only ever used to GROW
+        /// the buffer here: shrinking it is what discards every character past the new width across
+        /// the whole scrollback, which is the damage the whole display-change repair exists to avoid.
+        /// </summary>
+        [DllImport("kernel32.dll", SetLastError = true)]
+        private static extern bool SetConsoleScreenBufferSize(IntPtr hConsoleOutput, COORD dwSize);
 
         /// <summary>
         /// Retrieves the current input/output mode of a console handle. Used on the input handle

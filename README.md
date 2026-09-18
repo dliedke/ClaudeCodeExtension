@@ -137,6 +137,12 @@ Use native mode to avoid this issue.
 
 ## Version History
 
+### Version 189.0
+- The terminal keeps its text size and its earlier output when the display changes: a Remote Desktop reconnect at a different resolution, a monitor switch or a scaling change no longer leaves the font oversized and the output cut off at the right edge.
+- After such a change the agent also redraws in the right place, instead of scrolling to a spot outside the visible area every time it updates.
+- The terminal fills the whole panel again after the change instead of painting only a few rows at the top and leaving the rest blank, which is what made scrolling look scrambled after a Remote Desktop reconnect.
+- If the terminal still cannot be brought back to the right size, a notification now says so and offers to restart it.
+
 ### Version 188.0
 - Native mode's permission selector gains an *Auto* option alongside Plan mode, Ask permission, and Skip permissions, letting Claude Code decide per action whether to prompt.
 - Turning on *Claude Code: Skip Permissions* from the agent menu now clears the other permission modes, so the selector always names the mode the agent is actually running in.
