@@ -849,6 +849,13 @@ namespace ClaudeCodeVS
             = new System.Collections.Generic.Dictionary<string, string>(System.StringComparer.OrdinalIgnoreCase);
 
         /// <summary>
+        /// Default native mode color ("#RRGGBB") for sessions that have no color of their own in
+        /// <see cref="SessionTitleColors"/>. Set from Settings → Theme → Native Color Schema;
+        /// empty means the built-in accent blue.
+        /// </summary>
+        public string DefaultNativeSessionColor { get; set; } = string.Empty;
+
+        /// <summary>
         /// Remembered state of the "Renamed only" filter toggle in the Session History
         /// window, so it persists across Visual Studio restarts (issue #95).
         /// </summary>

@@ -9,7 +9,7 @@ Visual Studio Extension (VSIX) for VS 2022/2026 — integrates AI code assistant
 - Current Version: 160.0 | Target Framework: .NET Framework 4.7.2
 
 Step-by-step procedures for recurring tasks (release, Exp-hive debugging, publish, adding a
-provider/setting/UI file) live in `SKILLS.md`.
+provider/setting/UI file) live in `docs/SKILLS.md`. Short build/style brief for non-Claude agents: `docs/AGENTS.md`.
 
 ---
 
@@ -154,11 +154,12 @@ ClaudeCodeExtension/
 │   ├── VersionConsistencyTests.cs / PackageVersionGuardTests.cs / TypeLoadProbeTests.cs # Version + package guards
 │   └── AgentStreamParsingTests.cs, ChatToolPresentationTests.cs, SessionTranscriptFilterTests.cs, … # Pure-helper tests
 ├── docs/
-│   └── ARCHITECTURE.md                  # Per-file non-obvious details (on-demand reference; indexed from CLAUDE.md)
+│   ├── ARCHITECTURE.md                  # Per-file non-obvious details (on-demand reference; indexed from CLAUDE.md)
+│   ├── SKILLS.md                        # Step-by-step task recipes (release, Exp debugging, publish, add provider/setting/UI file)
+│   └── AGENTS.md                        # Short instructions file for non-Claude agents
 ├── Root (project metadata only):
 │   ├── ClaudeCodeExtensionPackage.vsct  # Command table
 │   ├── source.extension.vsixmanifest
-│   ├── AGENTS.md                        # Short instructions file for non-Claude agents
 │   └── ClaudeCodeExtension.csproj / .sln
 └── Scripts:
     ├── publish.cmd                      # Automated marketplace deployment script (runs test.cmd first)

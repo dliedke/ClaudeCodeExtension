@@ -97,6 +97,7 @@ namespace ClaudeCodeVS
             ThemePreference origThemePref     = _settings.SelectedThemePreference;
             int  origCustomColorArgb          = _settings.CustomThemeColorArgb;
             bool origSkipThemePrompt          = _settings.SkipThemeRestartPrompt;
+            string origDefaultNativeColor     = _settings.DefaultNativeSessionColor ?? string.Empty;
             bool origShowInlineBars           = _settings.ShowInlineUsageBars;
             // 30s is no longer selectable; a legacy JSON value below 1m floors to it.
             int  origAutoRefresh              = _settings.UsageAutoRefreshSeconds;
@@ -869,6 +870,98 @@ namespace ClaudeCodeVS
             skipPromptCheck.Margin = new Thickness(4, 10, 0, 0);
             themeStack.Children.Add(skipPromptCheck);
 
+            // Native Color Schema: default accent color for native mode chat sessions that have no
+            // color of their own. Empty text = built-in blue.
+            themeStack.Children.Add(MakeSectionHeader("Native Color Schema", themeFg));
+            themeStack.Children.Add(new TextBlock
+            {
+                Text = "Default color for native mode sessions. A color picked for a single session (palette button in the chat) still wins.",
+                Foreground = themeFg,
+                Opacity = 0.7,
+                TextWrapping = TextWrapping.Wrap,
+                Margin = new Thickness(4, 0, 0, 4)
+            });
+
+            const string builtInNativeColor = "#1C8AE0"; // matches ChatAccentBrush's XAML default
+            string initialNativeHex = string.IsNullOrEmpty(origDefaultNativeColor) ? builtInNativeColor : origDefaultNativeColor;
+            var initialNative = ParseHex(initialNativeHex) ?? ParseHex(builtInNativeColor).Value;
+
+            var nativeRow = new StackPanel
+            {
+                Orientation = Orientation.Horizontal,
+                Margin = new Thickness(4, 2, 0, 4)
+            };
+
+            var nativeSwatch = new Border
+            {
+                Width = 26,
+                Height = 22,
+                BorderThickness = new Thickness(1),
+                BorderBrush = themeFg,
+                Background = new SolidColorBrush(Color.FromRgb(initialNative.R, initialNative.G, initialNative.B)),
+                VerticalAlignment = VerticalAlignment.Center,
+                Margin = new Thickness(0, 0, 8, 0)
+            };
+
+            var nativeHexBox = new TextBox
+            {
+                Text = $"#{initialNative.R:X2}{initialNative.G:X2}{initialNative.B:X2}",
+                Width = 90,
+                Height = 24,
+                VerticalContentAlignment = VerticalAlignment.Center,
+                Background = themeBg,
+                Foreground = themeFg,
+                BorderBrush = themeFg,
+                VerticalAlignment = VerticalAlignment.Center
+            };
+            nativeHexBox.TextChanged += (s, ea) =>
+            {
+                var c = ParseHex(nativeHexBox.Text);
+                if (c.HasValue)
+                    nativeSwatch.Background = new SolidColorBrush(Color.FromRgb(c.Value.R, c.Value.G, c.Value.B));
+            };
+
+            var nativePickButton = new Button
+            {
+                Content = "Pick...",
+                Height = 24,
+                MinWidth = 64,
+                Margin = new Thickness(8, 0, 0, 0),
+                Padding = new Thickness(10, 0, 10, 0)
+            };
+            if (GetDialogButtonStyle() is Style npStyle) nativePickButton.Style = npStyle;
+            nativePickButton.Click += (s, ea) =>
+            {
+                using (var cd = new System.Windows.Forms.ColorDialog
+                {
+                    FullOpen = true,
+                    Color = ParseHex(nativeHexBox.Text) ?? initialNative
+                })
+                {
+                    if (cd.ShowDialog() == System.Windows.Forms.DialogResult.OK)
+                    {
+                        nativeHexBox.Text = $"#{cd.Color.R:X2}{cd.Color.G:X2}{cd.Color.B:X2}";
+                    }
+                }
+            };
+
+            var nativeResetButton = new Button
+            {
+                Content = "Reset",
+                Height = 24,
+                MinWidth = 64,
+                Margin = new Thickness(8, 0, 0, 0),
+                Padding = new Thickness(10, 0, 10, 0)
+            };
+            if (GetDialogButtonStyle() is Style nrStyle) nativeResetButton.Style = nrStyle;
+            nativeResetButton.Click += (s, ea) => nativeHexBox.Text = builtInNativeColor;
+
+            nativeRow.Children.Add(nativeSwatch);
+            nativeRow.Children.Add(nativeHexBox);
+            nativeRow.Children.Add(nativePickButton);
+            nativeRow.Children.Add(nativeResetButton);
+            themeStack.Children.Add(nativeRow);
+
             // ========================= Usage tab =========================
             var usageStack = AddTab("Usage");
 
@@ -1099,6 +1192,19 @@ namespace ClaudeCodeVS
                 }
             }
             bool newSkipThemePrompt = skipPromptCheck.IsChecked == true;
+
+            // Invalid hex keeps the previous default; the built-in blue is stored as empty.
+            string newDefaultNativeColor = origDefaultNativeColor;
+            {
+                var parsedNative = ParseHex(nativeHexBox.Text);
+                if (parsedNative.HasValue)
+                {
+                    string hex = $"#{parsedNative.Value.R:X2}{parsedNative.Value.G:X2}{parsedNative.Value.B:X2}";
+                    newDefaultNativeColor = string.Equals(hex, builtInNativeColor, StringComparison.OrdinalIgnoreCase)
+                        ? string.Empty
+                        : hex;
+                }
+            }
             bool newShowInlineBars = showBarsCheck.IsChecked == true;
             int newAutoRefresh = autoRefreshCheck.IsChecked == true ? 60 : 0;
             var newToolbarOrder = ReadToolbarRowOrder(toolbarRowsPanel);
@@ -1171,7 +1277,8 @@ namespace ClaudeCodeVS
             _settings.SelectedThemePreference = newThemePref;
             _settings.CustomThemeColorArgb    = newCustomColorArgb;
             _settings.SkipThemeRestartPrompt  = newSkipThemePrompt;
-            _settings.ShowInlineUsageBars     = newShowInlineBars;
+            _settings.DefaultNativeSessionColor = newDefaultNativeColor;
+            _settings.ShowInlineUsageBars    = newShowInlineBars;
             _settings.UsageAutoRefreshSeconds = newAutoRefresh;
             _settings.PromptFontSize          = newFontSize;
             _settings.VisibleToolbarButtons   = newVisibleToolbarButtons;
@@ -1237,6 +1344,11 @@ namespace ClaudeCodeVS
             {
                 UpdateTerminalTheme();
                 UpdateInlineUsageBarColors();
+            }
+
+            if (!string.Equals(newDefaultNativeColor, origDefaultNativeColor, StringComparison.OrdinalIgnoreCase))
+            {
+                RefreshNativeSessionColors();
             }
 
             // Usage settings change: refresh inline bars visibility and auto-refresh cadence

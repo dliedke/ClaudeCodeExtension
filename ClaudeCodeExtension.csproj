@@ -131,14 +131,14 @@
     <Compile Include="Package\SolutionEventsHandler.cs" />
   </ItemGroup>
   <ItemGroup>
-    <None Include="AGENTS.md" />
+    <None Include="docs\AGENTS.md" />
     <None Include="CLAUDE.md" />
     <None Include="deploy-exp.cmd" />
-    <None Include="ARCHITECTURE.md" />
+    <None Include="docs\ARCHITECTURE.md" />
     <None Include="publish.cmd" />
     <None Include="publishManifest.json" />
     <None Include="README.md" />
-    <None Include="SKILLS.md" />
+    <None Include="docs\SKILLS.md" />
     <None Include="source.extension.vsixmanifest">
       <SubType>Designer</SubType>
     </None>

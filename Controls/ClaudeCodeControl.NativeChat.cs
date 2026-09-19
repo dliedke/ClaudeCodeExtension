@@ -811,16 +811,44 @@ namespace ClaudeCodeVS
             return title ?? string.Empty;
         }
 
-        /// <summary>The user-assigned title color for an agent session id, or empty for the default.</summary>
+        /// <summary>
+        /// The color for an agent session id: the one the user picked for that session, else the
+        /// Native Color Schema default from Settings, else empty (built-in accent).
+        /// </summary>
         private string GetNativeSessionColor(string agentSessionId)
         {
-            if (string.IsNullOrEmpty(agentSessionId) || _settings?.SessionTitleColors == null)
+            string color = null;
+            if (!string.IsNullOrEmpty(agentSessionId))
             {
-                return string.Empty;
+                _settings?.SessionTitleColors?.TryGetValue(agentSessionId, out color);
             }
 
-            _settings.SessionTitleColors.TryGetValue(agentSessionId, out string color);
-            return color ?? string.Empty;
+            if (!string.IsNullOrEmpty(color))
+            {
+                return color;
+            }
+
+            return _settings?.DefaultNativeSessionColor ?? string.Empty;
+        }
+
+        /// <summary>Re-applies session colors to the panel transcript and every open chat tab.</summary>
+        private void RefreshNativeSessionColors()
+        {
+            ThreadHelper.ThrowIfNotOnUIThread();
+
+            // Direct call: UpdateChatTabCaption bails out while the chat is docked in the panel.
+            ChatTranscript?.SetSessionTitleColor(GetCurrentNativeSessionColor());
+
+            List<NativeChatSessionState> sessions;
+            lock (_sessionLock)
+            {
+                sessions = new List<NativeChatSessionState>(_nativeSessions.Values);
+            }
+
+            foreach (NativeChatSessionState session in sessions)
+            {
+                UpdateSessionTabCaption(session);
+            }
         }
 
         /// <summary>

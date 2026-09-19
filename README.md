@@ -138,6 +138,9 @@ Use native mode to avoid this issue.
 
 ## Version History
 
+### Version 184.0
+- New *⚙ → Settings... → Theme → Native Color Schema* option to choose the default color for native mode sessions; it is remembered across Visual Studio restarts, and a color picked for a single session still takes priority.
+
 ### Version 183.0
 - Native mode: the Edit/Write/MultiEdit permission prompt now shows the colored diff up front, the same way it renders after you click Allow, instead of raw JSON (issue #160).
 
