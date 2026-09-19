@@ -82,6 +82,7 @@ namespace ClaudeCodeVS
             bool origAutoSendBuildErrors      = _settings.AutoSendBuildErrorsToAgent;
             bool origAutoSendRuntimeErrors    = _settings.AutoSendRuntimeErrorsToAgent;
             bool origAutoOpenChanges          = _settings.AutoOpenChangesOnPrompt;
+            bool origAutoGitPull              = _settings.AutoGitPullBeforePrompt;
             bool origUseNativeMode            = _settings.UseNativeMode;
             bool origInvertLayout             = _settings.InvertLayout;
             LayoutOrientation origOrientation = _settings.SelectedLayoutOrientation;
@@ -205,6 +206,14 @@ namespace ClaudeCodeVS
                 "Automatically open the Changes view, expand files, and enable auto-scroll when a prompt is sent. Only applies when the project is in a git repository.",
                 origAutoOpenChanges, themeFg);
             behaviorStack.Children.Add(autoOpenCheck);
+
+            behaviorStack.Children.Add(MakeSectionHeader("Git", themeFg));
+
+            var autoGitPullCheck = MakeCheckBox(
+                "Pull from git before the first prompt",
+                "Runs \"git pull\" in the solution's repository before the first prompt you send, so the agent never starts editing code that is already out of date on the remote. Runs once per solution per Visual Studio session, not on every prompt. Skipped when the project is not in a git repository, the branch has no remote to pull from, or the agent is still working on the previous message. If the pull ends in conflicts, the conflicted files are described to the agent and it is asked to resolve them before doing what you asked.",
+                origAutoGitPull, themeFg);
+            behaviorStack.Children.Add(autoGitPullCheck);
 
             behaviorStack.Children.Add(MakeSectionHeader("Build errors", themeFg));
 
@@ -1144,6 +1153,7 @@ namespace ClaudeCodeVS
             bool newAutoSendBuildErrors = autoSendBuildErrorsCheck.IsChecked == true;
             bool newAutoSendRuntimeErrors = autoSendRuntimeErrorsCheck.IsChecked == true;
             bool newAutoOpenChanges = autoOpenCheck.IsChecked == true;
+            bool newAutoGitPull = autoGitPullCheck.IsChecked == true;
             int newFontSize = (fontSizeCombo.SelectedItem as ComboBoxItem)?.Tag is int fs ? fs : origFontSize;
             // Map the selected position back to orientation + invert.
             bool newVertical = leftRadio.IsChecked == true || rightRadio.IsChecked == true;
@@ -1244,6 +1254,7 @@ namespace ClaudeCodeVS
             _settings.AutoSendBuildErrorsToAgent = newAutoSendBuildErrors;
             _settings.AutoSendRuntimeErrorsToAgent = newAutoSendRuntimeErrors;
             _settings.AutoOpenChangesOnPrompt = newAutoOpenChanges;
+            _settings.AutoGitPullBeforePrompt = newAutoGitPull;
             _settings.InvertLayout            = newInvertLayout;
             _settings.SelectedLayoutOrientation = newOrientation;
             _settings.HidePromptPanel         = newHidePromptPanel;

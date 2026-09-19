@@ -1,4 +1,4 @@
-/* *******************************************************************************************************************
+﻿/* *******************************************************************************************************************
  * Application: ClaudeCodeExtension
  *
  * Autor:  Daniel Carvalho Liedke / Claude Code
@@ -430,6 +430,16 @@ namespace ClaudeCodeVS
         /// ClaudeCodeControl.BuildErrors.cs.
         /// </summary>
         public bool AutoSendBuildErrorsToAgent { get; set; } = false;
+
+        /// <summary>
+        /// When true, the first user-initiated prompt for a workspace runs `git pull` in its
+        /// repository, so the agent never starts editing code that is already out of date on the
+        /// remote. Default true. Once per repository per session, not per prompt. Skipped when there
+        /// is no repository, no tracking branch, or a turn is already in flight. A pull that ends in
+        /// conflicts is handed to the agent to resolve as part of the same prompt.
+        /// See ClaudeCodeControl.GitSync.cs.
+        /// </summary>
+        public bool AutoGitPullBeforePrompt { get; set; } = true;
 
         /// <summary>
         /// When true, unhandled runtime exceptions caught by the Visual Studio debugger are

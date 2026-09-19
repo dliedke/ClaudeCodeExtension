@@ -26,6 +26,7 @@ Enjoying the extension? [Buy me a coffee](https://www.buymeacoffee.com/dliedke) 
 - **Custom commands (⚡)** — Save slash commands or canned prompts and dispatch them to the active agent in one click. Configure via *⚙ → Configure Custom Commands...*.
 - **"@" file picker** — Type **@** in the prompt box (or the native mode chat composer) to search your solution's files and folders and insert one with the keyboard; keep typing to filter, arrow keys + Enter to insert, pick a folder to drill in.
 - **On Agent Finish** — Optionally play a sound, show a notification (with duration, plus token count for Claude Code), and run an action (build/rebuild, run, tests, a script, or a follow-up command) when the agent goes idle. Global defaults plus per-solution overrides. Configure via *⚙ → Settings...*.
+- **Pull before sending** — Runs `git pull` in the solution’s repository before your first prompt, so the agent never edits a file that is already out of date on the remote. Conflicts from that pull are handed to the agent to resolve. On by default; turn it off via *⚙ → Settings... → Behavior*.
 - **Auto-send build errors** — Optionally send build errors (with warnings for context) to the active agent automatically whenever a Visual Studio build finishes with errors, so it can fix them. Opt-in via *⚙ → Settings... → Behavior*.
 - **Generate Commit Message** — Toolbar/menu action that asks the active agent to write a commit message from the current changes and fills it into the Git Changes window. Requires native mode; falls back to the clipboard if the commit message box can't be found.
 - **Model selection** — 🤖 button to switch models: for Claude, Fable / Opus / Sonnet / Haiku / Opus Plan plus an effort level; for Codex, its reported models plus a reasoning level (Model default / Low / Medium / High / Extra High / Max / Ultra); for every other agent, the models it reports itself, with *Refresh Models* to re-read them and *Choose in the Agent...* to fall back to its own picker.
@@ -104,7 +105,7 @@ Then choose it via *⚙ → Set Terminal Type...*.
 - Pick an AI provider, *Configure Visible Code Agents...*
 - Provider-specific flags: Claude *Skip Permissions*, Codex *Approval Never*, Cursor *Yolo Mode*, Devin *Dangerous Mode*, Antigravity *Skip Permissions*
 - *Configure Custom Commands...*, *Settings...*, About
-- *Settings...* opens the consolidated dialog with tabs for Behavior (send key, large prompts, auto-open Changes, auto-send build errors, font size), Layout (prompt panel position), Terminal type, Theme, Usage, Toolbar, and CLI Paths
+- *Settings...* opens the consolidated dialog with tabs for Behavior (send key, large prompts, auto-open Changes, pull before sending, auto-send build errors, font size), Layout (prompt panel position), Terminal type, Theme, Usage, Toolbar, and CLI Paths
 
 **☰ Tools dropdown**: Holds *Update Code Agent*, *Restart Code Agent*, *Detach/Attach Terminal*, *View Code Changes*, *Session History*, *Show Usage*, *Set Working Directory...*, *Send Build Errors to Agent*, and *Generate Commit Message*. Promote any of these to one-click toolbar buttons — and reorder them by dragging — via *⚙ → Settings... → Toolbar*; promoted features leave the dropdown, which hides once they all become buttons.
 
@@ -137,6 +138,10 @@ https://github.com/anthropics/claude-code/issues/41501
 Use native mode to avoid this issue.
 
 ## Version History
+
+### Version 185.0
+- New *⚙ → Settings... → Behavior → Git* option, on by default, that pulls from git before the first prompt you send for a solution, so the agent never starts editing code that is already out of date on the remote.
+- If that pull ends in conflicts, the conflicted files are described to the agent along with your prompt and it is asked to resolve them before doing what you asked.
 
 ### Version 184.0
 - New *⚙ → Settings... → Theme → Native Color Schema* option to choose the default color for native mode sessions; it is remembered across Visual Studio restarts, and a color picked for a single session still takes priority.

@@ -211,7 +211,25 @@ namespace ClaudeCodeVS
                 _isSendingPrompt = true;
                 if (SendPromptButton != null) SendPromptButton.IsEnabled = false;
 
+                // Bring the repository up to date before the agent starts editing anything, so it
+                // never rewrites a file a teammate already changed upstream. Only user-initiated
+                // sends pull — the automatic ones (build errors, runtime errors, agent-finish
+                // follow-ups) go through SendTextToAgentAsync and deliberately bypass this.
+                GitPullOutcome pullOutcome = await TryAutoPullBeforePromptAsync();
+
+                // The pull ran on a background thread; everything below touches the control again.
+                await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
+                ReportAutoPullOutcome(pullOutcome);
+
                 StringBuilder fullPrompt = new StringBuilder();
+
+                // A conflicted pull is not rolled back: the conflicts are left in the working tree and
+                // resolving them becomes the first part of this turn, ahead of the user's own request.
+                if (pullOutcome != null && pullOutcome.Kind == GitPullOutcomeKind.Conflicts)
+                {
+                    fullPrompt.Append(BuildConflictPromptBlock(pullOutcome,
+                        hasUserRequest: !string.IsNullOrEmpty(prompt) || hasFiles));
+                }
 
                 // Check if CURRENTLY RUNNING provider is WSL-based (not CodexNative, CursorAgentNative).
                 // Hoisted out of the hasFiles branch so the large-prompt-as-file path can use it too.

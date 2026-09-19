@@ -97,6 +97,7 @@ ClaudeCodeExtension/
 │   ├── ClaudeCodeControl.AgentFinishDialog.cs # "On Agent Finish" settings window: global default + per-solution override
 │   ├── ClaudeCodeControl.BuildErrors.cs # "Auto-send build errors": VS build-event hook, Error List collection, format + send to agent
 │   ├── ClaudeCodeControl.RuntimeErrors.cs # "Auto-send runtime errors": VS debugger-event hook, unhandled-exception collection, format + send to agent
+│   ├── ClaudeCodeControl.GitSync.cs     # "Pull before sending": pre-prompt git pull; conflicts are prepended to the prompt for the agent to resolve
 │   ├── ClaudeCodeControl.AtMention.cs   # "@" file/folder picker in the prompt box (workspace index + popup)
 │   ├── ClaudeCodeControl.CustomCommands.cs # User-defined custom commands: configure dialog, toolbar dropdown, dispatch
 │   ├── ClaudeCodeControl.DebugVisibility.cs # Keeps the extension (and any tab it created) visible while debugging (issues #130, #141)
@@ -226,6 +227,7 @@ Three cross-cutting rules (full text in `docs/ARCHITECTURE.md` → *Cross-Cuttin
 | `Controls/ClaudeCodeControl.AgentFinishDialog.cs` | On Agent Finish — settings window, global default + per-solution override, follow-up presets |
 | `Controls/ClaudeCodeControl.BuildErrors.cs` | Auto-Send Build Errors — build-event hook, Error List collection, dedupe/loop guard |
 | `Controls/ClaudeCodeControl.RuntimeErrors.cs` | Auto-Send Runtime Errors — debugger break-mode hook, unhandled-exception collection, dedupe guard |
+| `Controls/ClaudeCodeControl.GitSync.cs` | Pull Before Sending — pre-prompt `git pull`, skip conditions, conflict-as-prompt handoff, `--autostash` caveats |
 | `Controls/ClaudeCodeControl.AtMention.cs` | "@" File/Folder Picker — index, popup, ranking, insert |
 | `Controls/ClaudeCodeControl.NativeMode.cs`, `Agents/*`, `UI/ChatTranscriptView.xaml` | Native Mode — Agent Sessions: `IAgentSession` contract, the six adapters, event map, streaming-duplication traps, `SendTextToAgentAsync` bifurcation |
 | `Controls/ClaudeCodeControl.NativeChat.cs`, `ToolWindows/NativeChatToolWindow.cs` | Native Mode — Chat tab and composer: MDI document-tab hosting, transcript re-parenting, composer reuse of the panel send path, live model/effort/permission switching via resume |
