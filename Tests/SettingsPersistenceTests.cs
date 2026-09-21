@@ -11,6 +11,7 @@
  *
  * *******************************************************************************************************************/
 
+using System.Linq;
 using ClaudeCodeVS;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Newtonsoft.Json.Linq;
@@ -62,7 +63,7 @@ namespace ClaudeCodeExtension.Tests
         {
             var toSave = JObject.FromObject(new ClaudeCodeSettings
             {
-                SelectedProvider = AiProvider.OpenCode,
+                SelectedProvider = AiProvider.Antigravity,
                 SelectedClaudeModel = ClaudeModel.Opus,
                 SelectedDevinModel = "SWE-9.9",
                 SelectedEffortLevel = EffortLevel.Low,
@@ -131,6 +132,42 @@ namespace ClaudeCodeExtension.Tests
 
             Assert.AreEqual((int)AiProvider.Reasonix, (int)toSave["SelectedProvider"]);
             Assert.AreEqual(1, (int)toSave["SelectedEffortLevel"]);
+        }
+
+        /// <summary>
+        /// Open Code was removed in v186.0. Its enum-keyed entries are stored by name, and Newtonsoft
+        /// throws on a key that no longer names a member, so a file that still carries one has to be
+        /// cleaned before it is deserialized — otherwise the user loses every setting.
+        /// </summary>
+        [TestMethod]
+        public void RemoveRetiredProviderEntries_LetsAnOldSettingsFileLoad()
+        {
+            const string json =
+                "{ \"SelectedProvider\": 7," +
+                "  \"VisibleProviders\": [0, 7, 9]," +
+                "  \"CustomExecutablePaths\": { \"OpenCode\": \"C:\\\\tools\\\\opencode.cmd\", \"Pi\": \"C:\\\\tools\\\\pi.cmd\" }," +
+                "  \"ExtraLaunchArgs\": { \"OpenCode\": \"--foo\" } }";
+
+            string cleaned = ClaudeCodeControl.RemoveRetiredProviderEntries(json);
+            // Same load settings as LoadSettings: the seeded default lists must be replaced, not appended to.
+            var settings = Newtonsoft.Json.JsonConvert.DeserializeObject<ClaudeCodeSettings>(
+                cleaned,
+                new Newtonsoft.Json.JsonSerializerSettings { ObjectCreationHandling = Newtonsoft.Json.ObjectCreationHandling.Replace });
+
+            CollectionAssert.AreEqual(
+                new[] { AiProvider.ClaudeCode, AiProvider.Pi },
+                settings.VisibleProviders.ToArray());
+            Assert.AreEqual(1, settings.CustomExecutablePaths.Count);
+            Assert.AreEqual(0, settings.ExtraLaunchArgs.Count);
+        }
+
+        [TestMethod]
+        public void RemoveRetiredProviderEntries_LeavesCleanOrInvalidJsonUntouched()
+        {
+            const string clean = "{ \"VisibleProviders\": [0, 9] }";
+
+            Assert.AreEqual(clean, ClaudeCodeControl.RemoveRetiredProviderEntries(clean));
+            Assert.AreEqual("{ not json", ClaudeCodeControl.RemoveRetiredProviderEntries("{ not json"));
         }
 
         /// <summary>

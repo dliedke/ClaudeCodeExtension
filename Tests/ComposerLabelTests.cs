@@ -75,7 +75,7 @@ namespace ClaudeCodeExtension.Tests
             string[] labels =
             {
                 "Claude Code", "Claude Code (WSL)", "Codex (native)", "Cursor Agent (WSL)",
-                "Open Code", "Antigravity", "Reasonix", "Skip permissions", "Ask permission",
+                "Antigravity", "Reasonix", "Skip permissions", "Ask permission",
                 "Plan mode", "Extra High", "Ultracode", "Medium", "Opus Plan",
                 "claude-sonnet-4-5-20260101"
             };

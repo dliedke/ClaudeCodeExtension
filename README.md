@@ -2,7 +2,7 @@
 
 Please also check [Claude Code Studio from wluisdev](https://marketplace.visualstudio.com/items?itemName=wluisdev.ClaudeCodeStudio)
 
-Native or terminal inside Visual Studio for **Claude Code, OpenAI Codex, Cursor Agent, Open Code, Devin, PI, Google Antigravity, and Reasonix** — with multi-line prompts, file attachments, and an integrated diff viewer.
+Native or terminal inside Visual Studio for **Claude Code, OpenAI Codex, Cursor Agent, Devin, PI, Google Antigravity, and Reasonix** — with multi-line prompts, file attachments, and an integrated diff viewer.
 
 <center>
 <img src="https://raw.githubusercontent.com/dliedke/ClaudeCodeExtension/master/docs/images/extension-screenshot.png" alt="Claude Code Extension Screenshot" width=900 />
@@ -63,7 +63,6 @@ By default only **Claude Code** is shown in the agent picker — use *⚙ → Co
 | Claude Code | Windows / WSL | `claude` | Claude Pro or higher. [Setup docs](https://docs.claude.com/en/docs/claude-code/setup) |
 | OpenAI Codex | Windows / WSL | `codex` | ChatGPT Plus or higher. Optional `--ask-for-approval never` toggle |
 | Cursor Agent | Windows / WSL | `agent` / `cursor-agent` | Cursor account. Optional `--yolo` toggle |
-| Open Code | Windows | `opencode` | Node.js 14+; provider configured via `Ctrl+P` → "connect providers" |
 | Devin | Windows / WSL | `devin` | Devin account. Optional `--permission-mode dangerous` toggle. Native install from Windows Terminal: `irm https://static.devin.ai/cli/setup.ps1 \| iex` |
 | PI | Windows | `pi` | Node.js + Git for Windows |
 | Google Antigravity | Windows | `agy` | Google account. Optional `--dangerously-skip-permissions` toggle |
@@ -94,10 +93,9 @@ Then choose it via *⚙ → Set Terminal Type...*.
 ## Quick Start
 
 1. Click ⚙ → pick your AI provider (use *Configure Visible Code Agents...* if it isn't listed)
-2. If using Open Code, run `Ctrl+P` → "connect providers" once to authenticate
-3. Pick a model via the 🤖 button
-4. Type a prompt, press **Enter** to send. Attach files with Ctrl+V, drag-and-drop, or 📎
-5. Watch the agent work in the embedded terminal. For Git projects, open 📊 to see live diffs
+2. Pick a model via the 🤖 button
+3. Type a prompt, press **Enter** to send. Attach files with Ctrl+V, drag-and-drop, or 📎
+4. Watch the agent work in the embedded terminal. For Git projects, open 📊 to see live diffs
 
 ## Settings & Menus
 
@@ -138,6 +136,9 @@ https://github.com/anthropics/claude-code/issues/41501
 Use native mode to avoid this issue.
 
 ## Version History
+
+### Version 186.0
+- Open Code support removed. If it was your selected agent, the extension falls back to Claude Code.
 
 ### Version 185.0
 - New *⚙ → Settings... → Behavior → Git* option, on by default, that pulls from git before the first prompt you send for a solution, so the agent never starts editing code that is already out of date on the remote.
@@ -1410,7 +1411,6 @@ This extension is provided free of charge under the MIT License.
   - [Anthropic/Claude Code](https://code.claude.com/docs/en/data-usage)
   - [OpenAI/Codex](https://platform.openai.com/docs/guides/your-data)
   - [Cursor](https://cursor.com/privacy)
-  - [Open Code](https://opencode.ai/legal/privacy-policy)
   - [Devin/Cognition](https://cognition.com/legal/privacy-policy)
   - [PI](https://pi.dev/)
   - [Google Antigravity](https://policies.google.com/privacy)

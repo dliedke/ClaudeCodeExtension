@@ -21,7 +21,7 @@
 - Constants: Use `const` for hardcoded strings (e.g., `ConfigurationFileName`), `static readonly` for computed values
 
 ## Architecture
-- Extension embeds a terminal (cmd.exe or wsl.exe) using Win32 interop to host AI CLI tools (Claude Code, Codex, Cursor Agent, Open Code, Devin, PI, Google Antigravity, Reasonix) — see CLAUDE.md's Supported AI Providers table for the full list
+- Extension embeds a terminal (cmd.exe or wsl.exe) using Win32 interop to host AI CLI tools (Claude Code, Codex, Cursor Agent, Devin, PI, Google Antigravity, Reasonix) — see CLAUDE.md's Supported AI Providers table for the full list
 - "Native mode" replaces the embedded terminal with a chat tab driven by an `IAgentSession` adapter per provider (`Agents/`), instead of scraping console output
 - Settings, theme, workspace, terminal I/O, and provider management are separated into partial class files for maintainability
 - Session history reads Claude Code JSONL transcripts directly and uses Codex App Server for native/WSL thread list, read, delete, and resume flows

@@ -15,7 +15,7 @@ namespace ClaudeCodeVS
     /// <summary>
     /// AI Provider types supported by the extension.
     /// Explicit ordinals preserve previously-serialized SelectedProvider values
-    /// in user settings across removals (ordinal 6 was QwenCode, now retired).
+    /// in user settings across removals (ordinal 6 was QwenCode and 7 was OpenCode, both now retired).
     /// </summary>
     public enum AiProvider
     {
@@ -26,7 +26,7 @@ namespace ClaudeCodeVS
         CursorAgent = 4,
         CursorAgentNative = 5,
         // 6 = QwenCode (removed in v10.12)
-        OpenCode = 7,
+        // 7 = OpenCode (removed in v186.0)
         Devin = 8,
         Pi = 9,
         Antigravity = 10,
@@ -567,7 +567,7 @@ namespace ClaudeCodeVS
 
         /// <summary>
         /// Model chosen per provider, keyed by the <see cref="AiProvider"/> name. Holds the id the
-        /// CLI expects (<c>gpt-5.6-sol</c>, <c>opencode/big-pickle</c>, <c>anthropic/claude-opus-4-8</c>).
+        /// CLI expects (<c>gpt-5.6-sol</c>, <c>anthropic/claude-opus-4-8</c>).
         /// An absent or empty entry means "whatever the CLI defaults to". Claude and Devin are not in
         /// here — they keep <see cref="SelectedClaudeModel"/> and <see cref="SelectedDevinModel"/>.
         /// </summary>

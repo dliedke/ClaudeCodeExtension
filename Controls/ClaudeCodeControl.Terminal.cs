@@ -244,7 +244,6 @@ namespace ClaudeCodeVS
                 bool useCodexNative = _settings?.SelectedProvider == AiProvider.CodexNative;
                 bool useCursorAgent = _settings?.SelectedProvider == AiProvider.CursorAgent;
                 bool useCursorAgentNative = _settings?.SelectedProvider == AiProvider.CursorAgentNative;
-                bool useOpenCode = _settings?.SelectedProvider == AiProvider.OpenCode;
                 bool useDevin = _settings?.SelectedProvider == AiProvider.Devin;
                 bool usePi = _settings?.SelectedProvider == AiProvider.Pi;
                 bool useAntigravity = _settings?.SelectedProvider == AiProvider.Antigravity;
@@ -276,10 +275,6 @@ namespace ClaudeCodeVS
                 else if (useClaudeCodeWSL)
                 {
                     providerAvailable = await IsClaudeCodeWSLAvailableAsync();
-                }
-                else if (useOpenCode)
-                {
-                    providerAvailable = await IsOpenCodeAvailableAsync();
                 }
                 else if (useDevin)
                 {
@@ -431,22 +426,6 @@ namespace ClaudeCodeVS
                         {
                             _claudeCodeWSLNotificationShown = true;
                             ShowClaudeCodeWSLInstallationInstructions();
-                        }
-                        await StartEmbeddedTerminalAsync(null); // Regular CMD
-                    }
-                }
-                else if (useOpenCode)
-                {
-                    if (providerAvailable)
-                    {
-                        await StartEmbeddedTerminalAsync(AiProvider.OpenCode);
-                    }
-                    else
-                    {
-                        if (!_openCodeNotificationShown)
-                        {
-                            _openCodeNotificationShown = true;
-                            ShowOpenCodeInstallationInstructions();
                         }
                         await StartEmbeddedTerminalAsync(null); // Regular CMD
                     }
@@ -1139,11 +1118,6 @@ namespace ClaudeCodeVS
                             cmdCommand = $"/k chcp 65001 >nul && cd /d \"{workspaceDir}\" && ping localhost -n 3 >nul && cls && {claudeCommand}";
                             break;
 
-                        case AiProvider.OpenCode:
-                            string openCodeCommand = GetOpenCodeCommand();
-                            cmdCommand = $"/k chcp 65001 >nul && cd /d \"{workspaceDir}\" && ping localhost -n 3 >nul && cls && {openCodeCommand}";
-                            break;
-
                         case AiProvider.Devin:
                             string wslPathDevin = ConvertToWslPath(workspaceDir);
                             string devinWslCommand = GetDevinCommand();
@@ -1426,11 +1400,6 @@ namespace ClaudeCodeVS
                         case AiProvider.ClaudeCode:
                             string claudeCommand = GetClaudeCommand();
                             terminalCommand = $"/k chcp 65001 >nul && cd /d \"{workspaceDir}\" && ping localhost -n 3 >nul && cls && {claudeCommand}";
-                            break;
-
-                        case AiProvider.OpenCode:
-                            string openCodeTerminalCommand = GetOpenCodeCommand();
-                            terminalCommand = $"/k chcp 65001 >nul && cd /d \"{workspaceDir}\" && ping localhost -n 3 >nul && cls && {openCodeTerminalCommand}";
                             break;
 
                         case AiProvider.Devin:
@@ -4560,13 +4529,6 @@ namespace ClaudeCodeVS
                         await SendTextToTerminalAsync("claude update");
                         break;
 
-                    case AiProvider.OpenCode:
-                        // Open Code: send exit command
-                        await SendTextToTerminalAsync("exit");
-                        await Task.Delay(1000); // Reduced from 1500ms
-                        await SendTextToTerminalAsync("npm i -g opencode-ai");
-                        break;
-
                     case AiProvider.Devin:
                         // Devin: exit, wait, then update
                         await SendTextToTerminalAsync("exit");
@@ -4787,10 +4749,6 @@ namespace ClaudeCodeVS
 
                 case AiProvider.ClaudeCode:
                     providerAvailable = await IsClaudeCmdAvailableAsync();
-                    break;
-
-                case AiProvider.OpenCode:
-                    providerAvailable = await IsOpenCodeAvailableAsync();
                     break;
 
                 case AiProvider.Devin:
@@ -5268,19 +5226,6 @@ namespace ClaudeCodeVS
             return AppendExtraLaunchArgs(
                 ResolveProviderExecutable(AiProvider.Pi, "pi") + GetModelLaunchFlag(AiProvider.Pi),
                 AiProvider.Pi);
-        }
-
-        /// <summary>
-        /// Gets the Open Code command, carrying the selected model as -m. Open Code wants it in the
-        /// "provider/model" form, which is exactly what <c>opencode models</c> prints.
-        /// </summary>
-        /// <returns>The opencode command to execute</returns>
-        private string GetOpenCodeCommand()
-        {
-            return AppendExtraLaunchArgs(
-                ResolveProviderExecutable(AiProvider.OpenCode, "opencode")
-                    + GetModelLaunchFlag(AiProvider.OpenCode),
-                AiProvider.OpenCode);
         }
 
 

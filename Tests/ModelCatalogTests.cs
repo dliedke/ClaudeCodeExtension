@@ -152,7 +152,7 @@ namespace ClaudeCodeExtension.Tests
 
         #endregion
 
-        #region Antigravity / Open Code
+        #region Antigravity
 
         [TestMethod]
         public void ParsePlainList_TakesOneIdPerLine()
@@ -171,14 +171,14 @@ namespace ClaudeCodeExtension.Tests
         {
             const string text =
                 "Available models:\n" +
-                "opencode/big-pickle\n" +
+                "gemini-3-pro\n" +
                 "  ⚠ update available\n" +
                 "\n";
 
             List<ModelOption> models = ModelCatalogParsers.ParsePlainList(text);
 
             Assert.AreEqual(1, models.Count);
-            Assert.AreEqual("opencode/big-pickle", models[0].Id);
+            Assert.AreEqual("gemini-3-pro", models[0].Id);
         }
 
         [TestMethod]
@@ -252,7 +252,7 @@ namespace ClaudeCodeExtension.Tests
         public void GetGroupKey_TakesTheProviderHalfOfAProviderSlashModelId()
         {
             Assert.AreEqual("anthropic", ModelCatalogGrouping.GetGroupKey("anthropic/claude-opus-5"));
-            Assert.AreEqual("opencode", ModelCatalogGrouping.GetGroupKey("opencode/big-pickle"));
+            Assert.AreEqual("openai", ModelCatalogGrouping.GetGroupKey("openai/gpt-5.6-sol"));
         }
 
         [TestMethod]
@@ -515,7 +515,7 @@ namespace ClaudeCodeExtension.Tests
         [TestMethod]
         public void AcpArguments_AreUnchangedWithoutAModel()
         {
-            var options = new AcpSessionOptions { ExecutablePath = "opencode.exe" };
+            var options = new AcpSessionOptions { ExecutablePath = "reasonix.exe" };
 
             Assert.AreEqual("acp", AcpCommandBuilder.GetArguments(options));
         }

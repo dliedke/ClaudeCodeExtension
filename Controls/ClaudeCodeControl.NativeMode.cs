@@ -251,7 +251,7 @@ namespace ClaudeCodeVS
         /// the live session. Codex/Cursor Agent relaunch a fresh process per turn, so a follow-up cannot
         /// be injected into a process that has already exited. Devin's ACP session is long-lived, but its
         /// agent only expects one outstanding <c>session/prompt</c> at a time, so firing a second one
-        /// while a turn is in flight is the same problem by another route. Claude Code, OpenCode and
+        /// while a turn is in flight is the same problem by another route. Claude Code and
         /// Reasonix are deliberately excluded: their protocols accept a follow-up while busy without any
         /// of this bookkeeping.
         /// </summary>
@@ -272,11 +272,10 @@ namespace ClaudeCodeVS
             {
                 case AiProvider.ClaudeCode:
                 case AiProvider.ClaudeCodeWSL:
-                // These three speak ACP, so one adapter drives all of them. Reasonix is deliberately
+                // These two speak ACP, so one adapter drives both of them. Reasonix is deliberately
                 // **not** here: its ACP adapter works (it handshakes and answers), but it is kept on
                 // the embedded terminal by product decision, so nothing in this table should be read
                 // as a statement about which agents *could* run natively.
-                case AiProvider.OpenCode:
                 case AiProvider.Devin:
                 case AiProvider.DevinNative:
                 // These four stream JSON but end the process with each turn, so the adapter relaunches
@@ -660,7 +659,6 @@ namespace ClaudeCodeVS
                 case AiProvider.ClaudeCodeWSL:
                     return CreateClaudeSession(provider, workspace, session, resumeSessionId);
 
-                case AiProvider.OpenCode:
                 case AiProvider.Devin:
                 case AiProvider.DevinNative:
                 case AiProvider.Reasonix:
@@ -745,7 +743,7 @@ namespace ClaudeCodeVS
         }
 
         /// <summary>
-        /// Builds the ACP adapter. OpenCode, Devin (both flavours) and Reasonix expose the same
+        /// Builds the ACP adapter. Devin (both flavours) and Reasonix expose the same
         /// <c>acp</c> subcommand and the same protocol, so only the executable and the session mode
         /// differ between them.
         /// </summary>
@@ -783,7 +781,7 @@ namespace ClaudeCodeVS
                 options.EnvironmentOverrides["PATH"] = freshPath;
             }
 
-            // Only Devin exposes session history in this window (OpenCode/Reasonix don't), so only it
+            // Only Devin exposes session history in this window (Reasonix doesn't), so only it
             // may consume the token — the same guard CreateOneShotSession applies for Cursor.
             bool isDevin = provider == AiProvider.Devin || provider == AiProvider.DevinNative;
             if (isDevin)
@@ -949,7 +947,6 @@ namespace ClaudeCodeVS
         {
             switch (provider)
             {
-                case AiProvider.OpenCode: return "opencode";
                 case AiProvider.Reasonix: return "reasonix";
                 default: return "devin";
             }
@@ -975,7 +972,7 @@ namespace ClaudeCodeVS
 
         /// <summary>
         /// Model to select after the handshake, for the agents that publish a model picker there
-        /// (Devin and Open Code). Reasonix publishes none and takes its model at launch instead.
+        /// (Devin). Reasonix publishes none and takes its model at launch instead.
         /// </summary>
         private string GetAcpModelName(AiProvider provider, NativeChatSessionState session = null)
         {
@@ -1015,7 +1012,7 @@ namespace ClaudeCodeVS
         /// Expands a bare command name into a full path with its extension.
         /// <para>
         /// The terminal path can pass a bare name because a shell applies PATHEXT to it; starting a
-        /// process directly cannot. "opencode" would resolve to the extensionless npm shim — a shell
+        /// process directly cannot. "reasonix" would resolve to the extensionless npm shim — a shell
         /// script, not an image — and fail to launch, so the extension has to be found here.
         /// </para>
         /// </summary>

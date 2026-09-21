@@ -195,8 +195,8 @@ namespace ClaudeCodeVS.Agents
         }
 
         /// <summary>
-        /// The family an id belongs to: the provider half of the "provider/model" ids PI and Open Code
-        /// print, and the first two dash-separated segments otherwise. Two rather than one, measured
+        /// The family an id belongs to: the provider half of the "provider/model" ids PI
+        /// prints, and the first two dash-separated segments otherwise. Two rather than one, measured
         /// against cursor-agent's list: one segment puts 88 of its 193 models under "claude", two
         /// split them into "claude-opus", "claude-sonnet" and "claude-fable".
         /// </summary>
@@ -222,7 +222,7 @@ namespace ClaudeCodeVS.Agents
     /// <para>
     /// Pure and side-effect free on purpose: the commands themselves were measured once per CLI
     /// (<c>codex debug models</c>, <c>cursor-agent --list-models</c>, <c>pi --list-models</c>,
-    /// <c>agy models</c>, <c>opencode models</c>) and what is left is text handling, which is what
+    /// <c>agy models</c>) and what is left is text handling, which is what
     /// the unit suite covers.
     /// </para>
     /// </summary>
@@ -452,7 +452,7 @@ namespace ClaudeCodeVS.Agents
         }
 
         /// <summary>
-        /// <c>agy models</c> and <c>opencode models</c>: one bare id per line. Lines carrying spaces
+        /// <c>agy models</c>: one bare id per line. Lines carrying spaces
         /// are banners or warnings — no CLI prints a model id with a space in it.
         /// </summary>
         public static List<ModelOption> ParsePlainList(string text)

@@ -18,7 +18,7 @@ namespace ClaudeCodeVS.Agents
 {
     /// <summary>
     /// Launch settings for an ACP agent. The subcommand is always <c>acp</c> — that is what
-    /// <c>opencode</c>, <c>devin</c> and <c>reasonix</c> all expose.
+    /// <c>devin</c> and <c>reasonix</c> both expose.
     /// </summary>
     public class AcpSessionOptions
     {
@@ -120,8 +120,8 @@ namespace ClaudeCodeVS.Agents
                 return "wsl.exe";
             }
 
-            // opencode and reasonix install as npm shims (.cmd), which CreateProcess cannot execute
-            // directly with UseShellExecute off — the command processor has to run them.
+            // reasonix installs as an npm shim (.cmd), which CreateProcess cannot execute
+            // directly with UseShellExecute off — the command processor has to run it.
             return IsBatchScript(options.ExecutablePath) ? "cmd.exe" : options.ExecutablePath;
         }
 

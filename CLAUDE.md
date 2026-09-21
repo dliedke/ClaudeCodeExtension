@@ -2,11 +2,11 @@
 
 ## Project Overview
 
-Visual Studio Extension (VSIX) for VS 2022/2026 — integrates AI code assistants (Claude Code, OpenAI Codex, Cursor Agent, Open Code, Devin, PI, Google Antigravity, and Reasonix) via embedded terminal (Win32 `SetParent` interop).
+Visual Studio Extension (VSIX) for VS 2022/2026 — integrates AI code assistants (Claude Code, OpenAI Codex, Cursor Agent, Devin, PI, Google Antigravity, and Reasonix) via embedded terminal (Win32 `SetParent` interop).
 
 - Author: Daniel Carvalho Liedke (dliedke@gmail.com) | License: MIT
 - Repository: https://github.com/dliedke/ClaudeCodeExtension
-- Current Version: 160.0 | Target Framework: .NET Framework 4.7.2
+- Current Version: 186.0 | Target Framework: .NET Framework 4.7.2
 
 Step-by-step procedures for recurring tasks (release, Exp-hive debugging, publish, adding a
 provider/setting/UI file) live in `docs/SKILLS.md`. Short build/style brief for non-Claude agents: `docs/AGENTS.md`.
@@ -118,7 +118,7 @@ ClaudeCodeExtension/
 │   ├── JsonLineProcessHost.cs           # Shared process plumbing (stdio, line reader, tree teardown)
 │   ├── ProcessTree.cs                   # Process-tree enumeration/termination
 │   ├── ClaudeStreamJsonSession.cs / ClaudeStreamParser.cs / ClaudeCommandBuilder.cs # Claude Code stream-json
-│   ├── AcpSession.cs / AcpCommandBuilder.cs # ACP (OpenCode, Devin, Devin native, Reasonix)
+│   ├── AcpSession.cs / AcpCommandBuilder.cs # ACP (Devin, Devin native, Reasonix)
 │   ├── OneShotResumeSession.cs / CodexExecProtocol.cs / CursorAgentProtocol.cs # CLIs that exit each turn
 │   ├── CodexAppServerClient.cs        # Codex thread list/read/delete client for session history
 │   ├── PiRpcSession.cs                  # PI's own RPC mode
@@ -253,7 +253,6 @@ Enums (`AiProvider`, `ClaudeModel`, `EffortLevel`, `TerminalType`, `AgentFinishA
 | Codex (WSL) | `Codex` | WSL | `codex` | Double CTRL+C |
 | Cursor Agent | `CursorAgentNative` | Windows | `agent.exe` / `agent.cmd` | `exit` |
 | Cursor Agent (WSL) | `CursorAgent` | WSL | `cursor-agent` | `exit` |
-| Open Code | `OpenCode` | Windows | `opencode` | `exit` |
 | Devin (WSL) | `Devin` | WSL | `devin` | `exit` |
 | Devin (native) | `DevinNative` | Windows | `devin` | `exit` |
 | PI | `Pi` | Windows | `pi` | CTRL+D twice |

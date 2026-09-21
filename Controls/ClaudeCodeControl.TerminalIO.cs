@@ -152,8 +152,7 @@ namespace ClaudeCodeVS
             // crash in #82). Instead we keep the real clipboard paste and, when mouse-input mode is
             // detected, drive conhost's OWN paste through its context menu (TUI-agnostic, like
             // Antigravity). Best-effort: any probe failure leaves the flag false so the common
-            // (QuickEdit-on) path is unchanged. Only for plain conhost providers; WT isn't conhost
-            // and Open Code keeps its dedicated Shift+Right-click paste.
+            // (QuickEdit-on) path is unchanged. Only for plain conhost providers; WT isn't conhost.
             //
             // The probe is tri-state: null = "could not determine". An unknown mode is treated the
             // same as "mouse captured", because guessing wrong in that direction is what floods the
@@ -164,8 +163,7 @@ namespace ClaudeCodeVS
             // conhost selection — so "unknown" errs toward skipping it.
             bool conhostMouseInputMode = true;
             if (terminalHandle != IntPtr.Zero && IsWindow(terminalHandle)
-                && _wtTabBarHeight == 0
-                && _currentRunningProvider != AiProvider.OpenCode)
+                && _wtTabBarHeight == 0)
             {
                 bool? probed = await Task.Run(() => IsTerminalInMouseInputMode());
                 if (probed.HasValue)
@@ -181,7 +179,7 @@ namespace ClaudeCodeVS
             else
             {
                 // Not a plain-conhost provider: the deselect right-click never applied here anyway
-                // (WT and Open Code have their own paste paths), so keep the pre-existing behaviour.
+                // (WT has its own paste path), so keep the pre-existing behaviour.
                 conhostMouseInputMode = false;
             }
 
@@ -255,7 +253,6 @@ namespace ClaudeCodeVS
                     // mouse-input mode is detected (#82/#83): QuickEdit is off, so there is no selection
                     // to clear and a right-click would just open the context menu prematurely.
                     bool isCommandPrompt = _wtTabBarHeight == 0
-                                           && _currentRunningProvider != AiProvider.OpenCode
                                            && _currentRunningProvider != AiProvider.Pi
                                            && _currentRunningProvider != AiProvider.Antigravity
                                            && !conhostMouseInputMode;
@@ -655,7 +652,7 @@ namespace ClaudeCodeVS
                 // handle-targeted path proved reliable. It also invokes conhost's paste regardless
                 // of QuickEdit/mouse-input mode, so it covers the plain shells (Claude Code, Codex,
                 // Cursor) and the TUIs that capture the mouse (Claude API-key sign-in, PI,
-                // Antigravity, Open Code) without per-character keystroke flooding (issues #82, #83).
+                // Antigravity) without per-character keystroke flooding (issues #82, #83).
                 await PasteViaConhostPasteCommandAsync();
 
                 // Devin's TUI streams the paste into its own input buffer slower than the
@@ -1025,7 +1022,6 @@ namespace ClaudeCodeVS
                 // KEYDOWN/KEYUP Enter path; mirror that here.
                 bool isDevinNative = _currentRunningProvider == AiProvider.DevinNative;
 
-                bool isOpenCode = _currentRunningProvider == AiProvider.OpenCode;
                 bool isPi = _currentRunningProvider == AiProvider.Pi;
                 bool isReasonix = _currentRunningProvider == AiProvider.Reasonix;
 
@@ -1057,9 +1053,9 @@ namespace ClaudeCodeVS
                     // For other WSL-based providers (Codex, CursorAgent), use KEYDOWN/KEYUP approach
                     SendEnterKeyDownUp();
                 }
-                else if (isOpenCode || isPi || isReasonix)
+                else if (isPi || isReasonix)
                 {
-                    // For Open Code, PI, and Reasonix, use single WM_CHAR (TUI-based apps)
+                    // For PI and Reasonix, use single WM_CHAR (TUI-based apps)
                     PostMessage(terminalHandle, WM_CHAR, new IntPtr(VK_RETURN), IntPtr.Zero);
                 }
                 else

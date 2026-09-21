@@ -474,9 +474,6 @@ namespace ClaudeCodeVS
                             providerAvailable = await IsClaudeCmdAvailableAsync();
                             break;
 
-                        case AiProvider.OpenCode:
-                            providerAvailable = await IsOpenCodeAvailableAsync();
-                            break;
                         case AiProvider.Devin:
                             bool wslInstalledForDevin = await IsWslInstalledAsync();
                             if (wslInstalledForDevin)
@@ -559,13 +556,6 @@ namespace ClaudeCodeVS
                                 {
                                     _claudeNotificationShown = true;
                                     ShowClaudeInstallationInstructions();
-                                }
-                                break;
-                            case AiProvider.OpenCode:
-                                if (!_openCodeNotificationShown)
-                                {
-                                    _openCodeNotificationShown = true;
-                                    ShowOpenCodeInstallationInstructions();
                                 }
                                 break;
                             case AiProvider.Devin:
