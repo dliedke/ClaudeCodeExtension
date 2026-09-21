@@ -109,6 +109,7 @@ namespace ClaudeCodeVS
             var origVisibleToolbarButtons = new List<ToolbarButton>(
                 _settings.VisibleToolbarButtons ?? new List<ToolbarButton>());
             var origToolbarOrder = GetEffectiveToolbarOrder();
+            bool origToolbarRightAligned = _settings.ToolbarButtonsRightAligned;
 
             var dialog = new Window
             {
@@ -1303,7 +1304,8 @@ namespace ClaudeCodeVS
             {
                 ReorderToolbarControls();
             }
-            if (toolbarOrderChanged || toolbarVisibleChanged)
+            bool toolbarAlignmentChanged = newToolbarRightAligned != origToolbarRightAligned;
+            if (toolbarOrderChanged || toolbarVisibleChanged || toolbarAlignmentChanged)
             {
                 RefreshToolbarLayout();
             }

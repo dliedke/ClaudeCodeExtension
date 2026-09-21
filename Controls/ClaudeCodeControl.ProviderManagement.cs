@@ -2082,6 +2082,13 @@ For more details, visit: https://pi.dev";
                 RightButtonsScroller.HorizontalAlignment = _settings.ToolbarButtonsRightAligned
                     ? System.Windows.HorizontalAlignment.Right
                     : System.Windows.HorizontalAlignment.Left;
+
+                // Whether the right arrow keeps its slice depends on the alignment, and a plain
+                // alignment change produces no scroll event of its own.
+                if (RightButtonsScrollLeftButton != null && RightButtonsScrollRightButton != null)
+                {
+                    RightButtonsScroller_ScrollChanged(RightButtonsScroller, null);
+                }
             }
 
             var promoted = _settings.VisibleToolbarButtons
@@ -2429,7 +2436,15 @@ For more details, visit: https://pi.dev";
             Visibility arrows = canScroll ? Visibility.Visible : Visibility.Hidden;
 
             RightButtonsScrollLeftButton.Visibility = arrows;
-            RightButtonsScrollRightButton.Visibility = arrows;
+
+            // A Hidden arrow still reserves its slice of the row. On the right that slice is
+            // exactly the gap a right-aligned strip is supposed to remove, so collapse it while
+            // there is nothing to scroll. The left arrow stays Hidden either way, so the strip
+            // never shifts sideways as the arrows come and go.
+            RightButtonsScrollRightButton.Visibility =
+                !canScroll && _settings != null && _settings.ToolbarButtonsRightAligned
+                    ? Visibility.Collapsed
+                    : arrows;
 
             RightButtonsScrollLeftButton.IsEnabled = canScroll && RightButtonsScroller.HorizontalOffset > 0.5;
             RightButtonsScrollRightButton.IsEnabled = canScroll
