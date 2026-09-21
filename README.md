@@ -137,6 +137,9 @@ Use native mode to avoid this issue.
 
 ## Version History
 
+### Version 187.0
+- Native mode plan cards get an *Approve and skip permissions* button, plus a **▾** menu to approve on a different model (Opus, Sonnet, Haiku) with or without skipping permissions — the agent keeps working without being interrupted.
+
 ### Version 186.0
 - Open Code support removed. If it was your selected agent, the extension falls back to Claude Code.
 

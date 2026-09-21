@@ -2228,8 +2228,93 @@ namespace ClaudeCodeVS
                 UpdateChatComposerState();
             }
 
+            // "Approve and skip permissions" already switched the running CLI to bypass; this brings the
+            // composer and the saved state in line so the selector shows it and a later relaunch keeps it
+            // (issue #163). No relaunch here — that would stop the agent mid-plan, the very thing the
+            // plan card option exists to avoid.
+            if (interaction.IsPlanReview && interaction.WasApprovedAndSkippedPermissions)
+            {
+                if (owner != null)
+                {
+                    owner.PlanMode = false;
+                    owner.SkipPermissions = true;
+                    UpdateChatComposerState(owner);
+                }
+                else if (_settings != null)
+                {
+                    _settings.ClaudePlanMode = false;
+                    _settings.ClaudeDangerouslySkipPermissions = true;
+                    SaveSettings();
+                    UpdateChatComposerState();
+                }
+            }
+
+            if (interaction.IsPlanReview && interaction.ApprovedModel.HasValue)
+            {
+                ApplyPlanApprovalModelSwitch(owner, interaction.ApprovedModel.Value);
+            }
+
             // Empty hands the line back to the rotating verbs: the agent is working again.
             transcript.SetActivityLabel(string.Empty);
+        }
+
+        /// <summary>
+        /// "Approve and switch model" on a plan card: plan with one model, build with another. Goes
+        /// through the live <c>set_model</c> request — a relaunch would stop the agent mid-plan — and
+        /// keeps the pick in the selector/settings either way, so if the live switch is refused the next
+        /// relaunch still starts on it.
+        /// </summary>
+#pragma warning disable VSTHRD100 // Async void: called from a synchronous UI event handler
+        private async void ApplyPlanApprovalModelSwitch(NativeChatSessionState owner, ClaudeModel model)
+#pragma warning restore VSTHRD100
+        {
+            try
+            {
+                await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
+
+                IAgentSession agentSession;
+                string label;
+
+                if (owner != null)
+                {
+                    if (owner.SelectedClaudeModel == model) return;
+
+                    owner.SelectedClaudeModel = model;
+                    UpdateChatComposerState(owner);
+                    agentSession = owner.AgentSession;
+                    label = GetChatModelLabel(owner);
+                }
+                else
+                {
+                    if (_settings == null || _settings.SelectedClaudeModel == model) return;
+
+                    _settings.SelectedClaudeModel = model;
+                    UpdateModelSelection();
+                    SaveSettings(nameof(ClaudeCodeSettings.SelectedClaudeModel));
+                    UpdateChatComposerState();
+                    agentSession = _agentSession;
+                    label = GetChatModelLabel(GetActiveOrSelectedProvider());
+                }
+
+                bool switched = await TrySwitchClaudeModelAsync(agentSession, MapClaudeModelArgument(model));
+
+                string message = switched
+                    ? $"🤖 Switched to {label}."
+                    : $"🤖 Could not switch to {label} while the agent is working — it will be used the next time the agent restarts.";
+
+                if (owner != null)
+                {
+                    AddNativeMessageToSession(owner, ChatMessageKind.Notice, message);
+                }
+                else
+                {
+                    AddNativeMessage(ChatMessageKind.Notice, message);
+                }
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"Plan approval model switch failed: {ex.Message}");
+            }
         }
 
         /// <summary>

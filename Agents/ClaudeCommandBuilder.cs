@@ -239,9 +239,18 @@ namespace ClaudeCodeVS.Agents
             {
                 sb.Append(" --dangerously-skip-permissions");
             }
-            else if (!string.IsNullOrWhiteSpace(options.PermissionMode))
+            else
             {
-                sb.Append(" --permission-mode ").Append(QuoteArgument(options.PermissionMode, isWsl));
+                if (!string.IsNullOrWhiteSpace(options.PermissionMode))
+                {
+                    sb.Append(" --permission-mode ").Append(QuoteArgument(options.PermissionMode, isWsl));
+                }
+
+                // Makes bypass a mode the running session may switch into later — it does not turn it
+                // on. Without it the CLI refuses the switch ("not launched with
+                // --dangerously-skip-permissions"), which is what "Approve and skip permissions" on a
+                // plan card relies on (issue #163).
+                sb.Append(" --allow-dangerously-skip-permissions");
             }
 
             // Outside the branch above on purpose: the prompt tool coexists with

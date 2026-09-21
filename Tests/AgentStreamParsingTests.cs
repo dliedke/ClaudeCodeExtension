@@ -499,6 +499,21 @@ namespace ClaudeCodeExtension.Tests
         }
 
         [TestMethod]
+        public void ClaudeCommandBuilder_AskingForPermissionsMakesBypassAvailableWithoutEnablingIt()
+        {
+            // "Approve and skip permissions" on a plan card switches the live session with a
+            // setMode update, which the CLI only honours when it was launched with this flag (issue #163).
+            string args = ClaudeCommandBuilder.GetArguments(new ClaudeSessionOptions
+            {
+                PermissionMode = "acceptEdits",
+                InteractivePermissions = true
+            });
+
+            StringAssert.Contains(args, "--allow-dangerously-skip-permissions");
+            Assert.IsFalse(args.Contains(" --dangerously-skip-permissions"));
+        }
+
+        [TestMethod]
         public void ClaudeCommandBuilder_SkippingPermissionsDropsTheModeButKeepsThePromptTool()
         {
             // Measured: the two flags coexist. Bypassing every check silences the tool approvals, but

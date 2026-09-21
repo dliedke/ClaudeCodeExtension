@@ -22,6 +22,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using ClaudeCodeVS.UI;
+using Microsoft.VisualStudio.Shell;
 
 namespace ClaudeCodeVS
 {
@@ -153,8 +154,23 @@ namespace ClaudeCodeVS
                 bool alreadyPulled = !string.IsNullOrEmpty(_autoPulledRepositoryRoot)
                     && string.Equals(_autoPulledRepositoryRoot, repoRoot, StringComparison.OrdinalIgnoreCase);
 
-                GitPullOutcome outcome = await Task.Run(() => RunAutoPull(repoRoot, !alreadyPulled)).ConfigureAwait(false)
-                                         ?? skipped;
+                // The network pull can take seconds (up to the 20 s timeout offline), during which the
+                // prompt just sits there. Say what is happening before it starts. Only the first prompt
+                // per repository actually pulls, so only that one gets the line.
+                ChatTranscriptView progress = null;
+                if (!alreadyPulled)
+                    progress = await ShowAutoPullProgressAsync();
+
+                GitPullOutcome outcome;
+                try
+                {
+                    outcome = await Task.Run(() => RunAutoPull(repoRoot, !alreadyPulled)).ConfigureAwait(false)
+                              ?? skipped;
+                }
+                finally
+                {
+                    await HideAutoPullProgressAsync(progress);
+                }
 
                 // Remembered even when the pull failed: an offline or unauthenticated remote would
                 // otherwise re-pay the full 20 s timeout on every prompt for the rest of the session.
@@ -168,6 +184,53 @@ namespace ClaudeCodeVS
                 // Auto-pull is a convenience — it must never be the reason a prompt fails to send.
                 Debug.WriteLine($"Auto git pull failed: {ex.Message}");
                 return skipped;
+            }
+        }
+
+        /// <summary>
+        /// Puts "Pulling latest changes from git…" on the chat's status line, with the same spinner and
+        /// running clock a turn uses, so a slow fetch reads as progress rather than a frozen prompt.
+        /// Native mode only — the terminal has no such line. Returns the transcript to clear afterwards,
+        /// or null when nothing was shown.
+        /// </summary>
+        private async Task<ChatTranscriptView> ShowAutoPullProgressAsync()
+        {
+            try
+            {
+                await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
+
+                if (!IsNativeModeActive)
+                    return null;
+
+                ChatTranscriptView transcript = GetActiveSession()?.ChatTranscript ?? ChatTranscript;
+                if (transcript == null)
+                    return null;
+
+                transcript.BeginActivity();
+                transcript.SetActivityLabel("Pulling latest changes from git…");
+                return transcript;
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"Could not show auto-pull progress: {ex.Message}");
+                return null;
+            }
+        }
+
+        /// <summary>Clears the status line set by <see cref="ShowAutoPullProgressAsync"/>. The prompt's own turn starts its own line right after.</summary>
+        private async Task HideAutoPullProgressAsync(ChatTranscriptView transcript)
+        {
+            if (transcript == null)
+                return;
+
+            try
+            {
+                await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
+                transcript.SetStatus(string.Empty);
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"Could not clear auto-pull progress: {ex.Message}");
             }
         }
 

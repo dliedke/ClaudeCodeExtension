@@ -889,7 +889,10 @@ namespace ClaudeCodeExtension.Tests
 
             StringAssert.Contains(body, "RightButtonsScrollLeftButton.Visibility = arrows",
                 "Both arrows must share one visibility decision so neither ever appears alone.");
-            StringAssert.Contains(body, "RightButtonsScrollRightButton.Visibility = arrows");
+            // Since #162 the right arrow may also collapse (right-aligned strip with nothing to scroll),
+            // but whenever it is shown it still takes the shared "arrows" decision.
+            StringAssert.Contains(body, "RightButtonsScrollRightButton.Visibility =");
+            StringAssert.Contains(body, ": arrows;");
             StringAssert.Contains(body, "RightButtonsScrollLeftButton.IsEnabled",
                 "The direction with nowhere to go must be disabled rather than hidden.");
             StringAssert.Contains(body, "RightButtonsScrollRightButton.IsEnabled");

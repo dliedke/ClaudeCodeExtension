@@ -232,6 +232,15 @@ namespace ClaudeCodeVS.UI
             get { return IsToolApproval && _request.OnAllowForSession != null; }
         }
 
+        /// <summary>
+        /// True when this plan card can also be approved straight into skip-permissions (issue #163) —
+        /// the session marks the request eligible and supplies the callback that keeps its own state.
+        /// </summary>
+        public bool CanApproveAndSkipPermissions
+        {
+            get { return IsPlanReview && _request.CanApproveAndSkipPermissions; }
+        }
+
         public string AllowForSessionCaption
         {
             get
@@ -308,6 +317,12 @@ namespace ClaudeCodeVS.UI
         /// <summary>True when the card was accepted rather than declined or abandoned.</summary>
         public bool WasAccepted { get; private set; }
 
+        /// <summary>True when the plan was approved with the switch to skip-permissions.</summary>
+        public bool WasApprovedAndSkippedPermissions { get; private set; }
+
+        /// <summary>The model the plan was approved with, or null when the approval left the model alone.</summary>
+        public ClaudeModel? ApprovedModel { get; private set; }
+
         /// <summary>What was decided, shown after the card is answered.</summary>
         public string Outcome
         {
@@ -372,6 +387,40 @@ namespace ClaudeCodeVS.UI
                 ? "Allowed — won't ask again this session."
                 : "Allowed — won't ask again for " + ToolName + " this session.";
             WasAccepted = true;
+            IsPending = false;
+        }
+
+        /// <summary>
+        /// Approves the plan, optionally carrying on without permission prompts (issue #163) and/or on a
+        /// different model — the common "plan with Opus, build with Sonnet" flow. The card only records
+        /// what was chosen; the control applies the model switch to the live session once it resolves.
+        /// </summary>
+        public void ApprovePlan(bool skipPermissions, ClaudeModel? model)
+        {
+            if (!IsPending || !IsPlanReview) return;
+
+            bool skipping = skipPermissions && CanApproveAndSkipPermissions;
+
+            if (skipping)
+            {
+                _request.AllowAndSkipPermissions();
+            }
+            else
+            {
+                _request.Allow(null);
+            }
+
+            var details = new List<string>();
+            if (skipping) details.Add("without permission prompts");
+            if (model.HasValue) details.Add("on " + model.Value);
+
+            Outcome = details.Count == 0
+                ? "Plan approved — proceeding."
+                : "Plan approved — proceeding " + string.Join(" ", details) + ".";
+
+            WasAccepted = true;
+            WasApprovedAndSkippedPermissions = skipping;
+            ApprovedModel = model;
             IsPending = false;
         }
 

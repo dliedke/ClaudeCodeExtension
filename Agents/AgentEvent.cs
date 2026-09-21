@@ -279,6 +279,25 @@ namespace ClaudeCodeVS.Agents
         public Action OnAllowForSession { get; set; }
 
         /// <summary>
+        /// Set by the session for a <see cref="AgentInteractionKind.PlanReview"/> that can also be
+        /// approved straight into "skip permissions" — the CLI was launched with the bypass mode
+        /// available and is not already using it. When present the plan card offers "Approve and skip
+        /// permissions" (issue #163).
+        /// </summary>
+        public Action OnApproveAndSkipPermissions { get; set; }
+
+        public bool CanApproveAndSkipPermissions
+        {
+            get { return Kind == AgentInteractionKind.PlanReview && OnApproveAndSkipPermissions != null; }
+        }
+
+        /// <summary>
+        /// True when the approval asked for the session to leave plan mode into skip-permissions rather
+        /// than back to the mode it was in. Read by the transport when it builds the allow response.
+        /// </summary>
+        public bool SkipPermissionsRequested { get; private set; }
+
+        /// <summary>
         /// Lets the tool run. <paramref name="answers"/> maps question text to the chosen label and is
         /// only meaningful for <see cref="AgentInteractionKind.Question"/>; pass null otherwise.
         /// </summary>
@@ -310,6 +329,30 @@ namespace ClaudeCodeVS.Agents
             {
                 try { remember(); }
                 catch (Exception ex) { Debug.WriteLine($"AllowForSession bookkeeping failed: {ex.Message}"); }
+            }
+
+            Allow(null);
+        }
+
+        /// <summary>
+        /// Approves the plan and switches the running session to skip-permissions in the same answer,
+        /// so the agent carries on without asking about every tool. Falls back to a plain
+        /// <see cref="Allow(IDictionary{string,string})"/> when the interaction was not marked eligible.
+        /// </summary>
+        public void AllowAndSkipPermissions()
+        {
+            Action apply = OnApproveAndSkipPermissions;
+
+            lock (_gate)
+            {
+                if (_answered) return;
+                SkipPermissionsRequested = apply != null;
+            }
+
+            if (apply != null)
+            {
+                try { apply(); }
+                catch (Exception ex) { Debug.WriteLine($"AllowAndSkipPermissions bookkeeping failed: {ex.Message}"); }
             }
 
             Allow(null);

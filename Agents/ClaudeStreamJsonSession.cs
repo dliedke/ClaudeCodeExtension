@@ -512,6 +512,19 @@ namespace ClaudeCodeVS.Agents
                         };
                     }
 
+                    // A plan can be approved straight into skip-permissions. The callback keeps the
+                    // session's own launch options in step, so a relaunch of this process (interrupt
+                    // recovery) stays in that mode instead of dropping back to prompting.
+                    if (interaction != null &&
+                        interaction.Kind == AgentInteractionKind.PlanReview &&
+                        !_options.DangerouslySkipPermissions)
+                    {
+                        interaction.OnApproveAndSkipPermissions = delegate
+                        {
+                            _options.DangerouslySkipPermissions = true;
+                        };
+                    }
+
                     // Tracked so an interrupt or a dispose can deny it: a control request left
                     // unanswered blocks the CLI forever, and the process would never exit.
                     lock (_pendingInteractions)

@@ -472,7 +472,9 @@ namespace ClaudeCodeVS.Agents
 
             Action<string, object> responder = ControlResponder;
 
-            var interaction = new AgentInteractionRequest((allow, denyMessage, answers) =>
+            AgentInteractionRequest interaction = null;
+
+            interaction = new AgentInteractionRequest((allow, denyMessage, answers) =>
             {
                 Action<string, object> target = responder;
                 if (target == null)
@@ -505,6 +507,24 @@ namespace ClaudeCodeVS.Agents
                         map[pair.Key] = pair.Value ?? string.Empty;
                     }
                     updated["answers"] = map;
+                }
+
+                if (interaction != null && interaction.SkipPermissionsRequested)
+                {
+                    // Approving the plan into skip-permissions: the CLI applies the mode change itself
+                    // as part of the allow, so there is no window where the resumed turn still asks.
+                    // Measured against CLI 2.1.273 — needs the session launched with
+                    // --allow-dangerously-skip-permissions, which the command builder adds.
+                    target(requestId, new
+                    {
+                        behavior = "allow",
+                        updatedInput = updated,
+                        updatedPermissions = new[]
+                        {
+                            new { type = "setMode", mode = "bypassPermissions", destination = "session" }
+                        }
+                    });
+                    return;
                 }
 
                 target(requestId, new { behavior = "allow", updatedInput = updated });

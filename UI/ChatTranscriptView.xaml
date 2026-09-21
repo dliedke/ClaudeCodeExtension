@@ -606,10 +606,42 @@
 									</ContextMenu>
 								</Button.ContextMenu>
 							</Button>
+							<!-- Plan review counterpart: approve and carry on without permission prompts (issue #163). -->
+							<Button DockPanel.Dock="Right"
+							        Style="{StaticResource InteractionPrimaryStyle}"
+							        Padding="7,4,7,4"
+							        Content="▾"
+							        ToolTip="More approve options"
+							        Visibility="{Binding IsPlanReview, Converter={StaticResource BoolToVis}}"
+							        Click="InteractionAllowMenu_Click">
+								<Button.ContextMenu>
+									<ContextMenu>
+										<MenuItem Header="Approve and switch model">
+											<MenuItem Header="Opus" Tag="Opus" Click="InteractionApprovePlan_Click"/>
+											<MenuItem Header="Sonnet" Tag="Sonnet" Click="InteractionApprovePlan_Click"/>
+											<MenuItem Header="Haiku" Tag="Haiku" Click="InteractionApprovePlan_Click"/>
+										</MenuItem>
+										<MenuItem Header="Approve, skip permissions and switch model"
+										          Visibility="{Binding CanApproveAndSkipPermissions, Converter={StaticResource BoolToVis}}">
+											<MenuItem Header="Opus" Tag="skip:Opus" Click="InteractionApprovePlan_Click"/>
+											<MenuItem Header="Sonnet" Tag="skip:Sonnet" Click="InteractionApprovePlan_Click"/>
+											<MenuItem Header="Haiku" Tag="skip:Haiku" Click="InteractionApprovePlan_Click"/>
+										</MenuItem>
+									</ContextMenu>
+								</Button.ContextMenu>
+							</Button>
 							<Button DockPanel.Dock="Right"
 							        Style="{StaticResource InteractionPrimaryStyle}"
 							        Content="{Binding SubmitCaption}"
 							        Click="InteractionSubmit_Click"/>
+							<!-- Plan review only, and only when the session can still switch into bypass (issue #163). -->
+							<Button DockPanel.Dock="Right"
+							        Style="{StaticResource InteractionPrimaryStyle}"
+							        Content="Approve and skip permissions"
+							        Tag="skip"
+							        ToolTip="Approve the plan and continue without asking for permission on every tool"
+							        Visibility="{Binding CanApproveAndSkipPermissions, Converter={StaticResource BoolToVis}}"
+							        Click="InteractionApprovePlan_Click"/>
 							<Button DockPanel.Dock="Right"
 							        Style="{StaticResource InteractionSecondaryStyle}"
 							        Content="{Binding RejectCaption}"

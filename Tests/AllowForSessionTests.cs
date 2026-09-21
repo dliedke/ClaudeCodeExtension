@@ -49,6 +49,92 @@ namespace ClaudeCodeExtension.Tests
             return null;
         }
 
+        private static AgentInteractionRequest ParsePlanReview(ClaudeStreamParser parser)
+        {
+            string line =
+                "{\"type\":\"control_request\",\"request_id\":\"req-2\",\"request\":{\"subtype\":\"can_use_tool\"," +
+                "\"tool_name\":\"ExitPlanMode\",\"tool_use_id\":\"tu-2\",\"input\":{\"plan\":\"do it\"}}}";
+
+            foreach (AgentEvent evt in parser.Parse(line))
+            {
+                if (evt.Kind == AgentEventKind.InteractionRequested)
+                {
+                    return evt.Interaction;
+                }
+            }
+
+            Assert.Fail("no interaction was produced");
+            return null;
+        }
+
+        [TestMethod]
+        public void ApproveAndSkipPermissions_SendsAnAllowThatSwitchesTheSessionToBypass()
+        {
+            List<KeyValuePair<string, object>> sent;
+            ClaudeStreamParser parser = NewParser(out sent);
+
+            AgentInteractionRequest interaction = ParsePlanReview(parser);
+            bool applied = false;
+            interaction.OnApproveAndSkipPermissions = () => applied = true;
+
+            Assert.IsTrue(interaction.CanApproveAndSkipPermissions);
+            interaction.AllowAndSkipPermissions();
+
+            Assert.IsTrue(applied);
+            Assert.AreEqual(1, sent.Count);
+            string json = JsonConvert.SerializeObject(sent[0].Value);
+            StringAssert.Contains(json, "\"behavior\":\"allow\"");
+            StringAssert.Contains(json, "\"type\":\"setMode\"");
+            StringAssert.Contains(json, "\"mode\":\"bypassPermissions\"");
+        }
+
+        [TestMethod]
+        public void ApproveAndSkipPermissions_WhenNotEligibleIsAPlainApproval()
+        {
+            List<KeyValuePair<string, object>> sent;
+            ClaudeStreamParser parser = NewParser(out sent);
+
+            AgentInteractionRequest interaction = ParsePlanReview(parser);
+
+            Assert.IsFalse(interaction.CanApproveAndSkipPermissions);
+            interaction.AllowAndSkipPermissions();
+
+            Assert.AreEqual(1, sent.Count);
+            Assert.IsFalse(JsonConvert.SerializeObject(sent[0].Value).Contains("setMode"));
+        }
+
+        [TestMethod]
+        public void ApprovePlan_RecordsTheChosenModelAndSkipChoice()
+        {
+            List<KeyValuePair<string, object>> sent;
+            ClaudeStreamParser parser = NewParser(out sent);
+
+            AgentInteractionRequest request = ParsePlanReview(parser);
+            request.OnApproveAndSkipPermissions = () => { };
+
+            var card = new ClaudeCodeVS.UI.ChatInteractionViewModel(request);
+            card.ApprovePlan(skipPermissions: true, model: ClaudeCodeVS.ClaudeModel.Sonnet);
+
+            Assert.IsFalse(card.IsPending);
+            Assert.IsTrue(card.WasAccepted);
+            Assert.IsTrue(card.WasApprovedAndSkippedPermissions);
+            Assert.AreEqual(ClaudeCodeVS.ClaudeModel.Sonnet, card.ApprovedModel);
+            StringAssert.Contains(JsonConvert.SerializeObject(sent[0].Value), "bypassPermissions");
+        }
+
+        [TestMethod]
+        public void PlainPlanApproval_DoesNotChangeThePermissionMode()
+        {
+            List<KeyValuePair<string, object>> sent;
+            ClaudeStreamParser parser = NewParser(out sent);
+
+            AgentInteractionRequest interaction = ParsePlanReview(parser);
+            interaction.OnApproveAndSkipPermissions = () => { };
+            interaction.Allow(null);
+
+            Assert.IsFalse(JsonConvert.SerializeObject(sent[0].Value).Contains("setMode"));
+        }
+
         [TestMethod]
         public void AllowForSession_RunsTheBookkeepingCallbackThenAllowsTheCall()
         {

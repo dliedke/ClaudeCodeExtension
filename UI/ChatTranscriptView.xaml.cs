@@ -1611,6 +1611,30 @@ namespace ClaudeCodeVS.UI
             }
         }
 
+        /// <summary>
+        /// The plan card's extra approvals. <c>Tag</c> is <c>skip</c>, a <see cref="ClaudeModel"/> name,
+        /// or <c>skip:&lt;model&gt;</c>, so one handler covers every menu entry.
+        /// </summary>
+        private void InteractionApprovePlan_Click(object sender, RoutedEventArgs e)
+        {
+            var interaction = ResolveInteraction(sender);
+            if (interaction == null) return;
+
+            string tag = (sender as FrameworkElement)?.Tag as string ?? string.Empty;
+            bool skip = tag.StartsWith("skip", StringComparison.Ordinal);
+            string modelName = tag.Contains(":") ? tag.Substring(tag.IndexOf(':') + 1) : (skip ? string.Empty : tag);
+
+            ClaudeModel parsed;
+            ClaudeModel? model = Enum.TryParse(modelName, out parsed) ? parsed : (ClaudeModel?)null;
+
+            interaction.ApprovePlan(skip, model);
+
+            if (!interaction.IsPending)
+            {
+                InteractionResolved?.Invoke(this, interaction);
+            }
+        }
+
         private static ChatInteractionViewModel ResolveInteraction(object sender)
         {
             var element = sender as FrameworkElement;
