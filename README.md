@@ -137,6 +137,9 @@ Use native mode to avoid this issue.
 
 ## Version History
 
+### Version 193.0
+- "Pull from git before the first prompt" now also fires when the first message of a session is sent from a custom command, not just when typed into the prompt box.
+
 ### Version 192.0
 - The "agent finished" notice and the terminal-repair notice no longer replace each other, so the one you came back to act on is still there.
 - The terminal keeps its size and font when Visual Studio cannot report the display scaling for a moment, instead of treating it as a display change.

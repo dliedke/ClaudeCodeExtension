@@ -214,7 +214,9 @@ namespace ClaudeCodeVS
                 // Bring the repository up to date before the agent starts editing anything, so it
                 // never rewrites a file a teammate already changed upstream. Only user-initiated
                 // sends pull — the automatic ones (build errors, runtime errors, agent-finish
-                // follow-ups) go through SendTextToAgentAsync and deliberately bypass this.
+                // follow-ups) go through SendTextToAgentAsync without calling this first. Custom
+                // commands are user-initiated too and call TryAutoPullBeforePromptAsync themselves
+                // from CustomCommandMenuItem_Click before reaching SendTextToAgentAsync.
                 GitPullOutcome pullOutcome = await TryAutoPullBeforePromptAsync();
 
                 // The pull ran on a background thread; everything below touches the control again.

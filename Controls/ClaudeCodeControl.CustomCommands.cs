@@ -104,7 +104,21 @@ namespace ClaudeCodeVS
                 var cmd = item?.Tag as CustomCommand;
                 if (cmd == null || string.IsNullOrEmpty(cmd.Command)) return;
 
-                await SendTextToAgentAsync(cmd.Command);
+                // A custom command is a user-initiated send just like the prompt box, so it needs the
+                // same pre-prompt pull. Without this, a session whose very first send is a custom
+                // command never pulled at all: TryAutoPullBeforePromptAsync only ran from
+                // SendButton_Click, and _autoPulledRepositoryRoot only gets set once something calls it.
+                GitPullOutcome pullOutcome = await TryAutoPullBeforePromptAsync();
+                await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
+                ReportAutoPullOutcome(pullOutcome);
+
+                string commandText = cmd.Command;
+                if (pullOutcome != null && pullOutcome.Kind == GitPullOutcomeKind.Conflicts)
+                {
+                    commandText = BuildConflictPromptBlock(pullOutcome, hasUserRequest: true) + commandText;
+                }
+
+                await SendTextToAgentAsync(commandText);
             }
             catch (Exception ex)
             {
