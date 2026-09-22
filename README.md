@@ -137,14 +137,21 @@ Use native mode to avoid this issue.
 
 ## Version History
 
-### Version 189.0
+### Version 191.0
 - The terminal keeps its text size and its earlier output when the display changes: a Remote Desktop reconnect at a different resolution, a monitor switch or a scaling change no longer leaves the font oversized and the output cut off at the right edge.
 - After such a change the agent also redraws in the right place, instead of scrolling to a spot outside the visible area every time it updates.
 - The terminal fills the whole panel again after the change instead of painting only a few rows at the top and leaving the rest blank, which is what made scrolling look scrambled after a Remote Desktop reconnect.
 - If the terminal still cannot be brought back to the right size, a notification now says so and offers to restart it.
+ 
+### Version 190.0
+- Codex and Cursor Agent now switch model mid-conversation without restarting the chat, matching how effort already worked — Claude Code already had this.
+
+### Version 189.0
+- Native mode's permission selector gains a *Manual mode* option that asks before every action, even file edits, for anyone who wants full control over each step.
+- *Ask permission* is renamed to *Accept edits* to describe what it actually does — file writes go through automatically while riskier actions still prompt.
 
 ### Version 188.0
-- Native mode's permission selector gains an *Auto* option alongside Plan mode, Ask permission, and Skip permissions, letting Claude Code decide per action whether to prompt.
+- Native mode's permission selector gains an *Auto* option alongside Plan mode, Ask permission, and Skip permissions, letting Claude Code decide per action whether to prompt. Thanks to [@karpach-relativity](https://github.com/karpach-relativity) for the contribution (#165).
 - Turning on *Claude Code: Skip Permissions* from the agent menu now clears the other permission modes, so the selector always names the mode the agent is actually running in.
 
 ### Version 187.0

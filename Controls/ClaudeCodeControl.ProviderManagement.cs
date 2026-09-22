@@ -4104,8 +4104,8 @@ For more details, visit: https://pi.dev";
 
             _settings.ClaudeDangerouslySkipPermissions = ClaudeDangerouslySkipPermissionsMenuItem.IsChecked;
 
-            // This item is visible in native mode too, where skipping is one of three mutually
-            // exclusive permission states — so it has to drop the other two, exactly as the composer's
+            // This item is visible in native mode too, where skipping is one of four mutually
+            // exclusive permission states — so it has to drop the other three, exactly as the composer's
             // own "Skip permissions" entry does. Leaving them set made the composer name a state the
             // session was not launched in, and left the entry for the stale flag no-opping because that
             // flag was already on.
@@ -4113,6 +4113,7 @@ For more details, visit: https://pi.dev";
             {
                 _settings.ClaudePlanMode = false;
                 _settings.ClaudeAutoPermissions = false;
+                _settings.ClaudeManualMode = false;
             }
 
             SaveSettings();

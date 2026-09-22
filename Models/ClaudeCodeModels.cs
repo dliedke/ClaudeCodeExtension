@@ -517,11 +517,22 @@ namespace ClaudeCodeVS
 
         /// <summary>
         /// If true, starts Claude Code with <c>--permission-mode auto</c>: the CLI decides per tool call
-        /// whether to prompt, instead of the extension's own "Ask permission" (acceptEdits) default.
-        /// Native mode only. Mutually exclusive with <see cref="ClaudePlanMode"/> and
-        /// <see cref="ClaudeDangerouslySkipPermissions"/> — picking one of the three turns the others off.
+        /// whether to prompt, instead of the extension's own "Accept edits" (acceptEdits) default.
+        /// Native mode only. Mutually exclusive with <see cref="ClaudePlanMode"/>,
+        /// <see cref="ClaudeDangerouslySkipPermissions"/> and <see cref="ClaudeManualMode"/> — picking
+        /// one of the four turns the others off.
         /// </summary>
         public bool ClaudeAutoPermissions { get; set; } = false;
+
+        /// <summary>
+        /// If true, starts Claude Code with <c>--permission-mode manual</c>: the CLI's own "ask before
+        /// every tool call" mode, with no standing allow for any tool — not even file edits, which is
+        /// what tells it apart from the extension's own "Accept edits" (acceptEdits) default. Native
+        /// mode only. Mutually exclusive with <see cref="ClaudePlanMode"/>,
+        /// <see cref="ClaudeDangerouslySkipPermissions"/> and <see cref="ClaudeAutoPermissions"/> —
+        /// picking one of the four turns the others off.
+        /// </summary>
+        public bool ClaudeManualMode { get; set; } = false;
 
         /// <summary>
         /// Which AI providers should be listed in the agent selection menu.
