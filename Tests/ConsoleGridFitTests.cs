@@ -682,6 +682,47 @@ namespace ClaudeCodeExtension.Tests
         }
 
         /// <summary>
+        /// The repair's notice and the completion watcher's both go up on the main window, and both
+        /// can be live at once: a SessionUnlock starts a cycle whose last pass lands 12.75 s later,
+        /// which is exactly when someone returns to an agent-finish bar they have not clicked. With
+        /// one shared slot, whichever arrived second closed the other along with its action link -
+        /// including the "Restart terminal" offer, the only remedy the repair can propose.
+        /// </summary>
+        [TestMethod]
+        public void TheRepairNoticeAndTheAgentFinishNoticeDoNotCloseEachOther()
+        {
+            string notify = ExtractMethodBody(DisplayChangeSource,
+                "private void NotifyTerminalGridDidNotSurviveDisplayChange()");
+
+            StringAssert.Contains(notify, "InfoBarSlot.TerminalGeometry",
+                "The repair's notice has to own a slot of its own, or it replaces whatever else is showing.");
+
+            string show = ExtractMethodBody(AgentCompletionSource,
+                "private async Task ShowAgentFinishNotificationAsync(string text, string actionLabel, Func<Task> onAction,");
+
+            StringAssert.Contains(show, "var previous = GetActiveInfoBar(slot);",
+                "Only the previous bar in the same slot may be replaced.");
+            StringAssert.Contains(show, "SetActiveInfoBar(slot, element);",
+                "The new bar is recorded in its own slot, so the other one's OnClosed cannot clear it.");
+        }
+
+        /// <summary>
+        /// Unsubscribing the system events stops new cycles; it does nothing about the one already
+        /// running, whose passes reach 12.75 s past the event. IsDisplayChangeRepairStillWanted gates
+        /// on the window handle, and cleanup only posts WM_CLOSE - asynchronous - so a display change
+        /// or SessionUnlock seconds before Visual Studio closes left passes attaching consoles to
+        /// devenv.exe and moving windows during shutdown: the issue #73 hazard, from the inside.
+        /// </summary>
+        [TestMethod]
+        public void CleanupStopsTheCycleThatIsAlreadyRunning()
+        {
+            string cleanup = ExtractMethodBody(DisplayChangeSource, "private void CleanupDisplayChangeHandling()");
+
+            StringAssert.Contains(cleanup, "Interlocked.Increment(ref _displayChangeRepairRequestId);",
+                "Bumping the generation is what makes the pending passes return at their next check.");
+        }
+
+        /// <summary>
         /// Each pass briefly does AttachConsole/FreeConsole on Visual Studio's own process, which
         /// bounces the native keyboard focus off the embedded terminal - typed characters then land
         /// nowhere. The completion watcher snapshots and restores focus around exactly this call for

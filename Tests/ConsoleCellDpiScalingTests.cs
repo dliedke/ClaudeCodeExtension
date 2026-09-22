@@ -263,6 +263,37 @@ namespace ClaudeCodeExtension.Tests
         }
 
         /// <summary>
+        /// 96 is a perfectly ordinary DPI, so it cannot double as "the panel could not be asked". It
+        /// did: a panel between handles, one disposed mid-detach, or a `GetDpiForWindow` returning 0
+        /// all read back as a genuine 96 — and on a 192 DPI machine one such reading made the cell
+        /// size look stale, halved the console font, and recorded 96 as the DPI the cells belonged
+        /// to. With the rescale then failing, the width guard latched with nothing left to retry.
+        /// </summary>
+        [TestMethod]
+        public void AnUnreadablePanelDpiChangesNothing()
+        {
+            string dpi = ExtractMethodBody(TerminalSource, "private uint GetTerminalPanelDpi()");
+
+            StringAssert.Contains(dpi, "return 0;",
+                "The failure value has to be distinguishable from a DPI that was actually read.");
+            Assert.IsFalse(dpi.Contains("return 96;"),
+                "Falling back to 96 hands the callers a guess they cannot tell from a measurement.");
+
+            string resize = ExtractMethodBody(TerminalSource,
+                "private void ResizeEmbeddedTerminal(bool forceSizeNotification = false)");
+
+            StringAssert.Contains(resize, "if (panelDpi == 0)",
+                "An unreadable DPI must not start a rescale, and must not clear a width that is being held.");
+
+            string repair = ExtractMethodBody(
+                RepositoryLayout.ReadText("Controls", "ClaudeCodeControl.DisplayChange.cs"),
+                "private async Task RepairTerminalGeometryAfterDisplayChangeAsync(int requestId, int passIndex)");
+
+            StringAssert.Contains(repair, "if (panelDpi == 0)",
+                "A pass measured against a guessed DPI writes that guess into _terminalCellDpi as the truth.");
+        }
+
+        /// <summary>
         /// The DPI rescale is a correction for the session's DPI, not a font size the user chose, and
         /// the repair says so where it makes it. The Ctrl+Scroll zoom persists an absolute cell
         /// height, though, so without the running offset the first wheel notch after a reconnect
