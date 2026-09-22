@@ -3485,8 +3485,15 @@ namespace ClaudeCodeVS
         /// DPI the terminal panel currently lives at. Read from the panel, not from the terminal
         /// window: the panel belongs to Visual Studio's per-monitor-aware process and tracks the
         /// session DPI, while the embedded host window does not (see <see cref="_terminalCellDpi"/>).
-        /// Falls back to 96 so callers always get a usable value. UI thread only - touches the
-        /// WinForms handle.
+        /// UI thread only - touches the WinForms handle.
+        /// <para>
+        /// Returns <b>0</b> when the panel cannot be asked - not 96. The two are indistinguishable
+        /// to a caller, and 96 is a perfectly ordinary DPI: on a 192 DPI machine a single such
+        /// reading - a panel between handles, a disposed one mid-detach, a <c>GetDpiForWindow</c>
+        /// that returns 0 - made the cell size look stale, halved the console font, and recorded 96
+        /// as the DPI the cells now belong to. Callers treat 0 as "unknown, change nothing", the
+        /// same way <see cref="ScaleConsoleCellHeightForDpi"/> does.
+        /// </para>
         /// </summary>
         private uint GetTerminalPanelDpi()
         {
@@ -3495,11 +3502,7 @@ namespace ClaudeCodeVS
                 var panel = ActiveTerminalPanel;
                 if (panel != null && !panel.IsDisposed && panel.IsHandleCreated)
                 {
-                    uint dpi = GetDpiForWindow(panel.Handle);
-                    if (dpi > 0)
-                    {
-                        return dpi;
-                    }
+                    return GetDpiForWindow(panel.Handle);
                 }
             }
             catch (Exception ex)
@@ -3507,7 +3510,7 @@ namespace ClaudeCodeVS
                 Debug.WriteLine($"GetTerminalPanelDpi error: {ex.Message}");
             }
 
-            return 96;
+            return 0;
         }
 
         /// <summary>
@@ -4680,7 +4683,14 @@ namespace ClaudeCodeVS
 
                 // The cell size the host is rendering with belongs to the DPI in effect now; a later
                 // display change scales it against this value (see ScaleConsoleCellHeightForDpi).
-                if (_terminalCellDpi == 0)
+                if (panelDpi == 0)
+                {
+                    // The panel could not be asked (see GetTerminalPanelDpi). Nothing here may run on
+                    // a guess - but a width already being held stays held, because an unreadable DPI
+                    // is no evidence that the cells have caught up with the panel.
+                    minWidth = _heldTerminalWidthPx;
+                }
+                else if (_terminalCellDpi == 0)
                 {
                     _terminalCellDpi = panelDpi;
                     _heldTerminalWidthPx = 0;

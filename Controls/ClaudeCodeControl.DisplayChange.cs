@@ -243,6 +243,14 @@ namespace ClaudeCodeVS
             finally
             {
                 _displayChangeHandlersInstalled = false;
+
+                // Unsubscribing stops new cycles; this stops the one that is already running. Its
+                // passes reach 12.75 s past the event and IsDisplayChangeRepairStillWanted gates only
+                // on the window handle, which Cleanup does not clear - it posts WM_CLOSE, which is
+                // asynchronous. Without this a display change or SessionUnlock seconds before Visual
+                // Studio closes leaves passes attaching consoles to devenv.exe and moving windows
+                // during shutdown - the issue #73 hazard the rest of this file guards against.
+                Interlocked.Increment(ref _displayChangeRepairRequestId);
             }
         }
 
@@ -413,6 +421,22 @@ namespace ClaudeCodeVS
             uint panelDpi = GetTerminalPanelDpi();
             bool isConhost = _wtTabBarHeight == 0;
             bool lastPass = passIndex == DisplayChangeRepairDelaysMs.Length - 1;
+
+            // Everything below is measured against the panel's DPI, and 0 means it could not be read
+            // (see GetTerminalPanelDpi). Skipping costs one pass of six; carrying on with a guessed
+            // 96 would rescale the font against a number nobody reported and then record it as the
+            // DPI the cells belong to.
+            if (panelDpi == 0)
+            {
+                LogDisplayRepair($"dpi repair pass {passIndex}: panel DPI unavailable - pass skipped", routine: true);
+
+                if (lastPass && IsDisplayChangeRepairStillWanted(requestId))
+                {
+                    FinishDisplayRepairLogCycle();
+                }
+
+                return;
+            }
 
             // The host settles its own metrics late after a reconnect, so the grid is re-checked on
             // the trailing passes and not only on the one that moved the cells.
@@ -742,7 +766,8 @@ namespace ClaudeCodeVS
                 await ShowAgentFinishNotificationAsync(
                     "The agent terminal did not come back at the right size after the display changed, so part of the panel stays blank and the agent draws where you cannot see it. Restarting the terminal repairs it.",
                     "Restart terminal",
-                    async delegate { await RestartTerminalWithSelectedProviderAsync(); });
+                    async delegate { await RestartTerminalWithSelectedProviderAsync(); },
+                    InfoBarSlot.TerminalGeometry);
             });
 #pragma warning restore VSSDK007
         }

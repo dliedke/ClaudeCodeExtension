@@ -148,6 +148,48 @@ namespace ClaudeCodeVS
         // The currently-shown agent-finish info bar, so a newer one can replace it.
         private IVsInfoBarUIElement _activeAgentFinishInfoBar;
 
+        /// <summary>
+        /// The display repair's own info-bar slot (see <see cref="InfoBarSlot"/>). Separate from the
+        /// one above because both notices can be live at the same moment: a <c>SessionUnlock</c> runs
+        /// a repair cycle whose last pass lands 12.75 s later, which is exactly when someone comes
+        /// back to an agent-finish bar they have not clicked yet.
+        /// </summary>
+        private IVsInfoBarUIElement _activeTerminalGeometryInfoBar;
+
+        /// <summary>
+        /// Which main-window info bar a notification owns. A new bar replaces only the previous one
+        /// in its own slot. With a single slot, whichever notice came second silently closed the
+        /// other along with its action link - the display repair closing the agent-finish bar the
+        /// user had just come back to click, or an agent finishing a few seconds later closing the
+        /// "Restart terminal" offer, which is the only remedy that notice can propose.
+        /// </summary>
+        private enum InfoBarSlot
+        {
+            AgentFinish,
+            TerminalGeometry,
+        }
+
+        /// <summary>Info bar currently shown in <paramref name="slot"/>, or null.</summary>
+        private IVsInfoBarUIElement GetActiveInfoBar(InfoBarSlot slot)
+        {
+            return slot == InfoBarSlot.TerminalGeometry
+                ? _activeTerminalGeometryInfoBar
+                : _activeAgentFinishInfoBar;
+        }
+
+        /// <summary>Records (or clears) the info bar shown in <paramref name="slot"/>.</summary>
+        private void SetActiveInfoBar(InfoBarSlot slot, IVsInfoBarUIElement element)
+        {
+            if (slot == InfoBarSlot.TerminalGeometry)
+            {
+                _activeTerminalGeometryInfoBar = element;
+            }
+            else
+            {
+                _activeAgentFinishInfoBar = element;
+            }
+        }
+
         #endregion
 
         #region Effective Config Resolution
@@ -1729,16 +1771,37 @@ namespace ClaudeCodeVS
                 {
                     refused = $"{asked} refused (Win32={Marshal.GetLastWin32Error()})";
 
-                    if (!TryComputeConsoleGridFit(before, clientWidthPx, clientHeightPx, respectHostMaximum: true,
-                                                  out ConsoleGridFit capped) ||
-                        !TryApplyConsoleViewport(handle, capped))
+                    // The host's own cap as the fallback. It can end short of the window in two ways,
+                    // and they read very differently in a bug report: either the cap IS the viewport
+                    // that is already there - nothing left to apply, the host simply cannot show more
+                    // rows at the cell size it paints with - or the capped rectangle is refused too.
+                    // StillOff stands in both cases: the panel keeps an unpainted strip either way,
+                    // and a restart is what clears it, because the new console is created at the DPI
+                    // in effect now and its cap is then computed against the cell it really paints.
+                    bool cappedWouldMoveTheGrid = TryComputeConsoleGridFit(
+                        before, clientWidthPx, clientHeightPx, respectHostMaximum: true, out ConsoleGridFit capped);
+
+                    if (!cappedWouldMoveTheGrid)
                     {
                         return new ConsoleGridFitOutcome
                         {
                             Measured = true,
                             Changed = bufferChanged,
                             StillOff = true,
-                            Detail = $"grid fit {refused} and the host maximum did not take either: {before.Describe()}",
+                            Detail = $"grid fit {refused}; the host maximum is the viewport that is already there, " +
+                                     $"so the panel stays short of it: {before.Describe()}",
+                        };
+                    }
+
+                    if (!TryApplyConsoleViewport(handle, capped))
+                    {
+                        return new ConsoleGridFitOutcome
+                        {
+                            Measured = true,
+                            Changed = bufferChanged,
+                            StillOff = true,
+                            Detail = $"grid fit {refused} and the host maximum {capped.Cols}x{capped.Rows}@{capped.Top} " +
+                                     $"did not take either (Win32={Marshal.GetLastWin32Error()}): {before.Describe()}",
                         };
                     }
 
@@ -2680,7 +2743,8 @@ namespace ClaudeCodeVS
         /// is non-null it renders as a hyperlink that runs <paramref name="onAction"/> on click.
         /// Shows even when our tool window is hidden, which is the point for long tasks.
         /// </summary>
-        private async Task ShowAgentFinishNotificationAsync(string text, string actionLabel, Func<Task> onAction)
+        private async Task ShowAgentFinishNotificationAsync(string text, string actionLabel, Func<Task> onAction,
+                                                           InfoBarSlot slot = InfoBarSlot.AgentFinish)
         {
             await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
             try
@@ -2707,17 +2771,19 @@ namespace ClaudeCodeVS
                 IVsInfoBarUIElement element = factory.CreateInfoBar(model);
                 var events = new AgentFinishInfoBarEvents(onAction, () =>
                 {
-                    if (ReferenceEquals(_activeAgentFinishInfoBar, element)) _activeAgentFinishInfoBar = null;
+                    if (ReferenceEquals(GetActiveInfoBar(slot), element)) SetActiveInfoBar(slot, null);
                 });
                 element.Advise(events, out uint cookie);
                 events.Cookie = cookie;
 
-                // Show the new bar, then close the previous one so only the latest is visible.
+                // Show the new bar, then close the previous one IN THIS SLOT so only the latest of
+                // its kind is visible - a notice from the other slot is left alone, because the two
+                // say different things and each carries the only action that answers it.
                 // (Order matters: set the field first so the previous bar's OnClosed callback,
                 // which checks reference-equality, won't clear the new one.)
-                var previous = _activeAgentFinishInfoBar;
+                var previous = GetActiveInfoBar(slot);
                 host.AddInfoBar(element);
-                _activeAgentFinishInfoBar = element;
+                SetActiveInfoBar(slot, element);
                 if (previous != null)
                 {
                     try { previous.Close(); }

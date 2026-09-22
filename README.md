@@ -137,6 +137,10 @@ Use native mode to avoid this issue.
 
 ## Version History
 
+### Version 192.0
+- The "agent finished" notice and the terminal-repair notice no longer replace each other, so the one you came back to act on is still there.
+- The terminal keeps its size and font when Visual Studio cannot report the display scaling for a moment, instead of treating it as a display change.
+
 ### Version 191.0
 - The terminal keeps its text size and its earlier output when the display changes: a Remote Desktop reconnect at a different resolution, a monitor switch or a scaling change no longer leaves the font oversized and the output cut off at the right edge.
 - After such a change the agent also redraws in the right place, instead of scrolling to a spot outside the visible area every time it updates.
