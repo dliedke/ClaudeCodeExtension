@@ -4103,7 +4103,23 @@ For more details, visit: https://pi.dev";
             if (_settings == null) return;
 
             _settings.ClaudeDangerouslySkipPermissions = ClaudeDangerouslySkipPermissionsMenuItem.IsChecked;
+
+            // This item is visible in native mode too, where skipping is one of three mutually
+            // exclusive permission states — so it has to drop the other two, exactly as the composer's
+            // own "Skip permissions" entry does. Leaving them set made the composer name a state the
+            // session was not launched in, and left the entry for the stale flag no-opping because that
+            // flag was already on.
+            if (_settings.ClaudeDangerouslySkipPermissions)
+            {
+                _settings.ClaudePlanMode = false;
+                _settings.ClaudeAutoPermissions = false;
+            }
+
             SaveSettings();
+
+            // The composer caption reads those flags, so a change made from this menu has to refresh it
+            // (no-op outside native mode).
+            UpdateChatComposerState();
 
             // Reload Claude terminal immediately so the new startup flag is applied.
             if (_settings.SelectedProvider == AiProvider.ClaudeCode ||

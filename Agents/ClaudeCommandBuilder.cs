@@ -74,7 +74,15 @@ namespace ClaudeCodeVS.Agents
         /// <summary>
         /// Used only when <see cref="DangerouslySkipPermissions"/> is false. <c>acceptEdits</c> is the
         /// default: verified to let file writes through while still gating the riskier tools.
-        /// <c>plan</c> puts the session in plan mode.
+        /// <c>plan</c> puts the session in plan mode. <c>auto</c> hands the per-tool prompt/allow
+        /// decision to the CLI itself instead of always gating on file writes.
+        /// <para>
+        /// Always sent (the flag is only omitted when skipping permissions), so the launch mode is the
+        /// extension's choice and not the user's <c>permissions.defaultMode</c> from their Claude
+        /// settings.json — <c>auto</c> makes that mode *reachable* from the composer, it does not hand
+        /// the decision back to settings.json. Honouring that file would mean a choice that sends no
+        /// <c>--permission-mode</c> at all, which the composer does not currently offer.
+        /// </para>
         /// </summary>
         public string PermissionMode { get; set; } = "acceptEdits";
 
@@ -116,6 +124,25 @@ namespace ClaudeCodeVS.Agents
     }
 
     /// <summary>
+    /// The permission states the native-mode composer offers for Claude, as one value instead of the
+    /// three independent bools the settings and the per-tab snapshots store.
+    /// </summary>
+    public enum ClaudePermissionChoice
+    {
+        /// <summary>The <c>acceptEdits</c> default: file writes go through, the riskier tools are gated.</summary>
+        AskPermission = 0,
+
+        /// <summary>The CLI's own <c>auto</c> mode decides per tool call whether to prompt.</summary>
+        Auto,
+
+        /// <summary>Plan mode: research and propose, then ask before acting.</summary>
+        PlanMode,
+
+        /// <summary><c>--dangerously-skip-permissions</c>: nothing is gated.</summary>
+        SkipPermissions
+    }
+
+    /// <summary>
     /// Turns <see cref="ClaudeSessionOptions"/> into an executable plus an argument string.
     /// <para>
     /// Separate from the session itself so the argument layout can be unit-tested without launching a
@@ -124,6 +151,44 @@ namespace ClaudeCodeVS.Agents
     /// </summary>
     public static class ClaudeCommandBuilder
     {
+        /// <summary>
+        /// Collapses the three mutually exclusive permission flags (plan / skip / auto) into the single
+        /// state they stand for. The menu keeps them exclusive, so in practice this only decides what a
+        /// contradictory combination means — but every surface that reads the flags has to agree on
+        /// that, or the UI names a mode the session is not running in: an auto-before-skip caption read
+        /// "Auto" while the process launched <c>--dangerously-skip-permissions</c>, which is the more
+        /// dangerous of the two. Hence one resolver, used by the launch, the composer caption and the
+        /// menu checkmarks alike.
+        /// <para>
+        /// Precedence, from the launch flags that were here first: plan wins (it is the CLI asking
+        /// before it acts, which the other two would bypass), then skip, then auto, then ask.
+        /// </para>
+        /// </summary>
+        public static ClaudePermissionChoice ResolvePermissionChoice(bool planMode, bool skipPermissions, bool autoPermissions)
+        {
+            if (planMode) return ClaudePermissionChoice.PlanMode;
+            if (skipPermissions) return ClaudePermissionChoice.SkipPermissions;
+            if (autoPermissions) return ClaudePermissionChoice.Auto;
+
+            return ClaudePermissionChoice.AskPermission;
+        }
+
+        /// <summary>
+        /// The <c>--permission-mode</c> value for a resolved choice.
+        /// <see cref="ClaudePermissionChoice.SkipPermissions"/> has none — it launches with
+        /// <c>--dangerously-skip-permissions</c>, which makes <see cref="BuildFlags"/> drop the mode
+        /// entirely — so it maps to the same <c>acceptEdits</c> default as "Ask permission".
+        /// </summary>
+        public static string ToPermissionMode(ClaudePermissionChoice choice)
+        {
+            switch (choice)
+            {
+                case ClaudePermissionChoice.PlanMode: return "plan";
+                case ClaudePermissionChoice.Auto: return "auto";
+                default: return "acceptEdits";
+            }
+        }
+
         /// <summary>Executable to hand to <see cref="System.Diagnostics.ProcessStartInfo"/>.</summary>
         public static string GetFileName(ClaudeSessionOptions options)
         {

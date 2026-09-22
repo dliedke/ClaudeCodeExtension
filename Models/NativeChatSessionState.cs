@@ -101,6 +101,7 @@ namespace ClaudeCodeVS
         public CodexReasoningLevel SelectedCodexReasoningLevel { get; set; }
         public bool SkipPermissions { get; set; }
         public bool PlanMode { get; set; }
+        public bool AutoPermissions { get; set; }
 
         /// <summary>
         /// Serializes this session's own relaunches (model/effort/permission switch, "New chat").

@@ -3026,12 +3026,30 @@ namespace ClaudeCodeVS
                 return null;
             }
 
-            if (IsClaudeProvider(provider) && _settings?.ClaudePlanMode == true)
+            if (IsClaudeProvider(provider))
             {
-                return "Plan mode";
+                return GetClaudePermissionLabel(ClaudeCommandBuilder.ResolvePermissionChoice(
+                    _settings?.ClaudePlanMode == true, skipping.Value, _settings?.ClaudeAutoPermissions == true));
             }
 
             return skipping.Value ? "Skip permissions" : "Ask permission";
+        }
+
+        /// <summary>
+        /// Caption for a resolved Claude permission state. Goes through
+        /// <see cref="ClaudeCommandBuilder.ResolvePermissionChoice"/> rather than testing the three
+        /// flags in its own order, so the caption always names the mode the session was launched with
+        /// (v188.0: an auto-before-skip order read "Auto" over a skip-permissions launch).
+        /// </summary>
+        private static string GetClaudePermissionLabel(ClaudePermissionChoice choice)
+        {
+            switch (choice)
+            {
+                case ClaudePermissionChoice.PlanMode: return "Plan mode";
+                case ClaudePermissionChoice.Auto: return "Auto";
+                case ClaudePermissionChoice.SkipPermissions: return "Skip permissions";
+                default: return "Ask permission";
+            }
         }
 
         /// <summary>Same caption, read from a parallel tab's own permission/plan-mode snapshot instead of the global settings.</summary>
@@ -3047,9 +3065,10 @@ namespace ClaudeCodeVS
                 return null;
             }
 
-            if (IsClaudeProvider(provider) && session.PlanMode)
+            if (IsClaudeProvider(provider))
             {
-                return "Plan mode";
+                return GetClaudePermissionLabel(ClaudeCommandBuilder.ResolvePermissionChoice(
+                    session.PlanMode, session.SkipPermissions, session.AutoPermissions));
             }
 
             return session.SkipPermissions ? "Skip permissions" : "Ask permission";
@@ -3792,13 +3811,19 @@ namespace ClaudeCodeVS
             // before touching anything. The other agents have no equivalent launch mode.
             if (IsClaudeProvider(active))
             {
-                bool planning = _settings?.ClaudePlanMode == true;
+                // One resolved state rather than a condition per entry: exactly one of the four is
+                // checked, even if the stored flags somehow contradict each other, and the checkmark
+                // agrees with both the caption and the launch.
+                ClaudePermissionChoice choice = ClaudeCommandBuilder.ResolvePermissionChoice(
+                    _settings?.ClaudePlanMode == true, skipping.Value, _settings?.ClaudeAutoPermissions == true);
 
-                AddComposerMenuItem(menu, "Plan mode", planning,
+                AddComposerMenuItem(menu, "Plan mode", choice == ClaudePermissionChoice.PlanMode,
                     delegate { ThreadHelper.ThrowIfNotOnUIThread(); OnChatPlanModeSelected(true); });
-                AddComposerMenuItem(menu, "Ask permission", !planning && !skipping.Value,
+                AddComposerMenuItem(menu, "Ask permission", choice == ClaudePermissionChoice.AskPermission,
                     delegate { ThreadHelper.ThrowIfNotOnUIThread(); OnChatAskPermissionSelected(); });
-                AddComposerMenuItem(menu, "Skip permissions", !planning && skipping.Value,
+                AddComposerMenuItem(menu, "Auto", choice == ClaudePermissionChoice.Auto,
+                    delegate { ThreadHelper.ThrowIfNotOnUIThread(); OnChatAutoPermissionsSelected(); });
+                AddComposerMenuItem(menu, "Skip permissions", choice == ClaudePermissionChoice.SkipPermissions,
                     delegate { ThreadHelper.ThrowIfNotOnUIThread(); OnChatPermissionSelected(true); });
 
                 return menu;
@@ -3829,13 +3854,16 @@ namespace ClaudeCodeVS
 
             if (IsClaudeProvider(provider))
             {
-                bool planning = session.PlanMode;
+                ClaudePermissionChoice choice = ClaudeCommandBuilder.ResolvePermissionChoice(
+                    session.PlanMode, skipping, session.AutoPermissions);
 
-                AddComposerMenuItem(menu, "Plan mode", planning,
+                AddComposerMenuItem(menu, "Plan mode", choice == ClaudePermissionChoice.PlanMode,
                     delegate { ThreadHelper.ThrowIfNotOnUIThread(); OnChatPlanModeSelectedForSession(session, true); });
-                AddComposerMenuItem(menu, "Ask permission", !planning && !skipping,
+                AddComposerMenuItem(menu, "Ask permission", choice == ClaudePermissionChoice.AskPermission,
                     delegate { ThreadHelper.ThrowIfNotOnUIThread(); OnChatAskPermissionSelectedForSession(session); });
-                AddComposerMenuItem(menu, "Skip permissions", !planning && skipping,
+                AddComposerMenuItem(menu, "Auto", choice == ClaudePermissionChoice.Auto,
+                    delegate { ThreadHelper.ThrowIfNotOnUIThread(); OnChatAutoPermissionsSelectedForSession(session); });
+                AddComposerMenuItem(menu, "Skip permissions", choice == ClaudePermissionChoice.SkipPermissions,
                     delegate { ThreadHelper.ThrowIfNotOnUIThread(); OnChatPermissionSelectedForSession(session, true); });
 
                 return menu;
@@ -4339,10 +4367,11 @@ namespace ClaudeCodeVS
                 SetChatPermissionSkipFlag(provider, skip);
 
                 // Skipping every prompt and planning before acting are opposites; picking one drops
-                // the other rather than launching with a contradictory pair of flags.
+                // the other rather than launching with a contradictory pair of flags. Same for auto.
                 if (skip && _settings != null)
                 {
                     _settings.ClaudePlanMode = false;
+                    _settings.ClaudeAutoPermissions = false;
                 }
 
                 SaveSettings();
@@ -4379,9 +4408,10 @@ namespace ClaudeCodeVS
 
                 if (planning)
                 {
-                    // Plan mode is the CLI asking before it acts, which "skip permissions" would
-                    // bypass entirely.
+                    // Plan mode is the CLI asking before it acts, which "skip permissions" or "auto"
+                    // would bypass entirely.
                     _settings.ClaudeDangerouslySkipPermissions = false;
+                    _settings.ClaudeAutoPermissions = false;
                 }
 
                 SaveSettings();
@@ -4398,11 +4428,11 @@ namespace ClaudeCodeVS
         }
 
         /// <summary>
-        /// "Ask permission" in the three-way Claude menu (Plan mode / Ask permission / Skip
-        /// permissions). Not a single-flag toggle like its two siblings — it is a specific target state
-        /// (neither planning nor skipping) reachable from *either* other state, so it cannot reuse
+        /// "Ask permission" in the four-way Claude menu (Plan mode / Ask permission / Auto / Skip
+        /// permissions). Not a single-flag toggle like its siblings — it is a specific target state
+        /// (planning, skipping and auto all off) reachable from *any* other state, so it cannot reuse
         /// <see cref="OnChatPlanModeSelected"/> or <see cref="OnChatPermissionSelected"/>: both only
-        /// check the one flag they own, so each treated "already there" and no-opped when the *other*
+        /// check the one flag they own, so each treated "already there" and no-opped when a *different*
         /// flag was the one still wrong — <c>OnChatPlanModeSelected(false)</c> no-ops coming from Skip
         /// permissions (plan mode was already off), <c>OnChatPermissionSelected(false)</c> no-ops
         /// coming from Plan mode (skip was already off there too) (#150).
@@ -4423,12 +4453,14 @@ namespace ClaudeCodeVS
                 AiProvider? provider = GetActiveOrSelectedProvider();
                 bool wasSkipping = GetChatPermissionSkipFlag(provider) == true;
                 bool wasPlanning = _settings.ClaudePlanMode;
-                if (!wasSkipping && !wasPlanning)
+                bool wasAuto = _settings.ClaudeAutoPermissions;
+                if (!wasSkipping && !wasPlanning && !wasAuto)
                 {
                     return;
                 }
 
                 _settings.ClaudePlanMode = false;
+                _settings.ClaudeAutoPermissions = false;
                 if (wasSkipping)
                 {
                     SetChatPermissionSkipFlag(provider, false);
@@ -4442,6 +4474,54 @@ namespace ClaudeCodeVS
             catch (Exception ex)
             {
                 Debug.WriteLine($"Chat permission switch failed: {ex.Message}");
+            }
+        }
+
+        /// <summary>
+        /// "Auto" in the four-way Claude menu (Plan mode / Ask permission / Auto / Skip permissions):
+        /// hands the per-tool prompt/allow decision to the CLI's own <c>--permission-mode auto</c>
+        /// instead of the extension's "Ask permission" (acceptEdits) default. Turns the other two off,
+        /// mirroring <see cref="OnChatPlanModeSelected"/>.
+        /// </summary>
+#pragma warning disable VSTHRD100 // Async void is required by the UI event signature
+        private async void OnChatAutoPermissionsSelected()
+#pragma warning restore VSTHRD100
+        {
+            try
+            {
+                await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
+
+                if (_settings == null)
+                {
+                    return;
+                }
+
+                AiProvider? provider = GetActiveOrSelectedProvider();
+                bool wasSkipping = GetChatPermissionSkipFlag(provider) == true;
+
+                // Target state, not a toggle — same reasoning as OnChatAskPermissionSelected. Bailing
+                // out on the auto flag alone no-opped while a stray plan-mode or skip flag was still
+                // the one being launched, leaving the user unable to reach auto from the menu (#150).
+                if (_settings.ClaudeAutoPermissions && !_settings.ClaudePlanMode && !wasSkipping)
+                {
+                    return;
+                }
+
+                _settings.ClaudeAutoPermissions = true;
+                _settings.ClaudePlanMode = false;
+                if (wasSkipping)
+                {
+                    SetChatPermissionSkipFlag(provider, false);
+                }
+
+                SaveSettings();
+                UpdateChatComposerState();
+
+                await RelaunchNativeSessionAsync("🤖 Switched to auto permissions");
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"Chat auto-permission switch failed: {ex.Message}");
             }
         }
 
@@ -4916,11 +4996,12 @@ namespace ClaudeCodeVS
 
                 session.SkipPermissions = skip;
 
-                // Plan mode and skipping every prompt are opposites; picking one drops the other rather
-                // than launching with a contradictory pair of flags.
+                // Plan mode, auto and skipping every prompt are mutually exclusive; picking one drops
+                // the others rather than launching with a contradictory pair of flags.
                 if (skip)
                 {
                     session.PlanMode = false;
+                    session.AutoPermissions = false;
                 }
 
                 UpdateChatComposerState(session);
@@ -4954,6 +5035,7 @@ namespace ClaudeCodeVS
                 if (planning)
                 {
                     session.SkipPermissions = false;
+                    session.AutoPermissions = false;
                 }
 
                 UpdateChatComposerState(session);
@@ -4968,7 +5050,7 @@ namespace ClaudeCodeVS
             }
         }
 
-        /// <summary>The parallel-tab counterpart of <see cref="OnChatAskPermissionSelected"/> — see its doc comment for why this needs its own handler instead of reusing the plan-mode/skip-permissions toggles.</summary>
+        /// <summary>The parallel-tab counterpart of <see cref="OnChatAskPermissionSelected"/> — see its doc comment for why this needs its own handler instead of reusing the plan-mode/skip-permissions/auto toggles.</summary>
 #pragma warning disable VSTHRD100 // Async void is required by the UI event signature
         private async void OnChatAskPermissionSelectedForSession(NativeChatSessionState session)
 #pragma warning restore VSTHRD100
@@ -4977,12 +5059,13 @@ namespace ClaudeCodeVS
             {
                 await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
 
-                if (session == null || (!session.PlanMode && !session.SkipPermissions))
+                if (session == null || (!session.PlanMode && !session.SkipPermissions && !session.AutoPermissions))
                 {
                     return;
                 }
 
                 session.PlanMode = false;
+                session.AutoPermissions = false;
                 session.SkipPermissions = false;
                 UpdateChatComposerState(session);
 
@@ -4991,6 +5074,33 @@ namespace ClaudeCodeVS
             catch (Exception ex)
             {
                 Debug.WriteLine($"Chat permission switch failed for session {session?.SessionId}: {ex.Message}");
+            }
+        }
+
+        /// <summary>The parallel-tab counterpart of <see cref="OnChatAutoPermissionsSelected"/>.</summary>
+#pragma warning disable VSTHRD100 // Async void is required by the UI event signature
+        private async void OnChatAutoPermissionsSelectedForSession(NativeChatSessionState session)
+#pragma warning restore VSTHRD100
+        {
+            try
+            {
+                await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
+
+                if (session == null || (session.AutoPermissions && !session.PlanMode && !session.SkipPermissions))
+                {
+                    return;
+                }
+
+                session.AutoPermissions = true;
+                session.PlanMode = false;
+                session.SkipPermissions = false;
+                UpdateChatComposerState(session);
+
+                await RelaunchSessionAsync(session, "🤖 Switched to auto permissions");
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"Chat auto-permission switch failed for session {session?.SessionId}: {ex.Message}");
             }
         }
 
