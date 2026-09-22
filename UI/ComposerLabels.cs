@@ -48,6 +48,9 @@ namespace ClaudeCodeVS.UI
             { "Skip permissions", "Skip" },
             { "Ask permission", "Ask" },
             { "Plan mode", "Plan" },
+            { "Auto mode", "Auto" },
+            { "Accept edits", "Accept" },
+            { "Manual mode", "Manual" },
 
             // Effort / reasoning
             { "Extra High", "XHigh" },

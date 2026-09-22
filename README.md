@@ -137,8 +137,12 @@ Use native mode to avoid this issue.
 
 ## Version History
 
+### Version 189.0
+- Native mode's permission selector gains a *Manual mode* option that asks before every action, even file edits, for anyone who wants full control over each step.
+- *Ask permission* is renamed to *Accept edits* to describe what it actually does — file writes go through automatically while riskier actions still prompt.
+
 ### Version 188.0
-- Native mode's permission selector gains an *Auto* option alongside Plan mode, Ask permission, and Skip permissions, letting Claude Code decide per action whether to prompt.
+- Native mode's permission selector gains an *Auto* option alongside Plan mode, Ask permission, and Skip permissions, letting Claude Code decide per action whether to prompt. Thanks to [@karpach-relativity](https://github.com/karpach-relativity) for the contribution (#165).
 - Turning on *Claude Code: Skip Permissions* from the agent menu now clears the other permission modes, so the selector always names the mode the agent is actually running in.
 
 ### Version 187.0

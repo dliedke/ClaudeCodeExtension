@@ -27,6 +27,9 @@ namespace ClaudeCodeExtension.Tests
             Assert.AreEqual("Skip", ComposerLabels.Shorten("Skip permissions", ComposerLabels.CompactMaxChars));
             Assert.AreEqual("Ask", ComposerLabels.Shorten("Ask permission", ComposerLabels.CompactMaxChars));
             Assert.AreEqual("Plan", ComposerLabels.Shorten("Plan mode", ComposerLabels.CompactMaxChars));
+            Assert.AreEqual("Auto", ComposerLabels.Shorten("Auto mode", ComposerLabels.CompactMaxChars));
+            Assert.AreEqual("Accept", ComposerLabels.Shorten("Accept edits", ComposerLabels.CompactMaxChars));
+            Assert.AreEqual("Manual", ComposerLabels.Shorten("Manual mode", ComposerLabels.CompactMaxChars));
             Assert.AreEqual("XHigh", ComposerLabels.Shorten("Extra High", ComposerLabels.CompactMaxChars));
         }
 
@@ -76,7 +79,8 @@ namespace ClaudeCodeExtension.Tests
             {
                 "Claude Code", "Claude Code (WSL)", "Codex (native)", "Cursor Agent (WSL)",
                 "Antigravity", "Reasonix", "Skip permissions", "Ask permission",
-                "Plan mode", "Auto", "Extra High", "Ultracode", "Medium", "Opus Plan",
+                "Plan mode", "Auto mode", "Accept edits", "Manual mode",
+                "Extra High", "Ultracode", "Medium", "Opus Plan",
                 "claude-sonnet-4-5-20260101"
             };
 

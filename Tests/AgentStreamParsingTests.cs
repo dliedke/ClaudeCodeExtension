@@ -501,9 +501,9 @@ namespace ClaudeCodeExtension.Tests
         [TestMethod]
         public void ClaudeCommandBuilder_AutoModeIsPassedToTheCli()
         {
-            // The composer's "Auto" entry (v188.0) is nothing but this flag value — verified against
-            // CLI 2.1.278, whose --permission-mode choices are acceptEdits, auto, bypassPermissions,
-            // manual, dontAsk and plan.
+            // The composer's "Auto mode" entry (v188.0, renamed v189.0) is nothing but this flag value —
+            // verified against CLI 2.1.278, whose --permission-mode choices are acceptEdits, auto,
+            // bypassPermissions, manual, dontAsk and plan.
             string args = ClaudeCommandBuilder.GetArguments(new ClaudeSessionOptions
             {
                 PermissionMode = "auto",
@@ -520,28 +520,59 @@ namespace ClaudeCodeExtension.Tests
         }
 
         [TestMethod]
+        public void ClaudeCommandBuilder_ManualModeIsPassedToTheCli()
+        {
+            // The composer's "Manual mode" entry (v189.0) launches --permission-mode manual — the
+            // CLI's real "ask before every tool call", with no standing allow even for file edits
+            // (verified against CLI 2.1.278; there is no "default" value in its --permission-mode list).
+            string args = ClaudeCommandBuilder.GetArguments(new ClaudeSessionOptions
+            {
+                PermissionMode = "manual",
+                InteractivePermissions = true
+            });
+
+            StringAssert.Contains(args, "--permission-mode \"manual\"");
+            StringAssert.Contains(args, "--permission-prompt-tool stdio");
+
+            // Manual still gates tools, so it is a non-skip launch: bypass stays available for a plan
+            // card's "Approve and skip permissions" without being on (issue #163).
+            StringAssert.Contains(args, "--allow-dangerously-skip-permissions");
+            Assert.IsFalse(args.Contains(" --dangerously-skip-permissions"));
+        }
+
+        [TestMethod]
         public void ClaudeCommandBuilder_PermissionChoiceResolvesOneStatePerFlagCombination()
         {
-            // Plan wins over everything (it is the CLI asking before it acts, which the other two
-            // bypass), then skip, then auto. Every surface reads this instead of ordering the flags
-            // itself, so the caption and the menu cannot name a mode the session is not running in.
-            Assert.AreEqual(ClaudePermissionChoice.AskPermission,
-                ClaudeCommandBuilder.ResolvePermissionChoice(false, false, false));
+            // Plan wins over everything (it is the CLI asking before it acts, which the others
+            // bypass), then skip, then auto, then manual. Every surface reads this instead of ordering
+            // the flags itself, so the caption and the menu cannot name a mode the session is not
+            // running in.
+            Assert.AreEqual(ClaudePermissionChoice.AcceptEdits,
+                ClaudeCommandBuilder.ResolvePermissionChoice(false, false, false, false));
             Assert.AreEqual(ClaudePermissionChoice.Auto,
-                ClaudeCommandBuilder.ResolvePermissionChoice(false, false, true));
+                ClaudeCommandBuilder.ResolvePermissionChoice(false, false, true, false));
             Assert.AreEqual(ClaudePermissionChoice.SkipPermissions,
-                ClaudeCommandBuilder.ResolvePermissionChoice(false, true, false));
+                ClaudeCommandBuilder.ResolvePermissionChoice(false, true, false, false));
             Assert.AreEqual(ClaudePermissionChoice.PlanMode,
-                ClaudeCommandBuilder.ResolvePermissionChoice(true, false, false));
+                ClaudeCommandBuilder.ResolvePermissionChoice(true, false, false, false));
+            Assert.AreEqual(ClaudePermissionChoice.ManualMode,
+                ClaudeCommandBuilder.ResolvePermissionChoice(false, false, false, true));
 
-            // Contradictory combinations: the riskier mode is what actually launches, so it is also
-            // what the UI has to name. Auto reading over a skip-permissions launch was the v188.0 bug.
+            // Contradictory combinations: the riskier/higher-precedence mode is what actually launches,
+            // so it is also what the UI has to name. Auto reading over a skip-permissions launch was
+            // the v188.0 bug.
             Assert.AreEqual(ClaudePermissionChoice.SkipPermissions,
-                ClaudeCommandBuilder.ResolvePermissionChoice(false, true, true));
+                ClaudeCommandBuilder.ResolvePermissionChoice(false, true, true, false));
             Assert.AreEqual(ClaudePermissionChoice.PlanMode,
-                ClaudeCommandBuilder.ResolvePermissionChoice(true, false, true));
+                ClaudeCommandBuilder.ResolvePermissionChoice(true, false, true, false));
             Assert.AreEqual(ClaudePermissionChoice.PlanMode,
-                ClaudeCommandBuilder.ResolvePermissionChoice(true, true, true));
+                ClaudeCommandBuilder.ResolvePermissionChoice(true, true, true, true));
+            Assert.AreEqual(ClaudePermissionChoice.Auto,
+                ClaudeCommandBuilder.ResolvePermissionChoice(false, false, true, true));
+            Assert.AreEqual(ClaudePermissionChoice.SkipPermissions,
+                ClaudeCommandBuilder.ResolvePermissionChoice(false, true, false, true));
+            Assert.AreEqual(ClaudePermissionChoice.PlanMode,
+                ClaudeCommandBuilder.ResolvePermissionChoice(true, false, false, true));
         }
 
         [TestMethod]
@@ -549,7 +580,8 @@ namespace ClaudeCodeExtension.Tests
         {
             Assert.AreEqual("plan", ClaudeCommandBuilder.ToPermissionMode(ClaudePermissionChoice.PlanMode));
             Assert.AreEqual("auto", ClaudeCommandBuilder.ToPermissionMode(ClaudePermissionChoice.Auto));
-            Assert.AreEqual("acceptEdits", ClaudeCommandBuilder.ToPermissionMode(ClaudePermissionChoice.AskPermission));
+            Assert.AreEqual("acceptEdits", ClaudeCommandBuilder.ToPermissionMode(ClaudePermissionChoice.AcceptEdits));
+            Assert.AreEqual("manual", ClaudeCommandBuilder.ToPermissionMode(ClaudePermissionChoice.ManualMode));
 
             // Skipping has no --permission-mode of its own: it launches with
             // --dangerously-skip-permissions, which drops the mode flag entirely.

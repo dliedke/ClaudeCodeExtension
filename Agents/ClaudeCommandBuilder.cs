@@ -125,12 +125,12 @@ namespace ClaudeCodeVS.Agents
 
     /// <summary>
     /// The permission states the native-mode composer offers for Claude, as one value instead of the
-    /// three independent bools the settings and the per-tab snapshots store.
+    /// four independent bools the settings and the per-tab snapshots store.
     /// </summary>
     public enum ClaudePermissionChoice
     {
         /// <summary>The <c>acceptEdits</c> default: file writes go through, the riskier tools are gated.</summary>
-        AskPermission = 0,
+        AcceptEdits = 0,
 
         /// <summary>The CLI's own <c>auto</c> mode decides per tool call whether to prompt.</summary>
         Auto,
@@ -139,7 +139,14 @@ namespace ClaudeCodeVS.Agents
         PlanMode,
 
         /// <summary><c>--dangerously-skip-permissions</c>: nothing is gated.</summary>
-        SkipPermissions
+        SkipPermissions,
+
+        /// <summary>
+        /// The CLI's own <c>manual</c> mode: asks before every tool call, with no standing allow for
+        /// any tool (not even file edits). The extension's genuine "ask every time" mode — distinct
+        /// from <see cref="AcceptEdits"/>, which already lets file writes through.
+        /// </summary>
+        ManualMode
     }
 
     /// <summary>
@@ -152,32 +159,39 @@ namespace ClaudeCodeVS.Agents
     public static class ClaudeCommandBuilder
     {
         /// <summary>
-        /// Collapses the three mutually exclusive permission flags (plan / skip / auto) into the single
-        /// state they stand for. The menu keeps them exclusive, so in practice this only decides what a
-        /// contradictory combination means — but every surface that reads the flags has to agree on
-        /// that, or the UI names a mode the session is not running in: an auto-before-skip caption read
-        /// "Auto" while the process launched <c>--dangerously-skip-permissions</c>, which is the more
-        /// dangerous of the two. Hence one resolver, used by the launch, the composer caption and the
-        /// menu checkmarks alike.
+        /// Collapses the four mutually exclusive permission flags (plan / skip / auto / manual) into
+        /// the single state they stand for. The menu keeps them exclusive, so in practice this only
+        /// decides what a contradictory combination means — but every surface that reads the flags has
+        /// to agree on that, or the UI names a mode the session is not running in: an auto-before-skip
+        /// caption read "Auto" while the process launched <c>--dangerously-skip-permissions</c>, which
+        /// is the more dangerous of the two. Hence one resolver, used by the launch, the composer
+        /// caption and the menu checkmarks alike.
         /// <para>
         /// Precedence, from the launch flags that were here first: plan wins (it is the CLI asking
-        /// before it acts, which the other two would bypass), then skip, then auto, then ask.
+        /// before it acts, which the others would bypass), then skip, then auto, then manual, then the
+        /// <c>acceptEdits</c> default.
         /// </para>
         /// </summary>
-        public static ClaudePermissionChoice ResolvePermissionChoice(bool planMode, bool skipPermissions, bool autoPermissions)
+        public static ClaudePermissionChoice ResolvePermissionChoice(bool planMode, bool skipPermissions, bool autoPermissions, bool manualMode)
         {
             if (planMode) return ClaudePermissionChoice.PlanMode;
             if (skipPermissions) return ClaudePermissionChoice.SkipPermissions;
             if (autoPermissions) return ClaudePermissionChoice.Auto;
+            if (manualMode) return ClaudePermissionChoice.ManualMode;
 
-            return ClaudePermissionChoice.AskPermission;
+            return ClaudePermissionChoice.AcceptEdits;
         }
 
         /// <summary>
         /// The <c>--permission-mode</c> value for a resolved choice.
         /// <see cref="ClaudePermissionChoice.SkipPermissions"/> has none — it launches with
         /// <c>--dangerously-skip-permissions</c>, which makes <see cref="BuildFlags"/> drop the mode
-        /// entirely — so it maps to the same <c>acceptEdits</c> default as "Ask permission".
+        /// entirely — so it maps to the same <c>acceptEdits</c> default as "Accept edits".
+        /// <see cref="ClaudePermissionChoice.ManualMode"/> maps to the CLI's own <c>manual</c> mode —
+        /// the real "ask before every tool call", with no standing allow even for file edits (verified
+        /// against CLI 2.1.278, whose <c>--permission-mode</c> choices are <c>acceptEdits</c>,
+        /// <c>auto</c>, <c>bypassPermissions</c>, <c>manual</c>, <c>dontAsk</c> and <c>plan</c> — there
+        /// is no <c>default</c> value).
         /// </summary>
         public static string ToPermissionMode(ClaudePermissionChoice choice)
         {
@@ -185,6 +199,7 @@ namespace ClaudeCodeVS.Agents
             {
                 case ClaudePermissionChoice.PlanMode: return "plan";
                 case ClaudePermissionChoice.Auto: return "auto";
+                case ClaudePermissionChoice.ManualMode: return "manual";
                 default: return "acceptEdits";
             }
         }

@@ -693,11 +693,14 @@ namespace ClaudeCodeVS
             bool autoPermissions = session != null
                 ? session.AutoPermissions
                 : _settings?.ClaudeAutoPermissions == true;
+            bool manualMode = session != null
+                ? session.ManualMode
+                : _settings?.ClaudeManualMode == true;
 
-            // The one place the three flags are turned into a state, shared with the composer caption
+            // The one place the four flags are turned into a state, shared with the composer caption
             // and the menu checkmarks so none of them can name a different mode than the one launched.
             ClaudePermissionChoice permissionChoice =
-                ClaudeCommandBuilder.ResolvePermissionChoice(planMode, skipPermissions, autoPermissions);
+                ClaudeCommandBuilder.ResolvePermissionChoice(planMode, skipPermissions, autoPermissions, manualMode);
 
             var options = new ClaudeSessionOptions
             {
@@ -2244,6 +2247,7 @@ namespace ClaudeCodeVS
                 {
                     owner.PlanMode = false;
                     owner.AutoPermissions = false;
+                    owner.ManualMode = false;
                     owner.SkipPermissions = true;
                     UpdateChatComposerState(owner);
                 }
@@ -2251,6 +2255,7 @@ namespace ClaudeCodeVS
                 {
                     _settings.ClaudePlanMode = false;
                     _settings.ClaudeAutoPermissions = false;
+                    _settings.ClaudeManualMode = false;
                     _settings.ClaudeDangerouslySkipPermissions = true;
                     SaveSettings();
                     UpdateChatComposerState();
@@ -3033,6 +3038,7 @@ namespace ClaudeCodeVS
             state.SkipPermissions = seed?.SkipPermissions ?? GetChatPermissionSkipFlag(provider) ?? false;
             state.PlanMode = seed != null ? seed.PlanMode : (IsClaudeProvider(provider) && _settings?.ClaudePlanMode == true);
             state.AutoPermissions = seed != null ? seed.AutoPermissions : (IsClaudeProvider(provider) && _settings?.ClaudeAutoPermissions == true);
+            state.ManualMode = seed != null ? seed.ManualMode : (IsClaudeProvider(provider) && _settings?.ClaudeManualMode == true);
 
             // Create agent session from this tab's own snapshot rather than the global settings.
             var agentSession = CreateAgentSession(provider, workspace, state);
