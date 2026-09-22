@@ -162,6 +162,9 @@ namespace ClaudeCodeVS
                     _toolWindow.FrameShow -= OnToolWindowFrameShow;
                 }
 
+                // Unsubscribe from display/session events (SystemEvents keeps handlers in a static list)
+                CleanupDisplayChangeHandling();
+
                 // Uninstall the low-level mouse hook used for zoom tracking
                 UninstallMouseHook();
 

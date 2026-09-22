@@ -71,6 +71,62 @@ namespace ClaudeCodeVS
         private int _wtTabBarHeight = 0;
 
         /// <summary>
+        /// Unscaled height of the Windows Terminal tab bar, in pixels at 96 DPI.
+        /// </summary>
+        internal const int WtTabBarHeightAt96Dpi = 48;
+
+        /// <summary>
+        /// DPI the embedded terminal's current character cell size belongs to, captured when the
+        /// terminal is embedded and updated whenever the cell size is rescaled for a new DPI. 0 means
+        /// not captured yet. The host cannot be asked for it: as a <c>SetParent</c> child it is no
+        /// longer a top-level window, so it never receives <c>WM_DPICHANGED</c> and keeps rendering
+        /// at the DPI it started with.
+        /// </summary>
+        private uint _terminalCellDpi = 0;
+
+        /// <summary>
+        /// Panel DPI the last repair cycle was started for. Keeps <see cref="ResizeEmbeddedTerminal"/>
+        /// from re-scheduling a repair that has already been tried and failed for this DPI, which
+        /// would loop for as long as the terminal is alive. 0 means no cycle has run yet.
+        /// </summary>
+        private uint _lastDisplayRepairDpi = 0;
+
+        /// <summary>
+        /// Repair cycles that have actually started for <see cref="_lastDisplayRepairDpi"/>. Bounded
+        /// by <see cref="MaxDisplayRepairCyclesPerDpi"/> so a rescale that cannot succeed stops
+        /// retrying, while one that failed for a passing reason still gets another go - see
+        /// <see cref="ShouldScheduleDisplayRepairFromResize"/>.
+        /// </summary>
+        private int _displayRepairCyclesForDpi = 0;
+
+        /// <summary>
+        /// <c>Environment.TickCount</c> of the last repair cycle scheduled from the resize handler or
+        /// started by a pass. Only the distance between two of these readings is ever used, so the
+        /// 49-day wrap is harmless under unchecked subtraction.
+        /// </summary>
+        private int _lastDisplayRepairScheduleTick = 0;
+
+        /// <summary>
+        /// Window width held while the cell size still belongs to the previous DPI, captured once at
+        /// the moment the two disagreed. Re-reading the live window rect instead made this a ratchet:
+        /// a fit that left conhost sizing its own window wider than the panel was latched as the new
+        /// floor on the very next resize, and the panel could never pull it back. 0 means nothing is
+        /// held.
+        /// </summary>
+        private int _heldTerminalWidthPx = 0;
+
+        /// <summary>
+        /// Pixels the display repair has added to, or taken off, the console cell height since this
+        /// terminal started - the running sum of its DPI rescales. Those are corrections for the
+        /// session DPI, not a size the user picked, and must never be saved as one. The Ctrl+Scroll
+        /// zoom subtracts this before persisting, so what is stored is the size the user zoomed to
+        /// measured against the size they had chosen. Without it a single wheel notch after a
+        /// 200%-to-100% reconnect wrote the halved cell into the settings for every later session,
+        /// including back on the high-DPI display.
+        /// </summary>
+        private int _conhostDpiCellOffsetPx = 0;
+
+        /// <summary>
         /// Full resolved path to wt.exe (set by IsWindowsTerminalAvailableAsync)
         /// </summary>
         private string _wtExePath = null;
@@ -626,6 +682,15 @@ namespace ClaudeCodeVS
             ResetWindowsTerminalSelectionTracking();
             terminalHandle = IntPtr.Zero;
             _wtTabBarHeight = 0;
+            _terminalCellDpi = 0;
+            _lastDisplayRepairDpi = 0;
+            _displayRepairCyclesForDpi = 0;
+            _lastDisplayRepairScheduleTick = 0;
+            _heldTerminalWidthPx = 0;
+
+            // The next console starts at the size the settings hold, so the DPI corrections carried
+            // by the previous one are no longer owed to anybody.
+            _conhostDpiCellOffsetPx = 0;
             if (clearRunningProvider)
             {
                 _currentRunningProvider = null;
@@ -3043,23 +3108,465 @@ namespace ClaudeCodeVS
         }
 
         /// <summary>
-        /// Calculates the Windows Terminal tab bar height scaled by DPI
+        /// Calculates the Windows Terminal tab bar height scaled by DPI.
+        /// <para>
+        /// The DPI comes from the panel, never from the terminal window: the embedded host is a child
+        /// window and does not track the session DPI (see <see cref="GetTerminalPanelDpi"/>). Reading
+        /// it there is wrong either way round - a host still reporting the old DPI makes the
+        /// re-evaluation after a display change a no-op and leaves the offset stale, and one
+        /// reporting the new DPI halves the offset on a 200%-to-100% reconnect while WT goes on
+        /// painting its tab bar at the old size, so half the tab bar appears at the top of the panel.
+        /// UI thread only - see the panel read.
+        /// </para>
         /// </summary>
         private int GetWtTabBarHeight()
+        {
+            return GetWtTabBarHeight(GetTerminalPanelDpi());
+        }
+
+        /// <summary>
+        /// Overload for callers that already hold the panel DPI: a repair pass reads it once and
+        /// every DPI-dependent step of that pass has to use the same value.
+        /// </summary>
+        private int GetWtTabBarHeight(uint panelDpi)
         {
             if (terminalHandle == IntPtr.Zero)
             {
                 return 0;
             }
 
-            uint dpi = GetDpiForWindow(terminalHandle);
+            return WtTabBarHeightForDpi(panelDpi);
+        }
+
+        /// <summary>
+        /// Scales the Windows Terminal tab bar height to a DPI. The tab bar is approximately 48 pixels
+        /// at 96 DPI; a DPI of 0 (the failure return of <c>GetDpiForWindow</c>) falls back to 96.
+        /// Pure so the scaling can be unit-tested - it is re-evaluated on every display change, where
+        /// a stale value leaves the hidden tab bar clipping the wrong number of pixels off the top.
+        /// </summary>
+        internal static int WtTabBarHeightForDpi(uint dpi)
+        {
             if (dpi == 0)
             {
                 dpi = 96;
             }
 
-            // Tab bar is approximately 48 pixels at 96 DPI, scale by actual DPI
-            return (int)(48 * dpi / 96.0);
+            return (int)(WtTabBarHeightAt96Dpi * dpi / 96.0);
+        }
+
+        /// <summary>
+        /// Cell height a DPI change calls for, before any clamp: the current height times the DPI
+        /// ratio. <see cref="ScaleConsoleCellHeightForDpi"/> is this value bounded by the zoom range,
+        /// and the difference between the two is what tells a rescale that was not owed apart from
+        /// one the clamp refused - a distinction the width guard depends on, since a cell the clamp
+        /// held back still belongs to the old DPI. Returns 0 when a DPI is unknown. Pure.
+        /// </summary>
+        internal static int IdealConsoleCellHeightForDpi(int currentCellHeightPx, uint fromDpi, uint toDpi)
+        {
+            if (currentCellHeightPx <= 0 || fromDpi == 0 || toDpi == 0)
+            {
+                return 0;
+            }
+
+            return (int)Math.Round(currentCellHeightPx * (double)toDpi / fromDpi,
+                                   MidpointRounding.AwayFromZero);
+        }
+
+        /// <summary>
+        /// Scales a console character cell height from one DPI to another, so the terminal keeps the
+        /// same number of rows and columns across a session DPI change. Returns 0 when there is
+        /// nothing to do - either DPI unknown, no change, or a result equal to the current height -
+        /// and clamps to the same range the Ctrl+Scroll zoom uses, so an extreme DPI ratio cannot
+        /// produce an unreadable cell. Note the clamp is in reported units, which are the ones the
+        /// host paints scaled: the 3x7 px cell a halving produced on a 192 DPI console is painted
+        /// 6x14 - an ordinary size, not the unreadable one it reads as. A clamp that would push the
+        /// cell against the
+        /// direction of the change - a downscale coming out taller than what is there - yields 0
+        /// instead: the cell is already past the bound this is trying to respect. Pure so the
+        /// arithmetic can be unit-tested. Holding the column count stable is the entire point:
+        /// conhost does not reflow, and every character past the new width is dropped when its
+        /// buffer gets narrower.
+        /// </summary>
+        internal static int ScaleConsoleCellHeightForDpi(int currentCellHeightPx, uint fromDpi, uint toDpi)
+        {
+            if (currentCellHeightPx <= 0 || fromDpi == 0 || toDpi == 0 || fromDpi == toDpi)
+            {
+                return 0;
+            }
+
+            int scaled = IdealConsoleCellHeightForDpi(currentCellHeightPx, fromDpi, toDpi);
+
+            if (scaled < ConhostZoomMinPx) scaled = ConhostZoomMinPx;
+            if (scaled > ConhostZoomMaxPx) scaled = ConhostZoomMaxPx;
+
+            // The clamp must never turn a shrink into a growth or the other way round: a cell already
+            // below the floor stays where it is rather than being enlarged by a DPI *decrease*.
+            if (toDpi < fromDpi && scaled > currentCellHeightPx) return 0;
+            if (toDpi > fromDpi && scaled < currentCellHeightPx) return 0;
+
+            return scaled == currentCellHeightPx ? 0 : scaled;
+        }
+
+        /// <summary>
+        /// Cells of slack tolerated between the console grid and the window before the grid is
+        /// re-fitted. Integer division against the cell size, and the scrollbar conhost keeps, leave
+        /// a row or a column of play that is not worth a console attach to chase.
+        /// </summary>
+        private const int ConsoleGridFitToleranceCells = 2;
+
+        /// <summary>
+        /// Turns the cell size the console host *reports* into the cell size it is *painting* with.
+        /// The two differ, and confusing them is what made a repair skip the rescale a reconnect
+        /// needed: `GetCurrentConsoleFontEx` answers in the units of the DPI the console was created
+        /// at, so a console started on a 192 DPI session reports a 6x13 px cell while painting 12x26 -
+        /// measured twice, once against a 1658 px wide window holding 135 columns (135 x 12), once
+        /// against the 1654x1014 px window conhost gave itself for a 135x39 grid (12.25 x 26.0).
+        /// <para>
+        /// The measurement is the host's own <c>dwMaximumWindowSize</c>: the largest viewport it says
+        /// fits the screen at the size it is painting with. <paramref name="screenHeightPx"/> must
+        /// therefore be the height of the monitor the HOST sits on (see
+        /// <c>GetTerminalScreenHeightPx</c>) - measured against the primary monitor instead, the
+        /// division carries the ratio of the two monitors' heights and the estimate is off by that
+        /// whole factor. Dividing the screen by it gives that size
+        /// back - but a few percent too large, because the value has window chrome deducted, and that
+        /// error is not harmless: 25 px per row instead of 24 turned a 51-row panel into 49 and left a
+        /// strip of it unpainted (measured at 4K, log 21:01:00). What the division is good for is the
+        /// *scale*, not the size. Windows only ever scales a window in quarter steps (100/125/150/…%),
+        /// so the ratio is rounded to the nearest quarter and the painted size is then the reported one
+        /// multiplied by it - exact rather than approximate, and immune to the chrome. Pure so it can
+        /// be unit-tested.
+        /// </para>
+        /// <para>
+        /// That maximum is only a measurement while it is capped by the SCREEN. In the alternate
+        /// screen buffer - where every full-screen agent UI runs - the buffer is the viewport, so the
+        /// host caps its maximum by the buffer instead and the division yields the grid, not the
+        /// scale. <paramref name="clientWidthPx"/> over <paramref name="viewCols"/> is the second
+        /// source for exactly that case: the painted column pitch, measured off the window the host
+        /// laid that grid into. It survives the collapse this file repairs, because only ROWS
+        /// collapse - columns follow the buffer, which conhost never narrows on its own.
+        /// </para>
+        /// <para>
+        /// <paramref name="measured"/> false means neither source was usable and the reported size is
+        /// passed through as a guess. A caller must not compute a grid from it: fed the reported
+        /// 6x13 px of a console painting 12x26, the fit asks for twice the columns the panel can
+        /// show, grows the buffer to match, and the window re-apply that follows narrows conhost
+        /// straight back - discarding every column past the panel, permanently. An unmeasured cell
+        /// therefore means no fit at all.
+        /// </para>
+        /// </summary>
+        internal static void EstimatePaintedConsoleCell(int reportedCellWidthPx, int reportedCellHeightPx,
+                                                        int maxViewRows, int bufferRows,
+                                                        int screenHeightPx,
+                                                        int clientWidthPx, int viewCols,
+                                                        out int paintedCellWidthPx, out int paintedCellHeightPx,
+                                                        out bool measured)
+        {
+            paintedCellWidthPx = reportedCellWidthPx;
+            paintedCellHeightPx = reportedCellHeightPx;
+            measured = false;
+
+            if (reportedCellWidthPx <= 0 || reportedCellHeightPx <= 0)
+            {
+                return;
+            }
+
+            double scale = 0;
+
+            // Source one: the host's own maximum, divided into the monitor it was measured against.
+            // Only meaningful while the buffer is taller than that maximum - otherwise the buffer is
+            // what capped it.
+            if (maxViewRows > 0 && screenHeightPx > 0 && maxViewRows < bufferRows)
+            {
+                int rowPitchPx = screenHeightPx / maxViewRows;
+                if (rowPitchPx > 0)
+                {
+                    scale = QuarterStepScale(rowPitchPx, reportedCellHeightPx);
+                }
+            }
+
+            // Source two: the window itself. Used where the first is unavailable, and derived from
+            // the column pitch rather than the row pitch because a collapsed viewport leaves the
+            // window's height saying nothing about the cell while its width still does.
+            if (scale <= 0 && clientWidthPx > 0 && viewCols > 0)
+            {
+                int colPitchPx = clientWidthPx / viewCols;
+                if (colPitchPx > 0)
+                {
+                    scale = QuarterStepScale(colPitchPx, reportedCellWidthPx);
+                }
+            }
+
+            if (scale <= 0)
+            {
+                return;
+            }
+
+            paintedCellHeightPx = (int)Math.Round(reportedCellHeightPx * scale, MidpointRounding.AwayFromZero);
+            paintedCellWidthPx = Math.Max(1, (int)Math.Round(reportedCellWidthPx * scale, MidpointRounding.AwayFromZero));
+            measured = true;
+        }
+
+        /// <summary>
+        /// Largest painted-to-reported ratio treated as a reading rather than nonsense. Windows does
+        /// not scale a display past 400%, and anything above it comes from a pitch that measured
+        /// something other than the cell.
+        /// </summary>
+        private const int MaxPaintedCellScale = 4;
+
+        /// <summary>
+        /// Painted-to-reported ratio, rounded to the quarter steps Windows scales a window in
+        /// (100/125/150/…%) and clamped to 1..<see cref="MaxPaintedCellScale"/>: below 1 the host
+        /// would be painting smaller than it reports, which it never does. The rounding is what makes
+        /// the estimate exact instead of approximate - every pitch it can be derived from carries
+        /// window chrome or integer division with it.
+        /// </summary>
+        private static double QuarterStepScale(int paintedPitchPx, int reportedSizePx)
+        {
+            double scale = Math.Round(paintedPitchPx * 4 / (double)reportedSizePx,
+                                      MidpointRounding.AwayFromZero) / 4;
+            if (scale < 1) scale = 1;
+            if (scale > MaxPaintedCellScale) scale = MaxPaintedCellScale;
+            return scale;
+        }
+
+        /// <summary>
+        /// Target console grid computed by <see cref="TryComputeConsoleGridFit"/>: the viewport size in
+        /// character cells and the buffer row it starts at.
+        /// </summary>
+        internal struct ConsoleGridFit
+        {
+            /// <summary>Viewport width in cells. Never below the current one - see the computation.</summary>
+            public int Cols;
+
+            /// <summary>Viewport height in cells.</summary>
+            public int Rows;
+
+            /// <summary>Buffer row the viewport starts at.</summary>
+            public int Top;
+
+            /// <summary>
+            /// True when the buffer has to grow - wider, taller, or both - before the viewport can be
+            /// applied. It is only ever grown: a narrower buffer discards text, and a shorter one
+            /// discards scrollback.
+            /// </summary>
+            public bool BufferMustGrow;
+        }
+
+        /// <summary>
+        /// Computes the viewport a console should have to fill its host window, and returns false when
+        /// the one it has is close enough to leave alone. Pure, so the arithmetic can be unit-tested.
+        /// <para>
+        /// This exists because resizing the host window is a hint the console host is free to act on
+        /// late or not at all. Measured on an RDP reconnect: the panel passed through 829x70 px while
+        /// Visual Studio re-laid it out, conhost shrank its viewport to 6 rows to match, and when the
+        /// panel came back at 829x623 px the viewport stayed at 6 - painting 5% of the panel, with the
+        /// agent's prompt box drawn into rows the viewport no longer covered.
+        /// </para>
+        /// <para>
+        /// Columns only ever grow: a narrower buffer makes conhost discard every character past the
+        /// new width, across the whole scrollback, permanently. Rows may move either way within the
+        /// buffer - they scroll into it and come back - and where the viewport needs more rows than
+        /// the buffer holds, the buffer grows with them rather than the viewport being pinned to it.
+        /// The viewport is then anchored so the cursor is inside it, because that is where a
+        /// full-screen agent UI draws.
+        /// </para>
+        /// <para>
+        /// The cell size passed in has to be the one the host *paints* with, not the one it reports -
+        /// see <see cref="EstimatePaintedConsoleCell"/>. Measured on a reconnect: fed the reported
+        /// 6x13 px of a console created at 192 DPI, this asked for 47 rows where the panel had room
+        /// for 23, and conhost answered by growing its own window to 1014 px over a 623 px panel.
+        /// </para>
+        /// </summary>
+        internal static bool TryComputeConsoleGridFit(
+            int bufferCols, int bufferRows,
+            int viewTop, int viewCols, int viewRows,
+            int cursorRow,
+            int paintedCellWidthPx, int paintedCellHeightPx,
+            int clientWidthPx, int clientHeightPx,
+            int maxViewCols, int maxViewRows,
+            out ConsoleGridFit fit)
+        {
+            fit = default(ConsoleGridFit);
+
+            if (bufferCols <= 0 || bufferRows <= 0 || viewCols <= 0 || viewRows <= 0 ||
+                paintedCellWidthPx <= 0 || paintedCellHeightPx <= 0 || clientWidthPx <= 0 || clientHeightPx <= 0)
+            {
+                return false;
+            }
+
+            int fitCols = clientWidthPx / paintedCellWidthPx;
+            int fitRows = clientHeightPx / paintedCellHeightPx;
+            if (fitCols <= 0 || fitRows <= 0)
+            {
+                return false;
+            }
+
+            // Columns never shrink - see the summary. Rows follow the window, and both are then
+            // clamped to what the host says it can show at this font and to the buffer behind them.
+            int targetCols = Math.Max(viewCols, fitCols);
+            int targetRows = fitRows;
+
+            // The host maximum caps, but it must never cap BELOW what is on screen now: right after a
+            // DPI change conhost computes that maximum against the new screen while still painting
+            // with the old cell, so it can come out at half the current column count. Clamping to it
+            // blindly narrowed the viewport to 69 of 134 columns - the text survives (only the
+            // viewport moves, not the buffer) but half of it is off screen, which is the opposite of
+            // what this method exists for.
+            if (maxViewCols > 0) targetCols = Math.Max(viewCols, Math.Min(targetCols, maxViewCols));
+            if (maxViewRows > 0) targetRows = Math.Min(targetRows, maxViewRows);
+            if (targetRows <= 0)
+            {
+                return false;
+            }
+
+            // Rows are NOT clamped to the buffer. In the main buffer they never reach it - the
+            // scrollback is thousands of rows deep - but in the alternate screen buffer, where every
+            // full-screen agent UI runs, the buffer IS the viewport: clamping there pinned a viewport
+            // that had collapsed to 6 rows at 6 rows forever, and the read-back then agreed with
+            // itself that nothing was wrong. The buffer grows with the viewport instead, exactly as
+            // it does for columns, and like columns it only ever grows.
+            int effectiveBufferRows = Math.Max(bufferRows, targetRows);
+
+            // Keep the viewport where it is unless the cursor would fall outside it. In the few
+            // seconds after a display change that is the right call even when the user had scrolled
+            // back: the agent redraws at the cursor, and a viewport elsewhere shows a frozen screen.
+            int targetTop = Math.Min(viewTop, effectiveBufferRows - targetRows);
+            if (cursorRow >= 0 && (cursorRow < targetTop || cursorRow >= targetTop + targetRows))
+            {
+                targetTop = cursorRow - targetRows + 1;
+            }
+
+            if (targetTop < 0) targetTop = 0;
+            if (targetTop + targetRows > effectiveBufferRows) targetTop = effectiveBufferRows - targetRows;
+
+            fit = new ConsoleGridFit
+            {
+                Cols = targetCols,
+                Rows = targetRows,
+                Top = targetTop,
+                BufferMustGrow = targetCols > bufferCols || targetRows > bufferRows,
+            };
+
+            // Only a viewport that does not match the window is worth rewriting. A cursor outside the
+            // viewport is NOT a trigger of its own, however much it looks like one: that is also the
+            // normal state of a user who has scrolled back to read earlier output, and treating it as
+            // damage made every SessionSwitch - locking and unlocking the workstation, with no display
+            // change at all - snap the terminal back to the end and throw that scroll position away.
+            // Where the grid genuinely collapsed, the row comparison already catches it (the measured
+            // reconnect had 6 rows where 47 fitted), and the cursor still decides WHERE the repaired
+            // viewport is anchored, a few lines up.
+            return Math.Abs(targetRows - viewRows) >= ConsoleGridFitToleranceCells ||
+                   targetCols - viewCols >= ConsoleGridFitToleranceCells;
+        }
+
+        /// <summary>
+        /// Client size of the embedded terminal window - the area its host paints the cell grid into.
+        /// Not the window rect: conhost keeps its WS_VSCROLL scrollbar, which is non-client and about
+        /// 17 px wide at 96 DPI, so a grid fitted to the window rect comes out a column too wide.
+        /// Returns false when the window is gone.
+        /// </summary>
+        private bool TryGetEmbeddedTerminalClientSize(out int widthPx, out int heightPx)
+        {
+            widthPx = 0;
+            heightPx = 0;
+
+            if (terminalHandle == IntPtr.Zero || !IsWindow(terminalHandle) ||
+                !GetClientRect(terminalHandle, out RECT rect))
+            {
+                return false;
+            }
+
+            widthPx = rect.Right - rect.Left;
+            heightPx = rect.Bottom - rect.Top;
+            return widthPx > 0 && heightPx > 0;
+        }
+
+        /// <summary>
+        /// DPI the terminal panel currently lives at. Read from the panel, not from the terminal
+        /// window: the panel belongs to Visual Studio's per-monitor-aware process and tracks the
+        /// session DPI, while the embedded host window does not (see <see cref="_terminalCellDpi"/>).
+        /// Falls back to 96 so callers always get a usable value. UI thread only - touches the
+        /// WinForms handle.
+        /// </summary>
+        private uint GetTerminalPanelDpi()
+        {
+            try
+            {
+                var panel = ActiveTerminalPanel;
+                if (panel != null && !panel.IsDisposed && panel.IsHandleCreated)
+                {
+                    uint dpi = GetDpiForWindow(panel.Handle);
+                    if (dpi > 0)
+                    {
+                        return dpi;
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"GetTerminalPanelDpi error: {ex.Message}");
+            }
+
+            return 96;
+        }
+
+        /// <summary>
+        /// Height in physical pixels of the monitor the embedded terminal sits on.
+        /// <para>
+        /// This is the divisor of <see cref="EstimatePaintedConsoleCell"/>, and it has to come from the
+        /// SAME monitor the console host measured its <c>dwMaximumWindowSize</c> against, or the
+        /// division no longer yields the painted-to-reported ratio it is after but that ratio times
+        /// the ratio of two monitor heights. <c>GetSystemMetrics(SM_CYSCREEN)</c> - what this used to
+        /// be - is always the PRIMARY monitor, so a Visual Studio window on a second monitor of a
+        /// different height produced an estimate that was off by the full factor: measured on paper
+        /// for a 4K primary with VS on a 1080p secondary, a 13 px cell came out as 26 px and the grid
+        /// fit then asked for half the rows the panel had room for.
+        /// </para>
+        /// <para>
+        /// Falls back to the primary screen when the monitor cannot be resolved - no worse than the
+        /// previous behaviour. UI thread or worker: <c>MonitorFromWindow</c> has no thread affinity.
+        /// </para>
+        /// </summary>
+        private int GetTerminalScreenHeightPx()
+        {
+            try
+            {
+                if (terminalHandle != IntPtr.Zero)
+                {
+                    IntPtr monitor = MonitorFromWindow(terminalHandle, MONITOR_DEFAULTTONEAREST);
+                    if (monitor != IntPtr.Zero)
+                    {
+                        var info = new MONITORINFO { cbSize = (uint)Marshal.SizeOf(typeof(MONITORINFO)) };
+                        if (GetMonitorInfo(monitor, ref info))
+                        {
+                            int height = info.rcMonitor.Bottom - info.rcMonitor.Top;
+                            if (height > 0)
+                            {
+                                return height;
+                            }
+                        }
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"GetTerminalScreenHeightPx error: {ex.Message}");
+            }
+
+            return GetSystemMetrics(SM_CYSCREEN);
+        }
+
+        /// <summary>
+        /// Current outer width of the embedded terminal window, or 0 when it cannot be read.
+        /// </summary>
+        private int GetEmbeddedTerminalWidth()
+        {
+            if (terminalHandle != IntPtr.Zero && GetWindowRect(terminalHandle, out RECT rect))
+            {
+                return rect.Right - rect.Left;
+            }
+
+            return 0;
         }
 
         /// <summary>
@@ -3966,10 +4473,10 @@ namespace ClaudeCodeVS
                             int steps = Interlocked.Exchange(ref _pendingConhostZoomSteps, 0);
                             if (steps != 0)
                             {
-                                int applied = TryAdjustConhostFontSize(steps, out int newCellHeightPx);
+                                int applied = TryAdjustConhostFontSize(steps, out ConsoleCellRescale zoomed);
                                 if (applied != 0)
                                 {
-                                    settledCellHeightPx = newCellHeightPx;
+                                    settledCellHeightPx = zoomed.NewCellHeightPx;
                                     await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
                                     ScheduleManualZoomRefresh();
                                 }
@@ -3985,11 +4492,14 @@ namespace ClaudeCodeVS
                             if (Interlocked.CompareExchange(ref _conhostZoomWorkerActive, 1, 0) != 0) break;
                         }
 
-                        // The burst is over — remember the size the user settled on for the next session.
+                        // The burst is over — remember the size the user settled on for the next
+                        // session, with the display repair's own corrections taken back out (see
+                        // _conhostDpiCellOffsetPx). What is saved has to be the size the user picked
+                        // at the DPI they picked it at, not the one this session's DPI called for.
                         if (settledCellHeightPx > 0)
                         {
                             await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
-                            PersistConhostZoomFontSize(settledCellHeightPx);
+                            PersistConhostZoomFontSize(settledCellHeightPx - _conhostDpiCellOffsetPx);
                         }
                     }
                     catch (Exception ex)
@@ -4147,7 +4657,13 @@ namespace ClaudeCodeVS
         /// Resizes the embedded terminal window to match the panel size
         /// For Windows Terminal, hides the tab bar by positioning it off-screen
         /// </summary>
-        private void ResizeEmbeddedTerminal()
+        /// <param name="forceSizeNotification">
+        /// Forces the terminal host to report a new row count to the program running in it even when
+        /// the target pixel size is the one it already has. Needed after a DPI change (see
+        /// <see cref="RepairTerminalGeometryAfterDisplayChangeAsync"/>), where the cell size was
+        /// rescaled underneath a panel that may have kept its pixel size.
+        /// </param>
+        private void ResizeEmbeddedTerminal(bool forceSizeNotification = false)
         {
             var panel = ActiveTerminalPanel;
             if (terminalHandle != IntPtr.Zero && IsWindow(terminalHandle) && panel != null)
@@ -4157,7 +4673,68 @@ namespace ClaudeCodeVS
                     return;
                 }
 
+                uint panelDpi = GetTerminalPanelDpi();
+
+                // Lower bound for the window width - see the DPI guard below.
+                int minWidth = 0;
+
+                // The cell size the host is rendering with belongs to the DPI in effect now; a later
+                // display change scales it against this value (see ScaleConsoleCellHeightForDpi).
+                if (_terminalCellDpi == 0)
+                {
+                    _terminalCellDpi = panelDpi;
+                    _heldTerminalWidthPx = 0;
+                }
+                else if (_terminalCellDpi != panelDpi)
+                {
+                    // The session DPI moved and the cells have not caught up with it yet. This is
+                    // the path that does the damage, and it runs first: the panel is re-laid out the
+                    // moment the resolution changes, and its Resize handler arrives here long before
+                    // the repair pass has had a chance to rescale the font. Narrowing conhost now
+                    // discards every character past the new width across the whole scrollback, and
+                    // no later widening brings them back - so hold the width until the repair has
+                    // gone first. Windows Terminal reflows and needs no such guard.
+                    if (_wtTabBarHeight == 0)
+                    {
+                        // Captured once, never re-read: GetEmbeddedTerminalWidth answers with the LIVE
+                        // window rect, so a fit that left conhost sizing its own window wider than the
+                        // panel was latched as the new floor on the next resize and the panel could
+                        // never pull it back. What has to be held is the width the cells belonged to
+                        // when the DPI moved - the first reading after it did.
+                        if (_heldTerminalWidthPx <= 0)
+                        {
+                            _heldTerminalWidthPx = GetEmbeddedTerminalWidth();
+                        }
+
+                        minWidth = _heldTerminalWidthPx;
+                    }
+
+                    // Self-heal: dragging the window onto a monitor with another scaling changes the
+                    // panel DPI without any display-settings or session event, so the repair has to
+                    // be startable from here too.
+                    if (ShouldScheduleDisplayRepairFromResize(panelDpi))
+                    {
+                        // One line per attempt, not per resize: the Resize handler fires for every
+                        // pixel of a splitter drag. Noting the attempt before scheduling is what
+                        // closes this branch - the pass that used to do it is 150 ms away, and every
+                        // resize arriving in between wrote a log line and superseded the pass that
+                        // was about to repair.
+                        LogTerminalLaunch($"display change: panel DPI {panelDpi} != cell DPI {_terminalCellDpi} " +
+                                          $"(panel {panel.Width}x{panel.Height}, holding width at {minWidth}px) - repair scheduled from resize");
+                        NoteDisplayRepairScheduled(panelDpi);
+                        ScheduleDisplayChangeRepair();
+                    }
+                }
+                else
+                {
+                    // The cells belong to the panel's DPI again, so there is no width left to hold.
+                    _heldTerminalWidthPx = 0;
+                }
+
                 uint windowPosFlags = SWP_NOZORDER | SWP_NOACTIVATE;
+                int targetTop = 0;
+                int targetWidth = Math.Max(panel.Width, minWidth);
+                int targetHeight = panel.Height;
 
                 if (_wtTabBarHeight > 0)
                 {
@@ -4165,21 +4742,47 @@ namespace ClaudeCodeVS
 
                     // Windows Terminal: hide tab bar by positioning it above the visible area
                     // Set height to panel height + tab bar (so tab bar goes off-screen above)
-                    SetWindowPos(terminalHandle, IntPtr.Zero,
-                                0, -_wtTabBarHeight, panel.Width, panel.Height + _wtTabBarHeight,
-                                windowPosFlags);
+                    targetTop = -_wtTabBarHeight;
+                    targetHeight = panel.Height + _wtTabBarHeight;
                 }
-                else
+
+                // A console host reports a size change to the program inside it only when its row or
+                // column count changes - not when the window moves by a few pixels within the same
+                // cell grid. After a DPI repair the window can come out at the pixel size it already
+                // had while the grid underneath it is new, and the agent full-screen UI then keeps
+                // drawing against the old row count: it repaints at the wrong offset and scrolls to
+                // a cursor that ends up outside the visible area. Overshooting by more than one cell
+                // row and coming back guarantees the two notifications it needs. The height is
+                // nudged, never the width - a column less would make conhost drop a column of text
+                // for good - and it is nudged upward, so the extra rows are merely clipped by the
+                // panel instead of pushing lines into the scrollback.
+                if (forceSizeNotification)
                 {
-                    // Command Prompt: use panel dimensions directly
-                    SetWindowPos(terminalHandle, IntPtr.Zero, 0, 0,
-                                panel.Width, panel.Height,
+                    SetWindowPos(terminalHandle, IntPtr.Zero, 0, targetTop,
+                                targetWidth, targetHeight + ConsoleSizeNudgeHeightPx,
                                 windowPosFlags);
                 }
+
+                SetWindowPos(terminalHandle, IntPtr.Zero, 0, targetTop,
+                            targetWidth, targetHeight,
+                            windowPosFlags);
 
                 RefreshEmbeddedTerminalWindow();
             }
         }
+
+        /// <summary>
+        /// Pixels a forced size notification overshoots the target height by before settling on it
+        /// (see <see cref="ResizeEmbeddedTerminal"/>). It has to exceed one PAINTED character cell
+        /// for the console to report a new row count, while <see cref="ConhostZoomMaxPx"/> bounds the
+        /// REPORTED one - the two units this file exists to keep apart. A console created at a higher
+        /// DPI paints up to <see cref="MaxPaintedCellScale"/> times what it reports, so the bound is
+        /// multiplied by that: a nudge shorter than a painted row lands inside the grid the host
+        /// already has, reports nothing, and leaves a full-screen agent UI drawing against a row
+        /// count nobody told it about - the exact failure the forced notification exists for. The
+        /// surplus is clipped by the panel for the single call it lives in, so overshooting is free.
+        /// </summary>
+        private const int ConsoleSizeNudgeHeightPx = ConhostZoomMaxPx * MaxPaintedCellScale;
 
         /// <summary>
         /// Finds the main window handle for a process by its process ID (async version)

@@ -137,6 +137,10 @@ namespace ClaudeCodeVS
                 // Subscribe to VS debugger events to keep the extension (and any tab it created) visible while debugging.
                 InitializeDebugVisibility();
 
+                // Subscribe to display/session events so a DPI change (RDP reconnect at another
+                // resolution, monitor switch) does not leave the embedded terminal mis-sized.
+                InitializeDisplayChangeHandling();
+
                 // Only initialize terminal once - prevent re-initialization on tab switches
                 if (_hasInitialized)
                 {
