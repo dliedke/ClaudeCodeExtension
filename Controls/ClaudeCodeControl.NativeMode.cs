@@ -249,16 +249,39 @@ namespace ClaudeCodeVS
         /// <summary>
         /// Whether this provider must have its follow-ups queued locally instead of handed straight to
         /// the live session. Codex/Cursor Agent relaunch a fresh process per turn, so a follow-up cannot
-        /// be injected into a process that has already exited. Devin's ACP session is long-lived, but its
-        /// agent only expects one outstanding <c>session/prompt</c> at a time, so firing a second one
-        /// while a turn is in flight is the same problem by another route. Claude Code and
-        /// Reasonix are deliberately excluded: their protocols accept a follow-up while busy without any
-        /// of this bookkeeping.
+        /// be injected into a process that has already exited. Claude Code, Reasonix and Devin are
+        /// deliberately excluded: their protocols accept a follow-up while busy without any of this
+        /// bookkeeping — for Devin see <see cref="SupportsLiveNativeSteering"/>.
         /// </summary>
         internal static bool SupportsQueuedNativeFollowUps(AiProvider? provider)
         {
-            return SupportsQueuedCodexNativeChat(provider) ||
-                provider == AiProvider.Devin || provider == AiProvider.DevinNative;
+            return SupportsQueuedCodexNativeChat(provider);
+        }
+
+        /// <summary>
+        /// Whether a follow-up typed while a turn is running should be delivered *immediately*, as
+        /// steering for the work in flight, rather than held until the turn ends.
+        /// <para>
+        /// Devin's ACP agent accepts a second <c>session/prompt</c> mid-turn and acts on it within a few
+        /// seconds — it abandons the tool loop it was running and follows the new instruction. Queueing
+        /// those follow-ups locally (which is what v191.0 and earlier did) threw that away: the
+        /// correction only reached the agent once the turn it was meant to redirect had already
+        /// finished. <see cref="Agents.AcpSession.SendAsync"/> carries the matching adapter side.
+        /// </para>
+        /// </summary>
+        internal static bool SupportsLiveNativeSteering(AiProvider? provider)
+        {
+            return provider == AiProvider.Devin || provider == AiProvider.DevinNative;
+        }
+
+        /// <summary>
+        /// Whether the send path may hand the agent a prompt while a turn is already running — queued
+        /// behind it, or injected into it. The submission guard is released for both, so Enter/Send stay
+        /// responsive for the whole turn.
+        /// </summary>
+        internal static bool AcceptsNativeFollowUpsWhileBusy(AiProvider? provider)
+        {
+            return SupportsQueuedNativeFollowUps(provider) || SupportsLiveNativeSteering(provider);
         }
 
         /// <summary>
@@ -1334,6 +1357,12 @@ namespace ClaudeCodeVS
                 return;
             }
 
+            if (SupportsLiveNativeSteering(sessionState.SelectedProvider) && sessionState.TurnInFlight)
+            {
+                await SendSteeringPromptToNativeAgentAsync(sessionState, text);
+                return;
+            }
+
             await SendSinglePromptToNativeAgentAsync(sessionState, text);
         }
 
@@ -1353,23 +1382,54 @@ namespace ClaudeCodeVS
                 return;
             }
 
+            if (SupportsLiveNativeSteering(_currentRunningProvider) && _nativeTurnInFlight)
+            {
+                await SendSteeringPromptToNativeAgentAsync(session, text);
+                return;
+            }
+
             await SendSinglePromptToNativeAgentAsync(session, text);
         }
 
         /// <summary>
-        /// Fast path used by the UI send handler while a Codex or Devin turn is already running. It
-        /// accepts the follow-up synchronously, before generic prompt preparation or its re-entrancy
-        /// guard can reject the click. Attachments keep using the full preparation path so they are
-        /// copied to their stable temporary locations before being queued.
+        /// Fast path used by the UI send handler while a native turn is already running. It accepts the
+        /// follow-up synchronously, before generic prompt preparation or its re-entrancy guard can reject
+        /// the click. Attachments keep using the full preparation path so they are copied to their stable
+        /// temporary locations first.
+        /// <para>
+        /// Codex's follow-up joins the local queue and runs as the next turn; Devin's goes out on the
+        /// wire immediately, because its agent applies it to the turn already in flight.
+        /// </para>
         /// </summary>
-        private bool TryQueueActiveCodexNativeFollowUp(string text, bool hasAttachments)
+        private bool TryAcceptActiveNativeFollowUp(string text, bool hasAttachments)
         {
             ThreadHelper.ThrowIfNotOnUIThread();
 
             if (hasAttachments ||
                 string.IsNullOrWhiteSpace(text) ||
-                !SupportsQueuedNativeFollowUps(_currentRunningProvider) ||
-                !_nativeTurnInFlight ||
+                !_nativeTurnInFlight)
+            {
+                return false;
+            }
+
+            if (SupportsLiveNativeSteering(_currentRunningProvider))
+            {
+                IAgentSession session = _agentSession;
+                if (session == null)
+                {
+                    return false;
+                }
+
+#pragma warning disable VSSDK007 // Deliberately detached: the send completes with the whole turn
+                ThreadHelper.JoinableTaskFactory.RunAsync(async delegate
+                {
+                    await SendSteeringPromptToNativeAgentAsync(session, text);
+                }).FileAndForget("claudecode/nativemode/steer");
+#pragma warning restore VSSDK007
+                return true;
+            }
+
+            if (!SupportsQueuedNativeFollowUps(_currentRunningProvider) ||
                 !ReferenceEquals(_codexNativeQueueOwner, _agentSession))
             {
                 return false;
@@ -1528,6 +1588,78 @@ namespace ClaudeCodeVS
                 ChatTranscript.EndActivity(string.Empty);
                 ChatTranscript.SetStatus(string.Empty);
                 ChatTranscript.SetBusy(false);
+            }
+        }
+
+        /// <summary>
+        /// Hands the agent a prompt *during* a turn that is already running, as steering for the work in
+        /// flight — the Devin/ACP path behind <see cref="SupportsLiveNativeSteering"/>.
+        /// <para>
+        /// Deliberately not <see cref="SendSinglePromptToNativeAgentAsync(IAgentSession, string)"/>: none
+        /// of the turn bookkeeping may be redone here. Restarting the activity clock would reset the
+        /// elapsed time the user is watching, and re-capturing the "On Agent Finish" config would arm a
+        /// second notification for a turn that still ends exactly once. All this does is echo the message
+        /// and put it on the wire; the original send is still awaiting the same turn's completion and
+        /// keeps owning the footer, the clock and the finish action.
+        /// </para>
+        /// </summary>
+        private async Task SendSteeringPromptToNativeAgentAsync(IAgentSession session, string text)
+        {
+            await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
+
+            if (!ReferenceEquals(session, _agentSession))
+            {
+                return;
+            }
+
+            var userMessage = new ChatMessageViewModel(ChatMessageKind.User) { Text = text.TrimEnd() };
+            userMessage.Complete();
+            ChatTranscript.Messages.Add(userMessage);
+
+            // Closes the bubbles the agent was streaming into, so whatever it says after being steered
+            // starts a new row *below* the message that steered it instead of being appended above it.
+            _streamingAssistantMessage = null;
+            _streamingThinkingMessage = null;
+
+            try
+            {
+                await session.SendAsync(text, _nativeSessionCts != null
+                    ? _nativeSessionCts.Token
+                    : CancellationToken.None);
+            }
+            catch (Exception ex)
+            {
+                // No turn teardown here either: the send that started the turn owns that, and it fails
+                // on the same fault when the session is really gone.
+                Debug.WriteLine($"Native mode: steering send failed: {ex}");
+                AddNativeMessage(ChatMessageKind.Error, DescribeNativeSendFailure(ex));
+            }
+        }
+
+        /// <summary>Steering send for a chat tab's own session. See the panel overload for the rationale.</summary>
+        private async Task SendSteeringPromptToNativeAgentAsync(NativeChatSessionState sessionState, string text)
+        {
+            await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
+
+            if (sessionState?.ChatTranscript == null || sessionState.AgentSession == null)
+                return;
+
+            var userMessage = new ChatMessageViewModel(ChatMessageKind.User) { Text = text.TrimEnd() };
+            userMessage.Complete();
+            sessionState.ChatTranscript.Messages.Add(userMessage);
+
+            sessionState.StreamingAssistantMessage = null;
+            sessionState.StreamingThinkingMessage = null;
+
+            try
+            {
+                await sessionState.AgentSession.SendAsync(
+                    text, sessionState.SessionCts?.Token ?? CancellationToken.None);
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"Native mode: steering send failed: {ex}");
+                AddNativeMessageToSession(sessionState, ChatMessageKind.Error, DescribeNativeSendFailure(ex));
             }
         }
 

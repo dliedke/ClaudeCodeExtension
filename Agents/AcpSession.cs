@@ -16,6 +16,7 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
+using System.Runtime.ExceptionServices;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
@@ -70,7 +71,13 @@ namespace ClaudeCodeVS.Agents
         private JToken _modelOption;
 
         private long _nextRequestId;
-        private int _busy;
+
+        /// <summary>
+        /// How many <c>session/prompt</c> requests are outstanding, not a plain on/off flag: this agent
+        /// accepts a second prompt while the first turn is still running and treats it as steering for
+        /// the work in flight. See <see cref="SendAsync"/>.
+        /// </summary>
+        private int _inFlightPrompts;
         private volatile bool _disposed;
 
         public AcpSession(AcpSessionOptions options)
@@ -97,7 +104,7 @@ namespace ClaudeCodeVS.Agents
 
         public bool IsBusy
         {
-            get { return Volatile.Read(ref _busy) != 0; }
+            get { return Volatile.Read(ref _inFlightPrompts) > 0; }
         }
 
         public event EventHandler<AgentEvent> Received;
@@ -564,6 +571,20 @@ namespace ClaudeCodeVS.Agents
             return builder.ToString();
         }
 
+        /// <summary>
+        /// Sends one turn — or steers the turn already in flight.
+        /// <para>
+        /// A second <c>session/prompt</c> issued while the first is still outstanding is accepted by the
+        /// agent and injected into the running turn: it stops what it is doing and follows the new
+        /// instruction, rather than rejecting the request or holding it until the turn ends. That is why
+        /// the follow-up is handed straight over instead of being queued locally.
+        /// </para>
+        /// <para>
+        /// The agent resolves *every* outstanding prompt request with the same end-of-turn result, so a
+        /// per-request <c>TurnCompleted</c> would print one turn footer per steering message. Only the
+        /// call that takes <see cref="_inFlightPrompts"/> back to zero completes the turn for the UI.
+        /// </para>
+        /// </summary>
         public async Task SendAsync(string text, CancellationToken cancellationToken)
         {
             if (_disposed) throw new ObjectDisposedException(nameof(AcpSession));
@@ -573,27 +594,43 @@ namespace ClaudeCodeVS.Agents
             }
             if (string.IsNullOrWhiteSpace(text)) return;
 
-            Interlocked.Exchange(ref _busy, 1);
+            Interlocked.Increment(ref _inFlightPrompts);
+
+            JToken result = null;
+            ExceptionDispatchInfo failure = null;
 
             try
             {
-                JToken result = await RequestAsync("session/prompt", new JObject
+                result = await RequestAsync("session/prompt", new JObject
                 {
                     ["sessionId"] = SessionId,
                     ["prompt"] = new JArray(new JObject { ["type"] = "text", ["text"] = text })
                 }, cancellationToken);
-
-                CompleteTurn(result);
             }
             catch (Exception ex)
             {
-                Raise(AgentEvent.SessionError($"The turn failed: {ex.Message}"));
-                Raise(AgentEvent.TurnCompleted(null, null, false));
-                throw;
+                failure = ExceptionDispatchInfo.Capture(ex);
             }
-            finally
+
+            // Decremented exactly once, on both paths, before anything that can throw on its own —
+            // a counter left above zero would leave the session permanently reading as busy.
+            bool lastPrompt = Interlocked.Decrement(ref _inFlightPrompts) == 0;
+
+            if (failure != null)
             {
-                Interlocked.Exchange(ref _busy, 0);
+                Raise(AgentEvent.SessionError($"The turn failed: {failure.SourceException.Message}"));
+
+                if (lastPrompt)
+                {
+                    Raise(AgentEvent.TurnCompleted(null, null, false));
+                }
+
+                failure.Throw();
+            }
+
+            if (lastPrompt)
+            {
+                CompleteTurn(result);
             }
         }
 
@@ -1053,7 +1090,9 @@ namespace ClaudeCodeVS.Agents
 
             if (_disposed) return;
 
-            Interlocked.Exchange(ref _busy, 0);
+            // No counter reset here: every outstanding prompt request was just faulted above, and each
+            // one decrements itself on the way out. Forcing it to zero as well would push the counter
+            // negative and leave a relaunched session reading as idle while a turn was running.
             Raise(AgentEvent.SessionError($"{_options.DisplayName} exited with code {exitCode}."));
         }
 

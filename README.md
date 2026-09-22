@@ -137,6 +137,9 @@ Use native mode to avoid this issue.
 
 ## Version History
 
+### Version 194.0
+- In native mode, a message typed to Devin while it is working now reaches it straight away and redirects what it is doing, instead of waiting for the current answer to finish.
+
 ### Version 193.0
 - "Pull from git before the first prompt" now also fires when the first message of a session is sent from a custom command, not just when typed into the prompt box.
 

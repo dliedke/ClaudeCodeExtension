@@ -32,5 +32,44 @@ namespace ClaudeCodeExtension.Tests
             Assert.IsFalse(ClaudeCodeControl.SupportsQueuedCodexNativeChat(AiProvider.CursorAgentNative));
             Assert.IsFalse(ClaudeCodeControl.SupportsQueuedCodexNativeChat(null));
         }
+
+        /// <summary>
+        /// Devin's follow-ups must not be held back: its ACP agent applies a prompt sent mid-turn to the
+        /// work already in flight, which is the whole point of steering it.
+        /// </summary>
+        [TestMethod]
+        public void DevinSteersLiveInsteadOfQueueing()
+        {
+            Assert.IsTrue(ClaudeCodeControl.SupportsLiveNativeSteering(AiProvider.Devin));
+            Assert.IsTrue(ClaudeCodeControl.SupportsLiveNativeSteering(AiProvider.DevinNative));
+
+            Assert.IsFalse(ClaudeCodeControl.SupportsQueuedNativeFollowUps(AiProvider.Devin));
+            Assert.IsFalse(ClaudeCodeControl.SupportsQueuedNativeFollowUps(AiProvider.DevinNative));
+        }
+
+        [TestMethod]
+        public void ProvidersWithoutLiveSteeringKeepTheirOwnPath()
+        {
+            Assert.IsFalse(ClaudeCodeControl.SupportsLiveNativeSteering(AiProvider.CodexNative));
+            Assert.IsFalse(ClaudeCodeControl.SupportsLiveNativeSteering(AiProvider.Codex));
+            Assert.IsFalse(ClaudeCodeControl.SupportsLiveNativeSteering(AiProvider.ClaudeCode));
+            Assert.IsFalse(ClaudeCodeControl.SupportsLiveNativeSteering(null));
+        }
+
+        /// <summary>
+        /// Both Codex (queued) and Devin (steered) must release the prompt-submission guard, or Enter
+        /// stops working for the rest of the turn.
+        /// </summary>
+        [TestMethod]
+        public void CodexAndDevinBothAcceptFollowUpsWhileBusy()
+        {
+            Assert.IsTrue(ClaudeCodeControl.AcceptsNativeFollowUpsWhileBusy(AiProvider.CodexNative));
+            Assert.IsTrue(ClaudeCodeControl.AcceptsNativeFollowUpsWhileBusy(AiProvider.Codex));
+            Assert.IsTrue(ClaudeCodeControl.AcceptsNativeFollowUpsWhileBusy(AiProvider.Devin));
+            Assert.IsTrue(ClaudeCodeControl.AcceptsNativeFollowUpsWhileBusy(AiProvider.DevinNative));
+
+            Assert.IsFalse(ClaudeCodeControl.AcceptsNativeFollowUpsWhileBusy(AiProvider.ClaudeCode));
+            Assert.IsFalse(ClaudeCodeControl.AcceptsNativeFollowUpsWhileBusy(null));
+        }
     }
 }

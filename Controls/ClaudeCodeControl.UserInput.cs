@@ -168,10 +168,10 @@ namespace ClaudeCodeVS
             string queuedPrompt = PromptTextBox.Text.Trim();
             bool queuedPromptHasFiles = attachedImagePaths.Any();
 
-            // A running Codex native-chat turn owns its own FIFO. Accept a plain follow-up before the
-            // generic submission guard: this is what keeps Enter/Send responsive while the CLI process
-            // is still producing the previous answer.
-            if (TryQueueActiveCodexNativeFollowUp(queuedPrompt, queuedPromptHasFiles))
+            // A running native turn accepts a plain follow-up — queued behind it (Codex) or injected
+            // into it (Devin). Taken before the generic submission guard: this is what keeps Enter/Send
+            // responsive while the previous answer is still being produced.
+            if (TryAcceptActiveNativeFollowUp(queuedPrompt, queuedPromptHasFiles))
             {
                 AddToPromptHistory(queuedPrompt, attachedImagePaths.ToList());
                 FinishPromptSubmission();
@@ -282,13 +282,12 @@ namespace ClaudeCodeVS
                     FinishPromptSubmission();
 
                     // Both Windows and WSL Codex accept follow-ups in native chat while their current
-                    // one-shot process is running, and Devin's long-lived ACP session accepts them the
-                    // same way since its agent only expects one outstanding turn at a time. Do not keep
-                    // the prompt-submission guard held for the duration of that turn: the native queue
-                    // owns serialization from here.
-                    if (SupportsQueuedNativeFollowUps(_currentRunningProvider))
+                    // one-shot process is running, and Devin accepts them mid-turn as steering. Do not
+                    // keep the prompt-submission guard held for the duration of that turn: the native
+                    // send path owns serialization from here.
+                    if (AcceptsNativeFollowUpsWhileBusy(_currentRunningProvider))
                     {
-#pragma warning disable VSSDK007 // Deliberately detached: the native queue owns the long-running turn
+#pragma warning disable VSSDK007 // Deliberately detached: the native send owns the long-running turn
                         ThreadHelper.JoinableTaskFactory.RunAsync(async delegate
                         {
                             await SendPromptToNativeAgentAsync(finalPrompt);
