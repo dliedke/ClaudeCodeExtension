@@ -76,7 +76,7 @@ namespace ClaudeCodeExtension.Tests
             {
                 "Claude Code", "Claude Code (WSL)", "Codex (native)", "Cursor Agent (WSL)",
                 "Antigravity", "Reasonix", "Skip permissions", "Ask permission",
-                "Plan mode", "Extra High", "Ultracode", "Medium", "Opus Plan",
+                "Plan mode", "Auto", "Extra High", "Ultracode", "Medium", "Opus Plan",
                 "claude-sonnet-4-5-20260101"
             };
 

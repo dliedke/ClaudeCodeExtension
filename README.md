@@ -137,6 +137,10 @@ Use native mode to avoid this issue.
 
 ## Version History
 
+### Version 188.0
+- Native mode's permission selector gains an *Auto* option alongside Plan mode, Ask permission, and Skip permissions, letting Claude Code decide per action whether to prompt.
+- Turning on *Claude Code: Skip Permissions* from the agent menu now clears the other permission modes, so the selector always names the mode the agent is actually running in.
+
 ### Version 187.0
 - Native mode plan cards get an *Approve and skip permissions* button, plus a **▾** menu to approve on a different model (Opus, Sonnet, Haiku) with or without skipping permissions — the agent keeps working without being interrupted.
 

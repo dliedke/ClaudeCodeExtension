@@ -690,6 +690,14 @@ namespace ClaudeCodeVS
             bool skipPermissions = session != null
                 ? session.SkipPermissions
                 : _settings?.ClaudeDangerouslySkipPermissions == true;
+            bool autoPermissions = session != null
+                ? session.AutoPermissions
+                : _settings?.ClaudeAutoPermissions == true;
+
+            // The one place the three flags are turned into a state, shared with the composer caption
+            // and the menu checkmarks so none of them can name a different mode than the one launched.
+            ClaudePermissionChoice permissionChoice =
+                ClaudeCommandBuilder.ResolvePermissionChoice(planMode, skipPermissions, autoPermissions);
 
             var options = new ClaudeSessionOptions
             {
@@ -704,10 +712,8 @@ namespace ClaudeCodeVS
                     ? MapEffortArgument(session.SelectedEffortLevel)
                     : GetNativeEffortArgument(),
 
-                // Plan mode is the CLI asking before it acts, so it cannot coexist with skipping
-                // every prompt; plan wins when both are somehow set.
-                DangerouslySkipPermissions = !planMode && skipPermissions,
-                PermissionMode = planMode ? "plan" : "acceptEdits",
+                DangerouslySkipPermissions = permissionChoice == ClaudePermissionChoice.SkipPermissions,
+                PermissionMode = ClaudeCommandBuilder.ToPermissionMode(permissionChoice),
 
                 // User-supplied extra flags (Settings → CLI Paths → "Extra launch arguments").
                 ExtraArguments = GetExtraLaunchArgs(provider)
@@ -2237,12 +2243,14 @@ namespace ClaudeCodeVS
                 if (owner != null)
                 {
                     owner.PlanMode = false;
+                    owner.AutoPermissions = false;
                     owner.SkipPermissions = true;
                     UpdateChatComposerState(owner);
                 }
                 else if (_settings != null)
                 {
                     _settings.ClaudePlanMode = false;
+                    _settings.ClaudeAutoPermissions = false;
                     _settings.ClaudeDangerouslySkipPermissions = true;
                     SaveSettings();
                     UpdateChatComposerState();
@@ -3024,6 +3032,7 @@ namespace ClaudeCodeVS
             state.SelectedCodexReasoningLevel = seed?.SelectedCodexReasoningLevel ?? _settings?.SelectedCodexReasoningLevel ?? CodexReasoningLevel.Default;
             state.SkipPermissions = seed?.SkipPermissions ?? GetChatPermissionSkipFlag(provider) ?? false;
             state.PlanMode = seed != null ? seed.PlanMode : (IsClaudeProvider(provider) && _settings?.ClaudePlanMode == true);
+            state.AutoPermissions = seed != null ? seed.AutoPermissions : (IsClaudeProvider(provider) && _settings?.ClaudeAutoPermissions == true);
 
             // Create agent session from this tab's own snapshot rather than the global settings.
             var agentSession = CreateAgentSession(provider, workspace, state);
