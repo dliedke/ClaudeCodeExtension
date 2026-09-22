@@ -185,6 +185,22 @@ namespace ClaudeCodeVS.Agents
         }
 
         /// <summary>
+        /// Changes the model used by future one-shot turns, the same way <see cref="SetReasoningEffort"/>
+        /// changes reasoning: a running turn keeps the model it launched with, and the next turn's
+        /// process — already resuming this thread via <see cref="OneShotSessionOptions.ResumeSessionId"/>
+        /// — just picks up the new flag. Unlike Claude's persistent process there is no protocol
+        /// round-trip to make; the "live switch" is simply not throwing the conversation away to change
+        /// a per-process launch flag.
+        /// </summary>
+        public void SetModel(string model)
+        {
+            lock (_options)
+            {
+                _options.Model = model ?? string.Empty;
+            }
+        }
+
+        /// <summary>
         /// Records the workspace. Nothing is launched here: with no persistent process there is nothing
         /// to start until the user actually sends something.
         /// </summary>

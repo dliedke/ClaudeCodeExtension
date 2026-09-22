@@ -4139,8 +4139,15 @@ namespace ClaudeCodeVS
                 ? "the agent's default"
                 : GetSelectedProviderModelLabel(provider);
 
-            // "Agent default" cannot be requested over the protocol — there is no such option to
-            // select — so it always goes through the relaunch below.
+            // Codex and Cursor relaunch a process every turn anyway, so this never needs the restart
+            // prompt below — see TrySwitchOneShotModel. "Agent default" cannot be requested over the
+            // ACP protocol, though, so that case still falls through to the relaunch prompt there.
+            if (TrySwitchOneShotModel(_agentSession, provider.Value, model))
+            {
+                AddNativeMessage(ChatMessageKind.Notice, $"🤖 Model switched to {label}.");
+                return;
+            }
+
             if (!string.IsNullOrWhiteSpace(model) && await TrySwitchAcpModelAsync(model))
             {
                 AddNativeMessage(ChatMessageKind.Notice, $"🤖 Model switched to {label}.");
@@ -4187,6 +4194,31 @@ namespace ClaudeCodeVS
                 Debug.WriteLine($"Native chat: switching the model on the live session failed: {ex.Message}");
                 return false;
             }
+        }
+
+        /// <summary>
+        /// Sets the model on a live Codex/Cursor session instead of relaunching. Unlike Claude's
+        /// <c>set_model</c> control request or an ACP session's protocol call, this is not a round trip
+        /// to the agent at all: Codex and Cursor already start a fresh process every turn
+        /// (<see cref="OneShotResumeSession"/>), resumed via the session id the previous turn reported,
+        /// so "switching live" is just writing the flag the next turn's process launches with — the same
+        /// mechanism <see cref="OnChatCodexReasoningSelected"/> already uses for reasoning effort. Runs
+        /// <paramref name="model"/> through <see cref="ResolveOneShotModel"/> first so an empty pick on
+        /// Cursor still resolves to "auto" exactly as it would at launch. Returns false only when the
+        /// session is not a one-shot session, so the caller falls through to the restart prompt used by
+        /// every agent that genuinely reads its model at launch (PI, Antigravity, Reasonix).
+        /// </summary>
+        private static bool TrySwitchOneShotModel(IAgentSession agentSession, AiProvider provider, string model)
+        {
+            var oneShot = agentSession as OneShotResumeSession;
+            if (oneShot == null)
+            {
+                return false;
+            }
+
+            bool isCursor = provider == AiProvider.CursorAgent || provider == AiProvider.CursorAgentNative;
+            oneShot.SetModel(ResolveOneShotModel(model, isCursor));
+            return true;
         }
 
         /// <summary>
@@ -4349,7 +4381,7 @@ namespace ClaudeCodeVS
 
             AddNativeMessage(
                 ChatMessageKind.Notice,
-                $"🤖 Reasoning switched to {GetChatCodexReasoningLabel()} for the next turn.");
+                $"🤖 Reasoning switched to {GetChatCodexReasoningLabel()}.");
         }
 
         /// <summary>
@@ -4965,6 +4997,12 @@ namespace ClaudeCodeVS
                 ? "the agent's default"
                 : GetSelectedProviderModelLabel(session.SelectedProvider, model);
 
+            if (TrySwitchOneShotModel(session.AgentSession, session.SelectedProvider, model))
+            {
+                AddNativeMessageToSession(session, ChatMessageKind.Notice, $"🤖 Model switched to {label}.");
+                return;
+            }
+
             if (!string.IsNullOrWhiteSpace(model) && await TrySwitchAcpModelAsync(session.AgentSession, model))
             {
                 AddNativeMessageToSession(session, ChatMessageKind.Notice, $"🤖 Model switched to {label}.");
@@ -5038,7 +5076,7 @@ namespace ClaudeCodeVS
             oneShot?.SetReasoningEffort(MapCodexReasoningArgument(level));
 
             AddNativeMessageToSession(session, ChatMessageKind.Notice,
-                $"🤖 Reasoning switched to {GetCodexReasoningLabel(level)} for the next turn.");
+                $"🤖 Reasoning switched to {GetCodexReasoningLabel(level)}.");
         }
 
         /// <summary>The parallel-tab counterpart of <see cref="OnChatPermissionSelected"/>.</summary>

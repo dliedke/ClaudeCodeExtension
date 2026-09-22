@@ -137,6 +137,9 @@ Use native mode to avoid this issue.
 
 ## Version History
 
+### Version 190.0
+- Codex and Cursor Agent now switch model mid-conversation without restarting the chat, matching how effort already worked — Claude Code already had this.
+
 ### Version 189.0
 - Native mode's permission selector gains a *Manual mode* option that asks before every action, even file edits, for anyone who wants full control over each step.
 - *Ask permission* is renamed to *Accept edits* to describe what it actually does — file writes go through automatically while riskier actions still prompt.
