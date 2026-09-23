@@ -389,11 +389,18 @@ namespace ClaudeCodeVS
         {
             ThreadHelper.ThrowIfNotOnUIThread();
 
-            // The user (or VS) closed the chat's document tab. Dock the conversation back into the
-            // panel so it is never lost — the panel's prompt box drives it from there. Reopening the
-            // panel after it too has been closed is what restores the chat to its own tab
-            // (see ReconcileNativeChatHomeOnPanelShow).
-            ReturnNativeChatToPanel();
+            // _chatIsInTab still set means the user (or VS) closed the tab itself. A programmatic close —
+            // ⧉ dock, native mode ending — goes through CloseNativeChatTab, which has already moved the
+            // transcript back into the panel and cleared the flag before the frame closes.
+            //
+            // The tab just closes: the conversation is not docked into the panel (issue #168 follow-up).
+            // The transcript is only taken out of the dying pane — the session keeps running and
+            // streaming into it — and _chatIsInTab stays set, so the panel keeps its "chat in its own
+            // tab" layout with 💬 Show Chat as the way to reopen it (IsChatTabClosed).
+            if (_chatIsInTab && _nativeChatWindow != null && _nativeChatWindow.HasChatContent)
+            {
+                _nativeChatWindow.SetChatContent(null);
+            }
 
             // The pane is transient: once closed it is gone, so the next open has to build a new one.
             if (_nativeChatWindow != null)
@@ -402,9 +409,30 @@ namespace ClaudeCodeVS
                 _nativeChatWindow.Activated -= OnDefaultNativeChatWindowActivated;
                 _nativeChatWindow = null;
             }
+        }
 
-            // The Detach control is the way back to the tab, so it has to flip to "detach" again.
-            UpdateDetachButtonIcon(false);
+        /// <summary>
+        /// The chat's home is its own tab but the user closed that tab. The conversation is intact,
+        /// just not shown anywhere; 💬 Show Chat (or anything that needs the user) reopens it.
+        /// </summary>
+        private bool IsChatTabClosed => IsChatDetachedToOwnTab && _nativeChatWindow == null;
+
+        /// <summary>
+        /// Reopens a closed chat tab when the conversation needs to be seen — the user sent a prompt
+        /// from the panel, or the agent is blocked on a question/approval card that nobody could see.
+        /// </summary>
+        private void ReopenClosedChatTab()
+        {
+            ThreadHelper.ThrowIfNotOnUIThread();
+
+            if (!IsChatTabClosed)
+            {
+                return;
+            }
+
+#pragma warning disable VSSDK007, VSTHRD110
+            _ = ThreadHelper.JoinableTaskFactory.RunAsync(() => ShowNativeChatTabAsync(focusComposer: false));
+#pragma warning restore VSSDK007, VSTHRD110
         }
 
         /// <summary>
@@ -729,9 +757,8 @@ namespace ClaudeCodeVS
 
         /// <summary>
         /// The ⧉ dock/undock control for native mode: docks the chat back into the panel when it is
-        /// in its own tab, or pops it out to its own tab when it is docked. Closing the tab directly
-        /// docks it into the panel too (see <see cref="OnNativeChatWindowClosed"/>); reopening the
-        /// panel after it has been closed is what restores the chat to its own tab.
+        /// in its own tab (or its tab was closed), or pops it out to its own tab when it is docked.
+        /// Closing the tab directly does not dock it — see <see cref="OnNativeChatWindowClosed"/>.
         /// </summary>
         private async Task ToggleChatTabAsync()
         {
@@ -747,6 +774,85 @@ namespace ClaudeCodeVS
             }
 
             await ShowNativeChatTabAsync(focusComposer: true);
+        }
+
+        /// <summary>
+        /// "Show Chat" (issue #168) — the panel's 💬 Show Chat button and View &gt; Other Windows &gt;
+        /// Claude Code Chat. Whatever state the chat is in, this ends with the conversation on screen:
+        /// a tab VS hid (debug/design layout switch) is shown again, a tab that would not surface is
+        /// rebuilt once, and if VS still refuses the chat falls back into the panel, which is shown.
+        /// Native mode off means the panel's terminal is the chat, so the panel is what gets shown.
+        /// </summary>
+        internal async Task ShowNativeChatAsync()
+        {
+            await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
+
+            try
+            {
+                if (!IsNativeModeActive || ChatTranscript == null)
+                {
+                    ShowPanelFrame();
+                    return;
+                }
+
+                // Docked into the panel on purpose (⧉): the panel is where the chat lives.
+                if (!_chatIsInTab && TerminalSlotGrid != null && TerminalSlotGrid.Children.Contains(ChatTranscript))
+                {
+                    ShowPanelFrame();
+                    PromptTextBox?.Focus();
+                    return;
+                }
+
+                await ShowNativeChatTabAsync(focusComposer: true);
+
+                if (!IsNativeChatTabOnScreen())
+                {
+                    // The frame said yes but is still not visible: drop it and build a fresh tab.
+                    CloseNativeChatTab();
+                    await ShowNativeChatTabAsync(focusComposer: true);
+                }
+
+                if (!IsNativeChatTabOnScreen())
+                {
+                    EnsureNativeChatVisibleInPanel();
+                    UpdateDetachButtonIcon(false);
+                    ShowPanelFrame();
+                }
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"Error showing the chat: {ex.Message}");
+            }
+        }
+
+        /// <summary>True when the default session's chat is in its own tab and VS reports that tab visible.</summary>
+        private bool IsNativeChatTabOnScreen()
+        {
+            ThreadHelper.ThrowIfNotOnUIThread();
+
+            return _chatIsInTab
+                   && _nativeChatWindow != null
+                   && _nativeChatWindow.HasChatContent
+                   && _nativeChatWindow.Frame is IVsWindowFrame frame
+                   && frame.IsVisible() == VSConstants.S_OK;
+        }
+
+        /// <summary>Shows (and activates) the extension's own panel.</summary>
+        private void ShowPanelFrame()
+        {
+            ThreadHelper.ThrowIfNotOnUIThread();
+
+            if (_toolWindow?.Frame is IVsWindowFrame frame)
+            {
+                frame.Show();
+            }
+        }
+
+        private void ShowChatTabButton_Click(object sender, RoutedEventArgs e)
+        {
+#pragma warning disable VSSDK007, VSTHRD110
+            _ = ThreadHelper.JoinableTaskFactory.RunAsync(ShowNativeChatAsync);
+#pragma warning restore VSSDK007, VSTHRD110
         }
 
         private void UpdateChatTabCaption()

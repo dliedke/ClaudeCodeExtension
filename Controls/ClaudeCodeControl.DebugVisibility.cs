@@ -136,11 +136,51 @@ namespace ClaudeCodeVS
 
         /// <summary>
         /// Fires when the debug session ends and VS returns to design mode. Re-arms the one-shot
-        /// restore for the next session.
+        /// restore for the next session, and shows the chat tabs again if the switch back to the
+        /// design layout hid them — a chat tab opened (or moved) while debugging belongs to the debug
+        /// layout only, so it vanished on stop with nothing left to bring it back (issue #168). Only the
+        /// chat tabs: the panel keeps whatever the user did to it in the design layout.
         /// </summary>
         private void OnDebugEnterDesignMode(EnvDTE.dbgEventReason reason)
         {
             _debugVisibilityHandledForSession = false;
+
+#pragma warning disable VSSDK007, VSTHRD110
+            _ = ThreadHelper.JoinableTaskFactory.RunAsync(async () =>
+            {
+                await ShowChatTabsIfHiddenByVSAsync();
+
+                // Same late-layout second pass as the run-mode restore.
+                await Task.Delay(DebugVisibilityRecheckDelayMs);
+                await ShowChatTabsIfHiddenByVSAsync();
+            });
+#pragma warning restore VSSDK007, VSTHRD110
+        }
+
+        /// <summary>
+        /// Shows every native-mode chat tab VS is holding hidden. A transient chat tab the user closes
+        /// is destroyed, not hidden, so a hidden one is always VS's doing and safe to bring back.
+        /// </summary>
+        private async Task ShowChatTabsIfHiddenByVSAsync()
+        {
+            try
+            {
+                await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
+
+                if (_chatIsInTab)
+                {
+                    RestoreFrameIfHiddenByVS(_nativeChatWindow?.Frame as IVsWindowFrame);
+                }
+
+                foreach (var pair in _nativeSessions)
+                {
+                    RestoreFrameIfHiddenByVS(pair.Value?.Window?.Frame as IVsWindowFrame);
+                }
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"ShowChatTabsIfHiddenByVSAsync error: {ex.Message}");
+            }
         }
 
         /// <summary>

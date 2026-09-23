@@ -82,6 +82,19 @@ namespace ClaudeCodeVS
             claudeCodeControl?.InsertCodeSnippetIntoPrompt(code, filePath, startLine, endLine);
         }
 
+        /// <summary>View &gt; Other Windows &gt; Claude Code Chat: brings the chat back wherever it went (issue #168).</summary>
+        public void ShowChat()
+        {
+            if (claudeCodeControl == null)
+            {
+                return;
+            }
+
+#pragma warning disable VSSDK007, VSTHRD110
+            _ = ThreadHelper.JoinableTaskFactory.RunAsync(claudeCodeControl.ShowNativeChatAsync);
+#pragma warning restore VSSDK007, VSTHRD110
+        }
+
         #region IVsWindowFrameNotify Implementation
 
         public int OnShow(int fShow)

@@ -2235,6 +2235,9 @@ namespace ClaudeCodeVS
         private void ShowNativeInteraction(AgentInteractionRequest request)
         {
             ThreadHelper.ThrowIfNotOnUIThread();
+
+            // The agent waits on this card, so a closed chat tab has to come back to show it.
+            ReopenClosedChatTab();
             ShowNativeInteractionCore(request, ChatTranscript, _nativeTurnFinishConfig);
         }
 
@@ -2704,6 +2707,9 @@ namespace ClaudeCodeVS
         private void ShowNativePermissionDialog(AgentPermissionRequest request)
         {
             ThreadHelper.ThrowIfNotOnUIThread();
+
+            // Same as ShowNativeInteraction: the blocked agent needs its chat on screen.
+            ReopenClosedChatTab();
             ShowNativePermissionDialog(request, ChatTranscript);
         }
 

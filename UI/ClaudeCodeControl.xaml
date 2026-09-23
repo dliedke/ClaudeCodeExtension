@@ -564,6 +564,21 @@
 				</DockPanel>
 			</Grid>
 
+			<!-- Shares row 1 with ControlsRow: RefreshToolbarLayout shows this only while the chat owns
+			     its own tab (the toolbar is collapsed then), as the way back to that tab — also after the
+			     user closed it, since closing the tab does not dock the chat into the panel (issue #168). -->
+			<Button x:Name="ShowChatTabButton" Grid.Row="1" Margin="0,4,0,0"
+			        Style="{StaticResource AdaptiveButtonStyle}"
+			        Height="28" HorizontalAlignment="Stretch"
+			        Visibility="Collapsed"
+			        Click="ShowChatTabButton_Click"
+			        ToolTip="Show the chat tab (reopens it if it was closed or hidden)">
+				<StackPanel Orientation="Horizontal">
+					<TextBlock Text="💬" Margin="0,0,6,0"/>
+					<TextBlock Text="Show Chat"/>
+				</StackPanel>
+			</Button>
+
 			<!-- File chips row -->
 			<Grid x:Name="CheckboxRow" Grid.Row="2" Margin="0,4,0,2">
 				<ScrollViewer VerticalScrollBarVisibility="Disabled"

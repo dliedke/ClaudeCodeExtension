@@ -65,6 +65,7 @@ namespace ClaudeCodeExtension
         public static readonly Guid CommandSet = new Guid("11111111-2222-3333-4444-555555555555");
         public const int ClaudeCodeToolWindowCommandId = 0x0100;
         public const int EditorSendSelectionCommandId = 0x0201;
+        public const int ShowNativeChatCommandId = 0x0101;
 
         private const string ConfigurationFileName = "claudecode-settings.json";
         private static readonly string ConfigurationPath = Path.Combine(
@@ -96,6 +97,11 @@ namespace ClaudeCodeExtension
                 var menuCommandID = new CommandID(CommandSet, ClaudeCodeToolWindowCommandId);
                 var menuItem = new MenuCommand(this.ShowToolWindow, menuCommandID);
                 commandService.AddCommand(menuItem);
+
+                // View > Other Windows > Claude Code Chat: the always-available way back to the chat
+                // (issue #168), and a command the user can bind a keyboard shortcut to.
+                var showChatCmdId = new CommandID(CommandSet, ShowNativeChatCommandId);
+                commandService.AddCommand(new MenuCommand(this.ShowNativeChat, showChatCmdId));
 
                 // Add command handler for "Send Selection to Claude Code" editor context menu
                 var editorCmdId = new CommandID(CommandSet, EditorSendSelectionCommandId);
@@ -300,6 +306,23 @@ namespace ClaudeCodeExtension
 
             IVsWindowFrame windowFrame = (IVsWindowFrame)window.Frame;
             Microsoft.VisualStudio.ErrorHandler.ThrowOnFailure(windowFrame.Show());
+        }
+
+        /// <summary>
+        /// Brings the native-mode chat back on screen from wherever it went — a hidden or lost tab, or
+        /// docked in the panel. With native mode off (or the panel never opened) it shows the panel.
+        /// </summary>
+        private void ShowNativeChat(object sender, EventArgs e)
+        {
+            ThreadHelper.ThrowIfNotOnUIThread();
+
+            var window = FindToolWindow(typeof(ClaudeCodeVS.ClaudeCodeToolWindow), 0, true) as ClaudeCodeVS.ClaudeCodeToolWindow;
+            if (window?.Frame == null)
+            {
+                throw new NotSupportedException("Cannot create tool window");
+            }
+
+            window.ShowChat();
         }
 
         #endregion

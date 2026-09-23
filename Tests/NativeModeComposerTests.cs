@@ -588,18 +588,28 @@ namespace ClaudeCodeExtension.Tests
         }
 
         /// <summary>
-        /// Closing the chat's document tab must dock the conversation into the panel (never lose it,
-        /// never leave it homeless) — the auto-reopen-as-a-tab behavior and its guard flags are gone.
+        /// Closing the chat's document tab just closes it (issue #168): the conversation is released
+        /// from the dying pane but NOT docked into the panel, and the tab does not reopen itself. The
+        /// panel's Show Chat button (and a panel send / agent question) is what brings it back.
         /// </summary>
         [TestMethod]
-        public void OnNativeChatWindowClosed_DocksTheChatBackIntoThePanel()
+        public void OnNativeChatWindowClosed_ClosesTheTabWithoutDocking()
         {
             string body = ExtractMethodBody(NativeChatSource, "private void OnNativeChatWindowClosed(object sender, EventArgs e)");
 
-            StringAssert.Contains(body, "ReturnNativeChatToPanel();",
-                "Closing the tab docks the chat into the panel.");
+            StringAssert.Contains(body, "_nativeChatWindow.SetChatContent(null);",
+                "The transcript must be released from the closing pane so it can be re-hosted later.");
+            StringAssert.Contains(body, "_nativeChatWindow = null;",
+                "The dead pane reference must be dropped so the next show creates a fresh tab.");
+            StringAssert.DoesNotMatch(body, new System.Text.RegularExpressions.Regex(@"ReturnNativeChatToPanel|EnsureNativeChatVisibleInPanel"),
+                "Closing the tab must not dock the chat into the panel anymore.");
             StringAssert.DoesNotMatch(body, new System.Text.RegularExpressions.Regex(@"reopenAsTab|_reopeningNativeChatTab|ShowNativeChatTabAsync"),
-                "The tab must not reopen itself on close anymore — reopening the panel is what restores the tab.");
+                "The tab must not reopen itself on close.");
+
+            StringAssert.Contains(NativeChatSource, "private bool IsChatTabClosed => IsChatDetachedToOwnTab && _nativeChatWindow == null;",
+                "A closed tab is recognized by the chat still being detached while its pane is gone.");
+            StringAssert.Contains(NativeChatSource, "private void ReopenClosedChatTab()",
+                "Show Chat / panel send / agent question need a helper to reopen a closed tab.");
         }
 
         /// <summary>

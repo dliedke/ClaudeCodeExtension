@@ -2238,6 +2238,13 @@ For more details, visit: https://pi.dev";
             if (ControlsRow != null) ControlsRow.Visibility = panelRows;
             if (CheckboxRow != null) CheckboxRow.Visibility = panelRows;
 
+            // Issue #168: with the toolbar gone the panel holds nothing that leads back to the chat, so
+            // a tab VS hid (or the user lost) was unreachable. 💬 Show Chat takes ControlsRow's place.
+            if (ShowChatTabButton != null)
+            {
+                ShowChatTabButton.Visibility = IsChatDetachedToOwnTab ? Visibility.Visible : Visibility.Collapsed;
+            }
+
             // Keep the detach control's icon/tooltip in sync with the detached state. Native mode
             // tracks its own "detached" concept (the chat owns its tab, IsChatDetachedToOwnTab) rather
             // than _isTerminalDetached, which never gets set while native mode is active — passing

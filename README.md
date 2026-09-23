@@ -36,7 +36,7 @@ Enjoying the extension? [Buy me a coffee](https://www.buymeacoffee.com/dliedke) 
 
 ## Native Mode
 
-The default chat experience for new installs — turn it off via *⚙ → Settings... → Terminal → Use native mode* to go back to the embedded terminal.
+The default chat experience for new installs — turn it off via *⚙ → Settings... → Terminal → Use native mode* to go back to the embedded terminal. Lost the chat tab? *💬 Show Chat* in the panel or *View → Other Windows → Claude Code Chat* brings it back.
 
 <!-- Images are served from this repository's raw URLs, which the VS Marketplace can also reach — the
      overview is rendered from this file with no repo context, so relative paths would not resolve there.
@@ -136,6 +136,11 @@ https://github.com/anthropics/claude-code/issues/41501
 Use native mode to avoid this issue.
 
 ## Version History
+
+### Version 196.0
+- Native mode: the chat can always be brought back if its tab goes missing (issue #168) — use the new *💬 Show Chat* button in the panel, or *View → Other Windows → Claude Code Chat*, which you can also bind to a keyboard shortcut.
+- Native mode: closing the chat tab now simply closes it instead of moving the chat into the panel; the conversation keeps going, and *💬 Show Chat* reopens it. It also reopens by itself when you send a prompt from the panel or the agent asks you something.
+- Native mode: a chat tab that Visual Studio hid when debugging started or stopped now reappears on its own, and reopening the panel brings a hidden chat tab back too.
 
 ### Version 195.0
 - Fixed native mode for Devin falling back to the embedded terminal on launch whenever a Sonnet/Opus effort-level model (e.g. "Claude Sonnet 5 High") was selected — the pick now applies correctly instead of being reported as unavailable.

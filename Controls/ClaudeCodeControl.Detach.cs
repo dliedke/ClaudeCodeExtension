@@ -399,17 +399,18 @@ namespace ClaudeCodeVS
         /// <summary>
         /// Reopening the panel after it was closed must bring the native chat back to its own document
         /// tab — the panel's steady state in native mode is "usage bars only", with the chat in a tab
-        /// beside it. Closing the chat tab on its own docks the conversation into the panel
-        /// (<see cref="OnNativeChatWindowClosed"/>); this is what undoes that once the panel itself is
-        /// closed and brought back. A chat that already has a live tab is left alone.
+        /// beside it. So a chat tab the user closed (<see cref="OnNativeChatWindowClosed"/>), a tab VS
+        /// hid, or a chat docked with ⧉ all come back as a tab once the panel itself is closed and
+        /// brought back. A chat whose tab is already on screen is left alone.
         /// </summary>
         private void ReconcileNativeChatHomeOnPanelShow()
         {
             ThreadHelper.ThrowIfNotOnUIThread();
 
-            bool liveTab = _nativeChatWindow != null
-                           && _nativeChatWindow.Frame is IVsWindowFrame
-                           && _nativeChatWindow.HasChatContent;
+            // A tab VS merely hid (a debug/design layout switch hides it without closing it) is not
+            // live: it has to be shown again, or reopening the panel leaves the chat out of sight
+            // (issue #168).
+            bool liveTab = IsNativeChatTabOnScreen();
 
             if (liveTab)
             {

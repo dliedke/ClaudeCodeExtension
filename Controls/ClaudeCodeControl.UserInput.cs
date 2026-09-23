@@ -281,6 +281,10 @@ namespace ClaudeCodeVS
                     // long time and the user should not see the sent prompt stuck in the input box.
                     FinishPromptSubmission();
 
+                    // Sent from the panel's prompt box while the chat tab is closed: reopen it so the
+                    // answer has somewhere to be read.
+                    ReopenClosedChatTab();
+
                     // Both Windows and WSL Codex accept follow-ups in native chat while their current
                     // one-shot process is running, and Devin accepts them mid-turn as steering. Do not
                     // keep the prompt-submission guard held for the duration of that turn: the native
