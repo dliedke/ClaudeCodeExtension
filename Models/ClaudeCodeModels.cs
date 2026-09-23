@@ -339,6 +339,12 @@ namespace ClaudeCodeVS
 
         /// <summary>Provider and environment that own this session.</summary>
         public AiProvider Provider { get; set; }
+
+        /// <summary>
+        /// Claude Code only: the name stored in the transcript itself (its last <c>custom-title</c>
+        /// record, set in the CLI or synced from here). Null when the transcript has none.
+        /// </summary>
+        public string TranscriptTitle { get; set; }
     }
 
     /// <summary>

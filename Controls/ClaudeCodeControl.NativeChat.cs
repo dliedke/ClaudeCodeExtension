@@ -1350,6 +1350,11 @@ namespace ClaudeCodeVS
 
             SaveSettings();
 
+            // Issue #170: also hand the name to Claude Code so its own /resume picker shows it.
+            AiProvider renamedProvider = owner?.SelectedProvider ?? _currentRunningProvider ?? _settings.SelectedProvider;
+            StartSessionHistoryTask(() => SyncClaudeSessionTitleAsync(renamedProvider, sessionId, newTitle),
+                "claudecode/nativechat/renamesync");
+
             if (owner != null)
             {
                 UpdateSessionTabCaption(owner);

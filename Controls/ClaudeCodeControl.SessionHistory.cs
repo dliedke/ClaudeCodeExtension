@@ -328,6 +328,13 @@ namespace ClaudeCodeVS
                     {
                         var info = ParseSessionFile(f, provider);
                         if (info != null) bag.Add(info);
+
+                        // Sessions from native mode (including ones from before this existed) are
+                        // listed here, so they get listed in the CLI's own /resume picker too.
+                        if (info != null && _claudeResumeVisibleSessions.TryAdd(info.SessionId, true))
+                        {
+                            PatchClaudeTranscriptEntrypoint(f);
+                        }
                     }
                     catch (Exception ex)
                     {
@@ -336,6 +343,19 @@ namespace ClaudeCodeVS
                 }
                 return bag;
             });
+
+            // A name given in Claude Code itself (issue #170) replaces the saved one — renames here
+            // write to the transcript as well, so its last title record is always the newest.
+            await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
+            bool titlesChanged = false;
+            foreach (var info in parsed)
+            {
+                titlesChanged |= ApplyTranscriptTitle(info.SessionId, info.TranscriptTitle);
+            }
+            if (titlesChanged)
+            {
+                SaveSettings();
+            }
 
             // Apply any user-assigned custom titles (issue #95) — done on the UI-bound
             // result rather than in the thread-pool parse so settings access stays simple.
@@ -374,6 +394,7 @@ namespace ClaudeCodeVS
             int messageCount = 0;
             int tokenCount = 0;
             bool sawCommandInvocation = false;
+            string transcriptTitle = null;
 
             // Open with FileShare.ReadWrite so we can also peek at the active session
             // that Claude Code itself currently has open for writing.
@@ -391,6 +412,13 @@ namespace ClaudeCodeVS
 
                     string type = (string)obj["type"];
                     if (string.IsNullOrEmpty(type)) continue;
+
+                    // Name given in Claude Code itself (or synced from here); the last record wins.
+                    if (type == "custom-title")
+                    {
+                        transcriptTitle = (string)obj["customTitle"] ?? string.Empty;
+                        continue;
+                    }
 
                     if (string.IsNullOrEmpty(cwd))
                     {
@@ -464,8 +492,326 @@ namespace ClaudeCodeVS
                 TokenCount = tokenCount,
                 LastModified = fi.LastWriteTime,
                 Cwd = cwd,
-                Provider = provider
+                Provider = provider,
+                TranscriptTitle = transcriptTitle
             };
+        }
+
+        /// <summary>
+        /// The two records Claude Code itself appends when a session is named (<c>--name</c>, or a
+        /// rename inside the CLI): its /resume picker and terminal title read the last pair in the
+        /// transcript. Newline-terminated, compact JSON, property order as the CLI writes it.
+        /// </summary>
+        internal static string BuildClaudeTitleRecords(string sessionId, string title)
+        {
+            string customTitle = Newtonsoft.Json.JsonConvert.SerializeObject(
+                new JObject { ["type"] = "custom-title", ["customTitle"] = title ?? string.Empty, ["sessionId"] = sessionId });
+            string agentName = Newtonsoft.Json.JsonConvert.SerializeObject(
+                new JObject { ["type"] = "agent-name", ["agentName"] = title ?? string.Empty, ["sessionId"] = sessionId });
+            return customTitle + "\n" + agentName + "\n";
+        }
+
+        /// <summary>
+        /// Pushes a rename into the transcript so Claude Code's own /resume picker shows it too
+        /// (issue #170). Append-only — the same thing the CLI does — so it is safe next to a live
+        /// session that is writing the file, and the earlier records stay untouched. A file that
+        /// does not end in a newline (a write caught mid-line) gets one first so the new records
+        /// start on their own line. Best-effort: the local rename has already been saved, so a
+        /// failure here is logged, never surfaced.
+        /// </summary>
+        internal static void AppendClaudeTitleRecords(string filePath, string sessionId, string title)
+        {
+            try
+            {
+                if (string.IsNullOrEmpty(filePath) || !File.Exists(filePath)) return;
+
+                string records = BuildClaudeTitleRecords(sessionId, title);
+                if (!EndsWithNewline(filePath)) records = "\n" + records;
+
+                using (var fs = new FileStream(filePath, FileMode.Append, FileAccess.Write, FileShare.ReadWrite))
+                {
+                    byte[] bytes = new UTF8Encoding(false).GetBytes(records);
+                    fs.Write(bytes, 0, bytes.Length);
+                }
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"[ClaudeCode] Could not sync session title to transcript: {ex.Message}");
+            }
+        }
+
+        /// <summary>
+        /// Rename entry point for callers that only know the session id (the native chat tab's ✎
+        /// button): finds the transcript in the workspace's project folder — or, for the Windows
+        /// store, in whichever project folder holds it, since a tab can outlive a workspace switch —
+        /// and appends the title records. Claude Code only; every other provider is a no-op.
+        /// </summary>
+        private async Task SyncClaudeSessionTitleAsync(AiProvider provider, string sessionId, string title)
+        {
+            try
+            {
+                string path = await FindClaudeTranscriptPathAsync(provider, sessionId);
+                if (path == null) return;
+
+                await Task.Run(() => AppendClaudeTitleRecords(path, sessionId, title));
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"[ClaudeCode] Could not locate transcript to sync session title: {ex.Message}");
+            }
+        }
+
+        /// <summary>
+        /// The transcript file of a Claude Code session id, or null (not a Claude provider, or no file
+        /// yet). Looks in the workspace's project folder first and — for the Windows store — then in
+        /// whichever project folder holds it, since a chat tab can outlive a workspace switch.
+        /// </summary>
+        private async Task<string> FindClaudeTranscriptPathAsync(AiProvider provider, string sessionId)
+        {
+            if (!IsClaudeCodeSessionHistoryProvider(provider) || string.IsNullOrEmpty(sessionId)) return null;
+
+            string fileName = sessionId + ".jsonl";
+            string dir = await ResolveSessionDirectoryAsync(provider, await GetWorkspaceDirectoryAsync());
+
+            return await Task.Run(() =>
+            {
+                string path = dir != null ? Path.Combine(dir, fileName) : null;
+                if (path != null && File.Exists(path)) return path;
+                if (provider != AiProvider.ClaudeCode) return null;
+
+                string projects = Path.Combine(GetClaudeConfigDir(), "projects");
+                return Directory.Exists(projects)
+                    ? Directory.EnumerateDirectories(projects)
+                        .Select(d => Path.Combine(d, fileName))
+                        .FirstOrDefault(File.Exists)
+                    : null;
+            });
+        }
+
+        /// <summary>Session ids whose transcript already reads as a terminal session (see below).</summary>
+        private readonly System.Collections.Concurrent.ConcurrentDictionary<string, bool> _claudeResumeVisibleSessions =
+            new System.Collections.Concurrent.ConcurrentDictionary<string, bool>(StringComparer.OrdinalIgnoreCase);
+
+        /// <summary>Session ids whose transcript title was already checked by a chat tab.</summary>
+        private readonly System.Collections.Concurrent.ConcurrentDictionary<string, bool> _claudeTitleAdoptedSessions =
+            new System.Collections.Concurrent.ConcurrentDictionary<string, bool>(StringComparer.OrdinalIgnoreCase);
+
+        /// <summary>
+        /// Called after each native-mode Claude turn: makes the session show up in the CLI's own
+        /// /resume picker (see <see cref="PatchClaudeTranscriptEntrypoint"/>). Once a transcript is
+        /// settled it is not read again for the rest of the VS session.
+        /// </summary>
+        private async Task MakeNativeSessionResumableInCliAsync(AiProvider provider, string sessionId)
+        {
+            try
+            {
+                if (string.IsNullOrEmpty(sessionId) || _claudeResumeVisibleSessions.ContainsKey(sessionId)) return;
+
+                string path = await FindClaudeTranscriptPathAsync(provider, sessionId);
+                if (path == null) return;
+
+                await Task.Run(() => PatchClaudeTranscriptEntrypoint(path));
+                _claudeResumeVisibleSessions[sessionId] = true;
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"[ClaudeCode] Could not make native session visible to the CLI: {ex.Message}");
+            }
+        }
+
+        /// <summary>
+        /// Picks up a name given to the session in Claude Code itself (issue #170, the other
+        /// direction): when the transcript's last title record differs from the saved title, the saved
+        /// one is replaced and <paramref name="onChanged"/> refreshes the tab. Runs once per session id.
+        /// </summary>
+        private async Task AdoptClaudeTranscriptTitleAsync(AiProvider provider, string sessionId, Action onChanged)
+        {
+            try
+            {
+                if (string.IsNullOrEmpty(sessionId) || !_claudeTitleAdoptedSessions.TryAdd(sessionId, true)) return;
+
+                string path = await FindClaudeTranscriptPathAsync(provider, sessionId);
+                if (path == null) return;
+
+                string transcriptTitle = await Task.Run(() => ReadClaudeTranscriptTitle(path));
+                await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
+
+                if (ApplyTranscriptTitle(sessionId, transcriptTitle))
+                {
+                    SaveSettings();
+                    onChanged?.Invoke();
+                }
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"[ClaudeCode] Could not read session title from transcript: {ex.Message}");
+            }
+        }
+
+        /// <summary>
+        /// Makes the saved title follow the transcript's (null = the transcript never named the
+        /// session, so the saved title stands). Returns true when the saved titles changed.
+        /// </summary>
+        private bool ApplyTranscriptTitle(string sessionId, string transcriptTitle)
+        {
+            if (transcriptTitle == null || string.IsNullOrEmpty(sessionId) || _settings == null) return false;
+
+            if (_settings.SessionCustomTitles == null)
+            {
+                _settings.SessionCustomTitles = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            }
+
+            string newTitle = transcriptTitle.Trim();
+            _settings.SessionCustomTitles.TryGetValue(sessionId, out string savedTitle);
+
+            if (string.IsNullOrEmpty(newTitle))
+            {
+                return _settings.SessionCustomTitles.Remove(sessionId);
+            }
+
+            if (string.Equals(savedTitle, newTitle, StringComparison.Ordinal)) return false;
+
+            _settings.SessionCustomTitles[sessionId] = newTitle;
+            return true;
+        }
+
+        /// <summary>
+        /// The session name Claude Code keeps in a transcript: the last <c>custom-title</c> record, the
+        /// same one its /resume picker shows. Null when the file has none, empty when the last one
+        /// cleared the name. Only the file's tail is scanned — the CLI appends the record, so a current
+        /// one is always near the end, and transcripts can run to many megabytes.
+        /// </summary>
+        internal static string ReadClaudeTranscriptTitle(string filePath)
+        {
+            string title = null;
+            foreach (string line in ReadTailLines(filePath, ClaudeTranscriptScanBytes))
+            {
+                if (line.IndexOf("\"custom-title\"", StringComparison.Ordinal) < 0) continue;
+
+                JObject obj;
+                try { obj = JObject.Parse(line); }
+                catch { continue; }
+
+                if ((string)obj["type"] == "custom-title")
+                {
+                    title = (string)obj["customTitle"] ?? string.Empty;
+                }
+            }
+            return title;
+        }
+
+        /// <summary>How much of a transcript's head and tail Claude Code reads for its picker metadata.</summary>
+        internal const int ClaudeTranscriptScanBytes = 65536;
+
+        private static readonly byte[] EntrypointKey = Encoding.ASCII.GetBytes("\"entrypoint\":\"");
+
+        private static readonly HashSet<string> SdkEntrypoints =
+            new HashSet<string>(StringComparer.Ordinal) { "sdk-cli", "sdk-ts", "sdk-py" };
+
+        /// <summary>
+        /// Native mode drives Claude Code headless, so every line it writes is tagged
+        /// <c>"entrypoint":"sdk-cli"</c> — and the CLI's /resume picker hides sessions tagged with an
+        /// SDK entrypoint. The picker decides on the first entrypoint in the file's first 64 KB (or the
+        /// last one in its tail when the head has none), so rewriting just that one value to
+        /// <c>cli</c> makes the session listed like any terminal session. The value is padded with
+        /// spaces to its original length — JSON whitespace, still valid — so the file never changes
+        /// size and a live CLI appending to it is unaffected. Returns true when it rewrote a value.
+        /// </summary>
+        internal static bool PatchClaudeTranscriptEntrypoint(string filePath)
+        {
+            try
+            {
+                if (string.IsNullOrEmpty(filePath) || !File.Exists(filePath)) return false;
+
+                using (var fs = new FileStream(filePath, FileMode.Open, FileAccess.ReadWrite, FileShare.ReadWrite | FileShare.Delete))
+                {
+                    long length = fs.Length;
+                    if (length == 0) return false;
+
+                    long windowStart = 0;
+                    byte[] window = ReadBytes(fs, 0, (int)Math.Min(length, ClaudeTranscriptScanBytes));
+                    int keyAt = IndexOf(window, EntrypointKey, fromEnd: false);
+
+                    if (keyAt < 0)
+                    {
+                        windowStart = Math.Max(0, length - ClaudeTranscriptScanBytes);
+                        window = ReadBytes(fs, windowStart, (int)(length - windowStart));
+                        keyAt = IndexOf(window, EntrypointKey, fromEnd: true);
+                        if (keyAt < 0) return false;
+                    }
+
+                    int valueStart = keyAt + EntrypointKey.Length;
+                    int valueEnd = Array.IndexOf(window, (byte)'"', valueStart);
+                    if (valueEnd < 0) return false;
+
+                    string value = Encoding.ASCII.GetString(window, valueStart, valueEnd - valueStart);
+                    if (!SdkEntrypoints.Contains(value)) return false;
+
+                    // "sdk-cli"  ->  "cli"      (closing quote moves left, spaces fill the gap)
+                    byte[] replacement = Encoding.ASCII.GetBytes("cli\"" + new string(' ', value.Length - 3));
+                    fs.Seek(windowStart + valueStart, SeekOrigin.Begin);
+                    fs.Write(replacement, 0, replacement.Length);
+                    return true;
+                }
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"[ClaudeCode] Could not patch transcript entrypoint: {ex.Message}");
+                return false;
+            }
+        }
+
+        private static byte[] ReadBytes(FileStream fs, long offset, int count)
+        {
+            var buffer = new byte[count];
+            fs.Seek(offset, SeekOrigin.Begin);
+            int read = 0;
+            while (read < count)
+            {
+                int n = fs.Read(buffer, read, count - read);
+                if (n <= 0) break;
+                read += n;
+            }
+            if (read < count) Array.Resize(ref buffer, read);
+            return buffer;
+        }
+
+        private static int IndexOf(byte[] haystack, byte[] needle, bool fromEnd)
+        {
+            int last = haystack.Length - needle.Length;
+            for (int i = fromEnd ? last : 0; fromEnd ? i >= 0 : i <= last; i += fromEnd ? -1 : 1)
+            {
+                int j = 0;
+                while (j < needle.Length && haystack[i + j] == needle[j]) j++;
+                if (j == needle.Length) return i;
+            }
+            return -1;
+        }
+
+        /// <summary>The complete lines in the last <paramref name="maxBytes"/> of a file (a line cut by the window is dropped).</summary>
+        private static IEnumerable<string> ReadTailLines(string filePath, int maxBytes)
+        {
+            byte[] tail;
+            bool cut;
+            using (var fs = new FileStream(filePath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete))
+            {
+                long start = Math.Max(0, fs.Length - maxBytes);
+                cut = start > 0;
+                tail = ReadBytes(fs, start, (int)(fs.Length - start));
+            }
+
+            string[] lines = new UTF8Encoding(false).GetString(tail).Split('\n');
+            return cut ? lines.Skip(1) : lines;
+        }
+
+        private static bool EndsWithNewline(string filePath)
+        {
+            using (var fs = new FileStream(filePath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite))
+            {
+                if (fs.Length == 0) return true;
+                fs.Seek(-1, SeekOrigin.End);
+                return fs.ReadByte() == '\n';
+            }
         }
 
         /// <summary>
@@ -1106,6 +1452,13 @@ namespace ClaudeCodeVS
                 }
 
                 SaveSettings();
+
+                // Issue #170: also hand the name to Claude Code so its own /resume picker shows it.
+                if (IsClaudeCodeSessionHistoryProvider(sel.Provider))
+                {
+                    AppendClaudeTitleRecords(sel.FilePath, sel.SessionId, newTitle);
+                }
+
                 applyFilter(); // re-render so the renamed-row layout (and any filter) updates
             };
 

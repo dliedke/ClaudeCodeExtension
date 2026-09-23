@@ -139,6 +139,10 @@ Use native mode to avoid this issue.
 
 ## Version History
 
+### Version 198.0
+- Renaming a Claude Code session in Session History or the chat tab now also names it in Claude Code itself, so the new name shows in its own resume list (issue #170).
+- Claude Code sessions from native mode now appear in Claude Code's own resume list, and names given to a session in Claude Code now show up in Session History and the chat tab.
+
 ### Version 197.0
 - Open Code support is back: pick it from the agent menu to run it in the terminal or in native mode, with model selection, custom CLI path and extra launch arguments like the other agents.
 

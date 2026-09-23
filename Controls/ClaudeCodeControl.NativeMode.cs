@@ -1978,6 +1978,8 @@ namespace ClaudeCodeVS
                         session.MigrationSourceSessionId = null;
                     }
                     UpdateSessionTabCaption(session);
+                    SyncClaudeTranscript(session.SelectedProvider, agentEvent.SessionId ?? session.AgentSession?.SessionId,
+                        agentEvent.Kind, () => UpdateSessionTabCaption(session));
                     break;
 
                 case AgentEventKind.AssistantText:
@@ -2034,6 +2036,7 @@ namespace ClaudeCodeVS
                     {
                         session.CodexTurnRendered?.TrySetResult(true);
                     }
+                    SyncClaudeTranscript(session.SelectedProvider, session.AgentSession?.SessionId, agentEvent.Kind, null);
                     break;
             }
         }
@@ -2055,6 +2058,8 @@ namespace ClaudeCodeVS
                         _nativeSessionMigrationSourceId = null;
                     }
                     UpdateChatTabCaption();
+                    SyncClaudeTranscript(_currentRunningProvider ?? _settings.SelectedProvider,
+                        agentEvent.SessionId ?? _agentSession?.SessionId, agentEvent.Kind, UpdateChatTabCaption);
                     break;
 
                 case AgentEventKind.AssistantText:
@@ -2102,7 +2107,31 @@ namespace ClaudeCodeVS
                     {
                         _codexNativeTurnRendered?.TrySetResult(true);
                     }
+                    SyncClaudeTranscript(_currentRunningProvider ?? _settings.SelectedProvider,
+                        _agentSession?.SessionId, agentEvent.Kind, null);
                     break;
+            }
+        }
+
+        /// <summary>
+        /// Keeps a Claude Code native session in step with the CLI (issue #170): when the session
+        /// starts, a name given to it in the CLI is picked up for the tab; after each turn, the
+        /// transcript is made visible to the CLI's /resume picker. Background, best-effort, and a
+        /// no-op for every other provider.
+        /// </summary>
+        private void SyncClaudeTranscript(AiProvider provider, string sessionId, AgentEventKind kind, Action refreshCaption)
+        {
+            if (!IsClaudeCodeSessionHistoryProvider(provider) || string.IsNullOrEmpty(sessionId)) return;
+
+            if (kind == AgentEventKind.SessionStarted)
+            {
+                StartSessionHistoryTask(() => AdoptClaudeTranscriptTitleAsync(provider, sessionId, refreshCaption),
+                    "claudecode/nativemode/adopttitle");
+            }
+            else if (kind == AgentEventKind.TurnCompleted)
+            {
+                StartSessionHistoryTask(() => MakeNativeSessionResumableInCliAsync(provider, sessionId),
+                    "claudecode/nativemode/resumevisible");
             }
         }
 
