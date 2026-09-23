@@ -137,6 +137,9 @@ Use native mode to avoid this issue.
 
 ## Version History
 
+### Version 195.0
+- Fixed native mode for Devin falling back to the embedded terminal on launch whenever a Sonnet/Opus effort-level model (e.g. "Claude Sonnet 5 High") was selected — the pick now applies correctly instead of being reported as unavailable.
+
 ### Version 194.0
 - In native mode, a message typed to Devin while it is working now reaches it straight away and redirects what it is doing, instead of waiting for the current answer to finish.
 

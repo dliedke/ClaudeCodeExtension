@@ -92,6 +92,23 @@ namespace ClaudeCodeExtension.Tests
             }
         }
 
+        [TestMethod]
+        public async Task StartAsync_ModelUidCarriesAnEffortTheAgentSplitsOut_AppliesBothOptionsAsync()
+        {
+            // What v192-era Devin actually publishes: `devin models list` enumerates one model_uid per
+            // family+effort ("claude-sonnet-5-high"), but the ACP model picker offers only the family's
+            // representative id ("claude-sonnet-5-medium") and puts the effort in a sibling
+            // "thought_level" option instead. The saved pick must still apply — split into its two
+            // ACP calls — rather than failing and rolling back to the embedded terminal.
+            string script = WriteFakeAgentWithEffort();
+
+            using (var session = new AcpSession(OptionsFor(script, "claude-sonnet-5-high")))
+            {
+                await session.StartAsync(Path.GetTempPath(), CancellationToken.None);
+                Assert.AreEqual("s-1", session.SessionId);
+            }
+        }
+
         /// <summary>
         /// A stand-in ACP agent: reads one request line, answers it, repeats. The response ids are
         /// canned (1 = initialize, 2 = session/new, 3 = session/set_config_option) because
@@ -123,6 +140,47 @@ namespace ClaudeCodeExtension.Tests
                 "[Console]::Out.WriteLine('{\"jsonrpc\":\"2.0\",\"id\":2,\"result\":{\"sessionId\":\"s-1\",\"configOptions\":" + configOptions + "}}')",
                 "$null = [Console]::In.ReadLine()",
                 "[Console]::Out.WriteLine('{\"jsonrpc\":\"2.0\",\"id\":3,\"result\":{}}')",
+                // Keeps the pipe open so disposing the session is what ends the process, rather than the
+                // agent exiting underneath a test that is still running.
+                "$null = [Console]::In.ReadLine()"));
+
+            File.WriteAllText(launcherPath, "@echo off" + Environment.NewLine +
+                "powershell -NoProfile -ExecutionPolicy Bypass -File \"" + agentPath + "\"" + Environment.NewLine);
+
+            _scripts.Add(agentPath);
+            _scripts.Add(launcherPath);
+            return launcherPath;
+        }
+
+        /// <summary>
+        /// Same shape as <see cref="WriteFakeAgent"/>, but with Devin's actual split model picker:
+        /// a "model" option offering only the family's representative id, and a sibling
+        /// "thought_level" option offering the effort. Answers two <c>session/set_config_option</c>
+        /// calls (ids 3 and 4) instead of one, since applying an effort-suffixed pick now sends both.
+        /// </summary>
+        private string WriteFakeAgentWithEffort()
+        {
+            const string configOptions =
+                "[{\"id\":\"model\",\"category\":\"model\",\"options\":" +
+                "[{\"value\":\"claude-sonnet-5-medium\",\"name\":\"Claude Sonnet 5\"}]}," +
+                "{\"id\":\"thought_level\",\"category\":\"thought_level\",\"options\":" +
+                "[{\"value\":\"low\",\"name\":\"Low\"},{\"value\":\"medium\",\"name\":\"Medium\"}," +
+                "{\"value\":\"high\",\"name\":\"High\"},{\"value\":\"xhigh\",\"name\":\"XHigh\"}," +
+                "{\"value\":\"max\",\"name\":\"Max\"}]}]";
+
+            string stem = Path.Combine(Path.GetTempPath(), "acp_model_effort_" + Guid.NewGuid().ToString("N"));
+            string agentPath = stem + ".ps1";
+            string launcherPath = stem + ".cmd";
+
+            File.WriteAllText(agentPath, string.Join(Environment.NewLine,
+                "$null = [Console]::In.ReadLine()",
+                "[Console]::Out.WriteLine('{\"jsonrpc\":\"2.0\",\"id\":1,\"result\":{\"protocolVersion\":1,\"agentInfo\":{\"name\":\"TestAgent\"}}}')",
+                "$null = [Console]::In.ReadLine()",
+                "[Console]::Out.WriteLine('{\"jsonrpc\":\"2.0\",\"id\":2,\"result\":{\"sessionId\":\"s-1\",\"configOptions\":" + configOptions + "}}')",
+                "$null = [Console]::In.ReadLine()",
+                "[Console]::Out.WriteLine('{\"jsonrpc\":\"2.0\",\"id\":3,\"result\":{}}')",
+                "$null = [Console]::In.ReadLine()",
+                "[Console]::Out.WriteLine('{\"jsonrpc\":\"2.0\",\"id\":4,\"result\":{}}')",
                 // Keeps the pipe open so disposing the session is what ends the process, rather than the
                 // agent exiting underneath a test that is still running.
                 "$null = [Console]::In.ReadLine()"));

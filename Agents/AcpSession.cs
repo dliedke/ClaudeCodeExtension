@@ -70,6 +70,13 @@ namespace ClaudeCodeVS.Agents
         /// switched later without restarting the agent.</summary>
         private JToken _modelOption;
 
+        /// <summary>
+        /// Devin's reasoning-effort picker from <c>session/new</c> (id/category <c>thought_level</c>),
+        /// kept alongside <see cref="_modelOption"/> for the same reason — see
+        /// <see cref="TrySplitModelAndEffort"/> for why it exists at all.
+        /// </summary>
+        private JToken _thoughtLevelOption;
+
         private long _nextRequestId;
 
         /// <summary>
@@ -439,6 +446,7 @@ namespace ClaudeCodeVS.Agents
         private async Task TrySetModelAsync(JToken session, CancellationToken cancellationToken)
         {
             _modelOption = FindModelOption(session?["configOptions"]);
+            _thoughtLevelOption = FindConfigOption(session?["configOptions"], "thought_level");
 
             if (string.IsNullOrWhiteSpace(_options.ModelName))
             {
@@ -482,6 +490,28 @@ namespace ClaudeCodeVS.Agents
         private async Task<bool> ApplyModelAsync(string model, CancellationToken cancellationToken)
         {
             string value = ResolveModelValue(_modelOption, model);
+            string effortValue = string.Empty;
+
+            if (string.IsNullOrEmpty(value))
+            {
+                // Devin's model catalog (`devin models list`) enumerates one model_uid per
+                // family+effort combination ("claude-sonnet-5-high"), but the ACP model picker
+                // publishes only one representative id per family ("claude-sonnet-5-medium") and
+                // exposes the effort as the separate "thought_level" config option instead — despite
+                // both being described as the same list. A pick with a recognized effort suffix is
+                // split into its family and effort and each half is resolved against its own picker
+                // (the family still matches by name: "claude-sonnet-5" normalizes the same whether it
+                // comes from the slug or from the picker's "Claude Sonnet 5" display name).
+                string family, effort;
+                if (TrySplitModelAndEffort(model, out family, out effort))
+                {
+                    value = ResolveModelValue(_modelOption, family);
+                    if (!string.IsNullOrEmpty(value) && _thoughtLevelOption != null)
+                    {
+                        effortValue = ResolveModelValue(_thoughtLevelOption, effort);
+                    }
+                }
+            }
 
             if (string.IsNullOrEmpty(value))
             {
@@ -498,6 +528,16 @@ namespace ClaudeCodeVS.Agents
                     ["value"] = value
                 }, cancellationToken);
 
+                if (!string.IsNullOrEmpty(effortValue))
+                {
+                    await RequestAsync("session/set_config_option", new JObject
+                    {
+                        ["sessionId"] = SessionId,
+                        ["configId"] = _thoughtLevelOption["id"]?.ToString() ?? "thought_level",
+                        ["value"] = effortValue
+                    }, cancellationToken);
+                }
+
                 return true;
             }
             catch (Exception ex)
@@ -508,19 +548,65 @@ namespace ClaudeCodeVS.Agents
         }
 
         /// <summary>
+        /// Recognized effort suffixes in a Devin <c>model_uid</c>. Matched against the whole last
+        /// dash-separated segment rather than as a substring, so "high" can never shadow "xhigh".
+        /// </summary>
+        private static readonly string[] ThoughtLevelEffortSuffixes = { "low", "medium", "high", "xhigh", "max" };
+
+        /// <summary>
+        /// Splits a Devin <c>model_uid</c> like "claude-sonnet-5-high" into its family
+        /// ("claude-sonnet-5") and effort ("high") when the last dash-separated segment is one of
+        /// <see cref="ThoughtLevelEffortSuffixes"/>. Returns false for ids with no such suffix
+        /// ("adaptive", "swe-1-6", "MODEL_PRIVATE_11") — those are matched directly or not at all.
+        /// </summary>
+        private static bool TrySplitModelAndEffort(string model, out string family, out string effort)
+        {
+            family = model;
+            effort = string.Empty;
+
+            if (string.IsNullOrEmpty(model)) return false;
+
+            int dashIndex = model.LastIndexOf('-');
+            if (dashIndex <= 0 || dashIndex == model.Length - 1) return false;
+
+            string lastSegment = model.Substring(dashIndex + 1);
+            foreach (string suffix in ThoughtLevelEffortSuffixes)
+            {
+                if (string.Equals(lastSegment, suffix, StringComparison.OrdinalIgnoreCase))
+                {
+                    family = model.Substring(0, dashIndex);
+                    effort = suffix;
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        /// <summary>
         /// The model picker out of a <c>configOptions</c> array, or null when the agent publishes none.
         /// Matched on the id first and the category second — Devin publishes one;
         /// Reasonix publishes none and takes its model as a launch flag instead.
         /// </summary>
         public static JToken FindModelOption(JToken configOptions)
         {
+            return FindConfigOption(configOptions, "model");
+        }
+
+        /// <summary>
+        /// A <c>configOptions</c> entry matched by id first, category second — the same rule
+        /// <see cref="FindModelOption"/> always used, generalized so <c>thought_level</c> (Devin's
+        /// separate reasoning-effort picker) can be looked up the same way.
+        /// </summary>
+        public static JToken FindConfigOption(JToken configOptions, string idOrCategory)
+        {
             var options = configOptions as JArray;
             if (options == null) return null;
 
             foreach (JToken option in options)
             {
-                if (string.Equals(option?["id"]?.ToString(), "model", StringComparison.OrdinalIgnoreCase) ||
-                    string.Equals(option?["category"]?.ToString(), "model", StringComparison.OrdinalIgnoreCase))
+                if (string.Equals(option?["id"]?.ToString(), idOrCategory, StringComparison.OrdinalIgnoreCase) ||
+                    string.Equals(option?["category"]?.ToString(), idOrCategory, StringComparison.OrdinalIgnoreCase))
                 {
                     return option;
                 }
