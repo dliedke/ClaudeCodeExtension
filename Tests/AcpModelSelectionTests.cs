@@ -120,7 +120,7 @@ namespace ClaudeCodeExtension.Tests
         /// corrupt these agents' line framing), and cmd's own <c>set /p</c> waits for a CR that never
         /// arrives, so a batch-only fake agent hangs forever instead of answering. The .cmd around it is
         /// what makes <c>AcpCommandBuilder</c> take its "npm shim" path and launch through cmd.exe,
-        /// which is how the real reasonix shim is launched.
+        /// which is how the real opencode/reasonix shims are launched.
         /// </para>
         /// </summary>
         private string WriteFakeAgent(string offeredModel)

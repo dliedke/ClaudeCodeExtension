@@ -14,9 +14,7 @@ using System;
 using System.IO;
 using System.Diagnostics;
 using System.Windows;
-using System.Linq;
 using Newtonsoft.Json;
-using Newtonsoft.Json.Linq;
 
 namespace ClaudeCodeVS
 {
@@ -132,7 +130,7 @@ namespace ClaudeCodeVS
             {
                 if (File.Exists(ConfigurationPath))
                 {
-                    var json = RemoveRetiredProviderEntries(File.ReadAllText(ConfigurationPath));
+                    var json = File.ReadAllText(ConfigurationPath);
 
                     // ObjectCreationHandling.Replace: properties seeded with a non-empty
                     // default list (e.g. VisibleProviders) must be REPLACED by the saved
@@ -546,52 +544,6 @@ namespace ClaudeCodeVS
         internal static string SerializeJsonIndented(object value)
         {
             return JsonConvert.SerializeObject(value, Formatting.Indented);
-        }
-
-        /// <summary>
-        /// Drops the entries a retired provider (Open Code, ordinal 7) left in a saved settings file.
-        /// The enum-keyed maps (<c>CustomExecutablePaths</c>, <c>ExtraLaunchArgs</c>) are stored under
-        /// the member's name, and Newtonsoft throws on a key that no longer names a member — which would
-        /// discard the whole file on load for anyone who had configured a path or arguments for it.
-        /// Returns the input untouched when there is nothing to remove or it is not valid JSON.
-        /// </summary>
-        internal static string RemoveRetiredProviderEntries(string json)
-        {
-            try
-            {
-                var root = JObject.Parse(json);
-                bool changed = false;
-
-                foreach (string mapName in new[] { "CustomExecutablePaths", "ExtraLaunchArgs" })
-                {
-                    if (root[mapName] is JObject map && map.Remove("OpenCode"))
-                    {
-                        changed = true;
-                    }
-                }
-
-                if (root["VisibleProviders"] is JArray visible)
-                {
-                    foreach (JToken entry in visible.ToList())
-                    {
-                        bool retired = entry.Type == JTokenType.Integer
-                            ? (int)entry == 7
-                            : string.Equals((string)entry, "OpenCode", StringComparison.Ordinal);
-                        if (retired)
-                        {
-                            entry.Remove();
-                            changed = true;
-                        }
-                    }
-                }
-
-                return changed ? SerializeJsonIndented(root) : json;
-            }
-            catch (Exception ex)
-            {
-                Debug.WriteLine($"Could not scan settings for retired providers: {ex.Message}");
-                return json;
-            }
         }
 
         #endregion

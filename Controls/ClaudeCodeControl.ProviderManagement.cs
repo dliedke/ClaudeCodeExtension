@@ -57,6 +57,11 @@ namespace ClaudeCodeVS
         private static bool _cursorAgentNativeNotificationShown = false;
 
         /// <summary>
+        /// Flag to show Open Code installation notification only once per session
+        /// </summary>
+        private static bool _openCodeNotificationShown = false;
+
+        /// <summary>
         /// Flag to show Devin installation notification only once per session
         /// </summary>
         private static bool _devinNotificationShown = false;
@@ -970,6 +975,82 @@ namespace ClaudeCodeVS
         }
 
         /// <summary>
+        /// Checks if Open Code CLI is available (NPM installation)
+        /// Uses 'where opencode' to check if opencode is in PATH
+        /// Uses caching to avoid repeated slow checks
+        /// </summary>
+        /// <param name="cancellationToken">Optional cancellation token</param>
+        /// <returns>True if opencode is available, false otherwise</returns>
+        private async Task<bool> IsOpenCodeAvailableAsync(CancellationToken cancellationToken = default)
+        {
+            // A configured custom CLI path means the tool is usable even when it is not on PATH.
+            if (CustomExecutableConfigured(AiProvider.OpenCode, isWsl: false))
+            {
+                return true;
+            }
+
+            // Check cache first
+            lock (_cacheLock)
+            {
+                if (_providerCache.TryGetValue(AiProvider.OpenCode, out var cached) && IsCacheValid(cached))
+                {
+                    return cached.IsAvailable;
+                }
+            }
+
+            try
+            {
+                var startInfo = new ProcessStartInfo
+                {
+                    FileName = "cmd.exe",
+                    Arguments = "/c where opencode",
+                    UseShellExecute = false,
+                    RedirectStandardOutput = true,
+                    RedirectStandardError = true,
+                    CreateNoWindow = true
+                };
+
+                // Refresh PATH from registry so a freshly installed opencode is detected without VS restart
+                string freshPath = GetFreshPathFromRegistry();
+                if (!string.IsNullOrEmpty(freshPath))
+                {
+                    startInfo.EnvironmentVariables["PATH"] = freshPath;
+                }
+
+                using (var process = Process.Start(startInfo))
+                {
+                    var completed = await WaitForProcessExitAsync(process, 3000, cancellationToken);
+
+                    if (!completed)
+                    {
+                        try { process.Kill(); } catch { }
+                        CacheProviderResult(AiProvider.OpenCode, false);
+                        return false;
+                    }
+
+                    string output = await process.StandardOutput.ReadToEndAsync();
+                    string error = await process.StandardError.ReadToEndAsync();
+
+
+                    bool isAvailable = process.ExitCode == 0 && !string.IsNullOrWhiteSpace(output);
+
+                    CacheProviderResult(AiProvider.OpenCode, isAvailable);
+                    return isAvailable;
+                }
+            }
+            catch (OperationCanceledException)
+            {
+                throw;
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"Error checking for Open Code: {ex.Message}");
+                CacheProviderResult(AiProvider.OpenCode, false);
+                return false;
+            }
+        }
+
+        /// <summary>
         /// Checks if PI CLI is available (NPM installation)
         /// Uses 'where pi' to check if pi is in PATH
         /// Uses caching to avoid repeated slow checks
@@ -1520,6 +1601,30 @@ For more details, visit: https://cursor.com";
         }
 
         /// <summary>
+        /// Shows installation instructions for Open Code CLI
+        /// </summary>
+        private void ShowOpenCodeInstallationInstructions()
+        {
+            const string instructions = @"Open Code is not installed. A regular CMD terminal will be used instead.
+
+(you may click CTRL+C to copy full instructions)
+
+INSTALLATION: NPM Installation
+
+Open cmd and run:
+
+npm i -g opencode-ai
+
+Requirements:
+- Node.js installed
+
+For more details, visit: https://opencode.ai";
+
+            MessageBox.Show(instructions, "Open Code Installation",
+                          MessageBoxButton.OK, MessageBoxImage.Information);
+        }
+
+        /// <summary>
         /// Shows installation instructions for the Devin CLI in WSL
         /// </summary>
         private void ShowDevinInstallationInstructions()
@@ -1651,6 +1756,37 @@ For more details, visit: https://pi.dev";
         #endregion
 
         #region Provider Switching
+
+        /// <summary>
+        /// Handles Open Code menu item click - switches to Open Code provider
+        /// </summary>
+#pragma warning disable VSTHRD100 // async void is acceptable for event handlers
+        private async void OpenCodeMenuItem_Click(object sender, RoutedEventArgs e)
+#pragma warning restore VSTHRD100
+        {
+            if (_settings == null) return;
+
+            bool openCodeAvailable = await IsOpenCodeAvailableAsync();
+            await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
+
+            // Always update the selection regardless of availability
+            _settings.SelectedProvider = AiProvider.OpenCode;
+            UpdateProviderSelection();
+            SaveSettings();
+
+            if (!openCodeAvailable)
+            {
+                ShowOpenCodeInstallationInstructions();
+                await StartEmbeddedTerminalAsync(null); // Regular CMD
+            }
+            else
+            {
+                if (!await TryStartNativeModeAsync())
+                {
+                    await StartEmbeddedTerminalAsync(AiProvider.OpenCode);
+                }
+            }
+        }
 
         /// <summary>
         /// Handles Devin (WSL) menu item click - switches to Devin provider
@@ -2025,6 +2161,7 @@ For more details, visit: https://pi.dev";
             CodexMenuItem.IsChecked = activeProvider == AiProvider.Codex;
             CursorAgentNativeMenuItem.IsChecked = activeProvider == AiProvider.CursorAgentNative;
             CursorAgentMenuItem.IsChecked = activeProvider == AiProvider.CursorAgent;
+            OpenCodeMenuItem.IsChecked = activeProvider == AiProvider.OpenCode;
             DevinMenuItem.IsChecked = activeProvider == AiProvider.Devin;
             PiMenuItem.IsChecked = activeProvider == AiProvider.Pi;
             AntigravityMenuItem.IsChecked = activeProvider == AiProvider.Antigravity;
@@ -2527,6 +2664,8 @@ For more details, visit: https://pi.dev";
                 case AiProvider.ClaudeCodeWSL:
                 case AiProvider.ClaudeCode:
                     return "Claude Code";
+                case AiProvider.OpenCode:
+                    return "Open Code";
                 case AiProvider.Devin:
                     return "Devin";
                 case AiProvider.DevinNative:
@@ -2916,7 +3055,7 @@ For more details, visit: https://pi.dev";
                                 $"Version: {version}\n" +
                                 $"Author: Daniel Carvalho Liedke\n" +
                                 $"Copyright © Daniel Carvalho Liedke 2026\n\n" +
-                                $"Provides seamless integration with Claude Code, Codex, Cursor Agent, Devin, PI, Antigravity and Reasonix AI assistants directly within Visual Studio 2022/2026 IDE.";
+                                $"Provides seamless integration with Claude Code, Codex, Cursor Agent, Open Code, Devin, Devin, PI, Antigravity and Reasonix AI assistants directly within Visual Studio 2022/2026 IDE.";
 
             MessageBox.Show(aboutMessage, "About Claude Code Extension",
                           MessageBoxButton.OK, MessageBoxImage.Information);
@@ -2961,7 +3100,7 @@ For more details, visit: https://pi.dev";
         /// <summary>
         /// Returns the command that opens the CLI's own model picker, or null for the agents that
         /// have none (Claude, Devin — both are driven entirely from the extension's menu). Codex,
-        /// Cursor, PI, Antigravity and Reasonix use <c>/model</c>.
+        /// Cursor, PI, Antigravity and Reasonix use <c>/model</c>; Open Code uses <c>/models</c>.
         /// </summary>
         private static string GetSimpleModelCommand(AiProvider? provider)
         {
@@ -2975,6 +3114,8 @@ For more details, visit: https://pi.dev";
                 case AiProvider.Antigravity:
                 case AiProvider.Reasonix:
                     return "/model";
+                case AiProvider.OpenCode:
+                    return "/models";
                 default:
                     return null;
             }
@@ -4538,6 +4679,7 @@ For more details, visit: https://pi.dev";
                     { AiProvider.Codex,              CodexMenuItem },
                     { AiProvider.CursorAgentNative,  CursorAgentNativeMenuItem },
                     { AiProvider.CursorAgent,        CursorAgentMenuItem },
+                    { AiProvider.OpenCode,           OpenCodeMenuItem },
                     { AiProvider.DevinNative,        DevinNativeMenuItem },
                     { AiProvider.Devin,           DevinMenuItem },
                     { AiProvider.Pi,                 PiMenuItem },
@@ -4561,6 +4703,7 @@ For more details, visit: https://pi.dev";
                 case AiProvider.Codex:             return "Codex (WSL)";
                 case AiProvider.CursorAgentNative: return "Cursor Agent";
                 case AiProvider.CursorAgent:       return "Cursor Agent (WSL)";
+                case AiProvider.OpenCode:          return "Open Code";
                 case AiProvider.Devin:          return "Devin (WSL)";
                 case AiProvider.Pi:                return "PI";
                 case AiProvider.Antigravity:       return "Antigravity";
@@ -4701,6 +4844,7 @@ For more details, visit: https://pi.dev";
                 AiProvider.Codex,
                 AiProvider.CursorAgentNative,
                 AiProvider.CursorAgent,
+                AiProvider.OpenCode,
                 AiProvider.DevinNative,
                 AiProvider.Devin,
                 AiProvider.Pi,

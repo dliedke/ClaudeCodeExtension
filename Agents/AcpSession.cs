@@ -6,7 +6,7 @@
  * Copyright © Daniel Carvalho Liedke 2026
  * Usage and reproduction in any manner whatsoever without the written permission of Daniel Carvalho Liedke is strictly forbidden.
  *
- * Purpose: Agent session over ACP (Agent Client Protocol) — covers Devin and Reasonix
+ * Purpose: Agent session over ACP (Agent Client Protocol) — covers OpenCode, Devin and Reasonix
  *
  * *******************************************************************************************************************/
 
@@ -28,11 +28,11 @@ namespace ClaudeCodeVS.Agents
     /// <summary>
     /// Drives an ACP agent: JSON-RPC 2.0 messages, one per line, over the child process's stdio.
     /// <para>
-    /// One adapter serves every ACP CLI — <c>devin acp</c> and <c>reasonix acp</c>
-    /// both speak the same protocol, verified live against each of them.
+    /// One adapter serves every ACP CLI — <c>opencode acp</c>, <c>devin acp</c>, <c>reasonix acp</c>
+    /// all speak the same protocol, verified live against each of them.
     /// </para>
     /// <para>
-    /// Shapes confirmed on the wire (Devin 0.0.0-dev, Reasonix 0.53.2):
+    /// Shapes confirmed on the wire (Devin 0.0.0-dev, Reasonix 0.53.2, OpenCode 1.17.18):
     /// <list type="bullet">
     /// <item><c>initialize</c> → <c>{protocolVersion, agentCapabilities, agentInfo, authMethods}</c></item>
     /// <item><c>session/new</c> → <c>{sessionId, modes?, configOptions?}</c></item>
@@ -585,8 +585,8 @@ namespace ClaudeCodeVS.Agents
 
         /// <summary>
         /// The model picker out of a <c>configOptions</c> array, or null when the agent publishes none.
-        /// Matched on the id first and the category second — Devin publishes one;
-        /// Reasonix publishes none and takes its model as a launch flag instead.
+        /// Matched on the id first and the category second — Devin and OpenCode both publish one;
+        /// Reasonix publishes neither and takes its model as a launch flag instead.
         /// </summary>
         public static JToken FindModelOption(JToken configOptions)
         {

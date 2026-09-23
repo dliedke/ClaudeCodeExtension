@@ -75,6 +75,12 @@ namespace ClaudeCodeVS
                     UseWsl = true,
                     Parse = ModelCatalogParsers.ParseIdDashNameList
                 },
+                [AiProvider.OpenCode] = new ModelCatalogSource
+                {
+                    DefaultCommand = "opencode",
+                    Arguments = "models",
+                    Parse = ModelCatalogParsers.ParsePlainList
+                },
                 [AiProvider.Pi] = new ModelCatalogSource
                 {
                     DefaultCommand = "pi",
@@ -500,6 +506,7 @@ namespace ClaudeCodeVS
             {
                 case AiProvider.Codex:
                 case AiProvider.CodexNative:
+                case AiProvider.OpenCode:
                     return " -m " + QuoteModelArgument(model);
 
                 case AiProvider.CursorAgent:

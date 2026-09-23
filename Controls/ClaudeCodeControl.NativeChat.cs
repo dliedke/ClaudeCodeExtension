@@ -2879,6 +2879,7 @@ namespace ClaudeCodeVS
                     executable = ResolveNativeCursorExecutable(provider, isWsl, pathOverride);
                     break;
 
+                case AiProvider.OpenCode:
                 case AiProvider.Devin:
                 case AiProvider.DevinNative:
                 case AiProvider.Reasonix:
@@ -4221,7 +4222,7 @@ namespace ClaudeCodeVS
 
         /// <summary>
         /// A model picked for any non-Claude agent. An ACP session that publishes a model picker
-        /// (Devin) takes the change over the protocol without losing the conversation;
+        /// (Devin, Open Code) takes the change over the protocol without losing the conversation;
         /// every other agent reads its model at launch, so the user is offered a restart.
         /// </summary>
 #pragma warning disable VSTHRD100 // Async void is required by the UI event signature
@@ -5462,6 +5463,8 @@ namespace ClaudeCodeVS
                     return "wsl bash -lic \"claude update\"";
                 case AiProvider.ClaudeCode:
                     return "claude update";
+                case AiProvider.OpenCode:
+                    return "npm i -g opencode-ai";
                 case AiProvider.Devin:
                     return "wsl bash -lic \"devin update\"";
                 case AiProvider.Pi:

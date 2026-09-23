@@ -34,6 +34,7 @@ namespace ClaudeCodeVS
             (AiProvider.Codex,             "Codex (WSL)",        true),
             (AiProvider.CursorAgentNative, "Cursor Agent",       false),
             (AiProvider.CursorAgent,       "Cursor Agent (WSL)", true),
+            (AiProvider.OpenCode,          "Open Code",          false),
             (AiProvider.DevinNative,       "Devin",              false),
             (AiProvider.Devin,             "Devin (WSL)",        true),
             (AiProvider.Pi,                "PI",                 false),

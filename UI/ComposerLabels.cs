@@ -42,6 +42,7 @@ namespace ClaudeCodeVS.UI
             // Providers
             { "Claude Code", "Claude" },
             { "Cursor Agent", "Cursor" },
+            { "Open Code", "OpenCode" },
             { "Antigravity", "Antigrav" },
 
             // Permissions

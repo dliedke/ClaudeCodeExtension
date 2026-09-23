@@ -535,6 +535,7 @@
 									<MenuItem Header="Codex (WSL)" x:Name="CodexMenuItem" Click="CodexMenuItem_Click" IsCheckable="True"/>
 									<MenuItem Header="Cursor Agent" x:Name="CursorAgentNativeMenuItem" Click="CursorAgentNativeMenuItem_Click" IsCheckable="True"/>
 									<MenuItem Header="Cursor Agent (WSL)" x:Name="CursorAgentMenuItem" Click="CursorAgentMenuItem_Click" IsCheckable="True"/>
+									<MenuItem Header="Open Code" x:Name="OpenCodeMenuItem" Click="OpenCodeMenuItem_Click" IsCheckable="True"/>
 									<MenuItem Header="Devin" x:Name="DevinNativeMenuItem" Click="DevinNativeMenuItem_Click" IsCheckable="True"/>
 									<MenuItem Header="Devin (WSL)" x:Name="DevinMenuItem" Click="DevinMenuItem_Click" IsCheckable="True"/>
 									<MenuItem Header="PI" x:Name="PiMenuItem" Click="PiMenuItem_Click" IsCheckable="True"/>
