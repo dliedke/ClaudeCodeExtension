@@ -1346,6 +1346,34 @@ namespace ClaudeCodeVS.UI
             ZoomChanged?.Invoke(this, zoom);
         }
 
+        /// <summary>
+        /// Ctrl+0 resets the zoom to 100%, mirroring the browser/IDE convention — Ctrl+Scroll has no
+        /// symmetric "reset" gesture of its own.
+        /// </summary>
+        private void Root_PreviewKeyDown(object sender, System.Windows.Input.KeyEventArgs e)
+        {
+            if (System.Windows.Input.Keyboard.Modifiers != System.Windows.Input.ModifierKeys.Control)
+            {
+                return;
+            }
+
+            if (e.Key != System.Windows.Input.Key.D0 && e.Key != System.Windows.Input.Key.NumPad0)
+            {
+                return;
+            }
+
+            e.Handled = true;
+
+            if (Math.Abs(ZoomTransform.ScaleX - 1.0) < 0.001)
+            {
+                return;
+            }
+
+            ZoomTransform.ScaleX = 1.0;
+            ZoomTransform.ScaleY = 1.0;
+            ZoomChanged?.Invoke(this, 1.0);
+        }
+
         private static double ClampZoom(double value)
         {
             if (double.IsNaN(value) || value <= 0) return 1.0;
