@@ -127,6 +127,19 @@ namespace ClaudeCodeVS
         private int _conhostDpiCellOffsetPx = 0;
 
         /// <summary>
+        /// Console cell height the DPI rescales are computed from, and the DPI it belongs to: the size
+        /// the user had before the first rescale, captured by that rescale. Scaling the CURRENT height
+        /// instead compounded the rounding of every step - measured over 200% -> 100% -> 250% -> 200%:
+        /// 11 -> 6 (5.5 rounded up) -> 15 -> 12 px, a font 9% larger and 68 columns where there had
+        /// been 75, in the same panel. Computed from the base the same trip lands on 6 -> 14 -> 11.
+        /// A Ctrl+Scroll zoom clears it (the size the user zoomed to is the new base); the grid fit's
+        /// own font step-down does not, because that is a correction and not a choice. 0 means not
+        /// captured yet.
+        /// </summary>
+        private int _conhostBaseCellHeightPx = 0;
+        private uint _conhostBaseCellDpi = 0;
+
+        /// <summary>
         /// Full resolved path to wt.exe (set by IsWindowsTerminalAvailableAsync)
         /// </summary>
         private string _wtExePath = null;
@@ -710,8 +723,10 @@ namespace ClaudeCodeVS
             _heldTerminalWidthPx = 0;
 
             // The next console starts at the size the settings hold, so the DPI corrections carried
-            // by the previous one are no longer owed to anybody.
+            // by the previous one are no longer owed to anybody - and neither is its base size.
             _conhostDpiCellOffsetPx = 0;
+            _conhostBaseCellHeightPx = 0;
+            _conhostBaseCellDpi = 0;
             if (clearRunningProvider)
             {
                 _currentRunningProvider = null;
@@ -3220,20 +3235,36 @@ namespace ClaudeCodeVS
         /// </summary>
         internal static int ScaleConsoleCellHeightForDpi(int currentCellHeightPx, uint fromDpi, uint toDpi)
         {
-            if (currentCellHeightPx <= 0 || fromDpi == 0 || toDpi == 0 || fromDpi == toDpi)
+            return ScaleConsoleCellHeightForDpi(currentCellHeightPx, fromDpi, toDpi,
+                                                IdealConsoleCellHeightForDpi(currentCellHeightPx, fromDpi, toDpi));
+        }
+
+        /// <summary>
+        /// <see cref="ScaleConsoleCellHeightForDpi(int,uint,uint)"/> with the target height supplied by
+        /// the caller - the display repair computes it from the base size (see
+        /// <c>_conhostBaseCellHeightPx</c>) rather than from the current height, so rounding cannot
+        /// compound from one DPI change to the next. That target may sit on the far side of the current
+        /// height when the grid fit has stepped the font down (a correction the base does not carry),
+        /// which is why the direction check applies only where the CLAMP moved the value. Pure.
+        /// </summary>
+        internal static int ScaleConsoleCellHeightForDpi(int currentCellHeightPx, uint fromDpi, uint toDpi,
+                                                         int idealCellHeightPx)
+        {
+            if (currentCellHeightPx <= 0 || idealCellHeightPx <= 0 || fromDpi == 0 || toDpi == 0 || fromDpi == toDpi)
             {
                 return 0;
             }
 
-            int scaled = IdealConsoleCellHeightForDpi(currentCellHeightPx, fromDpi, toDpi);
+            int scaled = idealCellHeightPx;
 
             if (scaled < ConhostZoomMinPx) scaled = ConhostZoomMinPx;
             if (scaled > ConhostZoomMaxPx) scaled = ConhostZoomMaxPx;
 
             // The clamp must never turn a shrink into a growth or the other way round: a cell already
             // below the floor stays where it is rather than being enlarged by a DPI *decrease*.
-            if (toDpi < fromDpi && scaled > currentCellHeightPx) return 0;
-            if (toDpi > fromDpi && scaled < currentCellHeightPx) return 0;
+            bool clamped = scaled != idealCellHeightPx;
+            if (clamped && toDpi < fromDpi && scaled > currentCellHeightPx) return 0;
+            if (clamped && toDpi > fromDpi && scaled < currentCellHeightPx) return 0;
 
             return scaled == currentCellHeightPx ? 0 : scaled;
         }
@@ -3311,7 +3342,7 @@ namespace ClaudeCodeVS
                 int rowPitchPx = screenHeightPx / maxViewRows;
                 if (rowPitchPx > 0)
                 {
-                    scale = QuarterStepScale(rowPitchPx, reportedCellHeightPx);
+                    scale = QuarterStepScale(rowPitchPx, reportedCellHeightPx, pitchOnlyReadsHigh: true);
                 }
             }
 
@@ -3323,7 +3354,7 @@ namespace ClaudeCodeVS
                 int colPitchPx = clientWidthPx / viewCols;
                 if (colPitchPx > 0)
                 {
-                    scale = QuarterStepScale(colPitchPx, reportedCellWidthPx);
+                    scale = QuarterStepScale(colPitchPx, reportedCellWidthPx, pitchOnlyReadsHigh: false);
                 }
             }
 
@@ -3335,6 +3366,61 @@ namespace ClaudeCodeVS
             paintedCellHeightPx = (int)Math.Round(reportedCellHeightPx * scale, MidpointRounding.AwayFromZero);
             paintedCellWidthPx = Math.Max(1, (int)Math.Round(reportedCellWidthPx * scale, MidpointRounding.AwayFromZero));
             measured = true;
+        }
+
+        /// <summary>
+        /// The painted column pitch, measured rather than derived: the monitor width over the column
+        /// count <c>GetLargestConsoleWindowSize</c> reports for it. The derived width - the reported one
+        /// times the quarter-step scale - carries the rounding of the reported width times that scale,
+        /// and it is wrong in both directions: a reported 7 px cell at 200% was painted 13 px wide, not
+        /// 14 (a 948 px window then showed 72.9 of its 75 columns), and a reported 3 px one 5 px, not 6
+        /// (a 867 px window left 16 columns of it blank). Measured on the same machine: 3840 px over the
+        /// 349 columns the host reported was exactly the 11 px it painted, against a derived 12.
+        /// <para>
+        /// Unlike <c>dwMaximumWindowSize</c> the largest size is not capped by the buffer, so it answers
+        /// in the alternate screen buffer too. The division can only come out high, never low - the host
+        /// deducts its frame before dividing - and the deduction is a scrollbar's width against a
+        /// monitor's, so the floor is the pitch itself. A pitch further from the derived width than its
+        /// rounding allows is not a reading of this cell (another monitor's width, a host that answered
+        /// with something else), and the derived width stands. Returns 0 where there is nothing to
+        /// measure, which the caller reads as "not measured". Pure.
+        /// </para>
+        /// </summary>
+        internal static int MeasurePaintedConsoleCellWidth(int derivedCellWidthPx, int largestViewCols, int screenWidthPx)
+        {
+            if (derivedCellWidthPx <= 0 || largestViewCols <= 0 || screenWidthPx <= 0)
+            {
+                return 0;
+            }
+
+            int pitchPx = screenWidthPx / largestViewCols;
+
+            // The reported width is the painted one over the scale, rounded: the truth lies within half
+            // a scale step of the derived width, and a quarter of it is a generous bound for that.
+            int toleratedPx = Math.Max(1, derivedCellWidthPx / 4);
+            if (pitchPx <= 0 || Math.Abs(pitchPx - derivedCellWidthPx) > toleratedPx)
+            {
+                return 0;
+            }
+
+            return pitchPx;
+        }
+
+        /// <summary>
+        /// True when the console's viewport is wider than the window it is painted into by at least one
+        /// full column - columns the agent draws into and the user cannot see. The grid fit never takes
+        /// columns away (see <see cref="TryComputeConsoleGridFit"/>), so this is the case it cannot
+        /// repair by itself: a DPI change that rounded the cell a pixel wider than the ratio asked for
+        /// (measured: 75 columns of 13 px in a 948 px window, the last two hidden). Pure.
+        /// </summary>
+        internal static bool ConsoleGridOverhangsWindow(int viewCols, int paintedCellWidthPx, int clientWidthPx)
+        {
+            if (viewCols <= 0 || paintedCellWidthPx <= 0 || clientWidthPx <= 0)
+            {
+                return false;
+            }
+
+            return viewCols * paintedCellWidthPx - clientWidthPx >= paintedCellWidthPx;
         }
 
         /// <summary>
@@ -3350,11 +3436,24 @@ namespace ClaudeCodeVS
         /// would be painting smaller than it reports, which it never does. The rounding is what makes
         /// the estimate exact instead of approximate - every pitch it can be derived from carries
         /// window chrome or integer division with it.
+        /// <para>
+        /// <paramref name="pitchOnlyReadsHigh"/> rounds DOWN to the quarter instead of to the nearest.
+        /// The row pitch off the host maximum can only come out high - the chrome is deducted before
+        /// the division, never added - and the reported HEIGHT is exact, so the true scale is the
+        /// largest quarter at or below the ratio. Rounding to the nearest broke as soon as the chrome
+        /// was worth more than an eighth of the cell: measured at 250% with a 14 px cell painted 28,
+        /// 2160 px over 72 rows is 30 px of pitch, 2.14 against the reported 14, which rounded to 2.25
+        /// - a 32 px row, 31 rows in a panel that holds 36, and 140 px of it left blank. The column
+        /// pitch keeps rounding to the nearest: the reported WIDTH is itself rounded (13 px painted at
+        /// 200% reports 7), so its ratio can fall on either side.
+        /// </para>
         /// </summary>
-        private static double QuarterStepScale(int paintedPitchPx, int reportedSizePx)
+        private static double QuarterStepScale(int paintedPitchPx, int reportedSizePx, bool pitchOnlyReadsHigh)
         {
-            double scale = Math.Round(paintedPitchPx * 4 / (double)reportedSizePx,
-                                      MidpointRounding.AwayFromZero) / 4;
+            double quarters = paintedPitchPx * 4 / (double)reportedSizePx;
+            double scale = (pitchOnlyReadsHigh
+                ? Math.Floor(quarters)
+                : Math.Round(quarters, MidpointRounding.AwayFromZero)) / 4;
             if (scale < 1) scale = 1;
             if (scale > MaxPaintedCellScale) scale = MaxPaintedCellScale;
             return scale;
@@ -3458,23 +3557,11 @@ namespace ClaudeCodeVS
             // it does for columns, and like columns it only ever grows.
             int effectiveBufferRows = Math.Max(bufferRows, targetRows);
 
-            // Keep the viewport where it is unless the cursor would fall outside it. In the few
-            // seconds after a display change that is the right call even when the user had scrolled
-            // back: the agent redraws at the cursor, and a viewport elsewhere shows a frozen screen.
-            int targetTop = Math.Min(viewTop, effectiveBufferRows - targetRows);
-            if (cursorRow >= 0 && (cursorRow < targetTop || cursorRow >= targetTop + targetRows))
-            {
-                targetTop = cursorRow - targetRows + 1;
-            }
-
-            if (targetTop < 0) targetTop = 0;
-            if (targetTop + targetRows > effectiveBufferRows) targetTop = effectiveBufferRows - targetRows;
-
             fit = new ConsoleGridFit
             {
                 Cols = targetCols,
                 Rows = targetRows,
-                Top = targetTop,
+                Top = AnchorConsoleViewportTop(viewTop, cursorRow, targetRows, effectiveBufferRows),
                 BufferMustGrow = targetCols > bufferCols || targetRows > bufferRows,
             };
 
@@ -3488,6 +3575,34 @@ namespace ClaudeCodeVS
             // viewport is anchored, a few lines up.
             return Math.Abs(targetRows - viewRows) >= ConsoleGridFitToleranceCells ||
                    targetCols - viewCols >= ConsoleGridFitToleranceCells;
+        }
+
+        /// <summary>
+        /// Buffer row a viewport of <paramref name="rows"/> should start at: where it is now, unless the
+        /// cursor would fall outside it - then with the cursor on its last row - and always inside the
+        /// buffer. In the few seconds after a display change that is the right call even when the user
+        /// had scrolled back: the agent redraws at the cursor, and a viewport elsewhere shows a frozen
+        /// screen.
+        /// <para>
+        /// Taken out of <see cref="TryComputeConsoleGridFit"/> because the fit needs it twice: once for
+        /// the plan, and again once the buffer has grown. A wider buffer makes conhost reflow the text
+        /// into it, which moves the cursor rows away from where the plan was computed - measured: 104 to
+        /// 173 columns took the cursor from row 8997 to row 6723, and a viewport applied at the planned
+        /// row 8942 showed 56 empty rows with the agent's prompt 2,200 rows above it. Pure.
+        /// </para>
+        /// </summary>
+        internal static int AnchorConsoleViewportTop(int viewTop, int cursorRow, int rows, int bufferRows)
+        {
+            int top = Math.Min(viewTop, bufferRows - rows);
+            if (cursorRow >= 0 && (cursorRow < top || cursorRow >= top + rows))
+            {
+                top = cursorRow - rows + 1;
+            }
+
+            if (top < 0) top = 0;
+            if (top + rows > bufferRows) top = bufferRows - rows;
+
+            return top;
         }
 
         /// <summary>
@@ -3588,6 +3703,38 @@ namespace ClaudeCodeVS
             }
 
             return GetSystemMetrics(SM_CYSCREEN);
+        }
+
+        /// <summary>
+        /// Width in physical pixels of the monitor the embedded terminal sits on - the divisor of
+        /// <see cref="MeasurePaintedConsoleCellWidth"/>, and for the same reason as
+        /// <see cref="GetTerminalScreenHeightPx"/> it has to be the monitor the host measured its
+        /// largest window against, not the primary one. 0 when it cannot be resolved: unlike the
+        /// height there is a derived width to fall back on, so a guess is worse than no reading.
+        /// </summary>
+        private int GetTerminalScreenWidthPx()
+        {
+            try
+            {
+                if (terminalHandle != IntPtr.Zero)
+                {
+                    IntPtr monitor = MonitorFromWindow(terminalHandle, MONITOR_DEFAULTTONEAREST);
+                    if (monitor != IntPtr.Zero)
+                    {
+                        var info = new MONITORINFO { cbSize = (uint)Marshal.SizeOf(typeof(MONITORINFO)) };
+                        if (GetMonitorInfo(monitor, ref info))
+                        {
+                            return Math.Max(0, info.rcMonitor.Right - info.rcMonitor.Left);
+                        }
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"GetTerminalScreenWidthPx error: {ex.Message}");
+            }
+
+            return 0;
         }
 
         /// <summary>
@@ -5043,11 +5190,29 @@ namespace ClaudeCodeVS
         private static readonly object _terminalLaunchLogLock = new object();
 
         /// <summary>
+        /// Visual Studio process id written into every log line. Every instance on the machine writes
+        /// the same file, and two instances reacting to one reconnect interleave their repair passes
+        /// line by line - without the id nothing tells the two cycles apart.
+        /// </summary>
+        private static readonly int _terminalLaunchLogProcessId = Process.GetCurrentProcess().Id;
+
+        /// <summary>
         /// Appends a timestamped line to the terminal-launch diagnostic log. Must never throw —
         /// diagnostics cannot be allowed to break the launch path. The file is reset once it
         /// grows past 512 KB so it can be left enabled permanently.
         /// </summary>
         private static void LogTerminalLaunch(string message)
+        {
+            LogTerminalLaunch(message, DateTime.Now);
+        }
+
+        /// <summary>
+        /// <see cref="LogTerminalLaunch(string)"/> with the time the line describes, for lines written
+        /// after the fact - the display repair holds its routine lines back until it knows whether a
+        /// cycle had anything to say, and stamping them on release put six passes 12.75 s apart into
+        /// the same millisecond.
+        /// </summary>
+        private static void LogTerminalLaunch(string message, DateTime timestamp)
         {
             try
             {
@@ -5060,7 +5225,8 @@ namespace ClaudeCodeVS
                     {
                         info.Delete();
                     }
-                    File.AppendAllText(path, DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss.fff") + "  " + message + Environment.NewLine);
+                    File.AppendAllText(path, timestamp.ToString("yyyy-MM-dd HH:mm:ss.fff") +
+                                             "  [" + _terminalLaunchLogProcessId + "] " + message + Environment.NewLine);
                 }
             }
             catch

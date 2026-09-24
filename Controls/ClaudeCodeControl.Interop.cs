@@ -627,6 +627,16 @@ namespace ClaudeCodeVS
         private static extern bool SetConsoleScreenBufferSize(IntPtr hConsoleOutput, COORD dwSize);
 
         /// <summary>
+        /// Largest console window, in character cells, that the host's monitor could show at the cell
+        /// size it is PAINTING with - not capped by the buffer, unlike <c>dwMaximumWindowSize</c>. The
+        /// monitor width over its column count is the painted column pitch (see
+        /// <c>MeasurePaintedConsoleCellWidth</c>). Returned as a packed COORD (X in the low word, Y in
+        /// the high word) so the struct return does not depend on the calling convention; 0 on failure.
+        /// </summary>
+        [DllImport("kernel32.dll", SetLastError = true)]
+        private static extern uint GetLargestConsoleWindowSize(IntPtr hConsoleOutput);
+
+        /// <summary>
         /// Retrieves the current input/output mode of a console handle. Used on the input handle
         /// (CONIN$) to detect when a TUI has put the embedded conhost into mouse-input mode
         /// (ENABLE_QUICK_EDIT_MODE cleared), in which conhost's own right-click paste and

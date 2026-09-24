@@ -139,6 +139,11 @@ Use native mode to avoid this issue.
 
 ## Version History
 
+### Version 201.0
+- The terminal font keeps its size across several display changes in a row, such as Remote Desktop reconnects at different scalings, instead of growing slightly larger each time.
+- After a display change the terminal now uses the full width and height of the panel and no longer hides its last columns past the right edge.
+- The agent's prompt stays in view after a display change that widens the terminal, instead of the panel showing empty lines.
+
 ### Version 200.0
 - Native mode: parallel chat tabs now show the same toolbar buttons as the main chat tab, instead of just the Tools menu.
 - Native mode: closing the main chat tab no longer reopens it by itself when the agent has a question or permission prompt — it waits quietly until you click *💬 Show Chat*.
