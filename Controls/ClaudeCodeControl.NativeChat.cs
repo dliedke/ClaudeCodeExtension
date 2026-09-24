@@ -3429,12 +3429,14 @@ namespace ClaudeCodeVS
 
             if (owner != null)
             {
-                // Model and permission relaunch this tab's own session (RelaunchSessionAsync). Provider
-                // switching stays panel-only: it restarts a wholesale different CLI process through
-                // RestartTerminalWithSelectedProviderAsync, which only ever targets the default session.
+                // Model, permission and provider all relaunch this tab's own session
+                // (RelaunchSessionAsync) rather than the panel's terminal-backed one — a provider switch
+                // here never touches RestartTerminalWithSelectedProviderAsync, which only ever targets
+                // the default session's embedded terminal (issue #171: the menu used to silently no-op
+                // on every tab but the first because this case just returned).
                 switch (selector)
                 {
-                    case ChatSelector.Provider: return;
+                    case ChatSelector.Provider: menu = BuildChatProviderMenu(owner); break;
                     case ChatSelector.Model: menu = BuildChatModelMenu(owner); break;
                     default: menu = BuildChatPermissionMenu(owner); break;
                 }
@@ -3616,6 +3618,36 @@ namespace ClaudeCodeVS
                 AiProvider current = provider;
                 AddComposerMenuItem(menu, GetChatProviderDisplayName(provider), provider == active,
                     delegate { ThreadHelper.ThrowIfNotOnUIThread(); OnChatProviderSelected(current); });
+            }
+
+            return menu;
+        }
+
+        /// <summary>
+        /// The parallel-tab counterpart of <see cref="BuildChatProviderMenu()"/>: checked against and
+        /// written to <see cref="NativeChatSessionState.SelectedProvider"/> instead of
+        /// <c>_settings.SelectedProvider</c>, so each tab keeps its own agent (issue #171).
+        /// </summary>
+        private ContextMenu BuildChatProviderMenu(NativeChatSessionState session)
+        {
+            ContextMenu menu = CreateComposerMenu();
+            AiProvider active = session.SelectedProvider;
+
+            List<AiProvider> visible = _settings?.VisibleProviders;
+            if (visible == null || visible.Count == 0)
+            {
+                visible = new List<AiProvider> { AiProvider.ClaudeCode };
+            }
+
+            foreach (AiProvider provider in visible)
+            {
+                // An agent with no structured channel would drop the user back into the terminal the
+                // moment it started, which is not what clicking an entry in the chat tab should do.
+                if (!SupportsNativeMode(provider)) continue;
+
+                AiProvider current = provider;
+                AddComposerMenuItem(menu, GetChatProviderDisplayName(provider), provider == active,
+                    delegate { ThreadHelper.ThrowIfNotOnUIThread(); OnChatProviderSelectedForSession(session, current); });
             }
 
             return menu;
@@ -4183,6 +4215,49 @@ namespace ClaudeCodeVS
 
                 await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
                 AddNativeMessage(ChatMessageKind.Error, $"Could not switch agent: {ex.Message}");
+            }
+        }
+
+        /// <summary>
+        /// The parallel-tab counterpart of <see cref="OnChatProviderSelected"/> (issue #171): relaunches
+        /// this tab's own session with a different <see cref="IAgentSession"/> instead of restarting the
+        /// panel's embedded terminal, and mutates <see cref="NativeChatSessionState.SelectedProvider"/>
+        /// instead of <c>Settings</c> — a per-tab pick is never persisted, so the next VS launch starts
+        /// every tab from whatever Settings itself holds. Always forces a new conversation: a resume id
+        /// from one CLI's session format is meaningless to another agent's launch.
+        /// </summary>
+#pragma warning disable VSTHRD100 // Async void is required by the UI event signature
+        private async void OnChatProviderSelectedForSession(NativeChatSessionState session, AiProvider provider)
+#pragma warning restore VSTHRD100
+        {
+            try
+            {
+                await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
+
+                if (session == null || session.SelectedProvider == provider)
+                {
+                    return;
+                }
+
+                session.SelectedProvider = provider;
+                session.SelectedModel = GetSelectedProviderModelId(provider);
+                session.SkipPermissions = GetChatPermissionSkipFlag(provider) ?? false;
+                session.PlanMode = IsClaudeProvider(provider) && _settings?.ClaudePlanMode == true;
+                session.AutoPermissions = IsClaudeProvider(provider) && _settings?.ClaudeAutoPermissions == true;
+                session.ManualMode = IsClaudeProvider(provider) && _settings?.ClaudeManualMode == true;
+
+                UpdateChatComposerState(session);
+
+                await RelaunchSessionAsync(session,
+                    $"🤖 Switched to {GetChatProviderDisplayName(provider)} — this starts a new conversation.",
+                    forceNewSession: true);
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"Chat provider switch failed for session {session?.SessionId}: {ex.Message}");
+
+                await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
+                AddNativeMessageToSession(session, ChatMessageKind.Error, $"Could not switch agent: {ex.Message}");
             }
         }
 
