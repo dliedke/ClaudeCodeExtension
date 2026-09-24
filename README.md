@@ -139,6 +139,11 @@ Use native mode to avoid this issue.
 
 ## Version History
 
+### Version 200.0
+- Native mode: parallel chat tabs now show the same toolbar buttons as the main chat tab, instead of just the Tools menu.
+- Native mode: closing the main chat tab no longer reopens it by itself when the agent has a question or permission prompt — it waits quietly until you click *💬 Show Chat*.
+- Native mode: if you close the main chat tab while another chat tab is still open, *💬 Show Chat* now brings that other tab forward instead of reopening the one you just closed.
+
 ### Version 199.0
 - Native mode: the agent (Claude Code, Codex, Cursor Agent, etc.) selector now works in every parallel chat tab, not just the first one — each tab switches and keeps its own agent independently (issue #171).
 

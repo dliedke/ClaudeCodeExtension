@@ -97,6 +97,36 @@ namespace ClaudeCodeVS
             return GetSession(_lastFocusedNativeSessionId) != null ? _lastFocusedNativeSessionId : null;
         }
 
+        /// <summary>
+        /// Picks a parallel session's tab to bring forward when the default session's own tab was
+        /// closed (<c>ShowNativeChatAsync</c>'s "Show Chat" — v200.0). Prefers the last-focused tab
+        /// (<see cref="ResolveFocusedNativeSessionId"/>), falling back to any other still-open one so
+        /// the user always lands somewhere instead of on the tab they just closed. Null when no
+        /// parallel tab is open, the only case left where resurrecting the default session's own tab
+        /// is still the right call.
+        /// </summary>
+        private NativeChatSessionState GetPromotableSession()
+        {
+            string focusedId = ResolveFocusedNativeSessionId();
+            if (!string.IsNullOrEmpty(focusedId))
+            {
+                NativeChatSessionState focused = GetSession(focusedId);
+                if (focused?.Window != null)
+                    return focused;
+            }
+
+            lock (_sessionLock)
+            {
+                foreach (NativeChatSessionState state in _nativeSessions.Values)
+                {
+                    if (state.Window != null)
+                        return state;
+                }
+            }
+
+            return null;
+        }
+
         #endregion
 
         #region Native Mode Fields
@@ -2268,8 +2298,9 @@ namespace ClaudeCodeVS
         {
             ThreadHelper.ThrowIfNotOnUIThread();
 
-            // The agent waits on this card, so a closed chat tab has to come back to show it.
-            ReopenClosedChatTab();
+            // Deliberately does not reopen a tab the user closed (see ReopenClosedChatTab's doc
+            // comment) — the card still renders into ChatTranscript below, so it is waiting there for
+            // 💬 Show Chat the next time the user looks.
             ShowNativeInteractionCore(request, ChatTranscript, _nativeTurnFinishConfig);
         }
 
@@ -2740,8 +2771,7 @@ namespace ClaudeCodeVS
         {
             ThreadHelper.ThrowIfNotOnUIThread();
 
-            // Same as ShowNativeInteraction: the blocked agent needs its chat on screen.
-            ReopenClosedChatTab();
+            // Same as ShowNativeInteraction: does not reopen a tab the user closed.
             ShowNativePermissionDialog(request, ChatTranscript);
         }
 

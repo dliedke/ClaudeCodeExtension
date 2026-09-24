@@ -11,13 +11,16 @@
  * *******************************************************************************************************************/
 
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Diagnostics;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
+using ClaudeCodeVS.UI;
 using Microsoft.VisualStudio.Shell;
 
 namespace ClaudeCodeVS
@@ -2310,6 +2313,22 @@ For more details, visit: https://pi.dev";
                 ToolsDropdownButton.Visibility = anyInDropdown ? Visibility.Visible : Visibility.Collapsed;
             ChatTranscript?.SetToolsMenuHasItems(anyInDropdown);
 
+            // Parallel session tabs (_nativeSessions) have no toolbar of their own — their composer is
+            // always ComposerMode.Full (ShowSessionInTabAsync), so it needs the ☰ has-items flag mirrored
+            // the same way the default session's tab gets it above.
+            List<ChatTranscriptView> parallelTranscripts;
+            lock (_sessionLock)
+            {
+                parallelTranscripts = _nativeSessions.Values
+                    .Select(s => s.ChatTranscript)
+                    .Where(t => t != null)
+                    .ToList();
+            }
+            foreach (ChatTranscriptView sessionTranscript in parallelTranscripts)
+            {
+                sessionTranscript.SetToolsMenuHasItems(anyInDropdown);
+            }
+
             // Issue #151 follow-up: once the chat has its own tab, every one of these toolbar Buttons is
             // mirrored there (Change C) — leaving both copies visible is just clutter (and the reporter's
             // screenshot). Collapse the panel's own copies down to ⧉ (the only way back) whenever the
@@ -2427,10 +2446,24 @@ For more details, visit: https://pi.dev";
                     }
 
                     ChatTranscript.SetPromotedButtons(mirrored);
+
+                    // Parallel session tabs (_nativeSessions) are always ComposerMode.Full but have no
+                    // docked panel of their own to promote buttons from — mirror the same set there too,
+                    // so every open tab shows identical toolbar buttons instead of just ⚡/☰/⚙.
+                    foreach (ChatTranscriptView sessionTranscript in parallelTranscripts)
+                    {
+                        if (ReferenceEquals(sessionTranscript, ChatTranscript)) continue;
+                        sessionTranscript.SetPromotedButtons(mirrored);
+                    }
                 }
                 else
                 {
                     ChatTranscript.SetPromotedButtons(null);
+                    foreach (ChatTranscriptView sessionTranscript in parallelTranscripts)
+                    {
+                        if (ReferenceEquals(sessionTranscript, ChatTranscript)) continue;
+                        sessionTranscript.SetPromotedButtons(null);
+                    }
                 }
             }
         }

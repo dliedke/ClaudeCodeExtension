@@ -418,8 +418,11 @@ namespace ClaudeCodeVS
         private bool IsChatTabClosed => IsChatDetachedToOwnTab && _nativeChatWindow == null;
 
         /// <summary>
-        /// Reopens a closed chat tab when the conversation needs to be seen — the user sent a prompt
-        /// from the panel, or the agent is blocked on a question/approval card that nobody could see.
+        /// Reopens a closed chat tab so the panel's own prompt box has somewhere for the answer to
+        /// land. Called only for that explicit case (the user typed into the panel while the tab was
+        /// closed) — a question/permission card blocking the agent no longer forces the tab back open
+        /// on its own; it renders into the (still running, just not shown) transcript and waits for
+        /// 💬 Show Chat, so a tab the user deliberately closed does not keep reappearing on its own.
         /// </summary>
         private void ReopenClosedChatTab()
         {
@@ -589,6 +592,11 @@ namespace ClaudeCodeVS
                 session.ChatTranscript.SetComposerMode(ChatTranscriptView.ComposerMode.Full);
                 UpdateChatComposerState();
                 UpdateSessionTabCaption(session);
+
+                // Mirrors the panel's promoted toolbar buttons into this brand-new tab immediately,
+                // instead of leaving it on just ⚡/☰/⚙ until something else happens to call
+                // RefreshToolbarLayout (e.g. the ☰ Tools menu being opened).
+                RefreshToolbarLayout();
 
                 // Show the window
                 if (window.Frame is IVsWindowFrame frame)
@@ -801,6 +809,19 @@ namespace ClaudeCodeVS
                     ShowPanelFrame();
                     PromptTextBox?.Focus();
                     return;
+                }
+
+                // The default session's own tab was closed and another chat tab is still open: bring
+                // that one forward instead of resurrecting the closed tab — closing a tab should not
+                // keep bringing it back just because it was "the main one" (v200.0).
+                if (IsChatTabClosed)
+                {
+                    NativeChatSessionState promoted = GetPromotableSession();
+                    if (promoted != null)
+                    {
+                        BringSessionTabToFront(promoted);
+                        return;
+                    }
                 }
 
                 await ShowNativeChatTabAsync(focusComposer: true);
