@@ -429,6 +429,19 @@ namespace ClaudeCodeVS
         public bool SendSelectionReferenceOnly { get; set; } = false;
 
         /// <summary>
+        /// "@" file picker: file types to list (e.g. ".cs, .lua"); empty = every file. Folders are
+        /// shown only when they contain a matching file. Issue #174. See ClaudeCodeControl.AtMention.cs.
+        /// </summary>
+        public string AtMentionFileTypes { get; set; } = string.Empty;
+
+        /// <summary>
+        /// "@" file picker: extra folders to leave out of the index, on top of the built-in list
+        /// (bin, obj, .git, node_modules, ...). A bare name ("Plugins") is excluded at any depth; a
+        /// path ("Assets/Plugins") only there. Empty = built-in list only. Issue #174.
+        /// </summary>
+        public string AtMentionExcludedFolders { get; set; } = string.Empty;
+
+        /// <summary>
         /// When true, whenever a Visual Studio build finishes with one or more errors, the
         /// errors (and warnings, for context) are automatically formatted and sent to the
         /// active code agent's prompt so it can fix them. Opt-in, default false. Only sends

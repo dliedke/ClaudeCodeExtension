@@ -79,6 +79,8 @@ namespace ClaudeCodeVS
             bool origSendLargeAsFile          = _settings.SendLargePromptsAsFile;
             bool origDisableClipboardSend     = _settings.DisableClipboardSend;
             bool origSendSelectionRefOnly     = _settings.SendSelectionReferenceOnly;
+            string origAtFileTypes            = _settings.AtMentionFileTypes ?? string.Empty;
+            string origAtExcludedFolders      = _settings.AtMentionExcludedFolders ?? string.Empty;
             bool origAutoSendBuildErrors      = _settings.AutoSendBuildErrorsToAgent;
             bool origAutoSendRuntimeErrors    = _settings.AutoSendRuntimeErrorsToAgent;
             bool origAutoOpenChanges          = _settings.AutoOpenChangesOnPrompt;
@@ -207,6 +209,55 @@ namespace ClaudeCodeVS
                 "Automatically open the Changes view, expand files, and enable auto-scroll when a prompt is sent. Only applies when the project is in a git repository.",
                 origAutoOpenChanges, themeFg);
             behaviorStack.Children.Add(autoOpenCheck);
+
+            behaviorStack.Children.Add(MakeSectionHeader("@ file picker", themeFg));
+            behaviorStack.Children.Add(new TextBlock
+            {
+                Text = "Narrow the files listed when typing \"@\" in the prompt. Files ignored by .gitignore are always left out. Separate entries with commas.",
+                FontSize = 11,
+                Opacity = 0.7,
+                Foreground = themeFg,
+                TextWrapping = TextWrapping.Wrap,
+                Margin = new Thickness(4, 0, 0, 4)
+            });
+
+            TextBox AddAtMentionField(string label, string tooltip, string value)
+            {
+                var row = new Grid { Margin = new Thickness(4, 0, 0, 4) };
+                row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(150) });
+                row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+                var labelBlock = new TextBlock
+                {
+                    Text = label,
+                    Foreground = themeFg,
+                    VerticalAlignment = VerticalAlignment.Center,
+                    ToolTip = MakeToolTip(tooltip)
+                };
+                var box = new TextBox
+                {
+                    Text = value,
+                    Height = 24,
+                    VerticalContentAlignment = VerticalAlignment.Center,
+                    Background = themeBg,
+                    Foreground = themeFg,
+                    BorderBrush = themeFg,
+                    ToolTip = MakeToolTip(tooltip)
+                };
+                Grid.SetColumn(box, 1);
+                row.Children.Add(labelBlock);
+                row.Children.Add(box);
+                behaviorStack.Children.Add(row);
+                return box;
+            }
+
+            var atFileTypesBox = AddAtMentionField(
+                "Only these file types:",
+                "File extensions the \"@\" picker lists, e.g. \".cs, .lua\". Leave empty to list every file. Folders are shown only when they contain a matching file.",
+                origAtFileTypes);
+            var atExcludedFoldersBox = AddAtMentionField(
+                "Skip these folders:",
+                "Folders the \"@\" picker leaves out, e.g. \"Plugins, Assets/ThirdParty\". A bare name is skipped wherever it appears; a path only at that location. bin, obj, node_modules and similar build folders are always skipped.",
+                origAtExcludedFolders);
 
             behaviorStack.Children.Add(MakeSectionHeader("Git", themeFg));
 
@@ -1098,6 +1149,8 @@ namespace ClaudeCodeVS
                 largeAsFileCheck.IsChecked = false;
                 disableClipboardCheck.IsChecked = false;
                 sendSelectionRefOnlyCheck.IsChecked = false;
+                atFileTypesBox.Text = string.Empty;
+                atExcludedFoldersBox.Text = string.Empty;
                 autoOpenCheck.IsChecked = false;
                 SelectComboByTag(fontSizeCombo, 12);
                 topRadio.IsChecked = true;                // Top layout
@@ -1252,6 +1305,8 @@ namespace ClaudeCodeVS
             _settings.SendLargePromptsAsFile  = newSendLargeAsFile;
             _settings.DisableClipboardSend    = newDisableClipboardSend;
             _settings.SendSelectionReferenceOnly = newSendSelectionRefOnly;
+            _settings.AtMentionFileTypes = (atFileTypesBox.Text ?? string.Empty).Trim();
+            _settings.AtMentionExcludedFolders = (atExcludedFoldersBox.Text ?? string.Empty).Trim();
             _settings.AutoSendBuildErrorsToAgent = newAutoSendBuildErrors;
             _settings.AutoSendRuntimeErrorsToAgent = newAutoSendRuntimeErrors;
             _settings.AutoOpenChangesOnPrompt = newAutoOpenChanges;

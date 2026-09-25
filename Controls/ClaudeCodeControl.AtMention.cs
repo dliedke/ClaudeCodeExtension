@@ -13,7 +13,8 @@
  *          the user can drill into it. Paths are inserted workspace-relative with forward
  *          slashes, which resolve for every agent (the terminal's working directory is the
  *          workspace), so no WSL conversion needed. The two text boxes each get their own popup
- *          (an <see cref="AtMentionTarget"/>) but share one workspace index.
+ *          (an <see cref="AtMentionTarget"/>) but share one workspace index, read from git when
+ *          possible (respects .gitignore) and narrowed by the Settings "@ file picker" filters.
  *
  * *******************************************************************************************************************/
 
@@ -38,13 +39,21 @@ namespace ClaudeCodeVS
         #region At-Mention Fields
 
         private const int AtMentionMaxResults = 60;
-        private const int AtMentionMaxEntries = 8000;
+        private const int AtMentionMaxEntries = 50000;         // files kept in the index (folders are derived from them)
+        private const int AtMentionMaxScannedFiles = 250000;   // bound on the filesystem walk when a filter matches little
+        private const int AtMentionGitTimeoutMs = 15000;
         private static readonly TimeSpan AtEntriesTtl = TimeSpan.FromSeconds(30);
 
         private static readonly HashSet<string> AtIgnoredDirs = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
         {
             "bin", "obj", ".git", ".vs", ".svn", ".hg", "node_modules", "packages", ".idea", "dist", "out", ".vscode"
         };
+
+        // Unity generates these next to Assets/ (issue #174): tens of thousands of cache files the
+        // agent never needs, plus a .meta sidecar for every asset. Only applied when the workspace
+        // root is a Unity project (see IsUnityProjectRoot).
+        private static readonly string[] AtUnityGeneratedRootDirs = { "Library", "Temp", "Logs", "UserSettings" };
+        private const string AtUnityMetaExtension = ".meta";
 
         /// <summary>Per-text-box popup state. The panel's prompt box and the native chat composer
         /// each own one, so they never fight over which box the popup is anchored to.</summary>
@@ -68,6 +77,7 @@ namespace ClaudeCodeVS
         // Shared across both targets: keyed by workspace, not by text box.
         private List<string> _atEntries;       // workspace-relative paths ('/' separated, folders end with '/')
         private string _atEntriesRoot;
+        private string _atEntriesFilterKey;    // settings the index was built with; a change forces a rebuild
         private DateTime _atEntriesBuiltUtc;
         private bool _atEntriesBuilding;
 
@@ -190,8 +200,11 @@ namespace ClaudeCodeVS
                     return;
                 }
 
-                // Refresh a stale index in the background, but show current results immediately.
-                if ((DateTime.UtcNow - _atEntriesBuiltUtc) > AtEntriesTtl && !_atEntriesBuilding)
+                // Refresh a stale index (or one built with different filter settings) in the
+                // background, but show current results immediately.
+                bool stale = (DateTime.UtcNow - _atEntriesBuiltUtc) > AtEntriesTtl
+                    || !string.Equals(_atEntriesFilterKey, GetAtMentionFilterKey(), StringComparison.Ordinal);
+                if (stale && !_atEntriesBuilding)
                     _ = EnsureThenRefilterAsync(target);
 
                 FilterAndShowAtPopup(target, query);
@@ -356,17 +369,23 @@ namespace ClaudeCodeVS
         private async Task EnsureAtEntriesAsync()
         {
             string workspace = await GetWorkspaceDirectoryAsync();
+            string fileTypes = _settings?.AtMentionFileTypes ?? string.Empty;
+            string excludedFolders = _settings?.AtMentionExcludedFolders ?? string.Empty;
+            string filterKey = GetAtMentionFilterKey();
+
             bool fresh = _atEntries != null
                 && string.Equals(_atEntriesRoot, workspace, StringComparison.OrdinalIgnoreCase)
+                && string.Equals(_atEntriesFilterKey, filterKey, StringComparison.Ordinal)
                 && (DateTime.UtcNow - _atEntriesBuiltUtc) < AtEntriesTtl;
             if (fresh || _atEntriesBuilding) return;
 
             _atEntriesBuilding = true;
             try
             {
-                var list = await Task.Run(() => EnumerateWorkspaceEntries(workspace));
+                var list = await Task.Run(() => EnumerateWorkspaceEntries(workspace, fileTypes, excludedFolders));
                 _atEntries = list;
                 _atEntriesRoot = workspace;
+                _atEntriesFilterKey = filterKey;
                 _atEntriesBuiltUtc = DateTime.UtcNow;
             }
             finally
@@ -375,65 +394,107 @@ namespace ClaudeCodeVS
             }
         }
 
-        /// <summary>
-        /// Walks the workspace (skipping build/VCS/package folders and symlink reparse points) and
-        /// returns workspace-relative paths with '/' separators; folders carry a trailing '/'.
-        /// Capped at <see cref="AtMentionMaxEntries"/> so a huge tree can't stall the picker.
-        /// </summary>
-        private static List<string> EnumerateWorkspaceEntries(string root)
+        private string GetAtMentionFilterKey()
         {
-            var results = new List<string>();
-            if (string.IsNullOrEmpty(root) || !Directory.Exists(root)) return results;
+            return (_settings?.AtMentionFileTypes ?? string.Empty) + "|" + (_settings?.AtMentionExcludedFolders ?? string.Empty);
+        }
+
+        /// <summary>
+        /// Lists the workspace's files — from git when the workspace is in a repository, so
+        /// .gitignore'd output (build folders, Unity's Library/Temp, ...) never reaches the picker,
+        /// else from a breadth-first filesystem walk — applies the user's "@ file picker" filters,
+        /// and returns workspace-relative '/'-separated paths plus the folders containing them
+        /// (trailing '/'), shallowest first.
+        /// </summary>
+        private List<string> EnumerateWorkspaceEntries(string root, string fileTypes, string excludedFolders)
+        {
+            if (string.IsNullOrEmpty(root) || !Directory.Exists(root)) return new List<string>();
 
             try
             {
                 string rootFull = Path.GetFullPath(root).TrimEnd('\\', '/');
-                var stack = new Stack<string>();
-                stack.Push(rootFull);
+                AtMentionFilter filter = CreateAtMentionFilter(fileTypes, excludedFolders, IsUnityProjectRoot(rootFull));
 
-                while (stack.Count > 0 && results.Count < AtMentionMaxEntries)
-                {
-                    string dir = stack.Pop();
-
-                    string[] subdirs;
-                    try { subdirs = Directory.GetDirectories(dir); }
-                    catch { subdirs = Array.Empty<string>(); }
-
-                    foreach (string d in subdirs)
-                    {
-                        if (results.Count >= AtMentionMaxEntries) break;
-                        string name = Path.GetFileName(d);
-                        if (AtIgnoredDirs.Contains(name)) continue;
-                        try
-                        {
-                            var attr = File.GetAttributes(d);
-                            if ((attr & FileAttributes.ReparsePoint) != 0) continue;
-                        }
-                        catch { continue; }
-
-                        results.Add(ToRelative(rootFull, d) + "/");
-                        stack.Push(d);
-                    }
-
-                    if (results.Count >= AtMentionMaxEntries) break;
-
-                    string[] files;
-                    try { files = Directory.GetFiles(dir); }
-                    catch { files = Array.Empty<string>(); }
-
-                    foreach (string f in files)
-                    {
-                        if (results.Count >= AtMentionMaxEntries) break;
-                        results.Add(ToRelative(rootFull, f));
-                    }
-                }
+                IEnumerable<string> files = ListGitWorkspaceFiles(rootFull) ?? WalkWorkspaceFiles(rootFull, filter);
+                return BuildAtMentionIndex(files, filter, AtMentionMaxEntries);
             }
             catch (Exception ex)
             {
                 Debug.WriteLine($"EnumerateWorkspaceEntries error: {ex.Message}");
+                return new List<string>();
             }
+        }
 
-            return results;
+        /// <summary>
+        /// Tracked plus untracked-but-not-ignored files under <paramref name="root"/>, relative to it.
+        /// Null when git is unavailable or the folder is not inside a repository, so the caller falls
+        /// back to walking the disk.
+        /// </summary>
+        private List<string> ListGitWorkspaceFiles(string root)
+        {
+            string output = RunGitCommand(root, "ls-files -z --cached --others --exclude-standard", AtMentionGitTimeoutMs);
+            if (output == null) return null;
+
+            return output.Split(new[] { '\0' }, StringSplitOptions.RemoveEmptyEntries)
+                .Distinct(StringComparer.Ordinal) // --cached lists a file once per conflict stage
+                .ToList();
+        }
+
+        /// <summary>
+        /// Breadth-first walk (so shallow folders are always reached before a deep subtree uses up
+        /// the budget), skipping ignored/excluded folders and symlink reparse points. Yields
+        /// workspace-relative file paths.
+        /// </summary>
+        private static IEnumerable<string> WalkWorkspaceFiles(string rootFull, AtMentionFilter filter)
+        {
+            var queue = new Queue<string>();
+            queue.Enqueue(rootFull);
+            int scanned = 0;
+
+            while (queue.Count > 0 && scanned < AtMentionMaxScannedFiles)
+            {
+                string dir = queue.Dequeue();
+
+                string[] files;
+                try { files = Directory.GetFiles(dir); }
+                catch { files = Array.Empty<string>(); }
+
+                foreach (string f in files)
+                {
+                    if (++scanned > AtMentionMaxScannedFiles) yield break;
+                    yield return ToRelative(rootFull, f);
+                }
+
+                string[] subdirs;
+                try { subdirs = Directory.GetDirectories(dir); }
+                catch { subdirs = Array.Empty<string>(); }
+
+                foreach (string d in subdirs)
+                {
+                    if (filter.ExcludesFolder(ToRelative(rootFull, d))) continue;
+                    try
+                    {
+                        var attr = File.GetAttributes(d);
+                        if ((attr & FileAttributes.ReparsePoint) != 0) continue;
+                    }
+                    catch { continue; }
+
+                    queue.Enqueue(d);
+                }
+            }
+        }
+
+        private static bool IsUnityProjectRoot(string root)
+        {
+            try
+            {
+                return File.Exists(Path.Combine(root, "ProjectSettings", "ProjectVersion.txt"))
+                    && Directory.Exists(Path.Combine(root, "Assets"));
+            }
+            catch
+            {
+                return false;
+            }
         }
 
         private static string ToRelative(string root, string full)
@@ -442,6 +503,163 @@ namespace ClaudeCodeVS
                 ? full.Substring(root.Length).TrimStart('\\', '/')
                 : full;
             return rel.Replace('\\', '/');
+        }
+
+        #endregion
+
+        #region Index Filtering (pure, unit-tested)
+
+        /// <summary>
+        /// Which files and folders the "@" index keeps. Built from the Settings → Behavior
+        /// "@ file picker" fields plus the built-in ignore list (and Unity's generated folders and
+        /// .meta sidecars when the workspace is a Unity project).
+        /// </summary>
+        internal sealed class AtMentionFilter
+        {
+            public readonly HashSet<string> FileTypes = new HashSet<string>(StringComparer.OrdinalIgnoreCase);          // empty = every file
+            public readonly HashSet<string> ExcludedExtensions = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            public readonly HashSet<string> ExcludedFolderNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase); // match at any depth
+            public readonly List<string> ExcludedFolderPaths = new List<string>();                                        // "a/b/" prefixes
+
+            /// <summary>True when the folder (workspace-relative, '/'-separated, no trailing '/')
+            /// or any of its ancestors is excluded.</summary>
+            public bool ExcludesFolder(string relFolder)
+            {
+                if (string.IsNullOrEmpty(relFolder)) return false;
+                string withSlash = relFolder.TrimEnd('/') + "/";
+
+                foreach (string prefix in ExcludedFolderPaths)
+                {
+                    if (withSlash.StartsWith(prefix, StringComparison.OrdinalIgnoreCase)) return true;
+                }
+                foreach (string segment in withSlash.Split(new[] { '/' }, StringSplitOptions.RemoveEmptyEntries))
+                {
+                    if (ExcludedFolderNames.Contains(segment)) return true;
+                }
+                return false;
+            }
+
+            public bool IncludesFile(string relFile)
+            {
+                string name = NameOf(relFile);
+                foreach (string ext in ExcludedExtensions)
+                {
+                    if (name.EndsWith(ext, StringComparison.OrdinalIgnoreCase)) return false;
+                }
+                if (FileTypes.Count == 0) return true;
+                foreach (string ext in FileTypes)
+                {
+                    if (name.EndsWith(ext, StringComparison.OrdinalIgnoreCase)) return true;
+                }
+                return false;
+            }
+        }
+
+        /// <summary>
+        /// Parses the settings text into a filter. File types accept ".cs", "cs" or "*.cs";
+        /// folders accept a bare name ("Plugins", excluded wherever it appears) or a
+        /// workspace-relative path ("Assets/Plugins", excluded only there). Both lists are separated
+        /// by commas, semicolons or new lines; file types may also be space-separated (folder names
+        /// can contain spaces, so folders may not).
+        /// </summary>
+        internal static AtMentionFilter CreateAtMentionFilter(string fileTypes, string excludedFolders, bool unityProject)
+        {
+            var filter = new AtMentionFilter();
+            char[] listSeparators = { ',', ';', '\r', '\n' };
+            char[] typeSeparators = { ',', ';', ' ', '\t', '\r', '\n' };
+
+            foreach (string raw in (fileTypes ?? string.Empty).Split(typeSeparators, StringSplitOptions.RemoveEmptyEntries))
+            {
+                string ext = raw.Trim().TrimStart('*');
+                if (ext.Length == 0 || ext == ".") continue;
+                if (!ext.StartsWith(".", StringComparison.Ordinal)) ext = "." + ext;
+                filter.FileTypes.Add(ext);
+            }
+
+            foreach (string name in AtIgnoredDirs) filter.ExcludedFolderNames.Add(name);
+
+            foreach (string raw in (excludedFolders ?? string.Empty).Split(listSeparators, StringSplitOptions.RemoveEmptyEntries))
+            {
+                string folder = raw.Trim().Replace('\\', '/').Trim('/');
+                if (folder.StartsWith("./", StringComparison.Ordinal)) folder = folder.Substring(2);
+                if (folder.Length == 0 || folder == ".") continue;
+                if (folder.IndexOf('/') >= 0) filter.ExcludedFolderPaths.Add(folder + "/");
+                else filter.ExcludedFolderNames.Add(folder);
+            }
+
+            if (unityProject)
+            {
+                foreach (string dir in AtUnityGeneratedRootDirs) filter.ExcludedFolderPaths.Add(dir + "/");
+                filter.ExcludedExtensions.Add(AtUnityMetaExtension);
+            }
+
+            return filter;
+        }
+
+        /// <summary>
+        /// Filters workspace-relative file paths, keeps at most <paramref name="maxFiles"/> of them,
+        /// adds every folder that contains a kept file (trailing '/'), and orders the result
+        /// shallowest first (folders before files at the same depth), so an empty "@" query shows
+        /// the top of the tree rather than whatever a deep subtree happened to list first.
+        /// </summary>
+        internal static List<string> BuildAtMentionIndex(IEnumerable<string> relativeFiles, AtMentionFilter filter, int maxFiles)
+        {
+            var files = new List<string>();
+            var folders = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            var checkedFolders = new Dictionary<string, bool>(StringComparer.OrdinalIgnoreCase); // folder -> excluded
+
+            foreach (string raw in relativeFiles ?? Enumerable.Empty<string>())
+            {
+                if (files.Count >= maxFiles) break;
+                if (string.IsNullOrEmpty(raw)) continue;
+
+                string rel = raw.Replace('\\', '/');
+                if (rel.StartsWith("./", StringComparison.Ordinal)) rel = rel.Substring(2);
+                if (rel.Length == 0 || rel.EndsWith("/", StringComparison.Ordinal)) continue;
+
+                int slash = rel.LastIndexOf('/');
+                string parent = slash > 0 ? rel.Substring(0, slash) : string.Empty;
+                if (parent.Length > 0)
+                {
+                    if (!checkedFolders.TryGetValue(parent, out bool excluded))
+                    {
+                        excluded = filter.ExcludesFolder(parent);
+                        checkedFolders[parent] = excluded;
+                    }
+                    if (excluded) continue;
+                }
+                if (!filter.IncludesFile(rel)) continue;
+
+                files.Add(rel);
+                for (int i = rel.IndexOf('/'); i > 0; i = rel.IndexOf('/', i + 1))
+                    folders.Add(rel.Substring(0, i + 1));
+            }
+
+            var result = new List<string>(folders.Count + files.Count);
+            result.AddRange(folders);
+            result.AddRange(files);
+            result.Sort(CompareAtEntries);
+            return result;
+        }
+
+        private static int CompareAtEntries(string a, string b)
+        {
+            int depth = AtEntryDepth(a).CompareTo(AtEntryDepth(b));
+            if (depth != 0) return depth;
+
+            bool aDir = a.EndsWith("/", StringComparison.Ordinal);
+            bool bDir = b.EndsWith("/", StringComparison.Ordinal);
+            if (aDir != bDir) return aDir ? -1 : 1;
+
+            return StringComparer.OrdinalIgnoreCase.Compare(a, b);
+        }
+
+        private static int AtEntryDepth(string entry)
+        {
+            int depth = 0;
+            for (int i = 0; i < entry.Length - 1; i++)
+                if (entry[i] == '/') depth++;
+            return depth;
         }
 
         #endregion
