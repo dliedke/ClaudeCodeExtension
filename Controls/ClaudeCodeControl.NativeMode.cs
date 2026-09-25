@@ -1370,6 +1370,50 @@ namespace ClaudeCodeVS
         }
 
         /// <summary>
+        /// Native-mode counterpart to <see cref="ClaudeCodeControl.InsertCodeSnippetIntoPrompt"/> for
+        /// when the chat has detached to its own tab and the panel's prompt box is collapsed
+        /// (issue: "Send Selection to Claude Code" landing on the hidden panel box behind the
+        /// "Show Chat" button). Stages the snippet in the composer for the user to review/add to —
+        /// it does not send it — mirroring the panel's insert-without-send behavior.
+        /// <para>
+        /// Targets whichever tab the user last focused (<see cref="ResolveFocusedNativeSessionId"/>),
+        /// the same resolver <see cref="SendTextToAgentAsync"/> uses, falling back to the default
+        /// session via <see cref="ShowNativeChatAsync"/> (which also recovers a closed/unshowable tab).
+        /// </para>
+        /// </summary>
+        private async Task InsertCodeSnippetIntoNativeChatAsync(string snippetBody)
+        {
+            await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
+
+            try
+            {
+                string focusedSessionId = ResolveFocusedNativeSessionId();
+                if (!string.IsNullOrEmpty(focusedSessionId))
+                {
+                    NativeChatSessionState session = GetSession(focusedSessionId);
+                    if (session?.ChatTranscript != null)
+                    {
+                        BringSessionTabToFront(session);
+                        session.ChatTranscript.InsertTextAtComposerCaret(
+                            PrependSeparatorIfNeeded(snippetBody, session.ChatTranscript.ComposerText));
+                        return;
+                    }
+                }
+
+                await ShowNativeChatAsync();
+                if (ChatTranscript != null)
+                {
+                    ChatTranscript.InsertTextAtComposerCaret(
+                        PrependSeparatorIfNeeded(snippetBody, ChatTranscript.ComposerText));
+                }
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"Error inserting code snippet into native chat: {ex.Message}");
+            }
+        }
+
+        /// <summary>
         /// Delivers a prompt over the agent's structured channel and echoes it in the transcript.
         /// </summary>
         /// <summary>Sends prompt to a specific session's agent (multi-session support).</summary>
@@ -2370,6 +2414,11 @@ namespace ClaudeCodeVS
         /// <summary>
         /// Selects a parallel session's document tab so a card that blocks its agent is not left
         /// unseen behind another tab. Best-effort — never throws into the event pump.
+        /// <para>
+        /// Also focuses that tab's composer, matching the default session's
+        /// <see cref="ShowNativeChatTabAsync"/> path — otherwise a background tab brought forward
+        /// this way (unlike the default session) never lands keyboard focus anywhere.
+        /// </para>
         /// </summary>
         private void BringSessionTabToFront(NativeChatSessionState session)
         {
@@ -2380,6 +2429,7 @@ namespace ClaudeCodeVS
                 if (session?.Window?.Frame is IVsWindowFrame frame)
                 {
                     frame.Show();
+                    session.ChatTranscript?.FocusComposer();
                 }
             }
             catch (Exception ex)

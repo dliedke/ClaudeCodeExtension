@@ -139,6 +139,9 @@ Use native mode to avoid this issue.
 
 ## Version History
 
+### Version 203.0
+- Fixed "Send Selection to Claude Code" so it reaches the conversation when Native mode's chat has its own tab, instead of being lost behind the "Show Chat" button.
+
 ### Version 202.0
 - The "@" file picker now reaches every file in large projects: it skips anything your .gitignore excludes and indexes far more files than before (issue #174).
 - In Unity projects the picker leaves out the Library, Temp and Logs folders and the .meta files next to each asset.

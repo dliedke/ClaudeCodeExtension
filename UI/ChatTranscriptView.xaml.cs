@@ -1418,6 +1418,25 @@ namespace ClaudeCodeVS.UI
         }
 
         /// <summary>
+        /// Inserts text into the composer at the caret, preserving any draft already there — the
+        /// composer counterpart to the panel prompt box's caret-aware insert, used by "Send Selection
+        /// to Claude Code" when the chat is in its own tab.
+        /// </summary>
+        public void InsertTextAtComposerCaret(string text)
+        {
+            if (text == null) return;
+
+            int caretIndex = ComposerInput.CaretIndex;
+            if (caretIndex < 0 || caretIndex > ComposerInput.Text.Length)
+            {
+                caretIndex = ComposerInput.Text.Length;
+            }
+
+            ComposerInput.Text = ComposerInput.Text.Insert(caretIndex, text);
+            ComposerInput.CaretIndex = caretIndex + text.Length;
+        }
+
+        /// <summary>
         /// Enter/Shift+Enter/Ctrl+Enter follow the same preference as the panel's prompt box, so the
         /// habit a user already has keeps working in the tab. Escape stops the turn in progress (same
         /// as the Stop button) when one is running; otherwise it is left alone (no unfocus side effect).
