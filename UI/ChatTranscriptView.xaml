@@ -712,7 +712,7 @@
 
 	<!-- LayoutTransform (not RenderTransform) so Ctrl+Scroll zoom re-flows the text at the new
 	     scale instead of blurring a bitmap, and the scroll bars keep matching the content. -->
-	<Grid x:Name="RootGrid" PreviewMouseWheel="Root_PreviewMouseWheel"
+	<Grid x:Name="RootGrid" PreviewMouseWheel="Root_PreviewMouseWheel" PreviewKeyDown="Root_PreviewKeyDown"
 	      TextElement.FontFamily="{DynamicResource ChatFontFamily}"
 	      TextElement.FontSize="{DynamicResource ChatFontSize}">
 		<Grid.LayoutTransform>

@@ -139,6 +139,9 @@ Use native mode to avoid this issue.
 
 ## Version History
 
+### Version 201.0
+- Native mode chat: press Ctrl+0 to reset the conversation zoom back to 100% after zooming with Ctrl+Scroll.
+
 ### Version 200.0
 - Native mode: parallel chat tabs now show the same toolbar buttons as the main chat tab, instead of just the Tools menu.
 - Native mode: closing the main chat tab no longer reopens it by itself when the agent has a question or permission prompt — it waits quietly until you click *💬 Show Chat*.

@@ -2482,7 +2482,7 @@ namespace ClaudeCodeVS
             {
                 "Press Ctrl+Up/Down in the prompt box for prompt history.",
                 "Ctrl+V pastes an image from the clipboard, or drag & drop files onto the chat.",
-                "Ctrl+Scroll zooms the conversation, and the top edge of the prompt box can be dragged.",
+                "Ctrl+Scroll zooms the conversation (Ctrl+0 resets it), and the top edge of the prompt box can be dragged.",
                 "The buttons below switch agent, model, effort and permissions mid-conversation."
             };
 
