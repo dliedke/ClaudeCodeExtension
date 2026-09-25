@@ -90,6 +90,19 @@
  *          a bug report is about are still there in full; only the ones that had nothing to say are
  *          quiet. What reaches the log is all this decides: no pass does anything differently.
  *
+ *          A trip through several DPIs in a row - measured over 200% -> 100% -> 250% -> 200% - showed
+ *          three ways the rounding of one step leaked into the next. The rescale scaled the CURRENT
+ *          height, so each step rounded an already rounded value (11 -> 6 -> 15 -> 12 px: back at
+ *          200% with a font 9% larger); it now scales the base the first rescale captured, and the
+ *          same trip comes back to 11 (_conhostBaseCellHeightPx). The grid fit took the painted cell
+ *          width to be the reported one times the scale, which is regularly a pixel off in either
+ *          direction - 16 columns left blank at 100%, 2 hidden past the window at 250% - and now
+ *          measures it off the host's largest window instead (MeasurePaintedConsoleCellWidth).
+ *          Where the columns still do not fit, the fit steps the font down by a pixel or two rather
+ *          than take columns away (TryShrinkConsoleFontToFitColumns). And a buffer the fit had to
+ *          widen reflowed its text under a viewport already computed for the old rows - the prompt
+ *          2,200 rows above what the panel showed - so the viewport is anchored again after it grows.
+ *
  *          Two system events cover the ways the DPI changes - DisplaySettingsChanged for a
  *          resolution or monitor change, SessionSwitch for the Remote Desktop reconnect that
  *          changes it while the session is disconnected - and both land on the same repair. It runs
@@ -184,7 +197,8 @@ namespace ClaudeCodeVS
         /// (issue #73). The lines are kept instead of dropped because the moment a cycle turns out to
         /// have found something, they are the context that makes the rest of it readable.
         /// </summary>
-        private readonly List<string> _displayRepairHeldLogLines = new List<string>();
+        private readonly List<KeyValuePair<DateTime, string>> _displayRepairHeldLogLines =
+            new List<KeyValuePair<DateTime, string>>();
 
         /// <summary>
         /// True once the current cycle has written a line that is not routine, which releases the held
@@ -341,10 +355,11 @@ namespace ClaudeCodeVS
                         await Task.Delay(DisplayChangeRepairDelaysMs[pass]);
                         await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
 
+                        // Stopped without a line of its own: a routine line from here would land in
+                        // the held lines of the cycle that superseded this one - that list is only
+                        // ever the current cycle's - and read there as one of its passes.
                         if (!IsDisplayChangeRepairStillWanted(requestId))
                         {
-                            LogDisplayRepair($"dpi repair pass {pass}: superseded or terminal gone - stopping",
-                                             routine: true);
                             return;
                         }
 
@@ -483,9 +498,10 @@ namespace ClaudeCodeVS
                 _displayRepairFitPending = false;
 
                 int screenHeightPx = GetTerminalScreenHeightPx();
+                int screenWidthPx = GetTerminalScreenWidthPx();
                 TryGetEmbeddedTerminalClientSize(out int baselineClientWidthPx, out int _);
                 ConsoleGridSnapshot gridBefore =
-                    await RunConsoleWorkAsync(() => TryReadConsoleGrid(screenHeightPx, baselineClientWidthPx));
+                    await RunConsoleWorkAsync(() => TryReadConsoleGrid(screenHeightPx, baselineClientWidthPx, screenWidthPx));
 
                 if (!IsDisplayChangeRepairStillWanted(requestId))
                 {
@@ -541,7 +557,10 @@ namespace ClaudeCodeVS
                     }
                     else
                     {
-                        rescaleDetail = $"ok, cell height now {rescale.NewCellHeightPx}px";
+                        // The base is what makes a trip through several DPIs come back to the same
+                        // size, so it belongs in the line a bug report about the size would quote.
+                        rescaleDetail = $"ok, cell height now {rescale.NewCellHeightPx}px " +
+                                        $"(base {_conhostBaseCellHeightPx}px at {_conhostBaseCellDpi} dpi)";
                     }
 
                     LogDisplayRepair($"dpi repair pass {passIndex}: rescale {fromDpi}->{panelDpi} dpi {rescaleDetail}",
@@ -662,9 +681,10 @@ namespace ClaudeCodeVS
                 if (lastPass)
                 {
                     int wtScreenHeightPx = GetTerminalScreenHeightPx();
+                    int wtScreenWidthPx = GetTerminalScreenWidthPx();
                     TryGetEmbeddedTerminalClientSize(out int wtClientWidthPx, out int _);
                     ConsoleGridSnapshot wtGrid =
-                        await RunConsoleWorkAsync(() => TryReadConsoleGrid(wtScreenHeightPx, wtClientWidthPx));
+                        await RunConsoleWorkAsync(() => TryReadConsoleGrid(wtScreenHeightPx, wtClientWidthPx, wtScreenWidthPx));
 
                     LogDisplayRepair($"dpi repair pass {passIndex}: console after   {wtGrid.Describe()}",
                                      routine: true);
@@ -697,9 +717,18 @@ namespace ClaudeCodeVS
             }
 
             int screenHeightPx = GetTerminalScreenHeightPx();
+            int screenWidthPx = GetTerminalScreenWidthPx();
 
             ConsoleGridFitOutcome outcome =
-                await RunConsoleWorkAsync(() => TryFitConsoleGridToWindow(clientWidthPx, clientHeightPx, screenHeightPx));
+                await RunConsoleWorkAsync(() => TryFitConsoleGridToWindow(clientWidthPx, clientHeightPx, screenHeightPx, screenWidthPx));
+
+            // Booked before the superseded check below: the font has moved whether or not this pass
+            // is still the current one, and a correction the offset does not carry is one the next
+            // Ctrl+Scroll zoom persists as the user's size.
+            if (outcome != null && outcome.FontDeltaPx != 0)
+            {
+                _conhostDpiCellOffsetPx += outcome.FontDeltaPx;
+            }
 
             if (!IsDisplayChangeRepairStillWanted(requestId))
             {
@@ -788,7 +817,9 @@ namespace ClaudeCodeVS
         {
             if (routine && !_displayRepairLogVerbose)
             {
-                _displayRepairHeldLogLines.Add(message);
+                // Stamped now, not when released: the passes are seconds apart, and the stamps are
+                // what shows whether they ran on schedule.
+                _displayRepairHeldLogLines.Add(new KeyValuePair<DateTime, string>(DateTime.Now, message));
                 return;
             }
 
@@ -796,9 +827,9 @@ namespace ClaudeCodeVS
             {
                 _displayRepairLogVerbose = true;
 
-                foreach (string held in _displayRepairHeldLogLines)
+                foreach (KeyValuePair<DateTime, string> held in _displayRepairHeldLogLines)
                 {
-                    LogTerminalLaunch(held);
+                    LogTerminalLaunch(held.Value, held.Key);
                 }
                 _displayRepairHeldLogLines.Clear();
             }

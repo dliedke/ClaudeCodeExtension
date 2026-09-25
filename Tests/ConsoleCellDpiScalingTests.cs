@@ -141,6 +141,79 @@ namespace ClaudeCodeExtension.Tests
         }
 
         /// <summary>
+        /// The measured trip: 200% -> 100% -> 250% -> 200% with an 11 px cell. Scaling the current
+        /// height each time rounded an already rounded value - 11 -> 6 (5.5 up) -> 15 -> 12 - and the
+        /// terminal came back 9% larger, with 68 columns where it had 75 in the same panel. Scaled
+        /// from the base it started at, the same trip lands on 6 -> 14 -> 11.
+        /// </summary>
+        [TestMethod]
+        public void ARoundTripThroughSeveralDpisComesBackToTheSameCell()
+        {
+            const int baseHeight = 11;
+            const uint baseDpi = 192;
+
+            int at96 = ClaudeCodeControl.ScaleConsoleCellHeightForDpi(baseHeight, 192, 96,
+                ClaudeCodeControl.IdealConsoleCellHeightForDpi(baseHeight, baseDpi, 96));
+            int at240 = ClaudeCodeControl.ScaleConsoleCellHeightForDpi(at96, 96, 240,
+                ClaudeCodeControl.IdealConsoleCellHeightForDpi(baseHeight, baseDpi, 240));
+            int back = ClaudeCodeControl.ScaleConsoleCellHeightForDpi(at240, 240, 192,
+                ClaudeCodeControl.IdealConsoleCellHeightForDpi(baseHeight, baseDpi, 192));
+
+            Assert.AreEqual(6, at96, "5.5 rounds up, as before.");
+            Assert.AreEqual(14, at240, "13.75 from the base - not the 15 that 6 x 2.5 gave.");
+            Assert.AreEqual(11, back, "Back at the DPI it started at, the cell is the one it started with.");
+
+            // What the old arithmetic did with the same trip, for the record.
+            int oldAt240 = ClaudeCodeControl.ScaleConsoleCellHeightForDpi(at96, 96, 240);
+            Assert.AreEqual(15, oldAt240);
+            Assert.AreEqual(12, ClaudeCodeControl.ScaleConsoleCellHeightForDpi(oldAt240, 240, 192),
+                "The drift the base size exists to prevent.");
+        }
+
+        /// <summary>
+        /// A target computed from the base can sit on the far side of the current height: the grid fit
+        /// may have stepped the font down a pixel after the last rescale, and a small DPI decrease then
+        /// asks for a cell a pixel taller than that. That is not the clamp turning a shrink into a
+        /// growth - read as one, the repair would call the rescale clamped and hold the width.
+        /// </summary>
+        [TestMethod]
+        public void ATargetFromTheBaseMayMoveAgainstTheDpiWhenTheClampDidNotMoveIt()
+        {
+            // Base 15 px at 240 dpi, stepped down to 13 by the fit; 240 -> 216 dpi asks for 13.5 -> 14.
+            int ideal = ClaudeCodeControl.IdealConsoleCellHeightForDpi(15, 240, 216);
+            Assert.AreEqual(14, ideal);
+            Assert.AreEqual(14, ClaudeCodeControl.ScaleConsoleCellHeightForDpi(13, 240, 216, ideal));
+
+            // The clamp itself still may not do it: a cell below the floor stays put on a decrease.
+            Assert.AreEqual(0, ClaudeCodeControl.ScaleConsoleCellHeightForDpi(4, 192, 96, 2));
+        }
+
+        /// <summary>
+        /// The base is captured by the first rescale and dropped by a zoom, which is the user picking
+        /// a size - and a new terminal starts from the saved size with no base at all. Source-level:
+        /// the capture sits inside the console attach.
+        /// </summary>
+        [TestMethod]
+        public void TheRescaleWorksFromTheBaseAndTheZoomResetsIt()
+        {
+            string adjust = ExtractMethodBody(
+                RepositoryLayout.ReadText("Controls", "ClaudeCodeControl.AgentCompletion.cs"),
+                "private int TryAdjustConhostFontSize(int stepUnits, out ConsoleCellRescale rescale,");
+
+            StringAssert.Contains(adjust, "IdealConsoleCellHeightForDpi(_conhostBaseCellHeightPx, _conhostBaseCellDpi, scaleToDpi)",
+                "The target has to come from the base, or the rounding of every step compounds.");
+            StringAssert.Contains(adjust, "_conhostBaseCellHeightPx = oldHeight;",
+                "The first rescale captures the size the user had.");
+
+            int zoomReset = adjust.IndexOf("if (!dpiMode)", StringComparison.Ordinal);
+            Assert.IsTrue(zoomReset >= 0 && adjust.IndexOf("_conhostBaseCellHeightPx = 0;", zoomReset, StringComparison.Ordinal) > zoomReset,
+                "A zoom is a size the user chose; the next rescale has to start from it.");
+
+            StringAssert.Contains(TerminalSource, "_conhostBaseCellHeightPx = 0;",
+                "A new terminal starts from the saved size, not from the previous one's base.");
+        }
+
+        /// <summary>
         /// Rounds away from zero rather than truncating: a cell one pixel short of the ratio is a
         /// column more than the panel can show, which is exactly the overflow this is meant to avoid.
         /// </summary>

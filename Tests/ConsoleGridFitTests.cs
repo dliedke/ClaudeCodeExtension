@@ -72,6 +72,28 @@ namespace ClaudeCodeExtension.Tests
         }
 
         /// <summary>
+        /// The row pitch off the host maximum can only read high - the chrome is deducted before the
+        /// division - so the scale is the largest quarter at or below the ratio, not the nearest one.
+        /// Measured at 250% with a 14 px cell on a console created at 200%: painted 28 px (read off the
+        /// screenshot), 72 rows on a 2160 px screen, 30 px of pitch, a ratio of 2.14. Rounded to the
+        /// nearest quarter that was 2.25 and a 32 px row - 31 rows in a panel that holds 36.
+        /// </summary>
+        [TestMethod]
+        public void EstimatePaintedConsoleCell_NeverRoundsTheRowScaleUp()
+        {
+            ClaudeCodeControl.EstimatePaintedConsoleCell(6, 14, 72, 9001, 2160, 0, 0,
+                                                         out int _, out int paintedHeightPx, out bool measured);
+
+            Assert.AreEqual(28, paintedHeightPx, "14 x 2, not 14 x 2.25.");
+            Assert.IsTrue(measured);
+
+            // The same console one row of maximum later rounded the right way by luck.
+            ClaudeCodeControl.EstimatePaintedConsoleCell(6, 14, 73, 9001, 2160, 0, 0,
+                                                         out int _, out int nextHeightPx, out bool _);
+            Assert.AreEqual(28, nextHeightPx);
+        }
+
+        /// <summary>
         /// 150% is a scale Windows offers and a whole-number ratio would miss, so the rounding is to
         /// the quarter and not to the integer.
         /// </summary>
@@ -447,6 +469,68 @@ namespace ClaudeCodeExtension.Tests
             Assert.AreEqual(39, capped.Rows, "With the host maximum in play it caps - which is what the fallback is for.");
         }
 
+        /// <summary>
+        /// The derived width - reported times scale - was a pixel off in both directions on the same
+        /// machine: 12 against a painted 11 (3840 px over the 349 columns the host reported as its
+        /// largest), 14 against 13 at 250%, 6 against 5 at 100%. The monitor over the largest column
+        /// count is the pitch itself.
+        /// </summary>
+        [TestMethod]
+        public void MeasurePaintedConsoleCellWidth_ReadsThePitchOffTheLargestWindow()
+        {
+            Assert.AreEqual(11, ClaudeCodeControl.MeasurePaintedConsoleCellWidth(12, 349, 3840),
+                "Measured: 1735 px held 157 columns of 11 px; the derived 12 said 144.");
+            Assert.AreEqual(13, ClaudeCodeControl.MeasurePaintedConsoleCellWidth(14, 290, 3840), "250%");
+            Assert.AreEqual(5, ClaudeCodeControl.MeasurePaintedConsoleCellWidth(6, 380, 1920), "100%, frame deducted");
+        }
+
+        /// <summary>
+        /// A pitch further from the derived width than its rounding allows is not a reading of this
+        /// cell - a monitor the host did not measure against, a host answering with something else -
+        /// and nothing measured is reported as 0, which keeps the derived width and, with it, the font.
+        /// </summary>
+        [TestMethod]
+        public void MeasurePaintedConsoleCellWidth_RejectsWhatCannotBeThisCell()
+        {
+            Assert.AreEqual(0, ClaudeCodeControl.MeasurePaintedConsoleCellWidth(12, 349, 1920),
+                "5 px against a derived 12 is another monitor's width, not this cell.");
+            Assert.AreEqual(0, ClaudeCodeControl.MeasurePaintedConsoleCellWidth(12, 0, 3840), "no largest size");
+            Assert.AreEqual(0, ClaudeCodeControl.MeasurePaintedConsoleCellWidth(12, 349, 0), "no monitor");
+            Assert.AreEqual(0, ClaudeCodeControl.MeasurePaintedConsoleCellWidth(0, 349, 3840), "no cell");
+        }
+
+        /// <summary>
+        /// The measured overhang at 250%: 75 columns of 13 px in a 948 px window - 975 px of grid, the
+        /// last two columns past the edge, where the agent draws and the user cannot see. A column of
+        /// slack or less is integer division, not an overhang.
+        /// </summary>
+        [TestMethod]
+        public void ConsoleGridOverhangsWindow_OnlyWhenAWholeColumnIsHidden()
+        {
+            Assert.IsTrue(ClaudeCodeControl.ConsoleGridOverhangsWindow(75, 13, 948), "27 px - two columns - hidden.");
+            Assert.IsFalse(ClaudeCodeControl.ConsoleGridOverhangsWindow(75, 12, 948), "900 px fits.");
+            Assert.IsFalse(ClaudeCodeControl.ConsoleGridOverhangsWindow(157, 11, 1735), "The 200% state: 1727 px fits.");
+            Assert.IsFalse(ClaudeCodeControl.ConsoleGridOverhangsWindow(80, 12, 950), "10 px short of a column is not a hidden one.");
+            Assert.IsFalse(ClaudeCodeControl.ConsoleGridOverhangsWindow(0, 12, 948), "nothing measured");
+        }
+
+        /// <summary>
+        /// The reflow that made the viewport show empty rows: widening the buffer from 104 to 173
+        /// columns took the cursor from row 8997 to 6723, and the viewport planned before it went to
+        /// row 8942 - 56 empty rows, the prompt 2,200 rows above. Anchored again on the cursor as it
+        /// is after the reflow, the cursor is on the viewport's last row.
+        /// </summary>
+        [TestMethod]
+        public void AnchorConsoleViewportTop_FollowsTheCursorAfterAReflow()
+        {
+            Assert.AreEqual(6668, ClaudeCodeControl.AnchorConsoleViewportTop(8926, 6723, 56, 9001),
+                "6723 - 56 + 1: the cursor on the last row, where the agent draws.");
+            Assert.AreEqual(500, ClaudeCodeControl.AnchorConsoleViewportTop(500, 520, 47, 9001),
+                "A viewport that already holds the cursor stays where it is.");
+            Assert.AreEqual(0, ClaudeCodeControl.AnchorConsoleViewportTop(60, 3, 47, 9001), "Never above the buffer.");
+            Assert.AreEqual(3, ClaudeCodeControl.AnchorConsoleViewportTop(44, 49, 47, 50), "Never past its end.");
+        }
+
         #endregion
 
         #region Source-level guards
@@ -593,6 +677,52 @@ namespace ClaudeCodeExtension.Tests
         }
 
         /// <summary>
+        /// A buffer the fit widens reflows its text, so the viewport has to be anchored on the grid as
+        /// it is after the write, not on the one it was planned against - for the honest target and
+        /// for the host-maximum fallback alike.
+        /// </summary>
+        [TestMethod]
+        public void TheFitAnchorsTheViewportAgainAfterTheBufferGrows()
+        {
+            string fit = ExtractMethodBody(AgentCompletionSource,
+                "private ConsoleGridFitOutcome TryFitConsoleGridToWindow(int clientWidthPx, int clientHeightPx,");
+
+            int grow = fit.IndexOf("SetConsoleScreenBufferSize(handle, bufferSize)", StringComparison.Ordinal);
+            int anchor = fit.IndexOf("fit.Top = AnchorConsoleViewportTop(grown.ViewTop, grown.CursorRow, fit.Rows, grown.BufferRows);",
+                                     StringComparison.Ordinal);
+            int apply = fit.IndexOf("TryApplyConsoleViewport(handle, fit)", StringComparison.Ordinal);
+
+            Assert.IsTrue(grow >= 0 && anchor > grow, "The anchor has to be taken after the buffer has grown.");
+            Assert.IsTrue(apply > anchor, "...and before the viewport is written.");
+            StringAssert.Contains(fit, "capped.Top = AnchorConsoleViewportTop(grown.ViewTop, grown.CursorRow, capped.Rows, grown.BufferRows);",
+                "The fallback viewport is planned against the old rows as well.");
+        }
+
+        /// <summary>
+        /// Hidden columns are repaired by the font, never by the buffer - and only on a measured
+        /// width, because the derived one reports columns hidden that are all on screen. The pixels
+        /// it takes off are a DPI correction like the rescale's, so they go into the offset the zoom
+        /// subtracts before it persists a size.
+        /// </summary>
+        [TestMethod]
+        public void HiddenColumnsAreRepairedByTheFontOnAMeasuredWidthOnly()
+        {
+            string fit = ExtractMethodBody(AgentCompletionSource,
+                "private ConsoleGridFitOutcome TryFitConsoleGridToWindow(int clientWidthPx, int clientHeightPx,");
+
+            StringAssert.Contains(fit, "if (before.PaintedCellWidthMeasured &&",
+                "A derived width is a pixel off often enough to shrink the font for nothing.");
+            StringAssert.Contains(fit, "TryShrinkConsoleFontToFitColumns(",
+                "The overhang has to be repaired before the grid is fitted.");
+
+            string repair = ExtractMethodBody(DisplayChangeSource,
+                "private async Task<bool> FitConsoleGridAfterRepairAsync(int requestId, int passIndex, bool isConhost, bool lastPass)");
+
+            StringAssert.Contains(repair, "_conhostDpiCellOffsetPx += outcome.FontDeltaPx;",
+                "Without it the next Ctrl+Scroll zoom saves the correction as the user's size.");
+        }
+
+        /// <summary>
         /// A grid that could not be read, or whose painted cell could not be measured, is not a grid
         /// that is fine: it is one nothing can be said about. Both used to come back with Changed and
         /// StillOff clear, which is the signature of "nothing to repair" - so the quiet-cycle summary
@@ -646,7 +776,7 @@ namespace ClaudeCodeExtension.Tests
         public void TheCellEstimateMeasuresAgainstTheTerminalsOwnMonitor()
         {
             string read = ExtractMethodBody(AgentCompletionSource,
-                "private static ConsoleGridSnapshot ReadConsoleGrid(IntPtr handle, int screenHeightPx, int clientWidthPx)");
+                "private static ConsoleGridSnapshot ReadConsoleGrid(IntPtr handle, int screenHeightPx, int clientWidthPx,");
 
             StringAssert.Contains(read, "screenHeightPx,",
                 "The screen height has to be passed in by a caller that knows which monitor the terminal is on.");
