@@ -144,6 +144,8 @@ Use native mode to avoid this issue.
 - After a display change the terminal now uses the full width and height of the panel and no longer hides its last columns past the right edge.
 - The agent's prompt stays in view after a display change that widens the terminal, instead of the panel showing empty lines.
 - Native mode chat: press Ctrl+0 to reset the conversation zoom back to 100% after zooming with Ctrl+Scroll.
+- Thanks to [@metman-oss](https://github.com/metman-oss) for the display-change repair contribution (#173).
+- Thanks to [@karpach-relativity](https://github.com/karpach-relativity) for the native chat zoom-reset contribution (#172).
 
 ### Version 200.0
 - Native mode: parallel chat tabs now show the same toolbar buttons as the main chat tab, instead of just the Tools menu.
