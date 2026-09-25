@@ -1014,63 +1014,95 @@ namespace ClaudeCodeVS
         }
 
         /// <summary>
-        /// Inserts a formatted code snippet into the prompt text box without sending.
-        /// Called from the toolbar button and the editor context menu command.
+        /// Builds the markdown-formatted code snippet ("File: ..." header plus fenced code, unless
+        /// reference-only mode is on) shared by every "insert without sending" destination —
+        /// currently the panel prompt box and, when the chat is in its own tab, the native chat
+        /// composer. Does not include the leading separator; callers add that based on their own
+        /// target's existing text via <see cref="PrependSeparatorIfNeeded"/>.
+        /// </summary>
+        private string BuildCodeSnippetText(string code, string filePath, int startLine, int endLine)
+        {
+            string displayPath = filePath;
+            if (TryGetRelativePathUnderDirectory(filePath, _lastWorkspaceDirectory, out string relativePath))
+            {
+                displayPath = relativePath;
+            }
+
+            string extension = Path.GetExtension(filePath);
+            string langId = GetLanguageIdFromExtension(extension);
+
+            var snippet = new StringBuilder();
+
+            if (startLine == endLine)
+            {
+                snippet.AppendLine($"File: {displayPath} (line {startLine})");
+            }
+            else
+            {
+                snippet.AppendLine($"File: {displayPath} (lines {startLine}-{endLine})");
+            }
+
+            if (_settings?.SendSelectionReferenceOnly != true)
+            {
+                snippet.AppendLine($"```{langId}");
+                snippet.AppendLine(code.TrimEnd('\r', '\n'));
+                snippet.AppendLine("```");
+                snippet.AppendLine();
+            }
+
+            return snippet.ToString();
+        }
+
+        /// <summary>Prepends a blank-line separator when <paramref name="existingText"/> doesn't already end one.</summary>
+        private static string PrependSeparatorIfNeeded(string snippetBody, string existingText)
+        {
+            if (!string.IsNullOrEmpty(existingText) && !existingText.EndsWith("\n") && !existingText.EndsWith("\r"))
+            {
+                return Environment.NewLine + snippetBody;
+            }
+
+            return snippetBody;
+        }
+
+        /// <summary>
+        /// Inserts a formatted code snippet without sending it, so the user can add context before
+        /// sending themselves. Called from the toolbar button and the editor context menu command
+        /// ("Send Selection to Claude Code").
+        /// <para>
+        /// In terminal mode, and in Native mode while the chat is still docked in the panel, the
+        /// panel's own prompt box is the live input, so the snippet goes there as before. Once
+        /// Native mode's chat has detached to its own tab the panel's prompt box is collapsed (only
+        /// the "Show Chat" button remains) — the snippet would land somewhere invisible, so it is
+        /// routed to that tab's own composer instead.
+        /// </para>
         /// </summary>
         public void InsertCodeSnippetIntoPrompt(string code, string filePath, int startLine, int endLine)
         {
             try
             {
-                // Make path relative to workspace if possible
-                string displayPath = filePath;
-                if (TryGetRelativePathUnderDirectory(filePath, _lastWorkspaceDirectory, out string relativePath))
+                string snippetBody = BuildCodeSnippetText(code, filePath, startLine, endLine);
+
+                if (IsChatDetachedToOwnTab)
                 {
-                    displayPath = relativePath;
+#pragma warning disable VSSDK007, VSTHRD110
+                    _ = ThreadHelper.JoinableTaskFactory.RunAsync(() => InsertCodeSnippetIntoNativeChatAsync(snippetBody));
+#pragma warning restore VSSDK007, VSTHRD110
+                    return;
                 }
 
-                // Get language identifier from file extension
-                string extension = Path.GetExtension(filePath);
-                string langId = GetLanguageIdFromExtension(extension);
-
-                // Build the formatted snippet
-                var snippet = new StringBuilder();
-
-                // Add separator if prompt already has text
                 string currentText = PromptTextBox.Text;
-                if (!string.IsNullOrEmpty(currentText) && !currentText.EndsWith("\n") && !currentText.EndsWith("\r"))
-                {
-                    snippet.AppendLine();
-                }
-
-                // File header with line info
-                if (startLine == endLine)
-                {
-                    snippet.AppendLine($"File: {displayPath} (line {startLine})");
-                }
-                else
-                {
-                    snippet.AppendLine($"File: {displayPath} (lines {startLine}-{endLine})");
-                }
-
-                // Code fence with language (skipped when reference-only mode is on)
-                if (_settings?.SendSelectionReferenceOnly != true)
-                {
-                    snippet.AppendLine($"```{langId}");
-                    snippet.AppendLine(code.TrimEnd('\r', '\n'));
-                    snippet.AppendLine("```");
-                    snippet.AppendLine();
-                }
+                string snippet = PrependSeparatorIfNeeded(snippetBody, currentText);
 
                 // Insert at current cursor position or append
                 int caretIndex = PromptTextBox.CaretIndex;
                 if (caretIndex >= 0 && caretIndex < currentText.Length && !string.IsNullOrEmpty(currentText))
                 {
-                    PromptTextBox.Text = currentText.Insert(caretIndex, snippet.ToString());
+                    PromptTextBox.Text = currentText.Insert(caretIndex, snippet);
                     PromptTextBox.CaretIndex = caretIndex + snippet.Length;
                 }
                 else
                 {
-                    PromptTextBox.Text = currentText + snippet.ToString();
+                    PromptTextBox.Text = currentText + snippet;
                     PromptTextBox.CaretIndex = PromptTextBox.Text.Length;
                 }
 
