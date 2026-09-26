@@ -91,6 +91,15 @@ namespace ClaudeCodeVS.Agents
         /// </summary>
         public Action<JObject> ControlResponseReceived { get; set; }
 
+        /// <summary>
+        /// Fired for a <c>hook_callback</c> control request — the CLI asking the host to run a hook it
+        /// registered through <c>initialize</c> (see <see cref="ClaudeEditHook"/>). Arguments: the
+        /// request id to answer, and the hook <c>input</c> object. Like
+        /// <see cref="ControlResponseReceived"/> this is not an <see cref="AgentEvent"/>: the UI has
+        /// nothing to render for it, and the session owns the reply.
+        /// </summary>
+        public Action<string, JObject> HookCallbackReceived { get; set; }
+
         public IReadOnlyList<AgentEvent> Parse(string line)
         {
             if (string.IsNullOrWhiteSpace(line))
@@ -460,9 +469,20 @@ namespace ClaudeCodeVS.Agents
         private IReadOnlyList<AgentEvent> ParseControlRequest(JObject root)
         {
             var request = root["request"] as JObject;
+
+            if (request != null && (string)request["subtype"] == "hook_callback")
+            {
+                if ((string)request["callback_id"] == ClaudeEditHook.CallbackId)
+                {
+                    HookCallbackReceived?.Invoke((string)root["request_id"] ?? string.Empty, request["input"] as JObject);
+                }
+
+                return Empty;
+            }
+
             if (request == null || (string)request["subtype"] != "can_use_tool")
             {
-                // initialize / other subtypes are handled by the session, or simply ignored.
+                // Other subtypes are simply ignored.
                 return Empty;
             }
 

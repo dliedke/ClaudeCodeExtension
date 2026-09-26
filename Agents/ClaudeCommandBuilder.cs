@@ -121,6 +121,16 @@ namespace ClaudeCodeVS.Agents
         /// extension does not model — <c>--chrome</c>, <c>--add-dir</c>, <c>--mcp-config</c>, …
         /// </summary>
         public string ExtraArguments { get; set; } = string.Empty;
+
+        /// <summary>
+        /// Called with the file paths a Write/Edit/MultiEdit/NotebookEdit call is about to modify,
+        /// before the CLI touches them. Returns null to let the edit proceed, or a reason to block it
+        /// (shown to the model). Null (the default) registers no hook at all, so sessions that do not
+        /// need one pay no round trip per edit. Not part of the command line — it rides the control
+        /// channel; see <see cref="ClaudeEditHook"/>. If the callback throws, the session lets the edit
+        /// proceed rather than blocking work on a bug in the host.
+        /// </summary>
+        public Func<IReadOnlyList<string>, System.Threading.Tasks.Task<string>> BeforeFileEdit { get; set; }
     }
 
     /// <summary>

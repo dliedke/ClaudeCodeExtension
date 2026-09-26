@@ -400,7 +400,8 @@ namespace ClaudeCodeVS.Agents
             _parser = new ClaudeStreamParser(_options.IncludePartialMessages)
             {
                 ControlResponder = WriteControlResponse,
-                ControlResponseReceived = OnControlResponseReceived
+                ControlResponseReceived = OnControlResponseReceived,
+                HookCallbackReceived = _options.BeforeFileEdit != null ? (Action<string, JObject>)OnHookCallback : null
             };
 
             var host = new JsonLineProcessHost(hostOptions);
@@ -422,6 +423,61 @@ namespace ClaudeCodeVS.Agents
                 DisposeHost();
                 throw new AgentCliNotFoundException(_options.UseWsl ? WslCliNotFoundMessage : CliNotFoundMessage, ex);
             }
+
+            if (_options.BeforeFileEdit != null)
+            {
+                // Written before anything else so the hook is registered ahead of the first prompt; the
+                // CLI accepts it while idle (measured) and answers with its own control_response, which
+                // nobody is waiting for and OnControlResponseReceived drops.
+                try
+                {
+                    await host.WriteLineAsync(
+                        JsonConvert.SerializeObject(ClaudeEditHook.BuildInitializeRequest()), cancellationToken).ConfigureAwait(false);
+                }
+                catch (Exception ex) when (!(ex is OperationCanceledException))
+                {
+                    // Without the hook edits still work, just without the pre-edit step.
+                    Debug.WriteLine($"ClaudeStreamJsonSession: pre-edit hook not registered: {ex.Message}");
+                }
+            }
+        }
+
+        /// <summary>
+        /// Answers the CLI's pre-edit <c>hook_callback</c>: runs the host's <c>BeforeFileEdit</c> for the
+        /// files about to be written and replies allow, or deny with the host's reason. Off the reader
+        /// thread — the host may need the UI thread, and the reader must keep draining stdout meanwhile.
+        /// A throwing callback is answered with allow: a bug in the host must not block the agent's edits,
+        /// and a call left unanswered would hang the CLI.
+        /// </summary>
+        private void OnHookCallback(string requestId, JObject input)
+        {
+            Func<IReadOnlyList<string>, Task<string>> beforeEdit = _options.BeforeFileEdit;
+            IReadOnlyList<string> paths = ClaudeEditHook.ExtractPaths(input);
+
+            if (beforeEdit == null || paths.Count == 0)
+            {
+                WriteControlResponse(requestId, ClaudeEditHook.Allow());
+                return;
+            }
+
+#pragma warning disable VSTHRD110 // Fire-and-forget by design; failures are logged and answered with allow.
+            Task.Run(async () =>
+            {
+                object reply;
+                try
+                {
+                    string denyReason = await beforeEdit(paths).ConfigureAwait(false);
+                    reply = string.IsNullOrWhiteSpace(denyReason) ? ClaudeEditHook.Allow() : ClaudeEditHook.Deny(denyReason);
+                }
+                catch (Exception ex)
+                {
+                    Debug.WriteLine($"ClaudeStreamJsonSession: pre-edit callback failed: {ex}");
+                    reply = ClaudeEditHook.Allow();
+                }
+
+                WriteControlResponse(requestId, reply);
+            });
+#pragma warning restore VSTHRD110
         }
 
         /// <summary>

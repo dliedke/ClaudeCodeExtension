@@ -470,6 +470,15 @@ namespace ClaudeCodeVS
         public bool AutoSendRuntimeErrorsToAgent { get; set; } = false;
 
         /// <summary>
+        /// When true, Claude Code in native mode has each file checked out through Visual Studio's
+        /// source control before the agent writes it, in solutions bound to TFVC (Azure DevOps /
+        /// Team Foundation Server). Default true; a no-op for every other repository. If the checkout
+        /// fails the edit is blocked and the agent is told to ask the user. See
+        /// ClaudeCodeControl.TfvcCheckout.cs.
+        /// </summary>
+        public bool AutoTfvcCheckout { get; set; } = true;
+
+        /// <summary>
         /// Pixel height the prompt section starts at, and the value a corrupt saved
         /// position is healed back to (see ClaudeCodeControl.ResolveRestoredSplitterPosition).
         /// </summary>

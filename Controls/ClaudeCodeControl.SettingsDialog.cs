@@ -267,6 +267,12 @@ namespace ClaudeCodeVS
                 origAutoGitPull, themeFg);
             behaviorStack.Children.Add(autoGitPullCheck);
 
+            var autoTfvcCheckoutCheck = MakeCheckBox(
+                "Check out TFVC files before Claude edits them (native mode)",
+                "In a solution bound to Team Foundation Version Control (Azure DevOps / TFS), Claude Code in native mode has each read-only file checked out through Visual Studio before it writes to it, so it never has to clear the read-only flag itself. If a checkout fails, for example because someone else has the file locked, the edit is blocked and Claude is told to ask you. Has no effect on other repositories or other agents. Applies from the next chat session.",
+                _settings.AutoTfvcCheckout, themeFg);
+            behaviorStack.Children.Add(autoTfvcCheckoutCheck);
+
             behaviorStack.Children.Add(MakeSectionHeader("Build errors", themeFg));
 
             var autoSendBuildErrorsCheck = MakeCheckBox(
@@ -1208,6 +1214,7 @@ namespace ClaudeCodeVS
             bool newAutoSendRuntimeErrors = autoSendRuntimeErrorsCheck.IsChecked == true;
             bool newAutoOpenChanges = autoOpenCheck.IsChecked == true;
             bool newAutoGitPull = autoGitPullCheck.IsChecked == true;
+            bool newAutoTfvcCheckout = autoTfvcCheckoutCheck.IsChecked == true;
             int newFontSize = (fontSizeCombo.SelectedItem as ComboBoxItem)?.Tag is int fs ? fs : origFontSize;
             // Map the selected position back to orientation + invert.
             bool newVertical = leftRadio.IsChecked == true || rightRadio.IsChecked == true;
@@ -1311,6 +1318,7 @@ namespace ClaudeCodeVS
             _settings.AutoSendRuntimeErrorsToAgent = newAutoSendRuntimeErrors;
             _settings.AutoOpenChangesOnPrompt = newAutoOpenChanges;
             _settings.AutoGitPullBeforePrompt = newAutoGitPull;
+            _settings.AutoTfvcCheckout        = newAutoTfvcCheckout;
             _settings.InvertLayout            = newInvertLayout;
             _settings.SelectedLayoutOrientation = newOrientation;
             _settings.HidePromptPanel         = newHidePromptPanel;

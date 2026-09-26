@@ -59,6 +59,7 @@
     <Compile Include="Agents\AgentCliNotFoundException.cs" />
     <Compile Include="Agents\AgentModelUnavailableException.cs" />
     <Compile Include="Agents\ClaudeCommandBuilder.cs" />
+    <Compile Include="Agents\ClaudeEditHook.cs" />
     <Compile Include="Agents\ClaudeStreamJsonSession.cs" />
     <Compile Include="Agents\ClaudeStreamParser.cs" />
     <Compile Include="Agents\CodexAppServerClient.cs" />
@@ -88,6 +89,7 @@
     <Compile Include="Controls\ClaudeCodeControl.Diff.cs" />
     <Compile Include="Controls\ClaudeCodeControl.DisplayChange.cs" />
     <Compile Include="Controls\ClaudeCodeControl.GitSync.cs" />
+    <Compile Include="Controls\ClaudeCodeControl.TfvcCheckout.cs" />
     <Compile Include="Controls\ClaudeCodeControl.ImageHandling.cs" />
     <Compile Include="Controls\ClaudeCodeControl.Interop.cs" />
     <Compile Include="Controls\ClaudeCodeControl.ProviderManagement.cs" />

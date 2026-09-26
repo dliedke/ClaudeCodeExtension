@@ -6,7 +6,7 @@ Visual Studio Extension (VSIX) for VS 2022/2026 — integrates AI code assistant
 
 - Author: Daniel Carvalho Liedke (dliedke@gmail.com) | License: MIT
 - Repository: https://github.com/dliedke/ClaudeCodeExtension
-- Current Version: 202.0 | Target Framework: .NET Framework 4.7.2
+- Current Version: 204.0 | Target Framework: .NET Framework 4.7.2
 
 Step-by-step procedures for recurring tasks (release, Exp-hive debugging, publish, adding a
 provider/setting/UI file) live in `docs/SKILLS.md`. Short build/style brief for non-Claude agents: `docs/AGENTS.md`.
@@ -100,6 +100,7 @@ ClaudeCodeExtension/
 │   ├── ClaudeCodeControl.RuntimeErrors.cs # "Auto-send runtime errors": VS debugger-event hook, unhandled-exception collection, format + send to agent
 │   ├── ClaudeCodeControl.GitSync.cs     # "Pull before sending": pre-prompt git pull; conflicts are prepended to the prompt for the agent to resolve
 │   ├── ClaudeCodeControl.AtMention.cs   # "@" file/folder picker in the prompt box (workspace index + popup)
+│   ├── ClaudeCodeControl.TfvcCheckout.cs # "Check out TFVC files": Claude native mode pre-edit hook → VS QueryEdit checkout in TFVC-bound solutions
 │   ├── ClaudeCodeControl.CustomCommands.cs # User-defined custom commands: configure dialog, toolbar dropdown, dispatch
 │   ├── ClaudeCodeControl.DebugVisibility.cs # Keeps the extension (and any tab it created) visible while debugging (issues #130, #141)
 │   ├── ClaudeCodeControl.CliPaths.cs    # Per-provider custom CLI executable path: Settings "CLI Paths" tab content, resolution/validation helpers
@@ -118,7 +119,7 @@ ClaudeCodeExtension/
 │   ├── AgentEvent.cs                    # Provider-agnostic event/usage/permission model
 │   ├── JsonLineProcessHost.cs           # Shared process plumbing (stdio, line reader, tree teardown)
 │   ├── ProcessTree.cs                   # Process-tree enumeration/termination
-│   ├── ClaudeStreamJsonSession.cs / ClaudeStreamParser.cs / ClaudeCommandBuilder.cs # Claude Code stream-json
+│   ├── ClaudeStreamJsonSession.cs / ClaudeStreamParser.cs / ClaudeCommandBuilder.cs / ClaudeEditHook.cs # Claude Code stream-json (+ pre-edit hook)
 │   ├── AcpSession.cs / AcpCommandBuilder.cs # ACP (OpenCode, Devin, Devin native, Reasonix)
 │   ├── OneShotResumeSession.cs / CodexExecProtocol.cs / CursorAgentProtocol.cs # CLIs that exit each turn
 │   ├── CodexAppServerClient.cs        # Codex thread list/read/delete client for session history
@@ -231,6 +232,7 @@ Three cross-cutting rules (full text in `docs/ARCHITECTURE.md` → *Cross-Cuttin
 | `Controls/ClaudeCodeControl.RuntimeErrors.cs` | Auto-Send Runtime Errors — debugger break-mode hook, unhandled-exception collection, dedupe guard |
 | `Controls/ClaudeCodeControl.GitSync.cs` | Pull Before Sending — pre-prompt `git pull`, skip conditions, conflict-as-prompt handoff, `--autostash` caveats |
 | `Controls/ClaudeCodeControl.AtMention.cs` | "@" File/Folder Picker — index, popup, ranking, insert |
+| `Controls/ClaudeCodeControl.TfvcCheckout.cs`, `Agents/ClaudeEditHook.cs` | TFVC Checkout — PreToolUse hook over the control channel, QueryEdit checkout, deny-with-reason |
 | `Controls/ClaudeCodeControl.NativeMode.cs`, `Agents/*`, `UI/ChatTranscriptView.xaml` | Native Mode — Agent Sessions: `IAgentSession` contract, the six adapters, event map, streaming-duplication traps, `SendTextToAgentAsync` bifurcation |
 | `Controls/ClaudeCodeControl.NativeChat.cs`, `ToolWindows/NativeChatToolWindow.cs` | Native Mode — Chat tab and composer: MDI document-tab hosting, transcript re-parenting, composer reuse of the panel send path, live model/effort/permission switching via resume |
 

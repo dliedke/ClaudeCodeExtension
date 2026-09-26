@@ -774,7 +774,10 @@ namespace ClaudeCodeVS
                 PermissionMode = ClaudeCommandBuilder.ToPermissionMode(permissionChoice),
 
                 // User-supplied extra flags (Settings → CLI Paths → "Extra launch arguments").
-                ExtraArguments = GetExtraLaunchArgs(provider)
+                ExtraArguments = GetExtraLaunchArgs(provider),
+
+                // Null unless this is a TFVC-bound solution with "Auto-checkout TFVC files" on.
+                BeforeFileEdit = CreateTfvcCheckoutCallback(workspace, isWsl)
             };
 
             // A CLI installed after Visual Studio started is missing from the PATH we inherited; the
