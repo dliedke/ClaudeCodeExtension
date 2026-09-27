@@ -254,6 +254,21 @@ namespace ClaudeCodeVS
                 VerticalContentAlignment = VerticalAlignment.Center
             };
 
+            // Watermark-style hint (see ModelPickerDialog's searchHint for the same pattern): the box
+            // itself stays empty for the two flag-driven presets (its text is never actually sent, see
+            // below), but with nothing shown at all, picking "Generate Commit Message" looked like the
+            // click did nothing. This sits on top of the empty box and names the active preset instead.
+            var afFollowUpHint = new TextBlock
+            {
+                Foreground = themeFg,
+                Opacity = 0.6,
+                FontStyle = FontStyles.Italic,
+                IsHitTestVisible = false,
+                VerticalAlignment = VerticalAlignment.Center,
+                Margin = new Thickness(6, 0, 0, 0),
+                Visibility = Visibility.Collapsed
+            };
+
             var afFollowUpPresetButton = new Button
             {
                 Content = "Preset ▾",
@@ -265,30 +280,63 @@ namespace ClaudeCodeVS
             if (afPresetButtonStyle != null) afFollowUpPresetButton.Style = afPresetButtonStyle;
             else { afFollowUpPresetButton.Background = themeBg; afFollowUpPresetButton.Foreground = themeFg; afFollowUpPresetButton.BorderBrush = themeFg; }
 
-            // Whether the follow-up should autorun "Generate Commit Message" instead of sending
-            // afFollowUpBox's text literally. Set by its preset menu item; cleared by picking a
-            // plain-text preset or by editing the box by hand (via afFollowUpBox.TextChanged
-            // below), so a stale flag never survives the user typing over the preset's text.
+            // Whether the follow-up should autorun "Generate Commit Message" (or its Commit and
+            // Push sibling) instead of sending afFollowUpBox's text literally. Set by their preset
+            // menu items; cleared by picking a plain-text preset or by editing the box by hand (via
+            // afFollowUpBox.TextChanged below), so a stale flag never survives the user typing over
+            // the preset's text. Mutually exclusive with each other.
             bool followUpGenerateCommitMessage = false;
+            bool followUpGenerateCommitMessageAndPush = false;
             bool suppressFollowUpTextChanged = false;
 
-            void SetFollowUpText(string text, bool generateCommitMessage)
+            // Text is left empty for the two flag-driven presets: the box's text is never actually
+            // sent when a flag is set (RunFollowUpAsync branches on the flag first), so filling it
+            // with a placeholder label was just a dead cosmetic string.
+            void UpdateFollowUpHint()
+            {
+                if (followUpGenerateCommitMessageAndPush)
+                {
+                    afFollowUpHint.Text = "Generate Commit Message, Commit and Push";
+                    afFollowUpHint.Visibility = Visibility.Visible;
+                }
+                else if (followUpGenerateCommitMessage)
+                {
+                    afFollowUpHint.Text = "Generate Commit Message";
+                    afFollowUpHint.Visibility = Visibility.Visible;
+                }
+                else
+                {
+                    afFollowUpHint.Visibility = Visibility.Collapsed;
+                }
+            }
+
+            void SetFollowUpText(string text, bool generateCommitMessage, bool generateCommitMessageAndPush = false)
             {
                 suppressFollowUpTextChanged = true;
                 afFollowUpBox.Text = text;
                 suppressFollowUpTextChanged = false;
                 followUpGenerateCommitMessage = generateCommitMessage;
+                followUpGenerateCommitMessageAndPush = generateCommitMessageAndPush;
+                UpdateFollowUpHint();
             }
 
             afFollowUpBox.TextChanged += (s, e) =>
             {
-                if (!suppressFollowUpTextChanged) followUpGenerateCommitMessage = false;
+                if (!suppressFollowUpTextChanged)
+                {
+                    followUpGenerateCommitMessage = false;
+                    followUpGenerateCommitMessageAndPush = false;
+                    UpdateFollowUpHint();
+                }
             };
 
             var afFollowUpPresetMenu = new ContextMenu();
             var generateCommitMessageItem = new MenuItem { Header = "Generate Commit Message" };
-            generateCommitMessageItem.Click += (s, ea) => SetFollowUpText("Generate Commit Message", true);
+            generateCommitMessageItem.Click += (s, ea) => SetFollowUpText(string.Empty, true);
             afFollowUpPresetMenu.Items.Add(generateCommitMessageItem);
+            var generateCommitMessageAndPushItem = new MenuItem { Header = "Generate Commit Message, Commit and Push" };
+            generateCommitMessageAndPushItem.Click += (s, ea) => SetFollowUpText(string.Empty, false, true);
+            afFollowUpPresetMenu.Items.Add(generateCommitMessageAndPushItem);
             foreach (var preset in FollowUpPresets)
             {
                 var item = new MenuItem { Header = preset.Item1 };
@@ -305,8 +353,10 @@ namespace ClaudeCodeVS
             afFollowUpRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
             afFollowUpRow.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
             Grid.SetColumn(afFollowUpBox, 0);
+            Grid.SetColumn(afFollowUpHint, 0);
             Grid.SetColumn(afFollowUpPresetButton, 1);
             afFollowUpRow.Children.Add(afFollowUpBox);
+            afFollowUpRow.Children.Add(afFollowUpHint);
             afFollowUpRow.Children.Add(afFollowUpPresetButton);
             stack.Children.Add(afFollowUpRow);
 
@@ -401,7 +451,7 @@ namespace ClaudeCodeVS
                 afCleanBeforeRunCheck.IsChecked = cfg.CleanBeforeRun;
                 afRebuildBeforeRunCheck.IsChecked = cfg.RebuildBeforeRun;
                 afScriptBox.Text            = cfg.ScriptOrCommand ?? string.Empty;
-                SetFollowUpText(cfg.FollowUpSendToAgent ?? string.Empty, cfg.FollowUpGenerateCommitMessage);
+                SetFollowUpText(cfg.FollowUpSendToAgent ?? string.Empty, cfg.FollowUpGenerateCommitMessage, cfg.FollowUpGenerateCommitMessageAndPush);
                 afIdleBox.Text              = (nativeMode ? 1 : cfg.IdleSeconds).ToString();
                 afActionCombo.SelectedItem  = null;
                 foreach (ComboBoxItem it in afActionCombo.Items)
@@ -428,6 +478,7 @@ namespace ClaudeCodeVS
                 cfg.ScriptOrCommand    = afScriptBox.Text?.Trim() ?? string.Empty;
                 cfg.FollowUpSendToAgent = afFollowUpBox.Text?.Trim() ?? string.Empty;
                 cfg.FollowUpGenerateCommitMessage = followUpGenerateCommitMessage;
+                cfg.FollowUpGenerateCommitMessageAndPush = followUpGenerateCommitMessageAndPush;
                 if ((afActionCombo.SelectedItem as ComboBoxItem)?.Tag is AgentFinishActionType act)
                     cfg.Action = act;
                 if (nativeMode)
@@ -556,7 +607,8 @@ namespace ClaudeCodeVS
                 RequireFileChanges = src.RequireFileChanges,
                 Confirm            = src.Confirm,
                 FollowUpSendToAgent = src.FollowUpSendToAgent,
-                FollowUpGenerateCommitMessage = src.FollowUpGenerateCommitMessage
+                FollowUpGenerateCommitMessage = src.FollowUpGenerateCommitMessage,
+                FollowUpGenerateCommitMessageAndPush = src.FollowUpGenerateCommitMessageAndPush
             };
         }
 

@@ -172,7 +172,8 @@ namespace ClaudeCodeVS
         ShowUsage,
         SetWorkingDirectory,
         SendBuildErrors,
-        GenerateCommitMessage
+        GenerateCommitMessage,
+        GenerateCommitMessageAndPush
     }
 
     /// <summary>
@@ -287,6 +288,16 @@ namespace ClaudeCodeVS
         /// clears it back to a literal text send.
         /// </summary>
         public bool FollowUpGenerateCommitMessage { get; set; } = false;
+
+        /// <summary>
+        /// When true, the follow-up step runs the built-in "Generate Commit Message, Commit and
+        /// Push" action (the same flow as the toolbar/☰ Tools button) instead of sending
+        /// <see cref="FollowUpSendToAgent"/> as literal text or just drafting the message. Set via
+        /// the follow-up field's "Generate Commit Message, Commit and Push" preset; mutually
+        /// exclusive with <see cref="FollowUpGenerateCommitMessage"/> — picking either preset or
+        /// typing custom text clears both back to a literal text send.
+        /// </summary>
+        public bool FollowUpGenerateCommitMessageAndPush { get; set; } = false;
     }
 
     /// <summary>

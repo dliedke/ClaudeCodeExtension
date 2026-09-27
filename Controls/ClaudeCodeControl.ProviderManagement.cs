@@ -2280,6 +2280,7 @@ For more details, visit: https://pi.dev";
             Apply(ToolbarButton.SetWorkingDirectory, true, SetWorkingDirectoryToolbarButton, SetWorkingDirectoryMenuItem);
             Apply(ToolbarButton.SendBuildErrors, true, SendBuildErrorsToolbarButton, SendBuildErrorsMenuItem);
             Apply(ToolbarButton.GenerateCommitMessage, true, GenerateCommitMessageToolbarButton, GenerateCommitMessageMenuItem);
+            Apply(ToolbarButton.GenerateCommitMessageAndPush, true, GenerateCommitMessageAndPushToolbarButton, GenerateCommitMessageAndPushMenuItem);
 
             // The model button (🤖) is console-only from top to bottom: every entry either sends a
             // command to the CLI's TUI ("/model <name>", the effort slider's "/effort") or changes
@@ -2308,7 +2309,8 @@ For more details, visit: https://pi.dev";
                 IsMenuItemVisible(ShowUsageViewMenuItem) ||
                 IsMenuItemVisible(SetWorkingDirectoryMenuItem) ||
                 IsMenuItemVisible(SendBuildErrorsMenuItem) ||
-                IsMenuItemVisible(GenerateCommitMessageMenuItem);
+                IsMenuItemVisible(GenerateCommitMessageMenuItem) ||
+                IsMenuItemVisible(GenerateCommitMessageAndPushMenuItem);
             if (ToolsDropdownButton != null)
                 ToolsDropdownButton.Visibility = anyInDropdown ? Visibility.Visible : Visibility.Collapsed;
             ChatTranscript?.SetToolsMenuHasItems(anyInDropdown);
@@ -2477,7 +2479,7 @@ For more details, visit: https://pi.dev";
             ToolbarButton.UpdateAgent, ToolbarButton.DetachTerminal, ToolbarButton.RestartAgent,
             ToolbarButton.ViewChanges, ToolbarButton.SessionHistory, ToolbarButton.ShowUsage,
             ToolbarButton.SetWorkingDirectory, ToolbarButton.SendBuildErrors,
-            ToolbarButton.GenerateCommitMessage
+            ToolbarButton.GenerateCommitMessage, ToolbarButton.GenerateCommitMessageAndPush
         };
 
         /// <summary>
@@ -2513,6 +2515,7 @@ For more details, visit: https://pi.dev";
                 case ToolbarButton.SetWorkingDirectory: return SetWorkingDirectoryToolbarButton;
                 case ToolbarButton.SendBuildErrors: return SendBuildErrorsToolbarButton;
                 case ToolbarButton.GenerateCommitMessage: return GenerateCommitMessageToolbarButton;
+                case ToolbarButton.GenerateCommitMessageAndPush: return GenerateCommitMessageAndPushToolbarButton;
                 default: return null;
             }
         }
@@ -2530,6 +2533,7 @@ For more details, visit: https://pi.dev";
                 case ToolbarButton.SetWorkingDirectory: return SetWorkingDirectoryMenuItem;
                 case ToolbarButton.SendBuildErrors: return SendBuildErrorsMenuItem;
                 case ToolbarButton.GenerateCommitMessage: return GenerateCommitMessageMenuItem;
+                case ToolbarButton.GenerateCommitMessageAndPush: return GenerateCommitMessageAndPushMenuItem;
                 default: return null;
             }
         }

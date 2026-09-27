@@ -2402,9 +2402,11 @@ namespace ClaudeCodeVS
                             bool ranOk = await ExecuteMainActionAsync(cfg);
                             if (ranOk)
                             {
-                                string followLabel = cfg.FollowUpGenerateCommitMessage
-                                    ? "Generate Commit Message"
-                                    : DescribeSendCommand(cfg.FollowUpSendToAgent);
+                                string followLabel = cfg.FollowUpGenerateCommitMessageAndPush
+                                    ? "Generate Commit Message, Commit and Push"
+                                    : cfg.FollowUpGenerateCommitMessage
+                                        ? "Generate Commit Message"
+                                        : DescribeSendCommand(cfg.FollowUpSendToAgent);
                                 await ShowAgentFinishNotificationAsync("Agent finish · next step", followLabel,
                                     () => RunFollowUpAsync(cfg));
                             }
@@ -2461,19 +2463,22 @@ namespace ClaudeCodeVS
         {
             return cfg.Action != AgentFinishActionType.None
                 && cfg.Action != AgentFinishActionType.SendToAgent
-                && (cfg.FollowUpGenerateCommitMessage || !string.IsNullOrWhiteSpace(cfg.FollowUpSendToAgent));
+                && (cfg.FollowUpGenerateCommitMessage || cfg.FollowUpGenerateCommitMessageAndPush
+                    || !string.IsNullOrWhiteSpace(cfg.FollowUpSendToAgent));
         }
 
         /// <summary>
-        /// Fires the configured follow-up: the built-in "Generate Commit Message" autorun when
+        /// Fires the configured follow-up: the built-in "Generate Commit Message, Commit and Push"
+        /// autorun when <see cref="AgentFinishConfig.FollowUpGenerateCommitMessageAndPush"/> is set,
+        /// else the plain "Generate Commit Message" autorun when
         /// <see cref="AgentFinishConfig.FollowUpGenerateCommitMessage"/> is set, otherwise a literal
         /// <see cref="AgentFinishConfig.FollowUpSendToAgent"/> send.
         /// </summary>
         private Task RunFollowUpAsync(AgentFinishConfig cfg)
         {
-            return cfg.FollowUpGenerateCommitMessage
-                ? GenerateCommitMessageAsync()
-                : SendTextToAgentAsync(cfg.FollowUpSendToAgent);
+            if (cfg.FollowUpGenerateCommitMessageAndPush) return GenerateCommitMessageCommitAndPushAsync();
+            if (cfg.FollowUpGenerateCommitMessage) return GenerateCommitMessageAsync();
+            return SendTextToAgentAsync(cfg.FollowUpSendToAgent);
         }
 
         /// <summary>

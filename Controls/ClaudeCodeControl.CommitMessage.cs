@@ -10,7 +10,9 @@
  *          commit message from the current git diff, then fills it into Visual Studio's
  *          built-in Git Changes tool window via best-effort UI Automation (there is no public
  *          API to write into that window). Falls back to the clipboard when the window or its
- *          commit message box cannot be located.
+ *          commit message box cannot be located. Its sibling, "Generate Commit Message, Commit
+ *          and Push", drafts the same message (never crediting the AI as co-author), then stages,
+ *          commits and pushes every change with it — no further confirmation.
  *
  * *******************************************************************************************************************/
 
@@ -35,6 +37,19 @@ namespace ClaudeCodeVS
         /// <summary>How long "git diff HEAD" is given before it is treated as failed.</summary>
         private const int GitDiffTimeoutMs = 15000;
 
+        /// <summary>How long "git add -A" / "git commit -F ..." are given before treated as failed.</summary>
+        private const int GitCommitTimeoutMs = 15000;
+
+        /// <summary>How long "git push" is given before it is treated as failed (network round trip).</summary>
+        private const int GitPushTimeoutMs = 30000;
+
+        /// <summary>Holds the pieces <see cref="GenerateCommitMessageCoreAsync"/> hands back to its two callers.</summary>
+        private struct GeneratedCommitMessage
+        {
+            public string RepoRoot;
+            public string Message;
+        }
+
         /// <summary>
         /// Toolbar/menu handler for "Generate Commit Message". Plain <c>async void</c>, matching
         /// every other toolbar click handler in this codebase; the actual work lives in
@@ -56,6 +71,25 @@ namespace ClaudeCodeVS
         }
 
         /// <summary>
+        /// Toolbar/menu handler for "Generate Commit Message, Commit and Push". Same shape as
+        /// <see cref="GenerateCommitMessageButton_Click"/>; the actual work lives in
+        /// <see cref="GenerateCommitMessageCommitAndPushAsync"/>.
+        /// </summary>
+#pragma warning disable VSTHRD100 // Avoid async void methods - WPF event handler
+        private async void GenerateCommitMessageAndPushButton_Click(object sender, RoutedEventArgs e)
+#pragma warning restore VSTHRD100
+        {
+            try
+            {
+                await GenerateCommitMessageCommitAndPushAsync();
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"GenerateCommitMessageAndPushButton_Click error: {ex.Message}");
+            }
+        }
+
+        /// <summary>
         /// Collects the current git diff, asks the active native-mode agent to write a commit
         /// message from it, and fills the result into the Git Changes tool window. Requires Native
         /// Mode: there is no reliable way to capture a clean text answer from the terminal path
@@ -67,105 +101,12 @@ namespace ClaudeCodeVS
         {
             try
             {
-                await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
+                GeneratedCommitMessage? generated = await GenerateCommitMessageCoreAsync();
+                if (generated == null) return;
 
-                if (!IsNativeModeActive)
+                if (!await TryFillGitChangesCommitMessageAsync(generated.Value.Message))
                 {
-                    MessageBox.Show(
-                        "Generate Commit Message requires Native Mode. Enable it in ⚙ Settings... → Terminal → Use native mode, then start a session.",
-                        "Generate Commit Message",
-                        MessageBoxButton.OK,
-                        MessageBoxImage.Information);
-                    return;
-                }
-
-                if (!IsAgentAvailable)
-                {
-                    MessageBox.Show(
-                        "No agent is running. Start an agent session before generating a commit message.",
-                        "Generate Commit Message",
-                        MessageBoxButton.OK,
-                        MessageBoxImage.Warning);
-                    return;
-                }
-
-                string workspace = await GetWorkspaceDirectoryAsync();
-                string repoRoot = FindGitRepositoryRoot(workspace);
-                if (string.IsNullOrEmpty(repoRoot))
-                {
-                    MessageBox.Show(
-                        "No git repository was found for the current workspace.",
-                        "Generate Commit Message",
-                        MessageBoxButton.OK,
-                        MessageBoxImage.Information);
-                    return;
-                }
-
-                string diff = RunGitCommand(repoRoot, "diff HEAD", GitDiffTimeoutMs);
-                if (string.IsNullOrWhiteSpace(diff))
-                {
-                    MessageBox.Show(
-                        "There are no changes to describe.",
-                        "Generate Commit Message",
-                        MessageBoxButton.OK,
-                        MessageBoxImage.Information);
-                    return;
-                }
-
-                string sessionId = ResolveFocusedNativeSessionId();
-                IAgentSession session = string.IsNullOrEmpty(sessionId)
-                    ? _agentSession
-                    : GetSession(sessionId)?.AgentSession;
-                bool turnInFlight = string.IsNullOrEmpty(sessionId)
-                    ? _nativeTurnInFlight
-                    : (GetSession(sessionId)?.TurnInFlight ?? false);
-
-                if (session == null)
-                {
-                    MessageBox.Show(
-                        "No native agent session is available.",
-                        "Generate Commit Message",
-                        MessageBoxButton.OK,
-                        MessageBoxImage.Warning);
-                    return;
-                }
-
-                if (turnInFlight)
-                {
-                    MessageBox.Show(
-                        "The agent is busy with another turn. Wait for it to finish before generating a commit message.",
-                        "Generate Commit Message",
-                        MessageBoxButton.OK,
-                        MessageBoxImage.Information);
-                    return;
-                }
-
-                string prompt = BuildCommitMessagePrompt(diff);
-
-                // This is a behind-the-scenes side question, not something the user asked to chat about —
-                // the "On Agent Finish" sound/action must not fire when its turn completes.
-                _suppressNextNativeAgentFinish = true;
-
-                Task<string> capture = CaptureNextAssistantTurnAsync(session, TimeSpan.FromMilliseconds(SideQuestionTimeoutMs));
-                await SendTextToAgentAsync(prompt);
-                string response = await capture;
-
-                await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
-
-                string message = CleanCommitMessage(response);
-                if (string.IsNullOrWhiteSpace(message))
-                {
-                    MessageBox.Show(
-                        "The agent did not return a commit message.",
-                        "Generate Commit Message",
-                        MessageBoxButton.OK,
-                        MessageBoxImage.Warning);
-                    return;
-                }
-
-                if (!await TryFillGitChangesCommitMessageAsync(message))
-                {
-                    await ClipboardRetryAsync(() => Clipboard.SetText(message));
+                    await ClipboardRetryAsync(() => Clipboard.SetText(generated.Value.Message));
                     MessageBox.Show(
                         "Could not find the Git Changes commit message box. The generated message was copied to the clipboard — paste it with Ctrl+V.",
                         "Generate Commit Message",
@@ -180,6 +121,224 @@ namespace ClaudeCodeVS
         }
 
         /// <summary>
+        /// Same drafting flow as <see cref="GenerateCommitMessageAsync"/>, then stages every
+        /// change, commits and pushes with no further confirmation — the Git Changes box is still
+        /// filled first (best-effort) so the user sees what was committed after the fact, but the
+        /// action itself runs straight through once triggered (toolbar/☰ Tools click or "On Agent
+        /// Finish" follow-up), matching Visual Studio's own "Commit All and Push".
+        /// </summary>
+        private async Task GenerateCommitMessageCommitAndPushAsync()
+        {
+            try
+            {
+                GeneratedCommitMessage? generated = await GenerateCommitMessageCoreAsync();
+                if (generated == null) return;
+
+                string repoRoot = generated.Value.RepoRoot;
+                string message = generated.Value.Message;
+
+                if (!await TryFillGitChangesCommitMessageAsync(message))
+                {
+                    await ClipboardRetryAsync(() => Clipboard.SetText(message));
+                }
+
+                await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
+
+                GitCommandResult addResult = RunGitDetailed(repoRoot, "add -A", GitCommitTimeoutMs);
+                if (addResult == null || addResult.ExitCode != 0)
+                {
+                    MessageBox.Show(
+                        $"Failed to stage changes for commit.\n\n{addResult?.StdErr}",
+                        "Generate Commit Message, Commit and Push",
+                        MessageBoxButton.OK,
+                        MessageBoxImage.Error);
+                    return;
+                }
+
+                string messageFile = WriteCommitMessageToTempFile(message);
+                if (messageFile == null)
+                {
+                    MessageBox.Show(
+                        "Failed to write the commit message to a temp file.",
+                        "Generate Commit Message, Commit and Push",
+                        MessageBoxButton.OK,
+                        MessageBoxImage.Error);
+                    return;
+                }
+
+                GitCommandResult commitResult = RunGitDetailed(
+                    repoRoot, "commit -F " + QuoteForWindowsCommandArgument(messageFile), GitCommitTimeoutMs);
+                if (commitResult == null || commitResult.ExitCode != 0)
+                {
+                    MessageBox.Show(
+                        $"Commit failed.\n\n{commitResult?.StdErr}",
+                        "Generate Commit Message, Commit and Push",
+                        MessageBoxButton.OK,
+                        MessageBoxImage.Error);
+                    return;
+                }
+
+                // The commit just happened through the git CLI, not VS's own "Commit All" button, so
+                // Visual Studio has no reason to clear the message box on its own — left alone it would
+                // keep showing the message that was just committed as if it were still pending. Clear it
+                // (best-effort, same as the fill above) right after the commit succeeds, matching what
+                // clicking VS's own Commit button does.
+                await TryFillGitChangesCommitMessageAsync(string.Empty);
+
+                GitCommandResult pushResult = RunGitDetailed(repoRoot, "push", GitPushTimeoutMs);
+                if (pushResult == null || pushResult.ExitCode != 0)
+                {
+                    MessageBox.Show(
+                        $"Commit created locally, but push failed.\n\n{pushResult?.StdErr}",
+                        "Generate Commit Message, Commit and Push",
+                        MessageBoxButton.OK,
+                        MessageBoxImage.Warning);
+                    return;
+                }
+
+                MessageBox.Show(
+                    "Committed and pushed successfully.",
+                    "Generate Commit Message, Commit and Push",
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Information);
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"GenerateCommitMessageCommitAndPushAsync error: {ex.Message}");
+            }
+        }
+
+        /// <summary>
+        /// Shared drafting flow behind both "Generate Commit Message" and "Generate Commit Message,
+        /// Commit and Push": validates preconditions, collects the diff, asks the agent to draft a
+        /// message, and cleans the response. Every early-return path shows its own explanatory
+        /// <see cref="MessageBox"/> before returning null, so callers only need to bail out silently.
+        /// </summary>
+        private async Task<GeneratedCommitMessage?> GenerateCommitMessageCoreAsync()
+        {
+            await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
+
+            if (!IsNativeModeActive)
+            {
+                MessageBox.Show(
+                    "Generate Commit Message requires Native Mode. Enable it in ⚙ Settings... → Terminal → Use native mode, then start a session.",
+                    "Generate Commit Message",
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Information);
+                return null;
+            }
+
+            if (!IsAgentAvailable)
+            {
+                MessageBox.Show(
+                    "No agent is running. Start an agent session before generating a commit message.",
+                    "Generate Commit Message",
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Warning);
+                return null;
+            }
+
+            string workspace = await GetWorkspaceDirectoryAsync();
+            string repoRoot = FindGitRepositoryRoot(workspace);
+            if (string.IsNullOrEmpty(repoRoot))
+            {
+                MessageBox.Show(
+                    "No git repository was found for the current workspace.",
+                    "Generate Commit Message",
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Information);
+                return null;
+            }
+
+            string diff = RunGitCommand(repoRoot, "diff HEAD", GitDiffTimeoutMs);
+            if (string.IsNullOrWhiteSpace(diff))
+            {
+                MessageBox.Show(
+                    "There are no changes to describe.",
+                    "Generate Commit Message",
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Information);
+                return null;
+            }
+
+            string sessionId = ResolveFocusedNativeSessionId();
+            IAgentSession session = string.IsNullOrEmpty(sessionId)
+                ? _agentSession
+                : GetSession(sessionId)?.AgentSession;
+            bool turnInFlight = string.IsNullOrEmpty(sessionId)
+                ? _nativeTurnInFlight
+                : (GetSession(sessionId)?.TurnInFlight ?? false);
+
+            if (session == null)
+            {
+                MessageBox.Show(
+                    "No native agent session is available.",
+                    "Generate Commit Message",
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Warning);
+                return null;
+            }
+
+            if (turnInFlight)
+            {
+                MessageBox.Show(
+                    "The agent is busy with another turn. Wait for it to finish before generating a commit message.",
+                    "Generate Commit Message",
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Information);
+                return null;
+            }
+
+            string prompt = BuildCommitMessagePrompt(diff);
+
+            // This is a behind-the-scenes side question, not something the user asked to chat about —
+            // the "On Agent Finish" sound/action must not fire when its turn completes.
+            _suppressNextNativeAgentFinish = true;
+
+            Task<string> capture = CaptureNextAssistantTurnAsync(session, TimeSpan.FromMilliseconds(SideQuestionTimeoutMs));
+            await SendTextToAgentAsync(prompt);
+            string response = await capture;
+
+            await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
+
+            string message = CleanCommitMessage(response);
+            if (string.IsNullOrWhiteSpace(message))
+            {
+                MessageBox.Show(
+                    "The agent did not return a commit message.",
+                    "Generate Commit Message",
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Warning);
+                return null;
+            }
+
+            return new GeneratedCommitMessage { RepoRoot = repoRoot, Message = message };
+        }
+
+        /// <summary>
+        /// Writes the commit message to a private temp file and returns its path, so the commit can
+        /// go through <c>git commit -F &lt;file&gt;</c> instead of passing multi-line text as a single
+        /// command-line argument (fragile quoting, hostile to newlines). Mirrors the temp-file pattern
+        /// <see cref="BuildCommitMessagePrompt"/> already uses for large diffs.
+        /// </summary>
+        private static string WriteCommitMessageToTempFile(string message)
+        {
+            try
+            {
+                string sessionDir = Path.Combine(Path.GetTempPath(), "ClaudeCodeVS_Session", Guid.NewGuid().ToString());
+                Directory.CreateDirectory(sessionDir);
+                string file = Path.Combine(sessionDir, "commit-message.txt");
+                File.WriteAllText(file, message, new UTF8Encoding(false));
+                return file;
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"WriteCommitMessageToTempFile error: {ex.Message}");
+                return null;
+            }
+        }
+
+        /// <summary>
         /// Builds the prompt sent to the agent. Diffs over <see cref="LargeCommitDiffThresholdChars"/>
         /// are written to a temp file and referenced instead of pasted inline, mirroring the build-error
         /// send path — avoids both a fragile large paste and flooding the chat transcript with the raw diff.
@@ -190,6 +349,8 @@ namespace ClaudeCodeVS
                 "Write a concise git commit message for the following diff. " +
                 "Use a conventional-commit style summary line of 72 characters or fewer, " +
                 "and an optional short body with additional context if needed. " +
+                "Do not add a \"Co-Authored-By\" line or any other AI attribution/signature — " +
+                "this commit is authored by the human user, not the assistant. " +
                 "Reply with ONLY the commit message text — no code fences, no markdown, no explanation.";
 
             string prompt = instructions + "\n\n" + diff;
@@ -220,7 +381,11 @@ namespace ClaudeCodeVS
             }
         }
 
-        /// <summary>Trims the response and strips a whole-message code fence, if the model added one despite being asked not to.</summary>
+        /// <summary>
+        /// Trims the response, strips a whole-message code fence if the model added one despite
+        /// being asked not to, and drops any "Co-Authored-By" attribution line it added out of its
+        /// own habit despite the prompt's explicit instruction not to.
+        /// </summary>
         private static string CleanCommitMessage(string text)
         {
             if (string.IsNullOrWhiteSpace(text))
@@ -243,7 +408,30 @@ namespace ClaudeCodeVS
                 }
             }
 
-            return trimmed;
+            return StripAiAttributionLines(trimmed);
+        }
+
+        /// <summary>
+        /// Drops any line naming the assistant as a co-author (e.g. "Co-Authored-By: Claude ...
+        /// &lt;noreply@anthropic.com&gt;") — this is the user's commit, and defensive since the
+        /// prompt already asks the model not to add one but some agents append it by default habit.
+        /// </summary>
+        private static string StripAiAttributionLines(string message)
+        {
+            string[] lines = message.Replace("\r\n", "\n").Split('\n');
+            var kept = new System.Collections.Generic.List<string>();
+
+            foreach (string line in lines)
+            {
+                if (line.TrimStart().StartsWith("Co-Authored-By:", StringComparison.OrdinalIgnoreCase))
+                {
+                    continue;
+                }
+
+                kept.Add(line);
+            }
+
+            return string.Join("\n", kept).Trim();
         }
 
         #endregion
