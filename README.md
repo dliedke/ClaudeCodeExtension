@@ -140,6 +140,9 @@ Use native mode to avoid this issue.
 
 ## Version History
 
+### Version 207.0
+- The Native mode chat's 📎 button now opens a menu with "Attach a file...", "Insert editor selection" and "Insert active file path", so these are reachable when the chat is in its own tab (issue #174).
+
 ### Version 206.0
 - Fixed the working directory not updating when switching directly from one open folder to another (File > Open > Folder), so the panel and agent now follow the newly opened folder instead of staying on the previous one.
 

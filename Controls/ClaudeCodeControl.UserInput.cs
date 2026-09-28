@@ -931,27 +931,11 @@ namespace ClaudeCodeVS
             try
             {
                 ThreadHelper.ThrowIfNotOnUIThread();
-                var dte = Package.GetGlobalService(typeof(EnvDTE.DTE)) as EnvDTE.DTE;
 
-                if (dte?.ActiveDocument == null)
+                if (!TryGetActiveEditorSelection(out string code, out string filePath, out int startLine, out int endLine))
                 {
-                    MessageBox.Show("No active document open in the editor.",
-                        "No Document", MessageBoxButton.OK, MessageBoxImage.Information);
                     return;
                 }
-
-                var selection = dte.ActiveDocument.Selection as EnvDTE.TextSelection;
-                if (selection == null || string.IsNullOrEmpty(selection.Text))
-                {
-                    MessageBox.Show("No text selected in the active editor.\nPlease select some code first.",
-                        "No Selection", MessageBoxButton.OK, MessageBoxImage.Information);
-                    return;
-                }
-
-                string code = selection.Text;
-                string filePath = dte.ActiveDocument.FullName;
-                int startLine = selection.TopLine;
-                int endLine = selection.BottomLine;
 
                 InsertCodeSnippetIntoPrompt(code, filePath, startLine, endLine);
             }
@@ -959,6 +943,69 @@ namespace ClaudeCodeVS
             {
                 Debug.WriteLine($"Error grabbing editor selection: {ex.Message}");
             }
+        }
+
+        /// <summary>
+        /// Reads the selection in the active editor document. Shows the "no document" / "no
+        /// selection" message and returns false when there is nothing to insert. Shared by the
+        /// panel's 📎 menu and the native chat composer's 📎 menu.
+        /// </summary>
+        private bool TryGetActiveEditorSelection(out string code, out string filePath, out int startLine, out int endLine)
+        {
+            ThreadHelper.ThrowIfNotOnUIThread();
+            code = null;
+            filePath = null;
+            startLine = 0;
+            endLine = 0;
+
+            var dte = Package.GetGlobalService(typeof(EnvDTE.DTE)) as EnvDTE.DTE;
+            if (dte?.ActiveDocument == null)
+            {
+                MessageBox.Show("No active document open in the editor.",
+                    "No Document", MessageBoxButton.OK, MessageBoxImage.Information);
+                return false;
+            }
+
+            var selection = dte.ActiveDocument.Selection as EnvDTE.TextSelection;
+            if (selection == null || string.IsNullOrEmpty(selection.Text))
+            {
+                MessageBox.Show("No text selected in the active editor.\nPlease select some code first.",
+                    "No Selection", MessageBoxButton.OK, MessageBoxImage.Information);
+                return false;
+            }
+
+            code = selection.Text;
+            filePath = dte.ActiveDocument.FullName;
+            startLine = selection.TopLine;
+            endLine = selection.BottomLine;
+            return true;
+        }
+
+        /// <summary>
+        /// Builds the "@relative/path " reference to the file open in the active editor tab, or
+        /// shows the "no document" message and returns null. Shared by the panel's 📎 menu and the
+        /// native chat composer's 📎 menu.
+        /// </summary>
+        private string BuildActiveFilePathReference()
+        {
+            ThreadHelper.ThrowIfNotOnUIThread();
+
+            var dte = Package.GetGlobalService(typeof(EnvDTE.DTE)) as EnvDTE.DTE;
+            if (dte?.ActiveDocument == null)
+            {
+                MessageBox.Show("No active document open in the editor.",
+                    "No Document", MessageBoxButton.OK, MessageBoxImage.Information);
+                return null;
+            }
+
+            string filePath = dte.ActiveDocument.FullName;
+            string displayPath = filePath;
+            if (TryGetRelativePathUnderDirectory(filePath, _lastWorkspaceDirectory, out string relativePath))
+            {
+                displayPath = relativePath;
+            }
+
+            return "@" + displayPath.Replace('\\', '/') + " ";
         }
 
         /// <summary>
@@ -973,25 +1020,14 @@ namespace ClaudeCodeVS
             try
             {
                 ThreadHelper.ThrowIfNotOnUIThread();
-                var dte = Package.GetGlobalService(typeof(EnvDTE.DTE)) as EnvDTE.DTE;
 
-                if (dte?.ActiveDocument == null)
+                string insert = BuildActiveFilePathReference();
+                if (insert == null)
                 {
-                    MessageBox.Show("No active document open in the editor.",
-                        "No Document", MessageBoxButton.OK, MessageBoxImage.Information);
                     return;
                 }
 
-                string filePath = dte.ActiveDocument.FullName;
-                string displayPath = filePath;
-                if (TryGetRelativePathUnderDirectory(filePath, _lastWorkspaceDirectory, out string relativePath))
-                {
-                    displayPath = relativePath;
-                }
-                displayPath = displayPath.Replace('\\', '/');
-
                 string currentText = PromptTextBox.Text;
-                string insert = "@" + displayPath + " ";
 
                 int caretIndex = PromptTextBox.CaretIndex;
                 if (caretIndex >= 0 && caretIndex <= currentText.Length)

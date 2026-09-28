@@ -653,6 +653,8 @@ namespace ClaudeCodeVS
             // buttons under the prompt box did anything in a new tab.
             transcript.FilesDropped += OnComposerFilesDropped;
             transcript.AttachRequested += OnComposerAttachRequested;
+            transcript.InsertSelectionRequested += OnComposerInsertSelectionRequested;
+            transcript.InsertActiveFilePathRequested += OnComposerInsertActiveFilePathRequested;
             transcript.ClearChatRequested += OnComposerClearChatRequested;
             transcript.NewChatRequested += OnComposerNewChatRequested;
             transcript.RenameSessionRequested += OnComposerRenameSessionRequested;
@@ -1082,6 +1084,8 @@ namespace ClaudeCodeVS
             ChatTranscript.SendRequested += OnComposerSendRequested;
             ChatTranscript.FilesDropped += OnComposerFilesDropped;
             ChatTranscript.AttachRequested += OnComposerAttachRequested;
+            ChatTranscript.InsertSelectionRequested += OnComposerInsertSelectionRequested;
+            ChatTranscript.InsertActiveFilePathRequested += OnComposerInsertActiveFilePathRequested;
             ChatTranscript.SelectorClicked += OnComposerSelectorClicked;
             ChatTranscript.EffortChanged += OnComposerEffortChanged;
             ChatTranscript.ClearChatRequested += OnComposerClearChatRequested;
@@ -3296,6 +3300,72 @@ namespace ClaudeCodeVS
             }
 
             OnComposerFilesDropped(sender, chosen);
+        }
+
+        /// <summary>
+        /// 📎 → "Insert editor selection" in the composer. Stages the snippet in the composer that
+        /// raised it (not the panel's prompt box, which is hidden while the chat is in its own tab),
+        /// using the same "File: … (lines …)" format as the panel's menu. Does not send.
+        /// </summary>
+        private void OnComposerInsertSelectionRequested(object sender, EventArgs e)
+        {
+            ThreadHelper.ThrowIfNotOnUIThread();
+
+            try
+            {
+                // Docked in the panel (ActionsOnly) the composer has no text input — the panel's prompt
+                // box is the live one, so the panel's own handler is the right target.
+                if (!(sender is ChatTranscriptView transcript) || !transcript.HasComposerInput)
+                {
+                    GrabSelectionButton_Click(sender, null);
+                    return;
+                }
+
+                if (!TryGetActiveEditorSelection(out string code, out string filePath, out int startLine, out int endLine))
+                {
+                    return;
+                }
+
+                string snippetBody = BuildCodeSnippetText(code, filePath, startLine, endLine);
+                transcript.InsertTextAtComposerCaret(PrependSeparatorIfNeeded(snippetBody, transcript.ComposerText));
+                transcript.FocusComposer();
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"Error inserting editor selection into composer: {ex.Message}");
+            }
+        }
+
+        /// <summary>
+        /// 📎 → "Insert active file path" in the composer: the composer counterpart to the panel's
+        /// "Insert Active File Path" (issue #127), which users of the chat tab could not reach
+        /// (issue #174 follow-up).
+        /// </summary>
+        private void OnComposerInsertActiveFilePathRequested(object sender, EventArgs e)
+        {
+            ThreadHelper.ThrowIfNotOnUIThread();
+
+            try
+            {
+                if (!(sender is ChatTranscriptView transcript) || !transcript.HasComposerInput)
+                {
+                    InsertActiveFilePathMenuItem_Click(sender, null);
+                    return;
+                }
+
+                string insert = BuildActiveFilePathReference();
+                if (insert == null)
+                {
+                    return;
+                }
+
+                transcript.InsertTextAtComposerCaret(insert);
+                transcript.FocusComposer();
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"Error inserting active file path into composer: {ex.Message}");
+            }
         }
 
         private void OnComposerFilesDropped(object sender, string[] files)

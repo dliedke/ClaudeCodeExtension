@@ -1076,7 +1076,13 @@
 											          Click="ComposerColorButton_Click"/>
 											<MenuItem Header="Attach a file..."
 											          Style="{StaticResource ComposerMenuItemStyle}"
-											          Click="ComposerAttachButton_Click"/>
+											          Click="ComposerAttachFileMenuItem_Click"/>
+											<MenuItem Header="Insert editor selection"
+											          Style="{StaticResource ComposerMenuItemStyle}"
+											          Click="ComposerInsertSelectionMenuItem_Click"/>
+											<MenuItem Header="Insert active file path"
+											          Style="{StaticResource ComposerMenuItemStyle}"
+											          Click="ComposerInsertActiveFilePathMenuItem_Click"/>
 										</ContextMenu>
 									</Button.ContextMenu>
 								</Button>
@@ -1115,8 +1121,23 @@
 								        Style="{StaticResource ComposerSelectorStyle}"
 								        Content="📎"
 								        FontSize="13"
-								        ToolTip="Attach a file to the next prompt (Ctrl+V pastes an image)"
-								        Click="ComposerAttachButton_Click"/>
+								        ToolTip="Attach / Insert Content (Ctrl+V pastes an image)"
+								        Click="ComposerAttachButton_Click">
+									<Button.ContextMenu>
+										<ContextMenu Style="{StaticResource ComposerMenuStyle}">
+											<MenuItem Header="Attach a file..."
+											          Style="{StaticResource ComposerMenuItemStyle}"
+											          Click="ComposerAttachFileMenuItem_Click"/>
+											<MenuItem Header="Insert editor selection"
+											          Style="{StaticResource ComposerMenuItemStyle}"
+											          Click="ComposerInsertSelectionMenuItem_Click"/>
+											<MenuItem Header="Insert active file path"
+											          Style="{StaticResource ComposerMenuItemStyle}"
+											          ToolTip="Inserts an @-reference to the file open in the active editor tab"
+											          Click="ComposerInsertActiveFilePathMenuItem_Click"/>
+										</ContextMenu>
+									</Button.ContextMenu>
+								</Button>
 
 								<Rectangle x:Name="ComposerActionsSeparator" DockPanel.Dock="Left"
 								           Width="1" Margin="4,4,6,4" Opacity="0.25"

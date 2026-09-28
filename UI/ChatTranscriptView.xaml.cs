@@ -153,6 +153,12 @@ namespace ClaudeCodeVS.UI
         /// </summary>
         public event EventHandler AttachRequested;
 
+        /// <summary>Raised by 📎 → "Insert editor selection": stage the editor selection in this composer.</summary>
+        public event EventHandler InsertSelectionRequested;
+
+        /// <summary>Raised by 📎 → "Insert active file path": stage an @-reference to the active document.</summary>
+        public event EventHandler InsertActiveFilePathRequested;
+
         /// <summary>
         /// Raised by the ⚙/☰/⚡ mirror buttons. The sender is this view, so the parent can anchor the
         /// panel's actual context menu (there is no separate copy of its contents) to whichever button
@@ -329,6 +335,12 @@ namespace ClaudeCodeVS.UI
             // here rather than waiting for a resize that may never come.
             QueueComposerDensityRefresh();
         }
+
+        /// <summary>
+        /// True when this composer's own text input is the live prompt (<see cref="ComposerMode.Full"/>).
+        /// In ActionsOnly the panel's prompt box is the one being typed into.
+        /// </summary>
+        public bool HasComposerInput => _composerMode == ComposerMode.Full;
 
         /// <summary>Combines the Full-only gate above with the "menu would be empty" gate below.</summary>
         private void UpdateToolsButtonVisibility()
@@ -1142,9 +1154,37 @@ namespace ClaudeCodeVS.UI
             ColorPickerRequested?.Invoke(this, EventArgs.Empty);
         }
 
+        /// <summary>
+        /// Drops the 📎 menu (attach a file / insert editor selection / insert active file path) —
+        /// the composer's counterpart to the panel's AttachDropdownButton, which is hidden while
+        /// the chat is in its own tab (issue #174 follow-up). Placed above, like every composer dropdown.
+        /// </summary>
         private void ComposerAttachButton_Click(object sender, RoutedEventArgs e)
         {
+            if (ComposerAttachButton.ContextMenu == null)
+            {
+                AttachRequested?.Invoke(this, EventArgs.Empty);
+                return;
+            }
+
+            ComposerAttachButton.ContextMenu.PlacementTarget = ComposerAttachButton;
+            ComposerAttachButton.ContextMenu.Placement = PlacementMode.Top;
+            ComposerAttachButton.ContextMenu.IsOpen = true;
+        }
+
+        private void ComposerAttachFileMenuItem_Click(object sender, RoutedEventArgs e)
+        {
             AttachRequested?.Invoke(this, EventArgs.Empty);
+        }
+
+        private void ComposerInsertSelectionMenuItem_Click(object sender, RoutedEventArgs e)
+        {
+            InsertSelectionRequested?.Invoke(this, EventArgs.Empty);
+        }
+
+        private void ComposerInsertActiveFilePathMenuItem_Click(object sender, RoutedEventArgs e)
+        {
+            InsertActiveFilePathRequested?.Invoke(this, EventArgs.Empty);
         }
 
         /// <summary>
