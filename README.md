@@ -140,6 +140,10 @@ Use native mode to avoid this issue.
 
 ## Version History
 
+### Version 208.0
+- Fixed prompts sometimes staying in the terminal input line without being submitted, especially right after a long agent response, so you no longer have to press Enter yourself.
+- Thanks to [@rbuss93](https://github.com/rbuss93) for the contribution (#178).
+
 ### Version 207.0
 - The Native mode chat's 📎 button now opens a menu with "Attach a file...", "Insert editor selection" and "Insert active file path", so these are reachable when the chat is in its own tab (issue #174).
 
