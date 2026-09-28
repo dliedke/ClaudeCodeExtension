@@ -22,9 +22,14 @@ namespace ClaudeCodeVS
 {
     /// <summary>
     /// Handles Visual Studio solution events to detect when solutions/projects are opened or closed
-    /// Triggers terminal restart when the workspace directory changes
+    /// Triggers terminal restart when the workspace directory changes.
+    /// Also implements <see cref="IVsSolutionEvents7"/> for "Open Folder" workspaces: switching
+    /// directly from one open folder to another does not reliably raise <see cref="OnAfterOpenSolution"/>
+    /// again, so relying on the base interface alone left the extension stuck on the first folder's
+    /// directory. VS queries registered listeners for the extended interface automatically, so no
+    /// second Advise call is needed — implementing it here is enough to start receiving folder events.
     /// </summary>
-    public class SolutionEventsHandler : IVsSolutionEvents
+    public class SolutionEventsHandler : IVsSolutionEvents, IVsSolutionEvents7
     {
         #region Fields
 
@@ -99,6 +104,56 @@ namespace ClaudeCodeVS
             QueueWorkspaceRefresh(true);
             return VSConstants.S_OK;
         }
+
+        #endregion
+
+        #region Folder ("Open Folder" mode) Event Handlers
+
+        /// <summary>
+        /// Called after a folder is opened in "Open Folder" mode (e.g. CMake projects, or any
+        /// directory opened via File &gt; Open &gt; Folder). Mirrors <see cref="OnAfterOpenSolution"/>
+        /// so switching from one open folder straight to another refreshes the workspace directory
+        /// the same way switching solutions does.
+        /// </summary>
+        public void OnAfterOpenFolder(string folderPath)
+        {
+            QueueWorkspaceRefresh(true);
+        }
+
+        /// <summary>
+        /// Called before a folder is closed. Mirrors <see cref="OnBeforeCloseSolution"/>: stop the
+        /// agent-finish watcher and invalidate any in-flight debounced refresh up front, so its
+        /// console-attach tick can't run while the old terminal is torn down and the next one launched.
+        /// </summary>
+        public void OnBeforeCloseFolder(string folderPath)
+        {
+            try
+            {
+                Interlocked.Increment(ref _workspaceRefreshRequestId);
+                ThreadHelper.ThrowIfNotOnUIThread();
+                _control?.ResetAgentCompletionWatcher();
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"OnBeforeCloseFolder error: {ex.Message}");
+            }
+        }
+
+        /// <summary>
+        /// Called after a folder is closed.
+        /// </summary>
+        public void OnAfterCloseFolder(string folderPath) { }
+
+        /// <summary>
+        /// Called when querying whether a folder can be closed.
+        /// </summary>
+        public void OnQueryCloseFolder(string folderPath, ref int pfCancel) { }
+
+        /// <summary>
+        /// Called after all deferred-mode projects finish loading. Obsolete since VS 2022 but still
+        /// part of the interface contract.
+        /// </summary>
+        public void OnAfterLoadAllDeferredProjects() { }
 
         #endregion
 

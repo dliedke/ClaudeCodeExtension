@@ -140,6 +140,9 @@ Use native mode to avoid this issue.
 
 ## Version History
 
+### Version 206.0
+- Fixed the working directory not updating when switching directly from one open folder to another (File > Open > Folder), so the panel and agent now follow the newly opened folder instead of staying on the previous one.
+
 ### Version 205.0
 - New "Generate Commit Message, Commit and Push" toolbar/menu action: drafts the commit message like Generate Commit Message, fills it into the Git Changes window, then immediately stages, commits and pushes every change.
 - Both commit actions can be promoted to their own toolbar button independently via *⚙ → Settings... → Toolbar*, and both are available as "On Agent Finish" follow-up presets, which now show which one is selected.
