@@ -31,6 +31,38 @@ namespace ClaudeCodeExtension.Tests
             Assert.AreEqual("fix the bug", ClaudeCodeControl.StripTrailingNewlines("fix the bug\r"));
         }
 
+        /// <summary>
+        /// Multi-line prompts go to Claude Code as one explicit bracketed paste. Without the markers
+        /// conhost's paste turns every line break into Enter: short prompts were split into several
+        /// messages, longer ones were held back with "review and press Enter to send".
+        /// </summary>
+        [TestMethod]
+        public void WrapMultilineAsBracketedPaste_WrapsAndNormalizesLineBreaksToLf()
+        {
+            Assert.AreEqual("\u001b[200~a\nb\u001b[201~", ClaudeCodeControl.WrapMultilineAsBracketedPaste("a\r\nb"));
+            Assert.AreEqual("\u001b[200~a\nb\u001b[201~", ClaudeCodeControl.WrapMultilineAsBracketedPaste("a\nb"));
+            Assert.AreEqual("\u001b[200~a\nb\u001b[201~", ClaudeCodeControl.WrapMultilineAsBracketedPaste("a\rb"),
+                "A lone CR is what Claude Code counts as a hidden character, so it must not survive.");
+            Assert.AreEqual("\u001b[200~a\n\nb\u001b[201~", ClaudeCodeControl.WrapMultilineAsBracketedPaste("a\r\n\r\nb"));
+        }
+
+        [TestMethod]
+        public void WrapMultilineAsBracketedPaste_LeavesSingleLineAndEmptyTextAlone()
+        {
+            Assert.AreEqual("/model opus", ClaudeCodeControl.WrapMultilineAsBracketedPaste("/model opus"),
+                "Slash commands and other one-liners keep the plain paste they always used.");
+            Assert.AreEqual("", ClaudeCodeControl.WrapMultilineAsBracketedPaste(""));
+            Assert.IsNull(ClaudeCodeControl.WrapMultilineAsBracketedPaste(null));
+        }
+
+        [TestMethod]
+        public void WrapMultilineAsBracketedPaste_DropsEscSoTheTextCannotEndThePasteEarly()
+        {
+            string wrapped = ClaudeCodeControl.WrapMultilineAsBracketedPaste("a\u001b[201~\nb");
+            Assert.AreEqual("\u001b[200~a[201~\nb\u001b[201~", wrapped);
+            Assert.AreEqual(2, wrapped.Split('\u001b').Length - 1, "Only the two markers may carry an ESC.");
+        }
+
         [TestMethod]
         public void StripTrailingNewlines_RemovesRepeatedTrailingNewlines()
         {

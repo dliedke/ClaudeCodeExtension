@@ -143,6 +143,15 @@ namespace ClaudeCodeVS
         {
             text = StripTrailingNewlines(text);
 
+            // Claude Code in conhost: send multi-line prompts as an explicit bracketed paste (see
+            // WrapMultilineAsBracketedPaste). Windows Terminal adds the markers itself, and the other
+            // agents are not known to understand them - a bare ESC could even interrupt one - so they
+            // keep the plain paste.
+            if (_wtTabBarHeight == 0 && _currentRunningProvider == AiProvider.ClaudeCode)
+            {
+                text = WrapMultilineAsBracketedPaste(text);
+            }
+
             // Mouse-input-mode probe (issues #76, #82, #83): when a TUI has switched the embedded
             // conhost into mouse-input mode (QuickEdit disabled — e.g. Claude Code signed in with an
             // API key, or PI), conhost's plain right-click paste is swallowed by the running app, so
@@ -592,6 +601,35 @@ namespace ClaudeCodeVS
         internal static string StripTrailingNewlines(string text)
         {
             return text?.TrimEnd('\r', '\n');
+        }
+
+        private static readonly char[] LineBreakChars = { '\r', '\n' };
+
+        /// <summary>
+        /// Wraps a multi-line prompt in bracketed-paste markers so Claude Code takes the whole block
+        /// as one paste. Single-line text is returned unchanged.
+        /// </summary>
+        /// <remarks>
+        /// conhost's Edit→Paste delivers every line break as an Enter keystroke and emits no paste
+        /// markers, so Claude Code has to guess from timing whether it is being typed at or pasted
+        /// into. A short prompt reads as typing and each line break submits, splitting the prompt
+        /// into several messages. A longer one reads as a paste: the line breaks survive, but the
+        /// lone carriage returns count as hidden characters, and Claude Code then refuses to submit
+        /// ("review and press Enter to send") until the user presses Enter in the terminal.
+        /// Explicit markers remove the guess; this is also the form Claude Code uses itself when it
+        /// writes a reply into another session's terminal. Line breaks are normalized to LF, since a
+        /// lone CR is exactly what the hidden-character check counts, and any ESC in the text is
+        /// dropped so it can neither end the paste early nor be flagged in turn.
+        /// </remarks>
+        internal static string WrapMultilineAsBracketedPaste(string text)
+        {
+            if (string.IsNullOrEmpty(text) || text.IndexOfAny(LineBreakChars) < 0)
+            {
+                return text;
+            }
+
+            string body = text.Replace("\r\n", "\n").Replace('\r', '\n').Replace("\u001b", string.Empty);
+            return "\u001b[200~" + body + "\u001b[201~";
         }
 
         /// <summary>
