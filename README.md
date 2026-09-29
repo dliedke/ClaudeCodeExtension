@@ -140,6 +140,10 @@ Use native mode to avoid this issue.
 
 ## Version History
 
+### Version 209.0
+- Multi-line prompts sent to Claude Code no longer get split into separate messages or held back waiting for Enter, so long prompts submit reliably as a single message.
+- Thanks to [@rbuss93](https://github.com/rbuss93) for the contribution (#180).
+
 ### Version 208.0
 - Fixed prompts sometimes staying in the terminal input line without being submitted, especially right after a long agent response, so you no longer have to press Enter yourself.
 - Thanks to [@rbuss93](https://github.com/rbuss93) for the contribution (#178).
