@@ -59,12 +59,6 @@ namespace ClaudeCodeVS
         /// time, so 1 ms per 5 chars (= 5000 chars/s) is conservative-but-not-excessive.
         /// </summary>
         private const int PasteMsPerCharDivisor = 5;
-        /// <summary>
-        /// How long to wait for the terminal window thread to acknowledge the queued paste command
-        /// before falling back to the timed wait alone. Generous on purpose: the case that matters is
-        /// a conhost busy repainting a large turn, which is exactly when the handshake is worth having.
-        /// </summary>
-        private const uint PasteHandoffTimeoutMs = 2000;
 
         /// <summary>
         /// Maximum chunk size for a single paste operation. Texts longer than this are split
@@ -692,19 +686,6 @@ namespace ClaudeCodeVS
             if (terminalHandle == IntPtr.Zero || !IsWindow(terminalHandle)) return;
 
             PostMessage(terminalHandle, WM_COMMAND, new IntPtr(ID_CONSOLE_PASTE), IntPtr.Zero);
-
-            // PostMessage only queues the paste; it says nothing about when conhost acts on it. A
-            // conhost still repainting a large agent turn can leave the command sitting in its queue
-            // (issue #89) while the caller's post-paste wait is already counting down - the Enter then
-            // arrives before the prompt reaches the input line and the submit is dropped, leaving the
-            // text sitting in the input line unsent. A WM_NULL round trip returns only once that thread
-            // has drained everything queued ahead of it, so the wait starts after the paste was picked
-            // up rather than alongside it. Off the UI thread, because a wedged conhost would otherwise
-            // freeze Visual Studio for the timeout (issues #60, #61).
-            IntPtr handle = terminalHandle;
-            await Task.Run(() => SendMessageTimeout(handle, WM_NULL, IntPtr.Zero, IntPtr.Zero,
-                SMTO_ABORTIFHUNG, PasteHandoffTimeoutMs, out _));
-
             await Task.Delay(50);
         }
 
