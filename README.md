@@ -140,6 +140,9 @@ Use native mode to avoid this issue.
 
 ## Version History
 
+### Version 210.0
+- "Generate Commit Message, Commit and Push" no longer shows a confirmation dialog after a successful push; errors are still reported.
+
 ### Version 209.0
 - Multi-line prompts sent to Claude Code no longer get split into separate messages or held back waiting for Enter, so long prompts submit reliably as a single message.
 - Thanks to [@rbuss93](https://github.com/rbuss93) for the contribution (#180).

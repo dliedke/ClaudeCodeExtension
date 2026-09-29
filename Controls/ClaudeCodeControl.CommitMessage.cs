@@ -195,12 +195,6 @@ namespace ClaudeCodeVS
                         MessageBoxImage.Warning);
                     return;
                 }
-
-                MessageBox.Show(
-                    "Committed and pushed successfully.",
-                    "Generate Commit Message, Commit and Push",
-                    MessageBoxButton.OK,
-                    MessageBoxImage.Information);
             }
             catch (Exception ex)
             {
