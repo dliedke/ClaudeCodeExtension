@@ -303,12 +303,14 @@ namespace ClaudeCodeVS
 
             var addButton = makeSideButton("Add...");
             var editButton = makeSideButton("Edit...");
+            var cloneButton = makeSideButton("Clone...");
             var removeButton = makeSideButton("Remove");
             var moveUpButton = makeSideButton("Move Up");
             var moveDownButton = makeSideButton("Move Down");
 
             sideStack.Children.Add(addButton);
             sideStack.Children.Add(editButton);
+            sideStack.Children.Add(cloneButton);
             sideStack.Children.Add(removeButton);
             sideStack.Children.Add(moveUpButton);
             sideStack.Children.Add(moveDownButton);
@@ -337,6 +339,27 @@ namespace ClaudeCodeVS
                     _settings.CustomCommands[idx] = edited;
                     refreshList();
                     listBox.SelectedIndex = idx;
+                }
+            };
+
+            // Clone - opens the editor pre-filled with a copy of the selected entry and inserts the
+            // result right below the original, so a variant of a long prompt starts from its text.
+            cloneButton.Click += (s, args) =>
+            {
+                int idx = listBox.SelectedIndex;
+                if (idx < 0 || idx >= _settings.CustomCommands.Count) return;
+                var source = _settings.CustomCommands[idx];
+                var template = new CustomCommand
+                {
+                    Name = BuildCloneName(source.Name, _settings.CustomCommands.Select(c => c.Name)),
+                    Command = source.Command
+                };
+                var cloned = ShowCustomCommandEditorDialog(template, dialog, "Clone Custom Command");
+                if (cloned != null)
+                {
+                    _settings.CustomCommands.Insert(idx + 1, cloned);
+                    refreshList();
+                    listBox.SelectedIndex = idx + 1;
                 }
             };
 
@@ -426,14 +449,15 @@ namespace ClaudeCodeVS
         /// </summary>
         /// <param name="existing">The command to edit, or null to add a new one.</param>
         /// <param name="owner">The parent dialog window for centering/modality.</param>
+        /// <param name="title">Window title override (e.g. for cloning); null picks Add/Edit.</param>
         /// <returns>A new or edited <see cref="CustomCommand"/>, or null if cancelled.</returns>
-        private CustomCommand ShowCustomCommandEditorDialog(CustomCommand existing, Window owner)
+        private CustomCommand ShowCustomCommandEditorDialog(CustomCommand existing, Window owner, string title = null)
         {
             GetThemeBrushes(out Brush themeBg, out Brush themeFg);
 
             var dialog = new Window
             {
-                Title = existing == null ? "Add Custom Command" : "Edit Custom Command",
+                Title = title ?? (existing == null ? "Add Custom Command" : "Edit Custom Command"),
                 Width = 600,
                 Height = 420,
                 WindowStartupLocation = WindowStartupLocation.CenterOwner,
@@ -564,6 +588,26 @@ namespace ClaudeCodeVS
             dialog.Loaded += (s, args) => nameBox.Focus();
             dialog.ShowDialog();
             return result;
+        }
+
+        /// <summary>
+        /// Name offered for a clone of <paramref name="sourceName"/>: "Name (copy)", then
+        /// "Name (copy 2)", "Name (copy 3)"… — the first one not already taken, so cloning the
+        /// same command twice doesn't produce two identical dropdown entries.
+        /// </summary>
+        internal static string BuildCloneName(string sourceName, IEnumerable<string> existingNames)
+        {
+            string baseName = (sourceName ?? string.Empty).Trim();
+            var taken = new HashSet<string>(
+                (existingNames ?? Enumerable.Empty<string>()).Where(n => n != null).Select(n => n.Trim()),
+                StringComparer.OrdinalIgnoreCase);
+
+            string candidate = $"{baseName} (copy)";
+            for (int i = 2; taken.Contains(candidate); i++)
+            {
+                candidate = $"{baseName} (copy {i})";
+            }
+            return candidate;
         }
 
         #endregion

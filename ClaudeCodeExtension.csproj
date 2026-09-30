@@ -97,6 +97,7 @@
     <Compile Include="Controls\ClaudeCodeControl.SessionHistoryProviders.cs" />
     <Compile Include="Controls\ClaudeCodeControl.Settings.cs" />
     <Compile Include="Controls\ClaudeCodeControl.SettingsDialog.cs" />
+    <Compile Include="Controls\ClaudeCodeControl.SettingsBackup.cs" />
     <Compile Include="Controls\ClaudeCodeControl.Terminal.cs" />
     <Compile Include="Controls\ClaudeCodeControl.TerminalIO.cs" />
     <Compile Include="Controls\ClaudeCodeControl.Theme.cs" />

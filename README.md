@@ -106,7 +106,7 @@ Then choose it via *⚙ → Set Terminal Type...*.
 - Pick an AI provider, *Configure Visible Code Agents...*
 - Provider-specific flags: Claude *Skip Permissions*, Codex *Approval Never*, Cursor *Yolo Mode*, Devin *Dangerous Mode*, Antigravity *Skip Permissions*
 - *Configure Custom Commands...*, *Settings...*, About
-- *Settings...* opens the consolidated dialog with tabs for Behavior (send key, large prompts, auto-open Changes, pull before sending, auto-send build errors, font size), Layout (prompt panel position), Terminal type, Theme, Usage, Toolbar, and CLI Paths
+- *Settings...* opens the consolidated dialog with tabs for Behavior (send key, large prompts, auto-open Changes, pull before sending, auto-send build errors, font size), Layout (prompt panel position), Terminal type, Theme, Usage, Toolbar, CLI Paths, and Backup (save/load all settings to a file)
 
 **☰ Tools dropdown**: Holds *Update Code Agent*, *Restart Code Agent*, *Detach/Attach Terminal*, *View Code Changes*, *Session History*, *Show Usage*, *Set Working Directory...*, *Send Build Errors to Agent*, and *Generate Commit Message*. Promote any of these to one-click toolbar buttons — and reorder them by dragging — via *⚙ → Settings... → Toolbar*; promoted features leave the dropdown, which hides once they all become buttons.
 
@@ -139,6 +139,10 @@ https://github.com/anthropics/claude-code/issues/41501
 Use native mode to avoid this issue.
 
 ## Version History
+
+### Version 211.0
+- Custom commands can now be cloned: select one in *Configure Custom Commands...* and click *Clone...* to start a new command from a copy of it.
+- New *Backup* tab in *⚙ → Settings...* saves the entire extension configuration (all settings, custom commands, On Agent Finish including per-solution overrides, and more) to a file and loads it back, e.g. to move your setup to another machine.
 
 ### Version 210.0
 - "Generate Commit Message, Commit and Push" no longer shows a confirmation dialog after a successful push; errors are still reported.

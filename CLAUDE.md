@@ -6,7 +6,7 @@ Visual Studio Extension (VSIX) for VS 2022/2026 — integrates AI code assistant
 
 - Author: Daniel Carvalho Liedke (dliedke@gmail.com) | License: MIT
 - Repository: https://github.com/dliedke/ClaudeCodeExtension
-- Current Version: 210.0 | Target Framework: .NET Framework 4.7.2
+- Current Version: 211.0 | Target Framework: .NET Framework 4.7.2
 
 Step-by-step procedures for recurring tasks (release, Exp-hive debugging, publish, adding a
 provider/setting/UI file) live in `docs/SKILLS.md`. Short build/style brief for non-Claude agents: `docs/AGENTS.md`.
@@ -93,6 +93,7 @@ ClaudeCodeExtension/
 │   ├── ClaudeCodeControl.ImageHandling.cs # Image paste & file attachments
 │   ├── ClaudeCodeControl.Settings.cs    # Settings persistence (JSON), layout inversion
 │   ├── ClaudeCodeControl.SettingsDialog.cs # Consolidated Settings dialog: behavior, layout, terminal type, theme
+│   ├── ClaudeCodeControl.SettingsBackup.cs # Settings → Backup tab: save/load the whole configuration to/from a JSON file
 │   ├── ClaudeCodeControl.Cleanup.cs     # Resource cleanup, temp dir management
 │   ├── ClaudeCodeControl.AgentCompletion.cs # "On Agent Finish": console-idle completion watcher, notify (info bar) + actions
 │   ├── ClaudeCodeControl.AgentFinishDialog.cs # "On Agent Finish" settings window: global default + per-solution override
@@ -224,7 +225,7 @@ Three cross-cutting rules (full text in `docs/ARCHITECTURE.md` → *Cross-Cuttin
 | `Controls/ClaudeCodeControl.Workspace.cs` | Workspace — directory resolution priority |
 | `Controls/ClaudeCodeControl.Detach.cs` | Detach — re-parenting / auto-reattach |
 | `Controls/ClaudeCodeControl.Theme.cs` | Theme — agent vs panel color, restart prompt, custom color |
-| `Controls/ClaudeCodeControl.SettingsDialog.cs` | Consolidated Settings Dialog — six tabs, batched apply, themed templates |
+| `Controls/ClaudeCodeControl.SettingsDialog.cs`, `Controls/ClaudeCodeControl.SettingsBackup.cs` | Consolidated Settings Dialog — tabs, batched apply, themed templates, Backup tab save/load |
 | `Controls/ClaudeCodeControl.SessionHistory.cs` | Session History — JSONL parsing, path encoding, resume flow |
 | `Controls/ClaudeCodeControl.AgentCompletion.cs` | On Agent Finish — console-buffer idle detection, console-attach leak guard |
 | `Controls/ClaudeCodeControl.AgentFinishDialog.cs` | On Agent Finish — settings window, global default + per-solution override, follow-up presets |

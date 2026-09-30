@@ -1063,11 +1063,22 @@ namespace ClaudeCodeVS
                 _settings.ToolbarButtonsRightAligned, themeFg);
             toolbarStack.Children.Add(toolbarRightAlignCheck);
 
-            // ========================= CLI Paths tab (last) =========================
+            // ========================= CLI Paths tab =========================
             var cliPathsStack = AddTab("CLI Paths");
             var cliPathEditors = BuildCliPathsTabContent(cliPathsStack, themeBg, themeFg);
             cliPathsStack.Children.Add(new Border { Height = 12 });
             var launchArgEditors = BuildLaunchArgumentsSectionContent(cliPathsStack, themeBg, themeFg);
+
+            // ========================= Backup tab (last) =========================
+            // Loading a file replaces everything, so it closes this dialog without applying its
+            // controls (they still show the old values) and runs the import once it's gone.
+            var backupStack = AddTab("Backup");
+            Newtonsoft.Json.Linq.JObject pendingImport = null;
+            BuildSettingsBackupTabContent(backupStack, themeBg, themeFg, imported =>
+            {
+                pendingImport = imported;
+                dialog.DialogResult = false;
+            });
 
             // ---- Button row ----
             var buttonPanel = new Grid { Margin = new Thickness(0, 14, 0, 0) };
@@ -1200,7 +1211,11 @@ namespace ClaudeCodeVS
 
             if (dialog.ShowDialog() != true)
             {
-                // Cancel - no changes applied
+                // Cancel - no changes applied (a confirmed "Load All Settings" also lands here)
+                if (pendingImport != null)
+                {
+                    await ApplyImportedConfigurationAsync(pendingImport);
+                }
                 return;
             }
 
