@@ -3165,12 +3165,29 @@ namespace ClaudeCodeVS
 
             if (IsClaudeProvider(provider))
             {
-                return GetClaudePermissionLabel(ClaudeCommandBuilder.ResolvePermissionChoice(
-                    _settings?.ClaudePlanMode == true, skipping.Value, _settings?.ClaudeAutoPermissions == true,
-                    _settings?.ClaudeManualMode == true));
+                return GetClaudePermissionLabel(GetNativeClaudePermissionChoice(skipping.Value));
             }
 
             return skipping.Value ? "Skip permissions" : "Ask permission";
+        }
+
+        /// <summary>
+        /// The Claude permission mode the panel session runs in: the saved choice, unless the plan
+        /// approved in this conversation has already moved it out of plan mode (#181). The launch, the
+        /// composer caption and the menu checkmarks all read this, so they cannot disagree.
+        /// </summary>
+        private ClaudePermissionChoice GetNativeClaudePermissionChoice(bool skipping)
+        {
+            return _nativePlanExitChoice ?? ClaudeCommandBuilder.ResolvePermissionChoice(
+                _settings?.ClaudePlanMode == true, skipping, _settings?.ClaudeAutoPermissions == true,
+                _settings?.ClaudeManualMode == true);
+        }
+
+        /// <summary>The parallel-tab counterpart of <see cref="GetNativeClaudePermissionChoice(bool)"/>, read from that tab's own snapshot.</summary>
+        private static ClaudePermissionChoice GetNativeClaudePermissionChoice(NativeChatSessionState session)
+        {
+            return session.PlanExitChoice ?? ClaudeCommandBuilder.ResolvePermissionChoice(
+                session.PlanMode, session.SkipPermissions, session.AutoPermissions, session.ManualMode);
         }
 
         /// <summary>
@@ -3206,8 +3223,7 @@ namespace ClaudeCodeVS
 
             if (IsClaudeProvider(provider))
             {
-                return GetClaudePermissionLabel(ClaudeCommandBuilder.ResolvePermissionChoice(
-                    session.PlanMode, session.SkipPermissions, session.AutoPermissions, session.ManualMode));
+                return GetClaudePermissionLabel(GetNativeClaudePermissionChoice(session));
             }
 
             return session.SkipPermissions ? "Skip permissions" : "Ask permission";
@@ -4051,9 +4067,7 @@ namespace ClaudeCodeVS
                 // One resolved state rather than a condition per entry: exactly one of the five is
                 // checked, even if the stored flags somehow contradict each other, and the checkmark
                 // agrees with both the caption and the launch.
-                ClaudePermissionChoice choice = ClaudeCommandBuilder.ResolvePermissionChoice(
-                    _settings?.ClaudePlanMode == true, skipping.Value, _settings?.ClaudeAutoPermissions == true,
-                    _settings?.ClaudeManualMode == true);
+                ClaudePermissionChoice choice = GetNativeClaudePermissionChoice(skipping.Value);
 
                 AddComposerMenuItem(menu, "Plan mode", choice == ClaudePermissionChoice.PlanMode,
                     delegate { ThreadHelper.ThrowIfNotOnUIThread(); OnChatPlanModeSelected(true); });
@@ -4094,8 +4108,7 @@ namespace ClaudeCodeVS
 
             if (IsClaudeProvider(provider))
             {
-                ClaudePermissionChoice choice = ClaudeCommandBuilder.ResolvePermissionChoice(
-                    session.PlanMode, skipping, session.AutoPermissions, session.ManualMode);
+                ClaudePermissionChoice choice = GetNativeClaudePermissionChoice(session);
 
                 AddComposerMenuItem(menu, "Plan mode", choice == ClaudePermissionChoice.PlanMode,
                     delegate { ThreadHelper.ThrowIfNotOnUIThread(); OnChatPlanModeSelectedForSession(session, true); });
@@ -4190,7 +4203,7 @@ namespace ClaudeCodeVS
                         return false;
                     }
 
-                    if (_settings?.ClaudePlanMode == true)
+                    if (GetNativeClaudePermissionChoice(_settings?.ClaudeDangerouslySkipPermissions == true) == ClaudePermissionChoice.PlanMode)
                     {
                         AddNativeMessage(ChatMessageKind.Notice, "🤖 Already in plan mode.");
                     }
@@ -4336,6 +4349,7 @@ namespace ClaudeCodeVS
                 session.PlanMode = IsClaudeProvider(provider) && _settings?.ClaudePlanMode == true;
                 session.AutoPermissions = IsClaudeProvider(provider) && _settings?.ClaudeAutoPermissions == true;
                 session.ManualMode = IsClaudeProvider(provider) && _settings?.ClaudeManualMode == true;
+                session.PlanExitChoice = null;
 
                 UpdateChatComposerState(session);
 
@@ -4676,10 +4690,14 @@ namespace ClaudeCodeVS
 
                 AiProvider? provider = GetActiveOrSelectedProvider();
                 bool? current = GetChatPermissionSkipFlag(provider);
-                if (!current.HasValue || current.Value == skip)
+                bool hadPlanExit = _nativePlanExitChoice.HasValue;
+                if (!current.HasValue || (current.Value == skip && !hadPlanExit))
                 {
                     return;
                 }
+
+                // An explicit pick replaces whatever a plan approval switched this conversation to.
+                _nativePlanExitChoice = null;
 
                 SetChatPermissionSkipFlag(provider, skip);
 
@@ -4717,11 +4735,14 @@ namespace ClaudeCodeVS
             {
                 await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
 
-                if (_settings == null || _settings.ClaudePlanMode == planning)
+                // Picking Plan mode again after an approved plan has to go back to planning even
+                // though the saved choice never stopped being Plan mode (#181).
+                if (_settings == null || (_settings.ClaudePlanMode == planning && !_nativePlanExitChoice.HasValue))
                 {
                     return;
                 }
 
+                _nativePlanExitChoice = null;
                 _settings.ClaudePlanMode = planning;
 
                 if (planning)
@@ -4775,10 +4796,13 @@ namespace ClaudeCodeVS
                 bool wasPlanning = _settings.ClaudePlanMode;
                 bool wasAuto = _settings.ClaudeAutoPermissions;
                 bool wasManual = _settings.ClaudeManualMode;
-                if (!wasSkipping && !wasPlanning && !wasAuto && !wasManual)
+                bool hadPlanExit = _nativePlanExitChoice.HasValue;
+                if (!wasSkipping && !wasPlanning && !wasAuto && !wasManual && !hadPlanExit)
                 {
                     return;
                 }
+
+                _nativePlanExitChoice = null;
 
                 _settings.ClaudePlanMode = false;
                 _settings.ClaudeAutoPermissions = false;
@@ -4824,10 +4848,13 @@ namespace ClaudeCodeVS
                 // Target state, not a toggle — same reasoning as OnChatAcceptEditsSelected. Bailing
                 // out on the auto flag alone no-opped while a stray plan-mode or skip flag was still
                 // the one being launched, leaving the user unable to reach auto from the menu (#150).
-                if (_settings.ClaudeAutoPermissions && !_settings.ClaudePlanMode && !wasSkipping && !_settings.ClaudeManualMode)
+                if (_settings.ClaudeAutoPermissions && !_settings.ClaudePlanMode && !wasSkipping && !_settings.ClaudeManualMode &&
+                    !_nativePlanExitChoice.HasValue)
                 {
                     return;
                 }
+
+                _nativePlanExitChoice = null;
 
                 _settings.ClaudeAutoPermissions = true;
                 _settings.ClaudePlanMode = false;
@@ -4872,10 +4899,13 @@ namespace ClaudeCodeVS
                 bool wasSkipping = GetChatPermissionSkipFlag(provider) == true;
 
                 // Target state, not a toggle — same reasoning as OnChatAutoPermissionsSelected.
-                if (_settings.ClaudeManualMode && !_settings.ClaudePlanMode && !wasSkipping && !_settings.ClaudeAutoPermissions)
+                if (_settings.ClaudeManualMode && !_settings.ClaudePlanMode && !wasSkipping && !_settings.ClaudeAutoPermissions &&
+                    !_nativePlanExitChoice.HasValue)
                 {
                     return;
                 }
+
+                _nativePlanExitChoice = null;
 
                 _settings.ClaudeManualMode = true;
                 _settings.ClaudePlanMode = false;
@@ -5366,11 +5396,12 @@ namespace ClaudeCodeVS
             {
                 await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
 
-                if (session == null || session.SkipPermissions == skip)
+                if (session == null || (session.SkipPermissions == skip && !session.PlanExitChoice.HasValue))
                 {
                     return;
                 }
 
+                session.PlanExitChoice = null;
                 session.SkipPermissions = skip;
 
                 // Plan mode, auto, manual and skipping every prompt are mutually exclusive; picking one
@@ -5403,11 +5434,12 @@ namespace ClaudeCodeVS
             {
                 await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
 
-                if (session == null || session.PlanMode == planning)
+                if (session == null || (session.PlanMode == planning && !session.PlanExitChoice.HasValue))
                 {
                     return;
                 }
 
+                session.PlanExitChoice = null;
                 session.PlanMode = planning;
 
                 if (planning)
@@ -5438,11 +5470,13 @@ namespace ClaudeCodeVS
             {
                 await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
 
-                if (session == null || (!session.PlanMode && !session.SkipPermissions && !session.AutoPermissions && !session.ManualMode))
+                if (session == null || (!session.PlanMode && !session.SkipPermissions && !session.AutoPermissions && !session.ManualMode &&
+                    !session.PlanExitChoice.HasValue))
                 {
                     return;
                 }
 
+                session.PlanExitChoice = null;
                 session.PlanMode = false;
                 session.AutoPermissions = false;
                 session.ManualMode = false;
@@ -5466,10 +5500,13 @@ namespace ClaudeCodeVS
             {
                 await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
 
-                if (session == null || (session.AutoPermissions && !session.PlanMode && !session.SkipPermissions && !session.ManualMode))
+                if (session == null || (session.AutoPermissions && !session.PlanMode && !session.SkipPermissions && !session.ManualMode &&
+                    !session.PlanExitChoice.HasValue))
                 {
                     return;
                 }
+
+                session.PlanExitChoice = null;
 
                 session.AutoPermissions = true;
                 session.PlanMode = false;
@@ -5494,10 +5531,13 @@ namespace ClaudeCodeVS
             {
                 await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
 
-                if (session == null || (session.ManualMode && !session.PlanMode && !session.SkipPermissions && !session.AutoPermissions))
+                if (session == null || (session.ManualMode && !session.PlanMode && !session.SkipPermissions && !session.AutoPermissions &&
+                    !session.PlanExitChoice.HasValue))
                 {
                     return;
                 }
+
+                session.PlanExitChoice = null;
 
                 session.ManualMode = true;
                 session.PlanMode = false;

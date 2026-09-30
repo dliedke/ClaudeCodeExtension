@@ -549,8 +549,10 @@ namespace ClaudeCodeVS
 
         /// <summary>
         /// If true, Claude Code starts in plan mode: it researches and proposes a plan, and only makes
-        /// changes after the plan is approved in the chat. Native mode only — the terminal has the
-        /// CLI's own shift+tab for this.
+        /// changes after the plan is approved. The user's choice, not the running session's state:
+        /// approving a plan leaves plan mode for that conversation only and never clears this, so
+        /// Restart and new chats start planning again (#181). Terminal mode passes
+        /// <c>--permission-mode plan</c> ("Claude Code: Start in Plan Mode").
         /// </summary>
         public bool ClaudePlanMode { get; set; } = false;
 

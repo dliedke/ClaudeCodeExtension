@@ -557,6 +557,7 @@
 									<MenuItem Header="Configure Visible Code Agents..." x:Name="ConfigureVisibleAgentsMenuItem" Click="ConfigureVisibleAgentsMenuItem_Click" ToolTip="Choose which code agents appear in this menu. The active agent always remains visible."/>
 									<Separator x:Name="AutoOpenChangesSeparator"/>
 									<MenuItem Header="Claude Code: Skip Permissions" x:Name="ClaudeDangerouslySkipPermissionsMenuItem" Click="ClaudeDangerouslySkipPermissionsMenuItem_Click" IsCheckable="True" ToolTip="When enabled, Claude Code starts with --dangerously-skip-permissions"/>
+									<MenuItem Header="Claude Code: Start in Plan Mode" x:Name="ClaudePlanModeMenuItem" Click="ClaudePlanModeMenuItem_Click" IsCheckable="True" ToolTip="When enabled, Claude Code starts every session in plan mode, Restart included. Takes effect on the next start."/>
 									<MenuItem Header="Codex: Approval Never" x:Name="CodexFullAutoMenuItem" Click="CodexFullAutoMenuItem_Click" IsCheckable="True" ToolTip="When enabled, Codex starts with --ask-for-approval never"/>
 									<MenuItem Header="Cursor Agent: Yolo Mode" x:Name="CursorAgentAutoRunMenuItem" Click="CursorAgentAutoRunMenuItem_Click" IsCheckable="True" ToolTip="When enabled, Cursor Agent starts with --yolo to skip all approvals"/>
 									<MenuItem Header="Devin: Dangerous Mode" x:Name="DevinDangerousModeMenuItem" Click="DevinDangerousModeMenuItem_Click" IsCheckable="True" ToolTip="When enabled, Devin starts with --permission-mode dangerous"/>

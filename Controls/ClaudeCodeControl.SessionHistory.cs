@@ -1921,6 +1921,9 @@ namespace ClaudeCodeVS
             SaveSettings();
 
             _pendingResumeSessionId = session.SessionId;
+
+            // A plan approved in the conversation being left does not carry over to this one (#181).
+            _nativePlanExitChoice = null;
             await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
             UpdateProviderSelection();
 

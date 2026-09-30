@@ -140,6 +140,10 @@ Use native mode to avoid this issue.
 
 ## Version History
 
+### Version 212.0
+- Plan mode now sticks: approving a plan no longer switches your saved mode to Accept edits, so Restart and new chats start in plan mode again (#181).
+- Terminal mode gets a *Claude Code: Start in Plan Mode* option in the agent menu, so every Claude Code start, Restart included, begins in plan mode.
+
 ### Version 211.0
 - Custom commands can now be cloned: select one in *Configure Custom Commands...* and click *Clone...* to start a new command from a copy of it.
 - New *Backup* tab in *⚙ → Settings...* saves the entire extension configuration (all settings, custom commands, On Agent Finish including per-solution overrides, and more) to a file and loads it back, e.g. to move your setup to another machine.

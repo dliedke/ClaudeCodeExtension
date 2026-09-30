@@ -4011,6 +4011,10 @@ For more details, visit: https://pi.dev";
                 {
                     baseCmd += " --dangerously-skip-permissions";
                 }
+                else if (_settings?.ClaudePlanMode == true)
+                {
+                    baseCmd += " --permission-mode plan";
+                }
 
                 string resumeCommand;
                 if (isWsl)
@@ -4178,6 +4182,8 @@ For more details, visit: https://pi.dev";
 
             AutoOpenChangesSeparator.Visibility = (isClaudeProvider || isCodexProvider || isCursorAgentProvider || isDevinProvider || isPiProvider || isAntigravityProvider || isReasonixProvider || isDevinNativeProvider) ? Visibility.Visible : Visibility.Collapsed;
             ClaudeDangerouslySkipPermissionsMenuItem.Visibility = isClaudeProvider ? Visibility.Visible : Visibility.Collapsed;
+            // Native mode has its own Plan mode entry in the composer's permission selector.
+            ClaudePlanModeMenuItem.Visibility = isClaudeProvider && !IsNativeModeActive ? Visibility.Visible : Visibility.Collapsed;
             CodexFullAutoMenuItem.Visibility = isCodexProvider ? Visibility.Visible : Visibility.Collapsed;
             CursorAgentAutoRunMenuItem.Visibility = isCursorAgentProvider ? Visibility.Visible : Visibility.Collapsed;
             DevinDangerousModeMenuItem.Visibility = (isDevinProvider || isDevinNativeProvider) ? Visibility.Visible : Visibility.Collapsed;
@@ -4193,6 +4199,7 @@ For more details, visit: https://pi.dev";
             if (_settings != null)
             {
                 ClaudeDangerouslySkipPermissionsMenuItem.IsChecked = _settings.ClaudeDangerouslySkipPermissions;
+                ClaudePlanModeMenuItem.IsChecked = _settings.ClaudePlanMode && !_settings.ClaudeDangerouslySkipPermissions;
                 CodexFullAutoMenuItem.IsChecked = _settings.CodexFullAuto;
                 CursorAgentAutoRunMenuItem.IsChecked = _settings.CursorAgentAutoRun;
                 DevinDangerousModeMenuItem.IsChecked = _settings.DevinDangerousMode;
@@ -4289,6 +4296,9 @@ For more details, visit: https://pi.dev";
 
             _settings.ClaudeDangerouslySkipPermissions = ClaudeDangerouslySkipPermissionsMenuItem.IsChecked;
 
+            // An explicit pick replaces whatever a plan approval switched the native conversation to.
+            _nativePlanExitChoice = null;
+
             // This item is visible in native mode too, where skipping is one of four mutually
             // exclusive permission states — so it has to drop the other three, exactly as the composer's
             // own "Skip permissions" entry does. Leaving them set made the composer name a state the
@@ -4322,6 +4332,35 @@ For more details, visit: https://pi.dev";
                     MessageBox.Show($"Failed to reload Claude Code: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
                 }
             }
+        }
+
+        /// <summary>
+        /// Handles "Claude Code: Start in Plan Mode" (terminal mode): every launch, Restart included,
+        /// starts the CLI with --permission-mode plan (#181). Deliberately no restart here — unlike
+        /// skip permissions, shift+tab already switches the running session, and a restart would end
+        /// the conversation just to change its mode.
+        /// </summary>
+#pragma warning disable VSTHRD100 // async void is acceptable for event handlers
+        private async void ClaudePlanModeMenuItem_Click(object sender, RoutedEventArgs e)
+#pragma warning restore VSTHRD100
+        {
+            await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
+
+            if (_settings == null) return;
+
+            _settings.ClaudePlanMode = ClaudePlanModeMenuItem.IsChecked;
+
+            // Same shared, mutually exclusive permission state the native composer uses.
+            if (_settings.ClaudePlanMode)
+            {
+                _settings.ClaudeDangerouslySkipPermissions = false;
+                _settings.ClaudeAutoPermissions = false;
+                _settings.ClaudeManualMode = false;
+            }
+
+            _nativePlanExitChoice = null;
+            SaveSettings();
+            UpdateChatComposerState();
         }
 
         /// <summary>

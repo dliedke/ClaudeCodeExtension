@@ -105,6 +105,12 @@ namespace ClaudeCodeVS
         public bool ManualMode { get; set; }
 
         /// <summary>
+        /// The mode this tab's conversation moved to when its plan was approved, or null. Overrides the
+        /// four flags above until the tab starts a fresh conversation or the user picks a mode (#181).
+        /// </summary>
+        public ClaudePermissionChoice? PlanExitChoice { get; set; }
+
+        /// <summary>
         /// Serializes this session's own relaunches (model/effort/permission switch, "New chat").
         /// Deliberately separate from the panel's <c>_nativeLifecycleSemaphore</c>: that one also
         /// guards a full agent switch, which never touches a parallel session, so sharing it would

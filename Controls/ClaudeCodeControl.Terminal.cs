@@ -5769,6 +5769,12 @@ namespace ClaudeCodeVS
             {
                 baseCommand = $"{baseCommand} --dangerously-skip-permissions";
             }
+            else if (_settings?.ClaudePlanMode == true)
+            {
+                // "Start in Plan Mode": shift+tab only changes the running session, so every Restart
+                // came back in the CLI's default mode no matter what the user had been working in (#181).
+                baseCommand = $"{baseCommand} --permission-mode plan";
+            }
 
             // The effort slider sends "/effort <level>", which the CLI applies to the running session
             // only. A restart therefore started over at whatever level the CLI reads from its own

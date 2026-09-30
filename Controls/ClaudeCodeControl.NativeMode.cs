@@ -244,6 +244,15 @@ namespace ClaudeCodeVS
         /// </summary>
         private int _nativeLaunchTicket;
 
+        /// <summary>
+        /// The mode the panel conversation moved to when its plan was approved, or null. Kept out of
+        /// the settings on purpose (#181): approving a plan leaves plan mode for *this* conversation —
+        /// a resumed relaunch (model/effort switch) must not start planning again — but the saved
+        /// choice stays Plan mode, so Restart and new chats start planning again. Cleared by any
+        /// fresh launch and by any explicit pick in the permission selector.
+        /// </summary>
+        private ClaudePermissionChoice? _nativePlanExitChoice;
+
         #endregion
 
         #region Native Mode State
@@ -741,21 +750,21 @@ namespace ClaudeCodeVS
         {
             bool isWsl = provider == AiProvider.ClaudeCodeWSL;
 
-            bool planMode = session != null ? session.PlanMode : _settings?.ClaudePlanMode == true;
-            bool skipPermissions = session != null
-                ? session.SkipPermissions
-                : _settings?.ClaudeDangerouslySkipPermissions == true;
-            bool autoPermissions = session != null
-                ? session.AutoPermissions
-                : _settings?.ClaudeAutoPermissions == true;
-            bool manualMode = session != null
-                ? session.ManualMode
-                : _settings?.ClaudeManualMode == true;
+            // A plan approved earlier only holds for the conversation it was approved in: a resumed
+            // relaunch keeps it, anything else starts over in the saved mode (#181). "-c" is ignored
+            // by this launch (see below), so it is a fresh start too.
+            string pendingResume = session != null ? resumeSessionId : Volatile.Read(ref _pendingResumeSessionId);
+            if (string.IsNullOrEmpty(pendingResume) || pendingResume == "-c")
+            {
+                if (session != null) session.PlanExitChoice = null;
+                else _nativePlanExitChoice = null;
+            }
 
             // The one place the four flags are turned into a state, shared with the composer caption
             // and the menu checkmarks so none of them can name a different mode than the one launched.
-            ClaudePermissionChoice permissionChoice =
-                ClaudeCommandBuilder.ResolvePermissionChoice(planMode, skipPermissions, autoPermissions, manualMode);
+            ClaudePermissionChoice permissionChoice = session != null
+                ? GetNativeClaudePermissionChoice(session)
+                : GetNativeClaudePermissionChoice(_settings?.ClaudeDangerouslySkipPermissions == true);
 
             var options = new ClaudeSessionOptions
             {
@@ -2468,8 +2477,7 @@ namespace ClaudeCodeVS
             }
 
             // A parallel tab resolves its own card; fall back to the panel's transcript for the
-            // panel session. Plan mode is a global, panel-only setting (the extra tabs disable that
-            // selector), so only touch it when the panel session answered.
+            // panel session.
             NativeChatSessionState owner = ResolveSessionFromSender(sender);
             ChatTranscriptView transcript = owner?.ChatTranscript ?? ChatTranscript;
 
@@ -2478,38 +2486,34 @@ namespace ClaudeCodeVS
                 return;
             }
 
-            // Approving the plan is how a session leaves plan mode. Leaving the setting on would put the
-            // agent straight back into planning the next time it is relaunched, right after the user
-            // told it to go ahead.
-            if (owner == null && interaction.IsPlanReview && interaction.WasAccepted && _settings?.ClaudePlanMode == true)
+            // Approving the plan is how a conversation leaves plan mode, so a resumed relaunch
+            // (model/effort switch) must not put the agent straight back into planning. That is kept
+            // for this conversation only: the saved choice stays Plan mode, so Restart and new chats
+            // plan again instead of silently starting in Accept edits (#181). "Approve and skip
+            // permissions" already switched the running CLI to bypass (#163) — no relaunch here, that
+            // would stop the agent mid-plan, the very thing the plan card option exists to avoid.
+            if (interaction.IsPlanReview && interaction.WasAccepted)
             {
-                _settings.ClaudePlanMode = false;
-                SaveSettings();
-                UpdateChatComposerState();
-            }
+                bool planning = owner != null
+                    ? GetNativeClaudePermissionChoice(owner) == ClaudePermissionChoice.PlanMode
+                    : GetNativeClaudePermissionChoice(_settings?.ClaudeDangerouslySkipPermissions == true) == ClaudePermissionChoice.PlanMode;
 
-            // "Approve and skip permissions" already switched the running CLI to bypass; this brings the
-            // composer and the saved state in line so the selector shows it and a later relaunch keeps it
-            // (issue #163). No relaunch here — that would stop the agent mid-plan, the very thing the
-            // plan card option exists to avoid.
-            if (interaction.IsPlanReview && interaction.WasApprovedAndSkippedPermissions)
-            {
-                if (owner != null)
+                ClaudePermissionChoice? exitChoice = interaction.WasApprovedAndSkippedPermissions
+                    ? ClaudePermissionChoice.SkipPermissions
+                    : planning ? ClaudePermissionChoice.AcceptEdits : (ClaudePermissionChoice?)null;
+
+                if (exitChoice.HasValue)
                 {
-                    owner.PlanMode = false;
-                    owner.AutoPermissions = false;
-                    owner.ManualMode = false;
-                    owner.SkipPermissions = true;
-                    UpdateChatComposerState(owner);
-                }
-                else if (_settings != null)
-                {
-                    _settings.ClaudePlanMode = false;
-                    _settings.ClaudeAutoPermissions = false;
-                    _settings.ClaudeManualMode = false;
-                    _settings.ClaudeDangerouslySkipPermissions = true;
-                    SaveSettings();
-                    UpdateChatComposerState();
+                    if (owner != null)
+                    {
+                        owner.PlanExitChoice = exitChoice;
+                        UpdateChatComposerState(owner);
+                    }
+                    else
+                    {
+                        _nativePlanExitChoice = exitChoice;
+                        UpdateChatComposerState();
+                    }
                 }
             }
 
