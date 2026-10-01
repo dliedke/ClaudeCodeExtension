@@ -41,6 +41,10 @@ namespace ClaudeCodeVS
         // to the inline bars while the tab is kept hidden.
         private DispatcherTimer _usageBackgroundRefreshTimer;
 
+        // A healthy background refresh lands a snapshot every minute; a snapshot older than this
+        // means the page could not be read and the bars are showing old numbers (issue #182).
+        internal static readonly TimeSpan UsageSnapshotStaleAfter = TimeSpan.FromMinutes(30);
+
         /// <summary>
         /// Restores the cached usage snapshot (if any) so the inline bars
         /// render immediately, then kicks off a background refresh.
@@ -63,6 +67,7 @@ namespace ClaudeCodeVS
                 }
 
                 UpdateInlineUsagePanelVisibility();
+                UpdateInlineUsageStaleNotice();
 
                 // Cloud usage tracking only applies to stock Claude providers — skip entirely
                 // for custom launchers (e.g. Ollama-backed local models).
@@ -209,6 +214,12 @@ namespace ClaudeCodeVS
                 InlineSessionBar.Value = ClampPercent(snap.SessionPercent);
                 InlineSessionPct.Text = ClampPercent(snap.SessionPercent) + "%";
 
+                // Spend-limit-only accounts have no weekly meter (issue #182) — hide the row
+                // rather than show a stale or empty "Weekly limit".
+                var weeklyVis = snap.NoWeeklyLimit ? Visibility.Collapsed : Visibility.Visible;
+                InlineWeeklyStack.Visibility = weeklyVis;
+                InlineWeeklyBar.Visibility = weeklyVis;
+                InlineWeeklyPct.Visibility = weeklyVis;
                 InlineWeeklyLabel.Text = "Weekly limit";
                 if (snap.WeeklyReset != null) InlineWeeklyReset.Text = snap.WeeklyReset;
                 InlineWeeklyBar.Value = ClampPercent(snap.WeeklyPercent);
@@ -235,6 +246,53 @@ namespace ClaudeCodeVS
 
         private static int ClampPercent(int v) => v < 0 ? 0 : (v > 100 ? 100 : v);
 
+        /// <summary>
+        /// True when the cached snapshot was last refreshed longer ago than
+        /// <see cref="UsageSnapshotStaleAfter"/>. A missing or unparsable timestamp is not
+        /// treated as stale (nothing reliable to compare against).
+        /// </summary>
+        internal static bool IsUsageSnapshotStale(string lastUsageTimestamp, DateTime nowUtc)
+        {
+            if (string.IsNullOrEmpty(lastUsageTimestamp)) return false;
+            if (!DateTime.TryParse(lastUsageTimestamp, System.Globalization.CultureInfo.InvariantCulture,
+                    System.Globalization.DateTimeStyles.RoundtripKind, out var last))
+                return false;
+            return nowUtc - last.ToUniversalTime() > UsageSnapshotStaleAfter;
+        }
+
+        /// <summary>
+        /// Shows a "not updated since" line under the inline bars when the usage page could not
+        /// be read for a while, so old numbers are never presented as current (issue #182).
+        /// Suppressed while the usage tab is the foreground tab — the page there only posts on
+        /// change, so the timestamp can legitimately age while the data is live.
+        /// </summary>
+        private void UpdateInlineUsageStaleNotice()
+        {
+            try
+            {
+                ThreadHelper.ThrowIfNotOnUIThread();
+                if (InlineUsageStaleNotice == null) return;
+
+                bool stale = _usageToolWindow?.IsWindowVisible != true &&
+                             IsUsageSnapshotStale(_settings?.LastUsageTimestamp, DateTime.UtcNow);
+                if (stale && DateTime.TryParse(_settings.LastUsageTimestamp, System.Globalization.CultureInfo.InvariantCulture,
+                        System.Globalization.DateTimeStyles.RoundtripKind, out var last))
+                {
+                    InlineUsageStaleNotice.Text = "Not updated since " + last.ToLocalTime().ToString("g") +
+                                                  " — click to open the usage page";
+                    InlineUsageStaleNotice.Visibility = Visibility.Visible;
+                }
+                else
+                {
+                    InlineUsageStaleNotice.Visibility = Visibility.Collapsed;
+                }
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine("UpdateInlineUsageStaleNotice failed: " + ex.Message);
+            }
+        }
+
         private Task RefreshInlineUsageAsync() => Task.CompletedTask;
 
         private void HandleScrapedSnapshot(UsageSnapshot snap)
@@ -250,6 +308,7 @@ namespace ClaudeCodeVS
                     SaveSettings();
                 }
                 UpdateInlineUsagePanelVisibility();
+                UpdateInlineUsageStaleNotice();
 
                 // Signal any in-progress background show-hide that real data arrived —
                 // the tab can now be safely hidden.
@@ -394,6 +453,7 @@ namespace ClaudeCodeVS
 #pragma warning disable VSTHRD010
                 if (_usageToolWindow?.IsWindowVisible == true) return;
                 await RefreshUsageInBackgroundAsync();
+                UpdateInlineUsageStaleNotice();
 #pragma warning restore VSTHRD010
             }
             catch (Exception ex)
@@ -529,6 +589,7 @@ namespace ClaudeCodeVS
                 // rest of the session (issue #111). Restarting unconditionally means a missed
                 // "became hidden" notification can no longer strand the bars with no refresher.
                 StartUsageBackgroundRefreshTimer();
+                UpdateInlineUsageStaleNotice();
             }
             catch (Exception ex)
             {

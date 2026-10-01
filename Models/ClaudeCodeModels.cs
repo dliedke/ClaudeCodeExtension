@@ -978,6 +978,13 @@ namespace ClaudeCodeVS
         /// <summary>Weekly usage percentage (0-100), parsed from aria-valuenow.</summary>
         public int WeeklyPercent { get; set; }
 
+        /// <summary>
+        /// true when the page has no weekly meter (usage-based seats with a spend limit only,
+        /// issue #182) — the inline weekly row is hidden. Negative on purpose so snapshots cached
+        /// by older versions (field absent → false) keep showing their weekly row.
+        /// </summary>
+        public bool NoWeeklyLimit { get; set; }
+
         /// <summary>true when extra-usage billing is enabled and the section was found on the page.</summary>
         public bool HasExtraUsage { get; set; }
 

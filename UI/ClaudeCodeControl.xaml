@@ -631,6 +631,7 @@
 						<RowDefinition Height="Auto"/>
 						<RowDefinition Height="Auto"/>
 						<RowDefinition Height="Auto"/>
+						<RowDefinition Height="Auto"/>
 					</Grid.RowDefinitions>
 					<Grid.ColumnDefinitions>
 						<ColumnDefinition Width="Auto" MinWidth="100"/>
@@ -656,8 +657,8 @@
 					           VerticalAlignment="Center" MinWidth="36" TextAlignment="Right"
 					           Foreground="{DynamicResource {x:Static vsshell:VsBrushes.ToolWindowTextKey}}"/>
 
-					<!-- Weekly limit row -->
-					<StackPanel Grid.Row="1" Grid.Column="0" Margin="0,4,8,0">
+					<!-- Weekly limit row (hidden for spend-limit-only accounts, issue #182) -->
+					<StackPanel x:Name="InlineWeeklyStack" Grid.Row="1" Grid.Column="0" Margin="0,4,8,0">
 						<TextBlock x:Name="InlineWeeklyLabel" Text="Weekly limit"
 						           FontSize="11" Opacity="0.95"
 						           Foreground="{DynamicResource {x:Static vsshell:VsBrushes.ToolWindowTextKey}}"/>
@@ -690,6 +691,12 @@
 					<TextBlock x:Name="InlineExtraUsagePct" Grid.Row="2" Grid.Column="2"
 					           Text="0%" FontSize="11" Margin="8,4,0,0"
 					           VerticalAlignment="Center" MinWidth="36" TextAlignment="Right"
+					           Foreground="{DynamicResource {x:Static vsshell:VsBrushes.ToolWindowTextKey}}"
+					           Visibility="Collapsed"/>
+					<!-- Stale-data notice (issue #182): shown when the bars could not be refreshed for a while -->
+					<TextBlock x:Name="InlineUsageStaleNotice" Grid.Row="3" Grid.Column="0" Grid.ColumnSpan="3"
+					           Text="" FontSize="10" Opacity="0.75" FontStyle="Italic" Margin="0,4,0,0"
+					           TextTrimming="CharacterEllipsis"
 					           Foreground="{DynamicResource {x:Static vsshell:VsBrushes.ToolWindowTextKey}}"
 					           Visibility="Collapsed"/>
 				</Grid>

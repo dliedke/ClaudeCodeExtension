@@ -876,14 +876,17 @@ namespace ClaudeCodeVS
         pick(r => /^all models$|todos os modelos|tous les mod|alle modelle|todos los modelos/i.test(r.label)) ||
         pick(r => /weekly|semanal|semaine|w[oö]chent/i.test(r.label)) ||
         pick(r => r !== sessionRow);
-      if (!sessionRow || !weeklyRow) return null;
+      // Weekly is optional: usage-based Enterprise seats show a single spend meter and no
+      // weekly limit (issue #182). Rejecting that page froze the bars on the last snapshot.
+      if (!sessionRow) return null;
       const result = {
         SessionLabel: sessionRow.label,
         SessionReset: sessionRow.reset,
         SessionPercent: sessionRow.pct,
-        WeeklyLabel: weeklyRow.label,
-        WeeklyReset: weeklyRow.reset,
-        WeeklyPercent: weeklyRow.pct,
+        WeeklyLabel: weeklyRow ? weeklyRow.label : '',
+        WeeklyReset: weeklyRow ? weeklyRow.reset : '',
+        WeeklyPercent: weeklyRow ? weeklyRow.pct : 0,
+        NoWeeklyLimit: !weeklyRow,
         HasExtraUsage: false,
         ExtraUsageSpent: '',
         ExtraUsageReset: '',

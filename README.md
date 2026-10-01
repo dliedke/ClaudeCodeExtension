@@ -141,6 +141,10 @@ Use native mode to avoid this issue.
 
 ## Version History
 
+### Version 214.0
+- Inline usage bars now keep updating on accounts that show only a spend limit (such as usage-based Enterprise seats); the weekly row is hidden when there is no weekly limit (#182).
+- When usage could not be refreshed for a while, the inline bars now say when they were last updated instead of showing old numbers as current.
+
 ### Version 213.0
 - New *Recommend AI Model* (💡) action for Claude Code: type your prompt, click it, and Opus at Extra High effort suggests the model and effort that fit the task. Adjust the suggestion if you like, then *Apply* switches to it without sending the prompt.
 - Available in the ☰ Tools menu; promote it to a one-click toolbar button via *⚙ → Settings... → Toolbar*.
