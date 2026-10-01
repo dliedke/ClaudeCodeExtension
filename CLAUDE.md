@@ -6,7 +6,7 @@ Visual Studio Extension (VSIX) for VS 2022/2026 — integrates AI code assistant
 
 - Author: Daniel Carvalho Liedke (dliedke@gmail.com) | License: MIT
 - Repository: https://github.com/dliedke/ClaudeCodeExtension
-- Current Version: 212.0 | Target Framework: .NET Framework 4.7.2
+- Current Version: 213.0 | Target Framework: .NET Framework 4.7.2
 
 Step-by-step procedures for recurring tasks (release, Exp-hive debugging, publish, adding a
 provider/setting/UI file) live in `docs/SKILLS.md`. Short build/style brief for non-Claude agents: `docs/AGENTS.md`.
@@ -54,6 +54,7 @@ The VSSDK targets default `DeployExtension` to false, so the csproj sets `VSSDKT
 
 - Close the Exp instance before deploying — otherwise it keeps running the previous build.
 - A first deploy into a hive that never had the extension fails with `VSSDK1031 ... could not be found`; the script recovers by running `devenv /rootsuffix Exp /updateconfiguration` and retrying.
+- The same VSSDK1031 (in VS or from the script) appears when an idle 32-bit MSBuild node from an earlier VS build still holds the Exp hive's `privateregistry.bin` open — `/updateconfiguration` then silently merges nothing. The script ends those nodes before each attempt; inside VS, kill the `MSBuild.exe ... /nodemode:2` process and rebuild.
 - Each deploy lands in a version-named folder, so a version bump leaves the previous one behind and the hive can keep loading the older assembly with no error anywhere. The `RemoveStaleExpDeployments` target in the csproj deletes the sibling version folders after every deploy to prevent that.
 
 ### Tests (`test.cmd`)
@@ -107,6 +108,7 @@ ClaudeCodeExtension/
 │   ├── ClaudeCodeControl.CliPaths.cs    # Per-provider custom CLI executable path: Settings "CLI Paths" tab content, resolution/validation helpers
 │   ├── ClaudeCodeControl.CommitMessage.cs # "Generate Commit Message": AI-drafted commit message from the git diff, filled into the Git Changes window via best-effort UI Automation
 │   ├── ClaudeCodeControl.ModelCatalog.cs # Per-provider model list: CLI discovery + cache, selection storage, launch flags / live switch commands
+│   ├── ClaudeCodeControl.ModelRecommendation.cs # "Recommend AI Model" (Claude Code only): one-shot Opus/xhigh advisor call, confirm dialog, applies model + effort
 │   ├── ClaudeCodeControl.Interop.cs     # Win32 API declarations (P/Invoke)
 │   ├── ClaudeCodeControl.Theme.cs       # Dark/light theme support
 │   ├── ClaudeCodeControl.Detach.cs      # Terminal detach/attach to separate VS tab
@@ -117,6 +119,7 @@ ClaudeCodeExtension/
 ├── Agents/                              # Headless agent protocols (no WPF, no VS SDK — unit-testable)
 │   ├── IAgentSession.cs                 # Session contract shared by every adapter
 │   ├── ModelCatalog.cs                  # Model option DTO + pure parsers for each CLI's model-listing output
+│   ├── ModelRecommender.cs              # "Recommend AI Model": rubric, JSON schema, stdin request, result parser
 │   ├── AgentEvent.cs                    # Provider-agnostic event/usage/permission model
 │   ├── JsonLineProcessHost.cs           # Shared process plumbing (stdio, line reader, tree teardown)
 │   ├── ProcessTree.cs                   # Process-tree enumeration/termination
@@ -219,6 +222,7 @@ Three cross-cutting rules (full text in `docs/ARCHITECTURE.md` → *Cross-Cuttin
 | `Controls/ClaudeCodeControl.CliPaths.cs` | Custom CLI Paths — CLI Paths settings tab, resolution/validation |
 | `Controls/ClaudeCodeControl.CommitMessage.cs` | Generate Commit Message — assistant-turn capture tap, Git Changes window UI Automation, clipboard fallback |
 | `Controls/ClaudeCodeControl.ModelCatalog.cs`, `Agents/ModelCatalog.cs` | Model Catalog & Selection — per-CLI listing commands, cache/TTL, how each agent's model is applied |
+| `Controls/ClaudeCodeControl.ModelRecommendation.cs`, `Agents/ModelRecommender.cs` | Recommend AI Model — separate one-shot advisor CLI, lean flags, rubric command-line safety, prompt source/apply target |
 | `Controls/ClaudeCodeControl.TerminalIO.cs` | Terminal I/O — paste/clipboard, chunking, large-prompt-as-file |
 | `Controls/ClaudeCodeControl.Usage.cs` | Claude Usage — WebView2 scraping, persistence, proxy interstitial |
 | `Controls/ClaudeCodeControl.Settings.cs` | Settings — init guard, layout inversion, prompt resize grip |

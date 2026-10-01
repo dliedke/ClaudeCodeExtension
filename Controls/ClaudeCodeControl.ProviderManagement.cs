@@ -2281,6 +2281,9 @@ For more details, visit: https://pi.dev";
             Apply(ToolbarButton.SendBuildErrors, true, SendBuildErrorsToolbarButton, SendBuildErrorsMenuItem);
             Apply(ToolbarButton.GenerateCommitMessage, true, GenerateCommitMessageToolbarButton, GenerateCommitMessageMenuItem);
             Apply(ToolbarButton.GenerateCommitMessageAndPush, true, GenerateCommitMessageAndPushToolbarButton, GenerateCommitMessageAndPushMenuItem);
+            // Offered for every agent and explained at click time when the agent is not Claude Code,
+            // like Session History and Show Usage (issue #97).
+            Apply(ToolbarButton.RecommendModel, true, RecommendModelToolbarButton, RecommendModelMenuItem);
 
             // The model button (🤖) is console-only from top to bottom: every entry either sends a
             // command to the CLI's TUI ("/model <name>", the effort slider's "/effort") or changes
@@ -2310,7 +2313,8 @@ For more details, visit: https://pi.dev";
                 IsMenuItemVisible(SetWorkingDirectoryMenuItem) ||
                 IsMenuItemVisible(SendBuildErrorsMenuItem) ||
                 IsMenuItemVisible(GenerateCommitMessageMenuItem) ||
-                IsMenuItemVisible(GenerateCommitMessageAndPushMenuItem);
+                IsMenuItemVisible(GenerateCommitMessageAndPushMenuItem) ||
+                IsMenuItemVisible(RecommendModelMenuItem);
             if (ToolsDropdownButton != null)
                 ToolsDropdownButton.Visibility = anyInDropdown ? Visibility.Visible : Visibility.Collapsed;
             ChatTranscript?.SetToolsMenuHasItems(anyInDropdown);
@@ -2479,7 +2483,8 @@ For more details, visit: https://pi.dev";
             ToolbarButton.UpdateAgent, ToolbarButton.DetachTerminal, ToolbarButton.RestartAgent,
             ToolbarButton.ViewChanges, ToolbarButton.SessionHistory, ToolbarButton.ShowUsage,
             ToolbarButton.SetWorkingDirectory, ToolbarButton.SendBuildErrors,
-            ToolbarButton.GenerateCommitMessage, ToolbarButton.GenerateCommitMessageAndPush
+            ToolbarButton.GenerateCommitMessage, ToolbarButton.GenerateCommitMessageAndPush,
+            ToolbarButton.RecommendModel
         };
 
         /// <summary>
@@ -2516,6 +2521,7 @@ For more details, visit: https://pi.dev";
                 case ToolbarButton.SendBuildErrors: return SendBuildErrorsToolbarButton;
                 case ToolbarButton.GenerateCommitMessage: return GenerateCommitMessageToolbarButton;
                 case ToolbarButton.GenerateCommitMessageAndPush: return GenerateCommitMessageAndPushToolbarButton;
+                case ToolbarButton.RecommendModel: return RecommendModelToolbarButton;
                 default: return null;
             }
         }
@@ -2534,6 +2540,7 @@ For more details, visit: https://pi.dev";
                 case ToolbarButton.SendBuildErrors: return SendBuildErrorsMenuItem;
                 case ToolbarButton.GenerateCommitMessage: return GenerateCommitMessageMenuItem;
                 case ToolbarButton.GenerateCommitMessageAndPush: return GenerateCommitMessageAndPushMenuItem;
+                case ToolbarButton.RecommendModel: return RecommendModelMenuItem;
                 default: return null;
             }
         }

@@ -107,6 +107,10 @@ Gotchas:
 - First deploy into a hive that never had the extension fails with `VSSDK1031 ... could not be
   found`. The script recovers by running `devenv /rootsuffix Exp /updateconfiguration` and
   retrying.
+- The same `VSSDK1031` (in VS or from the script) appears when an idle 32-bit MSBuild node
+  (`/nodemode:2`) left by an earlier VS build still holds the Exp hive's `privateregistry.bin`
+  open; `/updateconfiguration` then silently merges nothing. The script ends those nodes before
+  each attempt; inside VS, kill that `MSBuild.exe` and rebuild.
 - Each deploy lands in a version-named folder, so a version bump leaves the old one behind and
   the hive can silently keep loading the older assembly with no error anywhere. The
   `RemoveStaleExpDeployments` csproj target deletes sibling version folders after every deploy.

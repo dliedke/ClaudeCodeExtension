@@ -173,7 +173,8 @@ namespace ClaudeCodeVS
         SetWorkingDirectory,
         SendBuildErrors,
         GenerateCommitMessage,
-        GenerateCommitMessageAndPush
+        GenerateCommitMessageAndPush,
+        RecommendModel
     }
 
     /// <summary>

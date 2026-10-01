@@ -290,6 +290,44 @@ namespace ClaudeCodeVS.Agents
             return "bash -lic " + QuoteForWindowsArgument(inner.ToString());
         }
 
+        /// <summary>
+        /// Command line for "Recommend AI Model": a one-shot <c>--print</c> call to the advisor model
+        /// that only classifies the prompt it reads from stdin and answers with
+        /// <see cref="ModelRecommender.JsonSchema"/>. Everything that would slow it down or let it act
+        /// is switched off: <c>--system-prompt</c> replaces the full agent prompt with the rubric,
+        /// <c>--tools ""</c> stops it exploring the repository, <c>--strict-mcp-config</c> skips the
+        /// user's MCP servers and <c>--disable-slash-commands</c> drops the skills listing. The project's
+        /// CLAUDE.md is still read from the working directory, which is what lets the advice account for
+        /// the project's own conventions. <c>--no-session-persistence</c> keeps the call out of
+        /// Session History. Measured (CLI 2.1.285): 6–9 s, one result line with a
+        /// <c>structured_output</c> object.
+        /// </summary>
+        public static string GetModelRecommendationArguments(ClaudeSessionOptions options)
+        {
+            if (options == null) throw new ArgumentNullException(nameof(options));
+
+            bool isWsl = options.UseWsl;
+
+            var flags = new StringBuilder("--print");
+            flags.Append(" --model ").Append(QuoteArgument(ModelRecommender.AdvisorModel, isWsl));
+            flags.Append(" --effort ").Append(QuoteArgument(ModelRecommender.AdvisorEffort, isWsl));
+            flags.Append(" --output-format json");
+            flags.Append(" --json-schema ").Append(QuoteArgument(ModelRecommender.JsonSchema, isWsl));
+            flags.Append(" --system-prompt ").Append(QuoteArgument(ModelRecommender.SystemPrompt, isWsl));
+            flags.Append(" --tools ").Append(QuoteArgument(string.Empty, isWsl));
+            flags.Append(" --strict-mcp-config --no-session-persistence --disable-slash-commands");
+
+            if (!isWsl)
+            {
+                return flags.ToString();
+            }
+
+            var inner = new StringBuilder();
+            inner.Append("cd ").Append(QuoteForBash(options.WslWorkingDirectory)).Append(" && claude ").Append(flags);
+
+            return "bash -lic " + QuoteForWindowsArgument(inner.ToString());
+        }
+
         private static string BuildFlags(ClaudeSessionOptions options, bool isWsl)
         {
             var sb = new StringBuilder();

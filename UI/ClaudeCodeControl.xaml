@@ -397,6 +397,17 @@
                             Visibility="Collapsed"
                             Margin="0,0,6,0"/>
 
+						<Button x:Name="RecommendModelToolbarButton"
+                            Content="💡"
+                            Width="30"
+                            MinWidth="30"
+                            FontSize="14"
+                            Style="{StaticResource IconButtonStyle}"
+                            Click="RecommendModelButton_Click"
+                            ToolTip="Recommend AI Model"
+                            Visibility="Collapsed"
+                            Margin="0,0,6,0"/>
+
 						<!-- These used to be a separate right-pinned group that never scrolled; moved
 						     inside the scroller in v177.0 so one ◀ / ▶ pair scrolls the whole panel
 						     toolbar and no slack pools mid-row. Tools/Custom Commands still reach
@@ -466,6 +477,7 @@
 									<MenuItem Header="🛠️  Send Build Errors to Agent" x:Name="SendBuildErrorsMenuItem" Click="SendBuildErrorsButton_Click" ToolTip="Collect the current build errors and send them to the agent to fix, regardless of the auto-send setting."/>
 									<MenuItem Header="📝  Generate Commit Message" x:Name="GenerateCommitMessageMenuItem" Click="GenerateCommitMessageButton_Click" ToolTip="Ask the agent to write a commit message from the current git diff and fill it into the Git Changes window."/>
 									<MenuItem Header="🚀  Generate Commit Message, Commit and Push" x:Name="GenerateCommitMessageAndPushMenuItem" Click="GenerateCommitMessageAndPushButton_Click" ToolTip="Ask the agent to write a commit message from the current git diff, fill it into the Git Changes window, then stage, commit and push all changes immediately."/>
+									<MenuItem Header="💡  Recommend AI Model" x:Name="RecommendModelMenuItem" Click="RecommendModelButton_Click" ToolTip="Ask Opus (Extra High) which Claude model and effort suit the prompt you typed, then confirm or adjust before it is applied. Claude Code only."/>
 								</ContextMenu>
 							</Button.ContextMenu>
 						</Button>

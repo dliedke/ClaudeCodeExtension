@@ -54,6 +54,7 @@
   <ItemGroup>
     <Compile Include="Agents\AcpCommandBuilder.cs" />
     <Compile Include="Agents\ModelCatalog.cs" />
+    <Compile Include="Agents\ModelRecommender.cs" />
     <Compile Include="Agents\AcpSession.cs" />
     <Compile Include="Agents\AgentEvent.cs" />
     <Compile Include="Agents\AgentCliNotFoundException.cs" />
@@ -83,6 +84,7 @@
     <Compile Include="Controls\ClaudeCodeControl.CommitMessage.cs" />
     <Compile Include="Controls\ClaudeCodeControl.ModelCatalog.cs" />
     <Compile Include="Controls\ClaudeCodeControl.ModelPickerDialog.cs" />
+    <Compile Include="Controls\ClaudeCodeControl.ModelRecommendation.cs" />
     <Compile Include="Controls\ClaudeCodeControl.CustomCommands.cs" />
     <Compile Include="Controls\ClaudeCodeControl.DebugVisibility.cs" />
     <Compile Include="Controls\ClaudeCodeControl.Detach.cs" />
@@ -226,16 +228,18 @@
        instance running 80.0 for days after 82.0 had already been deployed next to it, with no error
        anywhere to explain it. Drop the siblings right after every deploy so it cannot recur.
        ContinueOnError because an Exp instance left open holds a lock on its own binaries — a stale
-       folder is worth a warning, not a failed build. -->
+       folder is worth a warning, not a failed build. Match every sibling folder rather than ones with a
+       manifest: a removal interrupted by such a lock deletes the manifest but leaves the locked DLL,
+       and that folder must still be picked up by the next deploy. -->
   <Target Name="RemoveStaleExpDeployments" AfterTargets="DeployVsixExtensionFiles" Condition="'$(DeployExtension)' == 'true' and '$(VsixDeploymentPath)' != ''">
     <PropertyGroup>
       <_ExpDeployDir>$(VsixDeploymentPath.TrimEnd('\'))</_ExpDeployDir>
       <_ExpDeployParent>$([System.IO.Path]::GetDirectoryName('$(_ExpDeployDir)'))</_ExpDeployParent>
     </PropertyGroup>
     <ItemGroup>
-      <_ExpStaleDeploy Include="$(_ExpDeployParent)\*\extension.vsixmanifest" Exclude="$(_ExpDeployDir)\extension.vsixmanifest" />
+      <_ExpStaleDeploy Include="$([System.IO.Directory]::GetDirectories('$(_ExpDeployParent)'))" Exclude="$(_ExpDeployDir)" />
     </ItemGroup>
-    <Message Importance="high" Text="Removing stale Exp deployment: %(_ExpStaleDeploy.RootDir)%(_ExpStaleDeploy.Directory)" Condition="'@(_ExpStaleDeploy)' != ''" />
-    <RemoveDir Directories="@(_ExpStaleDeploy->'%(RootDir)%(Directory)')" Condition="'@(_ExpStaleDeploy)' != ''" ContinueOnError="true" />
+    <Message Importance="high" Text="Removing stale Exp deployment: %(_ExpStaleDeploy.Identity)" Condition="'@(_ExpStaleDeploy)' != ''" />
+    <RemoveDir Directories="@(_ExpStaleDeploy)" Condition="'@(_ExpStaleDeploy)' != ''" ContinueOnError="true" />
   </Target>
 </Project>

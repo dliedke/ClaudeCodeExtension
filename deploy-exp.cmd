@@ -12,7 +12,9 @@ REM  Debug and Release alike (the csproj sets DeployExtension for builds
 REM  inside VS). This script is the command-line equivalent, and the way
 REM  to recover when the Exp hive loses the extension: it retries after
 REM  rebuilding the hive's extension cache, which is what
-REM  "VSSDK1031 ... could not be found" on a first deploy needs.
+REM  "VSSDK1031 ... could not be found" on a first deploy needs. Before
+REM  either attempt it ends idle MSBuild nodes left by VS builds, which keep
+REM  the hive's registry locked and cause the same VSSDK1031 (see :releasehive).
 REM
 REM  Either way the build removes any older version folder left in the
 REM  hive (RemoveStaleExpDeployments in the csproj) — two folders sharing
@@ -62,13 +64,16 @@ if not errorlevel 1 (
     echo        before deploying, or it will keep the previous build loaded.
 )
 
+call :releasehive
+
 echo Building %CONFIG% and deploying to the Exp hive...
-"%MSBUILD%" "%PROJ%" -t:Build -p:Configuration=%CONFIG% -p:DeployExtension=true -p:VSSDKTargetPlatformRegRootSuffix=Exp -v:minimal -nologo
+"%MSBUILD%" "%PROJ%" -t:Build -p:Configuration=%CONFIG% -p:DeployExtension=true -p:VSSDKTargetPlatformRegRootSuffix=Exp -nodeReuse:false -v:minimal -nologo
 if errorlevel 1 (
     echo.
     echo [INFO] Deploy failed. Rebuilding the Exp extension cache and retrying...
+    call :releasehive
     "%DEVENV%" /rootsuffix Exp /updateconfiguration
-    "%MSBUILD%" "%PROJ%" -t:Build -p:Configuration=%CONFIG% -p:DeployExtension=true -p:VSSDKTargetPlatformRegRootSuffix=Exp -v:minimal -nologo
+    "%MSBUILD%" "%PROJ%" -t:Build -p:Configuration=%CONFIG% -p:DeployExtension=true -p:VSSDKTargetPlatformRegRootSuffix=Exp -nodeReuse:false -v:minimal -nologo
     if errorlevel 1 (
         echo.
         echo [ERROR] Deploy to the Exp hive failed.
@@ -85,4 +90,16 @@ if defined RUNAFTER (
 )
 
 endlocal
+exit /b 0
+
+REM --- :releasehive ------------------------------------------------------
+REM  The deploy tasks (FindInstalledExtension, EnableExtension) run in a
+REM  32-bit MSBuild task host, and builds inside VS leave that host alive
+REM  (/nodereuse:True) with the Exp hive's privateregistry.bin still open.
+REM  While it lives, every other process sees an empty hive: the deploy
+REM  fails with VSSDK1031 and /updateconfiguration silently merges nothing.
+REM  Ending the idle reusable nodes releases the hive; VS starts fresh ones
+REM  on its next build.
+:releasehive
+powershell -NoProfile -Command "Get-CimInstance Win32_Process -Filter \"name='MSBuild.exe'\" | Where-Object { $_.CommandLine -match '/nodemode:' } | ForEach-Object { Write-Host ('[INFO] Ending idle MSBuild node ' + $_.ProcessId + ' that locks the Exp hive.'); Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }"
 exit /b 0
