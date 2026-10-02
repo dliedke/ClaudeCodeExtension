@@ -837,6 +837,19 @@ namespace ClaudeCodeVS
     }
     return null;
   }
+  // Balance shown in the header of the 'Usage credits' section (R$0 / $12.50).
+  // Fable needs credits, so a zero balance hides it from the model menus.
+  // Anything not found returns '' and keeps Fable offered.
+  function readUsageCreditsBalance(){
+    try {
+      const section = document.getElementById('extra-usage-credits-section');
+      if (!section) return '';
+      const header = section.querySelector('[data-settings-group-header]');
+      if (!header || header.children.length < 2) return '';
+      const txt = (header.lastElementChild.textContent || '').trim();
+      return /\d/.test(txt) ? txt : '';
+    } catch (e) { return ''; }
+  }
   function extract(){
     try {
       // Page now splits bars across multiple <section> elements
@@ -890,7 +903,8 @@ namespace ClaudeCodeVS
         HasExtraUsage: false,
         ExtraUsageSpent: '',
         ExtraUsageReset: '',
-        ExtraUsagePercent: 0
+        ExtraUsagePercent: 0,
+        UsageCreditsBalance: readUsageCreditsBalance()
       };
       if (extraContainer) {
         const extraBar = extraContainer.querySelector(BAR_SEL);

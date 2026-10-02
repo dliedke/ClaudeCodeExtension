@@ -247,6 +247,25 @@ namespace ClaudeCodeVS
         private static int ClampPercent(int v) => v < 0 ? 0 : (v > 100 ? 100 : v);
 
         /// <summary>
+        /// false when the last usage snapshot read a zero usage-credits balance — Fable needs
+        /// credits, so the model menus and the Recommend AI Model dialog leave it out. No snapshot,
+        /// no balance on it, or anything unparsable keeps Fable offered.
+        /// </summary>
+        private bool IsFableModelOffered()
+        {
+            try
+            {
+                if (string.IsNullOrEmpty(_settings?.LastUsageJson)) return true;
+                var snap = JsonConvert.DeserializeObject<UsageSnapshot>(_settings.LastUsageJson);
+                return snap == null || !snap.HasNoUsageCredits();
+            }
+            catch
+            {
+                return true;
+            }
+        }
+
+        /// <summary>
         /// True when the cached snapshot was last refreshed longer ago than
         /// <see cref="UsageSnapshotStaleAfter"/>. A missing or unparsable timestamp is not
         /// treated as stale (nothing reliable to compare against).

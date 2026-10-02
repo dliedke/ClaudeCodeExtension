@@ -3178,7 +3178,9 @@ For more details, visit: https://pi.dev";
             bool hasReasoningLevel = isClaude || isCodex;
 
             // Claude-specific items
-            FableMenuItem.Visibility = isClaude ? Visibility.Visible : Visibility.Collapsed;
+            // Fable needs usage credits — hidden on a zero balance unless it is the current pick.
+            bool offerFable = IsFableModelOffered() || _settings?.SelectedClaudeModel == ClaudeModel.Fable;
+            FableMenuItem.Visibility = isClaude && offerFable ? Visibility.Visible : Visibility.Collapsed;
             OpusMenuItem.Visibility = isClaude ? Visibility.Visible : Visibility.Collapsed;
             SonnetMenuItem.Visibility = isClaude ? Visibility.Visible : Visibility.Collapsed;
             HaikuMenuItem.Visibility = isClaude ? Visibility.Visible : Visibility.Collapsed;

@@ -163,6 +163,12 @@ namespace ClaudeCodeVS
             GetThemeBrushes(out Brush themeBg, out Brush themeFg);
             ResourceDictionary comboRes = BuildThemedComboResources(themeBg, themeFg);
 
+            // Fable needs usage credits — left out on a zero balance unless it is the current pick.
+            bool offerFable = currentModel == ClaudeModel.Fable || IsFableModelOffered();
+            ClaudeModel[] models = offerFable
+                ? RecommendableModels
+                : Array.FindAll(RecommendableModels, m => m != ClaudeModel.Fable);
+
             var dialog = new Window
             {
                 Title = "Recommend AI Model",
@@ -260,7 +266,7 @@ namespace ClaudeCodeVS
             Grid.SetColumn(effortCombo, 3);
             pickers.Children.Add(effortCombo);
 
-            foreach (ClaudeModel model in RecommendableModels)
+            foreach (ClaudeModel model in models)
             {
                 var item = new ComboBoxItem { Content = GetClaudeModelDisplayName(model), Tag = model, Foreground = themeFg };
                 if (comboRes["cbi"] is Style cbiStyle) item.Style = cbiStyle;
@@ -277,8 +283,8 @@ namespace ClaudeCodeVS
             Action<ClaudeModel, EffortLevel> selectPair = (model, effort) =>
             {
                 // Opus Plan is not a choice here (it has no headless equivalent); Opus is its nearest.
-                int modelIndex = Array.IndexOf(RecommendableModels, model == ClaudeModel.OpusPlan ? ClaudeModel.Opus : model);
-                modelCombo.SelectedIndex = modelIndex >= 0 ? modelIndex : Array.IndexOf(RecommendableModels, ClaudeModel.Opus);
+                int modelIndex = Array.IndexOf(models, model == ClaudeModel.OpusPlan ? ClaudeModel.Opus : model);
+                modelCombo.SelectedIndex = modelIndex >= 0 ? modelIndex : Array.IndexOf(models, ClaudeModel.Opus);
                 effortCombo.SelectedIndex = EffortToSliderIndex(effort);
             };
             selectPair(currentModel, currentEffort);
@@ -362,12 +368,25 @@ namespace ClaudeCodeVS
                     if (recommendation != null
                         && TryMapRecommendation(recommendation, out ClaudeModel model, out EffortLevel effort))
                     {
+                        // No usage credits: Fable is not on offer, so its nearest, Opus, is proposed.
+                        bool fableUnavailable = model == ClaudeModel.Fable && !offerFable;
+                        if (fableUnavailable)
+                        {
+                            model = ClaudeModel.Opus;
+                        }
+
                         status.Text = $"Recommended: {GetClaudeModelDisplayName(model)} · {GetChatEffortLabel(effort)}";
                         status.FontWeight = FontWeights.SemiBold;
 
-                        if (!string.IsNullOrWhiteSpace(recommendation.Reason))
+                        string reasonText = recommendation.Reason?.Trim() ?? string.Empty;
+                        if (fableUnavailable)
                         {
-                            reason.Text = recommendation.Reason;
+                            reasonText = (reasonText + " Fable was recommended, but it needs usage credits and the balance is zero.").Trim();
+                        }
+
+                        if (!string.IsNullOrWhiteSpace(reasonText))
+                        {
+                            reason.Text = reasonText;
                             reason.Visibility = Visibility.Visible;
                         }
 

@@ -996,5 +996,36 @@ namespace ClaudeCodeVS
 
         /// <summary>Extra usage percentage parsed from the "X% used" text. May exceed 100.</summary>
         public int ExtraUsagePercent { get; set; }
+
+        /// <summary>
+        /// "R$0" / "$12.50" — verbatim balance from the header of the "Usage credits" section.
+        /// Empty when the section or its amount was not found.
+        /// </summary>
+        public string UsageCreditsBalance { get; set; } = "";
+
+        /// <summary>
+        /// true only when the usage-credits balance was read and is zero. Fable needs credits, so
+        /// it is not offered then; an empty or unreadable balance keeps it offered.
+        /// </summary>
+        public bool HasNoUsageCredits() => IsZeroCreditBalance(UsageCreditsBalance);
+
+        /// <summary>
+        /// true when <paramref name="balance"/> holds at least one digit and every digit is zero
+        /// ("R$0", "$0.00", "0,00 €"). Currency symbols and separators are ignored.
+        /// </summary>
+        public static bool IsZeroCreditBalance(string balance)
+        {
+            if (string.IsNullOrWhiteSpace(balance)) return false;
+
+            bool sawDigit = false;
+            foreach (char c in balance)
+            {
+                if (c < '0' || c > '9') continue;
+                if (c != '0') return false;
+                sawDigit = true;
+            }
+
+            return sawDigit;
+        }
     }
 }

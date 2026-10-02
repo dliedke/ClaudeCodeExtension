@@ -6,7 +6,8 @@
  * Copyright © Daniel Carvalho Liedke 2026
  * Usage and reproduction in any manner whatsoever without the written permission of Daniel Carvalho Liedke is strictly forbidden.
  *
- * Purpose: Guards the inline usage bars against spend-limit-only usage pages and stale snapshots (issue #182).
+ * Purpose: Guards the inline usage bars against spend-limit-only usage pages and stale snapshots (issue #182),
+ *          and the usage-credits balance that decides whether Fable is offered.
  *
  * *******************************************************************************************************************/
 
@@ -51,6 +52,43 @@ namespace ClaudeCodeExtension.Tests
                 "{\"SessionLabel\":\"$381.82 of $500.00 spent\",\"SessionPercent\":76,\"WeeklyLabel\":\"\",\"WeeklyPercent\":0,\"NoWeeklyLimit\":true}");
             Assert.IsTrue(snap.NoWeeklyLimit);
             Assert.IsTrue(JsonConvert.DeserializeObject<UsageSnapshot>(JsonConvert.SerializeObject(snap)).NoWeeklyLimit);
+        }
+
+        /// <summary>
+        /// Fable needs usage credits: a zero balance read from the page hides it, and anything the
+        /// scraper could not read (no section, no amount, older cached snapshot) keeps it offered.
+        /// </summary>
+        [TestMethod]
+        public void IsZeroCreditBalance_OnlyForReadZeroAmounts()
+        {
+            Assert.IsTrue(UsageSnapshot.IsZeroCreditBalance("R$0"));
+            Assert.IsTrue(UsageSnapshot.IsZeroCreditBalance("$0.00"));
+            Assert.IsTrue(UsageSnapshot.IsZeroCreditBalance("0,00 €"));
+            Assert.IsFalse(UsageSnapshot.IsZeroCreditBalance("R$12,50"));
+            Assert.IsFalse(UsageSnapshot.IsZeroCreditBalance("$0.01"));
+            Assert.IsFalse(UsageSnapshot.IsZeroCreditBalance("$100"));
+            Assert.IsFalse(UsageSnapshot.IsZeroCreditBalance(""));
+            Assert.IsFalse(UsageSnapshot.IsZeroCreditBalance(null));
+            Assert.IsFalse(UsageSnapshot.IsZeroCreditBalance("R$"));
+        }
+
+        [TestMethod]
+        public void LegacySnapshot_WithoutCreditsBalance_KeepsFableOffered()
+        {
+            var snap = JsonConvert.DeserializeObject<UsageSnapshot>(
+                "{\"SessionLabel\":\"Current session\",\"SessionPercent\":10}");
+            Assert.IsFalse(snap.HasNoUsageCredits());
+
+            snap = JsonConvert.DeserializeObject<UsageSnapshot>(
+                "{\"SessionLabel\":\"Current session\",\"SessionPercent\":10,\"UsageCreditsBalance\":\"R$0\"}");
+            Assert.IsTrue(snap.HasNoUsageCredits());
+        }
+
+        [TestMethod]
+        public void Scraper_ReadsUsageCreditsBalance()
+        {
+            StringAssert.Contains(ControlSource, "getElementById('extra-usage-credits-section')");
+            StringAssert.Contains(ControlSource, "UsageCreditsBalance: readUsageCreditsBalance()");
         }
 
         [TestMethod]

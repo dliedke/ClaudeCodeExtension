@@ -141,6 +141,9 @@ Use native mode to avoid this issue.
 
 ## Version History
 
+### Version 215.0
+- Claude Code model menus and *Recommend AI Model* no longer offer Fable when the Claude usage page shows a zero usage-credits balance, since Fable requires credits; if the balance cannot be read, Fable stays available.
+
 ### Version 214.0
 - Inline usage bars now keep updating on accounts that show only a spend limit (such as usage-based Enterprise seats); the weekly row is hidden when there is no weekly limit (#182).
 - When usage could not be refreshed for a while, the inline bars now say when they were last updated instead of showing old numbers as current.

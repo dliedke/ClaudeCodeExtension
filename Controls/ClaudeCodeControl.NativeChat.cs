@@ -3774,8 +3774,12 @@ namespace ClaudeCodeVS
 
             ClaudeModel selected = _settings != null ? _settings.SelectedClaudeModel : ClaudeModel.Sonnet;
 
-            AddComposerMenuItem(menu, "Fable", selected == ClaudeModel.Fable,
-                delegate { ThreadHelper.ThrowIfNotOnUIThread(); OnChatClaudeModelSelected(ClaudeModel.Fable); });
+            // Fable needs usage credits — left out on a zero balance unless it is the current pick.
+            if (selected == ClaudeModel.Fable || IsFableModelOffered())
+            {
+                AddComposerMenuItem(menu, "Fable", selected == ClaudeModel.Fable,
+                    delegate { ThreadHelper.ThrowIfNotOnUIThread(); OnChatClaudeModelSelected(ClaudeModel.Fable); });
+            }
             AddComposerMenuItem(menu, "Opus", selected == ClaudeModel.Opus,
                 delegate { ThreadHelper.ThrowIfNotOnUIThread(); OnChatClaudeModelSelected(ClaudeModel.Opus); });
             AddComposerMenuItem(menu, "Sonnet", selected == ClaudeModel.Sonnet,
@@ -3803,8 +3807,11 @@ namespace ClaudeCodeVS
 
             ClaudeModel selected = session.SelectedClaudeModel;
 
-            AddComposerMenuItem(menu, "Fable", selected == ClaudeModel.Fable,
-                delegate { ThreadHelper.ThrowIfNotOnUIThread(); OnChatClaudeModelSelectedForSession(session, ClaudeModel.Fable); });
+            if (selected == ClaudeModel.Fable || IsFableModelOffered())
+            {
+                AddComposerMenuItem(menu, "Fable", selected == ClaudeModel.Fable,
+                    delegate { ThreadHelper.ThrowIfNotOnUIThread(); OnChatClaudeModelSelectedForSession(session, ClaudeModel.Fable); });
+            }
             AddComposerMenuItem(menu, "Opus", selected == ClaudeModel.Opus,
                 delegate { ThreadHelper.ThrowIfNotOnUIThread(); OnChatClaudeModelSelectedForSession(session, ClaudeModel.Opus); });
             AddComposerMenuItem(menu, "Sonnet", selected == ClaudeModel.Sonnet,
