@@ -143,6 +143,10 @@ Use native mode to avoid this issue.
 
 ## Version History
 
+### Version 221.0
+- The usage bars no longer keep showing your previous account after you switch Claude Code to another account (for example with /logout and /login in the terminal).
+- The Claude Usage page is signed out when the account changes, and a notice with an "Open Claude Usage" link asks you to sign in there with the new account.
+
 ### Version 220.0
 - Generate Commit Message (including Commit and Push) no longer credits the AI: the chat shows the cleaned message, and more forms of AI attribution are removed from the commit.
 

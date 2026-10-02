@@ -156,6 +156,9 @@ namespace ClaudeCodeVS
         /// </summary>
         private IVsInfoBarUIElement _activeTerminalGeometryInfoBar;
 
+        /// <summary>The "Claude account changed, sign in on the usage page" notice's slot.</summary>
+        private IVsInfoBarUIElement _activeUsageAccountInfoBar;
+
         /// <summary>
         /// Which main-window info bar a notification owns. A new bar replaces only the previous one
         /// in its own slot. With a single slot, whichever notice came second silently closed the
@@ -167,14 +170,18 @@ namespace ClaudeCodeVS
         {
             AgentFinish,
             TerminalGeometry,
+            UsageAccount,
         }
 
         /// <summary>Info bar currently shown in <paramref name="slot"/>, or null.</summary>
         private IVsInfoBarUIElement GetActiveInfoBar(InfoBarSlot slot)
         {
-            return slot == InfoBarSlot.TerminalGeometry
-                ? _activeTerminalGeometryInfoBar
-                : _activeAgentFinishInfoBar;
+            switch (slot)
+            {
+                case InfoBarSlot.TerminalGeometry: return _activeTerminalGeometryInfoBar;
+                case InfoBarSlot.UsageAccount: return _activeUsageAccountInfoBar;
+                default: return _activeAgentFinishInfoBar;
+            }
         }
 
         /// <summary>Records (or clears) the info bar shown in <paramref name="slot"/>.</summary>
@@ -183,6 +190,10 @@ namespace ClaudeCodeVS
             if (slot == InfoBarSlot.TerminalGeometry)
             {
                 _activeTerminalGeometryInfoBar = element;
+            }
+            else if (slot == InfoBarSlot.UsageAccount)
+            {
+                _activeUsageAccountInfoBar = element;
             }
             else
             {
