@@ -2,7 +2,7 @@
 
 Please also check [Claude Code Studio from wluisdev](https://marketplace.visualstudio.com/items?itemName=wluisdev.ClaudeCodeStudio)
 
-Native or terminal inside Visual Studio for **Claude Code, OpenAI Codex, Cursor Agent, Open Code, Devin, PI, Google Antigravity, and Reasonix** — with multi-line prompts, file attachments, and an integrated diff viewer.
+Native or terminal inside Visual Studio for **Claude Code, OpenAI Codex, Cursor Agent, Open Code, Devin, PI, Google Antigravity, Reasonix, and Qwen Code** — with multi-line prompts, file attachments, and an integrated diff viewer.
 
 <center>
 <img src="https://raw.githubusercontent.com/dliedke/ClaudeCodeExtension/master/docs/images/extension-screenshot.png" alt="Claude Code Extension Screenshot" width=900 />
@@ -70,6 +70,7 @@ By default only **Claude Code** is shown in the agent picker — use *⚙ → Co
 | PI | Windows | `pi` | Node.js + Git for Windows |
 | Google Antigravity | Windows | `agy` | Google account. Optional `--dangerously-skip-permissions` toggle |
 | Reasonix | Windows | `reasonix` | DeepSeek API key (`DEEPSEEK_API_KEY`). Install with `npm i -g reasonix` |
+| Qwen Code | Windows | `qwen` | Node.js 22+; Coding Plan or API key via `/auth`. Optional `--yolo` toggle |
 
 If a provider isn't installed, the extension shows the install command automatically when you select it. The **Update Agent** entry in the ⚙ menu runs the right update command for the active provider (e.g. `claude update`, `npm install -g @openai/codex@latest`, `cursor-agent update`).
 
@@ -105,7 +106,7 @@ Then choose it via *⚙ → Set Terminal Type...*.
 
 **⚙ Settings menu** (gear button, top-right):
 - Pick an AI provider, *Configure Visible Code Agents...*
-- Provider-specific flags: Claude *Skip Permissions*, Codex *Approval Never*, Cursor *Yolo Mode*, Devin *Dangerous Mode*, Antigravity *Skip Permissions*
+- Provider-specific flags: Claude *Skip Permissions*, Codex *Approval Never*, Cursor *Yolo Mode*, Devin *Dangerous Mode*, Antigravity *Skip Permissions*, Qwen Code *Yolo Mode*
 - *Configure Custom Commands...*, *Settings...*, About
 - *Settings...* opens the consolidated dialog with tabs for Behavior (send key, large prompts, auto-open Changes, pull before sending, auto-send build errors, font size), Layout (prompt panel position), Terminal type, Theme, Usage, Toolbar, CLI Paths, and Backup (save/load all settings to a file)
 
@@ -140,6 +141,10 @@ https://github.com/anthropics/claude-code/issues/41501
 Use native mode to avoid this issue.
 
 ## Version History
+
+### Version 216.0
+- Added Qwen Code as a supported AI agent, both in the embedded terminal and in native chat mode; install it with `npm install -g @qwen-code/qwen-code@latest`, then enable it via "Configure Visible Code Agents...".
+- New *Qwen Code: Yolo Mode* toggle in the agent menu approves every Qwen Code action automatically (off by default).
 
 ### Version 215.0
 - Claude Code model menus and *Recommend AI Model* no longer offer Fable when the Claude usage page shows a zero usage-credits balance, since Fable requires credits; if the balance cannot be read, Fable stays available.
@@ -1535,6 +1540,7 @@ This extension is provided free of charge under the MIT License.
   - [PI](https://pi.dev/)
   - [Google Antigravity](https://policies.google.com/privacy)
   - [Reasonix](https://reasonix.io/)
+  - [Qwen Code](https://github.com/QwenLM/qwen-code)
 - **No Third-Party Access**: Data is only accessible to the configured model provider
 
 ### Contact

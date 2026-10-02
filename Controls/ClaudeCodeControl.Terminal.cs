@@ -318,6 +318,7 @@ namespace ClaudeCodeVS
                 bool usePi = _settings?.SelectedProvider == AiProvider.Pi;
                 bool useAntigravity = _settings?.SelectedProvider == AiProvider.Antigravity;
                 bool useReasonix = _settings?.SelectedProvider == AiProvider.Reasonix;
+                bool useQwenCode = _settings?.SelectedProvider == AiProvider.QwenCode;
                 bool useDevinNative = _settings?.SelectedProvider == AiProvider.DevinNative;
                 bool providerAvailable = false;
 
@@ -369,6 +370,10 @@ namespace ClaudeCodeVS
                 else if (useReasonix)
                 {
                     providerAvailable = await IsReasonixAvailableAsync();
+                }
+                else if (useQwenCode)
+                {
+                    providerAvailable = await IsQwenCodeAvailableAsync();
                 }
                 else if (useDevinNative)
                 {
@@ -580,6 +585,22 @@ namespace ClaudeCodeVS
                         {
                             _reasonixNotificationShown = true;
                             ShowReasonixInstallationInstructions();
+                        }
+                        await StartEmbeddedTerminalAsync(null); // Regular CMD
+                    }
+                }
+                else if (useQwenCode)
+                {
+                    if (providerAvailable)
+                    {
+                        await StartEmbeddedTerminalAsync(AiProvider.QwenCode);
+                    }
+                    else
+                    {
+                        if (!_qwenCodeNotificationShown)
+                        {
+                            _qwenCodeNotificationShown = true;
+                            ShowQwenCodeInstallationInstructions();
                         }
                         await StartEmbeddedTerminalAsync(null); // Regular CMD
                     }
@@ -1246,6 +1267,11 @@ namespace ClaudeCodeVS
                             cmdCommand = $"/k chcp 65001 >nul && cd /d \"{workspaceDir}\" && ping localhost -n 3 >nul && cls && {reasonixCommand}";
                             break;
 
+                        case AiProvider.QwenCode:
+                            string qwenCommand = GetQwenCodeCommand();
+                            cmdCommand = $"/k chcp 65001 >nul && cd /d \"{workspaceDir}\" && ping localhost -n 3 >nul && cls && {qwenCommand}";
+                            break;
+
                         case AiProvider.DevinNative:
                             string devinCommand = GetDevinNativeCommand();
                             cmdCommand = $"/k chcp 65001 >nul && cd /d \"{workspaceDir}\" && ping localhost -n 3 >nul && cls && {devinCommand}";
@@ -1533,6 +1559,11 @@ namespace ClaudeCodeVS
                             string reasonixTerminalCommand = AppendExtraLaunchArgs(
                                 ResolveProviderExecutable(AiProvider.Reasonix, "reasonix"), AiProvider.Reasonix);
                             terminalCommand = $"/k chcp 65001 >nul && cd /d \"{workspaceDir}\" && ping localhost -n 3 >nul && cls && {reasonixTerminalCommand}";
+                            break;
+
+                        case AiProvider.QwenCode:
+                            string qwenTerminalCommand = GetQwenCodeCommand();
+                            terminalCommand = $"/k chcp 65001 >nul && cd /d \"{workspaceDir}\" && ping localhost -n 3 >nul && cls && {qwenTerminalCommand}";
                             break;
 
                         case AiProvider.DevinNative:
@@ -5374,6 +5405,13 @@ namespace ClaudeCodeVS
                         await SendTextToTerminalAsync("npm i -g reasonix");
                         break;
 
+                    case AiProvider.QwenCode:
+                        // Qwen Code: exit with the /quit slash command, wait, then update via npm
+                        await SendTextToTerminalAsync("/quit");
+                        await Task.Delay(3000);
+                        await SendTextToTerminalAsync("npm install -g @qwen-code/qwen-code@latest");
+                        break;
+
                     case AiProvider.DevinNative:
                         // Devin (native): exit the TUI, then run the official updater. `devin update`
                         // does NOT update — it only prints the install command. The installer
@@ -5590,6 +5628,10 @@ namespace ClaudeCodeVS
 
                 case AiProvider.Reasonix:
                     providerAvailable = await IsReasonixAvailableAsync();
+                    break;
+
+                case AiProvider.QwenCode:
+                    providerAvailable = await IsQwenCodeAvailableAsync();
                     break;
 
                 case AiProvider.DevinNative:
@@ -6066,6 +6108,24 @@ namespace ClaudeCodeVS
                 ResolveProviderExecutable(AiProvider.OpenCode, "opencode")
                     + GetModelLaunchFlag(AiProvider.OpenCode),
                 AiProvider.OpenCode);
+        }
+
+        /// <summary>
+        /// Gets the Qwen Code command, carrying the selected model as --model.
+        /// Uses --yolo when the setting is enabled.
+        /// </summary>
+        /// <returns>The qwen command to execute</returns>
+        private string GetQwenCodeCommand()
+        {
+            string baseCommand = ResolveProviderExecutable(AiProvider.QwenCode, "qwen")
+                + GetModelLaunchFlag(AiProvider.QwenCode);
+
+            if (_settings?.QwenCodeYoloMode == true)
+            {
+                baseCommand = $"{baseCommand} --yolo";
+            }
+
+            return AppendExtraLaunchArgs(baseCommand, AiProvider.QwenCode);
         }
 
 

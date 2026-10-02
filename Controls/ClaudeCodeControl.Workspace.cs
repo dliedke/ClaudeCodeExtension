@@ -493,6 +493,9 @@ namespace ClaudeCodeVS
                         case AiProvider.Reasonix:
                             providerAvailable = await IsReasonixAvailableAsync();
                             break;
+                        case AiProvider.QwenCode:
+                            providerAvailable = await IsQwenCodeAvailableAsync();
+                            break;
                         case AiProvider.DevinNative:
                             providerAvailable = await IsDevinNativeAvailableAsync();
                             break;
@@ -594,6 +597,13 @@ namespace ClaudeCodeVS
                                 {
                                     _reasonixNotificationShown = true;
                                     ShowReasonixInstallationInstructions();
+                                }
+                                break;
+                            case AiProvider.QwenCode:
+                                if (!_qwenCodeNotificationShown)
+                                {
+                                    _qwenCodeNotificationShown = true;
+                                    ShowQwenCodeInstallationInstructions();
                                 }
                                 break;
                             case AiProvider.DevinNative:

@@ -85,6 +85,11 @@ namespace ClaudeCodeVS
         private static bool _reasonixNotificationShown = false;
 
         /// <summary>
+        /// Flag to show Qwen Code installation notification only once per session
+        /// </summary>
+        private static bool _qwenCodeNotificationShown = false;
+
+        /// <summary>
         /// Flag to show Devin (native) installation notification only once per session
         /// </summary>
         private static bool _devinNativeNotificationShown = false;
@@ -1279,6 +1284,81 @@ namespace ClaudeCodeVS
         }
 
         /// <summary>
+        /// Checks if Qwen Code CLI is available (native Windows installation via 'npm install -g @qwen-code/qwen-code').
+        /// Uses 'where qwen' to check if qwen is in PATH.
+        /// Uses caching to avoid repeated slow checks.
+        /// </summary>
+        /// <param name="cancellationToken">Optional cancellation token</param>
+        /// <returns>True if qwen is available, false otherwise</returns>
+        private async Task<bool> IsQwenCodeAvailableAsync(CancellationToken cancellationToken = default)
+        {
+            // A configured custom CLI path means the tool is usable even when it is not on PATH.
+            if (CustomExecutableConfigured(AiProvider.QwenCode, isWsl: false))
+            {
+                return true;
+            }
+
+            // Check cache first
+            lock (_cacheLock)
+            {
+                if (_providerCache.TryGetValue(AiProvider.QwenCode, out var cached) && IsCacheValid(cached))
+                {
+                    return cached.IsAvailable;
+                }
+            }
+
+            try
+            {
+                var startInfo = new ProcessStartInfo
+                {
+                    FileName = "cmd.exe",
+                    Arguments = "/c where qwen",
+                    UseShellExecute = false,
+                    RedirectStandardOutput = true,
+                    RedirectStandardError = true,
+                    CreateNoWindow = true
+                };
+
+                // Refresh PATH from registry so a freshly installed qwen is detected without VS restart
+                string freshPath = GetFreshPathFromRegistry();
+                if (!string.IsNullOrEmpty(freshPath))
+                {
+                    startInfo.EnvironmentVariables["PATH"] = freshPath;
+                }
+
+                using (var process = Process.Start(startInfo))
+                {
+                    var completed = await WaitForProcessExitAsync(process, 3000, cancellationToken);
+
+                    if (!completed)
+                    {
+                        try { process.Kill(); } catch { }
+                        CacheProviderResult(AiProvider.QwenCode, false);
+                        return false;
+                    }
+
+                    string output = await process.StandardOutput.ReadToEndAsync();
+                    string error = await process.StandardError.ReadToEndAsync();
+
+                    bool isAvailable = process.ExitCode == 0 && !string.IsNullOrWhiteSpace(output);
+
+                    CacheProviderResult(AiProvider.QwenCode, isAvailable);
+                    return isAvailable;
+                }
+            }
+            catch (OperationCanceledException)
+            {
+                throw;
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"Error checking for Qwen Code: {ex.Message}");
+                CacheProviderResult(AiProvider.QwenCode, false);
+                return false;
+            }
+        }
+
+        /// <summary>
         /// Checks if Devin CLI is available natively on Windows (installed via the
         /// 'irm https://static.devin.ai/cli/setup.ps1 | iex' setup script).
         /// Uses 'where devin' to check if devin is in PATH. Cached to avoid repeated slow checks.
@@ -1734,6 +1814,30 @@ For more details, visit: https://pi.dev";
         }
 
         /// <summary>
+        /// Shows installation/configuration instructions for Qwen Code when it is not detected on PATH.
+        /// Qwen Code is installed via npm; its free Qwen OAuth tier is discontinued, so it needs
+        /// a Coding Plan or an API key configured through its own /auth command.
+        /// </summary>
+        private void ShowQwenCodeInstallationInstructions()
+        {
+            string instructions =
+                "Qwen Code is not installed. A regular CMD terminal will be used instead.\r\n\r\n" +
+                "(you may click CTRL+C to copy full instructions)\r\n\r\n" +
+                "INSTALLATION\r\n\r\n" +
+                "Requires Node.js 22 or later. Open a terminal and run:\r\n\r\n" +
+                "npm install -g @qwen-code/qwen-code@latest\r\n\r\n" +
+                "(Open a new terminal afterwards so the updated PATH takes effect.)\r\n\r\n" +
+                "CONFIGURATION\r\n\r\n" +
+                "Run 'qwen' once in a terminal and type /auth to set up a Coding Plan or an API key.\r\n" +
+                "(The free Qwen OAuth sign-in is discontinued.)\r\n\r\n" +
+                "The agent is launched with the 'qwen' command.\r\n\r\n" +
+                "For more details, visit: https://github.com/QwenLM/qwen-code";
+
+            MessageBox.Show(instructions, "Qwen Code Installation",
+                          MessageBoxButton.OK, MessageBoxImage.Information);
+        }
+
+        /// <summary>
         /// Shows installation/configuration instructions for Devin (native) when it is not
         /// detected on PATH. Devin's native Windows CLI is installed via a PowerShell setup
         /// script that requires Windows Terminal.
@@ -1918,6 +2022,37 @@ For more details, visit: https://pi.dev";
                 if (!await TryStartNativeModeAsync())
                 {
                     await StartEmbeddedTerminalAsync(AiProvider.Reasonix);
+                }
+            }
+        }
+
+        /// <summary>
+        /// Handles Qwen Code menu item click - switches to Qwen Code provider
+        /// </summary>
+#pragma warning disable VSTHRD100 // async void is acceptable for event handlers
+        private async void QwenCodeMenuItem_Click(object sender, RoutedEventArgs e)
+#pragma warning restore VSTHRD100
+        {
+            if (_settings == null) return;
+
+            bool qwenCodeAvailable = await IsQwenCodeAvailableAsync();
+            await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
+
+            // Always update the selection regardless of availability
+            _settings.SelectedProvider = AiProvider.QwenCode;
+            UpdateProviderSelection();
+            SaveSettings();
+
+            if (!qwenCodeAvailable)
+            {
+                ShowQwenCodeInstallationInstructions();
+                await StartEmbeddedTerminalAsync(null); // Regular CMD
+            }
+            else
+            {
+                if (!await TryStartNativeModeAsync())
+                {
+                    await StartEmbeddedTerminalAsync(AiProvider.QwenCode);
                 }
             }
         }
@@ -2169,6 +2304,7 @@ For more details, visit: https://pi.dev";
             PiMenuItem.IsChecked = activeProvider == AiProvider.Pi;
             AntigravityMenuItem.IsChecked = activeProvider == AiProvider.Antigravity;
             ReasonixMenuItem.IsChecked = activeProvider == AiProvider.Reasonix;
+            QwenCodeMenuItem.IsChecked = activeProvider == AiProvider.QwenCode;
             DevinNativeMenuItem.IsChecked = activeProvider == AiProvider.DevinNative;
 
             // Update GroupBox header to show the running provider when a terminal is active.
@@ -2720,6 +2856,8 @@ For more details, visit: https://pi.dev";
                     return "Antigravity";
                 case AiProvider.Reasonix:
                     return "Reasonix";
+                case AiProvider.QwenCode:
+                    return "Qwen Code";
                 default:
                     return "CMD";
             }
@@ -3099,7 +3237,7 @@ For more details, visit: https://pi.dev";
                                 $"Version: {version}\n" +
                                 $"Author: Daniel Carvalho Liedke\n" +
                                 $"Copyright © Daniel Carvalho Liedke 2026\n\n" +
-                                $"Provides seamless integration with Claude Code, Codex, Cursor Agent, Open Code, Devin, Devin, PI, Antigravity and Reasonix AI assistants directly within Visual Studio 2022/2026 IDE.";
+                                $"Provides seamless integration with Claude Code, Codex, Cursor Agent, Open Code, Devin, PI, Antigravity, Reasonix and Qwen Code AI assistants directly within Visual Studio 2022/2026 IDE.";
 
             MessageBox.Show(aboutMessage, "About Claude Code Extension",
                           MessageBoxButton.OK, MessageBoxImage.Information);
@@ -3144,7 +3282,7 @@ For more details, visit: https://pi.dev";
         /// <summary>
         /// Returns the command that opens the CLI's own model picker, or null for the agents that
         /// have none (Claude, Devin — both are driven entirely from the extension's menu). Codex,
-        /// Cursor, PI, Antigravity and Reasonix use <c>/model</c>; Open Code uses <c>/models</c>.
+        /// Cursor, PI, Antigravity, Reasonix and Qwen Code use <c>/model</c>; Open Code uses <c>/models</c>.
         /// </summary>
         private static string GetSimpleModelCommand(AiProvider? provider)
         {
@@ -3157,6 +3295,7 @@ For more details, visit: https://pi.dev";
                 case AiProvider.Pi:
                 case AiProvider.Antigravity:
                 case AiProvider.Reasonix:
+                case AiProvider.QwenCode:
                     return "/model";
                 case AiProvider.OpenCode:
                     return "/models";
@@ -4183,13 +4322,14 @@ For more details, visit: https://pi.dev";
             bool isPiProvider = activeProvider == AiProvider.Pi;
             bool isAntigravityProvider = activeProvider == AiProvider.Antigravity;
             bool isReasonixProvider = activeProvider == AiProvider.Reasonix;
+            bool isQwenCodeProvider = activeProvider == AiProvider.QwenCode;
             bool isDevinNativeProvider = activeProvider == AiProvider.DevinNative;
 
             // Show/hide individual provider menu items based on VisibleProviders.
             // The currently selected provider is always shown so users keep access to it.
             ApplyProviderMenuVisibility();
 
-            AutoOpenChangesSeparator.Visibility = (isClaudeProvider || isCodexProvider || isCursorAgentProvider || isDevinProvider || isPiProvider || isAntigravityProvider || isReasonixProvider || isDevinNativeProvider) ? Visibility.Visible : Visibility.Collapsed;
+            AutoOpenChangesSeparator.Visibility = (isClaudeProvider || isCodexProvider || isCursorAgentProvider || isDevinProvider || isPiProvider || isAntigravityProvider || isReasonixProvider || isQwenCodeProvider || isDevinNativeProvider) ? Visibility.Visible : Visibility.Collapsed;
             ClaudeDangerouslySkipPermissionsMenuItem.Visibility = isClaudeProvider ? Visibility.Visible : Visibility.Collapsed;
             // Native mode has its own Plan mode entry in the composer's permission selector.
             ClaudePlanModeMenuItem.Visibility = isClaudeProvider && !IsNativeModeActive ? Visibility.Visible : Visibility.Collapsed;
@@ -4197,6 +4337,7 @@ For more details, visit: https://pi.dev";
             CursorAgentAutoRunMenuItem.Visibility = isCursorAgentProvider ? Visibility.Visible : Visibility.Collapsed;
             DevinDangerousModeMenuItem.Visibility = (isDevinProvider || isDevinNativeProvider) ? Visibility.Visible : Visibility.Collapsed;
             AntigravityDangerouslySkipPermissionsMenuItem.Visibility = isAntigravityProvider ? Visibility.Visible : Visibility.Collapsed;
+            QwenCodeYoloModeMenuItem.Visibility = isQwenCodeProvider ? Visibility.Visible : Visibility.Collapsed;
 
             // Change Account has no console to act on outside native mode — the 🤖 menu's own
             // Change Account item (scripted /logout keystrokes) covers the terminal case instead.
@@ -4213,6 +4354,7 @@ For more details, visit: https://pi.dev";
                 CursorAgentAutoRunMenuItem.IsChecked = _settings.CursorAgentAutoRun;
                 DevinDangerousModeMenuItem.IsChecked = _settings.DevinDangerousMode;
                 AntigravityDangerouslySkipPermissionsMenuItem.IsChecked = _settings.AntigravityDangerouslySkipPermissions;
+                QwenCodeYoloModeMenuItem.IsChecked = _settings.QwenCodeYoloMode;
                 HidePromptPanelMenuItem.IsChecked = _settings.HidePromptPanel;
             }
         }
@@ -4495,6 +4637,36 @@ For more details, visit: https://pi.dev";
         }
 
         /// <summary>
+        /// Handles Qwen Code yolo mode menu item click
+        /// </summary>
+#pragma warning disable VSTHRD100 // async void is acceptable for event handlers
+        private async void QwenCodeYoloModeMenuItem_Click(object sender, RoutedEventArgs e)
+#pragma warning restore VSTHRD100
+        {
+            await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
+
+            if (_settings == null) return;
+
+            _settings.QwenCodeYoloMode = QwenCodeYoloModeMenuItem.IsChecked;
+            SaveSettings();
+
+            // Reload Qwen Code immediately so the new startup flag is applied.
+            if (_settings.SelectedProvider == AiProvider.QwenCode)
+            {
+                try
+                {
+                    await RestartTerminalWithSelectedProviderAsync();
+                }
+                catch (Exception ex)
+                {
+                    Debug.WriteLine($"Error reloading Qwen Code after yolo mode change: {ex.Message}");
+                    await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
+                    MessageBox.Show($"Failed to reload Qwen Code: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                }
+            }
+        }
+
+        /// <summary>
         /// Toggles <see cref="ClaudeCodeSettings.HidePromptPanel"/>: collapses (or restores)
         /// the multi-line prompt text box, keeping the controls row, file chips, and usage
         /// bars reachable so the box can always be turned back on from this same menu.
@@ -4770,6 +4942,7 @@ For more details, visit: https://pi.dev";
                     { AiProvider.Pi,                 PiMenuItem },
                     { AiProvider.Antigravity,        AntigravityMenuItem },
                     { AiProvider.Reasonix,           ReasonixMenuItem },
+                    { AiProvider.QwenCode,           QwenCodeMenuItem },
                 };
             }
             return _providerMenuItems;
@@ -4793,6 +4966,7 @@ For more details, visit: https://pi.dev";
                 case AiProvider.Pi:                return "PI";
                 case AiProvider.Antigravity:       return "Antigravity";
                 case AiProvider.Reasonix:          return "Reasonix";
+                case AiProvider.QwenCode:          return "Qwen Code";
                 case AiProvider.DevinNative:       return "Devin";
                 default:                           return provider.ToString();
             }
@@ -4935,6 +5109,7 @@ For more details, visit: https://pi.dev";
                 AiProvider.Pi,
                 AiProvider.Antigravity,
                 AiProvider.Reasonix,
+                AiProvider.QwenCode,
             };
 
             var checkboxes = new System.Collections.Generic.Dictionary<AiProvider, System.Windows.Controls.CheckBox>();

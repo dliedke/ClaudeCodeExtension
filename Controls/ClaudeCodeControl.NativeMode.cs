@@ -334,13 +334,14 @@ namespace ClaudeCodeVS
             {
                 case AiProvider.ClaudeCode:
                 case AiProvider.ClaudeCodeWSL:
-                // These three speak ACP, so one adapter drives all of them. Reasonix is deliberately
+                // These four speak ACP, so one adapter drives all of them. Reasonix is deliberately
                 // **not** here: its ACP adapter works (it handshakes and answers), but it is kept on
                 // the embedded terminal by product decision, so nothing in this table should be read
                 // as a statement about which agents *could* run natively.
                 case AiProvider.OpenCode:
                 case AiProvider.Devin:
                 case AiProvider.DevinNative:
+                case AiProvider.QwenCode:
                 // These four stream JSON but end the process with each turn, so the adapter relaunches
                 // them with a resume flag. The conversation survives; the prompt cache does not.
                 case AiProvider.Codex:
@@ -726,6 +727,7 @@ namespace ClaudeCodeVS
                 case AiProvider.Devin:
                 case AiProvider.DevinNative:
                 case AiProvider.Reasonix:
+                case AiProvider.QwenCode:
                     return CreateAcpSession(provider, workspace, session, resumeSessionId);
 
                 case AiProvider.Codex:
@@ -819,9 +821,9 @@ namespace ClaudeCodeVS
         }
 
         /// <summary>
-        /// Builds the ACP adapter. OpenCode, Devin (both flavours) and Reasonix expose the same
-        /// <c>acp</c> subcommand and the same protocol, so only the executable and the session mode
-        /// differ between them.
+        /// Builds the ACP adapter. OpenCode, Devin (both flavours), Reasonix and Qwen Code speak the
+        /// same protocol, so only the executable, the ACP switch (<c>acp</c> subcommand, or Qwen's
+        /// <c>--acp</c> flag) and the session mode differ between them.
         /// </summary>
         private IAgentSession CreateAcpSession(AiProvider provider, string workspace,
             NativeChatSessionState session = null, string resumeSessionId = null)
@@ -839,6 +841,7 @@ namespace ClaudeCodeVS
             {
                 UseWsl = isWsl,
                 ExecutablePath = executable,
+                AcpArgument = provider == AiProvider.QwenCode ? "--acp" : "acp",
                 WslWorkingDirectory = isWsl ? ConvertToWslPath(workspace) : string.Empty,
                 ModeId = GetAcpModeId(provider, session),
                 ModelName = GetAcpModelName(provider, session),
@@ -857,7 +860,7 @@ namespace ClaudeCodeVS
                 options.EnvironmentOverrides["PATH"] = freshPath;
             }
 
-            // Only Devin exposes session history in this window (OpenCode/Reasonix don't), so only it
+            // Only Devin exposes session history in this window (OpenCode/Reasonix/Qwen Code don't), so only it
             // may consume the token — the same guard CreateOneShotSession applies for Cursor.
             bool isDevin = provider == AiProvider.Devin || provider == AiProvider.DevinNative;
             if (isDevin)
@@ -1025,6 +1028,7 @@ namespace ClaudeCodeVS
             {
                 case AiProvider.OpenCode: return "opencode";
                 case AiProvider.Reasonix: return "reasonix";
+                case AiProvider.QwenCode: return "qwen";
                 default: return "devin";
             }
         }
@@ -1032,7 +1036,8 @@ namespace ClaudeCodeVS
         /// <summary>
         /// Session mode to request after the handshake. Devin governs permissions through modes rather
         /// than through the protocol's approval channel, so its "dangerous mode" setting maps here;
-        /// the other agents keep whatever default they ship with.
+        /// Qwen Code's approval modes are ACP modes too, so its "yolo mode" setting maps to "yolo".
+        /// The other agents keep whatever default they ship with.
         /// </summary>
         private string GetAcpModeId(AiProvider provider, NativeChatSessionState session = null)
         {
@@ -1044,12 +1049,18 @@ namespace ClaudeCodeVS
                 return "bypass";
             }
 
+            bool qwenYolo = session != null ? session.SkipPermissions : _settings?.QwenCodeYoloMode == true;
+            if (provider == AiProvider.QwenCode && qwenYolo)
+            {
+                return "yolo";
+            }
+
             return string.Empty;
         }
 
         /// <summary>
         /// Model to select after the handshake, for the agents that publish a model picker there
-        /// (Devin and Open Code). Reasonix publishes none and takes its model at launch instead.
+        /// (Devin, Open Code and Qwen Code). Reasonix publishes none and takes its model at launch instead.
         /// </summary>
         private string GetAcpModelName(AiProvider provider, NativeChatSessionState session = null)
         {

@@ -521,6 +521,23 @@ namespace ClaudeCodeExtension.Tests
         }
 
         [TestMethod]
+        public void AcpArguments_UseQwenCodeAcpFlag()
+        {
+            // Qwen Code enters ACP through a flag, not a subcommand.
+            var options = new AcpSessionOptions { ExecutablePath = "qwen.exe", AcpArgument = "--acp" };
+
+            Assert.AreEqual("--acp", AcpCommandBuilder.GetArguments(options));
+        }
+
+        [TestMethod]
+        public void AcpArguments_WrapQwenCodeNpmShimInCmd()
+        {
+            var options = new AcpSessionOptions { ExecutablePath = @"C:\npm\qwen.cmd", AcpArgument = "--acp" };
+
+            Assert.AreEqual("/c \"C:\\npm\\qwen.cmd --acp\"", AcpCommandBuilder.GetArguments(options));
+        }
+
+        [TestMethod]
         public void AcpArguments_CarryTheModelInsideWsl()
         {
             var options = new AcpSessionOptions

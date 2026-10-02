@@ -40,6 +40,7 @@ namespace ClaudeCodeVS
             (AiProvider.Pi,                "PI",                 false),
             (AiProvider.Antigravity,       "Antigravity",        false),
             (AiProvider.Reasonix,          "Reasonix",           false),
+            (AiProvider.QwenCode,          "Qwen Code",          false),
         };
 
         #endregion

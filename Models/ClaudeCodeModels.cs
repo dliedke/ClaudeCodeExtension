@@ -31,7 +31,10 @@ namespace ClaudeCodeVS
         Pi = 9,
         Antigravity = 10,
         Reasonix = 11,
-        DevinNative = 12
+        DevinNative = 12,
+        // A new ordinal, not the retired 6: a settings file still carrying 6 from v10.11 or
+        // earlier must keep falling back to Claude Code rather than silently launching Qwen Code.
+        QwenCode = 13
     }
 
     /// <summary>
@@ -687,6 +690,12 @@ namespace ClaudeCodeVS
         /// Applies to Antigravity (Windows native).
         /// </summary>
         public bool AntigravityDangerouslySkipPermissions { get; set; } = false;
+
+        /// <summary>
+        /// If true, starts Qwen Code with --yolo (terminal) or in its "yolo" session mode (native
+        /// mode) so every tool call is approved automatically.
+        /// </summary>
+        public bool QwenCodeYoloMode { get; set; } = false;
 
         /// <summary>
         /// If true, starts Cursor Agent with --yolo to skip all approvals.

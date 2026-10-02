@@ -43,8 +43,9 @@ namespace ClaudeCodeVS
         }
 
         /// <summary>
-        /// The listing command per provider, measured against the real CLIs. The only provider absent
-        /// from this table is Claude, which has a fixed menu instead.
+        /// The listing command per provider, measured against the real CLIs. Absent from this table:
+        /// Claude, which has a fixed menu instead, and Qwen Code, whose CLI (0.24.7) has no listing
+        /// command — its models only surface inside its own /model picker and in the ACP handshake.
         /// </summary>
         private static readonly Dictionary<AiProvider, ModelCatalogSource> ModelCatalogSources =
             new Dictionary<AiProvider, ModelCatalogSource>
@@ -515,6 +516,7 @@ namespace ClaudeCodeVS
                 case AiProvider.Antigravity:
                 case AiProvider.Devin:
                 case AiProvider.DevinNative:
+                case AiProvider.QwenCode:
                     return " --model " + QuoteModelArgument(model);
 
                 default:
@@ -524,7 +526,7 @@ namespace ClaudeCodeVS
 
         /// <summary>
         /// The slash command that switches the model of a running TUI, or null when the agent has
-        /// none. Both Devin and Reasonix take a bare id.
+        /// none. Devin, Reasonix and Qwen Code all take a bare id.
         /// </summary>
         private string GetLiveModelSwitchCommand(AiProvider provider, string modelId)
         {
@@ -532,6 +534,7 @@ namespace ClaudeCodeVS
 
             if (IsDevinProvider(provider)) return "/model " + QuoteModelArgument(modelId);
             if (provider == AiProvider.Reasonix) return "/model " + modelId;
+            if (provider == AiProvider.QwenCode) return "/model " + QuoteModelArgument(modelId);
 
             return null;
         }
