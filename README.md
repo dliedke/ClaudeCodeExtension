@@ -147,6 +147,7 @@ Use native mode to avoid this issue.
 - New *Track agent changes for review (Keep/Undo)* setting (off by default, issue #183): the Changes view lists only the files the agent changed since you last reviewed them, across prompts and chat tabs, in both terminal and native mode.
 - Keep or Undo each file, or use Keep All / Undo All; Undo also removes files the agent created and restores files it deleted.
 - A scope switch in the Changes view toggles between "Pending review" and "All uncommitted (git)".
+- Thanks to [@osjimenez](https://github.com/osjimenez) for the idea, testing and work on this feature (#183).
 
 ### Version 217.0
 - Added Grok (Grok Build) as a supported AI agent, both in the embedded terminal and in native chat mode; install it with `irm https://x.ai/cli/install.ps1 | iex`, sign in with `grok login`, then enable it via "Configure Visible Code Agents...".
