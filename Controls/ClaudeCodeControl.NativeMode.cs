@@ -140,10 +140,11 @@ namespace ClaudeCodeVS
         /// thread pumps a nested message loop (a modal permission dialog, for one) — a later event's
         /// continuation can run before an earlier one finishes, interleaving half-applied text into the
         /// same streaming row. This queue plus <see cref="_agentEventPumpRunning"/> is what actually
-        /// guarantees streamed text renders in the order the agent sent it.
+        /// guarantees streamed text renders in the order the agent sent it. Each event carries the
+        /// session that raised it, so the drain can drop what a relaunched or replaced process left behind.
         /// </summary>
-        private readonly System.Collections.Concurrent.ConcurrentQueue<AgentEvent> _pendingAgentEvents =
-            new System.Collections.Concurrent.ConcurrentQueue<AgentEvent>();
+        private readonly System.Collections.Concurrent.ConcurrentQueue<KeyValuePair<IAgentSession, AgentEvent>> _pendingAgentEvents =
+            new System.Collections.Concurrent.ConcurrentQueue<KeyValuePair<IAgentSession, AgentEvent>>();
 
         /// <summary>1 while a drain loop owns <see cref="_pendingAgentEvents"/>; guards against a second loop starting.</summary>
         private int _agentEventPumpRunning;
@@ -2055,7 +2056,7 @@ namespace ClaudeCodeVS
             // ordering rationale on _pendingAgentEvents. Only the caller that flips the flag from 0 to 1
             // starts a drain loop; every other concurrent caller just leaves its event for that loop to
             // pick up, so at most one loop ever owns the queue.
-            _pendingAgentEvents.Enqueue(agentEvent);
+            _pendingAgentEvents.Enqueue(new KeyValuePair<IAgentSession, AgentEvent>((IAgentSession)sender, agentEvent));
             if (Interlocked.CompareExchange(ref _agentEventPumpRunning, 1, 0) != 0)
             {
                 return;
@@ -2077,8 +2078,15 @@ namespace ClaudeCodeVS
 
             try
             {
-                while (_pendingAgentEvents.TryDequeue(out AgentEvent agentEvent))
+                while (_pendingAgentEvents.TryDequeue(out KeyValuePair<IAgentSession, AgentEvent> queued))
                 {
+                    // Queued by a process that has since been relaunched or replaced (a permission/model
+                    // switch mid-reply): rendering it now would split the old reply around the restart
+                    // notice ("T" / notice / "enía dos archivos").
+                    if (!ReferenceEquals(queued.Key, _agentSession))
+                        continue;
+
+                    AgentEvent agentEvent = queued.Value;
                     try
                     {
                         ApplyAgentEvent(agentEvent);
@@ -3401,7 +3409,7 @@ namespace ClaudeCodeVS
                 if (agentEvent == null || !ReferenceEquals(sender, agentSession))
                     return;
 
-                state.PendingEvents.Enqueue(agentEvent);
+                state.PendingEvents.Enqueue(new KeyValuePair<IAgentSession, AgentEvent>(agentSession, agentEvent));
                 if (Interlocked.CompareExchange(ref state.EventPumpRunning, 1, 0) != 0)
                     return;
 
@@ -3474,8 +3482,13 @@ namespace ClaudeCodeVS
 
             try
             {
-                while (state.PendingEvents.TryDequeue(out AgentEvent agentEvent))
+                while (state.PendingEvents.TryDequeue(out KeyValuePair<IAgentSession, AgentEvent> queued))
                 {
+                    // Left behind by a process this tab has since relaunched (see DrainAgentEventQueueAsync).
+                    if (!ReferenceEquals(queued.Key, state.AgentSession))
+                        continue;
+
+                    AgentEvent agentEvent = queued.Value;
                     try
                     {
                         ApplyAgentEventToSession(sessionId, state, agentEvent);

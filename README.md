@@ -150,6 +150,8 @@ Use native mode to avoid this issue.
 - Compare opens a pending file in Visual Studio's diff window, before the agent on the left and now on the right.
 - Undo warns when a file has unsaved changes in the editor, and afterwards the editor shows the restored file, so a later save can no longer bring the agent's change back.
 - With *Auto-open Changes on Send* on, the Changes view comes back to the front when the agent finishes and files are pending review.
+- After an Undo, your next prompt tells the agent which files you reverted, so it doesn't treat them as an accident and reapply its changes.
+- Fixed native chat replies being split around a "Switched to..." notice when the permission mode or model is changed while the agent is still answering.
 - Thanks to [@osjimenez](https://github.com/osjimenez) for the idea, testing and work on this feature (#183).
 
 ### Version 217.0

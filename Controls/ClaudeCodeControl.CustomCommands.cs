@@ -118,6 +118,8 @@ namespace ClaudeCodeVS
                     commandText = BuildConflictPromptBlock(pullOutcome, hasUserRequest: true) + commandText;
                 }
 
+                commandText = TakePendingReviewUndoNote(cmd.Command) + commandText;
+
                 await SendTextToAgentAsync(commandText);
             }
             catch (Exception ex)

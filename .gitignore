@@ -367,3 +367,5 @@ publish.cmd
 
 .antigravitycli/*
 
+# Personal Claude Code settings (pre-approved commands etc.)
+.claude/settings.local.json

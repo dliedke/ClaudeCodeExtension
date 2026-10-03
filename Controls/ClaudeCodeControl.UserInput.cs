@@ -233,6 +233,10 @@ namespace ClaudeCodeVS
                         hasUserRequest: !string.IsNullOrEmpty(prompt) || hasFiles));
                 }
 
+                // "Track agent changes for review": tell the agent which of its edits the user undid, so it
+                // doesn't take them for an accident and reapply them.
+                fullPrompt.Append(TakePendingReviewUndoNote(prompt));
+
                 // Check if CURRENTLY RUNNING provider is WSL-based (not CodexNative, CursorAgentNative).
                 // Hoisted out of the hasFiles branch so the large-prompt-as-file path can use it too.
                 bool isWSLProvider = IsWslProvider(_currentRunningProvider);

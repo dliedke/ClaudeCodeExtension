@@ -127,9 +127,11 @@ namespace ClaudeCodeVS
         /// <c>SwitchToMainThreadAsync</c> per event has no ordering guarantee once anything on the main
         /// thread pumps a nested message loop (a modal permission dialog, for one), so this queue plus
         /// <see cref="EventPumpRunning"/> is what guarantees streamed text renders in the order the
-        /// agent sent it.
+        /// agent sent it. Each event carries the process that raised it, so the drain drops what a
+        /// relaunched process left behind.
         /// </summary>
-        internal readonly ConcurrentQueue<AgentEvent> PendingEvents = new ConcurrentQueue<AgentEvent>();
+        internal readonly ConcurrentQueue<KeyValuePair<IAgentSession, AgentEvent>> PendingEvents =
+            new ConcurrentQueue<KeyValuePair<IAgentSession, AgentEvent>>();
 
         /// <summary>1 while a drain loop owns <see cref="PendingEvents"/>; guards against a second loop starting. Plain field (not a property) so it can be passed to Interlocked by ref.</summary>
         internal int EventPumpRunning;

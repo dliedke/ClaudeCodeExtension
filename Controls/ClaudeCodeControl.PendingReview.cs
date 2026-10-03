@@ -49,6 +49,12 @@ namespace ClaudeCodeVS
         private bool _diffViewerReviewSubscribed;
         private bool _pendingReviewActionRunning;
 
+        /// <summary>
+        /// Repository-relative paths undone since the last user prompt; the next prompt tells the agent about
+        /// them (<see cref="TakePendingReviewUndoNote"/>). UI thread only.
+        /// </summary>
+        private readonly List<string> _pendingReviewUndoneFiles = new List<string>();
+
         #endregion
 
         #region Pending Review State
@@ -101,6 +107,7 @@ namespace ClaudeCodeVS
             }
 
             // A different repository (solution switched): the old review list no longer applies.
+            _pendingReviewUndoneFiles.Clear();
             FileChangeTracker display = _pendingChangeTracker;
             string root = repoRoot;
             var source = new GitPendingReviewSource(
@@ -285,6 +292,7 @@ namespace ClaudeCodeVS
                 // Off means off: nothing stays in memory.
                 PendingReviewTracker tracker = _pendingReview;
                 _pendingReview = null;
+                _pendingReviewUndoneFiles.Clear();
                 if (tracker != null)
                 {
                     _ = RunPendingReviewWorkAsync(tracker.Clear);
@@ -572,6 +580,7 @@ namespace ClaudeCodeVS
                 });
 
                 await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
+                RememberUndoneFiles(tracker.RepositoryRoot, restored.Select(r => r.Key));
 
                 if (failures.Count > 0)
                 {
@@ -587,6 +596,45 @@ namespace ClaudeCodeVS
             }
 
             await RefreshPendingReviewViewAsync(false);
+        }
+
+        private void RememberUndoneFiles(string repositoryRoot, IEnumerable<string> fullPaths)
+        {
+            ThreadHelper.ThrowIfNotOnUIThread();
+
+            string root = (repositoryRoot ?? string.Empty).TrimEnd(Path.DirectorySeparatorChar) + Path.DirectorySeparatorChar;
+            foreach (string fullPath in fullPaths)
+            {
+                string relative = fullPath.StartsWith(root, StringComparison.OrdinalIgnoreCase)
+                    ? fullPath.Substring(root.Length).Replace(Path.DirectorySeparatorChar, '/')
+                    : fullPath;
+
+                if (!_pendingReviewUndoneFiles.Contains(relative, StringComparer.OrdinalIgnoreCase))
+                {
+                    _pendingReviewUndoneFiles.Add(relative);
+                }
+            }
+        }
+
+        /// <summary>
+        /// The note telling the agent which files the user undid since the last prompt, consumed by the first
+        /// user-initiated prompt that follows. Empty when there is nothing to report, and for a slash command:
+        /// text ahead of "/compact" or "/model" would stop the CLI from recognising the command, so the note
+        /// waits for the next real prompt.
+        /// </summary>
+        private string TakePendingReviewUndoNote(string userText)
+        {
+            ThreadHelper.ThrowIfNotOnUIThread();
+
+            if (_pendingReviewUndoneFiles.Count == 0 || !IsPendingReviewEnabled)
+                return string.Empty;
+
+            if (!string.IsNullOrEmpty(userText) && userText.TrimStart().StartsWith("/", StringComparison.Ordinal))
+                return string.Empty;
+
+            string note = PendingReviewMessages.BuildUndoneFilesNote(_pendingReviewUndoneFiles.ToList());
+            _pendingReviewUndoneFiles.Clear();
+            return note;
         }
 
         /// <summary>

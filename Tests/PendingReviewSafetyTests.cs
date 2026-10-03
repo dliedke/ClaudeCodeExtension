@@ -99,6 +99,30 @@ namespace ClaudeCodeExtension.Tests
             StringAssert.Contains(many, "The files keep their current content");
         }
 
+        [TestMethod]
+        public void UndoneFilesNote_ListsTheFilesAndAsksNotToReapply()
+        {
+            string one = PendingReviewMessages.BuildUndoneFilesNote(new[] { "src/a.cs" });
+            string many = PendingReviewMessages.BuildUndoneFilesNote(new[] { "src/a.cs", "b.cs" });
+
+            StringAssert.Contains(one, "undid them in src/a.cs.");
+            StringAssert.Contains(one, "That file is back");
+            StringAssert.Contains(many, "src/a.cs, b.cs");
+            StringAssert.Contains(many, "Those files are back");
+            StringAssert.Contains(many, "Do not reapply");
+            Assert.IsTrue(many.EndsWith("]\n\n"), "The note must be separated from the user's own request.");
+        }
+
+        [TestMethod]
+        public void UndoneFilesNote_IsEmptyWithoutFiles_AndSummarizesLongLists()
+        {
+            Assert.AreEqual(string.Empty, PendingReviewMessages.BuildUndoneFilesNote(null));
+            Assert.AreEqual(string.Empty, PendingReviewMessages.BuildUndoneFilesNote(new[] { "" }));
+
+            string[] names = Enumerable.Range(1, PendingReviewMessages.MaxListedFiles + 2).Select(i => $"f{i}.cs").ToArray();
+            StringAssert.Contains(PendingReviewMessages.BuildUndoneFilesNote(names), "and 2 more");
+        }
+
         // ---- Source-level guards (these paths need a running Visual Studio) -------------------------
 
         private static string PendingReviewSource => RepositoryLayout.ReadText("Controls", "ClaudeCodeControl.PendingReview.cs");
@@ -175,6 +199,24 @@ namespace ClaudeCodeExtension.Tests
         {
             // A fresh clone has no project.assets.json; without -restore the first run fails with NETSDK1004.
             StringAssert.Contains(RepositoryLayout.ReadText("test.cmd"), "-restore -t:Build");
+        }
+
+        [TestMethod]
+        public void UserSends_CarryTheUndoNote()
+        {
+            StringAssert.Contains(RepositoryLayout.ReadText("Controls", "ClaudeCodeControl.UserInput.cs"), "TakePendingReviewUndoNote(prompt)");
+            StringAssert.Contains(RepositoryLayout.ReadText("Controls", "ClaudeCodeControl.CustomCommands.cs"), "TakePendingReviewUndoNote(cmd.Command)");
+        }
+
+        [TestMethod]
+        public void NativeEventDrains_DropEventsFromAReplacedProcess()
+        {
+            // A permission/model switch mid-reply relaunches the agent; events the old process had already
+            // queued used to render after the restart notice, splitting the reply around it.
+            string nativeMode = RepositoryLayout.ReadText("Controls", "ClaudeCodeControl.NativeMode.cs");
+
+            StringAssert.Contains(nativeMode, "if (!ReferenceEquals(queued.Key, _agentSession))");
+            StringAssert.Contains(nativeMode, "if (!ReferenceEquals(queued.Key, state.AgentSession))");
         }
 
         private static string Slice(string source, string startMarker, string endMarker)

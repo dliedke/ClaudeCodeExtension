@@ -80,6 +80,31 @@ namespace ClaudeCodeVS.Diff
         }
 
         /// <summary>
+        /// Note put ahead of the user's next prompt after an Undo. Without it the agent finds its edits gone
+        /// and tends to blame an editor or reapply them; this tells it the user reverted them on purpose.
+        /// </summary>
+        /// <param name="relativePaths">Repository-relative paths the user undid since the last prompt.</param>
+        internal static string BuildUndoneFilesNote(IReadOnlyCollection<string> relativePaths)
+        {
+            List<string> paths = (relativePaths ?? new string[0]).Where(p => !string.IsNullOrEmpty(p)).ToList();
+            if (paths.Count == 0)
+            {
+                return string.Empty;
+            }
+
+            string list = string.Join(", ", paths.Take(MaxListedFiles));
+            if (paths.Count > MaxListedFiles)
+            {
+                list += $" and {paths.Count - MaxListedFiles} more";
+            }
+
+            return
+                $"[Note from the IDE: the user reviewed your earlier changes and undid them in {list}. " +
+                $"{(paths.Count == 1 ? "That file is" : "Those files are")} back to how they were before you changed them, " +
+                "on purpose. Do not reapply those changes unless the request below asks for it.]\n\n";
+        }
+
+        /// <summary>
         /// The part of an Undo question that names open files with unsaved edits: Undo reloads their editors from
         /// disk, so those edits are lost. Saying so up front is what makes "Yes" an informed choice; without it the
         /// edits either vanish on reload or, if kept, get saved back over the Undo later.
