@@ -4059,6 +4059,9 @@ namespace ClaudeCodeVS
                     {
                         await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
                         await ArmAgentCompletionWatcherAsync();
+                        // The Enter already reached the terminal, so this snapshot races the agent's
+                        // first write; it still lands well before a typical first edit.
+                        await BeginPendingReviewTurnAsync(PendingReviewTerminalTurnKey);
                     });
 #pragma warning restore VSSDK007, VSTHRD110
                 }

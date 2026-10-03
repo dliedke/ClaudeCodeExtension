@@ -830,6 +830,7 @@ namespace ClaudeCodeVS
 
             TimeSpan dur = DateTime.UtcNow - _promptSentUtc;
             StopAgentCompletionTimer();
+            EndPendingReviewTurn(PendingReviewTerminalTurnKey);
             await OnAgentTurnCompletedAsync(cfg, dur, delta);
         }
 

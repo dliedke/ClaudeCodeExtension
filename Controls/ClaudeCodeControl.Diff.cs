@@ -202,6 +202,13 @@ namespace ClaudeCodeVS
         {
             try
             {
+                // "Pending review" scope lists the agent's unreviewed changes instead of git's
+                if (IsPendingScopeShown)
+                {
+                    await RefreshPendingReviewViewAsync(false);
+                    return;
+                }
+
                 if (_fileChangeTracker == null)
                     return;
 
@@ -291,6 +298,8 @@ namespace ClaudeCodeVS
                 _diffViewerVisibilitySubscribed = true;
             }
 
+            SyncPendingReviewViewerMode();
+
             // Only start polling if window is visible
             if (_diffViewerWindow.IsWindowVisible)
             {
@@ -361,6 +370,13 @@ namespace ClaudeCodeVS
             {
                 try
                 {
+                    if (IsPendingScopeShown)
+                    {
+                        // Pick up the agent's latest edits and drop files reverted by hand
+                        await RefreshPendingReviewViewAsync(true);
+                        return;
+                    }
+
                     bool shouldAutoReset = await ShouldAutoResetDiffBaselineAsync();
                     if (shouldAutoReset)
                     {
@@ -924,6 +940,68 @@ namespace ClaudeCodeVS
         }
 
         /// <summary>
+        /// Same as <see cref="RunGitCommand"/> but returns stdout as raw bytes, for file contents that
+        /// must be written back byte-for-byte (pending review Undo) and -z output decoded by the caller.
+        /// </summary>
+        private byte[] RunGitCommandBytes(string workingDirectory, string arguments, int timeoutMs)
+        {
+            string gitPath = ResolveGitPath();
+            if (string.IsNullOrEmpty(gitPath))
+                return null;
+
+            try
+            {
+                var processStart = new ProcessStartInfo
+                {
+                    FileName = gitPath,
+                    Arguments = arguments,
+                    WorkingDirectory = workingDirectory,
+                    RedirectStandardOutput = true,
+                    RedirectStandardError = true,
+                    UseShellExecute = false,
+                    CreateNoWindow = true,
+                    StandardErrorEncoding = Encoding.UTF8
+                };
+
+                using (var process = Process.Start(processStart))
+                {
+                    if (process == null)
+                        return null;
+
+                    var buffer = new MemoryStream();
+                    Task outputTask = process.StandardOutput.BaseStream.CopyToAsync(buffer);
+                    Task<string> errorTask = process.StandardError.ReadToEndAsync();
+                    bool exited = process.WaitForExit(timeoutMs);
+                    if (!exited)
+                    {
+                        try
+                        {
+                            process.Kill();
+                        }
+                        catch
+                        {
+                            // Ignore failures on kill
+                        }
+                        return null;
+                    }
+                    if (process.ExitCode != 0)
+                        return null;
+
+#pragma warning disable VSTHRD002 // Synchronous git helper; tasks only drain redirected process output.
+                    outputTask.GetAwaiter().GetResult();
+                    errorTask.GetAwaiter().GetResult();
+#pragma warning restore VSTHRD002
+                    return buffer.ToArray();
+                }
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"Error running git command: {ex.Message}");
+                return null;
+            }
+        }
+
+        /// <summary>
         /// Resolves the path to the git executable.
         /// First tries "git" from the system PATH, then falls back to VS's bundled git.
         /// Result is cached for the lifetime of the control.
@@ -1165,6 +1243,7 @@ namespace ClaudeCodeVS
                 _isDiffTrackingActive = false;
                 _diffViewerResetSubscribed = false;
                 _diffViewerVisibilitySubscribed = false;
+                _diffViewerReviewSubscribed = false;
                 StopGitStatusPollTimer();
             }
             catch (Exception ex)

@@ -1427,6 +1427,7 @@ namespace ClaudeCodeVS
                 return;
             }
 
+            await BeginPendingReviewTurnAsync(PendingReviewTerminalTurnKey);
             await SendTextToTerminalAsync(text);
         }
 
@@ -1666,6 +1667,10 @@ namespace ClaudeCodeVS
             sessionState.TurnFinishConfig = _suppressNextNativeAgentFinish ? null : GetEffectiveAgentFinish();
             _suppressNextNativeAgentFinish = false;
 
+            // "Track agent changes for review": snapshot before the agent can write anything
+            IAgentSession reviewKey = sessionState.AgentSession;
+            await BeginPendingReviewTurnAsync(reviewKey);
+
             try
             {
                 await sessionState.AgentSession.SendAsync(text, sessionState.SessionCts?.Token ?? CancellationToken.None);
@@ -1673,6 +1678,7 @@ namespace ClaudeCodeVS
             catch (Exception ex)
             {
                 Debug.WriteLine($"Native mode: send failed: {ex}");
+                EndPendingReviewTurn(reviewKey);
                 AddNativeMessageToSession(sessionState, ChatMessageKind.Error, DescribeNativeSendFailure(ex));
                 sessionState.TurnInFlight = false;
                 sessionState.ChatTranscript.EndActivity(string.Empty);
@@ -1712,6 +1718,9 @@ namespace ClaudeCodeVS
             _nativeTurnFinishConfig = _suppressNextNativeAgentFinish ? null : GetEffectiveAgentFinish();
             _suppressNextNativeAgentFinish = false;
 
+            // "Track agent changes for review": snapshot before the agent can write anything
+            await BeginPendingReviewTurnAsync(session);
+
             try
             {
                 await session.SendAsync(text, _nativeSessionCts != null
@@ -1721,6 +1730,7 @@ namespace ClaudeCodeVS
             catch (Exception ex)
             {
                 Debug.WriteLine($"Native mode: send failed: {ex}");
+                EndPendingReviewTurn(session);
                 AddNativeMessage(ChatMessageKind.Error, DescribeNativeSendFailure(ex));
                 _nativeTurnInFlight = false;
                 ChatTranscript.EndActivity(string.Empty);
@@ -2660,6 +2670,8 @@ namespace ClaudeCodeVS
         {
             ThreadHelper.ThrowIfNotOnUIThread();
 
+            EndPendingReviewTurn(_agentSession);
+
             FinishStreamingMessages();
             ChatTranscript.SetBusy(false);
 
@@ -3227,6 +3239,8 @@ namespace ClaudeCodeVS
         private void CompleteNativeTurnForSession(NativeChatSessionState session, AgentEvent agentEvent)
         {
             ThreadHelper.ThrowIfNotOnUIThread();
+
+            EndPendingReviewTurn(session.AgentSession);
 
             FinishStreamingMessages(session);
             session.ChatTranscript.SetBusy(false);

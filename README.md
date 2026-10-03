@@ -19,7 +19,7 @@ Enjoying the extension? [Buy me a coffee](https://www.buymeacoffee.com/dliedke) 
 - **Multi-line prompts** — Press **Enter** to send, **Shift+Enter** or **Ctrl+Enter** for a new line. Toggle "Send with Enter" off in the ⚙ menu to make Enter insert a newline and reveal a Send button.
 - **File and image attachments** — Paste images with **Ctrl+V**, drag & drop files onto the prompt area, or use the 📎 button. Any file type is accepted (no limit). Text content like Excel cells pastes as text, not as an image.
 - **Editor selection → prompt** — Click 📋 or right-click selected code → *Send Selection to Claude Code* to insert a formatted snippet (file path + line numbers + syntax-highlighted code fence) into the prompt.
-- **Integrated diff viewer** — For Git projects, the 📊 view shows uncommitted changes in a dedicated tab with search, double-click-to-open, and double-click-line-to-navigate. Optionally auto-opens when you send a prompt.
+- **Integrated diff viewer** — For Git projects, the 📊 view shows uncommitted changes in a dedicated tab with search, double-click-to-open, and double-click-line-to-navigate. Optionally auto-opens when you send a prompt, and can track agent changes for per-file Keep/Undo review.
 - **Prompt history** — Last 50 prompts saved (with attached files). Browse with **Ctrl+Up / Ctrl+Down**; clear via right-click.
 - **Claude Code and Codex session history** — 📜 toolbar button lists past sessions for the current workspace; view, rename, delete, or resume any session, including the most recent one. Works on Windows and WSL.
 - **Claude usage in VS** — 📊 button (when Claude is active) opens the claude.ai usage page inside a dockable tab. Inline session/weekly progress bars below the prompt update automatically and adapt to the active theme.
@@ -109,7 +109,7 @@ Then choose it via *⚙ → Set Terminal Type...*.
 - Pick an AI provider, *Configure Visible Code Agents...*
 - Provider-specific flags: Claude *Skip Permissions*, Codex *Approval Never*, Cursor *Yolo Mode*, Devin *Dangerous Mode*, Antigravity *Skip Permissions*, Qwen Code *Yolo Mode*, Grok *Always Approve*
 - *Configure Custom Commands...*, *Settings...*, About
-- *Settings...* opens the consolidated dialog with tabs for Behavior (send key, large prompts, auto-open Changes, pull before sending, auto-send build errors, font size), Layout (prompt panel position), Terminal type, Theme, Usage, Toolbar, CLI Paths, and Backup (save/load all settings to a file)
+- *Settings...* opens the consolidated dialog with tabs for Behavior (send key, large prompts, auto-open Changes, track agent changes for review, pull before sending, auto-send build errors, font size), Layout (prompt panel position), Terminal type, Theme, Usage, Toolbar, CLI Paths, and Backup (save/load all settings to a file)
 
 **☰ Tools dropdown**: Holds *Update Code Agent*, *Restart Code Agent*, *Detach/Attach Terminal*, *View Code Changes*, *Session History*, *Show Usage*, *Set Working Directory...*, *Send Build Errors to Agent*, *Generate Commit Message*, and *Recommend AI Model*. Promote any of these to one-click toolbar buttons — and reorder them by dragging — via *⚙ → Settings... → Toolbar*; promoted features leave the dropdown, which hides once they all become buttons.
 
@@ -142,6 +142,11 @@ https://github.com/anthropics/claude-code/issues/41501
 Use native mode to avoid this issue.
 
 ## Version History
+
+### Version 218.0
+- New *Track agent changes for review (Keep/Undo)* setting (off by default, issue #183): the Changes view lists only the files the agent changed since you last reviewed them, across prompts and chat tabs, in both terminal and native mode.
+- Keep or Undo each file, or use Keep All / Undo All; Undo also removes files the agent created and restores files it deleted.
+- A scope switch in the Changes view toggles between "Pending review" and "All uncommitted (git)".
 
 ### Version 217.0
 - Added Grok (Grok Build) as a supported AI agent, both in the embedded terminal and in native chat mode; install it with `irm https://x.ai/cli/install.ps1 | iex`, sign in with `grok login`, then enable it via "Configure Visible Code Agents...".

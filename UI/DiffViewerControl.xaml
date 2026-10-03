@@ -193,6 +193,7 @@
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
             <RowDefinition Height="*"/>
         </Grid.RowDefinitions>
 
@@ -272,9 +273,65 @@
             </Grid>
         </Border>
 
+        <!-- Review scope (only when "Track agent changes for review" is on) -->
+        <Border x:Name="ScopeBar"
+                Grid.Row="1"
+                Background="{DynamicResource {x:Static vsshell:VsBrushes.ToolWindowBackgroundKey}}"
+                BorderBrush="{DynamicResource {x:Static vsshell:VsBrushes.ToolWindowBorderKey}}"
+                BorderThickness="0,0,0,1"
+                Padding="8,4"
+                Visibility="Collapsed">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+
+                <StackPanel Grid.Column="0" Orientation="Horizontal">
+                    <ToggleButton x:Name="PendingScopeButton"
+                                  Style="{StaticResource AutoScrollToggleButtonStyle}"
+                                  Padding="8,2"
+                                  ToolTip="Agent changes you have not kept or undone yet"
+                                  Click="PendingScopeButton_Click">
+                        <TextBlock Text="Pending review"
+                                   Foreground="{Binding RelativeSource={RelativeSource AncestorType=ToggleButton}, Path=Foreground}"/>
+                    </ToggleButton>
+                    <ToggleButton x:Name="GitScopeButton"
+                                  Style="{StaticResource AutoScrollToggleButtonStyle}"
+                                  Padding="8,2"
+                                  ToolTip="Every uncommitted change in the repository, compared with the last commit"
+                                  Click="GitScopeButton_Click">
+                        <TextBlock Text="All uncommitted (git)"
+                                   Foreground="{Binding RelativeSource={RelativeSource AncestorType=ToggleButton}, Path=Foreground}"/>
+                    </ToggleButton>
+                </StackPanel>
+
+                <StackPanel x:Name="ReviewAllPanel" Grid.Column="2" Orientation="Horizontal">
+                    <Button x:Name="KeepAllButton"
+                            Style="{StaticResource SearchButtonStyle}"
+                            Padding="8,2"
+                            ToolTip="Accept every pending change and clear the review list"
+                            Click="KeepAllButton_Click">
+                        <TextBlock Text="&#x2713; Keep All"
+                                   Foreground="{Binding RelativeSource={RelativeSource AncestorType=Button}, Path=Foreground}"/>
+                    </Button>
+                    <Button x:Name="UndoAllButton"
+                            Style="{StaticResource SearchButtonStyle}"
+                            Padding="8,2"
+                            Margin="0"
+                            ToolTip="Restore every pending file to how it was before the agent changed it"
+                            Click="UndoAllButton_Click">
+                        <TextBlock Text="&#x21B6; Undo All"
+                                   Foreground="{Binding RelativeSource={RelativeSource AncestorType=Button}, Path=Foreground}"/>
+                    </Button>
+                </StackPanel>
+            </Grid>
+        </Border>
+
         <!-- Search bar -->
         <Border x:Name="SearchBar"
-                Grid.Row="1"
+                Grid.Row="2"
                 Background="{DynamicResource {x:Static vsshell:VsBrushes.ToolWindowBackgroundKey}}"
                 BorderBrush="{DynamicResource {x:Static vsshell:VsBrushes.ToolWindowBorderKey}}"
                 BorderThickness="0,0,0,1"
@@ -337,7 +394,7 @@
 
         <!-- Empty state -->
         <TextBlock x:Name="EmptyStateText"
-                   Grid.Row="2"
+                   Grid.Row="3"
                    HorizontalAlignment="Center"
                    VerticalAlignment="Center"
                    Foreground="{DynamicResource {x:Static vsshell:VsBrushes.GrayTextKey}}"
@@ -346,7 +403,7 @@
                    Visibility="Visible"/>
 
         <!-- File list -->
-        <ScrollViewer Grid.Row="2"
+        <ScrollViewer Grid.Row="3"
                       x:Name="FileListScrollViewer"
                       VerticalScrollBarVisibility="Auto"
                       HorizontalScrollBarVisibility="Auto"

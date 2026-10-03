@@ -304,6 +304,10 @@ namespace ClaudeCodeVS
                     return;
                 }
 
+                // "Track agent changes for review": snapshot before the prompt reaches the terminal
+                await BeginPendingReviewTurnAsync(PendingReviewTerminalTurnKey);
+                await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
+
                 // "Disable clipboard" mode (issue #61): never touch the clipboard. Always write the
                 // prompt to a temp file and inject only a short reference via simulated keystrokes, so
                 // an app holding the clipboard can't break the send. Only available with conhost

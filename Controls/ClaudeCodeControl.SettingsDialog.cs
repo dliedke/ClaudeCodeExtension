@@ -84,6 +84,7 @@ namespace ClaudeCodeVS
             bool origAutoSendBuildErrors      = _settings.AutoSendBuildErrorsToAgent;
             bool origAutoSendRuntimeErrors    = _settings.AutoSendRuntimeErrorsToAgent;
             bool origAutoOpenChanges          = _settings.AutoOpenChangesOnPrompt;
+            bool origPendingReview            = _settings.PendingReviewEnabled;
             bool origAutoGitPull              = _settings.AutoGitPullBeforePrompt;
             bool origUseNativeMode            = _settings.UseNativeMode;
             bool origInvertLayout             = _settings.InvertLayout;
@@ -209,6 +210,12 @@ namespace ClaudeCodeVS
                 "Automatically open the Changes view, expand files, and enable auto-scroll when a prompt is sent. Only applies when the project is in a git repository.",
                 origAutoOpenChanges, themeFg);
             behaviorStack.Children.Add(autoOpenCheck);
+
+            var pendingReviewCheck = MakeCheckBox(
+                "Track agent changes for review (Keep/Undo)",
+                "Keep each file the agent changes on a review list in the Changes view, with Keep and Undo buttons per file. Undo restores the file to how it was before the agent first changed it. Snapshots live in memory only. Only applies when the project is in a git repository.",
+                origPendingReview, themeFg);
+            behaviorStack.Children.Add(pendingReviewCheck);
 
             behaviorStack.Children.Add(MakeSectionHeader("@ file picker", themeFg));
             behaviorStack.Children.Add(new TextBlock
@@ -1169,6 +1176,7 @@ namespace ClaudeCodeVS
                 atFileTypesBox.Text = string.Empty;
                 atExcludedFoldersBox.Text = string.Empty;
                 autoOpenCheck.IsChecked = false;
+                pendingReviewCheck.IsChecked = false;
                 SelectComboByTag(fontSizeCombo, 12);
                 topRadio.IsChecked = true;                // Top layout
                 cmdRadio.IsChecked = true;                // Command Prompt
@@ -1228,6 +1236,7 @@ namespace ClaudeCodeVS
             bool newAutoSendBuildErrors = autoSendBuildErrorsCheck.IsChecked == true;
             bool newAutoSendRuntimeErrors = autoSendRuntimeErrorsCheck.IsChecked == true;
             bool newAutoOpenChanges = autoOpenCheck.IsChecked == true;
+            bool newPendingReview = pendingReviewCheck.IsChecked == true;
             bool newAutoGitPull = autoGitPullCheck.IsChecked == true;
             bool newAutoTfvcCheckout = autoTfvcCheckoutCheck.IsChecked == true;
             int newFontSize = (fontSizeCombo.SelectedItem as ComboBoxItem)?.Tag is int fs ? fs : origFontSize;
@@ -1332,6 +1341,7 @@ namespace ClaudeCodeVS
             _settings.AutoSendBuildErrorsToAgent = newAutoSendBuildErrors;
             _settings.AutoSendRuntimeErrorsToAgent = newAutoSendRuntimeErrors;
             _settings.AutoOpenChangesOnPrompt = newAutoOpenChanges;
+            _settings.PendingReviewEnabled    = newPendingReview;
             _settings.AutoGitPullBeforePrompt = newAutoGitPull;
             _settings.AutoTfvcCheckout        = newAutoTfvcCheckout;
             _settings.InvertLayout            = newInvertLayout;
@@ -1414,6 +1424,11 @@ namespace ClaudeCodeVS
 
             // Apply prompt font size immediately
             if (PromptTextBox != null) PromptTextBox.FontSize = newFontSize;
+
+            if (newPendingReview != origPendingReview)
+            {
+                OnPendingReviewSettingChanged();
+            }
 
             // Layout change (position and/or orientation)
             if (newInvertLayout != origInvertLayout || newOrientation != origOrientation)

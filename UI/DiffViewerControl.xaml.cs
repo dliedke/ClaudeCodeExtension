@@ -60,6 +60,11 @@ namespace ClaudeCodeVS
         // Scroll position preservation for refresh
         private Dictionary<string, double> _savedScrollPositions = new Dictionary<string, double>(StringComparer.OrdinalIgnoreCase);
 
+        // Pending review (issue #183): scope bar shown only while the setting is on
+        private bool _pendingReviewAvailable;
+        private bool _pendingScope;
+        private bool _forceNextRefresh;
+
         /// <summary>
         /// Wrapper class for DiffLine with file/line indices for highlighting
         /// </summary>
@@ -109,6 +114,47 @@ namespace ClaudeCodeVS
         /// </summary>
         public event EventHandler ResetRequested;
 
+        /// <summary>Fired when the user switches scope; true = "Pending review", false = "All uncommitted (git)".</summary>
+        public event EventHandler<bool> ScopeChanged;
+
+        /// <summary>Fired when the user keeps the agent's changes to one file.</summary>
+        public event EventHandler<ChangedFile> KeepRequested;
+
+        /// <summary>Fired when the user undoes the agent's changes to one file.</summary>
+        public event EventHandler<ChangedFile> UndoRequested;
+
+        /// <summary>Fired by the "Keep All" button.</summary>
+        public event EventHandler KeepAllRequested;
+
+        /// <summary>Fired by the "Undo All" button.</summary>
+        public event EventHandler UndoAllRequested;
+
+        /// <summary>True when the list shows pending agent changes rather than git's uncommitted changes.</summary>
+        public bool IsPendingScopeActive => _pendingReviewAvailable && _pendingScope;
+
+        /// <summary>
+        /// Shows or hides the review scope bar and selects a scope. The next
+        /// <see cref="UpdateChangedFiles"/> always redraws when the mode changes, since the two scopes can
+        /// list the same files with different diffs.
+        /// </summary>
+        public void SetPendingReviewMode(bool available, bool pendingScope)
+        {
+            ThreadHelper.ThrowIfNotOnUIThread();
+
+            if (available != _pendingReviewAvailable || (available && pendingScope != _pendingScope))
+            {
+                _forceNextRefresh = true;
+            }
+
+            _pendingReviewAvailable = available;
+            _pendingScope = pendingScope;
+
+            ScopeBar.Visibility = available ? Visibility.Visible : Visibility.Collapsed;
+            PendingScopeButton.IsChecked = available && pendingScope;
+            GitScopeButton.IsChecked = available && !pendingScope;
+            UpdateReviewAllButtons();
+        }
+
         /// <summary>
         /// Updates the display with new changed files
         /// </summary>
@@ -136,10 +182,11 @@ namespace ClaudeCodeVS
                 bool hasNewChanges = newFiles.Count != _previousFileCount || HasContentChanges(newFiles);
 
                 // Skip refresh if nothing has changed to prevent screen blinking
-                if (!hasNewChanges)
+                if (!hasNewChanges && !_forceNextRefresh)
                 {
                     return;
                 }
+                _forceNextRefresh = false;
 
                 // Reset user-disabled flag when going from empty to having files (fresh start after baseline reset)
                 if (_previousFileCount == 0 && newFiles.Count > 0)
@@ -314,12 +361,14 @@ namespace ClaudeCodeVS
             SaveScrollPositions();
 
             FileListPanel.Children.Clear();
+            UpdateReviewAllButtons();
 
             if (_changedFiles.Count == 0)
             {
                 EmptyStateText.Visibility = Visibility.Visible;
                 FileListScrollViewer.Visibility = Visibility.Collapsed;
-                SummaryText.Text = "No changes detected";
+                SummaryText.Text = IsPendingScopeActive ? "Nothing pending review" : "No changes detected";
+                EmptyStateText.Text = IsPendingScopeActive ? "No agent changes pending review" : "No changes detected";
                 AdditionsText.Visibility = Visibility.Collapsed;
                 DeletionsText.Visibility = Visibility.Collapsed;
                 _savedScrollPositions.Clear();
@@ -333,7 +382,9 @@ namespace ClaudeCodeVS
             // Update summary
             int totalAdded = _changedFiles.Sum(f => f.LinesAdded);
             int totalRemoved = _changedFiles.Sum(f => f.LinesRemoved);
-            SummaryText.Text = $"{_changedFiles.Count} file{(_changedFiles.Count != 1 ? "s" : "")} changed";
+            SummaryText.Text = IsPendingScopeActive
+                ? $"{_changedFiles.Count} file{(_changedFiles.Count != 1 ? "s" : "")} pending review"
+                : $"{_changedFiles.Count} file{(_changedFiles.Count != 1 ? "s" : "")} changed";
             AdditionsText.Text = $"+{totalAdded}";
             AdditionsText.Visibility = Visibility.Visible;
             DeletionsText.Text = $"-{totalRemoved}";
@@ -406,6 +457,72 @@ namespace ClaudeCodeVS
             ResetRequested?.Invoke(this, EventArgs.Empty);
         }
 
+        private void PendingScopeButton_Click(object sender, RoutedEventArgs e)
+        {
+            ThreadHelper.ThrowIfNotOnUIThread();
+            SelectScope(true);
+        }
+
+        private void GitScopeButton_Click(object sender, RoutedEventArgs e)
+        {
+            ThreadHelper.ThrowIfNotOnUIThread();
+            SelectScope(false);
+        }
+
+        private void SelectScope(bool pendingScope)
+        {
+            ThreadHelper.ThrowIfNotOnUIThread();
+
+            // The buttons behave like radio buttons: clicking the selected one keeps it selected.
+            bool changed = pendingScope != _pendingScope;
+            SetPendingReviewMode(_pendingReviewAvailable, pendingScope);
+            if (changed)
+            {
+                ScopeChanged?.Invoke(this, pendingScope);
+            }
+        }
+
+        private void KeepAllButton_Click(object sender, RoutedEventArgs e)
+        {
+            KeepAllRequested?.Invoke(this, EventArgs.Empty);
+        }
+
+        private void UndoAllButton_Click(object sender, RoutedEventArgs e)
+        {
+            UndoAllRequested?.Invoke(this, EventArgs.Empty);
+        }
+
+        private void UpdateReviewAllButtons()
+        {
+            ReviewAllPanel.Visibility = IsPendingScopeActive ? Visibility.Visible : Visibility.Collapsed;
+            bool hasFiles = _changedFiles.Count > 0;
+            KeepAllButton.IsEnabled = hasFiles;
+            UndoAllButton.IsEnabled = hasFiles;
+            KeepAllButton.Opacity = hasFiles ? 1.0 : 0.5;
+            UndoAllButton.Opacity = hasFiles ? 1.0 : 0.5;
+        }
+
+        private Button CreateReviewButton(string text, string toolTip, Action onClick)
+        {
+            var label = new TextBlock { Text = text, FontSize = 11 };
+            var button = new Button
+            {
+                Style = (Style)FindResource("SearchButtonStyle"),
+                Content = label,
+                ToolTip = toolTip,
+                Padding = new Thickness(6, 1, 6, 1),
+                VerticalAlignment = VerticalAlignment.Center
+            };
+            label.SetBinding(TextBlock.ForegroundProperty,
+                new System.Windows.Data.Binding(nameof(Foreground)) { Source = button });
+            button.Click += (s, e) =>
+            {
+                e.Handled = true;
+                onClick();
+            };
+            return button;
+        }
+
         private void ExpandCollapseAllButton_Checked(object sender, RoutedEventArgs e)
         {
             ThreadHelper.ThrowIfNotOnUIThread();
@@ -451,6 +568,7 @@ namespace ClaudeCodeVS
             };
             headerGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(20) });
             headerGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+            headerGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
             headerGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
 
             // Expand/collapse indicator
@@ -537,6 +655,23 @@ namespace ClaudeCodeVS
 
             Grid.SetColumn(changesPanel, 2);
             headerGrid.Children.Add(changesPanel);
+
+            // Per-file Keep / Undo, pending scope only. The buttons mark their clicks handled, so the
+            // header's expand-on-click and open-on-double-click don't fire underneath them.
+            if (IsPendingScopeActive)
+            {
+                var reviewPanel = new StackPanel { Orientation = Orientation.Horizontal };
+                reviewPanel.Children.Add(CreateReviewButton("\u2713 Keep",
+                    "Accept the agent's changes to this file",
+                    () => KeepRequested?.Invoke(this, file)));
+                reviewPanel.Children.Add(CreateReviewButton("\u21B6 Undo",
+                    file.Type == ChangeType.Created
+                        ? "Delete this file the agent created"
+                        : "Restore this file to how it was before the agent changed it",
+                    () => UndoRequested?.Invoke(this, file)));
+                Grid.SetColumn(reviewPanel, 3);
+                headerGrid.Children.Add(reviewPanel);
+            }
 
             // Header border with padding
             var headerBorder = new Border
@@ -1033,6 +1168,13 @@ namespace ClaudeCodeVS
         {
             if (newFiles.Count != _changedFiles.Count)
                 return true;
+
+            // Same count but a different set (one file kept, another newly changed) still needs a redraw.
+            for (int i = 0; i < newFiles.Count; i++)
+            {
+                if (!string.Equals(newFiles[i].FilePath, _changedFiles[i].FilePath, StringComparison.OrdinalIgnoreCase))
+                    return true;
+            }
 
             // Compare total lines added/removed as a quick check for content changes
             int newTotalAdded = newFiles.Sum(f => f.LinesAdded);

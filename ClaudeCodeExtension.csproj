@@ -89,6 +89,7 @@
     <Compile Include="Controls\ClaudeCodeControl.DebugVisibility.cs" />
     <Compile Include="Controls\ClaudeCodeControl.Detach.cs" />
     <Compile Include="Controls\ClaudeCodeControl.Diff.cs" />
+    <Compile Include="Controls\ClaudeCodeControl.PendingReview.cs" />
     <Compile Include="Controls\ClaudeCodeControl.DisplayChange.cs" />
     <Compile Include="Controls\ClaudeCodeControl.GitSync.cs" />
     <Compile Include="Controls\ClaudeCodeControl.TfvcCheckout.cs" />
@@ -133,6 +134,8 @@
     <Compile Include="Diff\ChangedFile.cs" />
     <Compile Include="Diff\DiffComputer.cs" />
     <Compile Include="Diff\FileChangeTracker.cs" />
+    <Compile Include="Diff\GitPendingReviewSource.cs" />
+    <Compile Include="Diff\PendingReviewTracker.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="Package\ClaudeCodeExtensionPackage.cs" />
     <Compile Include="Package\SolutionEventsHandler.cs" />

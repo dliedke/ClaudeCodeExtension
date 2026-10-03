@@ -6,7 +6,7 @@ Visual Studio Extension (VSIX) for VS 2022/2026 — integrates AI code assistant
 
 - Author: Daniel Carvalho Liedke (dliedke@gmail.com) | License: MIT
 - Repository: https://github.com/dliedke/ClaudeCodeExtension
-- Current Version: 217.0 | Target Framework: .NET Framework 4.7.2
+- Current Version: 218.0 | Target Framework: .NET Framework 4.7.2
 
 Step-by-step procedures for recurring tasks (release, Exp-hive debugging, publish, adding a
 provider/setting/UI file) live in `docs/SKILLS.md`. Short build/style brief for non-Claude agents: `docs/AGENTS.md`.
@@ -100,6 +100,7 @@ ClaudeCodeExtension/
 │   ├── ClaudeCodeControl.AgentFinishDialog.cs # "On Agent Finish" settings window: global default + per-solution override
 │   ├── ClaudeCodeControl.BuildErrors.cs # "Auto-send build errors": VS build-event hook, Error List collection, format + send to agent
 │   ├── ClaudeCodeControl.RuntimeErrors.cs # "Auto-send runtime errors": VS debugger-event hook, unhandled-exception collection, format + send to agent
+│   ├── ClaudeCodeControl.PendingReview.cs # "Track agent changes for review": per-turn snapshots, pending list in the Changes view, per-file/bulk Keep and Undo (#183)
 │   ├── ClaudeCodeControl.GitSync.cs     # "Pull before sending": pre-prompt git pull; conflicts are prepended to the prompt for the agent to resolve
 │   ├── ClaudeCodeControl.AtMention.cs   # "@" file/folder picker in the prompt box (workspace index + popup)
 │   ├── ClaudeCodeControl.TfvcCheckout.cs # "Check out TFVC files": Claude native mode pre-edit hook → VS QueryEdit checkout in TFVC-bound solutions
@@ -155,6 +156,8 @@ ClaudeCodeExtension/
 ├── Diff/                                # Diff engine
 │   ├── DiffComputer.cs
 │   ├── FileChangeTracker.cs
+│   ├── PendingReviewTracker.cs          # Pending-review baselines per turn (pure, unit-tested behind IPendingReviewSource)
+│   ├── GitPendingReviewSource.cs        # Git implementation of IPendingReviewSource
 │   └── ChangedFile.cs
 ├── Tests/                               # Unit suite (xUnit-style MSTest, no VS required — run via test.cmd)
 │   ├── ClaudeCodeExtension.Tests.csproj # Not built by the Release rebuild in publish.cmd
@@ -237,6 +240,7 @@ Three cross-cutting rules (full text in `docs/ARCHITECTURE.md` → *Cross-Cuttin
 | `Controls/ClaudeCodeControl.RuntimeErrors.cs` | Auto-Send Runtime Errors — debugger break-mode hook, unhandled-exception collection, dedupe guard |
 | `Controls/ClaudeCodeControl.GitSync.cs` | Pull Before Sending — pre-prompt `git pull`, skip conditions, conflict-as-prompt handoff, `--autostash` caveats |
 | `Controls/ClaudeCodeControl.AtMention.cs` | "@" File/Folder Picker — index, popup, ranking, insert |
+| `Controls/ClaudeCodeControl.PendingReview.cs`, `Diff/PendingReviewTracker.cs` | Pending Review — turn keys, reference snapshot, accumulation, overlapping turns, Keep/Undo, Changes view scope |
 | `Controls/ClaudeCodeControl.TfvcCheckout.cs`, `Agents/ClaudeEditHook.cs` | TFVC Checkout — PreToolUse hook over the control channel, QueryEdit checkout, deny-with-reason |
 | `Controls/ClaudeCodeControl.NativeMode.cs`, `Agents/*`, `UI/ChatTranscriptView.xaml` | Native Mode — Agent Sessions: `IAgentSession` contract, the six adapters, event map, streaming-duplication traps, `SendTextToAgentAsync` bifurcation |
 | `Controls/ClaudeCodeControl.NativeChat.cs`, `ToolWindows/NativeChatToolWindow.cs` | Native Mode — Chat tab and composer: MDI document-tab hosting, transcript re-parenting, composer reuse of the panel send path, live model/effort/permission switching via resume |

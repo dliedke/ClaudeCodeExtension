@@ -668,6 +668,20 @@ namespace ClaudeCodeVS
         public bool AutoOpenChangesOnPrompt { get; set; } = false;
 
         /// <summary>
+        /// If true, every file the agent changes is held for review in the Changes view (issue #183): its
+        /// content from before the agent first touched it is kept in memory until the user keeps or undoes
+        /// the change. Off by default; when off nothing is snapshotted and the Changes view only shows git.
+        /// Only applies when the project is in a git repository.
+        /// </summary>
+        public bool PendingReviewEnabled { get; set; } = false;
+
+        /// <summary>
+        /// Last scope picked in the Changes view while <see cref="PendingReviewEnabled"/> is on:
+        /// true = "Pending review" (agent changes not yet kept/undone), false = "All uncommitted (git)".
+        /// </summary>
+        public bool ChangesViewPendingScope { get; set; } = true;
+
+        /// <summary>
         /// If true, starts Claude Code with the --dangerously-skip-permissions parameter
         /// Applies to Claude Code (Windows) and Claude Code (WSL)
         /// </summary>
