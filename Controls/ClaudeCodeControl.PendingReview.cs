@@ -18,9 +18,10 @@ using System.IO;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
-using System.Windows;
 using ClaudeCodeVS.Diff;
+using Microsoft.VisualStudio;
 using Microsoft.VisualStudio.Shell;
+using Microsoft.VisualStudio.Shell.Interop;
 using Microsoft.VisualStudio.Threading;
 
 namespace ClaudeCodeVS
@@ -191,15 +192,60 @@ namespace ClaudeCodeVS
             if (tracker == null || turnKey == null)
                 return;
 
-            Task work = RunPendingReviewWorkAsync(() => tracker.EndTurn(turnKey));
+            int pendingCount = 0;
+            Task work = RunPendingReviewWorkAsync(() =>
+            {
+                tracker.EndTurn(turnKey);
+                pendingCount = tracker.GetBaselines().Count;
+            });
 
 #pragma warning disable VSSDK007, VSTHRD003 // Deliberately detached; `work` runs on the thread pool and never needs the UI thread
             ThreadHelper.JoinableTaskFactory.RunAsync(async () =>
             {
                 await work;
+                await RevealPendingReviewAfterTurnAsync(tracker, pendingCount);
                 await RefreshPendingReviewViewAsync(false);
             }).FileAndForget("claudecode/pendingreview/endturn");
 #pragma warning restore VSSDK007, VSTHRD003
+        }
+
+        /// <summary>
+        /// "Auto-open Changes on Send" opens the Changes view when the prompt goes out, before the agent has
+        /// changed anything. With review tracking on, the end of the turn is when there is something to look at,
+        /// so the view is brought forward again whenever files are pending: it may have been closed, or left
+        /// behind other tabs, while the agent worked. Without the auto-open setting nothing pops up.
+        /// </summary>
+        private async Task RevealPendingReviewAfterTurnAsync(PendingReviewTracker tracker, int pendingCount)
+        {
+            try
+            {
+                await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
+
+                if (pendingCount == 0 || !IsPendingScopeShown || _settings?.AutoOpenChangesOnPrompt != true)
+                    return;
+
+                // A solution switch during the turn replaced the tracker; its files are not this repository's.
+                if (!ReferenceEquals(tracker, _pendingReview))
+                    return;
+
+                await EnsureDiffViewerWindowAsync(true);
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"PendingReview: could not reveal the Changes view: {ex.Message}");
+            }
+        }
+
+        /// <summary>Number of files pending review, read on the tracker's own queue (never blocks the UI thread on git).</summary>
+        private async Task<int> GetPendingReviewCountAsync()
+        {
+            PendingReviewTracker tracker = _pendingReview;
+            if (tracker == null)
+                return 0;
+
+            int count = 0;
+            await RunPendingReviewWorkAsync(() => count = tracker.GetBaselines().Count);
+            return count;
         }
 
         #endregion
@@ -222,6 +268,7 @@ namespace ClaudeCodeVS
                 control.UndoRequested += OnDiffViewerUndoRequested;
                 control.KeepAllRequested += OnDiffViewerKeepAllRequested;
                 control.UndoAllRequested += OnDiffViewerUndoAllRequested;
+                control.CompareRequested += OnDiffViewerCompareRequested;
                 _diffViewerReviewSubscribed = true;
             }
 
@@ -394,16 +441,14 @@ namespace ClaudeCodeVS
             if (tracker == null || file == null || _pendingReviewActionRunning)
                 return;
 
-            string question = file.Type == ChangeType.Created
-                ? $"Delete {file.FileName}?\n\nThe agent created this file. Undo removes it from disk."
-                : file.Type == ChangeType.Deleted
-                    ? $"Restore {file.FileName}?\n\nThe agent deleted this file. Undo puts it back as it was."
-                    : $"Undo the agent's changes to {file.FileName}?\n\nThe file goes back to how it was before the agent changed it.";
+            string path = file.FilePath;
+            bool hasUnsavedEdits = FindOpenDocumentsWithUnsavedChanges(new[] { path }).Count > 0;
+            string question = PendingReviewMessages.BuildUndoQuestion(file.FileName, file.Type, hasUnsavedEdits);
 
-            if (MessageBox.Show(question, "Undo Agent Changes", MessageBoxButton.YesNo, MessageBoxImage.Question) != MessageBoxResult.Yes)
+            // With unsaved edits at stake, No is the default so a reflexive Enter discards nothing.
+            if (!ConfirmPendingReviewAction(question, "Undo Agent Changes", defaultNo: hasUnsavedEdits))
                 return;
 
-            string path = file.FilePath;
 #pragma warning disable VSSDK007
             ThreadHelper.JoinableTaskFactory.RunAsync(() => UndoPendingFilesAsync(tracker, new[] { path }))
                 .FileAndForget("claudecode/pendingreview/undo");
@@ -418,17 +463,65 @@ namespace ClaudeCodeVS
             if (tracker == null || _pendingReviewActionRunning)
                 return;
 
-            int count = _diffViewerWindow?.DiffViewerControl?.GetStats().fileCount ?? 0;
-            string question =
-                $"Undo the agent's changes to all {count} pending file{(count != 1 ? "s" : "")}?\n\n" +
-                "Each file goes back to how it was before the agent changed it. Files the agent created are deleted.";
+#pragma warning disable VSSDK007
+            ThreadHelper.JoinableTaskFactory.RunAsync(async () =>
+            {
+                // The list comes from the tracker's queue, not from the view: the view can lag a turn behind.
+                List<string> paths = null;
+                await RunPendingReviewWorkAsync(() => paths = tracker.GetBaselines().Keys.ToList());
+                await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
 
-            if (MessageBox.Show(question, "Undo All Agent Changes", MessageBoxButton.YesNo, MessageBoxImage.Warning) != MessageBoxResult.Yes)
+                if (paths == null || paths.Count == 0 || _pendingReviewActionRunning)
+                    return;
+
+                List<string> unsaved = FindOpenDocumentsWithUnsavedChanges(paths);
+                string question = PendingReviewMessages.BuildUndoAllQuestion(
+                    paths.Count, unsaved.Select(Path.GetFileName).ToList());
+
+                if (!ConfirmPendingReviewAction(question, "Undo All Agent Changes", defaultNo: unsaved.Count > 0))
+                    return;
+
+                await UndoPendingFilesAsync(tracker, paths);
+            }).FileAndForget("claudecode/pendingreview/undoall");
+#pragma warning restore VSSDK007
+        }
+
+        /// <summary>
+        /// Opens a pending file in Visual Studio's own diff window: its baseline (before the agent) on the left,
+        /// the file as it is now on the right. The right side is the real file, so it can be edited in place.
+        /// </summary>
+        private void OnDiffViewerCompareRequested(object sender, ChangedFile file)
+        {
+            ThreadHelper.ThrowIfNotOnUIThread();
+
+            PendingReviewTracker tracker = _pendingReview;
+            if (tracker == null || file == null)
                 return;
 
+            string path = file.FilePath;
 #pragma warning disable VSSDK007
-            ThreadHelper.JoinableTaskFactory.RunAsync(() => UndoPendingFilesAsync(tracker, null))
-                .FileAndForget("claudecode/pendingreview/undoall");
+            ThreadHelper.JoinableTaskFactory.RunAsync(async () =>
+            {
+                FileSnapshot baseline = null;
+                await RunPendingReviewWorkAsync(() => baseline = tracker.GetBaseline(path));
+                await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
+
+                // Kept or undone in the meantime: nothing left to compare.
+                if (baseline == null)
+                    return;
+
+                try
+                {
+                    OpenPendingReviewComparison(path, baseline);
+                }
+                catch (Exception ex)
+                {
+                    Debug.WriteLine($"PendingReview: compare of {path} failed: {ex}");
+                    ShowPendingReviewWarning(
+                        $"Could not open {Path.GetFileName(path)} in the diff window:\n\n{ex.Message}",
+                        "Compare Agent Changes");
+                }
+            }).FileAndForget("claudecode/pendingreview/compare");
 #pragma warning restore VSSDK007
         }
 
@@ -482,12 +575,10 @@ namespace ClaudeCodeVS
 
                 if (failures.Count > 0)
                 {
-                    MessageBox.Show(
+                    ShowPendingReviewWarning(
                         "Some files could not be restored:\n\n" + string.Join("\n", failures.Take(10)) +
                         (failures.Count > 10 ? $"\n... and {failures.Count - 10} more" : string.Empty),
-                        "Undo Agent Changes",
-                        MessageBoxButton.OK,
-                        MessageBoxImage.Warning);
+                        "Undo Agent Changes");
                 }
             }
             finally
@@ -499,8 +590,12 @@ namespace ClaudeCodeVS
         }
 
         /// <summary>
-        /// Writes a baseline back to disk byte-for-byte, or deletes the file when the baseline says it
-        /// did not exist. An editor showing the file reloads it the same way it reloads the agent's edits.
+        /// Writes a baseline back byte-for-byte, or deletes the file when the baseline says it did not exist.
+        /// Open editors are brought in line with the restored file: a created file's tab is closed and any other
+        /// editor is reloaded from disk. The Undo confirmation already warned about unsaved edits in those
+        /// editors, which is what makes discarding them here safe. Leaving them in place is how an Undo used
+        /// to be lost: Visual Studio's own "reload?" prompt, or a later save, put the agent's change back on
+        /// disk with nothing left on the review list.
         /// </summary>
         private bool TryRestorePendingFile(string path, FileSnapshot baseline, out string error)
         {
@@ -511,7 +606,7 @@ namespace ClaudeCodeVS
             {
                 if (!baseline.Exists)
                 {
-                    CloseUnmodifiedDocument(path);
+                    CloseDocumentDiscardingChanges(path);
                     if (File.Exists(path))
                     {
                         File.Delete(path);
@@ -525,7 +620,7 @@ namespace ClaudeCodeVS
                     Directory.CreateDirectory(directory);
                 }
 
-                File.WriteAllBytes(path, baseline.Content);
+                RestoreFileContent(path, baseline.Content);
                 return true;
             }
             catch (Exception ex)
@@ -536,8 +631,8 @@ namespace ClaudeCodeVS
             }
         }
 
-        /// <summary>Closes the editor tab of a file about to be deleted, unless it holds unsaved edits.</summary>
-        private static void CloseUnmodifiedDocument(string path)
+        /// <summary>Closes the editor tab of a file about to be deleted, discarding any unsaved edits.</summary>
+        private static void CloseDocumentDiscardingChanges(string path)
         {
             ThreadHelper.ThrowIfNotOnUIThread();
 
@@ -550,8 +645,7 @@ namespace ClaudeCodeVS
                 foreach (EnvDTE.Document document in dte.Documents)
                 {
                     if (document != null &&
-                        string.Equals(document.FullName, path, StringComparison.OrdinalIgnoreCase) &&
-                        document.Saved)
+                        string.Equals(document.FullName, path, StringComparison.OrdinalIgnoreCase))
                     {
                         document.Close(EnvDTE.vsSaveChanges.vsSaveChangesNo);
                         return;
@@ -562,6 +656,159 @@ namespace ClaudeCodeVS
             {
                 Debug.WriteLine($"PendingReview: could not close {path}: {ex.Message}");
             }
+        }
+
+        /// <summary>
+        /// Writes <paramref name="content"/> to <paramref name="path"/> and, when the file is open, reloads its
+        /// editor from disk so no unsaved edit survives to be saved back over the restored content. File-change
+        /// notifications are suspended around the write, so Visual Studio does not also ask "the file has been
+        /// changed outside the editor, reload?" about a change it was told to make.
+        /// </summary>
+        private static void RestoreFileContent(string path, byte[] content)
+        {
+            ThreadHelper.ThrowIfNotOnUIThread();
+
+            object docData = FindOpenDocumentData(path);
+            var changeControl = docData as IVsDocDataFileChangeControl;
+            changeControl?.IgnoreFileChanges(1);
+            try
+            {
+                File.WriteAllBytes(path, content);
+
+                if (docData is IVsPersistDocData persist)
+                {
+                    try
+                    {
+                        ErrorHandler.ThrowOnFailure(persist.ReloadDocData((uint)_VSRELOADDOCDATA.RDD_IgnoreNextFileChange));
+                    }
+                    catch (Exception ex)
+                    {
+                        // The file itself is restored; a failed reload leaves the editor on its old text,
+                        // and Visual Studio's own file-change prompt still catches the difference.
+                        Debug.WriteLine($"PendingReview: reload of {path} failed: {ex.Message}");
+                    }
+                }
+            }
+            finally
+            {
+                changeControl?.IgnoreFileChanges(0);
+            }
+        }
+
+        #endregion
+
+        #region Visual Studio Dialogs and Editors
+
+        /// <summary>
+        /// Yes/No question through Visual Studio's own message box. A WPF <c>MessageBox</c> blocks the UI thread
+        /// in a way Visual Studio's responsiveness monitor reports as a hang: answering an Undo confirmation after
+        /// ~20 seconds raised "Visual Studio stopped responding … disabling the extension might help".
+        /// </summary>
+        private static bool ConfirmPendingReviewAction(string message, string title, bool defaultNo)
+        {
+            ThreadHelper.ThrowIfNotOnUIThread();
+
+            int result = VsShellUtilities.ShowMessageBox(
+                ServiceProvider.GlobalProvider,
+                message,
+                title,
+                OLEMSGICON.OLEMSGICON_QUERY,
+                OLEMSGBUTTON.OLEMSGBUTTON_YESNO,
+                defaultNo ? OLEMSGDEFBUTTON.OLEMSGDEFBUTTON_SECOND : OLEMSGDEFBUTTON.OLEMSGDEFBUTTON_FIRST);
+
+            return result == (int)VSConstants.MessageBoxResult.IDYES;
+        }
+
+        /// <summary>Warning with an OK button, through Visual Studio's own message box (see <see cref="ConfirmPendingReviewAction"/>).</summary>
+        private static void ShowPendingReviewWarning(string message, string title)
+        {
+            ThreadHelper.ThrowIfNotOnUIThread();
+
+            VsShellUtilities.ShowMessageBox(
+                ServiceProvider.GlobalProvider,
+                message,
+                title,
+                OLEMSGICON.OLEMSGICON_WARNING,
+                OLEMSGBUTTON.OLEMSGBUTTON_OK,
+                OLEMSGDEFBUTTON.OLEMSGDEFBUTTON_FIRST);
+        }
+
+        /// <summary>The document data of a file open in an editor, or null when it is not open.</summary>
+        private static object FindOpenDocumentData(string path)
+        {
+            ThreadHelper.ThrowIfNotOnUIThread();
+
+            try
+            {
+                return new RunningDocumentTable(ServiceProvider.GlobalProvider).FindDocument(path);
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"PendingReview: could not look up {path} in the running document table: {ex.Message}");
+                return null;
+            }
+        }
+
+        /// <summary>The files among <paramref name="paths"/> that are open in an editor with unsaved changes.</summary>
+        private static List<string> FindOpenDocumentsWithUnsavedChanges(IEnumerable<string> paths)
+        {
+            ThreadHelper.ThrowIfNotOnUIThread();
+
+            var unsaved = new List<string>();
+            foreach (string path in paths)
+            {
+                if (FindOpenDocumentData(path) is IVsPersistDocData docData &&
+                    ErrorHandler.Succeeded(docData.IsDocDataDirty(out int isDirty)) &&
+                    isDirty != 0)
+                {
+                    unsaved.Add(path);
+                }
+            }
+            return unsaved;
+        }
+
+        /// <summary>
+        /// Opens Visual Studio's diff window for a pending file. The baseline is written to a temporary copy
+        /// with the same file name (so the editor picks the right language), which Visual Studio deletes when
+        /// the window closes. A file the agent created compares against an empty file, and one it deleted is
+        /// shown against an empty right side.
+        /// </summary>
+        private static void OpenPendingReviewComparison(string path, FileSnapshot baseline)
+        {
+            ThreadHelper.ThrowIfNotOnUIThread();
+
+            if (!(Package.GetGlobalService(typeof(SVsDifferenceService)) is IVsDifferenceService diffService))
+                throw new InvalidOperationException("Visual Studio's diff service is not available.");
+
+            string fileName = Path.GetFileName(path);
+            string tempRoot = Path.Combine(Path.GetTempPath(), "ClaudeCodeVS_PendingReview", Guid.NewGuid().ToString("N"));
+
+            string left = Path.Combine(tempRoot, "before", fileName);
+            Directory.CreateDirectory(Path.GetDirectoryName(left));
+            File.WriteAllBytes(left, baseline.Exists ? baseline.Content : new byte[0]);
+
+            var options = __VSDIFFSERVICEOPTIONS.VSDIFFOPT_LeftFileIsTemporary |
+                          __VSDIFFSERVICEOPTIONS.VSDIFFOPT_DetectBinaryFiles;
+
+            string right = path;
+            if (!File.Exists(path))
+            {
+                right = Path.Combine(tempRoot, "now", fileName);
+                Directory.CreateDirectory(Path.GetDirectoryName(right));
+                File.WriteAllBytes(right, new byte[0]);
+                options |= __VSDIFFSERVICEOPTIONS.VSDIFFOPT_RightFileIsTemporary;
+            }
+
+            diffService.OpenComparisonWindow2(
+                left,
+                right,
+                $"{fileName} (pending review)",
+                path,
+                "Before the agent",
+                "Now",
+                null,
+                null,
+                (uint)options);
         }
 
         #endregion

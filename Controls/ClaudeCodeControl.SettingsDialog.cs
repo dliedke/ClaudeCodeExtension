@@ -1237,6 +1237,21 @@ namespace ClaudeCodeVS
             bool newAutoSendRuntimeErrors = autoSendRuntimeErrorsCheck.IsChecked == true;
             bool newAutoOpenChanges = autoOpenCheck.IsChecked == true;
             bool newPendingReview = pendingReviewCheck.IsChecked == true;
+
+            // Turning review tracking off discards the pending list, so ask first when something is on it.
+            if (origPendingReview && !newPendingReview)
+            {
+                int pendingCount = await GetPendingReviewCountAsync();
+                await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
+                if (pendingCount > 0 && !ConfirmPendingReviewAction(
+                        ClaudeCodeVS.Diff.PendingReviewMessages.BuildTurnOffQuestion(pendingCount),
+                        "Track Agent Changes for Review",
+                        defaultNo: true))
+                {
+                    newPendingReview = true;
+                }
+            }
+
             bool newAutoGitPull = autoGitPullCheck.IsChecked == true;
             bool newAutoTfvcCheckout = autoTfvcCheckoutCheck.IsChecked == true;
             int newFontSize = (fontSizeCombo.SelectedItem as ComboBoxItem)?.Tag is int fs ? fs : origFontSize;
