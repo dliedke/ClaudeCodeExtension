@@ -32,8 +32,10 @@ if not exist "%VSTEST%" (
     exit /b 1
 )
 
+REM  -restore: a fresh clone has no obj\project.assets.json yet, and the build
+REM  fails with NETSDK1004 until NuGet has restored the packages.
 echo Building test project...
-"%MSBUILD%" "%TESTPROJ%" -t:Build -p:Configuration=Debug -v:minimal -nologo
+"%MSBUILD%" "%TESTPROJ%" -restore -t:Build -p:Configuration=Debug -v:minimal -nologo
 if errorlevel 1 (
     echo [ERROR] Test project build failed.
     exit /b 1

@@ -147,6 +147,9 @@ Use native mode to avoid this issue.
 - New *Track agent changes for review (Keep/Undo)* setting (off by default, issue #183): the Changes view lists only the files the agent changed since you last reviewed them, across prompts and chat tabs, in both terminal and native mode.
 - Keep or Undo each file, or use Keep All / Undo All; Undo also removes files the agent created and restores files it deleted.
 - A scope switch in the Changes view toggles between "Pending review" and "All uncommitted (git)".
+- Compare opens a pending file in Visual Studio's diff window, before the agent on the left and now on the right.
+- Undo warns when a file has unsaved changes in the editor, and afterwards the editor shows the restored file, so a later save can no longer bring the agent's change back.
+- With *Auto-open Changes on Send* on, the Changes view comes back to the front when the agent finishes and files are pending review.
 - Thanks to [@osjimenez](https://github.com/osjimenez) for the idea, testing and work on this feature (#183).
 
 ### Version 217.0

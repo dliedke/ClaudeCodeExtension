@@ -129,6 +129,9 @@ namespace ClaudeCodeVS
         /// <summary>Fired by the "Undo All" button.</summary>
         public event EventHandler UndoAllRequested;
 
+        /// <summary>Fired when the user opens one pending file in Visual Studio's diff window.</summary>
+        public event EventHandler<ChangedFile> CompareRequested;
+
         /// <summary>True when the list shows pending agent changes rather than git's uncommitted changes.</summary>
         public bool IsPendingScopeActive => _pendingReviewAvailable && _pendingScope;
 
@@ -661,6 +664,9 @@ namespace ClaudeCodeVS
             if (IsPendingScopeActive)
             {
                 var reviewPanel = new StackPanel { Orientation = Orientation.Horizontal };
+                reviewPanel.Children.Add(CreateReviewButton("\u21c4 Compare",
+                    "Open this file in Visual Studio's diff window: before the agent on the left, now on the right",
+                    () => CompareRequested?.Invoke(this, file)));
                 reviewPanel.Children.Add(CreateReviewButton("\u2713 Keep",
                     "Accept the agent's changes to this file",
                     () => KeepRequested?.Invoke(this, file)));
