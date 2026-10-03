@@ -1066,6 +1066,7 @@ namespace ClaudeCodeVS
                 bool isOpenCode = _currentRunningProvider == AiProvider.OpenCode;
                 bool isPi = _currentRunningProvider == AiProvider.Pi;
                 bool isReasonix = _currentRunningProvider == AiProvider.Reasonix;
+                bool isGrok = _currentRunningProvider == AiProvider.Grok;
 
                 // Check if Windows Terminal is active (tab bar height > 0)
                 bool isWindowsTerminal = _wtTabBarHeight > 0;
@@ -1094,6 +1095,16 @@ namespace ClaudeCodeVS
                 {
                     // For other WSL-based providers (Codex, CursorAgent), use KEYDOWN/KEYUP approach
                     SendEnterKeyDownUp();
+                }
+                else if (isGrok)
+                {
+                    // Grok reads raw key events: a WM_CHAR carriage return leaves the pasted text
+                    // sitting unsent in its input box (measured under conhost). One KEYDOWN/KEYUP
+                    // pair submits — not the doubled pair of SendEnterKeyDownUp, whose extra Enter
+                    // would advance an open picker such as /model past its first step.
+                    PostMessage(terminalHandle, WM_KEYDOWN, new IntPtr(VK_RETURN), IntPtr.Zero);
+                    System.Threading.Thread.Sleep(50);
+                    PostMessage(terminalHandle, WM_KEYUP, new IntPtr(VK_RETURN), IntPtr.Zero);
                 }
                 else if (isOpenCode || isPi || isReasonix)
                 {

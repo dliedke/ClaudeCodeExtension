@@ -319,6 +319,7 @@ namespace ClaudeCodeVS
                 bool useAntigravity = _settings?.SelectedProvider == AiProvider.Antigravity;
                 bool useReasonix = _settings?.SelectedProvider == AiProvider.Reasonix;
                 bool useQwenCode = _settings?.SelectedProvider == AiProvider.QwenCode;
+                bool useGrok = _settings?.SelectedProvider == AiProvider.Grok;
                 bool useDevinNative = _settings?.SelectedProvider == AiProvider.DevinNative;
                 bool providerAvailable = false;
 
@@ -374,6 +375,10 @@ namespace ClaudeCodeVS
                 else if (useQwenCode)
                 {
                     providerAvailable = await IsQwenCodeAvailableAsync();
+                }
+                else if (useGrok)
+                {
+                    providerAvailable = await IsGrokAvailableAsync();
                 }
                 else if (useDevinNative)
                 {
@@ -601,6 +606,22 @@ namespace ClaudeCodeVS
                         {
                             _qwenCodeNotificationShown = true;
                             ShowQwenCodeInstallationInstructions();
+                        }
+                        await StartEmbeddedTerminalAsync(null); // Regular CMD
+                    }
+                }
+                else if (useGrok)
+                {
+                    if (providerAvailable)
+                    {
+                        await StartEmbeddedTerminalAsync(AiProvider.Grok);
+                    }
+                    else
+                    {
+                        if (!_grokNotificationShown)
+                        {
+                            _grokNotificationShown = true;
+                            ShowGrokInstallationInstructions();
                         }
                         await StartEmbeddedTerminalAsync(null); // Regular CMD
                     }
@@ -1272,6 +1293,11 @@ namespace ClaudeCodeVS
                             cmdCommand = $"/k chcp 65001 >nul && cd /d \"{workspaceDir}\" && ping localhost -n 3 >nul && cls && {qwenCommand}";
                             break;
 
+                        case AiProvider.Grok:
+                            string grokCommand = GetGrokCommand();
+                            cmdCommand = $"/k chcp 65001 >nul && cd /d \"{workspaceDir}\" && ping localhost -n 3 >nul && cls && {grokCommand}";
+                            break;
+
                         case AiProvider.DevinNative:
                             string devinCommand = GetDevinNativeCommand();
                             cmdCommand = $"/k chcp 65001 >nul && cd /d \"{workspaceDir}\" && ping localhost -n 3 >nul && cls && {devinCommand}";
@@ -1564,6 +1590,11 @@ namespace ClaudeCodeVS
                         case AiProvider.QwenCode:
                             string qwenTerminalCommand = GetQwenCodeCommand();
                             terminalCommand = $"/k chcp 65001 >nul && cd /d \"{workspaceDir}\" && ping localhost -n 3 >nul && cls && {qwenTerminalCommand}";
+                            break;
+
+                        case AiProvider.Grok:
+                            string grokTerminalCommand = GetGrokCommand();
+                            terminalCommand = $"/k chcp 65001 >nul && cd /d \"{workspaceDir}\" && ping localhost -n 3 >nul && cls && {grokTerminalCommand}";
                             break;
 
                         case AiProvider.DevinNative:
@@ -5412,6 +5443,14 @@ namespace ClaudeCodeVS
                         await SendTextToTerminalAsync("npm install -g @qwen-code/qwen-code@latest");
                         break;
 
+                    case AiProvider.Grok:
+                        // Grok: exit with the /quit slash command, wait, then run its own updater
+                        // (on a WinGet install it prints the winget command instead of updating)
+                        await SendTextToTerminalAsync("/quit");
+                        await Task.Delay(3000);
+                        await SendTextToTerminalAsync(GetGrokExecutableForTerminal() + " update");
+                        break;
+
                     case AiProvider.DevinNative:
                         // Devin (native): exit the TUI, then run the official updater. `devin update`
                         // does NOT update — it only prints the install command. The installer
@@ -5632,6 +5671,10 @@ namespace ClaudeCodeVS
 
                 case AiProvider.QwenCode:
                     providerAvailable = await IsQwenCodeAvailableAsync();
+                    break;
+
+                case AiProvider.Grok:
+                    providerAvailable = await IsGrokAvailableAsync();
                     break;
 
                 case AiProvider.DevinNative:
@@ -6126,6 +6169,62 @@ namespace ClaudeCodeVS
             }
 
             return AppendExtraLaunchArgs(baseCommand, AiProvider.QwenCode);
+        }
+
+        /// <summary>
+        /// Gets the Grok command, carrying the selected model as --model.
+        /// Uses --always-approve when the setting is enabled.
+        /// </summary>
+        /// <returns>The grok command to execute</returns>
+        private string GetGrokCommand()
+        {
+            string baseCommand = GetGrokExecutableForTerminal() + GetModelLaunchFlag(AiProvider.Grok);
+
+            if (_settings?.GrokAlwaysApprove == true)
+            {
+                baseCommand = $"{baseCommand} --always-approve";
+            }
+
+            return AppendExtraLaunchArgs(baseCommand, AiProvider.Grok);
+        }
+
+        /// <summary>
+        /// The grok executable as typed into the terminal: the custom CLI path when one is set,
+        /// otherwise "grok" — or the installer's full path when that file exists but its folder is
+        /// not yet on this Visual Studio's PATH (the installer only updates the user PATH, which a
+        /// running VS does not see until restarted).
+        /// </summary>
+        private string GetGrokExecutableForTerminal()
+        {
+            string resolved = ResolveProviderExecutable(AiProvider.Grok, "grok");
+            if (resolved != "grok") return resolved;
+
+            try
+            {
+                string defaultPath = GetGrokDefaultExecutablePath();
+                string grokBin = Path.GetDirectoryName(defaultPath);
+                string processPath = Environment.GetEnvironmentVariable("PATH") ?? string.Empty;
+                bool onPath = false;
+                foreach (string entry in processPath.Split(';'))
+                {
+                    if (string.Equals(entry.Trim().TrimEnd('\\'), grokBin, StringComparison.OrdinalIgnoreCase))
+                    {
+                        onPath = true;
+                        break;
+                    }
+                }
+
+                if (!onPath && File.Exists(defaultPath))
+                {
+                    return "\"" + defaultPath + "\"";
+                }
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"Error resolving the Grok executable: {ex.Message}");
+            }
+
+            return resolved;
         }
 
 

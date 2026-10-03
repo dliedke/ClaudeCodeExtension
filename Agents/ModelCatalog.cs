@@ -471,6 +471,39 @@ namespace ClaudeCodeVS.Agents
             return models;
         }
 
+        /// <summary>
+        /// <c>grok models</c>: a login/default-model banner, then an "Available models:" header
+        /// followed by one indented id per line. The default one is starred and carries a trailing
+        /// "(default)" — both are stripped. Only lines after the header are read, so the banner's
+        /// "Default model: x" line never turns into a second entry.
+        /// </summary>
+        public static List<ModelOption> ParseGrokModelList(string text)
+        {
+            var models = new List<ModelOption>();
+            bool inList = false;
+
+            foreach (string line in SplitLines(text))
+            {
+                string trimmed = line.Trim();
+                if (!inList)
+                {
+                    if (trimmed.StartsWith("Available models", StringComparison.OrdinalIgnoreCase)) inList = true;
+                    continue;
+                }
+
+                if (trimmed.StartsWith("*")) trimmed = trimmed.Substring(1).Trim();
+                int annotation = trimmed.IndexOf(" (", StringComparison.Ordinal);
+                if (annotation > 0) trimmed = trimmed.Substring(0, annotation).Trim();
+
+                if (trimmed.Length == 0 || trimmed.IndexOf(' ') >= 0) continue;
+                if (!char.IsLetterOrDigit(trimmed[0])) continue;
+
+                Add(models, trimmed, null);
+            }
+
+            return models;
+        }
+
         /// <summary>Splits into lines with the colour escapes and stray carriage returns removed.</summary>
         private static IEnumerable<string> SplitLines(string text)
         {

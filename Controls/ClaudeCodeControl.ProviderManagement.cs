@@ -90,6 +90,11 @@ namespace ClaudeCodeVS
         private static bool _qwenCodeNotificationShown = false;
 
         /// <summary>
+        /// Flag to show Grok installation notification only once per session
+        /// </summary>
+        private static bool _grokNotificationShown = false;
+
+        /// <summary>
         /// Flag to show Devin (native) installation notification only once per session
         /// </summary>
         private static bool _devinNativeNotificationShown = false;
@@ -964,7 +969,9 @@ namespace ClaudeCodeVS
                     string output = await process.StandardOutput.ReadToEndAsync();
                     string error = await process.StandardError.ReadToEndAsync();
 
-                    bool isAvailable = process.ExitCode == 0 && !string.IsNullOrWhiteSpace(output);
+                    // Grok Build ships its own agent.exe in ~\.grok\bin, which is on PATH too —
+                    // that hit is not Cursor Agent and must not make it look installed.
+                    bool isAvailable = process.ExitCode == 0 && HasNonGrokPathHit(output);
 
                     CacheProviderResult(AiProvider.CursorAgentNative, isAvailable);
                     return isAvailable;
@@ -1356,6 +1363,111 @@ namespace ClaudeCodeVS
                 CacheProviderResult(AiProvider.QwenCode, false);
                 return false;
             }
+        }
+
+        /// <summary>
+        /// Checks if Grok CLI is available (Grok Build, native Windows installation into %USERPROFILE%\.grok\bin).
+        /// Uses 'where grok' to check if grok is in PATH, then the installer's default location.
+        /// Uses caching to avoid repeated slow checks.
+        /// </summary>
+        /// <param name="cancellationToken">Optional cancellation token</param>
+        /// <returns>True if grok is available, false otherwise</returns>
+        private async Task<bool> IsGrokAvailableAsync(CancellationToken cancellationToken = default)
+        {
+            // A configured custom CLI path means the tool is usable even when it is not on PATH.
+            if (CustomExecutableConfigured(AiProvider.Grok, isWsl: false))
+            {
+                return true;
+            }
+
+            // Check cache first
+            lock (_cacheLock)
+            {
+                if (_providerCache.TryGetValue(AiProvider.Grok, out var cached) && IsCacheValid(cached))
+                {
+                    return cached.IsAvailable;
+                }
+            }
+
+            try
+            {
+                var startInfo = new ProcessStartInfo
+                {
+                    FileName = "cmd.exe",
+                    Arguments = "/c where grok",
+                    UseShellExecute = false,
+                    RedirectStandardOutput = true,
+                    RedirectStandardError = true,
+                    CreateNoWindow = true
+                };
+
+                // Refresh PATH from registry so a freshly installed grok is detected without VS restart
+                string freshPath = GetFreshPathFromRegistry();
+                if (!string.IsNullOrEmpty(freshPath))
+                {
+                    startInfo.EnvironmentVariables["PATH"] = freshPath;
+                }
+
+                using (var process = Process.Start(startInfo))
+                {
+                    var completed = await WaitForProcessExitAsync(process, 3000, cancellationToken);
+
+                    if (!completed)
+                    {
+                        try { process.Kill(); } catch { }
+                        CacheProviderResult(AiProvider.Grok, false);
+                        return false;
+                    }
+
+                    string output = await process.StandardOutput.ReadToEndAsync();
+                    string error = await process.StandardError.ReadToEndAsync();
+
+                    bool isAvailable = (process.ExitCode == 0 && !string.IsNullOrWhiteSpace(output))
+                        || File.Exists(GetGrokDefaultExecutablePath());
+
+                    CacheProviderResult(AiProvider.Grok, isAvailable);
+                    return isAvailable;
+                }
+            }
+            catch (OperationCanceledException)
+            {
+                throw;
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"Error checking for Grok: {ex.Message}");
+                CacheProviderResult(AiProvider.Grok, false);
+                return false;
+            }
+        }
+
+        /// <summary>
+        /// Where the Grok Build installer puts grok.exe. Checked as a fallback because the installer
+        /// adds this folder to the user PATH, which an already-running Visual Studio may not have yet.
+        /// </summary>
+        internal static string GetGrokDefaultExecutablePath()
+        {
+            return Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".grok", "bin", "grok.exe");
+        }
+
+        /// <summary>
+        /// True when 'where' output lists at least one path outside Grok's install folder. Grok Build
+        /// installs an agent.exe of its own next to grok.exe, which collides with Cursor Agent's
+        /// "agent" command name.
+        /// </summary>
+        internal static bool HasNonGrokPathHit(string whereOutput)
+        {
+            if (string.IsNullOrWhiteSpace(whereOutput)) return false;
+
+            foreach (string line in whereOutput.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries))
+            {
+                string path = line.Trim();
+                if (path.Length == 0) continue;
+                if (path.IndexOf(@"\.grok\", StringComparison.OrdinalIgnoreCase) >= 0) continue;
+                return true;
+            }
+
+            return false;
         }
 
         /// <summary>
@@ -1838,6 +1950,30 @@ For more details, visit: https://pi.dev";
         }
 
         /// <summary>
+        /// Shows installation/configuration instructions for Grok (Grok Build) when it is not
+        /// detected on PATH. Grok installs through xAI's PowerShell script into %USERPROFILE%\.grok\bin
+        /// and signs in with a grok.com account.
+        /// </summary>
+        private void ShowGrokInstallationInstructions()
+        {
+            string instructions =
+                "Grok is not installed. A regular CMD terminal will be used instead.\r\n\r\n" +
+                "(you may click CTRL+C to copy full instructions)\r\n\r\n" +
+                "INSTALLATION\r\n\r\n" +
+                "Open PowerShell and run:\r\n\r\n" +
+                "irm https://x.ai/cli/install.ps1 | iex\r\n\r\n" +
+                "(Alternatively: winget install xAI.GrokBuild. Open a new terminal afterwards\r\n" +
+                "so the updated PATH takes effect.)\r\n\r\n" +
+                "CONFIGURATION\r\n\r\n" +
+                "Run 'grok login' once in a terminal to sign in with your grok.com account.\r\n\r\n" +
+                "The agent is launched with the 'grok' command.\r\n\r\n" +
+                "For more details, visit: https://grok.com/build";
+
+            MessageBox.Show(instructions, "Grok Installation",
+                          MessageBoxButton.OK, MessageBoxImage.Information);
+        }
+
+        /// <summary>
         /// Shows installation/configuration instructions for Devin (native) when it is not
         /// detected on PATH. Devin's native Windows CLI is installed via a PowerShell setup
         /// script that requires Windows Terminal.
@@ -2053,6 +2189,37 @@ For more details, visit: https://pi.dev";
                 if (!await TryStartNativeModeAsync())
                 {
                     await StartEmbeddedTerminalAsync(AiProvider.QwenCode);
+                }
+            }
+        }
+
+        /// <summary>
+        /// Handles Grok menu item click - switches to Grok provider
+        /// </summary>
+#pragma warning disable VSTHRD100 // async void is acceptable for event handlers
+        private async void GrokMenuItem_Click(object sender, RoutedEventArgs e)
+#pragma warning restore VSTHRD100
+        {
+            if (_settings == null) return;
+
+            bool grokAvailable = await IsGrokAvailableAsync();
+            await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
+
+            // Always update the selection regardless of availability
+            _settings.SelectedProvider = AiProvider.Grok;
+            UpdateProviderSelection();
+            SaveSettings();
+
+            if (!grokAvailable)
+            {
+                ShowGrokInstallationInstructions();
+                await StartEmbeddedTerminalAsync(null); // Regular CMD
+            }
+            else
+            {
+                if (!await TryStartNativeModeAsync())
+                {
+                    await StartEmbeddedTerminalAsync(AiProvider.Grok);
                 }
             }
         }
@@ -2305,6 +2472,7 @@ For more details, visit: https://pi.dev";
             AntigravityMenuItem.IsChecked = activeProvider == AiProvider.Antigravity;
             ReasonixMenuItem.IsChecked = activeProvider == AiProvider.Reasonix;
             QwenCodeMenuItem.IsChecked = activeProvider == AiProvider.QwenCode;
+            GrokMenuItem.IsChecked = activeProvider == AiProvider.Grok;
             DevinNativeMenuItem.IsChecked = activeProvider == AiProvider.DevinNative;
 
             // Update GroupBox header to show the running provider when a terminal is active.
@@ -2858,6 +3026,8 @@ For more details, visit: https://pi.dev";
                     return "Reasonix";
                 case AiProvider.QwenCode:
                     return "Qwen Code";
+                case AiProvider.Grok:
+                    return "Grok";
                 default:
                     return "CMD";
             }
@@ -3237,7 +3407,7 @@ For more details, visit: https://pi.dev";
                                 $"Version: {version}\n" +
                                 $"Author: Daniel Carvalho Liedke\n" +
                                 $"Copyright © Daniel Carvalho Liedke 2026\n\n" +
-                                $"Provides seamless integration with Claude Code, Codex, Cursor Agent, Open Code, Devin, PI, Antigravity, Reasonix and Qwen Code AI assistants directly within Visual Studio 2022/2026 IDE.";
+                                $"Provides seamless integration with Claude Code, Codex, Cursor Agent, Open Code, Devin, PI, Antigravity, Reasonix, Qwen Code and Grok AI assistants directly within Visual Studio 2022/2026 IDE.";
 
             MessageBox.Show(aboutMessage, "About Claude Code Extension",
                           MessageBoxButton.OK, MessageBoxImage.Information);
@@ -3282,7 +3452,7 @@ For more details, visit: https://pi.dev";
         /// <summary>
         /// Returns the command that opens the CLI's own model picker, or null for the agents that
         /// have none (Claude, Devin — both are driven entirely from the extension's menu). Codex,
-        /// Cursor, PI, Antigravity, Reasonix and Qwen Code use <c>/model</c>; Open Code uses <c>/models</c>.
+        /// Cursor, PI, Antigravity, Reasonix, Qwen Code and Grok use <c>/model</c>; Open Code uses <c>/models</c>.
         /// </summary>
         private static string GetSimpleModelCommand(AiProvider? provider)
         {
@@ -3296,6 +3466,7 @@ For more details, visit: https://pi.dev";
                 case AiProvider.Antigravity:
                 case AiProvider.Reasonix:
                 case AiProvider.QwenCode:
+                case AiProvider.Grok:
                     return "/model";
                 case AiProvider.OpenCode:
                     return "/models";
@@ -4324,12 +4495,13 @@ For more details, visit: https://pi.dev";
             bool isReasonixProvider = activeProvider == AiProvider.Reasonix;
             bool isQwenCodeProvider = activeProvider == AiProvider.QwenCode;
             bool isDevinNativeProvider = activeProvider == AiProvider.DevinNative;
+            bool isGrokProvider = activeProvider == AiProvider.Grok;
 
             // Show/hide individual provider menu items based on VisibleProviders.
             // The currently selected provider is always shown so users keep access to it.
             ApplyProviderMenuVisibility();
 
-            AutoOpenChangesSeparator.Visibility = (isClaudeProvider || isCodexProvider || isCursorAgentProvider || isDevinProvider || isPiProvider || isAntigravityProvider || isReasonixProvider || isQwenCodeProvider || isDevinNativeProvider) ? Visibility.Visible : Visibility.Collapsed;
+            AutoOpenChangesSeparator.Visibility = (isClaudeProvider || isCodexProvider || isCursorAgentProvider || isDevinProvider || isPiProvider || isAntigravityProvider || isReasonixProvider || isQwenCodeProvider || isDevinNativeProvider || isGrokProvider) ? Visibility.Visible : Visibility.Collapsed;
             ClaudeDangerouslySkipPermissionsMenuItem.Visibility = isClaudeProvider ? Visibility.Visible : Visibility.Collapsed;
             // Native mode has its own Plan mode entry in the composer's permission selector.
             ClaudePlanModeMenuItem.Visibility = isClaudeProvider && !IsNativeModeActive ? Visibility.Visible : Visibility.Collapsed;
@@ -4338,6 +4510,7 @@ For more details, visit: https://pi.dev";
             DevinDangerousModeMenuItem.Visibility = (isDevinProvider || isDevinNativeProvider) ? Visibility.Visible : Visibility.Collapsed;
             AntigravityDangerouslySkipPermissionsMenuItem.Visibility = isAntigravityProvider ? Visibility.Visible : Visibility.Collapsed;
             QwenCodeYoloModeMenuItem.Visibility = isQwenCodeProvider ? Visibility.Visible : Visibility.Collapsed;
+            GrokAlwaysApproveMenuItem.Visibility = isGrokProvider ? Visibility.Visible : Visibility.Collapsed;
 
             // Change Account has no console to act on outside native mode — the 🤖 menu's own
             // Change Account item (scripted /logout keystrokes) covers the terminal case instead.
@@ -4355,6 +4528,7 @@ For more details, visit: https://pi.dev";
                 DevinDangerousModeMenuItem.IsChecked = _settings.DevinDangerousMode;
                 AntigravityDangerouslySkipPermissionsMenuItem.IsChecked = _settings.AntigravityDangerouslySkipPermissions;
                 QwenCodeYoloModeMenuItem.IsChecked = _settings.QwenCodeYoloMode;
+                GrokAlwaysApproveMenuItem.IsChecked = _settings.GrokAlwaysApprove;
                 HidePromptPanelMenuItem.IsChecked = _settings.HidePromptPanel;
             }
         }
@@ -4667,6 +4841,36 @@ For more details, visit: https://pi.dev";
         }
 
         /// <summary>
+        /// Handles Grok always-approve menu item click
+        /// </summary>
+#pragma warning disable VSTHRD100 // async void is acceptable for event handlers
+        private async void GrokAlwaysApproveMenuItem_Click(object sender, RoutedEventArgs e)
+#pragma warning restore VSTHRD100
+        {
+            await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
+
+            if (_settings == null) return;
+
+            _settings.GrokAlwaysApprove = GrokAlwaysApproveMenuItem.IsChecked;
+            SaveSettings();
+
+            // Reload Grok immediately so the new startup flag is applied.
+            if (_settings.SelectedProvider == AiProvider.Grok)
+            {
+                try
+                {
+                    await RestartTerminalWithSelectedProviderAsync();
+                }
+                catch (Exception ex)
+                {
+                    Debug.WriteLine($"Error reloading Grok after always-approve change: {ex.Message}");
+                    await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
+                    MessageBox.Show($"Failed to reload Grok: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                }
+            }
+        }
+
+        /// <summary>
         /// Toggles <see cref="ClaudeCodeSettings.HidePromptPanel"/>: collapses (or restores)
         /// the multi-line prompt text box, keeping the controls row, file chips, and usage
         /// bars reachable so the box can always be turned back on from this same menu.
@@ -4943,6 +5147,7 @@ For more details, visit: https://pi.dev";
                     { AiProvider.Antigravity,        AntigravityMenuItem },
                     { AiProvider.Reasonix,           ReasonixMenuItem },
                     { AiProvider.QwenCode,           QwenCodeMenuItem },
+                    { AiProvider.Grok,               GrokMenuItem },
                 };
             }
             return _providerMenuItems;
@@ -4967,6 +5172,7 @@ For more details, visit: https://pi.dev";
                 case AiProvider.Antigravity:       return "Antigravity";
                 case AiProvider.Reasonix:          return "Reasonix";
                 case AiProvider.QwenCode:          return "Qwen Code";
+                case AiProvider.Grok:              return "Grok";
                 case AiProvider.DevinNative:       return "Devin";
                 default:                           return provider.ToString();
             }
@@ -5110,6 +5316,7 @@ For more details, visit: https://pi.dev";
                 AiProvider.Antigravity,
                 AiProvider.Reasonix,
                 AiProvider.QwenCode,
+                AiProvider.Grok,
             };
 
             var checkboxes = new System.Collections.Generic.Dictionary<AiProvider, System.Windows.Controls.CheckBox>();

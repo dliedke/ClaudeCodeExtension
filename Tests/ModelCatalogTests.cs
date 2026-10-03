@@ -192,6 +192,61 @@ namespace ClaudeCodeExtension.Tests
 
         #endregion
 
+        #region Grok
+
+        [TestMethod]
+        public void ParseGrokModelList_ReadsTheRealOutput()
+        {
+            // Measured: grok models on Grok Build, signed in with a grok.com account.
+            const string text =
+                "You are logged in with grok.com.\r\n" +
+                "\r\n" +
+                "Default model: grok-4.7\r\n" +
+                "\r\n" +
+                "Available models:\r\n" +
+                "  * grok-4.7 (default)\r\n";
+
+            List<ModelOption> models = ModelCatalogParsers.ParseGrokModelList(text);
+
+            Assert.AreEqual(1, models.Count);
+            Assert.AreEqual("grok-4.7", models[0].Id);
+        }
+
+        [TestMethod]
+        public void ParseGrokModelList_TakesUnstarredEntriesAndSkipsTheBanner()
+        {
+            const string text =
+                "Default model: grok-4.7\n" +
+                "Available models:\n" +
+                "  * grok-4.7 (default)\n" +
+                "    grok-4.7-mini\n";
+
+            List<ModelOption> models = ModelCatalogParsers.ParseGrokModelList(text);
+
+            CollectionAssert.AreEqual(new[] { "grok-4.7", "grok-4.7-mini" }, models.Select(m => m.Id).ToArray());
+        }
+
+        [TestMethod]
+        public void ParseGrokModelList_IsEmptyWithoutTheListHeader()
+        {
+            // Signed out, grok models prints only a login hint — no model must be invented from it.
+            Assert.AreEqual(0, ModelCatalogParsers.ParseGrokModelList("Run grok login to sign in.\n").Count);
+        }
+
+        [TestMethod]
+        public void HasNonGrokPathHit_IgnoresGrokBuildsOwnAgentExe()
+        {
+            // Grok Build installs agent.exe next to grok.exe; "where agent" listing only that one
+            // must not make Cursor Agent look installed.
+            Assert.IsFalse(ClaudeCodeVS.ClaudeCodeControl.HasNonGrokPathHit(
+                "C:\\Users\\me\\.grok\\bin\\agent.exe\r\n"));
+            Assert.IsTrue(ClaudeCodeVS.ClaudeCodeControl.HasNonGrokPathHit(
+                "C:\\Users\\me\\AppData\\Local\\cursor-agent\\agent.cmd\r\nC:\\Users\\me\\.grok\\bin\\agent.exe\r\n"));
+            Assert.IsFalse(ClaudeCodeVS.ClaudeCodeControl.HasNonGrokPathHit(string.Empty));
+        }
+
+        #endregion
+
         #region Grouping
 
         /// <summary>A list of the given length, ids shaped like the ones cursor-agent prints.</summary>
@@ -535,6 +590,38 @@ namespace ClaudeCodeExtension.Tests
             var options = new AcpSessionOptions { ExecutablePath = @"C:\npm\qwen.cmd", AcpArgument = "--acp" };
 
             Assert.AreEqual("/c \"C:\\npm\\qwen.cmd --acp\"", AcpCommandBuilder.GetArguments(options));
+        }
+
+        [TestMethod]
+        public void AcpArguments_PutGrokFlagsBeforeStdio()
+        {
+            // "grok agent stdio --always-approve" fails with "unexpected argument": every flag,
+            // including user-supplied extras, has to land before the stdio subcommand.
+            var options = new AcpSessionOptions
+            {
+                ExecutablePath = "grok.exe",
+                AcpArgument = "agent --always-approve",
+                ExtraArguments = "--verbose",
+                TrailingArgument = "stdio"
+            };
+
+            Assert.AreEqual("agent --always-approve --verbose stdio", AcpCommandBuilder.GetArguments(options));
+        }
+
+        [TestMethod]
+        public void AcpArguments_GrokWithoutFlags()
+        {
+            var options = new AcpSessionOptions { ExecutablePath = "grok.exe", AcpArgument = "agent", TrailingArgument = "stdio" };
+
+            Assert.AreEqual("agent stdio", AcpCommandBuilder.GetArguments(options));
+        }
+
+        [TestMethod]
+        public void AcpArguments_WrapGrokBatchShimInCmdWithStdioLast()
+        {
+            var options = new AcpSessionOptions { ExecutablePath = @"C:\tools\grok.cmd", AcpArgument = "agent", TrailingArgument = "stdio" };
+
+            Assert.AreEqual("/c \"C:\\tools\\grok.cmd agent stdio\"", AcpCommandBuilder.GetArguments(options));
         }
 
         [TestMethod]

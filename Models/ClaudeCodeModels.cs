@@ -34,7 +34,8 @@ namespace ClaudeCodeVS
         DevinNative = 12,
         // A new ordinal, not the retired 6: a settings file still carrying 6 from v10.11 or
         // earlier must keep falling back to Claude Code rather than silently launching Qwen Code.
-        QwenCode = 13
+        QwenCode = 13,
+        Grok = 14
     }
 
     /// <summary>
@@ -696,6 +697,12 @@ namespace ClaudeCodeVS
         /// mode) so every tool call is approved automatically.
         /// </summary>
         public bool QwenCodeYoloMode { get; set; } = false;
+
+        /// <summary>
+        /// If true, starts Grok with --always-approve (terminal and native mode) so every tool
+        /// call is approved automatically.
+        /// </summary>
+        public bool GrokAlwaysApprove { get; set; } = false;
 
         /// <summary>
         /// If true, starts Cursor Agent with --yolo to skip all approvals.

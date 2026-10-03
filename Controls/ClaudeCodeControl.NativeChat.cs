@@ -2914,6 +2914,7 @@ namespace ClaudeCodeVS
                 case AiProvider.DevinNative:
                 case AiProvider.Reasonix:
                 case AiProvider.QwenCode:
+                case AiProvider.Grok:
                     executable = ResolveNativeProviderExecutable(provider, GetAcpDefaultCommand(provider));
                     break;
 
@@ -3243,6 +3244,7 @@ namespace ClaudeCodeVS
             if (provider == AiProvider.Antigravity) return _settings.AntigravityDangerouslySkipPermissions;
             if (provider == AiProvider.Devin || provider == AiProvider.DevinNative) return _settings.DevinDangerousMode;
             if (provider == AiProvider.QwenCode) return _settings.QwenCodeYoloMode;
+            if (provider == AiProvider.Grok) return _settings.GrokAlwaysApprove;
 
             return null;
         }
@@ -3257,6 +3259,7 @@ namespace ClaudeCodeVS
             else if (provider == AiProvider.Antigravity) _settings.AntigravityDangerouslySkipPermissions = skip;
             else if (provider == AiProvider.Devin || provider == AiProvider.DevinNative) _settings.DevinDangerousMode = skip;
             else if (provider == AiProvider.QwenCode) _settings.QwenCodeYoloMode = skip;
+            else if (provider == AiProvider.Grok) _settings.GrokAlwaysApprove = skip;
         }
 
         #endregion
@@ -5696,6 +5699,8 @@ namespace ClaudeCodeVS
                     return "npm i -g reasonix";
                 case AiProvider.QwenCode:
                     return "npm install -g @qwen-code/qwen-code@latest";
+                case AiProvider.Grok:
+                    return "grok update";
                 case AiProvider.DevinNative:
                     // `devin update` only prints the install command; the installer overwrites
                     // %LOCALAPPDATA%\devin\cli\bin\devin.exe, so force-kill stragglers first to release

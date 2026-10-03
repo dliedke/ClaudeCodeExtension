@@ -142,7 +142,7 @@ unless they just asked for it.
 ## Add a new AI provider
 
 1. `ClaudeCodeModels.cs` — add to the `AiProvider` enum; add a settings property if needed.
-   **Never renumber existing ordinals** (6 is the retired original `QwenCode` — never reuse it; Qwen Code returned as 13); persisted user settings
+   **Never renumber existing ordinals** (6 is the retired original `QwenCode` — never reuse it; Qwen Code returned as 13, Grok is 14); persisted user settings
    depend on them being stable.
 2. `ProviderManagement.cs` — detection method, cache logic, install instructions, notification
    flag, menu handlers, `UpdateProviderSelection()`, `ProviderContextMenu_Opened()`.

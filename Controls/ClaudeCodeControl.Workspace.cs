@@ -496,6 +496,9 @@ namespace ClaudeCodeVS
                         case AiProvider.QwenCode:
                             providerAvailable = await IsQwenCodeAvailableAsync();
                             break;
+                        case AiProvider.Grok:
+                            providerAvailable = await IsGrokAvailableAsync();
+                            break;
                         case AiProvider.DevinNative:
                             providerAvailable = await IsDevinNativeAvailableAsync();
                             break;
@@ -604,6 +607,13 @@ namespace ClaudeCodeVS
                                 {
                                     _qwenCodeNotificationShown = true;
                                     ShowQwenCodeInstallationInstructions();
+                                }
+                                break;
+                            case AiProvider.Grok:
+                                if (!_grokNotificationShown)
+                                {
+                                    _grokNotificationShown = true;
+                                    ShowGrokInstallationInstructions();
                                 }
                                 break;
                             case AiProvider.DevinNative:

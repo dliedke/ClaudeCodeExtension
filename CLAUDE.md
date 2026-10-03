@@ -2,11 +2,11 @@
 
 ## Project Overview
 
-Visual Studio Extension (VSIX) for VS 2022/2026 — integrates AI code assistants (Claude Code, OpenAI Codex, Cursor Agent, Open Code, Devin, PI, Google Antigravity, Reasonix, and Qwen Code) via embedded terminal (Win32 `SetParent` interop).
+Visual Studio Extension (VSIX) for VS 2022/2026 — integrates AI code assistants (Claude Code, OpenAI Codex, Cursor Agent, Open Code, Devin, PI, Google Antigravity, Reasonix, Qwen Code, and Grok) via embedded terminal (Win32 `SetParent` interop).
 
 - Author: Daniel Carvalho Liedke (dliedke@gmail.com) | License: MIT
 - Repository: https://github.com/dliedke/ClaudeCodeExtension
-- Current Version: 216.0 | Target Framework: .NET Framework 4.7.2
+- Current Version: 217.0 | Target Framework: .NET Framework 4.7.2
 
 Step-by-step procedures for recurring tasks (release, Exp-hive debugging, publish, adding a
 provider/setting/UI file) live in `docs/SKILLS.md`. Short build/style brief for non-Claude agents: `docs/AGENTS.md`.
@@ -124,7 +124,7 @@ ClaudeCodeExtension/
 │   ├── JsonLineProcessHost.cs           # Shared process plumbing (stdio, line reader, tree teardown)
 │   ├── ProcessTree.cs                   # Process-tree enumeration/termination
 │   ├── ClaudeStreamJsonSession.cs / ClaudeStreamParser.cs / ClaudeCommandBuilder.cs / ClaudeEditHook.cs # Claude Code stream-json (+ pre-edit hook)
-│   ├── AcpSession.cs / AcpCommandBuilder.cs # ACP (OpenCode, Devin, Devin native, Qwen Code, Reasonix)
+│   ├── AcpSession.cs / AcpCommandBuilder.cs # ACP (OpenCode, Devin, Devin native, Qwen Code, Grok, Reasonix)
 │   ├── OneShotResumeSession.cs / CodexExecProtocol.cs / CursorAgentProtocol.cs # CLIs that exit each turn
 │   ├── CodexAppServerClient.cs        # Codex thread list/read/delete client for session history
 │   ├── PiRpcSession.cs                  # PI's own RPC mode
@@ -269,6 +269,7 @@ Enums (`AiProvider`, `ClaudeModel`, `EffortLevel`, `TerminalType`, `AgentFinishA
 | Antigravity | `Antigravity` | Windows | `agy` | Double CTRL+D |
 | Reasonix | `Reasonix` | Windows | `reasonix` | CTRL+C |
 | Qwen Code | `QwenCode` | Windows | `qwen` | `/quit` |
+| Grok | `Grok` | Windows | `grok` | `/quit` |
 
 Plugin: Caveman (JuliusBrussee/caveman) — installable into Claude Code sessions via model menu
 

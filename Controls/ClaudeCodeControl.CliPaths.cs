@@ -41,6 +41,7 @@ namespace ClaudeCodeVS
             (AiProvider.Antigravity,       "Antigravity",        false),
             (AiProvider.Reasonix,          "Reasonix",           false),
             (AiProvider.QwenCode,          "Qwen Code",          false),
+            (AiProvider.Grok,              "Grok",               false),
         };
 
         #endregion

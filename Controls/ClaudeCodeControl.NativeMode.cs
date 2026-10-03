@@ -334,7 +334,7 @@ namespace ClaudeCodeVS
             {
                 case AiProvider.ClaudeCode:
                 case AiProvider.ClaudeCodeWSL:
-                // These four speak ACP, so one adapter drives all of them. Reasonix is deliberately
+                // These speak ACP, so one adapter drives all of them. Reasonix is deliberately
                 // **not** here: its ACP adapter works (it handshakes and answers), but it is kept on
                 // the embedded terminal by product decision, so nothing in this table should be read
                 // as a statement about which agents *could* run natively.
@@ -342,6 +342,7 @@ namespace ClaudeCodeVS
                 case AiProvider.Devin:
                 case AiProvider.DevinNative:
                 case AiProvider.QwenCode:
+                case AiProvider.Grok:
                 // These four stream JSON but end the process with each turn, so the adapter relaunches
                 // them with a resume flag. The conversation survives; the prompt cache does not.
                 case AiProvider.Codex:
@@ -728,6 +729,7 @@ namespace ClaudeCodeVS
                 case AiProvider.DevinNative:
                 case AiProvider.Reasonix:
                 case AiProvider.QwenCode:
+                case AiProvider.Grok:
                     return CreateAcpSession(provider, workspace, session, resumeSessionId);
 
                 case AiProvider.Codex:
@@ -821,9 +823,9 @@ namespace ClaudeCodeVS
         }
 
         /// <summary>
-        /// Builds the ACP adapter. OpenCode, Devin (both flavours), Reasonix and Qwen Code speak the
-        /// same protocol, so only the executable, the ACP switch (<c>acp</c> subcommand, or Qwen's
-        /// <c>--acp</c> flag) and the session mode differ between them.
+        /// Builds the ACP adapter. OpenCode, Devin (both flavours), Reasonix, Qwen Code and Grok speak
+        /// the same protocol, so only the executable, the ACP switch (<c>acp</c> subcommand, Qwen's
+        /// <c>--acp</c> flag, or Grok's <c>agent [flags] stdio</c>) and the session mode differ between them.
         /// </summary>
         private IAgentSession CreateAcpSession(AiProvider provider, string workspace,
             NativeChatSessionState session = null, string resumeSessionId = null)
@@ -837,11 +839,20 @@ namespace ClaudeCodeVS
                 executable = ResolveExecutableOnPath(executable, freshPath);
             }
 
+            // The Grok Build installer only updates the user PATH; fall back to its install folder
+            // when the registry PATH read above did not carry it either.
+            if (provider == AiProvider.Grok && executable == "grok" && File.Exists(GetGrokDefaultExecutablePath()))
+            {
+                executable = GetGrokDefaultExecutablePath();
+            }
+
             var options = new AcpSessionOptions
             {
                 UseWsl = isWsl,
                 ExecutablePath = executable,
-                AcpArgument = provider == AiProvider.QwenCode ? "--acp" : "acp",
+                AcpArgument = GetAcpSubcommand(provider, session),
+                // Grok's ACP server is "grok agent [flags] stdio" and rejects any flag after stdio.
+                TrailingArgument = provider == AiProvider.Grok ? "stdio" : string.Empty,
                 WslWorkingDirectory = isWsl ? ConvertToWslPath(workspace) : string.Empty,
                 ModeId = GetAcpModeId(provider, session),
                 ModelName = GetAcpModelName(provider, session),
@@ -860,7 +871,7 @@ namespace ClaudeCodeVS
                 options.EnvironmentOverrides["PATH"] = freshPath;
             }
 
-            // Only Devin exposes session history in this window (OpenCode/Reasonix/Qwen Code don't), so only it
+            // Only Devin exposes session history in this window (OpenCode/Reasonix/Qwen Code/Grok don't), so only it
             // may consume the token — the same guard CreateOneShotSession applies for Cursor.
             bool isDevin = provider == AiProvider.Devin || provider == AiProvider.DevinNative;
             if (isDevin)
@@ -1019,7 +1030,7 @@ namespace ClaudeCodeVS
                 Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
                 "cursor-agent", "agent.cmd");
 
-            return File.Exists(nativePath) ? nativePath : ResolveExecutableOnPath("agent", freshPath);
+            return File.Exists(nativePath) ? nativePath : ResolveExecutableOnPath("agent", freshPath, skipGrokFolder: true);
         }
 
         private static string GetAcpDefaultCommand(AiProvider provider)
@@ -1029,7 +1040,29 @@ namespace ClaudeCodeVS
                 case AiProvider.OpenCode: return "opencode";
                 case AiProvider.Reasonix: return "reasonix";
                 case AiProvider.QwenCode: return "qwen";
+                case AiProvider.Grok: return "grok";
                 default: return "devin";
+            }
+        }
+
+        /// <summary>
+        /// The switch that puts the CLI into ACP mode: the <c>acp</c> subcommand for most agents, Qwen's
+        /// <c>--acp</c> flag, and Grok's <c>agent</c> subcommand — which also carries Grok's
+        /// <c>--always-approve</c>, because Grok publishes no ACP modes to select a yolo mode through.
+        /// </summary>
+        private string GetAcpSubcommand(AiProvider provider, NativeChatSessionState session = null)
+        {
+            switch (provider)
+            {
+                case AiProvider.QwenCode:
+                    return "--acp";
+
+                case AiProvider.Grok:
+                    bool alwaysApprove = session != null ? session.SkipPermissions : _settings?.GrokAlwaysApprove == true;
+                    return alwaysApprove ? "agent --always-approve" : "agent";
+
+                default:
+                    return "acp";
             }
         }
 
@@ -1060,7 +1093,7 @@ namespace ClaudeCodeVS
 
         /// <summary>
         /// Model to select after the handshake, for the agents that publish a model picker there
-        /// (Devin, Open Code and Qwen Code). Reasonix publishes none and takes its model at launch instead.
+        /// (Devin, Open Code, Qwen Code and Grok). Reasonix publishes none and takes its model at launch instead.
         /// </summary>
         private string GetAcpModelName(AiProvider provider, NativeChatSessionState session = null)
         {
@@ -1103,8 +1136,12 @@ namespace ClaudeCodeVS
         /// process directly cannot. "opencode" would resolve to the extensionless npm shim — a shell
         /// script, not an image — and fail to launch, so the extension has to be found here.
         /// </para>
+        /// <para>
+        /// <paramref name="skipGrokFolder"/> ignores Grok Build's install folder, whose agent.exe
+        /// would otherwise be taken for Cursor Agent's "agent" command.
+        /// </para>
         /// </summary>
-        private static string ResolveExecutableOnPath(string command, string pathValue)
+        private static string ResolveExecutableOnPath(string command, string pathValue, bool skipGrokFolder = false)
         {
             if (string.IsNullOrWhiteSpace(command) ||
                 command.IndexOf(Path.DirectorySeparatorChar) >= 0 ||
@@ -1129,6 +1166,7 @@ namespace ClaudeCodeVS
             foreach (string directory in searchPath.Split(';'))
             {
                 if (string.IsNullOrWhiteSpace(directory)) continue;
+                if (skipGrokFolder && !HasNonGrokPathHit(directory.Trim().TrimEnd('\\') + "\\")) continue;
 
                 foreach (string extension in extensions)
                 {

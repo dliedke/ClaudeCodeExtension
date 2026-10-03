@@ -17,8 +17,8 @@ using System.Text;
 namespace ClaudeCodeVS.Agents
 {
     /// <summary>
-    /// Launch settings for an ACP agent. The subcommand is always <c>acp</c> — that is what
-    /// <c>opencode</c>, <c>devin</c> and <c>reasonix</c> all expose.
+    /// Launch settings for an ACP agent. The subcommand defaults to <c>acp</c> — that is what
+    /// <c>opencode</c>, <c>devin</c> and <c>reasonix</c> expose; Qwen Code and Grok override it.
     /// </summary>
     public class AcpSessionOptions
     {
@@ -61,6 +61,14 @@ namespace ClaudeCodeVS.Agents
         /// verbatim after the <c>acp</c> subcommand. Empty adds nothing.
         /// </summary>
         public string ExtraArguments { get; set; } = string.Empty;
+
+        /// <summary>
+        /// Final token(s) written after every flag, for a CLI whose ACP entry point is a nested
+        /// subcommand that rejects flags after it (Grok: <c>grok agent [flags] stdio</c> — a flag
+        /// after <c>stdio</c> fails with "unexpected argument"). Empty for the agents whose flags
+        /// simply follow the subcommand.
+        /// </summary>
+        public string TrailingArgument { get; set; } = string.Empty;
 
         /// <summary>
         /// A session id to resume via ACP <c>session/load</c> instead of starting fresh with
@@ -139,6 +147,11 @@ namespace ClaudeCodeVS.Agents
             if (!string.IsNullOrWhiteSpace(options.ExtraArguments))
             {
                 subcommand += " " + options.ExtraArguments.Trim();
+            }
+
+            if (!string.IsNullOrWhiteSpace(options.TrailingArgument))
+            {
+                subcommand += " " + options.TrailingArgument.Trim();
             }
 
             if (options.UseWsl)

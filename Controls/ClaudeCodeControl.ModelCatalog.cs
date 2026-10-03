@@ -114,6 +114,12 @@ namespace ClaudeCodeVS
                     // those names are exactly what --model accepts. See ParseReasonixProviders.
                     Arguments = "doctor --json",
                     Parse = ModelCatalogParsers.ParseReasonixProviders
+                },
+                [AiProvider.Grok] = new ModelCatalogSource
+                {
+                    DefaultCommand = "grok",
+                    Arguments = "models",
+                    Parse = ModelCatalogParsers.ParseGrokModelList
                 }
             };
 
@@ -517,6 +523,7 @@ namespace ClaudeCodeVS
                 case AiProvider.Devin:
                 case AiProvider.DevinNative:
                 case AiProvider.QwenCode:
+                case AiProvider.Grok:
                     return " --model " + QuoteModelArgument(model);
 
                 default:
@@ -526,7 +533,7 @@ namespace ClaudeCodeVS
 
         /// <summary>
         /// The slash command that switches the model of a running TUI, or null when the agent has
-        /// none. Devin, Reasonix and Qwen Code all take a bare id.
+        /// none. Devin, Reasonix, Qwen Code and Grok all take a bare id.
         /// </summary>
         private string GetLiveModelSwitchCommand(AiProvider provider, string modelId)
         {
@@ -535,6 +542,7 @@ namespace ClaudeCodeVS
             if (IsDevinProvider(provider)) return "/model " + QuoteModelArgument(modelId);
             if (provider == AiProvider.Reasonix) return "/model " + modelId;
             if (provider == AiProvider.QwenCode) return "/model " + QuoteModelArgument(modelId);
+            if (provider == AiProvider.Grok) return "/model " + QuoteModelArgument(modelId);
 
             return null;
         }
