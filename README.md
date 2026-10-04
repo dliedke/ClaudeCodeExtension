@@ -24,11 +24,11 @@ Enjoying the extension? [Buy me a coffee](https://www.buymeacoffee.com/dliedke) 
 - **Claude Code and Codex session history** — 📜 toolbar button lists past sessions for the current workspace; view, rename, delete, or resume any session, including the most recent one. Works on Windows and WSL.
 - **Claude usage in VS** — 📊 button (when Claude is active) opens the claude.ai usage page inside a dockable tab. Inline session/weekly progress bars below the prompt update automatically and adapt to the active theme.
 - **Custom commands (⚡)** — Save slash commands or canned prompts and dispatch them to the active agent in one click. Configure via *⚙ → Configure Custom Commands...*.
-- **"@" file picker** — Type **@** in the prompt box (or the native mode chat composer) to search your solution's files and folders and insert one with the keyboard; keep typing to filter, arrow keys + Enter to insert, pick a folder to drill in. File types and skipped folders are configurable in Settings → Behavior.
-- **On Agent Finish** — Optionally play a sound, show a notification (with duration, plus token count for Claude Code), and run an action (build/rebuild, run, tests, a script, or a follow-up command) when the agent goes idle. Global defaults plus per-solution overrides. Configure via *⚙ → Settings...*.
-- **Pull before sending** — Runs `git pull` in the solution’s repository before your first prompt, so the agent never edits a file that is already out of date on the remote. Conflicts from that pull are handed to the agent to resolve. On by default; turn it off via *⚙ → Settings... → Behavior*.
-- **TFVC checkout** — In TFVC-bound solutions, Claude Code in native mode has read-only files checked out through Visual Studio before it edits them. On by default; turn it off via *⚙ → Settings... → Behavior*.
-- **Auto-send build errors** — Optionally send build errors (with warnings for context) to the active agent automatically whenever a Visual Studio build finishes with errors, so it can fix them. Opt-in via *⚙ → Settings... → Behavior*.
+- **"@" file picker** — Type **@** in the prompt box (or the native mode chat composer) to search your solution's files and folders and insert one with the keyboard; keep typing to filter, arrow keys + Enter to insert, pick a folder to drill in. File types and skipped folders are configurable in Settings → Prompt.
+- **On Agent Finish** — Optionally play a sound, show a notification (with duration, plus token count for Claude Code), and run an action (build/rebuild, run, tests, a script, or a follow-up command) when the agent goes idle. Configured per solution. Configure via *⚙ → Settings...*.
+- **Pull before sending** — Runs `git pull` in the solution’s repository before your first prompt, so the agent never edits a file that is already out of date on the remote. Conflicts from that pull are handed to the agent to resolve. On by default; turn it off via *⚙ → Settings... → Automation*.
+- **TFVC checkout** — In TFVC-bound solutions, Claude Code in native mode has read-only files checked out through Visual Studio before it edits them. On by default; turn it off via *⚙ → Settings... → Automation*.
+- **Auto-send build errors** — Optionally send build errors (with warnings for context) to the active agent automatically whenever a Visual Studio build finishes with errors, so it can fix them. Opt-in via *⚙ → Settings... → Automation*.
 - **Generate Commit Message** — Toolbar/menu action that asks the active agent to write a commit message from the current changes and fills it into the Git Changes window. Requires native mode; falls back to the clipboard if the commit message box can't be found. A sibling action, **Generate Commit Message, Commit and Push**, does the same then immediately stages, commits and pushes all changes.
 - **Recommend AI Model** — Claude Code only: asks Opus (Extra High) which model and effort suit the prompt you typed, then lets you adjust and apply them.
 - **Model selection** — 🤖 button to switch models: for Claude, Fable / Opus / Sonnet / Haiku / Opus Plan plus an effort level; for Codex, its reported models plus a reasoning level (Model default / Low / Medium / High / Extra High / Max / Ultra); for every other agent, the models it reports itself, with *Refresh Models* to re-read them and *Choose in the Agent...* to fall back to its own picker.
@@ -109,7 +109,7 @@ Then choose it via *⚙ → Set Terminal Type...*.
 - Pick an AI provider, *Configure Visible Code Agents...*
 - Provider-specific flags: Claude *Skip Permissions*, Codex *Approval Never*, Cursor *Yolo Mode*, Devin *Dangerous Mode*, Antigravity *Skip Permissions*, Qwen Code *Yolo Mode*, Grok *Always Approve*
 - *Configure Custom Commands...*, *Settings...*, About
-- *Settings...* opens the consolidated dialog with tabs for Behavior (send key, large prompts, auto-open Changes, track agent changes for review, pull before sending, auto-send build errors, font size), Layout (prompt panel position), Terminal type, Theme, Usage, Toolbar, CLI Paths, and Backup (save/load all settings to a file)
+- *Settings...* opens the consolidated dialog with tabs for Prompt (send key, large prompts, font size, @ file picker), Automation (auto-open Changes, track agent changes for review, pull before sending, auto-send build errors, On Agent Finish), Layout (prompt panel position), Terminal type, Theme, Usage, Toolbar, CLI Paths, and Backup (save/load all settings to a file)
 
 **☰ Tools dropdown**: Holds *Update Code Agent*, *Restart Code Agent*, *Detach/Attach Terminal*, *View Code Changes*, *Session History*, *Show Usage*, *Set Working Directory...*, *Send Build Errors to Agent*, *Generate Commit Message*, and *Recommend AI Model*. Promote any of these to one-click toolbar buttons — and reorder them by dragging — via *⚙ → Settings... → Toolbar*; promoted features leave the dropdown, which hides once they all become buttons.
 
@@ -142,6 +142,11 @@ https://github.com/anthropics/claude-code/issues/41501
 Use native mode to avoid this issue.
 
 ## Version History
+
+### Version 222.0
+- On Agent Finish is now set per solution only; there are no more global defaults that apply to every solution. A solution without its own settings has it off, and the first time you open On Agent Finish in a solution your previous settings are pre-filled.
+- The Settings window's long Behavior tab is split into two shorter tabs: Prompt (send key, prompt sending, font size, "@" file picker) and Automation (Changes, git, build and runtime errors, On Agent Finish).
+- The Settings window is a little wider so every tab still fits on one row.
 
 ### Version 221.0
 - The usage bars no longer keep showing your previous account after you switch Claude Code to another account (for example with /logout and /login in the terminal).

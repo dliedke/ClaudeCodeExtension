@@ -63,7 +63,7 @@ namespace ClaudeCodeVS
 
         /// <summary>
         /// Builds and shows the consolidated settings dialog, then applies the
-        /// chosen values. The dialog is organized into tabs (Behavior, Layout,
+        /// chosen values. The dialog is organized into tabs (Prompt, Automation, Layout,
         /// Terminal, Theme, Usage). Restart-requiring changes (terminal type,
         /// theme) trigger a single terminal restart at the end if needed.
         /// </summary>
@@ -117,7 +117,7 @@ namespace ClaudeCodeVS
             var dialog = new Window
             {
                 Title = "Claude Code Extension - Settings",
-                Width = 620,
+                Width = 720,
                 Height = 660,
                 WindowStartupLocation = WindowStartupLocation.CenterOwner,
                 ResizeMode = ResizeMode.NoResize,
@@ -150,10 +150,10 @@ namespace ClaudeCodeVS
                 return pageStack;
             }
 
-            // ========================= Behavior tab =========================
-            var behaviorStack = AddTab("Behavior");
+            // ========================= Prompt tab =========================
+            var promptStack = AddTab("Prompt");
 
-            behaviorStack.Children.Add(MakeSectionHeader("Send prompt with", themeFg));
+            promptStack.Children.Add(MakeSectionHeader("Send prompt with", themeFg));
 
             var sendEnterRadio = MakeRadioButton(
                 "Enter — sends the prompt (Shift+Enter / Ctrl+Enter insert a newline)",
@@ -166,23 +166,23 @@ namespace ClaudeCodeVS
                 !origSendWithEnter && !origSendWithCtrlEnter, themeFg, "sendKey");
             sendCtrlEnterRadio.ToolTip = MakeToolTip(
                 "Avoids accidentally sending an incomplete prompt with a stray Enter tap, while keeping a keyboard send shortcut (Ctrl+Enter).");
-            behaviorStack.Children.Add(sendEnterRadio);
-            behaviorStack.Children.Add(sendCtrlEnterRadio);
-            behaviorStack.Children.Add(sendButtonRadio);
+            promptStack.Children.Add(sendEnterRadio);
+            promptStack.Children.Add(sendCtrlEnterRadio);
+            promptStack.Children.Add(sendButtonRadio);
 
-            behaviorStack.Children.Add(MakeSectionHeader("Prompt sending", themeFg));
+            promptStack.Children.Add(MakeSectionHeader("Prompt sending", themeFg));
 
             var largeAsFileCheck = MakeCheckBox(
                 "Send large prompts as file",
                 "When enabled, prompts above ~1 KB are saved to a temp file and only the file path is sent. Avoids paste truncation of large content.",
                 origSendLargeAsFile, themeFg);
-            behaviorStack.Children.Add(largeAsFileCheck);
+            promptStack.Children.Add(largeAsFileCheck);
 
             var disableClipboardCheck = MakeCheckBox(
                 "Disable clipboard (type prompts instead of pasting)",
                 "When enabled, the clipboard is never used to send a prompt. The prompt is saved to a temp file and only a short file reference is typed into the terminal via simulated keystrokes. Use this if another app (clipboard manager, Remote Desktop, security tool) holds the clipboard and breaks normal paste-based sending.\n\nAvailable only with the Command Prompt terminal type — Windows Terminal does not accept the simulated keystrokes this uses.",
                 origDisableClipboardSend, themeFg);
-            behaviorStack.Children.Add(disableClipboardCheck);
+            promptStack.Children.Add(disableClipboardCheck);
 
             // Hint shown only while Windows Terminal is selected, explaining why the toggle is greyed out.
             var disableClipboardWtHint = new TextBlock
@@ -194,31 +194,40 @@ namespace ClaudeCodeVS
                 TextWrapping = TextWrapping.Wrap,
                 Margin = new Thickness(20, 0, 0, 0)
             };
-            behaviorStack.Children.Add(disableClipboardWtHint);
+            promptStack.Children.Add(disableClipboardWtHint);
 
             var sendSelectionRefOnlyCheck = MakeCheckBox(
                 "Send selection as reference only (no code)",
                 "When enabled, \"Send Selection\" only inserts the file path and line numbers (e.g. \"File: foo.cs (lines 10-15)\"), without the selected code. The AI agent reads the file directly.",
                 origSendSelectionRefOnly, themeFg);
-            behaviorStack.Children.Add(sendSelectionRefOnlyCheck);
+            promptStack.Children.Add(sendSelectionRefOnlyCheck);
 
-            // Auto-open Changes only applies inside git repos, but we keep the
-            // checkbox visible so users can pre-toggle the setting before
-            // opening a git-tracked solution. The label hints at that.
-            var autoOpenCheck = MakeCheckBox(
-                "Auto-open Changes on Send",
-                "Automatically open the Changes view, expand files, and enable auto-scroll when a prompt is sent. Only applies when the project is in a git repository.",
-                origAutoOpenChanges, themeFg);
-            behaviorStack.Children.Add(autoOpenCheck);
+            // Prompt font size
+            promptStack.Children.Add(MakeSectionHeader("Prompt font size", themeFg));
+            promptStack.Children.Add(new TextBlock
+            {
+                Text = "Font size of the prompt input box (also adjustable with Ctrl+Scroll).",
+                FontSize = 11,
+                Opacity = 0.7,
+                Foreground = themeFg,
+                TextWrapping = TextWrapping.Wrap,
+                Margin = new Thickness(4, 0, 0, 4)
+            });
+            var fontSizeCombo = MakeThemedComboBox(comboRes, themeFg);
+            fontSizeCombo.Width = 90;
+            fontSizeCombo.HorizontalAlignment = HorizontalAlignment.Left;
+            fontSizeCombo.Margin = new Thickness(4, 0, 0, 4);
+            for (int pt = 8; pt <= 24; pt++)
+            {
+                var item = new ComboBoxItem { Content = pt + " pt", Tag = pt };
+                if (comboRes["cbi"] is Style cbiStyle) item.Style = cbiStyle;
+                if (pt == origFontSize) item.IsSelected = true;
+                fontSizeCombo.Items.Add(item);
+            }
+            promptStack.Children.Add(fontSizeCombo);
 
-            var pendingReviewCheck = MakeCheckBox(
-                "Track agent changes for review (Keep/Undo)",
-                "Keep each file the agent changes on a review list in the Changes view, with Keep and Undo buttons per file. Undo restores the file to how it was before the agent first changed it. Snapshots live in memory only. Only applies when the project is in a git repository.",
-                origPendingReview, themeFg);
-            behaviorStack.Children.Add(pendingReviewCheck);
-
-            behaviorStack.Children.Add(MakeSectionHeader("@ file picker", themeFg));
-            behaviorStack.Children.Add(new TextBlock
+            promptStack.Children.Add(MakeSectionHeader("@ file picker", themeFg));
+            promptStack.Children.Add(new TextBlock
             {
                 Text = "Narrow the files listed when typing \"@\" in the prompt. Files ignored by .gitignore are always left out. Separate entries with commas.",
                 FontSize = 11,
@@ -253,7 +262,7 @@ namespace ClaudeCodeVS
                 Grid.SetColumn(box, 1);
                 row.Children.Add(labelBlock);
                 row.Children.Add(box);
-                behaviorStack.Children.Add(row);
+                promptStack.Children.Add(row);
                 return box;
             }
 
@@ -266,62 +275,58 @@ namespace ClaudeCodeVS
                 "Folders the \"@\" picker leaves out, e.g. \"Plugins, Assets/ThirdParty\". A bare name is skipped wherever it appears; a path only at that location. bin, obj, node_modules and similar build folders are always skipped.",
                 origAtExcludedFolders);
 
-            behaviorStack.Children.Add(MakeSectionHeader("Git", themeFg));
+            // ========================= Automation tab =========================
+            var automationStack = AddTab("Automation");
+
+            automationStack.Children.Add(MakeSectionHeader("Changes", themeFg));
+
+            // Auto-open Changes only applies inside git repos, but we keep the
+            // checkbox visible so users can pre-toggle the setting before
+            // opening a git-tracked solution. The label hints at that.
+            var autoOpenCheck = MakeCheckBox(
+                "Auto-open Changes on Send",
+                "Automatically open the Changes view, expand files, and enable auto-scroll when a prompt is sent. Only applies when the project is in a git repository.",
+                origAutoOpenChanges, themeFg);
+            automationStack.Children.Add(autoOpenCheck);
+
+            var pendingReviewCheck = MakeCheckBox(
+                "Track agent changes for review (Keep/Undo)",
+                "Keep each file the agent changes on a review list in the Changes view, with Keep and Undo buttons per file. Undo restores the file to how it was before the agent first changed it. Snapshots live in memory only. Only applies when the project is in a git repository.",
+                origPendingReview, themeFg);
+            automationStack.Children.Add(pendingReviewCheck);
+
+            automationStack.Children.Add(MakeSectionHeader("Git", themeFg));
 
             var autoGitPullCheck = MakeCheckBox(
                 "Pull from git before the first prompt",
                 "Runs \"git pull\" in the solution's repository before the first prompt you send, so the agent never starts editing code that is already out of date on the remote. Runs once per solution per Visual Studio session, not on every prompt. Skipped when the project is not in a git repository, the branch has no remote to pull from, or the agent is still working on the previous message. If the pull ends in conflicts, the conflicted files are described to the agent and it is asked to resolve them before doing what you asked.",
                 origAutoGitPull, themeFg);
-            behaviorStack.Children.Add(autoGitPullCheck);
+            automationStack.Children.Add(autoGitPullCheck);
 
             var autoTfvcCheckoutCheck = MakeCheckBox(
                 "Check out TFVC files before Claude edits them (native mode)",
                 "In a solution bound to Team Foundation Version Control (Azure DevOps / TFS), Claude Code in native mode has each read-only file checked out through Visual Studio before it writes to it, so it never has to clear the read-only flag itself. If a checkout fails, for example because someone else has the file locked, the edit is blocked and Claude is told to ask you. Has no effect on other repositories or other agents. Applies from the next chat session.",
                 _settings.AutoTfvcCheckout, themeFg);
-            behaviorStack.Children.Add(autoTfvcCheckoutCheck);
+            automationStack.Children.Add(autoTfvcCheckoutCheck);
 
-            behaviorStack.Children.Add(MakeSectionHeader("Build errors", themeFg));
+            automationStack.Children.Add(MakeSectionHeader("Build errors", themeFg));
 
             var autoSendBuildErrorsCheck = MakeCheckBox(
                 "Auto-send build errors to the agent",
                 "When a Visual Studio build finishes with errors, automatically send the errors (and warnings, for context) to the active code agent so it can fix them. Only sends when an agent terminal is running and the build actually has errors.",
                 origAutoSendBuildErrors, themeFg);
-            behaviorStack.Children.Add(autoSendBuildErrorsCheck);
+            automationStack.Children.Add(autoSendBuildErrorsCheck);
 
             var autoSendRuntimeErrorsCheck = MakeCheckBox(
                 "Auto-send runtime errors to the agent",
                 "While debugging, when the application hits an unhandled runtime exception, automatically send the exception (type, message, and stack trace) to the active code agent so it can fix it. Only sends when an agent terminal is running.",
                 origAutoSendRuntimeErrors, themeFg);
-            behaviorStack.Children.Add(autoSendRuntimeErrorsCheck);
+            automationStack.Children.Add(autoSendRuntimeErrorsCheck);
 
-            // Prompt font size
-            behaviorStack.Children.Add(MakeSectionHeader("Prompt font size", themeFg));
-            behaviorStack.Children.Add(new TextBlock
+            automationStack.Children.Add(MakeSectionHeader("On Agent Finish", themeFg));
+            automationStack.Children.Add(new TextBlock
             {
-                Text = "Font size of the prompt input box (also adjustable with Ctrl+Scroll).",
-                FontSize = 11,
-                Opacity = 0.7,
-                Foreground = themeFg,
-                TextWrapping = TextWrapping.Wrap,
-                Margin = new Thickness(4, 0, 0, 4)
-            });
-            var fontSizeCombo = MakeThemedComboBox(comboRes, themeFg);
-            fontSizeCombo.Width = 90;
-            fontSizeCombo.HorizontalAlignment = HorizontalAlignment.Left;
-            fontSizeCombo.Margin = new Thickness(4, 0, 0, 4);
-            for (int pt = 8; pt <= 24; pt++)
-            {
-                var item = new ComboBoxItem { Content = pt + " pt", Tag = pt };
-                if (comboRes["cbi"] is Style cbiStyle) item.Style = cbiStyle;
-                if (pt == origFontSize) item.IsSelected = true;
-                fontSizeCombo.Items.Add(item);
-            }
-            behaviorStack.Children.Add(fontSizeCombo);
-
-            behaviorStack.Children.Add(MakeSectionHeader("On Agent Finish", themeFg));
-            behaviorStack.Children.Add(new TextBlock
-            {
-                Text = "Notify and optionally run an action when the agent finishes. Supports global defaults plus per-solution overrides.",
+                Text = "Notify and optionally run an action when the agent finishes. Configured separately for each solution.",
                 FontSize = 11,
                 Opacity = 0.7,
                 Foreground = themeFg,
@@ -343,7 +348,7 @@ namespace ClaudeCodeVS
 #pragma warning disable VSTHRD110
             afOpenButton.Click += (s, ea) => _ = ShowAgentFinishSettingsDialogAsync();
 #pragma warning restore VSTHRD110
-            behaviorStack.Children.Add(afOpenButton);
+            automationStack.Children.Add(afOpenButton);
 
             // Under Windows Terminal the watcher attaches to the ConPTY console client resolved at
             // launch and reads the real screen buffer (UI Automation is only a fallback). The hint
@@ -358,7 +363,7 @@ namespace ClaudeCodeVS
                 Visibility = Visibility.Collapsed,
                 Margin = new Thickness(4, 2, 0, 4)
             };
-            behaviorStack.Children.Add(afWtHint);
+            automationStack.Children.Add(afWtHint);
 
             // ========================= Layout tab =========================
             var layoutStack = AddTab("Layout");
@@ -803,7 +808,7 @@ namespace ClaudeCodeVS
             // "Disable clipboard" relies on simulated keystrokes that only conhost (Command Prompt)
             // accepts, so the toggle is enabled only while Command Prompt is selected. Keep it in sync
             // with the terminal-type radios live, and uncheck it when switching to Windows Terminal so
-            // an unavailable setting can't be saved as enabled. (The checkbox lives on the Behavior tab.)
+            // an unavailable setting can't be saved as enabled. (The checkbox lives on the Prompt tab.)
             void SyncDisableClipboardAvailability()
             {
                 bool cmdSelected = cmdRadio.IsChecked == true;

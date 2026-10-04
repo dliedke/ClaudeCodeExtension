@@ -206,16 +206,16 @@ namespace ClaudeCodeVS
         #region Effective Config Resolution
 
         /// <summary>
-        /// Returns the "On Agent Finish" config that applies to the currently open
-        /// solution: the per-solution override when one exists for the solution
-        /// name, otherwise the global default. Never returns null.
+        /// Returns the "On Agent Finish" config of the currently open solution (or folder).
+        /// The feature is configured per solution only: a solution without its own entry,
+        /// or no solution at all, gets a disabled default — the legacy global config in
+        /// <see cref="ClaudeCodeSettings.AgentFinish"/> is never applied. Never returns null.
         /// </summary>
         private AgentFinishConfig GetEffectiveAgentFinish()
         {
             ThreadHelper.ThrowIfNotOnUIThread();
 
             if (_settings == null) _settings = new ClaudeCodeSettings();
-            if (_settings.AgentFinish == null) _settings.AgentFinish = new AgentFinishConfig();
 
             string name = GetCurrentSolutionName();
             if (!string.IsNullOrEmpty(name)
@@ -226,13 +226,13 @@ namespace ClaudeCodeVS
                 return projectCfg;
             }
 
-            return _settings.AgentFinish;
+            return new AgentFinishConfig { Enabled = false };
         }
 
         /// <summary>
         /// Returns the open solution's name (the .sln file name without extension),
-        /// or an empty string when no solution is loaded. Used as the per-project
-        /// key for "On Agent Finish" overrides.
+        /// or an empty string when no solution is loaded. In Open Folder mode this is the
+        /// folder name. Used as the per-solution key for "On Agent Finish" settings.
         /// </summary>
         private string GetCurrentSolutionName()
         {
@@ -307,7 +307,7 @@ namespace ClaudeCodeVS
 
                 await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
 
-                // Resolve the effective config (per-solution override or global default)
+                // Resolve the open solution's config
                 // on the UI thread, since the solution name comes from DTE.
                 var cfg = GetEffectiveAgentFinish();
                 if (cfg == null || !cfg.Enabled) return;

@@ -510,7 +510,7 @@ namespace ClaudeCodeVS
         #region Index Filtering (pure, unit-tested)
 
         /// <summary>
-        /// Which files and folders the "@" index keeps. Built from the Settings → Behavior
+        /// Which files and folders the "@" index keeps. Built from the Settings → Prompt
         /// "@ file picker" fields plus the built-in ignore list (and Unity's generated folders and
         /// .meta sidecars when the workspace is a Unity project).
         /// </summary>

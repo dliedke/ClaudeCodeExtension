@@ -7,11 +7,8 @@
  * Usage and reproduction in any manner whatsoever without the written permission of Daniel Carvalho Liedke is strictly forbidden.
  *
  * Purpose: Dedicated "On Agent Finish" settings window. Opened from the consolidated
- *          Settings dialog via the "On Agent Finish..." button. Edits the global default
- *          config, plus an optional per-solution override keyed by solution name: when the
- *          "Use custom settings for this solution" box is checked, the fields edit (and on
- *          OK persist) a per-project AgentFinishConfig that takes precedence over the global
- *          default for that solution; unchecked, the fields edit the global default.
+ *          Settings dialog via the "On Agent Finish..." button. Edits the open solution's
+ *          own AgentFinishConfig, keyed by solution name; there is no global default.
  *
  * *******************************************************************************************************************/
 
@@ -40,33 +37,35 @@ namespace ClaudeCodeVS
         };
 
         /// <summary>
-        /// Builds and shows the dedicated "On Agent Finish" settings window. Persists the
-        /// global default and, when the per-solution override box is checked, the current
-        /// solution's override on OK. Returns after the modal closes.
+        /// Builds and shows the dedicated "On Agent Finish" settings window for the open
+        /// solution and persists its config on OK. Returns after the modal closes.
         /// </summary>
         private async System.Threading.Tasks.Task ShowAgentFinishSettingsDialogAsync()
         {
             await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
 
             if (_settings == null) _settings = new ClaudeCodeSettings();
-            if (_settings.AgentFinish == null) _settings.AgentFinish = new AgentFinishConfig();
             if (_settings.ProjectAgentFinish == null)
                 _settings.ProjectAgentFinish = new System.Collections.Generic.Dictionary<string, AgentFinishConfig>(StringComparer.OrdinalIgnoreCase);
 
+            string solutionName = GetCurrentSolutionName();
+            if (string.IsNullOrEmpty(solutionName))
+            {
+                MessageBox.Show("On Agent Finish is configured per solution. Open a solution or folder first.",
+                    "On Agent Finish", MessageBoxButton.OK, MessageBoxImage.Information);
+                return;
+            }
+
             GetThemeBrushes(out Brush themeBg, out Brush themeFg);
 
-            string solutionName = GetCurrentSolutionName();
-            bool hasSolution = !string.IsNullOrEmpty(solutionName);
-
-            // Working copies the controls edit in memory; persisted on OK.
-            AgentFinishConfig workingGlobal = CloneAgentFinish(_settings.AgentFinish);
-            AgentFinishConfig workingProject =
-                hasSolution && _settings.ProjectAgentFinish.TryGetValue(solutionName, out var existing) && existing != null
-                    ? CloneAgentFinish(existing)
-                    : null;
-
-            // Start editing the project config when one already exists for this solution.
-            bool editingProject = workingProject != null;
+            // Working copy the controls edit in memory; persisted on OK. A solution without its own
+            // settings yet is pre-filled from the legacy global config (the pre-v222 single setting),
+            // so users who had it set up only need to confirm with OK — that config itself is never
+            // applied at runtime any more.
+            AgentFinishConfig workingConfig = CloneAgentFinish(
+                _settings.ProjectAgentFinish.TryGetValue(solutionName, out var existing) && existing != null
+                    ? existing
+                    : _settings.AgentFinish);
 
             var dialog = new Window
             {
@@ -96,33 +95,18 @@ namespace ClaudeCodeVS
             var stack = new StackPanel { Orientation = Orientation.Vertical };
             scroll.Content = stack;
 
-            // ---- Per-solution override ----
-            stack.Children.Add(MakeSectionHeader("Scope", themeFg));
-
-            var projectCheck = MakeCheckBox(
-                hasSolution
-                    ? $"Use custom settings for this solution ({solutionName})"
-                    : "Use custom settings for this solution",
-                "When enabled, these settings apply only to the current solution and override the global defaults. When disabled, this solution uses the global defaults below.",
-                editingProject, themeFg);
-            projectCheck.IsEnabled = hasSolution;
-            projectCheck.Opacity = hasSolution ? 1.0 : 0.5;
-            stack.Children.Add(projectCheck);
+            // ---- On Agent Finish fields ----
+            stack.Children.Add(MakeSectionHeader($"On Agent Finish — {solutionName}", themeFg));
 
             stack.Children.Add(new TextBlock
             {
-                Text = hasSolution
-                    ? "Unchecked: edit the global defaults used by every solution without its own settings."
-                    : "Open a solution to configure per-solution settings. These fields edit the global defaults.",
+                Text = "These settings apply only to this solution. Each solution keeps its own.",
                 FontSize = 11,
                 Opacity = 0.7,
                 Foreground = themeFg,
                 TextWrapping = TextWrapping.Wrap,
-                Margin = new Thickness(20, 0, 0, 4)
+                Margin = new Thickness(4, 0, 0, 6)
             });
-
-            // ---- On Agent Finish fields ----
-            stack.Children.Add(MakeSectionHeader("On Agent Finish", themeFg));
 
             var afEnabledCheck = MakeCheckBox(
                 "Notify / run an action when the agent finishes",
@@ -487,24 +471,7 @@ namespace ClaudeCodeVS
                     cfg.IdleSeconds = Math.Max(2, Math.Min(120, idleVal));
             }
 
-            // Initial population from whichever config is active.
-            WriteFrom(editingProject ? workingProject : workingGlobal);
-
-            // Toggle: persist the current control values into the config being edited,
-            // switch the target, seeding a brand-new project config from the global one.
-            projectCheck.Checked += (s, e) =>
-            {
-                ReadInto(workingGlobal);
-                if (workingProject == null) workingProject = CloneAgentFinish(workingGlobal);
-                editingProject = true;
-                WriteFrom(workingProject);
-            };
-            projectCheck.Unchecked += (s, e) =>
-            {
-                if (workingProject != null) ReadInto(workingProject);
-                editingProject = false;
-                WriteFrom(workingGlobal);
-            };
+            WriteFrom(workingConfig);
 
             // ---- Button row ----
             var buttonPanel = new StackPanel
@@ -555,28 +522,8 @@ namespace ClaudeCodeVS
             }
 
             // ---- Persist ----
-            // Flush current control values into the config currently being edited.
-            if (editingProject)
-            {
-                if (workingProject == null) workingProject = CloneAgentFinish(workingGlobal);
-                ReadInto(workingProject);
-            }
-            else
-            {
-                ReadInto(workingGlobal);
-            }
-
-            // Global default always written back (it may have been edited before toggling).
-            _settings.AgentFinish = workingGlobal;
-
-            if (projectCheck.IsChecked == true && hasSolution)
-            {
-                _settings.ProjectAgentFinish[solutionName] = workingProject ?? CloneAgentFinish(workingGlobal);
-            }
-            else if (hasSolution)
-            {
-                _settings.ProjectAgentFinish.Remove(solutionName);
-            }
+            ReadInto(workingConfig);
+            _settings.ProjectAgentFinish[solutionName] = workingConfig;
 
             SaveSettings();
 
