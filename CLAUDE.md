@@ -6,7 +6,7 @@ Visual Studio Extension (VSIX) for VS 2022/2026 — integrates AI code assistant
 
 - Author: Daniel Carvalho Liedke (dliedke@gmail.com) | License: MIT
 - Repository: https://github.com/dliedke/ClaudeCodeExtension
-- Current Version: 222.0 | Target Framework: .NET Framework 4.7.2
+- Current Version: 223.0 | Target Framework: .NET Framework 4.7.2
 
 Step-by-step procedures for recurring tasks (release, Exp-hive debugging, publish, adding a
 provider/setting/UI file) live in `docs/SKILLS.md`. Short build/style brief for non-Claude agents: `docs/AGENTS.md`.
@@ -97,7 +97,7 @@ ClaudeCodeExtension/
 │   ├── ClaudeCodeControl.SettingsBackup.cs # Settings → Backup tab: save/load the whole configuration to/from a JSON file
 │   ├── ClaudeCodeControl.Cleanup.cs     # Resource cleanup, temp dir management
 │   ├── ClaudeCodeControl.AgentCompletion.cs # "On Agent Finish": console-idle completion watcher, notify (info bar) + actions
-│   ├── ClaudeCodeControl.AgentFinishDialog.cs # "On Agent Finish" settings window: per-solution config (no global default)
+│   ├── ClaudeCodeControl.AgentFinishDialog.cs # "On Agent Finish" Settings tab (first tab): per-solution config (no global default)
 │   ├── ClaudeCodeControl.BuildErrors.cs # "Auto-send build errors": VS build-event hook, Error List collection, format + send to agent
 │   ├── ClaudeCodeControl.RuntimeErrors.cs # "Auto-send runtime errors": VS debugger-event hook, unhandled-exception collection, format + send to agent
 │   ├── ClaudeCodeControl.PendingReview.cs # "Track agent changes for review": per-turn snapshots, pending list in the Changes view, per-file/bulk Keep and Undo (#183)
@@ -235,7 +235,7 @@ Three cross-cutting rules (full text in `docs/ARCHITECTURE.md` → *Cross-Cuttin
 | `Controls/ClaudeCodeControl.SettingsDialog.cs`, `Controls/ClaudeCodeControl.SettingsBackup.cs` | Consolidated Settings Dialog — tabs, batched apply, themed templates, Backup tab save/load |
 | `Controls/ClaudeCodeControl.SessionHistory.cs` | Session History — JSONL parsing, path encoding, resume flow |
 | `Controls/ClaudeCodeControl.AgentCompletion.cs` | On Agent Finish — console-buffer idle detection, console-attach leak guard |
-| `Controls/ClaudeCodeControl.AgentFinishDialog.cs` | On Agent Finish — settings window, per-solution config only, follow-up presets |
+| `Controls/ClaudeCodeControl.AgentFinishDialog.cs` | On Agent Finish — first Settings tab, per-solution config only, follow-up presets |
 | `Controls/ClaudeCodeControl.BuildErrors.cs` | Auto-Send Build Errors — build-event hook, Error List collection, dedupe/loop guard |
 | `Controls/ClaudeCodeControl.RuntimeErrors.cs` | Auto-Send Runtime Errors — debugger break-mode hook, unhandled-exception collection, dedupe guard |
 | `Controls/ClaudeCodeControl.GitSync.cs` | Pull Before Sending — pre-prompt `git pull`, skip conditions, conflict-as-prompt handoff, `--autostash` caveats |

@@ -6,9 +6,9 @@
  * Copyright © Daniel Carvalho Liedke 2026
  * Usage and reproduction in any manner whatsoever without the written permission of Daniel Carvalho Liedke is strictly forbidden.
  *
- * Purpose: Dedicated "On Agent Finish" settings window. Opened from the consolidated
- *          Settings dialog via the "On Agent Finish..." button. Edits the open solution's
- *          own AgentFinishConfig, keyed by solution name; there is no global default.
+ * Purpose: "On Agent Finish" settings, shown as the first tab of the consolidated Settings
+ *          dialog. Edits the open solution's own AgentFinishConfig, keyed by solution name;
+ *          there is no global default and an unconfigured solution stays disabled.
  *
  * *******************************************************************************************************************/
 
@@ -23,7 +23,7 @@ namespace ClaudeCodeVS
 {
     public partial class ClaudeCodeControl
     {
-        #region On Agent Finish Dialog
+        #region On Agent Finish Settings Tab
 
         /// <summary>
         /// Canned texts offered by the follow-up field's "Preset" button (label, text sent to the
@@ -37,12 +37,18 @@ namespace ClaudeCodeVS
         };
 
         /// <summary>
-        /// Builds and shows the dedicated "On Agent Finish" settings window for the open
-        /// solution and persists its config on OK. Returns after the modal closes.
+        /// Builds the "On Agent Finish" fields for the open solution into <paramref name="stack"/>
+        /// (the first tab of the consolidated Settings dialog). Returns <c>null</c> when no
+        /// solution or folder is open — the tab then shows only a hint, since the feature is
+        /// configured per solution. Otherwise returns a callback the Settings dialog runs on OK to
+        /// persist the edited config; it does nothing for a solution that has no settings yet and
+        /// was left disabled, so merely opening Settings never creates an entry. The
+        /// <c>Reset</c> callback restores the fields to defaults (disabled); <c>SetNativeMode</c>
+        /// re-syncs the idle-seconds box with the dialog's (not yet saved) native-mode checkbox.
         /// </summary>
-        private async System.Threading.Tasks.Task ShowAgentFinishSettingsDialogAsync()
+        private (Action Save, Action Reset, Action<bool> SetNativeMode)? BuildAgentFinishSettingsContent(StackPanel stack, Brush themeBg, Brush themeFg)
         {
-            await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
+            ThreadHelper.ThrowIfNotOnUIThread();
 
             if (_settings == null) _settings = new ClaudeCodeSettings();
             if (_settings.ProjectAgentFinish == null)
@@ -51,49 +57,24 @@ namespace ClaudeCodeVS
             string solutionName = GetCurrentSolutionName();
             if (string.IsNullOrEmpty(solutionName))
             {
-                MessageBox.Show("On Agent Finish is configured per solution. Open a solution or folder first.",
-                    "On Agent Finish", MessageBoxButton.OK, MessageBoxImage.Information);
-                return;
+                stack.Children.Add(MakeSectionHeader("On Agent Finish", themeFg));
+                stack.Children.Add(new TextBlock
+                {
+                    Text = "On Agent Finish is configured separately for each solution. Open a solution or folder to set it up.",
+                    Foreground = themeFg,
+                    TextWrapping = TextWrapping.Wrap,
+                    Margin = new Thickness(4, 0, 0, 6)
+                });
+                return null;
             }
 
-            GetThemeBrushes(out Brush themeBg, out Brush themeFg);
-
-            // Working copy the controls edit in memory; persisted on OK. A solution without its own
-            // settings yet is pre-filled from the legacy global config (the pre-v222 single setting),
-            // so users who had it set up only need to confirm with OK — that config itself is never
-            // applied at runtime any more.
-            AgentFinishConfig workingConfig = CloneAgentFinish(
-                _settings.ProjectAgentFinish.TryGetValue(solutionName, out var existing) && existing != null
-                    ? existing
-                    : _settings.AgentFinish);
-
-            var dialog = new Window
-            {
-                Title = "On Agent Finish",
-                Width = 520,
-                Height = 700,
-                WindowStartupLocation = WindowStartupLocation.CenterOwner,
-                ResizeMode = ResizeMode.NoResize,
-                Background = themeBg,
-                Foreground = themeFg,
-                ShowInTaskbar = false
-            };
-            try { dialog.Owner = Application.Current?.MainWindow; } catch { }
-
-            var rootGrid = new Grid { Margin = new Thickness(14) };
-            rootGrid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
-            rootGrid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
-
-            var scroll = new ScrollViewer
-            {
-                VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
-                HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled
-            };
-            Grid.SetRow(scroll, 0);
-            rootGrid.Children.Add(scroll);
-
-            var stack = new StackPanel { Orientation = Orientation.Vertical };
-            scroll.Content = stack;
+            // Working copy the controls edit; persisted on OK. A solution without its own settings
+            // yet is pre-filled from the legacy global config (the pre-v222 single setting) so the
+            // user's previous choices are one checkbox away, but always starts disabled: an
+            // unconfigured solution must not turn the feature on just because Settings was opened.
+            bool hasOwnConfig = _settings.ProjectAgentFinish.TryGetValue(solutionName, out var existing) && existing != null;
+            AgentFinishConfig workingConfig = CloneAgentFinish(hasOwnConfig ? existing : _settings.AgentFinish);
+            if (!hasOwnConfig) workingConfig.Enabled = false;
 
             // ---- On Agent Finish fields ----
             stack.Children.Add(MakeSectionHeader($"On Agent Finish — {solutionName}", themeFg));
@@ -116,7 +97,7 @@ namespace ClaudeCodeVS
 
             stack.Children.Add(new TextBlock
             {
-                Text = "Works with the Command Prompt terminal (not Windows Terminal). Detected by watching the terminal go idle, so it covers any agent.",
+                Text = "Detected by watching the terminal go idle, so it covers any agent.",
                 FontSize = 11,
                 Opacity = 0.7,
                 Foreground = themeFg,
@@ -401,7 +382,15 @@ namespace ClaudeCodeVS
 
             // Native mode learns the turn ended from the agent's own protocol, so there is no console
             // to watch and no idle window to wait out: the value is pinned to 1 and the box is closed.
+            // Follows the Terminal tab's native-mode checkbox live via SetNativeMode below.
             bool nativeMode = _settings?.UseNativeMode == true;
+
+            // The terminal-mode value shown while the box is pinned to 1, restored when native mode is
+            // switched off. A config last saved under native mode holds 1, below the terminal minimum
+            // of 2, so it falls back to the model default.
+            string terminalIdleText = null;
+            string TerminalIdleText(AgentFinishConfig cfg) =>
+                (cfg.IdleSeconds >= 2 ? cfg.IdleSeconds : new AgentFinishConfig().IdleSeconds).ToString();
 
             var afIdleNativeHint = new TextBlock
             {
@@ -411,15 +400,24 @@ namespace ClaudeCodeVS
                 Opacity = 0.7,
                 Foreground = themeFg,
                 TextWrapping = TextWrapping.Wrap,
-                Visibility = nativeMode ? Visibility.Visible : Visibility.Collapsed,
                 Margin = new Thickness(20, 0, 0, 4)
             };
             stack.Children.Add(afIdleNativeHint);
 
-            if (nativeMode)
+            void SyncIdleBoxForMode()
             {
-                afIdleBox.IsEnabled = false;
-                afIdleBox.Opacity = 0.5;
+                afIdleBox.IsEnabled = !nativeMode;
+                afIdleBox.Opacity = nativeMode ? 0.5 : 1.0;
+                afIdleNativeHint.Visibility = nativeMode ? Visibility.Visible : Visibility.Collapsed;
+                afIdleBox.Text = nativeMode ? "1" : (terminalIdleText ?? afIdleBox.Text);
+            }
+
+            void SetNativeMode(bool native)
+            {
+                if (native == nativeMode) return;
+                if (native) terminalIdleText = afIdleBox.Text;
+                nativeMode = native;
+                SyncIdleBoxForMode();
             }
 
             // ---- Field <-> config helpers ----
@@ -436,7 +434,8 @@ namespace ClaudeCodeVS
                 afRebuildBeforeRunCheck.IsChecked = cfg.RebuildBeforeRun;
                 afScriptBox.Text            = cfg.ScriptOrCommand ?? string.Empty;
                 SetFollowUpText(cfg.FollowUpSendToAgent ?? string.Empty, cfg.FollowUpGenerateCommitMessage, cfg.FollowUpGenerateCommitMessageAndPush);
-                afIdleBox.Text              = (nativeMode ? 1 : cfg.IdleSeconds).ToString();
+                terminalIdleText            = TerminalIdleText(cfg);
+                SyncIdleBoxForMode();
                 afActionCombo.SelectedItem  = null;
                 foreach (ComboBoxItem it in afActionCombo.Items)
                 {
@@ -473,63 +472,17 @@ namespace ClaudeCodeVS
 
             WriteFrom(workingConfig);
 
-            // ---- Button row ----
-            var buttonPanel = new StackPanel
+            void Save()
             {
-                Orientation = Orientation.Horizontal,
-                HorizontalAlignment = HorizontalAlignment.Right,
-                Margin = new Thickness(0, 14, 0, 0)
-            };
-            Grid.SetRow(buttonPanel, 1);
+                ReadInto(workingConfig);
+                if (!hasOwnConfig && !workingConfig.Enabled) return;
 
-            Style buttonStyle = GetDialogButtonStyle();
-
-            var okButton = new Button
-            {
-                Content = "OK",
-                Width = 80,
-                Height = 28,
-                Margin = new Thickness(0, 0, 8, 0),
-                IsDefault = true
-            };
-            var cancelButton = new Button
-            {
-                Content = "Cancel",
-                Width = 80,
-                Height = 28,
-                IsCancel = true
-            };
-            if (buttonStyle != null)
-            {
-                okButton.Style = buttonStyle;
-                cancelButton.Style = buttonStyle;
-            }
-            else
-            {
-                okButton.Background = themeBg; okButton.Foreground = themeFg; okButton.BorderBrush = themeFg;
-                cancelButton.Background = themeBg; cancelButton.Foreground = themeFg; cancelButton.BorderBrush = themeFg;
-            }
-            okButton.Click += (s, ea) => dialog.DialogResult = true;
-            buttonPanel.Children.Add(okButton);
-            buttonPanel.Children.Add(cancelButton);
-            rootGrid.Children.Add(buttonPanel);
-
-            dialog.Content = rootGrid;
-
-            if (dialog.ShowDialog() != true)
-            {
-                return; // Cancel — nothing persisted
+                _settings.ProjectAgentFinish[solutionName] = workingConfig;
             }
 
-            // ---- Persist ----
-            ReadInto(workingConfig);
-            _settings.ProjectAgentFinish[solutionName] = workingConfig;
+            void Reset() => WriteFrom(new AgentFinishConfig { Enabled = false });
 
-            SaveSettings();
-
-            // If the agent is mid-turn, apply the just-saved settings to the running watch so they
-            // take effect when this turn finishes rather than only on the next prompt.
-            RefreshWatchedAgentFinishConfig();
+            return (Save, Reset, SetNativeMode);
         }
 
         /// <summary>

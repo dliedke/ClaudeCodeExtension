@@ -63,8 +63,8 @@ namespace ClaudeCodeVS
 
         /// <summary>
         /// Builds and shows the consolidated settings dialog, then applies the
-        /// chosen values. The dialog is organized into tabs (Prompt, Automation, Layout,
-        /// Terminal, Theme, Usage). Restart-requiring changes (terminal type,
+        /// chosen values. The dialog is organized into tabs (On Agent Finish, Prompt, Automation, Layout,
+        /// Terminal, Theme, Toolbar, CLI Paths, Backup). Restart-requiring changes (terminal type,
         /// theme) trigger a single terminal restart at the end if needed.
         /// </summary>
         private async System.Threading.Tasks.Task ShowConsolidatedSettingsDialogAsync()
@@ -117,8 +117,8 @@ namespace ClaudeCodeVS
             var dialog = new Window
             {
                 Title = "Claude Code Extension - Settings",
-                Width = 720,
-                Height = 660,
+                Width = 840,
+                Height = 720,
                 WindowStartupLocation = WindowStartupLocation.CenterOwner,
                 ResizeMode = ResizeMode.NoResize,
                 Background = themeBg,
@@ -149,6 +149,27 @@ namespace ClaudeCodeVS
                 tabs.Items.Add(new TabItem { Header = header, Content = pageScroll });
                 return pageStack;
             }
+
+            // ===================== On Agent Finish tab (first) =====================
+            // The most used setting, so it opens first. Configured per solution: with no solution
+            // open the tab only shows a hint and agentFinishEditor is null.
+            var agentFinishStack = AddTab("On Agent Finish");
+            var agentFinishEditor = BuildAgentFinishSettingsContent(agentFinishStack, themeBg, themeFg);
+
+            // Under Windows Terminal the watcher attaches to the ConPTY console client resolved at
+            // launch and reads the real screen buffer (UI Automation is only a fallback). The hint
+            // below notes the WT support. Shown/hidden live by SyncAgentFinishAvailability().
+            var afWtHint = new TextBlock
+            {
+                Text = "Windows Terminal is supported — detection reads the terminal's console buffer (with a UI Automation fallback) and may be slightly less reliable than Command Prompt.",
+                FontSize = 11,
+                Opacity = 0.7,
+                Foreground = themeFg,
+                TextWrapping = TextWrapping.Wrap,
+                Visibility = Visibility.Collapsed,
+                Margin = new Thickness(20, 2, 0, 4)
+            };
+            if (agentFinishEditor != null) agentFinishStack.Children.Add(afWtHint);
 
             // ========================= Prompt tab =========================
             var promptStack = AddTab("Prompt");
@@ -323,48 +344,6 @@ namespace ClaudeCodeVS
                 origAutoSendRuntimeErrors, themeFg);
             automationStack.Children.Add(autoSendRuntimeErrorsCheck);
 
-            automationStack.Children.Add(MakeSectionHeader("On Agent Finish", themeFg));
-            automationStack.Children.Add(new TextBlock
-            {
-                Text = "Notify and optionally run an action when the agent finishes. Configured separately for each solution.",
-                FontSize = 11,
-                Opacity = 0.7,
-                Foreground = themeFg,
-                TextWrapping = TextWrapping.Wrap,
-                Margin = new Thickness(4, 0, 0, 6)
-            });
-            var afOpenButton = new Button
-            {
-                Content = "On Agent Finish…",
-                HorizontalAlignment = HorizontalAlignment.Left,
-                Height = 32,
-                MinWidth = 160,
-                Padding = new Thickness(18, 0, 18, 0),
-                Margin = new Thickness(4, 0, 0, 4)
-            };
-            Style afButtonStyle = GetDialogButtonStyle();
-            if (afButtonStyle != null) afOpenButton.Style = afButtonStyle;
-            else { afOpenButton.Background = themeBg; afOpenButton.Foreground = themeFg; afOpenButton.BorderBrush = themeFg; }
-#pragma warning disable VSTHRD110
-            afOpenButton.Click += (s, ea) => _ = ShowAgentFinishSettingsDialogAsync();
-#pragma warning restore VSTHRD110
-            automationStack.Children.Add(afOpenButton);
-
-            // Under Windows Terminal the watcher attaches to the ConPTY console client resolved at
-            // launch and reads the real screen buffer (UI Automation is only a fallback). The hint
-            // below notes the WT support. Shown/hidden live by SyncAgentFinishAvailability().
-            var afWtHint = new TextBlock
-            {
-                Text = "Windows Terminal is supported — detection reads the terminal's console buffer (with a UI Automation fallback) and may be slightly less reliable than Command Prompt.",
-                FontSize = 11,
-                Opacity = 0.7,
-                Foreground = themeFg,
-                TextWrapping = TextWrapping.Wrap,
-                Visibility = Visibility.Collapsed,
-                Margin = new Thickness(4, 2, 0, 4)
-            };
-            automationStack.Children.Add(afWtHint);
-
             // ========================= Layout tab =========================
             var layoutStack = AddTab("Layout");
 
@@ -410,6 +389,21 @@ namespace ClaudeCodeVS
                 "It comes back automatically whenever the chat is docked back in the panel.",
                 origAutoHidePromptInNative, themeFg);
             layoutStack.Children.Add(autoHidePromptInNativeCheck);
+
+            // Usage bars live in the prompt panel, so their two toggles sit on this tab instead of a
+            // tab of their own (the former Usage tab, folded in in v223.0).
+            layoutStack.Children.Add(MakeSectionHeader("Usage bars", themeFg));
+            var showBarsCheck = MakeCheckBox(
+                "Show inline usage bars",
+                "Show the mini session/weekly usage bars in the prompt panel. Only applies when a Claude Code provider is active.",
+                origShowInlineBars, themeFg);
+            layoutStack.Children.Add(showBarsCheck);
+
+            var autoRefreshCheck = MakeCheckBox(
+                "Auto-refresh usage in the background",
+                "Refresh usage data every 1 minute in the background, even while the Claude Usage tab is closed or unfocused. Off refreshes only when the usage window is open or refreshed manually.",
+                origAutoRefresh > 0, themeFg);
+            layoutStack.Children.Add(autoRefreshCheck);
 
             // ========================= Terminal tab =========================
             var terminalStack = AddTab("Terminal");
@@ -467,6 +461,9 @@ namespace ClaudeCodeVS
                 cmdRadio.Opacity = native ? 0.5 : 1.0;
                 wtRadio.Opacity = native ? 0.5 : 1.0;
                 nativeTerminalHint.Visibility = native ? Visibility.Visible : Visibility.Collapsed;
+
+                // On Agent Finish tab: native mode pins the idle seconds to 1, terminal mode reopens the box.
+                agentFinishEditor?.SetNativeMode(native);
             }
             nativeModeCheck.Checked += (s, e) => SyncTerminalTypeAvailability();
             nativeModeCheck.Unchecked += (s, e) => SyncTerminalTypeAvailability();
@@ -825,13 +822,11 @@ namespace ClaudeCodeVS
             SyncDisableClipboardAvailability();
 
             // "On Agent Finish" works under Windows Terminal (ConPTY console-buffer read, UIA
-            // fallback), so the config button stays enabled for both terminal types. Under Windows
+            // fallback), so its options stay enabled for both terminal types. Under Windows
             // Terminal an informational hint is shown. Kept in sync with the terminal-type radios live.
             void SyncAgentFinishAvailability()
             {
                 bool cmdSelected = cmdRadio.IsChecked == true;
-                afOpenButton.IsEnabled = true;
-                afOpenButton.Opacity = 1.0;
                 afWtHint.Visibility = cmdSelected ? Visibility.Collapsed : Visibility.Visible;
             }
             cmdRadio.Checked += (s, e) => SyncAgentFinishAvailability();
@@ -1041,23 +1036,6 @@ namespace ClaudeCodeVS
             nativeRow.Children.Add(nativeResetButton);
             themeStack.Children.Add(nativeRow);
 
-            // ========================= Usage tab =========================
-            var usageStack = AddTab("Usage");
-
-            usageStack.Children.Add(MakeSectionHeader("Usage bars", themeFg));
-            var showBarsCheck = MakeCheckBox(
-                "Show inline usage bars",
-                "Show the mini session/weekly usage bars in the prompt panel. Only applies when a Claude Code provider is active.",
-                origShowInlineBars, themeFg);
-            usageStack.Children.Add(showBarsCheck);
-
-            usageStack.Children.Add(MakeSectionHeader("Auto-refresh", themeFg));
-            var autoRefreshCheck = MakeCheckBox(
-                "Auto-refresh",
-                "Refresh usage data every 1 minute in the background, even while the Claude Usage tab is closed or unfocused. Off refreshes only when the usage window is open or refreshed manually.",
-                origAutoRefresh > 0, themeFg);
-            usageStack.Children.Add(autoRefreshCheck);
-
             // ========================= Toolbar tab =========================
             var toolbarStack = AddTab("Toolbar");
             var toolbarTab = BuildToolbarButtonsTabContent(toolbarStack, themeFg);
@@ -1190,6 +1168,7 @@ namespace ClaudeCodeVS
                 skipPromptCheck.IsChecked = false;
                 showBarsCheck.IsChecked = true;
                 autoRefreshCheck.IsChecked = false;       // Off
+                agentFinishEditor?.Reset();               // Off for this solution
 
                 // CLI Paths tab: default is no custom path (use detection) for every provider,
                 // and no extra launch arguments.
@@ -1380,6 +1359,10 @@ namespace ClaudeCodeVS
             // The chat is a WPF control, so a font change is live — no relaunch, unlike the console.
             ApplyChatAppearance();
 
+            // On Agent Finish (first tab) for the open solution. Saved before the native-mode block
+            // below so a native-mode switch in the same OK also pins its idle window.
+            agentFinishEditor?.Save();
+
             // With native mode on there is no console to watch: the agent reports the end of a turn, so
             // the idle window drops to its minimum instead of sitting at a value that no longer applies.
             if (newUseNativeMode)
@@ -1429,9 +1412,6 @@ namespace ClaudeCodeVS
             // alike, so any change to the active provider's arguments warrants a relaunch.
             var changedLaunchArgProviders = ApplyLaunchArgumentsChanges(launchArgEditors);
             bool activeLaunchArgsChanged = changedLaunchArgProviders.Contains(_settings.SelectedProvider);
-
-            // On Agent Finish is configured in its own dialog (opened by the button above),
-            // which persists its own changes; nothing to apply here.
 
             // Send button visibility tied to SendWithEnter. Suppressed while the chat has its own tab —
             // that button lives next to the now-hidden panel prompt box and has nothing to act on.
@@ -1494,6 +1474,10 @@ namespace ClaudeCodeVS
             }
 
             SaveSettings();
+
+            // If the agent is mid-turn, apply the just-saved On Agent Finish settings to the running
+            // watch so they take effect when this turn finishes rather than only on the next prompt.
+            if (agentFinishEditor != null) RefreshWatchedAgentFinishConfig();
 
             // A CLI path change alters detection results — drop the availability cache so the
             // next check (and menu state) reflects the override, and relaunch the active provider.

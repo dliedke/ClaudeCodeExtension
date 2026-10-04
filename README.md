@@ -109,13 +109,13 @@ Then choose it via *⚙ → Set Terminal Type...*.
 - Pick an AI provider, *Configure Visible Code Agents...*
 - Provider-specific flags: Claude *Skip Permissions*, Codex *Approval Never*, Cursor *Yolo Mode*, Devin *Dangerous Mode*, Antigravity *Skip Permissions*, Qwen Code *Yolo Mode*, Grok *Always Approve*
 - *Configure Custom Commands...*, *Settings...*, About
-- *Settings...* opens the consolidated dialog with tabs for Prompt (send key, large prompts, font size, @ file picker), Automation (auto-open Changes, track agent changes for review, pull before sending, auto-send build errors, On Agent Finish), Layout (prompt panel position), Terminal type, Theme, Usage, Toolbar, CLI Paths, and Backup (save/load all settings to a file)
+- *Settings...* opens the consolidated dialog with tabs for On Agent Finish, Prompt (send key, large prompts, font size, @ file picker), Automation (auto-open Changes, track agent changes for review, pull before sending, auto-send build errors), Layout (prompt panel position, usage bars), Terminal type, Theme, Toolbar, CLI Paths, and Backup (save/load all settings to a file)
 
 **☰ Tools dropdown**: Holds *Update Code Agent*, *Restart Code Agent*, *Detach/Attach Terminal*, *View Code Changes*, *Session History*, *Show Usage*, *Set Working Directory...*, *Send Build Errors to Agent*, *Generate Commit Message*, and *Recommend AI Model*. Promote any of these to one-click toolbar buttons — and reorder them by dragging — via *⚙ → Settings... → Toolbar*; promoted features leave the dropdown, which hides once they all become buttons.
 
 **🤖 Model menu**: For Claude — Opus / Sonnet / Haiku, effort level for Opus (Auto / Low / Medium / High / Max), Change Account, Install Caveman plugin. For every other agent — its own models (grouped into submenus when the list is long), *Refresh Models*, and *Choose in the Agent...*.
 
-**On Agent Finish**: Configure via *⚙ → Settings... → On Agent Finish...*. For scripts, enable *Close script window when it finishes* to auto-close the script console. For *Run (F5)* and *Run without debugging (Ctrl+F5)*, use *Clean solution before running* and *Rebuild solution before running* to control whether the solution is prepared before launch.
+**On Agent Finish**: Configure via *⚙ → Settings... → On Agent Finish* tab. For scripts, enable *Close script window when it finishes* to auto-close the script console. For *Run (F5)* and *Run without debugging (Ctrl+F5)*, use *Clean solution before running* and *Rebuild solution before running* to control whether the solution is prepared before launch.
 
 **Custom commands (⚡)**: Once you've added a command via *Configure Custom Commands...*, the ⚡ toolbar button appears. Clicking an entry sends the saved text verbatim to the active agent — useful for slash commands or canned prompts.
 
@@ -142,6 +142,11 @@ https://github.com/anthropics/claude-code/issues/41501
 Use native mode to avoid this issue.
 
 ## Version History
+
+### Version 223.0
+- On Agent Finish now has its own first tab in *⚙ → Settings...* with all of its options, instead of a separate window.
+- A solution that has never been configured always starts with On Agent Finish turned off.
+- The Usage tab is gone: its usage bar options now sit on the Layout tab.
 
 ### Version 222.0
 - On Agent Finish is now set per solution only; there are no more global defaults that apply to every solution. A solution without its own settings has it off, and the first time you open On Agent Finish in a solution your previous settings are pre-filled.
