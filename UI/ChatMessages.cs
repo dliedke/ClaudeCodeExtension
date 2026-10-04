@@ -305,6 +305,21 @@ namespace ClaudeCodeVS.UI
         }
 
         /// <summary>
+        /// Swaps the whole text of the row (e.g. a reply shown after cleanup), re-rendering it if the
+        /// row has already been completed.
+        /// </summary>
+        public void ReplaceText(string text)
+        {
+            _buffer.Clear();
+            _buffer.Append(text ?? string.Empty);
+            Text = _buffer.ToString();
+            if (!IsStreaming)
+            {
+                RenderedText = Text;
+            }
+        }
+
+        /// <summary>
         /// Marks the row finished and hands its text to the markdown view, which renders it once.
         /// </summary>
         public void Complete()

@@ -143,6 +143,9 @@ Use native mode to avoid this issue.
 
 ## Version History
 
+### Version 220.0
+- Generate Commit Message (including Commit and Push) no longer credits the AI: the chat shows the cleaned message, and more forms of AI attribution are removed from the commit.
+
 ### Version 219.0
 - Fixed "Update Agent" for Devin (native) failing with a "file in use" error; the update now retries automatically.
 

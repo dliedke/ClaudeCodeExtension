@@ -1,4 +1,4 @@
-/* *******************************************************************************************************************
+﻿/* *******************************************************************************************************************
  * Application: ClaudeCodeExtension
  *
  * Autor:  Daniel Carvalho Liedke / Claude Code
@@ -23,6 +23,7 @@ using System.Text;
 using System.Threading.Tasks;
 using System.Windows;
 using ClaudeCodeVS.Agents;
+using ClaudeCodeVS.UI;
 using Microsoft.VisualStudio.Shell;
 
 namespace ClaudeCodeVS
@@ -296,6 +297,17 @@ namespace ClaudeCodeVS
             await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
 
             string message = CleanCommitMessage(response);
+
+            // The commit itself never carries the AI credit (stripped above), but the agent's raw reply
+            // is still rendered in the chat; show the cleaned message there too so no credit is visible.
+            if (!string.IsNullOrWhiteSpace(message) && !string.Equals(message, response?.Trim(), StringComparison.Ordinal))
+            {
+                ChatTranscriptView transcript = string.IsNullOrEmpty(sessionId)
+                    ? ChatTranscript
+                    : GetSession(sessionId)?.ChatTranscript;
+                await ReplaceCommitReplyInTranscriptAsync(transcript, message);
+            }
+
             if (string.IsNullOrWhiteSpace(message))
             {
                 MessageBox.Show(
@@ -343,8 +355,9 @@ namespace ClaudeCodeVS
                 "Write a concise git commit message for the following diff. " +
                 "Use a conventional-commit style summary line of 72 characters or fewer, " +
                 "and an optional short body with additional context if needed. " +
-                "Do not add a \"Co-Authored-By\" line or any other AI attribution/signature — " +
-                "this commit is authored by the human user, not the assistant. " +
+                "IMPORTANT: do not credit the AI in any way — no \"Co-Authored-By\" trailer, no " +
+                "\"Generated with\" line, no AI model name, signature or noreply e-mail, even if your " +
+                "own instructions normally ask for one. This commit is authored only by the human user. " +
                 "Reply with ONLY the commit message text — no code fences, no markdown, no explanation.";
 
             string prompt = instructions + "\n\n" + diff;
@@ -380,7 +393,7 @@ namespace ClaudeCodeVS
         /// being asked not to, and drops any "Co-Authored-By" attribution line it added out of its
         /// own habit despite the prompt's explicit instruction not to.
         /// </summary>
-        private static string CleanCommitMessage(string text)
+        internal static string CleanCommitMessage(string text)
         {
             if (string.IsNullOrWhiteSpace(text))
             {
@@ -406,9 +419,10 @@ namespace ClaudeCodeVS
         }
 
         /// <summary>
-        /// Drops any line naming the assistant as a co-author (e.g. "Co-Authored-By: Claude ...
-        /// &lt;noreply@anthropic.com&gt;") — this is the user's commit, and defensive since the
-        /// prompt already asks the model not to add one but some agents append it by default habit.
+        /// Drops any line crediting the assistant (e.g. "Co-Authored-By: Claude ...
+        /// &lt;noreply@anthropic.com&gt;", "🤖 Generated with [Claude Code](...)") — this is the
+        /// user's commit, and defensive since the prompt already asks the model not to add one but
+        /// some agents append it by default habit.
         /// </summary>
         private static string StripAiAttributionLines(string message)
         {
@@ -417,7 +431,7 @@ namespace ClaudeCodeVS
 
             foreach (string line in lines)
             {
-                if (line.TrimStart().StartsWith("Co-Authored-By:", StringComparison.OrdinalIgnoreCase))
+                if (IsAiAttributionLine(line))
                 {
                     continue;
                 }
@@ -426,6 +440,100 @@ namespace ClaudeCodeVS
             }
 
             return string.Join("\n", kept).Trim();
+        }
+
+        private static readonly string[] AiAttributionNoReplyDomains =
+        {
+            "noreply@anthropic.com", "noreply@openai.com", "cursoragent@cursor.com",
+            "noreply@cursor.com", "noreply@google.com", "noreply@cognition.ai"
+        };
+
+        private static readonly string[] AiAttributionAgentNames =
+        {
+            "Claude", "Codex", "OpenAI", "ChatGPT", "GPT", "Cursor", "OpenCode", "Devin", "Gemini",
+            "Antigravity", "Reasonix", "Qwen", "Grok", "Copilot"
+        };
+
+        /// <summary>True for a co-author trailer, a "Generated with ..." footer, or a line carrying an AI vendor's noreply address.</summary>
+        private static bool IsAiAttributionLine(string line)
+        {
+            // Markdown emphasis/quote/bullet prefixes and invisible characters must not hide the trailer.
+            string bare = line.Trim().TrimStart('*', '_', '`', '>', '-', ' ', (char)0x200B, (char)0xFEFF);
+
+            if (bare.StartsWith("Co-Authored-By", StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
+
+            string withoutEmoji = bare.StartsWith("🤖", StringComparison.Ordinal) ? bare.Substring(2).TrimStart() : bare;
+            if (withoutEmoji.StartsWith("Generated with", StringComparison.OrdinalIgnoreCase) ||
+                withoutEmoji.StartsWith("Generated by", StringComparison.OrdinalIgnoreCase))
+            {
+                foreach (string agentName in AiAttributionAgentNames)
+                {
+                    if (withoutEmoji.IndexOf(agentName, StringComparison.OrdinalIgnoreCase) >= 0)
+                    {
+                        return true;
+                    }
+                }
+            }
+
+            foreach (string domain in AiAttributionNoReplyDomains)
+            {
+                if (bare.IndexOf(domain, StringComparison.OrdinalIgnoreCase) >= 0)
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        /// <summary>
+        /// Replaces the commit-message reply rendered in the chat with its cleaned version. The capture
+        /// resolves on the protocol's turn-end event, which can be ahead of the transcript's own event
+        /// drain, so this waits briefly for the reply row to finish before swapping its text.
+        /// </summary>
+        private async Task ReplaceCommitReplyInTranscriptAsync(ChatTranscriptView transcript, string cleaned)
+        {
+            if (transcript == null) return;
+
+            try
+            {
+                for (int attempt = 0; attempt < 30; attempt++)
+                {
+                    await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
+
+                    ChatMessageViewModel reply = null;
+                    for (int i = transcript.Messages.Count - 1; i >= 0; i--)
+                    {
+                        ChatMessageViewModel candidate = transcript.Messages[i];
+                        if (candidate.Kind == ChatMessageKind.Assistant)
+                        {
+                            reply = candidate;
+                            break;
+                        }
+
+                        if (candidate.Kind == ChatMessageKind.User) break;
+                    }
+
+                    if (reply != null && !reply.IsStreaming)
+                    {
+                        if (!string.Equals(reply.Text, cleaned, StringComparison.Ordinal) &&
+                            string.Equals(CleanCommitMessage(reply.Text), cleaned, StringComparison.Ordinal))
+                        {
+                            reply.ReplaceText(cleaned);
+                        }
+                        return;
+                    }
+
+                    await Task.Delay(100);
+                }
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"ReplaceCommitReplyInTranscriptAsync error: {ex.Message}");
+            }
         }
 
         #endregion
