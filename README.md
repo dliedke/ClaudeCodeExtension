@@ -143,6 +143,9 @@ Use native mode to avoid this issue.
 
 ## Version History
 
+### Version 219.0
+- Fixed "Update Agent" for Devin (native) failing with a "file in use" error; the update now retries automatically.
+
 ### Version 218.0
 - New *Track agent changes for review (Keep/Undo)* setting (off by default, issue #183): the Changes view lists only the files the agent changed since you last reviewed them, across prompts and chat tabs, in both terminal and native mode.
 - Keep or Undo each file, or use Keep All / Undo All; Undo also removes files the agent created and restores files it deleted.

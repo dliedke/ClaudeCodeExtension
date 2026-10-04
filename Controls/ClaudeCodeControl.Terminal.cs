@@ -5467,7 +5467,7 @@ namespace ClaudeCodeVS
                         // flagged when this ran with them.
                         await SendTextToTerminalAsync("exit");
                         await Task.Delay(1000);
-                        await SendTextToTerminalAsync("taskkill /f /im devin.exe >nul 2>&1 & powershell -Command \"irm https://cli.devin.ai/install.ps1 | iex\"");
+                        await SendTextToTerminalAsync("powershell -Command \"" + DevinNativeUpdateScript + "\"");
                         break;
 
                     default:

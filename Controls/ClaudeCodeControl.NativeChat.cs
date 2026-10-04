@@ -5667,6 +5667,21 @@ namespace ClaudeCodeVS
         }
 
         /// <summary>
+        /// Devin (native) updater: the official installer script, retried. Its last step copies the new build
+        /// over %LOCALAPPDATA%\devin\cli\bin\devin.exe and failed with "used by another process" even with no
+        /// devin.exe left running (measured: the file was unlocked again moments later — a transient holder such
+        /// as a real-time antivirus scan), so each attempt first stops any straggler, waits, and a failed attempt
+        /// is retried instead of leaving the old build in place. Single quotes only: the text is embedded in a
+        /// double-quoted <c>powershell -Command "..."</c> in the terminal-mode button as well.
+        /// </summary>
+        private const string DevinNativeUpdateScript =
+            "for ($i=1; $i -le 5; $i++) { " +
+            "Get-Process devin -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue; " +
+            "Start-Sleep -Seconds 2; " +
+            "try { irm https://cli.devin.ai/install.ps1 | iex; break } " +
+            "catch { Write-Host ('Update attempt ' + $i + ' of 5 failed: ' + $_.Exception.Message) -ForegroundColor Yellow } }";
+
+        /// <summary>
         /// Same self-update command each provider's terminal-mode "Update Agent" button types into the
         /// console (<c>UpdateAgentButton_Click</c>), minus the exit sequence — there is no TUI session to
         /// exit here, the process was already killed by <see cref="DisposeNativeSession"/>.
@@ -5710,7 +5725,7 @@ namespace ClaudeCodeVS
                     // inside cmd.exe) is gone now that StartUpdateWindow hosts the update in powershell.exe
                     // directly: neither flag is required for an inline -Command script, and that exact
                     // shape (bypassed policy + download-and-execute) is what Windows Defender flagged.
-                    return "taskkill /f /im devin.exe; irm https://cli.devin.ai/install.ps1 | iex";
+                    return DevinNativeUpdateScript;
                 default:
                     return null;
             }
