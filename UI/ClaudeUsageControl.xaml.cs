@@ -96,6 +96,12 @@ namespace ClaudeCodeVS
         private bool _sawSignedOutPage;
 
         /// <summary>
+        /// Set by <see cref="SignOutAsync"/> when no WebView2 instance was alive to sign out: the
+        /// next <see cref="InitializeWebViewAsync"/> clears the profile before its first navigation.
+        /// </summary>
+        private bool _clearProfileOnNextBuild;
+
+        /// <summary>
         /// Fires when a usage snapshot is successfully scraped from the page.
         /// </summary>
         public event EventHandler<UsageSnapshot> UsageDataReceived;
@@ -261,6 +267,14 @@ namespace ClaudeCodeVS
                     }), System.Windows.Threading.DispatcherPriority.Background);
 #pragma warning restore VSTHRD001, VSTHRD110
                 };
+
+                // Finish a sign-out that found no live instance (SignOutAsync) before the first
+                // navigation can carry the old account's cookie.
+                if (_clearProfileOnNextBuild)
+                {
+                    _clearProfileOnNextBuild = false;
+                    await ClearSessionDataAsync(WebView.CoreWebView2);
+                }
 
                 // Import cookies saved by another VS instance so the user stays logged in.
                 await LoadSharedCookiesAsync();
@@ -1552,26 +1566,73 @@ namespace ClaudeCodeVS
             }
         }
 
+        /// <summary>
+        /// Signs the page's claude.ai session out and lands it on the login screen. The session
+        /// lives in the persistent profile folder, not in the WebView2 instance, so when no instance
+        /// is alive (never built this session, or torn down with its hidden tab — issue #131) one is
+        /// built first and the profile is cleared before its first navigation. Skipping that case,
+        /// as this used to, left the old account's cookie for the next rebuild to sign straight back
+        /// in with, and the bars returned to the old account's numbers.
+        /// </summary>
         public async Task SignOutAsync()
         {
             try
             {
                 _redirectDebounceTimer?.Stop();
                 try { if (File.Exists(SharedCookiePath)) File.Delete(SharedCookiePath); } catch { }
+                // The next account's first scrape saves its cookies right away instead of waiting
+                // out the throttle with no shared copy on disk.
+                _lastCookieSaveUtc = DateTime.MinValue;
 
-                var cm = WebView?.CoreWebView2?.CookieManager;
-                if (cm != null)
+                if (WebView?.CoreWebView2 == null)
                 {
-                    var cookies = await cm.GetCookiesAsync("https://claude.ai");
-                    foreach (var c in cookies) cm.DeleteCookie(c);
-                    cookies = await cm.GetCookiesAsync("https://anthropic.com");
-                    foreach (var c in cookies) cm.DeleteCookie(c);
-                    Reload();
+                    _clearProfileOnNextBuild = true;
+                    await EnsureAliveAsync(offscreen: !_isHostVisible);
+                    // A fresh build consumed the flag and started signed out.
+                    if (!_clearProfileOnNextBuild) return;
                 }
+
+                var core = WebView?.CoreWebView2;
+                if (core == null) return; // nothing could be built — the flag signs the next build out
+                _clearProfileOnNextBuild = false;
+                await ClearSessionDataAsync(core);
+                core.Navigate(UsageUrl);
             }
             catch (Exception ex)
             {
                 Debug.WriteLine("ClaudeUsageControl: sign out failed: " + ex);
+            }
+        }
+
+        /// <summary>
+        /// Clears cookies and site storage of the scraper profile. All sites, not only claude.ai:
+        /// a "Continue with Google" sign-in keeps its own session there and would otherwise sign the
+        /// page straight back in as the previous account.
+        /// </summary>
+        private static async Task ClearSessionDataAsync(CoreWebView2 core)
+        {
+            try
+            {
+                await core.Profile.ClearBrowsingDataAsync(CoreWebView2BrowsingDataKinds.AllSite);
+                return;
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine("ClaudeUsageControl: ClearBrowsingDataAsync failed, deleting cookies instead: " + ex);
+            }
+
+            try
+            {
+                var cm = core.CookieManager;
+                foreach (var domain in new[] { "https://claude.ai", "https://anthropic.com" })
+                {
+                    foreach (var c in await cm.GetCookiesAsync(domain)) cm.DeleteCookie(c);
+                }
+            }
+            catch (Exception ex)
+            {
+                // Must not escape into InitializeWebViewAsync, whose catch-all reports a missing runtime.
+                Debug.WriteLine("ClaudeUsageControl: deleting cookies failed: " + ex);
             }
         }
 

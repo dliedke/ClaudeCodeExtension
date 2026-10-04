@@ -13,14 +13,19 @@
  *          - Periodic background timer re-scrapes every N minutes so bars stay fresh, always
  *            off-screen — the usage tab is only ever shown when the user asks for it
  *          - "Window was open last session" state is persisted and restored
+ *          - A Claude CLI account switch (/logout + /login) signs the usage page out so the bars
+ *            never keep showing the previous account
  *
  * *******************************************************************************************************************/
 
 using Microsoft.VisualStudio.Shell;
 using Microsoft.VisualStudio.Shell.Interop;
 using Newtonsoft.Json;
+using Newtonsoft.Json.Linq;
 using System;
 using System.Diagnostics;
+using System.IO;
+using System.Text;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Input;
@@ -44,6 +49,26 @@ namespace ClaudeCodeVS
         // A healthy background refresh lands a snapshot every minute; a snapshot older than this
         // means the page could not be read and the bars are showing old numbers (issue #182).
         internal static readonly TimeSpan UsageSnapshotStaleAfter = TimeSpan.FromMinutes(30);
+
+        /// <summary>
+        /// Claude CLI account the usage page was last paired with, one entry per side ("windows",
+        /// "wsl" — each has its own <c>~/.claude.json</c> and may be signed in to a different
+        /// account). A file of its own rather than a settings field: every Visual Studio window
+        /// saves its whole in-memory settings on each scrape, so a second window would keep writing
+        /// the old account back and then sign the shared page out a second time.
+        /// </summary>
+        private static readonly string UsageAccountPairingPath = Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+            "ClaudeCodeExtension",
+            "usage-account.json");
+
+        private bool _usageAccountCheckRunning;
+
+        // wslpath result for the distro's ~/.claude.json — resolving it spawns wsl.exe, so once per session.
+        private string _usageWslClaudeJsonPath;
+
+        // "side|account" this window saw on its previous check, to notice a switch another window handled.
+        private string _usageAccountSeen;
 
         /// <summary>
         /// Restores the cached usage snapshot (if any) so the inline bars
@@ -87,6 +112,9 @@ namespace ClaudeCodeVS
                     {
                         await Task.Delay(2000);
                         await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
+                        // An account switch made while Visual Studio was closed must not be
+                        // scraped as the old account first.
+                        await SyncUsageWithClaudeAccountAsync();
                         await EnsureUsageToolWindowAsync(showWindow: wasWindowOpen, updateWindowState: wasWindowOpen, activate: false);
                     }).FileAndForget("claudecode/usage/auto-reopen");
 #pragma warning restore VSSDK007
@@ -465,11 +493,14 @@ namespace ClaudeCodeVS
             try
             {
                 if (_settings?.ShowInlineUsageBars != true || !IsClaudeProviderSelected()) return;
-                // IsWindowVisible (not a live IVsWindowFrame.IsVisible() COM read) — see the
-                // matching comment on the guard in RefreshUsageInBackgroundAsync for why.
-                // DispatcherTimer.Tick always fires on the UI thread, so this field access is
+                // DispatcherTimer.Tick always fires on the UI thread, so the accesses below are
                 // safe despite the analyzer not being able to see that (VSTHRD010).
 #pragma warning disable VSTHRD010
+                // Ahead of the visibility guard: a page showing in the foreground tab is on the
+                // wrong account just the same.
+                if (await SyncUsageWithClaudeAccountAsync()) return;
+                // IsWindowVisible (not a live IVsWindowFrame.IsVisible() COM read) — see the
+                // matching comment on the guard in RefreshUsageInBackgroundAsync for why.
                 if (_usageToolWindow?.IsWindowVisible == true) return;
                 await RefreshUsageInBackgroundAsync();
                 UpdateInlineUsageStaleNotice();
@@ -737,35 +768,263 @@ namespace ClaudeCodeVS
 
         /// <summary>
         /// Signs out the usage page when changing accounts: clears the cached snapshot
-        /// (hiding the inline bars immediately), deletes the shared cookie file, and
-        /// clears WebView2 cookies + reloads if the WebView is already initialized.
+        /// (hiding the inline bars immediately), signs the page's claude.ai session out and
+        /// tells the user to sign in there with the new account.
         /// </summary>
-        private async Task SignOutUsageWindowIfActiveAsync()
+        /// <param name="pairedAccount">
+        /// CLI account the page belongs to from now on (see <see cref="SyncUsageWithClaudeAccountAsync"/>).
+        /// Null — the Change Account menu items, which sign out before the CLI has switched — forgets
+        /// the pairing, so the next check adopts whatever account the CLI ends up on instead of
+        /// treating it as a second switch.
+        /// </param>
+        private async Task SignOutUsageWindowIfActiveAsync(string pairedAccount = null)
         {
             await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
             try
             {
+                string side = GetUsageAccountSide(GetActiveOrSelectedProvider() == AiProvider.ClaudeCodeWSL);
+                await Task.Run(() => WriteUsageAccountPairing(UsageAccountPairingPath, side, pairedAccount));
+                await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
+
                 bool usageActive = _settings?.ShowInlineUsageBars == true ||
                                    _settings?.UsageWindowOpened == true;
                 if (!usageActive) return;
 
-                // Clear cached snapshot so bars disappear immediately
-                if (_settings != null)
-                {
-                    _settings.LastUsageJson = null;
-                    _settings.LastUsageTimestamp = null;
-                    SaveSettings();
-                }
-                UpdateInlineUsagePanelVisibility();
+                ClearCachedUsageSnapshot();
 
-                // Clear WebView2 cookies (and cookie file) — works even if WebView not yet shown
-                var control = _usageToolWindow?.UsageControl;
+                // Also when this session has not created the tool window yet: the claude.ai session
+                // lives in the persistent WebView2 profile, so skipping the sign-out here let the next
+                // build come straight back as the old account.
+                var control = await GetUsageControlAsync();
                 if (control != null)
                     await control.SignOutAsync();
+
+                await ShowAgentFinishNotificationAsync(
+                    "Claude account changed: the Claude Usage page was signed out. Sign in there with the new account to see its usage again.",
+                    "Open Claude Usage",
+                    () => EnsureUsageToolWindowAsync(showWindow: true),
+                    InfoBarSlot.UsageAccount);
             }
             catch (Exception ex)
             {
                 Debug.WriteLine("SignOutUsageWindowIfActiveAsync failed: " + ex);
+            }
+        }
+
+        /// <summary>Drops the cached snapshot so the inline bars disappear immediately.</summary>
+        private void ClearCachedUsageSnapshot()
+        {
+            ThreadHelper.ThrowIfNotOnUIThread();
+            if (_settings != null)
+            {
+                _settings.LastUsageJson = null;
+                _settings.LastUsageTimestamp = null;
+                SaveSettings();
+            }
+            UpdateInlineUsagePanelVisibility();
+        }
+
+        /// <summary>
+        /// The usage tool window's control, creating the (hidden) tool window when this session has
+        /// not done so yet. Null only when the package is unavailable.
+        /// </summary>
+        private async Task<ClaudeUsageControl> GetUsageControlAsync()
+        {
+            if (_usageToolWindow?.UsageControl != null) return _usageToolWindow.UsageControl;
+            var package = await GetPackageAsync();
+            var window = package?.FindToolWindow(typeof(ClaudeUsageToolWindow), 0, true) as ClaudeUsageToolWindow;
+            return window?.UsageControl;
+        }
+
+        /// <summary>
+        /// Keeps the usage page on the account the Claude CLI is signed in to. The two logins are
+        /// independent — the bars are scraped from the WebView2's own claude.ai session, not from
+        /// the CLI's credentials — so <c>/logout</c> + <c>/login</c> typed into the terminal (or
+        /// <c>claude auth login</c> anywhere else) moved the agent to another account while the bars
+        /// went on showing, and refreshing, the old one. The CLI's current account is compared with
+        /// the one this side was last paired with; on a change the page is signed out and the user
+        /// is asked to sign in there again. Returns true when a switch was handled.
+        /// </summary>
+        private async Task<bool> SyncUsageWithClaudeAccountAsync()
+        {
+            await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
+            if (_usageAccountCheckRunning) return false;
+            _usageAccountCheckRunning = true;
+            try
+            {
+                bool isWsl = GetActiveOrSelectedProvider() == AiProvider.ClaudeCodeWSL;
+                string current = await GetClaudeCliAccountIdAsync(isWsl);
+                // Signed out (between /logout and /login) or unreadable: nothing to compare yet.
+                if (string.IsNullOrEmpty(current)) return false;
+
+                string side = GetUsageAccountSide(isWsl);
+                string known = await Task.Run(() => ReadUsageAccountPairing(UsageAccountPairingPath, side));
+                await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
+
+                string seen = _usageAccountSeen;
+                _usageAccountSeen = side + "|" + current;
+
+                if (string.IsNullOrEmpty(known))
+                {
+                    // First check on this side: nothing says the page is on another account.
+                    await Task.Run(() => WriteUsageAccountPairing(UsageAccountPairingPath, side, current));
+                    return false;
+                }
+                if (IsClaudeAccountSwitch(known, current))
+                {
+                    await SignOutUsageWindowIfActiveAsync(pairedAccount: current);
+                    return true;
+                }
+
+                // Another Visual Studio window already handled this switch and signed the shared
+                // page out; only this window's cached bars are still on the old account.
+                if (seen != null && !string.Equals(seen, _usageAccountSeen, StringComparison.OrdinalIgnoreCase))
+                {
+                    ClearCachedUsageSnapshot();
+                }
+                return false;
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine("SyncUsageWithClaudeAccountAsync failed: " + ex);
+                return false;
+            }
+            finally
+            {
+                _usageAccountCheckRunning = false;
+            }
+        }
+
+        private async Task<string> GetClaudeCliAccountIdAsync(bool isWsl)
+        {
+            string path;
+            if (isWsl)
+            {
+                if (string.IsNullOrEmpty(_usageWslClaudeJsonPath))
+                {
+                    _usageWslClaudeJsonPath = await ResolveWslPathAsync("${CLAUDE_CONFIG_DIR:-$HOME}/.claude.json");
+                }
+                path = _usageWslClaudeJsonPath;
+            }
+            else
+            {
+                path = GetClaudeJsonPath(
+                    Environment.GetEnvironmentVariable("CLAUDE_CONFIG_DIR"),
+                    Environment.GetFolderPath(Environment.SpecialFolder.UserProfile));
+            }
+
+            if (string.IsNullOrEmpty(path)) return null;
+            // ~/.claude.json grows to megabytes with per-project history — parse it off the UI thread.
+            return await Task.Run(() => ReadClaudeAccountIdFromFile(path));
+        }
+
+        /// <summary>
+        /// Where the CLI keeps its <c>.claude.json</c> on the Windows side: in the folder
+        /// <c>CLAUDE_CONFIG_DIR</c> names when that is set, in the user profile otherwise. Reading
+        /// the profile copy regardless would watch a file a relocated CLI never writes, and a
+        /// switch would go unnoticed.
+        /// </summary>
+        internal static string GetClaudeJsonPath(string configDir, string userProfile)
+        {
+            string folder = string.IsNullOrWhiteSpace(configDir)
+                ? userProfile
+                : Environment.ExpandEnvironmentVariables(configDir.Trim());
+            return Path.Combine(folder, ".claude.json");
+        }
+
+        private static string GetUsageAccountSide(bool isWsl) => isWsl ? "wsl" : "windows";
+
+        internal static string ReadClaudeAccountIdFromFile(string path)
+        {
+            try
+            {
+                if (!File.Exists(path)) return null;
+                using (var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete))
+                using (var reader = new StreamReader(stream, Encoding.UTF8))
+                {
+                    return ParseClaudeAccountId(reader.ReadToEnd());
+                }
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine("ReadClaudeAccountIdFromFile failed: " + ex.Message);
+                return null;
+            }
+        }
+
+        /// <summary>
+        /// Identifies the account the CLI is signed in to from the contents of its
+        /// <c>~/.claude.json</c>: <c>accountUuid/organizationUuid</c> of <c>oauthAccount</c>, so
+        /// switching to another organization of the same login counts too (usage limits are per
+        /// organization); the e-mail address when the UUIDs are missing. Null when signed out or
+        /// unreadable — including a half-written file caught mid-save by the CLI.
+        /// </summary>
+        internal static string ParseClaudeAccountId(string claudeJson)
+        {
+            if (string.IsNullOrWhiteSpace(claudeJson)) return null;
+            try
+            {
+                if (!(JObject.Parse(claudeJson)["oauthAccount"] is JObject account)) return null;
+
+                string accountUuid = (string)account["accountUuid"];
+                if (!string.IsNullOrWhiteSpace(accountUuid))
+                {
+                    string organizationUuid = (string)account["organizationUuid"];
+                    return string.IsNullOrWhiteSpace(organizationUuid) ? accountUuid : accountUuid + "/" + organizationUuid;
+                }
+
+                string email = (string)account["emailAddress"];
+                return string.IsNullOrWhiteSpace(email) ? null : email;
+            }
+            catch
+            {
+                return null;
+            }
+        }
+
+        /// <summary>True when both accounts are known and differ.</summary>
+        internal static bool IsClaudeAccountSwitch(string pairedAccount, string currentAccount)
+        {
+            return !string.IsNullOrEmpty(pairedAccount) &&
+                   !string.IsNullOrEmpty(currentAccount) &&
+                   !string.Equals(pairedAccount, currentAccount, StringComparison.OrdinalIgnoreCase);
+        }
+
+        internal static string ReadUsageAccountPairing(string path, string side)
+        {
+            try
+            {
+                if (!File.Exists(path)) return null;
+                return (string)JObject.Parse(File.ReadAllText(path))[side];
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine("ReadUsageAccountPairing failed: " + ex.Message);
+                return null;
+            }
+        }
+
+        /// <summary>Records <paramref name="accountId"/> for <paramref name="side"/>; null or empty forgets it.</summary>
+        internal static void WriteUsageAccountPairing(string path, string side, string accountId)
+        {
+            try
+            {
+                JObject root = null;
+                if (File.Exists(path))
+                {
+                    try { root = JObject.Parse(File.ReadAllText(path)); } catch { }
+                }
+                root = root ?? new JObject();
+
+                if (string.IsNullOrEmpty(accountId)) root.Remove(side);
+                else root[side] = accountId;
+
+                Directory.CreateDirectory(Path.GetDirectoryName(path));
+                File.WriteAllText(path, JsonConvert.SerializeObject(root));
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine("WriteUsageAccountPairing failed: " + ex.Message);
             }
         }
 
