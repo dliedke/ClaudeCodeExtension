@@ -18,6 +18,8 @@
  *
  * *******************************************************************************************************************/
 
+using ClaudeCodeVS.Agents;
+using ClaudeCodeVS.UI;
 using Microsoft.VisualStudio.Shell;
 using Microsoft.VisualStudio.Shell.Interop;
 using Newtonsoft.Json;
@@ -26,6 +28,7 @@ using System;
 using System.Diagnostics;
 using System.IO;
 using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Input;
@@ -693,9 +696,99 @@ namespace ClaudeCodeVS
             }
 
             if (isDevin)
-                System.Diagnostics.Process.Start("https://windsurf.com/subscription/usage?referrer=windsurf");
+                await ShowDevinUsageAsync(usageProvider.Value);
             else
                 await ToggleUsageToolWindowAsync();
+        }
+
+        private const string DevinUsageWebUrl = "https://windsurf.com/subscription/usage?referrer=windsurf";
+
+        /// <summary>
+        /// Show Usage for Devin. The terminal shows the CLI's own <c>/usage</c>; native mode has no TUI
+        /// and the headless CLI rejects the command (<c>devin acp</c> and <c>devin -p</c> both answer
+        /// "Unknown command: /usage"), so there the figures come from <see cref="ShowDevinUsageInChatAsync"/>.
+        /// With no agent running at all, the usage web page is the only thing left to show.
+        /// </summary>
+        private async Task ShowDevinUsageAsync(AiProvider provider)
+        {
+            await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
+
+            if (IsNativeModeActive)
+            {
+                await ShowDevinUsageInChatAsync(provider, openWebPageOnFailure: true);
+            }
+            else if (IsAgentAvailable)
+            {
+                await SendTextToTerminalAsync("/usage");
+            }
+            else
+            {
+                System.Diagnostics.Process.Start(DevinUsageWebUrl);
+            }
+        }
+
+        /// <summary>
+        /// Reads the account's ACU usage from the service the Devin CLI itself calls and posts it to the
+        /// chat as a notice. Used for the Show Usage button and a typed <c>/usage</c> in native mode.
+        /// A failure becomes an error notice; the button also opens the usage web page, a typed command
+        /// does not (nobody asked for a browser).
+        /// </summary>
+        private async Task ShowDevinUsageInChatAsync(AiProvider provider, bool openWebPageOnFailure)
+        {
+            await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
+
+            try
+            {
+                bool isWsl = provider == AiProvider.Devin;
+                DevinUsageInfo info = await Task.Run(() => FetchDevinUsageAsync(provider, isWsl));
+
+                await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
+                AddNativeMessage(ChatMessageKind.Notice, DevinUsageClient.FormatReport(info, DateTime.UtcNow));
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"Devin usage fetch failed: {ex}");
+                await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
+
+                string reason = ex is InvalidOperationException ? ex.Message : "Devin's usage could not be read.";
+                AddNativeMessage(ChatMessageKind.Error, openWebPageOnFailure
+                    ? reason + " Opening the usage page instead."
+                    : reason);
+
+                if (openWebPageOnFailure)
+                {
+                    System.Diagnostics.Process.Start(DevinUsageWebUrl);
+                }
+            }
+        }
+
+        /// <summary>Background half of <see cref="ShowDevinUsageInChatAsync"/>: file/process reads and the HTTP call.</summary>
+        private async Task<DevinUsageInfo> FetchDevinUsageAsync(AiProvider provider, bool isWsl)
+        {
+            string credentials = isWsl
+                ? await DevinUsageClient.ReadWslCredentialsAsync(CancellationToken.None).ConfigureAwait(false)
+                : DevinUsageClient.ReadWindowsCredentials();
+
+            if (credentials == null)
+            {
+                throw new InvalidOperationException("Devin's login was not found. Sign in with Devin first.");
+            }
+
+            // The service wants the client version; a CLI that will not report one is not worth failing for.
+            string version = null;
+            try
+            {
+                string output = await DevinSessionHistoryClient.RunAndCaptureAsync(
+                    CreateDevinHistoryOptions(provider, string.Empty), "version", 10000, CancellationToken.None)
+                    .ConfigureAwait(false);
+                version = output;
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"Devin version probe failed: {ex.Message}");
+            }
+
+            return await DevinUsageClient.FetchAsync(credentials, version, CancellationToken.None).ConfigureAwait(false);
         }
 
         /// <summary>

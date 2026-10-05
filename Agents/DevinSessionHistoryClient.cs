@@ -363,7 +363,7 @@ namespace ClaudeCodeVS.Agents
         }
 
         /// <summary>Runs a plain <c>devin</c> subcommand (no protocol) and returns its captured stdout.</summary>
-        private static async Task<string> RunAndCaptureAsync(
+        internal static async Task<string> RunAndCaptureAsync(
             DevinSessionHistoryOptions options,
             string subcommand,
             int timeoutMs,

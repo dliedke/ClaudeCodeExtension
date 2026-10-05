@@ -143,6 +143,10 @@ Use native mode to avoid this issue.
 
 ## Version History
 
+### Version 224.0
+- **Show Usage** for Devin now works in native mode: it posts your ACU usage (used, limit and percent) in the chat, and typing `/usage` there does the same.
+- In terminal mode, **Show Usage** for Devin now runs `/usage` in the terminal instead of opening the web page.
+
 ### Version 223.0
 - On Agent Finish now has its own first tab in *⚙ → Settings...* with all of its options, instead of a separate window.
 - A solution that has never been configured always starts with On Agent Finish turned off.

@@ -4151,8 +4151,8 @@ namespace ClaudeCodeVS
 
         /// <summary>
         /// Handles the commands a user can type instead of clicking: <c>/plan</c> turns plan mode on,
-        /// <c>/model</c> and <c>/effort</c> open the pickers the composer buttons open, and
-        /// <c>/btw</c> asks a side question.
+        /// <c>/model</c> and <c>/effort</c> open the pickers the composer buttons open,
+        /// <c>/btw</c> asks a side question, and Devin's <c>/usage</c> shows the account's ACU usage.
         /// <para>
         /// They are the extension's own commands, not the CLI's: native mode runs the agent headless,
         /// where these settings are launch flags rather than anything the agent can be told mid-turn.
@@ -4173,6 +4173,16 @@ namespace ClaudeCodeVS
             AiProvider? provider = GetActiveOrSelectedProvider();
             bool isClaude = IsClaudeProvider(provider);
             bool isCodex = IsCodexProvider(provider);
+            bool isDevin = provider == AiProvider.Devin || provider == AiProvider.DevinNative;
+
+            // Devin's /usage exists only in its TUI; the headless CLI answers "Unknown command", so the
+            // extension reads the account's usage itself (see ShowDevinUsageInChatAsync).
+            if (isDevin && string.Equals(prompt.Trim(), "/usage", StringComparison.OrdinalIgnoreCase))
+            {
+                AddNativeMessage(ChatMessageKind.User, "/usage");
+                _ = ShowDevinUsageInChatAsync(provider.Value, openWebPageOnFailure: false);
+                return true;
+            }
 
             if (!isClaude && !isCodex)
             {

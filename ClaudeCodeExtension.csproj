@@ -67,6 +67,7 @@
     <Compile Include="Agents\CodexExecProtocol.cs" />
     <Compile Include="Agents\CursorAgentProtocol.cs" />
     <Compile Include="Agents\DevinSessionHistoryClient.cs" />
+    <Compile Include="Agents\DevinUsageClient.cs" />
     <Compile Include="Agents\IAgentSession.cs" />
     <Compile Include="Agents\JsonLineProcessHost.cs" />
     <Compile Include="Agents\OneShotResumeSession.cs" />
@@ -163,6 +164,7 @@
     <Reference Include="System.Data" />
     <Reference Include="System.Design" />
     <Reference Include="System.Drawing" />
+    <Reference Include="System.Net.Http" />
     <Reference Include="System.Security" />
     <Reference Include="System.Windows.Forms" />
     <Reference Include="System.Xaml" />
