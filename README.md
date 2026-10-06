@@ -143,6 +143,9 @@ Use native mode to avoid this issue.
 
 ## Version History
 
+### Version 226.0
+- **Install Caveman** now has separate *Windows* and *WSL* buttons, so you can install the skill for either one regardless of which agent is running; the Settings note explains that each keeps its own skills.
+
 ### Version 225.0
 - **Install Caveman** moved to *⚙ → Settings... → Automation* and now opens a command prompt that installs the Caveman skill for you, then reloads the agent (terminal or native chat) when you close it.
 

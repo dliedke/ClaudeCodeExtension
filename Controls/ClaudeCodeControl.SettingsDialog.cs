@@ -348,33 +348,37 @@ namespace ClaudeCodeVS
             automationStack.Children.Add(new TextBlock
             {
                 Text = "Installs the Caveman skill (ultra-compressed replies) with \"npx skills add JuliusBrussee/caveman -g\" in a command prompt, " +
-                       "then reloads the code agent when you close it. Closes this window first, discarding unsaved changes. Claude Code only.",
+                       "then reloads the code agent when you close it. Closes this window first, discarding unsaved changes. Claude Code only.\n" +
+                       "Note: Windows and WSL keep their skills separately, so install it for each one you use (WSL needs Node.js/npx inside the distro).",
                 FontSize = 11,
                 Opacity = 0.7,
                 Foreground = themeFg,
                 TextWrapping = TextWrapping.Wrap,
                 Margin = new Thickness(4, 0, 0, 6)
             });
-            bool installCavemanRequested = false;
-            var installCavemanButton = new Button
+            bool? installCavemanWsl = null;
+            var installCavemanPanel = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Left };
+            foreach (bool forWsl in new[] { false, true })
             {
-                Content = "Install Caveman...",
-                Height = 30,
-                MinWidth = 220,
-                Padding = new Thickness(14, 0, 14, 0),
-                HorizontalAlignment = HorizontalAlignment.Left,
-                Margin = new Thickness(4, 2, 0, 4),
-                IsEnabled = IsClaudeProvider(GetActiveOrSelectedProvider())
-            };
-            Style installCavemanButtonStyle = GetDialogButtonStyle();
-            if (installCavemanButtonStyle != null) installCavemanButton.Style = installCavemanButtonStyle;
-            else { installCavemanButton.Background = themeBg; installCavemanButton.Foreground = themeFg; installCavemanButton.BorderBrush = themeFg; }
-            installCavemanButton.Click += (s, args) =>
-            {
-                installCavemanRequested = true;
-                dialog.DialogResult = false;
-            };
-            automationStack.Children.Add(installCavemanButton);
+                var installCavemanButton = new Button
+                {
+                    Content = forWsl ? "Install Caveman (WSL)..." : "Install Caveman (Windows)...",
+                    Height = 30,
+                    MinWidth = 220,
+                    Padding = new Thickness(14, 0, 14, 0),
+                    Margin = new Thickness(4, 2, 6, 4)
+                };
+                Style installCavemanButtonStyle = GetDialogButtonStyle();
+                if (installCavemanButtonStyle != null) installCavemanButton.Style = installCavemanButtonStyle;
+                else { installCavemanButton.Background = themeBg; installCavemanButton.Foreground = themeFg; installCavemanButton.BorderBrush = themeFg; }
+                installCavemanButton.Click += (s, args) =>
+                {
+                    installCavemanWsl = forWsl;
+                    dialog.DialogResult = false;
+                };
+                installCavemanPanel.Children.Add(installCavemanButton);
+            }
+            automationStack.Children.Add(installCavemanPanel);
 
             // ========================= Layout tab =========================
             var layoutStack = AddTab("Layout");
@@ -1240,9 +1244,9 @@ namespace ClaudeCodeVS
                 {
                     await ApplyImportedConfigurationAsync(pendingImport);
                 }
-                else if (installCavemanRequested)
+                else if (installCavemanWsl.HasValue)
                 {
-                    await InstallCavemanAsync();
+                    await InstallCavemanAsync(installCavemanWsl.Value);
                 }
                 return;
             }

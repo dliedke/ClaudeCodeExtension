@@ -4421,24 +4421,22 @@ For more details, visit: https://pi.dev";
         /// Handles Install Caveman menu item click - installs the Caveman skill (JuliusBrussee/caveman)
         /// globally with <c>npx skills add</c> in its own visible command prompt, then reloads the agent
         /// (terminal or native) once the user closes that prompt. Started from the Settings dialog's
-        /// Automation tab once the dialog has closed.
+        /// Automation tab once the dialog has closed. Windows and WSL keep their skills separately,
+        /// so the target environment is chosen explicitly and does not depend on the active provider.
         /// </summary>
-        private async Task InstallCavemanAsync()
+        private async Task InstallCavemanAsync(bool isWsl)
         {
             try
             {
                 await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
 
-                AiProvider? activeProvider = GetActiveOrSelectedProvider();
-                if (!IsClaudeProvider(activeProvider))
-                {
-                    return;
-                }
+                string environment = isWsl ? "WSL" : "Windows";
 
                 var confirm = MessageBox.Show(
-                    "This will open a command prompt and run:\n\n" +
+                    $"This will open a command prompt and install Caveman for {environment}:\n\n" +
                     "  npx skills add JuliusBrussee/caveman -g\n\n" +
-                    "Follow the prompts there. When you close the command prompt, the code agent will be reloaded so the Caveman skill is picked up.\n\n" +
+                    "Follow the prompts there. When you close the command prompt, the code agent will be reloaded so the Caveman skill is picked up" +
+                    $" (only if Claude Code ({environment}) is the active agent).\n\n" +
                     "Continue?",
                     "Install Caveman",
                     MessageBoxButton.OKCancel,
@@ -4452,7 +4450,6 @@ For more details, visit: https://pi.dev";
                 // Claude Code (WSL) keeps its skills inside the distro, so the install has to run there.
                 // `/k` keeps the window open after npx finishes so the user can read the result; the
                 // reload below waits for the user to close it.
-                bool isWsl = activeProvider == AiProvider.ClaudeCodeWSL;
                 string arguments = isWsl
                     ? "/k wsl bash -lic \"npx skills add JuliusBrussee/caveman -g\""
                     : "/k npx skills add JuliusBrussee/caveman -g";
@@ -4481,6 +4478,13 @@ For more details, visit: https://pi.dev";
                 }
 
                 await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
+
+                // Only the agent running in the environment we just installed into can pick the skill up
+                AiProvider? reloadProvider = GetActiveOrSelectedProvider();
+                if (reloadProvider != (isWsl ? AiProvider.ClaudeCodeWSL : AiProvider.ClaudeCode))
+                {
+                    return;
+                }
 
                 if (IsNativeModeActive)
                 {

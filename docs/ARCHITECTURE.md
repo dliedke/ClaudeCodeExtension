@@ -84,8 +84,8 @@ Why it exists (v191.0): the embedded terminal is a window of another process (WT
 ## Caveman Skill (ProviderManagement.cs)
 
 - Not a standalone provider — a Claude Code plugin (JuliusBrussee/caveman) for ultra-compressed communication
-- Entry point: "Install Caveman..." button in Settings → Automation → Skills (enabled for Claude Code / Claude Code (WSL)). Like Backup → Load it closes the dialog without applying its edits and runs `InstallCavemanAsync` once the dialog is gone
-- Installation flow (v225.0): opens a visible `cmd.exe /k npx skills add JuliusBrussee/caveman -g` window (inside the distro via `wsl bash -lic` for Claude Code (WSL)), with PATH refreshed from the registry. `/k` keeps the window open; when the user closes it the agent is reloaded — `RelaunchNativeSessionAsync` in native mode (resumes the chat), `RestartTerminalWithSelectedProviderAsync` otherwise. No slash commands are sent, so it works in native mode too
+- Entry point (v226.0): two always-enabled buttons in Settings → Automation → Skills, "Install Caveman (Windows)..." and "Install Caveman (WSL)...". Windows and WSL keep their skills separately, so the target is chosen explicitly and no longer depends on the active provider (before, a running WSL agent made it impossible to install for Windows). Like Backup → Load it closes the dialog without applying its edits and runs `InstallCavemanAsync(isWsl)` once the dialog is gone
+- Installation flow (v225.0): opens a visible `cmd.exe /k npx skills add JuliusBrussee/caveman -g` window (inside the distro via `wsl bash -lic` for the WSL target), with PATH refreshed from the registry. `/k` keeps the window open; when the user closes it the agent is reloaded — but only if the active provider is Claude Code in the same environment that was just installed into (v226.0) — `RelaunchNativeSessionAsync` in native mode (resumes the chat), `RestartTerminalWithSelectedProviderAsync` otherwise. No slash commands are sent, so it works in native mode too
 - Confirmation dialog: Shows the command that will run before execution
 
 ## Visible Agents (ProviderManagement.cs)
