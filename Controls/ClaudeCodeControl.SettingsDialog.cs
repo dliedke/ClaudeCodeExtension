@@ -344,6 +344,38 @@ namespace ClaudeCodeVS
                 origAutoSendRuntimeErrors, themeFg);
             automationStack.Children.Add(autoSendRuntimeErrorsCheck);
 
+            automationStack.Children.Add(MakeSectionHeader("Skills", themeFg));
+            automationStack.Children.Add(new TextBlock
+            {
+                Text = "Installs the Caveman skill (ultra-compressed replies) with \"npx skills add JuliusBrussee/caveman -g\" in a command prompt, " +
+                       "then reloads the code agent when you close it. Closes this window first, discarding unsaved changes. Claude Code only.",
+                FontSize = 11,
+                Opacity = 0.7,
+                Foreground = themeFg,
+                TextWrapping = TextWrapping.Wrap,
+                Margin = new Thickness(4, 0, 0, 6)
+            });
+            bool installCavemanRequested = false;
+            var installCavemanButton = new Button
+            {
+                Content = "Install Caveman...",
+                Height = 30,
+                MinWidth = 220,
+                Padding = new Thickness(14, 0, 14, 0),
+                HorizontalAlignment = HorizontalAlignment.Left,
+                Margin = new Thickness(4, 2, 0, 4),
+                IsEnabled = IsClaudeProvider(GetActiveOrSelectedProvider())
+            };
+            Style installCavemanButtonStyle = GetDialogButtonStyle();
+            if (installCavemanButtonStyle != null) installCavemanButton.Style = installCavemanButtonStyle;
+            else { installCavemanButton.Background = themeBg; installCavemanButton.Foreground = themeFg; installCavemanButton.BorderBrush = themeFg; }
+            installCavemanButton.Click += (s, args) =>
+            {
+                installCavemanRequested = true;
+                dialog.DialogResult = false;
+            };
+            automationStack.Children.Add(installCavemanButton);
+
             // ========================= Layout tab =========================
             var layoutStack = AddTab("Layout");
 
@@ -1207,6 +1239,10 @@ namespace ClaudeCodeVS
                 if (pendingImport != null)
                 {
                     await ApplyImportedConfigurationAsync(pendingImport);
+                }
+                else if (installCavemanRequested)
+                {
+                    await InstallCavemanAsync();
                 }
                 return;
             }

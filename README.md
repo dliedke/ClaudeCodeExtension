@@ -113,7 +113,7 @@ Then choose it via *⚙ → Set Terminal Type...*.
 
 **☰ Tools dropdown**: Holds *Update Code Agent*, *Restart Code Agent*, *Detach/Attach Terminal*, *View Code Changes*, *Session History*, *Show Usage*, *Set Working Directory...*, *Send Build Errors to Agent*, *Generate Commit Message*, and *Recommend AI Model*. Promote any of these to one-click toolbar buttons — and reorder them by dragging — via *⚙ → Settings... → Toolbar*; promoted features leave the dropdown, which hides once they all become buttons.
 
-**🤖 Model menu**: For Claude — Opus / Sonnet / Haiku, effort level for Opus (Auto / Low / Medium / High / Max), Change Account, Install Caveman plugin. For every other agent — its own models (grouped into submenus when the list is long), *Refresh Models*, and *Choose in the Agent...*.
+**🤖 Model menu**: For Claude — Opus / Sonnet / Haiku, effort level for Opus (Auto / Low / Medium / High / Max), Change Account. For every other agent — its own models (grouped into submenus when the list is long), *Refresh Models*, and *Choose in the Agent...*.
 
 **On Agent Finish**: Configure via *⚙ → Settings... → On Agent Finish* tab. For scripts, enable *Close script window when it finishes* to auto-close the script console. For *Run (F5)* and *Run without debugging (Ctrl+F5)*, use *Clean solution before running* and *Rebuild solution before running* to control whether the solution is prepared before launch.
 
@@ -142,6 +142,9 @@ https://github.com/anthropics/claude-code/issues/41501
 Use native mode to avoid this issue.
 
 ## Version History
+
+### Version 225.0
+- **Install Caveman** moved to *⚙ → Settings... → Automation* and now opens a command prompt that installs the Caveman skill for you, then reloads the agent (terminal or native chat) when you close it.
 
 ### Version 224.0
 - **Show Usage** for Devin now works in native mode: it posts your ACU usage (used, limit and percent) in the chat, and typing `/usage` there does the same.

@@ -3507,7 +3507,6 @@ For more details, visit: https://pi.dev";
             ClaudeAccountSeparator.Visibility = isClaude ? Visibility.Visible : Visibility.Collapsed;
             ChangeAccountMenuItem.Visibility = isClaude ? Visibility.Visible : Visibility.Collapsed;
             SetLanguageMenuItem.Visibility = isClaude ? Visibility.Visible : Visibility.Collapsed;
-            InstallCavemanMenuItem.Visibility = isClaude ? Visibility.Visible : Visibility.Collapsed;
 
             // Every non-Claude provider gets its own model list, read from its CLI and cached,
             // rebuilt each time the menu opens.
@@ -4419,58 +4418,84 @@ For more details, visit: https://pi.dev";
         }
 
         /// <summary>
-        /// Handles Install Caveman menu item click - installs the Caveman plugin (JuliusBrussee/caveman)
-        /// inside the running Claude Code session via /plugin slash commands
+        /// Handles Install Caveman menu item click - installs the Caveman skill (JuliusBrussee/caveman)
+        /// globally with <c>npx skills add</c> in its own visible command prompt, then reloads the agent
+        /// (terminal or native) once the user closes that prompt. Started from the Settings dialog's
+        /// Automation tab once the dialog has closed.
         /// </summary>
-#pragma warning disable VSTHRD100 // Avoid async void methods
-        private async void InstallCavemanMenuItem_Click(object sender, RoutedEventArgs e)
-#pragma warning restore VSTHRD100
+        private async Task InstallCavemanAsync()
         {
-            await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
-
-            if (_currentRunningProvider != AiProvider.ClaudeCode &&
-                _currentRunningProvider != AiProvider.ClaudeCodeWSL)
+            try
             {
-                return;
+                await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
+
+                AiProvider? activeProvider = GetActiveOrSelectedProvider();
+                if (!IsClaudeProvider(activeProvider))
+                {
+                    return;
+                }
+
+                var confirm = MessageBox.Show(
+                    "This will open a command prompt and run:\n\n" +
+                    "  npx skills add JuliusBrussee/caveman -g\n\n" +
+                    "Follow the prompts there. When you close the command prompt, the code agent will be reloaded so the Caveman skill is picked up.\n\n" +
+                    "Continue?",
+                    "Install Caveman",
+                    MessageBoxButton.OKCancel,
+                    MessageBoxImage.Question);
+
+                if (confirm != MessageBoxResult.OK)
+                {
+                    return;
+                }
+
+                // Claude Code (WSL) keeps its skills inside the distro, so the install has to run there.
+                // `/k` keeps the window open after npx finishes so the user can read the result; the
+                // reload below waits for the user to close it.
+                bool isWsl = activeProvider == AiProvider.ClaudeCodeWSL;
+                string arguments = isWsl
+                    ? "/k wsl bash -lic \"npx skills add JuliusBrussee/caveman -g\""
+                    : "/k npx skills add JuliusBrussee/caveman -g";
+
+                var startInfo = new ProcessStartInfo("cmd.exe", arguments)
+                {
+                    UseShellExecute = false,
+                    CreateNoWindow = false
+                };
+
+                // Refresh PATH from registry so a freshly installed Node.js is found without a VS restart
+                string freshPath = GetFreshPathFromRegistry();
+                if (!string.IsNullOrEmpty(freshPath))
+                {
+                    startInfo.EnvironmentVariables["PATH"] = freshPath;
+                }
+
+                using (var process = Process.Start(startInfo))
+                {
+                    if (process == null)
+                    {
+                        return;
+                    }
+
+                    await Task.Run(() => process.WaitForExit());
+                }
+
+                await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
+
+                if (IsNativeModeActive)
+                {
+                    await RelaunchNativeSessionAsync("Caveman installed — reloading");
+                }
+                else
+                {
+                    await RestartTerminalWithSelectedProviderAsync();
+                }
             }
-
-            var confirm = MessageBox.Show(
-                "This will install the Caveman plugin (JuliusBrussee/caveman) into the current Claude Code session.\n\n" +
-                "The following slash commands will be sent:\n" +
-                "  /plugin marketplace add JuliusBrussee/caveman\n" +
-                "  /plugin install caveman@caveman --scope user\n" +
-                "  /reload-plugins\n" +
-                "  /caveman\n" +
-                "  hi\n\n" +
-                "Claude Code may prompt you to confirm trust for the marketplace and plugin — please respond inside the terminal if asked.\n\n" +
-                "Please be patient while the marketplace and plugin are downloaded and installed — do not type anything in the terminal until all commands have completed.\n\n" +
-                "Continue?",
-                "Install Caveman",
-                MessageBoxButton.OKCancel,
-                MessageBoxImage.Question);
-
-            if (confirm != MessageBoxResult.OK)
+            catch (Exception ex)
             {
-                return;
+                Debug.WriteLine($"InstallCavemanAsync failed: {ex.Message}");
+                MessageBox.Show($"Failed to install Caveman: {ex.Message}", "Install Caveman", MessageBoxButton.OK, MessageBoxImage.Error);
             }
-
-            await SendTextToTerminalAsync("/plugin marketplace add JuliusBrussee/caveman");
-            await Task.Delay(7000);
-
-            await SendTextToTerminalAsync("/plugin install caveman@caveman --scope user");
-            await Task.Delay(4000);
-
-            // Send Enter to confirm any prompt that Claude Code may show after the install command
-            SendEnterKey();
-            await Task.Delay(1500);
-
-            await SendTextToTerminalAsync("/reload-plugins");
-            await Task.Delay(3000);
-
-            await SendTextToTerminalAsync("/caveman");
-            await Task.Delay(2000);
-
-            await SendTextToTerminalAsync("yes");
         }
 
         #endregion

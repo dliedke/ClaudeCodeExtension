@@ -314,8 +314,12 @@ namespace ClaudeCodeVS.Agents
         {
             if (token == null || token.Type == JTokenType.Null) return null;
 
+            // JValue.ToString() formats a number with the current culture ("10,74" on pt-BR), which the
+            // invariant parse below would reject — format it invariantly instead.
+            string text = (token as JValue)?.ToString(CultureInfo.InvariantCulture) ?? token.ToString();
+
             double value;
-            if (!double.TryParse(token.ToString(), NumberStyles.Float, CultureInfo.InvariantCulture, out value)
+            if (!double.TryParse(text, NumberStyles.Float, CultureInfo.InvariantCulture, out value)
                 || double.IsNaN(value) || double.IsInfinity(value))
             {
                 return null;

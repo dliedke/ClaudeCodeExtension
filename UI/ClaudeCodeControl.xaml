@@ -534,7 +534,6 @@
 									<Separator x:Name="ClaudeAccountSeparator"/>
 									<MenuItem Header="Change Account" x:Name="ChangeAccountMenuItem" Click="ChangeAccountMenuItem_Click"/>
 									<MenuItem Header="Set Language" x:Name="SetLanguageMenuItem" Click="SetLanguageMenuItem_Click"/>
-									<MenuItem Header="Install Caveman" x:Name="InstallCavemanMenuItem" Click="InstallCavemanMenuItem_Click" ToolTip="Install the Caveman plugin (JuliusBrussee/caveman) — ultra-compressed communication mode for Claude Code"/>
 									<!-- The per-provider model entries are built dynamically in
 									     ModelContextMenu_Opened and inserted above this separator. -->
 									<Separator x:Name="DevinModelsSeparator"/>
