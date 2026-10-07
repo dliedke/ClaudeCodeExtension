@@ -168,7 +168,12 @@
 				<GroupBox.Header>
 					<TextBlock Text="Prompt / Paste Image" Opacity="0.93"/>
 				</GroupBox.Header>
-				<TextBox x:Name="PromptTextBox"
+				<Grid Background="{DynamicResource {x:Static vsshell:VsBrushes.WindowKey}}">
+					<Grid.ColumnDefinitions>
+						<ColumnDefinition Width="*"/>
+						<ColumnDefinition Width="Auto"/>
+					</Grid.ColumnDefinitions>
+					<TextBox x:Name="PromptTextBox"
                          TextWrapping="Wrap"
                          AcceptsReturn="True"
                          VerticalScrollBarVisibility="Auto"
@@ -201,6 +206,20 @@
 						</ContextMenu>
 					</TextBox.ContextMenu>
 				</TextBox>
+					<!-- Send button (visible only while Enter does not send), tucked into the bottom-right
+					     corner of the prompt box like the chat composer's. -->
+					<Button x:Name="SendPromptButton" Grid.Column="1"
+					        Content="▶"
+					        Width="30"
+					        MinWidth="30"
+					        FontSize="14"
+					        Style="{StaticResource IconButtonStyle}"
+					        Click="SendButton_Click"
+					        Visibility="Collapsed"
+					        VerticalAlignment="Bottom"
+					        ToolTip="Send Prompt to Code Agent"
+					        Margin="4,0,0,0"/>
+				</Grid>
 			</GroupBox>
 
 			<!-- Resize grip at the bottom edge of the prompt box. Lets the user
@@ -415,19 +434,6 @@
 						<!-- ReorderToolbarControls keeps the promoted feature buttons ahead of this
 						     block, so Send/Attach/Tools/Custom Commands/Model/Settings stay in this
 						     fixed order at the tail of the strip. -->
-						<!-- Send button (visible only when Send-with-Enter is off). Kept just left of
-						     the attach button. -->
-						<Button x:Name="SendPromptButton"
-                            Content="▶"
-                            Width="30"
-                            MinWidth="30"
-                            FontSize="14"
-                            Style="{StaticResource IconButtonStyle}"
-                            Click="SendButton_Click"
-                            Visibility="Collapsed"
-                            ToolTip="Send Prompt to Code Agent"
-                            Margin="0,0,6,0"/>
-
 						<Button x:Name="AttachDropdownButton"
                             Content="📎"
                             Style="{StaticResource IconButtonStyle}"

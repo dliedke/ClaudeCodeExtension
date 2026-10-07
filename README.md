@@ -143,6 +143,9 @@ Use native mode to avoid this issue.
 
 ## Version History
 
+### Version 227.0
+- **Send button** now appears in the corner of the prompt box (terminal and native chat) when "Button only" send mode is selected, and changing the send key in Settings takes effect in open chats right away.
+
 ### Version 226.0
 - **Install Caveman** now has separate *Windows* and *WSL* buttons, so you can install the skill for either one regardless of which agent is running; the Settings note explains that each keeps its own skills.
 

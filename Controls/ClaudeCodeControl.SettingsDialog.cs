@@ -177,7 +177,7 @@ namespace ClaudeCodeVS
             promptStack.Children.Add(MakeSectionHeader("Send prompt with", themeFg));
 
             var sendEnterRadio = MakeRadioButton(
-                "Enter — sends the prompt (Shift+Enter / Ctrl+Enter insert a newline)",
+                "Enter — sends the prompt (Shift+Enter inserts a newline)",
                 origSendWithEnter, themeFg, "sendKey");
             var sendCtrlEnterRadio = MakeRadioButton(
                 "Ctrl+Enter — sends the prompt (Enter inserts a newline)",
@@ -1457,10 +1457,12 @@ namespace ClaudeCodeVS
             // that button lives next to the now-hidden panel prompt box and has nothing to act on.
             if (!IsChatDetachedToOwnTab)
             {
-                SendPromptButton.Visibility = _settings.SendWithEnter
-                    ? Visibility.Collapsed
-                    : Visibility.Visible;
+                SendPromptButton.Visibility = ShouldShowSendButton
+                    ? Visibility.Visible
+                    : Visibility.Collapsed;
             }
+
+            ApplyChatSendKeySettings();
 
             // Apply prompt font size immediately
             if (PromptTextBox != null) PromptTextBox.FontSize = newFontSize;

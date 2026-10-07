@@ -268,10 +268,52 @@ namespace ClaudeCodeVS.UI
         }
 
         /// <summary>Mirrors the panel's send-key preference so Enter behaves the same in both places.</summary>
-        public bool SendWithEnter { get; set; } = true;
+        public bool SendWithEnter
+        {
+            get { return _sendWithEnter; }
+            set
+            {
+                _sendWithEnter = value;
+                UpdateSendButtonVisibility();
+            }
+        }
+
+        private bool _sendWithEnter = true;
+
+        /// <summary>
+        /// The ▶ Send button shows only in "Button only" mode (issue #186), matching the panel's own
+        /// button. Only the full composer (chat in its own tab) has an input box.
+        /// </summary>
+        private void UpdateSendButtonVisibility()
+        {
+            ComposerSendButton.Visibility = _composerMode == ComposerMode.Full && !_sendWithEnter && !_sendWithCtrlEnter
+                ? Visibility.Visible
+                : Visibility.Collapsed;
+
+            ComposerPlaceholder.Text = _sendWithEnter
+                ? "Ask anything · Enter to send · Ctrl+Up/Down for prompt history · Esc to stop"
+                : _sendWithCtrlEnter
+                    ? "Ask anything · Ctrl+Enter to send · Ctrl+Up/Down for prompt history · Esc to stop"
+                    : "Ask anything · Ctrl+Up/Down for prompt history · Esc to stop";
+        }
+
+        private void ComposerSendButton_Click(object sender, RoutedEventArgs e)
+        {
+            SendRequested?.Invoke(this, EventArgs.Empty);
+        }
 
         /// <summary>Mirrors the panel's Ctrl+Enter preference. Ignored while <see cref="SendWithEnter"/> is on.</summary>
-        public bool SendWithCtrlEnter { get; set; }
+        public bool SendWithCtrlEnter
+        {
+            get { return _sendWithCtrlEnter; }
+            set
+            {
+                _sendWithCtrlEnter = value;
+                UpdateSendButtonVisibility();
+            }
+        }
+
+        private bool _sendWithCtrlEnter;
 
         /// <summary>
         /// How much of the composer is showing. <see cref="Hidden"/> outside native mode;
@@ -310,6 +352,7 @@ namespace ClaudeCodeVS.UI
             ComposerResizeGrip.Visibility = fullOnly;
             ComposerAttachments.Visibility = fullOnly;
             ComposerInputBorder.Visibility = fullOnly;
+            UpdateSendButtonVisibility();
             ComposerSettingsButton.Visibility = fullOnly;
             ComposerPromotedButtons.Visibility = fullOnly;
             UpdateToolsButtonVisibility();

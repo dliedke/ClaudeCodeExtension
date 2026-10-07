@@ -154,6 +154,13 @@ namespace ClaudeCodeVS
         /// <summary>
         /// Handles send button click - sends the prompt to the terminal
         /// </summary>
+        /// <summary>
+        /// The ▶ Send button is for "Button only" mode alone (issue #186): neither Enter nor Ctrl+Enter
+        /// sends then, so it is the only way to submit.
+        /// </summary>
+        private bool ShouldShowSendButton =>
+            _settings != null && !_settings.SendWithEnter && !_settings.SendWithCtrlEnter;
+
 #pragma warning disable VSTHRD100 // Avoid async void methods
         private async void SendButton_Click(object sender, RoutedEventArgs e)
 #pragma warning restore VSTHRD100 // Avoid async void methods

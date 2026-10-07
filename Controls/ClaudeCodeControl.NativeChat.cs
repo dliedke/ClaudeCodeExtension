@@ -1464,6 +1464,35 @@ namespace ClaudeCodeVS
         /// only while the chat is in its own tab — <see cref="ComposerMode.ActionsOnly"/> keeps those
         /// selectors visible while docked in the panel too, and they need live labels there as well.
         /// </summary>
+        /// <summary>
+        /// Pushes the current send-key preference (Enter / Ctrl+Enter / button only) to the panel's
+        /// chat transcript and every parallel session tab. The composers only copy it while their
+        /// full state refreshes, so without this a change made in Settings stayed ignored until
+        /// something else happened to refresh them (issue #186).
+        /// </summary>
+        private void ApplyChatSendKeySettings()
+        {
+            ThreadHelper.ThrowIfNotOnUIThread();
+
+            var transcripts = new List<ChatTranscriptView> { ChatTranscript };
+            lock (_sessionLock)
+            {
+                foreach (NativeChatSessionState session in _nativeSessions.Values)
+                {
+                    transcripts.Add(session.ChatTranscript);
+                }
+            }
+
+            foreach (ChatTranscriptView transcript in transcripts)
+            {
+                if (transcript == null)
+                    continue;
+
+                transcript.SendWithEnter = _settings?.SendWithEnter != false;
+                transcript.SendWithCtrlEnter = _settings?.SendWithCtrlEnter == true;
+            }
+        }
+
         private void UpdateChatComposerState()
         {
             ThreadHelper.ThrowIfNotOnUIThread();

@@ -1073,7 +1073,7 @@ namespace ClaudeCodeVS
             // actually owns that state, and would just collapse this again if it disagreed.
             if (_settings != null && !IsChatDetachedToOwnTab)
             {
-                SendPromptButton.Visibility = _settings.SendWithEnter ? Visibility.Collapsed : Visibility.Visible;
+                SendPromptButton.Visibility = ShouldShowSendButton ? Visibility.Visible : Visibility.Collapsed;
             }
 
             // Update provider selection and title

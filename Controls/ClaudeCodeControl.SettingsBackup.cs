@@ -345,6 +345,7 @@ namespace ClaudeCodeVS
                 ApplyLoadedSettings();
 
                 ApplyChatAppearance();
+                ApplyChatSendKeySettings();
                 RefreshNativeSessionColors();
                 UpdateTerminalTheme();
                 RefreshToolbarLayout();

@@ -406,7 +406,7 @@ namespace ClaudeCodeVS
         public System.Collections.Generic.IDictionary<string, Newtonsoft.Json.Linq.JToken> AdditionalData { get; set; }
 
         /// <summary>
-        /// If true, Enter key sends the prompt (Shift+Enter / Ctrl+Enter for newline).
+        /// If true, Enter key sends the prompt (Shift+Enter for newline).
         /// If false, Enter inserts a newline and the Send button is shown to submit.
         /// </summary>
         public bool SendWithEnter { get; set; } = true;

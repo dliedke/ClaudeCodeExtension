@@ -186,20 +186,40 @@ namespace ClaudeCodeExtension.Tests
         }
 
         /// <summary>
-        /// The reporter's follow-up screenshot showed a Send button next to a composer whose Enter
-        /// key already sends (<c>ComposerInput_PreviewKeyDown</c>) — it was pure clutter. It must be
-        /// gone from the XAML, its click handler, and the mode-visibility wiring in the code-behind.
+        /// The Send button was removed in issue #151 (Enter already sends), then reinstated in issue #186:
+        /// with "Send with Enter" off the chat tab had no way to send besides Ctrl+Enter. It must exist,
+        /// raise the same event as the Enter key, and only show while Enter does not send.
         /// </summary>
         [TestMethod]
-        public void ChatTranscriptView_NoLongerHasASendButton()
+        public void ChatTranscriptView_SendButton_ShowsOnlyInButtonOnlyMode()
         {
             string xaml = ChatTranscriptXaml;
             string cs = RepositoryLayout.ReadText("UI", "ChatTranscriptView.xaml.cs");
 
-            StringAssert.DoesNotMatch(xaml, new System.Text.RegularExpressions.Regex("ComposerSendButton"),
-                "The Send button must be removed from the composer bar (issue #151 follow-up).");
-            StringAssert.DoesNotMatch(cs, new System.Text.RegularExpressions.Regex("ComposerSendButton"),
-                "No leftover reference to the removed Send button should remain in the code-behind.");
+            StringAssert.Contains(xaml, "x:Name=\"ComposerSendButton\"");
+            StringAssert.Contains(cs, "ComposerSendButton_Click");
+            StringAssert.Contains(cs, "ComposerSendButton.Visibility = _composerMode == ComposerMode.Full && !_sendWithEnter && !_sendWithCtrlEnter",
+                "The Send button must show only in the full composer while Enter does not send (issue #186).");
+        }
+
+        /// <summary>
+        /// Issue #186: the send key (Enter / Ctrl+Enter / button only) must reach every surface when it
+        /// changes — the chat composers (panel transcript + parallel tabs) via ApplyChatSendKeySettings,
+        /// and the terminal/docked-chat panel via its own ▶ button visibility. Both the Settings Apply
+        /// and a Backup import must trigger it.
+        /// </summary>
+        [TestMethod]
+        public void SendKeySetting_ReachesComposersAndPanelButton_OnApplyAndImport()
+        {
+            string dialog = RepositoryLayout.ReadText("Controls", "ClaudeCodeControl.SettingsDialog.cs");
+            string backup = RepositoryLayout.ReadText("Controls", "ClaudeCodeControl.SettingsBackup.cs");
+            string chat = RepositoryLayout.ReadText("Controls", "ClaudeCodeControl.NativeChat.cs");
+
+            StringAssert.Contains(dialog, "ApplyChatSendKeySettings();");
+            StringAssert.Contains(backup, "ApplyChatSendKeySettings();");
+            StringAssert.Contains(chat, "private void ApplyChatSendKeySettings()");
+            StringAssert.Contains(dialog, "SendPromptButton.Visibility = ShouldShowSendButton",
+                "The panel's own ▶ button (terminal mode / docked chat) must follow the same setting.");
         }
 
         /// <summary>
@@ -707,7 +727,7 @@ namespace ClaudeCodeExtension.Tests
             foreach (string name in new[]
             {
                 "MenuDropdownButton", "ModelDropdownButton", "ToolsDropdownButton", "CustomCommandsButton",
-                "AttachDropdownButton", "SendPromptButton",
+                "AttachDropdownButton",
                 "UpdateAgentToolbarButton", "GenerateCommitMessageToolbarButton",
             })
             {
@@ -809,13 +829,13 @@ namespace ClaudeCodeExtension.Tests
         }
 
         /// <summary>
-        /// The attach (📎) and send (▶) buttons used to sit in ControlsRow's column 0, pinned far left
+        /// The attach (📎) button (and the send ▶ one, until issue #186 moved it into the prompt box) used to sit in ControlsRow's column 0, pinned far left
         /// while every other toolbar button hugged the right edge — so the Star column's unused width
         /// showed as one wide gap down the middle of the toolbar. v177.0 folds them into the single
         /// scrollable strip with every other button, so there is no mid-row split at all.
         /// </summary>
         [TestMethod]
-        public void AttachAndSendButtons_LiveInTheScrollableStrip_SoTheToolbarHasNoMidRowGap()
+        public void AttachButton_LivesInTheScrollableStrip_SoTheToolbarHasNoMidRowGap()
         {
             string xaml = PanelXaml;
 
@@ -823,7 +843,7 @@ namespace ClaudeCodeExtension.Tests
             int scrollerClose = xaml.IndexOf("</ScrollViewer>", scrollerOpen, System.StringComparison.Ordinal);
             Assert.IsTrue(scrollerOpen >= 0 && scrollerClose > scrollerOpen, "RightButtonsScroller not found.");
 
-            foreach (string name in new[] { "AttachDropdownButton", "SendPromptButton" })
+            foreach (string name in new[] { "AttachDropdownButton" })
             {
                 int idx = xaml.IndexOf($"x:Name=\"{name}\"", System.StringComparison.Ordinal);
                 Assert.IsTrue(idx > scrollerOpen && idx < scrollerClose,
@@ -837,6 +857,22 @@ namespace ClaudeCodeExtension.Tests
             string controlsRow = xaml.Substring(controlsRowIdx, controlsRowEnd - controlsRowIdx);
             StringAssert.DoesNotMatch(controlsRow, new System.Text.RegularExpressions.Regex("Grid\\.Column=\"0\""),
                 "ControlsRow no longer has a left-pinned column-0 cluster — that split was the mid-row gap.");
+        }
+
+        /// <summary>
+        /// Issue #186: the panel's ▶ Send button sits in the bottom-right corner of the prompt box (like
+        /// the chat composer's), not in the toolbar strip.
+        /// </summary>
+        [TestMethod]
+        public void SendPromptButton_LivesInsideThePromptBox_NotTheToolbar()
+        {
+            string xaml = PanelXaml;
+
+            int groupOpen = xaml.IndexOf("x:Name=\"PromptGroupBox\"", System.StringComparison.Ordinal);
+            int groupClose = xaml.IndexOf("</GroupBox>", groupOpen, System.StringComparison.Ordinal);
+            int idx = xaml.IndexOf("x:Name=\"SendPromptButton\"", System.StringComparison.Ordinal);
+            Assert.IsTrue(groupOpen >= 0 && idx > groupOpen && idx < groupClose,
+                "SendPromptButton must live inside PromptGroupBox, next to the text box it sends.");
         }
 
         /// <summary>
@@ -934,8 +970,8 @@ namespace ClaudeCodeExtension.Tests
                 "Visibility authority — it must be restored explicitly.");
             StringAssert.Contains(body, "RefreshCustomCommandsButton()",
                 "⚡ must be re-evaluated (it hides when no custom commands exist), not forced Visible.");
-            StringAssert.Contains(body, "_settings.SendWithEnter",
-                "▶ Send must be restored per its own send-with-Enter rule, not forced Visible.");
+            StringAssert.Contains(body, "ShouldShowSendButton",
+                "▶ Send must be restored per its own send-key rule, not forced Visible.");
         }
 
         /// <summary>

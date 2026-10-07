@@ -976,7 +976,11 @@
 					<Grid>
 						<!-- CaretBrush is explicit: the default caret is black, which is invisible
 						     against the dark-theme editor background and reads as "no cursor". -->
-						<TextBox x:Name="ComposerInput"
+						<Grid.ColumnDefinitions>
+								<ColumnDefinition Width="*"/>
+								<ColumnDefinition Width="Auto"/>
+							</Grid.ColumnDefinitions>
+							<TextBox x:Name="ComposerInput"
 						         Height="72" MinHeight="46"
 						         AcceptsReturn="True"
 						         TextWrapping="Wrap"
@@ -998,6 +1002,14 @@
 						           FontSize="{DynamicResource ChatFontSize}"
 						           VerticalAlignment="Top"
 						           Foreground="{DynamicResource {x:Static vsshell:VsBrushes.WindowTextKey}}"/>
+						<Button x:Name="ComposerSendButton" Grid.Column="1"
+						        Style="{StaticResource ComposerSelectorStyle}"
+						        Content="▶" FontSize="13"
+						        VerticalAlignment="Bottom"
+						        Margin="4,0,0,0"
+						        Visibility="Collapsed"
+						        ToolTip="Send Prompt to Code Agent"
+						        Click="ComposerSendButton_Click"/>
 					</Grid>
 				</Border>
 

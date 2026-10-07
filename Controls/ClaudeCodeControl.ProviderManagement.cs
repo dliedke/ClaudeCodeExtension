@@ -2663,10 +2663,11 @@ For more details, visit: https://pi.dev";
                 if (CustomCommandsButton != null) CustomCommandsButton.Visibility = Visibility.Collapsed;
                 if (MenuDropdownButton != null) MenuDropdownButton.Visibility = Visibility.Collapsed;
 
-                // AttachDropdownButton/SendPromptButton sit in the toolbar strip (RightButtonsPanel),
-                // not inside PromptGroupBox — so auto-hiding the prompt box (ApplyPromptPanelHiddenState)
-                // does not take them with it. Both only make sense next to the prompt text box they act
-                // on, which is exactly what just got hidden.
+                // AttachDropdownButton sits in the toolbar strip (RightButtonsPanel), not inside
+                // PromptGroupBox — so auto-hiding the prompt box (ApplyPromptPanelHiddenState) does not
+                // take it with it. It only makes sense next to the prompt text box it acts on, which is
+                // exactly what just got hidden. SendPromptButton lives inside the prompt box now (issue
+                // #186) and goes with it; it is collapsed here too so a later un-hide starts from a known state.
                 if (AttachDropdownButton != null) AttachDropdownButton.Visibility = Visibility.Collapsed;
                 if (SendPromptButton != null) SendPromptButton.Visibility = Visibility.Collapsed;
             }
@@ -2687,9 +2688,9 @@ For more details, visit: https://pi.dev";
                 // for send-with-Enter-off only, and ⚡ hides when no custom commands are configured.
                 if (SendPromptButton != null)
                 {
-                    SendPromptButton.Visibility = (_settings != null && _settings.SendWithEnter)
-                        ? Visibility.Collapsed
-                        : Visibility.Visible;
+                    SendPromptButton.Visibility = ShouldShowSendButton
+                        ? Visibility.Visible
+                        : Visibility.Collapsed;
                 }
                 RefreshCustomCommandsButton();
             }
