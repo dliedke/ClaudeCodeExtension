@@ -143,6 +143,11 @@ Use native mode to avoid this issue.
 
 ## Version History
 
+### Version 228.0
+- **"/" command picker**: typing "/" in the prompt box of a Claude chat lists the built-in commands, your custom commands and skills with their descriptions, like the terminal does; PageUp/PageDown scroll the list faster.
+- **/compact** in the native chat now reports how much context was freed instead of repeating the previous answer.
+- **/color** in the native chat now also changes the color of the chat header, and **/clear** clears the chat like the Clear Chat button.
+
 ### Version 227.0
 - **Send button** now appears in the corner of the prompt box (terminal and native chat) when "Button only" send mode is selected, and changing the send key in Settings takes effect in open chats right away.
 

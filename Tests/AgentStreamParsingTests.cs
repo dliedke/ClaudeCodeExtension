@@ -56,6 +56,38 @@ namespace ClaudeCodeExtension.Tests
         }
 
         [TestMethod]
+        public void ClaudeParser_ManualCompactShowsSummaryAndDropsTheReplayedAnswer()
+        {
+            var parser = new ClaudeStreamParser(expectDeltas: false);
+
+            List<AgentEvent> events = ParseAll(parser,
+                "{\"type\":\"system\",\"subtype\":\"compact_boundary\",\"compact_metadata\":" +
+                "{\"trigger\":\"manual\",\"pre_tokens\":20583,\"post_tokens\":2588}}",
+                "{\"type\":\"assistant\",\"message\":{\"id\":\"m1\",\"content\":" +
+                "[{\"type\":\"text\",\"text\":\"Session color set to: green\"}]}}",
+                "{\"type\":\"result\",\"subtype\":\"success\",\"result\":\"\"}");
+
+            Assert.AreEqual(2, events.Count);
+            Assert.AreEqual(AgentEventKind.AssistantText, events[0].Kind);
+            StringAssert.Contains(events[0].Text, "compacted");
+            StringAssert.Contains(events[0].Text, "2,588");
+            Assert.AreEqual(AgentEventKind.TurnCompleted, events[1].Kind);
+        }
+
+        [TestMethod]
+        public void ClaudeParser_AutoCompactKeepsTheAssistantMessageThatFollows()
+        {
+            var parser = new ClaudeStreamParser(expectDeltas: false);
+
+            List<AgentEvent> events = ParseAll(parser,
+                "{\"type\":\"system\",\"subtype\":\"compact_boundary\",\"compact_metadata\":{\"trigger\":\"auto\"}}",
+                "{\"type\":\"assistant\",\"message\":{\"id\":\"m1\",\"content\":" +
+                "[{\"type\":\"text\",\"text\":\"Continuing the work\"}]}}");
+
+            Assert.IsTrue(events.Any(e => e.Kind == AgentEventKind.AssistantText && e.Text == "Continuing the work"));
+        }
+
+        [TestMethod]
         public void ClaudeParser_NonInitSystemLinesAreIgnored()
         {
             var parser = new ClaudeStreamParser(expectDeltas: true);

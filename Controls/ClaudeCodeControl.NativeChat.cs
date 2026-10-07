@@ -696,6 +696,14 @@ namespace ClaudeCodeVS
                 if (string.IsNullOrEmpty(text) && !hasFiles)
                     return;
 
+                // Typed /clear = the tab's Clear Chat button (the sender resolves to this session).
+                if (!hasFiles && IsBareClearCommand(text))
+                {
+                    session.ChatTranscript.ComposerText = string.Empty;
+                    OnComposerClearChatRequested(session.ChatTranscript, EventArgs.Empty);
+                    return;
+                }
+
                 // Same "Files attached:" header the panel sends, built from this tab's own list so an
                 // attachment staged in another chat is never dragged along.
                 var fullPrompt = new StringBuilder();
@@ -958,6 +966,41 @@ namespace ClaudeCodeVS
             }
 
             return _settings?.DefaultNativeSessionColor ?? string.Empty;
+        }
+
+        /// <summary>
+        /// Carries Claude's <c>/color</c> over to the chat header: when the CLI answers "Session color set to: X"
+        /// (or "reset to default") the session's stored color follows, exactly as if it had been picked with
+        /// the palette button. The CLI's own prompt-bar color has no UI in native mode, so this is the only
+        /// place the command can show.
+        /// </summary>
+        private void ApplyClaudeColorNotice(string agentSessionId, string text)
+        {
+            ThreadHelper.ThrowIfNotOnUIThread();
+
+            if (string.IsNullOrEmpty(agentSessionId) || _settings == null
+                || !IsClaudeProvider(GetActiveOrSelectedProvider())
+                || !ClaudeSessionColor.TryParseNotice(text, out string hex))
+            {
+                return;
+            }
+
+            if (_settings.SessionTitleColors == null)
+            {
+                _settings.SessionTitleColors = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            }
+
+            if (string.IsNullOrEmpty(hex))
+            {
+                _settings.SessionTitleColors.Remove(agentSessionId);
+            }
+            else
+            {
+                _settings.SessionTitleColors[agentSessionId] = hex;
+            }
+
+            SaveSettings();
+            RefreshNativeSessionColors();
         }
 
         /// <summary>Re-applies session colors to the panel transcript and every open chat tab.</summary>
@@ -4213,6 +4256,14 @@ namespace ClaudeCodeVS
                 return true;
             }
 
+            // A typed /clear does what the Clear Chat button does. Sent on as text, the CLI would answer
+            // "Done" and wipe nothing the user can see: native mode shows its own transcript.
+            if (IsBareClearCommand(prompt))
+            {
+                OnComposerClearChatRequested(ChatTranscript, EventArgs.Empty);
+                return true;
+            }
+
             if (!isClaude && !isCodex)
             {
                 return false;
@@ -4276,6 +4327,12 @@ namespace ClaudeCodeVS
                 default:
                     return false;
             }
+        }
+
+        /// <summary>Only the bare command: "/clear the logs" is a prompt, not a request to wipe the chat.</summary>
+        private static bool IsBareClearCommand(string prompt)
+        {
+            return string.Equals((prompt ?? string.Empty).Trim(), "/clear", StringComparison.OrdinalIgnoreCase);
         }
 
         /// <summary>

@@ -13,6 +13,7 @@
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.Globalization;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 
@@ -51,6 +52,11 @@ namespace ClaudeCodeVS.Agents
         // Whether any assistant text reached the UI this turn, so the result can fill in the answer
         // (or surface an is_error message) when nothing else did.
         private bool _shownTextThisTurn;
+
+        // Set by a manual /compact: the CLI then re-sends the conversation's last assistant message as if it
+        // were the command's answer (measured: "/color green" followed by "/compact" printed "Session color
+        // set to: green" again). That copy is dropped; the real outcome is the compact_boundary notice.
+        private bool _skipReplayedAssistant;
 
         /// <param name="expectDeltas">
         /// True when the CLI was launched with <c>--include-partial-messages</c>. When false, text and
@@ -150,6 +156,11 @@ namespace ClaudeCodeVS.Agents
         {
             // "status" and "thinking_tokens" are progress chatter with no UI counterpart yet.
             // "init" arrives once per turn rather than once per session — see AgentEventKind.SessionStarted.
+            if ((string)root["subtype"] == "compact_boundary")
+            {
+                return ParseCompactBoundary(root);
+            }
+
             if ((string)root["subtype"] != "init")
             {
                 return Empty;
@@ -218,11 +229,39 @@ namespace ClaudeCodeVS.Agents
             }
         }
 
+        /// <summary>
+        /// The CLI compacted the conversation. <c>/compact</c> itself has no answer text — its only
+        /// "Compacted" line arrives as a replayed local-command message — so the transcript gets a one-line
+        /// summary built from the token counts instead of a silent turn.
+        /// </summary>
+        private IReadOnlyList<AgentEvent> ParseCompactBoundary(JObject root)
+        {
+            JToken meta = root["compact_metadata"];
+            bool manual = string.Equals((string)meta?["trigger"], "manual", StringComparison.OrdinalIgnoreCase);
+            int? before = (int?)meta?["pre_tokens"];
+            int? after = (int?)meta?["post_tokens"];
+
+            _skipReplayedAssistant = manual;
+            _shownTextThisTurn = true;
+
+            string text = before.HasValue && after.HasValue
+                ? string.Format(CultureInfo.InvariantCulture,
+                    "Conversation compacted: {0:N0} → {1:N0} tokens of context.", before.Value, after.Value)
+                : "Conversation compacted.";
+            return One(AgentEvent.AssistantText(text));
+        }
+
         private IReadOnlyList<AgentEvent> ParseAssistant(JObject root)
         {
             var content = root["message"]?["content"] as JArray;
             if (content == null)
             {
+                return Empty;
+            }
+
+            if (_skipReplayedAssistant)
+            {
+                _skipReplayedAssistant = false;
                 return Empty;
             }
 
@@ -432,6 +471,7 @@ namespace ClaudeCodeVS.Agents
             }
 
             _shownTextThisTurn = false;
+            _skipReplayedAssistant = false;
             _sawDeltas = false;
             _streamedMessageIds.Clear();
 

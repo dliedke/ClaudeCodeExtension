@@ -6,7 +6,7 @@ Visual Studio Extension (VSIX) for VS 2022/2026 — integrates AI code assistant
 
 - Author: Daniel Carvalho Liedke (dliedke@gmail.com) | License: MIT
 - Repository: https://github.com/dliedke/ClaudeCodeExtension
-- Current Version: 226.0 | Target Framework: .NET Framework 4.7.2
+- Current Version: 228.0 | Target Framework: .NET Framework 4.7.2
 
 Step-by-step procedures for recurring tasks (release, Exp-hive debugging, publish, adding a
 provider/setting/UI file) live in `docs/SKILLS.md`. Short build/style brief for non-Claude agents: `docs/AGENTS.md`.
@@ -103,6 +103,7 @@ ClaudeCodeExtension/
 │   ├── ClaudeCodeControl.PendingReview.cs # "Track agent changes for review": per-turn snapshots, pending list in the Changes view, per-file/bulk Keep and Undo (#183)
 │   ├── ClaudeCodeControl.GitSync.cs     # "Pull before sending": pre-prompt git pull; conflicts are prepended to the prompt for the agent to resolve
 │   ├── ClaudeCodeControl.AtMention.cs   # "@" file/folder picker in the prompt box (workspace index + popup)
+│   ├── ClaudeCodeControl.SlashCommands.cs # "/" command picker (#187): built-in/custom commands + skills with descriptions, reuses the "@" popup
 │   ├── ClaudeCodeControl.TfvcCheckout.cs # "Check out TFVC files": Claude native mode pre-edit hook → VS QueryEdit checkout in TFVC-bound solutions
 │   ├── ClaudeCodeControl.CustomCommands.cs # User-defined custom commands: configure dialog, toolbar dropdown, dispatch
 │   ├── ClaudeCodeControl.DebugVisibility.cs # Keeps the extension (and any tab it created) visible while debugging (issues #130, #141)
@@ -120,6 +121,7 @@ ClaudeCodeExtension/
 ├── Agents/                              # Headless agent protocols (no WPF, no VS SDK — unit-testable)
 │   ├── IAgentSession.cs                 # Session contract shared by every adapter
 │   ├── ModelCatalog.cs                  # Model option DTO + pure parsers for each CLI's model-listing output
+│   ├── SlashCommandCatalog.cs           # "/" picker: command/skill discovery, front-matter parsing, ranking (pure)
 │   ├── ModelRecommender.cs              # "Recommend AI Model": rubric, JSON schema, stdin request, result parser
 │   ├── AgentEvent.cs                    # Provider-agnostic event/usage/permission model
 │   ├── JsonLineProcessHost.cs           # Shared process plumbing (stdio, line reader, tree teardown)
@@ -239,7 +241,7 @@ Three cross-cutting rules (full text in `docs/ARCHITECTURE.md` → *Cross-Cuttin
 | `Controls/ClaudeCodeControl.BuildErrors.cs` | Auto-Send Build Errors — build-event hook, Error List collection, dedupe/loop guard |
 | `Controls/ClaudeCodeControl.RuntimeErrors.cs` | Auto-Send Runtime Errors — debugger break-mode hook, unhandled-exception collection, dedupe guard |
 | `Controls/ClaudeCodeControl.GitSync.cs` | Pull Before Sending — pre-prompt `git pull`, skip conditions, conflict-as-prompt handoff, `--autostash` caveats |
-| `Controls/ClaudeCodeControl.AtMention.cs` | "@" File/Folder Picker — index, popup, ranking, insert |
+| `Controls/ClaudeCodeControl.AtMention.cs`, `Controls/ClaudeCodeControl.SlashCommands.cs` | "@" File/Folder Picker · "/" Command Picker — index, popup, ranking, insert |
 | `Controls/ClaudeCodeControl.PendingReview.cs`, `Diff/PendingReviewTracker.cs` | Pending Review — turn keys, reference snapshot, accumulation, overlapping turns, Keep/Undo, Changes view scope |
 | `Controls/ClaudeCodeControl.TfvcCheckout.cs`, `Agents/ClaudeEditHook.cs` | TFVC Checkout — PreToolUse hook over the control channel, QueryEdit checkout, deny-with-reason |
 | `Controls/ClaudeCodeControl.NativeMode.cs`, `Agents/*`, `UI/ChatTranscriptView.xaml` | Native Mode — Agent Sessions: `IAgentSession` contract, the six adapters, event map, streaming-duplication traps, `SendTextToAgentAsync` bifurcation |

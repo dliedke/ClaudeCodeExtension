@@ -2122,6 +2122,7 @@ namespace ClaudeCodeVS
             switch (agentEvent.Kind)
             {
                 case AgentEventKind.SessionStarted:
+                    RememberAnnouncedSlashCommands(agentEvent.SlashCommands);
                     // Every tab refreshes its own caption/label: the saved title only becomes known once
                     // the agent reports its session id, and each session has a different one. Migrate
                     // first, so a relaunch's re-keyed title/color is what UpdateSessionTabCaption reads.
@@ -2137,6 +2138,7 @@ namespace ClaudeCodeVS
 
                 case AgentEventKind.AssistantText:
                     {
+                        ApplyClaudeColorNotice(session.AgentSession?.SessionId, agentEvent.Text);
                         var msg = session.StreamingAssistantMessage;
                         AppendStreamingTextForSession(session, ref msg, ChatMessageKind.Assistant, agentEvent.Text, null);
                         session.StreamingAssistantMessage = msg;
@@ -2201,6 +2203,7 @@ namespace ClaudeCodeVS
             switch (agentEvent.Kind)
             {
                 case AgentEventKind.SessionStarted:
+                    RememberAnnouncedSlashCommands(agentEvent.SlashCommands);
                     // Re-announced at the start of every turn — never treat it as a new conversation.
                     // Refreshed here (cheap, idempotent) so a resumed session's saved title shows up in
                     // the header above the transcript as soon as its id is known, not only after an
@@ -2216,6 +2219,7 @@ namespace ClaudeCodeVS
                     break;
 
                 case AgentEventKind.AssistantText:
+                    ApplyClaudeColorNotice(_agentSession?.SessionId, agentEvent.Text);
                     AppendStreamingText(ref _streamingAssistantMessage, ChatMessageKind.Assistant, agentEvent.Text, null);
                     break;
 

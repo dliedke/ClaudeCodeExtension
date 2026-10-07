@@ -30,6 +30,7 @@ using System.Windows.Controls.Primitives;
 using System.Windows.Data;
 using System.Windows.Input;
 using System.Windows.Media;
+using ClaudeCodeVS.Agents;
 using Microsoft.VisualStudio.Shell;
 
 namespace ClaudeCodeVS
@@ -42,6 +43,7 @@ namespace ClaudeCodeVS
         private const int AtMentionMaxEntries = 50000;         // files kept in the index (folders are derived from them)
         private const int AtMentionMaxScannedFiles = 250000;   // bound on the filesystem walk when a filter matches little
         private const int AtMentionGitTimeoutMs = 15000;
+        private const int AtPopupPageSize = 8;                 // rows PageUp/PageDown jump (the list shows about ten)
         private static readonly TimeSpan AtEntriesTtl = TimeSpan.FromSeconds(30);
 
         private static readonly HashSet<string> AtIgnoredDirs = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
@@ -64,6 +66,7 @@ namespace ClaudeCodeVS
             public ListBox ListBox;
             public int MentionStart = -1;    // index of the triggering '@' in the text box's text
             public bool SuppressTextChanged; // guards programmatic edits from re-triggering
+            public bool SlashMode;           // the popup lists "/" commands (SlashCommandEntry rows) instead of files
 
             public AtMentionTarget(TextBox textBox)
             {
@@ -142,8 +145,30 @@ namespace ClaudeCodeVS
                     MoveAtSelection(target, -1);
                     e.Handled = true;
                     return true;
+                case Key.PageDown:
+                    MoveAtSelection(target, AtPopupPageSize);
+                    e.Handled = true;
+                    return true;
+                case Key.PageUp:
+                    MoveAtSelection(target, -AtPopupPageSize);
+                    e.Handled = true;
+                    return true;
                 case Key.Enter:
                 case Key.Tab:
+                    if (target.SlashMode)
+                    {
+                        // A command typed out in full: let Enter send it instead of completing it.
+                        if (e.Key == Key.Enter && IsSlashSelectionComplete(target))
+                        {
+                            HideAtPopup(target);
+                            return false;
+                        }
+
+                        CommitSlashSelection(target);
+                        e.Handled = true;
+                        return true;
+                    }
+
                     // Swallow the key regardless; only insert when entries are ready.
                     if (_atEntries != null && target.ListBox?.SelectedItem is string)
                         CommitAtSelection(target);
@@ -176,6 +201,8 @@ namespace ClaudeCodeVS
                 string text = box.Text ?? string.Empty;
                 int caret = box.CaretIndex;
                 if (caret < 0 || caret > text.Length) { HideAtPopup(target); return; }
+
+                if (TryUpdateSlashPopup(target, text, caret)) return;
 
                 int at = -1;
                 for (int i = caret - 1; i >= 0; i--)
@@ -218,6 +245,7 @@ namespace ClaudeCodeVS
         private void FilterAndShowAtPopup(AtMentionTarget target, string query)
         {
             EnsureAtPopup(target);
+            target.SlashMode = false;
             var items = RankAtEntries(query);
             target.ListBox.ItemsSource = items;
             if (items.Count == 0) { HideAtPopup(target); return; }
@@ -233,6 +261,7 @@ namespace ClaudeCodeVS
         private void ShowAtIndexing(AtMentionTarget target)
         {
             EnsureAtPopup(target);
+            target.SlashMode = false;
             target.ListBox.ItemsSource = new List<string> { "Indexing workspace…" };
             target.ListBox.SelectedIndex = -1;
             if (!target.Popup.IsOpen)
@@ -705,8 +734,14 @@ namespace ClaudeCodeVS
                 // The scrollbar added for horizontal scrolling lives inside the ListBox's visual
                 // tree too, so a plain "click landed inside the ListBox" check would also fire when
                 // dragging/clicking the scrollbar. Only commit when the click actually hit a row.
-                if (_atEntries != null && listBox.SelectedItem is string
-                    && FindVisualAncestor<ListBoxItem>(e.OriginalSource as DependencyObject) != null)
+                if (FindVisualAncestor<ListBoxItem>(e.OriginalSource as DependencyObject) == null) return;
+
+                if (target.SlashMode && listBox.SelectedItem is SlashCommandEntry)
+                {
+                    CommitSlashSelection(target);
+                    e.Handled = true;
+                }
+                else if (!target.SlashMode && _atEntries != null && listBox.SelectedItem is string)
                 {
                     CommitAtSelection(target);
                     e.Handled = true;
