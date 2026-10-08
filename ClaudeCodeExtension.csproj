@@ -55,6 +55,7 @@
     <Compile Include="Agents\AcpCommandBuilder.cs" />
     <Compile Include="Agents\ModelCatalog.cs" />
     <Compile Include="Agents\ModelRecommender.cs" />
+    <Compile Include="Agents\OpenPetsRelease.cs" />
     <Compile Include="Agents\AcpSession.cs" />
     <Compile Include="Agents\AgentEvent.cs" />
     <Compile Include="Agents\AgentCliNotFoundException.cs" />
@@ -90,6 +91,7 @@
     <Compile Include="Controls\ClaudeCodeControl.ModelCatalog.cs" />
     <Compile Include="Controls\ClaudeCodeControl.ModelPickerDialog.cs" />
     <Compile Include="Controls\ClaudeCodeControl.ModelRecommendation.cs" />
+    <Compile Include="Controls\ClaudeCodeControl.OpenPets.cs" />
     <Compile Include="Controls\ClaudeCodeControl.CustomCommands.cs" />
     <Compile Include="Controls\ClaudeCodeControl.DebugVisibility.cs" />
     <Compile Include="Controls\ClaudeCodeControl.Detach.cs" />

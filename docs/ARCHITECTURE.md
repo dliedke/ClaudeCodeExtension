@@ -88,6 +88,15 @@ Why it exists (v191.0): the embedded terminal is a window of another process (WT
 - Installation flow (v225.0): opens a visible `cmd.exe /k npx skills add JuliusBrussee/caveman -g` window (inside the distro via `wsl bash -lic` for the WSL target), with PATH refreshed from the registry. `/k` keeps the window open; when the user closes it the agent is reloaded — but only if the active provider is Claude Code in the same environment that was just installed into (v226.0) — `RelaunchNativeSessionAsync` in native mode (resumes the chat), `RestartTerminalWithSelectedProviderAsync` otherwise. No slash commands are sent, so it works in native mode too
 - Confirmation dialog: Shows the command that will run before execution
 
+## Install Latest OpenPets (OpenPets.cs, Agents/OpenPetsRelease.cs, v233.0)
+
+- Entry point: "Install latest OpenPets (Windows)..." in Settings → Automation → OpenPets. Like Install Caveman it closes the dialog without applying its edits and runs `InstallOpenPetsAsync()` once the dialog is gone
+- Source: `https://api.github.com/repos/OpenPetsHQ/openpets/releases/latest` (User-Agent required by GitHub). The Windows asset is the one ending `-win-x64-setup.exe`; it is only accepted when its download URL starts with the `OpenPetsHQ/openpets/releases/download/` prefix and its name has no path separators
+- Verification: the release's `SHA256SUMS` asset must list the installer, and the downloaded file's SHA-256 must match it. A release without checksums, or a mismatch, aborts before anything is started and the partial file is deleted
+- Download: streamed to `%TEMP%\ClaudeCodeExtension\OpenPets\<tag>\<installer>.download` with a non-modal progress window (bytes and percent; Cancel or closing the window cancels). `ServicePointManager` gets TLS 1.2 added first, since GitHub refuses older protocols
+- Start: `Process.Start` with `UseShellExecute = true`, so the installer runs interactively and Windows raises its own elevation prompt. Declining that prompt (Win32 error 1223) is silent; the installer file is left in the temp folder
+- Pure parsing (`ParseLatestRelease`, `FindSha256`) is unit-tested in `Tests/OpenPetsReleaseTests.cs`; the download and window are only checked by hand (F5 / live run)
+
 ## Visible Agents (ProviderManagement.cs)
 
 - Default: `VisibleProviders = [ClaudeCode]` keeps the agent menu short out-of-the-box

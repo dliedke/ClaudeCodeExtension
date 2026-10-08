@@ -143,6 +143,9 @@ Use native mode to avoid this issue.
 
 ## Version History
 
+### Version 233.0
+- **Install latest OpenPets** in *⚙ → Settings... → Automation* downloads the newest OpenPets release for Windows, shows the download progress, and starts its installer.
+
 ### Version 232.0
 - **Devin model picker** shows a cost bar and the input, cached input and output price per million tokens for each model; picking a price moves the bar, and the model you are using is marked on it.
 

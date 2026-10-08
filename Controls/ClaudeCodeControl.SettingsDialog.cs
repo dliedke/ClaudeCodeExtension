@@ -380,6 +380,37 @@ namespace ClaudeCodeVS
             }
             automationStack.Children.Add(installCavemanPanel);
 
+            automationStack.Children.Add(MakeSectionHeader("OpenPets", themeFg));
+            automationStack.Children.Add(new TextBlock
+            {
+                Text = "Downloads the latest OpenPets desktop pet release for Windows from GitHub, shows the download progress, checks it against the " +
+                       "release's published checksum, and then starts its installer. Closes this window first, discarding unsaved changes.",
+                FontSize = 11,
+                Opacity = 0.7,
+                Foreground = themeFg,
+                TextWrapping = TextWrapping.Wrap,
+                Margin = new Thickness(4, 0, 0, 6)
+            });
+            bool installOpenPetsRequested = false;
+            var installOpenPetsButton = new Button
+            {
+                Content = "Install latest OpenPets (Windows)...",
+                Height = 30,
+                MinWidth = 220,
+                Padding = new Thickness(14, 0, 14, 0),
+                Margin = new Thickness(4, 2, 6, 4),
+                HorizontalAlignment = HorizontalAlignment.Left
+            };
+            Style installOpenPetsButtonStyle = GetDialogButtonStyle();
+            if (installOpenPetsButtonStyle != null) installOpenPetsButton.Style = installOpenPetsButtonStyle;
+            else { installOpenPetsButton.Background = themeBg; installOpenPetsButton.Foreground = themeFg; installOpenPetsButton.BorderBrush = themeFg; }
+            installOpenPetsButton.Click += (s, args) =>
+            {
+                installOpenPetsRequested = true;
+                dialog.DialogResult = false;
+            };
+            automationStack.Children.Add(installOpenPetsButton);
+
             // ========================= Layout tab =========================
             var layoutStack = AddTab("Layout");
 
@@ -1247,6 +1278,10 @@ namespace ClaudeCodeVS
                 else if (installCavemanWsl.HasValue)
                 {
                     await InstallCavemanAsync(installCavemanWsl.Value);
+                }
+                else if (installOpenPetsRequested)
+                {
+                    await InstallOpenPetsAsync();
                 }
                 return;
             }

@@ -111,6 +111,7 @@ ClaudeCodeExtension/
 │   ├── ClaudeCodeControl.CommitMessage.cs # "Generate Commit Message": AI-drafted commit message from the git diff, filled into the Git Changes window via best-effort UI Automation
 │   ├── ClaudeCodeControl.ModelCatalog.cs # Per-provider model list: CLI discovery + cache, selection storage, launch flags / live switch commands
 │   ├── ClaudeCodeControl.ModelRecommendation.cs # "Recommend AI Model" (Claude Code only): one-shot Opus/xhigh advisor call, confirm dialog, applies model + effort
+│   ├── ClaudeCodeControl.OpenPets.cs    # "Install latest OpenPets" (Automation tab): GitHub release download with progress, SHA-256 check, starts the installer
 │   ├── ClaudeCodeControl.Interop.cs     # Win32 API declarations (P/Invoke)
 │   ├── ClaudeCodeControl.Theme.cs       # Dark/light theme support
 │   ├── ClaudeCodeControl.Detach.cs      # Terminal detach/attach to separate VS tab
@@ -123,6 +124,7 @@ ClaudeCodeExtension/
 │   ├── ModelCatalog.cs                  # Model option DTO + pure parsers for each CLI's model-listing output
 │   ├── SlashCommandCatalog.cs           # "/" picker: command/skill discovery, front-matter parsing, ranking (pure)
 │   ├── ModelRecommender.cs              # "Recommend AI Model": rubric, JSON schema, stdin request, result parser
+│   ├── OpenPetsRelease.cs               # "Install latest OpenPets": release JSON → Windows installer asset, SHA256SUMS lookup (pure)
 │   ├── ClaudeStatusLine.cs              # Native mode: resolves + runs the user's Claude Code statusLine command, builds its stdin JSON
 │   ├── AgentEvent.cs                    # Provider-agnostic event/usage/permission model
 │   ├── JsonLineProcessHost.cs           # Shared process plumbing (stdio, line reader, tree teardown)
@@ -229,6 +231,7 @@ Three cross-cutting rules (full text in `docs/ARCHITECTURE.md` → *Cross-Cuttin
 | `Controls/ClaudeCodeControl.CommitMessage.cs` | Generate Commit Message — assistant-turn capture tap, Git Changes window UI Automation, clipboard fallback |
 | `Controls/ClaudeCodeControl.ModelCatalog.cs`, `Agents/ModelCatalog.cs` | Model Catalog & Selection — per-CLI listing commands, cache/TTL, how each agent's model is applied |
 | `Controls/ClaudeCodeControl.ModelRecommendation.cs`, `Agents/ModelRecommender.cs` | Recommend AI Model — separate one-shot advisor CLI, lean flags, rubric command-line safety, prompt source/apply target |
+| `Controls/ClaudeCodeControl.OpenPets.cs`, `Agents/OpenPetsRelease.cs` | Install Latest OpenPets — release asset choice, checksum verification, download progress, installer start |
 | `Controls/ClaudeCodeControl.TerminalIO.cs` | Terminal I/O — paste/clipboard, chunking, large-prompt-as-file |
 | `Controls/ClaudeCodeControl.Usage.cs` | Claude Usage — WebView2 scraping, persistence, proxy interstitial |
 | `Controls/ClaudeCodeControl.Settings.cs` | Settings — init guard, layout inversion, prompt resize grip |
