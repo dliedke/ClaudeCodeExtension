@@ -407,6 +407,96 @@ namespace ClaudeCodeExtension.Tests
         }
 
         [TestMethod]
+        public void ParseCostSummary_SplitsTheThreePricesInTheOrderTheCliPrintsThem()
+        {
+            List<ModelPrice> prices = ModelCatalogParsers.ParseCostSummary(
+                "$8 / 1M Input \u00B7 $0.4 / 1M Cached input \u00B7 $40 / 1M Output");
+
+            Assert.AreEqual(3, prices.Count);
+            Assert.AreEqual("Input", prices[0].Label);
+            Assert.AreEqual("$8", prices[0].Text);
+            Assert.AreEqual("1M", prices[0].Denominator);
+            Assert.AreEqual(8.0, prices[0].Amount, 1e-9);
+            Assert.AreEqual("Cached input", prices[1].Label);
+            Assert.AreEqual("$0.4", prices[1].Text);
+            Assert.AreEqual("Output", prices[2].Label);
+            Assert.AreEqual("$40", prices[2].Text);
+            Assert.AreEqual(40.0, prices[2].Amount, 1e-9);
+        }
+
+        [TestMethod]
+        public void ParseCostSummary_KeepsTwoPricesWhenTheCliReportsNoCachedRate()
+        {
+            // The first variant of DevinModelsJson carries no cached-input price.
+            string summary = ModelCatalogParsers.ParseDevinCatalog(DevinModelsJson)[0].CostSummary;
+
+            List<ModelPrice> prices = ModelCatalogParsers.ParseCostSummary(summary);
+
+            Assert.AreEqual(2, prices.Count);
+            Assert.AreEqual("Output", prices[1].Label);
+            Assert.AreEqual("$25", prices[1].Text);
+        }
+
+        [TestMethod]
+        public void ParseCostSummary_ReturnsNothingWhenTheSummaryIsMissingOrUnfamiliar()
+        {
+            Assert.AreEqual(0, ModelCatalogParsers.ParseCostSummary(null).Count);
+            Assert.AreEqual(0, ModelCatalogParsers.ParseCostSummary("Free").Count);
+
+            // One unfamiliar part makes the whole summary unfamiliar, so the pane shows it as written.
+            Assert.AreEqual(0, ModelCatalogParsers.ParseCostSummary("$5 / 1M Input \u00B7 about $25 out").Count);
+        }
+
+        /// <summary>A few models priced the way the account's catalog prices them, plus one with no prices.</summary>
+        private static List<ModelOption> CostCatalog()
+        {
+            return new List<ModelOption>
+            {
+                new ModelOption { Id = "claude-haiku-5-5-low", Name = "Claude Haiku 5.5 Low", CostSummary = "$0.1 / 1M Input \u00B7 $0.01 / 1M Cached input \u00B7 $0.5 / 1M Output" },
+                new ModelOption { Id = "gemini-3-8-flash-medium", Name = "Gemini 3.8 Flash Medium", CostSummary = "$0.75 / 1M Input \u00B7 $0.08 / 1M Cached input \u00B7 $3.75 / 1M Output" },
+                new ModelOption { Id = "claude-opus-5-5-max-fast", Name = "Claude Opus 5.5 Max Fast", CostSummary = "$8 / 1M Input \u00B7 $0.4 / 1M Cached input \u00B7 $40 / 1M Output" },
+                new ModelOption { Id = "gpt-5-5-priority", Name = "GPT-5.5 Priority", CostSummary = "$12.5 / 1M Input \u00B7 $1.25 / 1M Cached input \u00B7 $75 / 1M Output" },
+                new ModelOption { Id = "adaptive", Name = "Adaptive" }
+            };
+        }
+
+        [TestMethod]
+        public void ModelCostScale_RunsEachCaptionFromTheCheapestPriceInTheListToTheDearest()
+        {
+            Dictionary<string, ModelCostRange> ranges = ModelCostScale.Build(CostCatalog());
+
+            Assert.AreEqual(0.1, ranges["Input"].Bottom, 1e-9);
+            Assert.AreEqual(12.5, ranges["Input"].Top, 1e-9);
+            Assert.AreEqual(0.01, ranges["Cached input"].Bottom, 1e-9);
+            Assert.AreEqual(1.25, ranges["Cached input"].Top, 1e-9);
+            Assert.AreEqual(0.5, ranges["Output"].Bottom, 1e-9);
+            Assert.AreEqual(75, ranges["Output"].Top, 1e-9);
+        }
+
+        [TestMethod]
+        public void ModelCostScale_PlacesPricesWhereDevinsPickerDrawsThem()
+        {
+            // On the same account Devin's picker draws Haiku 5.5 Low ($0.1 input) at the left end, Gemini 3.8 Flash
+            // Medium ($0.75) a little under a fifth of the way along, and Opus 5.5 Max Fast ($8) a little over four-fifths.
+            ModelCostRange input = ModelCostScale.Build(CostCatalog())["Input"];
+
+            Assert.AreEqual(0, ModelCostScale.Percent(0.1, input), 1e-9);
+            Assert.AreEqual(18.5, ModelCostScale.Percent(0.75, input), 0.1);
+            Assert.AreEqual(83.8, ModelCostScale.Percent(8, input), 0.1);
+        }
+
+        [TestMethod]
+        public void ModelCostScale_StaysOnTheBarAndIsZeroWithoutARange()
+        {
+            var range = new ModelCostRange { Bottom = 0.5, Top = 75 };
+
+            Assert.AreEqual(0, ModelCostScale.Percent(0.1, range), 1e-9);
+            Assert.AreEqual(100, ModelCostScale.Percent(500, range), 1e-9);
+            Assert.AreEqual(0, ModelCostScale.Percent(3, new ModelCostRange { Bottom = 2, Top = 2 }), 1e-9);
+            Assert.AreEqual(0, ModelCostScale.Percent(3, null), 1e-9);
+        }
+
+        [TestMethod]
         public void MenuCaption_AppendsWhateverTheCliReported()
         {
             var model = new ModelOption

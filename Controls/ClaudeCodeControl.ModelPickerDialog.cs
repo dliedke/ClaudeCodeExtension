@@ -8,15 +8,17 @@
  *
  * Purpose: Searchable model picker window for Devin, modeled on Devin Desktop's own picker: a search
  *          box, Adaptive pinned on top, starred favorites, then every family, with a details pane
- *          showing the context window, cost tier and per-1M prices Devin reports.
+ *          showing the context window and the per-1M prices Devin reports, on a cost bar.
  *
  * *******************************************************************************************************************/
 
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.Linq;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Documents;
 using System.Windows.Input;
 using System.Windows.Media;
 
@@ -82,6 +84,9 @@ namespace ClaudeCodeVS
             // the model already in use, then follows whatever the user has highlighted since, so
             // starring a model does not fling the list back to the original selection.
             string highlighted = chosen;
+
+            // The price the bar shows. It survives moving through the list, so one price can be compared across models.
+            string costMetric = "Input";
 
             var dialog = new Window
             {
@@ -227,7 +232,8 @@ namespace ClaudeCodeVS
             rootGrid.Children.Add(buttonRow);
 
             // ---- Details pane ----
-            Action<ModelOption> showDetails = model =>
+            Action<ModelOption> showDetails = null;
+            showDetails = model =>
             {
                 detailsPanel.Children.Clear();
                 if (model == null) return;
@@ -257,8 +263,16 @@ namespace ClaudeCodeVS
 
                 addLine(model.Group, 0.75);
                 addLine(model.ContextWindowLabel, 1.0);
-                addLine(model.CostTier, 1.0);
-                addLine(model.CostSummary, 0.85);
+
+                List<ModelOption> catalog = GetCachedProviderModels(provider);
+                ModelOption inUse = catalog.FirstOrDefault(option => string.Equals(option.Id, chosen, StringComparison.OrdinalIgnoreCase));
+                FrameworkElement cost = BuildCostSection(model, inUse, ModelCostScale.Build(catalog), costMetric, themeFg, metric =>
+                {
+                    costMetric = metric;
+                    showDetails(model);
+                });
+                if (cost != null) detailsPanel.Children.Add(cost);
+
                 addLine(model.Description, 0.85);
 
                 var badges = new List<string>();
@@ -540,6 +554,215 @@ namespace ClaudeCodeVS
                 Tag = model,
                 ToolTip = model.Id
             };
+        }
+
+        /// <summary>
+        /// Devin's cost gradient, the same three stops its picker draws: cheapest green, middle orange,
+        /// dearest purple. Fixed colours for the same reason as <see cref="FavoriteStarBrush"/>.
+        /// </summary>
+        private static readonly Brush CostBarBrush = CreateCostBarBrush();
+
+        /// <summary>The track's dots: the model's own, and the dimmer one for the model in use.</summary>
+        private static readonly Brush MarkerBrush = Brushes.White;
+        private static readonly Brush CurrentMarkerBrush = CreateFrozenBrush(Color.FromArgb(0x80, 0xFF, 0xFF, 0xFF));
+        private static readonly Brush MarkerRingBrush = CreateFrozenBrush(Color.FromArgb(0x1F, 0x00, 0x00, 0x00));
+
+        private const double CostTrackHeight = 8;
+        private const double CostMarkerSize = 8;
+
+        private static Brush CreateCostBarBrush()
+        {
+            var brush = new LinearGradientBrush { StartPoint = new Point(0, 0), EndPoint = new Point(1, 0) };
+            brush.GradientStops.Add(new GradientStop(Color.FromRgb(0, 165, 88), 0.0));
+            brush.GradientStops.Add(new GradientStop(Color.FromRgb(245, 142, 58), 0.5));
+            brush.GradientStops.Add(new GradientStop(Color.FromRgb(149, 108, 222), 1.0));
+            brush.Freeze();
+            return brush;
+        }
+
+        private static Brush CreateFrozenBrush(Color color)
+        {
+            var brush = new SolidColorBrush(color);
+            brush.Freeze();
+            return brush;
+        }
+
+        /// <summary>The brush's colour at another alpha: the translucent tints the tiles and the divider use.</summary>
+        private static Brush WithAlpha(Brush brush, byte alpha)
+        {
+            Color color = (brush as SolidColorBrush)?.Color ?? Colors.White;
+            return CreateFrozenBrush(Color.FromArgb(alpha, color.R, color.G, color.B));
+        }
+
+        /// <summary>
+        /// The details pane's cost section, laid out as Devin's picker lays it out: a divider, the "Cost" caption,
+        /// the bar for the price picked, then one tile per price. The bar marks this model and, when another model
+        /// is in use, that model too, captioned "Current". Null when the model reports no prices.
+        /// </summary>
+        private static FrameworkElement BuildCostSection(
+            ModelOption model, ModelOption inUse, Dictionary<string, ModelCostRange> ranges,
+            string metric, Brush fg, Action<string> onMetric)
+        {
+            List<ModelPrice> prices = ModelCatalogParsers.ParseCostSummary(model.CostSummary);
+            if (prices.Count == 0)
+            {
+                if (string.IsNullOrWhiteSpace(model.CostSummary)) return null;
+
+                // A summary the parser does not recognise is shown as the CLI wrote it.
+                return new TextBlock
+                {
+                    Text = model.CostSummary,
+                    Foreground = fg,
+                    Opacity = 0.85,
+                    TextWrapping = TextWrapping.Wrap,
+                    Margin = new Thickness(0, 10, 0, 0)
+                };
+            }
+
+            ModelPrice picked = prices.FirstOrDefault(p => string.Equals(p.Label, metric, StringComparison.OrdinalIgnoreCase)) ?? prices[0];
+            ModelCostRange range;
+            ranges.TryGetValue(picked.Label, out range);
+            double position = ModelCostScale.Percent(picked.Amount, range);
+
+            // The model in use gets a marker of its own, unless it is this model or has no such price.
+            ModelPrice usedPrice = null;
+            if (inUse != null && !string.Equals(inUse.Id, model.Id, StringComparison.OrdinalIgnoreCase))
+            {
+                usedPrice = ModelCatalogParsers.ParseCostSummary(inUse.CostSummary)
+                    .FirstOrDefault(p => string.Equals(p.Label, picked.Label, StringComparison.OrdinalIgnoreCase));
+            }
+            double usedPosition = usedPrice == null ? 0 : ModelCostScale.Percent(usedPrice.Amount, range);
+
+            var section = new StackPanel { Margin = new Thickness(0, 10, 0, 0) };
+            section.Children.Add(new Border { Height = 1, Background = WithAlpha(fg, 0x26), Margin = new Thickness(0, 0, 0, 8) });
+            section.Children.Add(new TextBlock { Text = "Cost", Foreground = fg, FontSize = 13 });
+
+            var bar = new StackPanel { Margin = new Thickness(0, 6, 0, 0) };
+            bar.Children.Add(BuildCaptionRow(
+                string.IsNullOrWhiteSpace(model.Group) ? model.DisplayName : model.Group, position, fg, new Thickness(0, 0, 0, 4)));
+
+            var track = new Grid { Height = CostTrackHeight };
+            track.Children.Add(new Border { Height = CostTrackHeight, CornerRadius = new CornerRadius(CostTrackHeight / 2), Background = CostBarBrush });
+            if (usedPrice != null)
+            {
+                track.Children.Add(BuildMarker(usedPosition, CurrentMarkerBrush, inUse.DisplayName + ": " + usedPrice.Text + " / " + usedPrice.Denominator));
+            }
+            track.Children.Add(BuildMarker(position, MarkerBrush, picked.Text + " / " + picked.Denominator));
+            bar.Children.Add(track);
+
+            if (usedPrice != null)
+            {
+                bar.Children.Add(BuildCaptionRow("Current", usedPosition, fg, new Thickness(0, 4, 0, 0)));
+            }
+            section.Children.Add(bar);
+
+            section.Children.Add(BuildPriceTiles(prices, picked.Label, fg, onMetric));
+            return section;
+        }
+
+        /// <summary>
+        /// A caption centred over <paramref name="percent"/> of the track and kept inside the track at either end,
+        /// as Devin keeps its captions. Its width is known only after layout, so it is placed on the first size change.
+        /// </summary>
+        private static FrameworkElement BuildCaptionRow(string text, double percent, Brush fg, Thickness margin)
+        {
+            var label = new TextBlock { Text = text, Foreground = fg, FontSize = 10, FontWeight = FontWeights.SemiBold };
+            var row = new Canvas { Height = 14, Margin = margin };
+            row.Children.Add(label);
+            row.SizeChanged += (s, e) =>
+            {
+                label.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
+                double width = label.DesiredSize.Width;
+                double centre = percent / 100 * (row.ActualWidth - CostMarkerSize) + CostMarkerSize / 2;
+                Canvas.SetLeft(label, Math.Max(0, Math.Min(centre - width / 2, row.ActualWidth - width)));
+            };
+            return row;
+        }
+
+        /// <summary>
+        /// A dot on the track at <paramref name="percent"/>. It has a fixed-width column between two stretch columns,
+        /// so its centre lands at that share of the track whatever the pane's width.
+        /// </summary>
+        private static FrameworkElement BuildMarker(double percent, Brush fill, string tooltip)
+        {
+            double share = Math.Min(100, Math.Max(0, percent));
+
+            var layer = new Grid();
+            layer.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(share, GridUnitType.Star) });
+            layer.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(CostMarkerSize) });
+            layer.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(100 - share, GridUnitType.Star) });
+
+            var dot = new Border
+            {
+                Width = CostMarkerSize,
+                Height = CostMarkerSize,
+                CornerRadius = new CornerRadius(CostMarkerSize / 2),
+                Background = fill,
+                BorderBrush = MarkerRingBrush,
+                BorderThickness = new Thickness(1),
+                VerticalAlignment = VerticalAlignment.Center,
+                ToolTip = tooltip
+            };
+            Grid.SetColumn(dot, 1);
+            layer.Children.Add(dot);
+
+            return layer;
+        }
+
+        /// <summary>
+        /// One tile per price: its caption small, the price beside its unit. The tile of the price the bar shows is
+        /// filled, and clicking a tile (or pressing Enter or Space on it) moves the bar to that price.
+        /// </summary>
+        private static FrameworkElement BuildPriceTiles(List<ModelPrice> prices, string pickedLabel, Brush fg, Action<string> onMetric)
+        {
+            var tiles = new Grid { Margin = new Thickness(0, 8, 0, 0) };
+            Brush dim = WithAlpha(fg, 0x99);
+            Brush selectedFill = WithAlpha(fg, 0x26);
+            Brush hoverFill = WithAlpha(fg, 0x14);
+
+            for (int i = 0; i < prices.Count; i++)
+            {
+                ModelPrice price = prices[i];
+                bool picked = string.Equals(price.Label, pickedLabel, StringComparison.OrdinalIgnoreCase);
+
+                var amount = new TextBlock { Foreground = fg, FontSize = 12, FontWeight = FontWeights.Medium, Margin = new Thickness(0, 2, 0, 0) };
+                amount.Inlines.Add(new Run(price.Text));
+                amount.Inlines.Add(new Run(" / " + price.Denominator) { FontSize = 10, FontWeight = FontWeights.SemiBold, Foreground = dim });
+
+                var content = new StackPanel();
+                content.Children.Add(new TextBlock { Text = price.Label, Foreground = dim, FontSize = 10, FontWeight = FontWeights.SemiBold, TextTrimming = TextTrimming.CharacterEllipsis });
+                content.Children.Add(amount);
+
+                var tile = new Border
+                {
+                    Background = picked ? selectedFill : Brushes.Transparent,
+                    CornerRadius = new CornerRadius(4),
+                    Padding = new Thickness(6, 4, 6, 4),
+                    Margin = new Thickness(0, 0, i < prices.Count - 1 ? 6 : 0, 0),
+                    Cursor = Cursors.Hand,
+                    Focusable = true,
+                    Child = content
+                };
+                if (!picked)
+                {
+                    tile.MouseEnter += (s, e) => tile.Background = hoverFill;
+                    tile.MouseLeave += (s, e) => tile.Background = Brushes.Transparent;
+                }
+                tile.MouseLeftButtonUp += (s, e) => onMetric?.Invoke(price.Label);
+                tile.KeyDown += (s, e) =>
+                {
+                    if (e.Key != Key.Enter && e.Key != Key.Space) return;
+
+                    e.Handled = true;
+                    onMetric?.Invoke(price.Label);
+                };
+
+                tiles.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+                Grid.SetColumn(tile, i);
+                tiles.Children.Add(tile);
+            }
+
+            return tiles;
         }
 
         /// <summary>

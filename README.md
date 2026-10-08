@@ -143,6 +143,9 @@ Use native mode to avoid this issue.
 
 ## Version History
 
+### Version 232.0
+- **Devin model picker** shows a cost bar and the input, cached input and output price per million tokens for each model; picking a price moves the bar, and the model you are using is marked on it.
+
 ### Version 230.0
 - **Claude Usage tab** no longer paints over the pane docked next to it (for example the Terminal below it) after the layout changes; it now snaps back to its own area automatically.
 

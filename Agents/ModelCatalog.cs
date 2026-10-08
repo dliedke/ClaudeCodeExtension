@@ -122,6 +122,80 @@ namespace ClaudeCodeVS.Agents
     }
 
     /// <summary>
+    /// One per-1M price from a model's cost summary, as the CLI words it: "$8 / 1M Cached input" is
+    /// <see cref="Text"/> "$8", <see cref="Denominator"/> "1M" and <see cref="Label"/> "Cached input".
+    /// </summary>
+    public class ModelPrice
+    {
+        /// <summary>The caption the CLI gives the price: "Input", "Cached input" or "Output".</summary>
+        public string Label { get; set; } = string.Empty;
+
+        /// <summary>The price as the CLI prints it, currency sign included: "$8".</summary>
+        public string Text { get; set; } = string.Empty;
+
+        /// <summary>The unit the price is quoted per, as the CLI prints it: "1M".</summary>
+        public string Denominator { get; set; } = string.Empty;
+
+        /// <summary><see cref="Text"/> as a number, for placing the price on the cost bar.</summary>
+        public double Amount { get; set; }
+    }
+
+    /// <summary>The cheapest and the dearest price a list asks for one caption.</summary>
+    public class ModelCostRange
+    {
+        public double Bottom { get; set; }
+
+        public double Top { get; set; }
+    }
+
+    /// <summary>
+    /// Places a price on the cost bar the way Devin's picker does: the bar runs from the cheapest price in the
+    /// list to the dearest, on a log scale, so a few very expensive models do not bunch every other model
+    /// against the left-hand end.
+    /// </summary>
+    public static class ModelCostScale
+    {
+        /// <summary>The cheapest and dearest price in <paramref name="models"/> for each caption.</summary>
+        public static Dictionary<string, ModelCostRange> Build(IEnumerable<ModelOption> models)
+        {
+            var ranges = new Dictionary<string, ModelCostRange>(StringComparer.OrdinalIgnoreCase);
+            if (models == null) return ranges;
+
+            foreach (ModelOption model in models)
+            {
+                foreach (ModelPrice price in ModelCatalogParsers.ParseCostSummary(model.CostSummary))
+                {
+                    ModelCostRange range;
+                    if (!ranges.TryGetValue(price.Label, out range))
+                    {
+                        range = new ModelCostRange { Bottom = price.Amount, Top = price.Amount };
+                        ranges[price.Label] = range;
+                    }
+
+                    range.Bottom = Math.Min(range.Bottom, price.Amount);
+                    range.Top = Math.Max(range.Top, price.Amount);
+                }
+            }
+
+            return ranges;
+        }
+
+        /// <summary>
+        /// Where <paramref name="amount"/> sits on the bar, from 0 at the range's bottom to 100 at its top.
+        /// The scale is log(1 + price), clamped to the range. 0 when the range is missing or holds one price.
+        /// </summary>
+        public static double Percent(double amount, ModelCostRange range)
+        {
+            if (range == null || range.Top <= range.Bottom) return 0;
+
+            double value = Math.Min(range.Top, Math.Max(range.Bottom, amount));
+            double low = Math.Log(1 + range.Bottom);
+
+            return (Math.Log(1 + value) - low) / (Math.Log(1 + range.Top) - low) * 100;
+        }
+    }
+
+    /// <summary>
     /// A family of models shown as one submenu, or — when <see cref="Name"/> is empty — entries that
     /// belong at the top level of the menu.
     /// </summary>
@@ -245,6 +319,11 @@ namespace ClaudeCodeVS.Agents
             @"\s*\((?:current|default)(?:\s*,\s*(?:current|default))*\)$",
             RegexOptions.Compiled | RegexOptions.IgnoreCase);
 
+        /// <summary>One "$8 / 1M Cached input" part of Devin's cost summary.</summary>
+        private static readonly Regex PricePart = new Regex(
+            @"^\$(?<amount>\d+(?:\.\d+)?) / (?<denominator>\S+)\s+(?<label>\S.*)$",
+            RegexOptions.Compiled);
+
         /// <summary>
         /// Codex's <c>debug models</c> JSON catalog. Only the models Codex itself lists are kept:
         /// the catalog also carries hidden/deprecated slugs that its own picker does not show.
@@ -338,6 +417,33 @@ namespace ClaudeCodeVS.Agents
             }
 
             return models;
+        }
+
+        /// <summary>
+        /// Devin's <c>cost_summary</c> — "$8 / 1M Input · $0.4 / 1M Cached input · $40 / 1M Output" — split
+        /// into its per-1M prices in the order the CLI wrote them. Empty when the summary is missing or any
+        /// part is not in that shape, so the details pane falls back to showing the text as written.
+        /// </summary>
+        public static List<ModelPrice> ParseCostSummary(string summary)
+        {
+            var prices = new List<ModelPrice>();
+            if (string.IsNullOrWhiteSpace(summary)) return prices;
+
+            foreach (string part in summary.Split('·'))
+            {
+                Match match = PricePart.Match(part.Trim());
+                if (!match.Success) return new List<ModelPrice>();
+
+                prices.Add(new ModelPrice
+                {
+                    Label = match.Groups["label"].Value.Trim(),
+                    Text = "$" + match.Groups["amount"].Value,
+                    Denominator = match.Groups["denominator"].Value,
+                    Amount = double.Parse(match.Groups["amount"].Value, CultureInfo.InvariantCulture)
+                });
+            }
+
+            return prices;
         }
 
         /// <summary>
