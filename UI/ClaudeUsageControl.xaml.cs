@@ -19,13 +19,16 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
+using System.Runtime.InteropServices;
 using System.Security.Cryptography;
 using System.Text;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Interop;
+using System.Windows.Media;
 using System.Windows.Threading;
+using ClaudeCodeVS.UI;
 
 namespace ClaudeCodeVS
 {
@@ -116,12 +119,16 @@ namespace ClaudeCodeVS
         {
             InitializeComponent();
             this.Loaded += OnLoaded;
+            this.Unloaded += (s, e) => StopBoundsGuard();
+            this.SizeChanged += (s, e) => ScheduleBoundsCheck();
+            this.IsVisibleChanged += (s, e) => ScheduleBoundsCheck();
         }
 
 #pragma warning disable VSTHRD100 // async void Loaded handler is required by WPF
         private async void OnLoaded(object sender, RoutedEventArgs e)
 #pragma warning restore VSTHRD100
         {
+            StartBoundsGuard();
             try { await EnsureAliveAsync(); }
             catch (Exception ex) { Debug.WriteLine("ClaudeUsageControl.OnLoaded failed: " + ex); }
         }
@@ -1405,6 +1412,397 @@ namespace ClaudeCodeVS
             _autoRefreshTimer.Start();
         }
 
+        #region WebView2 bounds guard
+
+        // A WebView2 is a native child window, so WPF clipping and z-order do not apply to it. When
+        // the docked tab is laid out taller than the area Visual Studio really shows (a pane docked
+        // below it, such as Output or the Terminal), WPF clips the control's own elements but the
+        // native window keeps painting over that pane. Two checks run together:
+        //  - ClampWebViewToVisibleArea hit-tests the web area to find where the shell's clip cuts it
+        //    off and gives the web view only the visible height;
+        //  - RepairWebViewBounds compares the window's real rectangle with where WPF placed the
+        //    element and pulls it back when they disagree.
+        // Every change of state is appended to usage-layout.log so a miss can be diagnosed.
+
+        private const int BoundsGuardIntervalSeconds = 2;
+        private const int BoundsCheckDebounceMilliseconds = 150;
+        private const int BoundsRepairMissesBeforeBackoff = 3;
+        private const int BoundsRepairBackoffSeconds = 60;
+        private const double VisibleHeightSlackDips = 6;
+        private const int LayoutLogMaxBytes = 200 * 1024;
+
+        private static readonly string LayoutLogPath = Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+            "ClaudeCodeExtension", "usage-layout.log");
+        private static readonly object LayoutLogLock = new object();
+
+        private DispatcherTimer _boundsGuardTimer;
+        private DispatcherTimer _boundsCheckDebounce;
+        private int _boundsRepairMisses;
+        private bool _boundsMismatchPending;
+        private DateTime _boundsRepairBackoffUntilUtc = DateTime.MinValue;
+        private string _lastLayoutState;
+        private string _lastFramePos = "?";
+
+        /// <summary>
+        /// Called by the tool window when Visual Studio resizes its frame, with the frame's own idea
+        /// of its size (only logged — it is the one number that is independent of WPF's layout).
+        /// </summary>
+        public void NotifyFrameResized(string framePos)
+        {
+            _lastFramePos = framePos ?? "?";
+            ScheduleBoundsCheck();
+        }
+
+        private void CheckWebViewLayout()
+        {
+            ClampWebViewToVisibleArea();
+            RepairWebViewBounds();
+        }
+
+        private void StartBoundsGuard()
+        {
+            if (_boundsGuardTimer == null)
+            {
+                _boundsGuardTimer = new DispatcherTimer(DispatcherPriority.Background)
+                {
+                    Interval = TimeSpan.FromSeconds(BoundsGuardIntervalSeconds)
+                };
+                _boundsGuardTimer.Tick += (s, e) => CheckWebViewLayout();
+            }
+
+            _boundsGuardTimer.Start();
+            ScheduleBoundsCheck();
+        }
+
+        private void StopBoundsGuard()
+        {
+            _boundsGuardTimer?.Stop();
+            _boundsCheckDebounce?.Stop();
+        }
+
+        /// <summary>
+        /// Runs a check shortly after a size or visibility change, once Visual Studio has finished
+        /// arranging the pane. The periodic timer catches anything that raises no event at all.
+        /// </summary>
+        private void ScheduleBoundsCheck()
+        {
+            if (WebView == null || _hostedOffscreen) return;
+
+            if (_boundsCheckDebounce == null)
+            {
+                _boundsCheckDebounce = new DispatcherTimer(DispatcherPriority.Background)
+                {
+                    Interval = TimeSpan.FromMilliseconds(BoundsCheckDebounceMilliseconds)
+                };
+                _boundsCheckDebounce.Tick += (s, e) =>
+                {
+                    _boundsCheckDebounce.Stop();
+                    CheckWebViewLayout();
+                };
+            }
+
+            _boundsCheckDebounce.Stop();
+            _boundsCheckDebounce.Start();
+        }
+
+        private void RepairWebViewBounds()
+        {
+            try
+            {
+                var web = WebView;
+                if (web == null || _hostedOffscreen || web.CoreWebView2 == null || !web.IsVisible) return;
+                if (DateTime.UtcNow < _boundsRepairBackoffUntilUtc) return;
+
+                var source = PresentationSource.FromVisual(web) as HwndSource;
+                IntPtr hwnd = web.Handle;
+                if (source?.CompositionTarget == null || hwnd == IntPtr.Zero) return;
+                if (web.ActualWidth <= 0 || web.ActualHeight <= 0) return;
+
+                var expected = GetExpectedWebViewBounds(web, source);
+                if (!TryGetWindowBounds(hwnd, out var actual)) return;
+
+                if (!HostedWindowBounds.IsMisaligned(actual, expected))
+                {
+                    _boundsRepairMisses = 0;
+                    _boundsMismatchPending = false;
+                    return;
+                }
+
+                // A single reading can land in the middle of Visual Studio's own layout pass.
+                // Only a mismatch that is still there on the next check is acted on.
+                if (!_boundsMismatchPending)
+                {
+                    _boundsMismatchPending = true;
+                    ScheduleBoundsCheck();
+                    return;
+                }
+                _boundsMismatchPending = false;
+
+                if (++_boundsRepairMisses > BoundsRepairMissesBeforeBackoff)
+                {
+                    // Something keeps undoing the repair (or the comparison itself is off on this
+                    // machine). Stop touching the window rather than fight it every two seconds.
+                    Debug.WriteLine("ClaudeUsageControl: WebView2 bounds repair keeps failing, backing off");
+                    _boundsRepairMisses = 0;
+                    _boundsRepairBackoffUntilUtc = DateTime.UtcNow.AddSeconds(BoundsRepairBackoffSeconds);
+                    return;
+                }
+
+                string mismatch = $"WebView2 window is {actual} but WPF placed it at {expected} " +
+                                  $"(control {ActualWidth:0}x{ActualHeight:0}) - repairing";
+                Debug.WriteLine("ClaudeUsageControl: " + mismatch);
+                LogLayout(mismatch, dedupe: false);
+
+                // Let WPF re-apply the position first: it also tells WebView2 to resize its own
+                // surface, which a bare window move would not.
+                NudgeWebViewLayout(web);
+                if (TryGetWindowBounds(hwnd, out actual) && !HostedWindowBounds.IsMisaligned(actual, expected))
+                {
+                    return;
+                }
+
+                // WPF did not move it. Snap the window itself — that alone stops it painting over
+                // the neighbouring pane — then nudge again so WebView2 picks up the new size.
+                SnapWindowTo(hwnd, expected);
+                NudgeWebViewLayout(web);
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine("ClaudeUsageControl.RepairWebViewBounds failed: " + ex.Message);
+            }
+        }
+
+        /// <summary>
+        /// Gives the web view only the height Visual Studio really shows. When the tab is laid out
+        /// taller than its pane, the shell clips the control's WPF elements at the pane edge but the
+        /// native window ignores that clip. WPF hit testing honors it, so the first point of the web
+        /// area that no longer hits one of this control's own visuals is where the pane ends.
+        /// </summary>
+        private void ClampWebViewToVisibleArea()
+        {
+            try
+            {
+                var area = WebArea;
+                var host = WebViewHost;
+                if (area == null || host == null || WebView == null || _hostedOffscreen || !area.IsVisible) return;
+
+                var root = PresentationSource.FromVisual(area)?.RootVisual;
+                if (root == null || area.ActualWidth < 1 || area.ActualHeight < 1) return;
+
+                double full = area.ActualHeight;
+                double visible = MeasureVisibleHeight(area, root);
+                bool clamped = !double.IsNaN(host.Height);
+
+                if (visible < full - VisibleHeightSlackDips)
+                {
+                    double target = Math.Max(1, Math.Floor(visible));
+                    if (!clamped || Math.Abs(host.Height - target) > 1)
+                    {
+                        host.VerticalAlignment = VerticalAlignment.Top;
+                        host.Height = target;
+                    }
+                }
+                else if (clamped)
+                {
+                    host.ClearValue(FrameworkElement.HeightProperty);
+                    host.VerticalAlignment = VerticalAlignment.Stretch;
+                }
+
+                string state = $"control={ActualWidth:0}x{ActualHeight:0} area={area.ActualWidth:0}x{full:0} " +
+                               $"visible={visible:0} host={(double.IsNaN(host.Height) ? "full" : host.Height.ToString("0"))} " +
+                               $"frame={_lastFramePos}";
+                if (visible < full - VisibleHeightSlackDips) state += " chain=" + DescribeAncestors(area, root);
+                LogLayout(state);
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine("ClaudeUsageControl.ClampWebViewToVisibleArea failed: " + ex.Message);
+            }
+        }
+
+        /// <summary>
+        /// Height of <paramref name="area"/> that still hits this control, measured down the middle
+        /// of the area. The area's own full height when nothing cuts it off (or when its top is
+        /// already covered, which says nothing about where a pane ends).
+        /// </summary>
+        private double MeasureVisibleHeight(FrameworkElement area, Visual root)
+        {
+            var toRoot = area.TransformToAncestor(root);
+            double x = Math.Max(1, area.ActualWidth / 2);
+            Func<double, bool> isOurs = y =>
+            {
+                var hit = VisualTreeHelper.HitTest(root, toRoot.Transform(new Point(x, y)));
+                return hit?.VisualHit != null && IsOwnVisual(hit.VisualHit);
+            };
+
+            double bottom = area.ActualHeight - 1;
+            if (isOurs(bottom) || !isOurs(1)) return area.ActualHeight;
+
+            double lo = 1, hi = bottom; // lo is ours, hi is not
+            while (hi - lo > 2)
+            {
+                double mid = (lo + hi) / 2;
+                if (isOurs(mid)) lo = mid; else hi = mid;
+            }
+            return lo;
+        }
+
+        private bool IsOwnVisual(DependencyObject visual)
+        {
+            for (DependencyObject d = visual; d != null;
+                 d = d is Visual || d is System.Windows.Media.Media3D.Visual3D ? VisualTreeHelper.GetParent(d) : null)
+            {
+                if (ReferenceEquals(d, this)) return true;
+            }
+            return false;
+        }
+
+        /// <summary>The element's parents with their vertical extent in root coordinates and whether they clip.</summary>
+        private static string DescribeAncestors(FrameworkElement start, Visual root)
+        {
+            var sb = new StringBuilder();
+            DependencyObject d = start;
+            for (int i = 0; d != null && i < 14; i++, d = VisualTreeHelper.GetParent(d))
+            {
+                if (i > 0) sb.Append(" > ");
+                sb.Append(d.GetType().Name);
+                if (d is UIElement ui)
+                {
+                    sb.Append('[');
+                    try
+                    {
+                        var r = ui.TransformToAncestor(root).TransformBounds(new Rect(ui.RenderSize));
+                        sb.Append($"y{r.Top:0}-{r.Bottom:0} x{r.Left:0}-{r.Right:0}");
+                    }
+                    catch { sb.Append('?'); }
+                    if (ui.ClipToBounds) sb.Append(" clip");
+                    if (VisualTreeHelper.GetClip(ui) != null) sb.Append(" geom");
+                    sb.Append(']');
+                }
+            }
+            return sb.ToString();
+        }
+
+        /// <summary>
+        /// Appends one line to <c>usage-layout.log</c>. Identical consecutive states are written once,
+        /// so a steady layout adds nothing; the file is restarted when it passes 200 KB.
+        /// </summary>
+        private void LogLayout(string message, bool dedupe = true)
+        {
+            try
+            {
+                if (dedupe)
+                {
+                    if (message == _lastLayoutState) return;
+                    _lastLayoutState = message;
+                }
+
+                lock (LayoutLogLock)
+                {
+                    var info = new FileInfo(LayoutLogPath);
+                    if (info.Exists && info.Length > LayoutLogMaxBytes) info.Delete();
+                    Directory.CreateDirectory(Path.GetDirectoryName(LayoutLogPath));
+                    File.AppendAllText(LayoutLogPath,
+                        DateTime.Now.ToString("HH:mm:ss.fff") + " [" + Process.GetCurrentProcess().Id + "] " +
+                        message + Environment.NewLine);
+                }
+            }
+            catch
+            {
+                // Diagnostics only: another VS window may hold the file, which must never matter.
+            }
+        }
+
+        /// <summary>Where WPF placed the element, in screen pixels (the space GetWindowRect reports).</summary>
+        private static PixelRect GetExpectedWebViewBounds(FrameworkElement web, HwndSource source)
+        {
+            var toDevice = source.CompositionTarget.TransformToDevice;
+            Point topLeft = web.PointToScreen(new Point(0, 0));
+            int left = (int)Math.Round(topLeft.X);
+            int top = (int)Math.Round(topLeft.Y);
+            return new PixelRect(
+                left,
+                top,
+                left + (int)Math.Round(web.ActualWidth * toDevice.M11),
+                top + (int)Math.Round(web.ActualHeight * toDevice.M22));
+        }
+
+        private static bool TryGetWindowBounds(IntPtr hwnd, out PixelRect bounds)
+        {
+            bounds = default(PixelRect);
+            if (!NativeMethods.GetWindowRect(hwnd, out var r)) return false;
+            bounds = new PixelRect(r.Left, r.Top, r.Right, r.Bottom);
+            return true;
+        }
+
+        /// <summary>
+        /// Resizes the element by a pixel and back, which makes WPF re-position the native window
+        /// and WebView2 resize its surface even when WPF believes nothing changed.
+        /// </summary>
+        private static void NudgeWebViewLayout(FrameworkElement web)
+        {
+            double width = web.ActualWidth;
+            if (width < 2) return;
+
+            try
+            {
+                web.Width = width - 1;
+                web.UpdateLayout();
+            }
+            finally
+            {
+                web.ClearValue(FrameworkElement.WidthProperty);
+                web.UpdateLayout();
+            }
+        }
+
+        private static void SnapWindowTo(IntPtr hwnd, PixelRect screenRect)
+        {
+            var topLeft = new NativeMethods.NativePoint { X = screenRect.Left, Y = screenRect.Top };
+            IntPtr parent = NativeMethods.GetParent(hwnd);
+            if (parent != IntPtr.Zero) NativeMethods.ScreenToClient(parent, ref topLeft);
+
+            NativeMethods.SetWindowPos(hwnd, IntPtr.Zero, topLeft.X, topLeft.Y,
+                screenRect.Width, screenRect.Height,
+                NativeMethods.SWP_NOZORDER | NativeMethods.SWP_NOACTIVATE);
+        }
+
+        private static class NativeMethods
+        {
+            public const uint SWP_NOZORDER = 0x0004;
+            public const uint SWP_NOACTIVATE = 0x0010;
+
+            [StructLayout(LayoutKind.Sequential)]
+            public struct NativeRect
+            {
+                public int Left, Top, Right, Bottom;
+            }
+
+            [StructLayout(LayoutKind.Sequential)]
+            public struct NativePoint
+            {
+                public int X, Y;
+            }
+
+            [DllImport("user32.dll")]
+            [return: MarshalAs(UnmanagedType.Bool)]
+            public static extern bool GetWindowRect(IntPtr hWnd, out NativeRect lpRect);
+
+            [DllImport("user32.dll")]
+            public static extern IntPtr GetParent(IntPtr hWnd);
+
+            [DllImport("user32.dll")]
+            [return: MarshalAs(UnmanagedType.Bool)]
+            public static extern bool ScreenToClient(IntPtr hWnd, ref NativePoint lpPoint);
+
+            [DllImport("user32.dll")]
+            [return: MarshalAs(UnmanagedType.Bool)]
+            public static extern bool SetWindowPos(IntPtr hWnd, IntPtr hWndInsertAfter, int x, int y, int cx, int cy, uint uFlags);
+        }
+
+        #endregion
+
         /// <summary>
         /// Reloads the live page. Returns false when there is nothing alive to reload — the
         /// caller should treat that as a signal to rebuild via <see cref="EnsureAliveAsync"/>
@@ -1820,6 +2218,7 @@ namespace ClaudeCodeVS
                 _autoRefreshTimer = null;
                 _redirectDebounceTimer?.Stop();
                 _redirectDebounceTimer = null;
+                StopBoundsGuard();
                 _isHostVisible = false;
                 DisposeWebViewInstance();
                 CloseOffscreenHost();

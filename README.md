@@ -143,6 +143,9 @@ Use native mode to avoid this issue.
 
 ## Version History
 
+### Version 230.0
+- **Claude Usage tab** no longer paints over the pane docked next to it (for example the Terminal below it) after the layout changes; it now snaps back to its own area automatically.
+
 ### Version 229.0
 - **Status line in native chat**: if you set up a Claude Code status line, its output now appears under the summary after each Claude turn in native mode, for Claude Code on Windows and in WSL; nothing extra is shown when none is configured (issue #188).
 

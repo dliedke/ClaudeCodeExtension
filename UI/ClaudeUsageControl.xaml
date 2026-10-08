@@ -85,7 +85,9 @@
         </Border>
 
         <!-- WebView2 -->
-        <Grid Grid.Row="1">
+        <!-- Transparent (not null) background: WPF hit testing skips an element without a brush, and
+             the bounds guard hit-tests this area to find where the shell's clip cuts it off. -->
+        <Grid x:Name="WebArea" Grid.Row="1" Background="Transparent">
             <TextBlock x:Name="LoadingText"
                        Text="Loading claude.ai..."
                        HorizontalAlignment="Center" VerticalAlignment="Center"

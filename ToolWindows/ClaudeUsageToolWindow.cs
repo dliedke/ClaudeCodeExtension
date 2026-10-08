@@ -103,6 +103,33 @@ namespace ClaudeCodeVS
             return false;
         }
 
+        /// <summary>
+        /// The frame's own position and size as Visual Studio reports it, for the layout log. It is
+        /// independent of WPF's layout, which is what makes it useful when the two disagree.
+        /// </summary>
+        private string DescribeFramePos()
+        {
+            ThreadHelper.ThrowIfNotOnUIThread();
+
+            try
+            {
+                if (Frame is IVsWindowFrame windowFrame)
+                {
+                    var pos = new VSSETFRAMEPOS[1];
+                    if (windowFrame.GetFramePos(pos, out Guid _, out int x, out int y, out int cx, out int cy) == VSConstants.S_OK)
+                    {
+                        return x + "," + y + " " + cx + "x" + cy;
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine("ClaudeUsageToolWindow.DescribeFramePos failed: " + ex.Message);
+            }
+
+            return "?";
+        }
+
         protected override void OnClose()
         {
             ThreadHelper.ThrowIfNotOnUIThread();
@@ -168,7 +195,12 @@ namespace ClaudeCodeVS
         }
 
         public int OnMove() => VSConstants.S_OK;
-        public int OnSize() => VSConstants.S_OK;
+        public int OnSize()
+        {
+            ThreadHelper.ThrowIfNotOnUIThread();
+            _control?.NotifyFrameResized(DescribeFramePos());
+            return VSConstants.S_OK;
+        }
         public int OnDockableChange(int fDockable) => VSConstants.S_OK;
 
         #endregion
