@@ -58,6 +58,14 @@ namespace ClaudeCodeVS.Agents
         // set to: green" again). That copy is dropped; the real outcome is the compact_boundary notice.
         private bool _skipReplayedAssistant;
 
+        // Model of the latest top-level assistant message (subagents carry a parent_tool_use_id), used
+        // to pick the main conversation's entry out of the result's modelUsage.
+        private string _lastMainModel = string.Empty;
+
+        // What a status line command would receive, kept up to date from init, rate-limit and result
+        // events; a copy rides on every TurnCompleted (issue #188).
+        private readonly ClaudeStatusLineInput _statusLine = new ClaudeStatusLineInput();
+
         /// <param name="expectDeltas">
         /// True when the CLI was launched with <c>--include-partial-messages</c>. When false, text and
         /// thinking come from the complete assistant messages instead.
@@ -169,6 +177,13 @@ namespace ClaudeCodeVS.Agents
             SessionId = (string)root["session_id"] ?? string.Empty;
             Model = (string)root["model"] ?? string.Empty;
 
+            _statusLine.Cwd = (string)root["cwd"] ?? _statusLine.Cwd;
+            _statusLine.SessionId = SessionId;
+            _statusLine.ModelId = Model;
+            _statusLine.Version = (string)root["claude_code_version"] ?? _statusLine.Version;
+            _statusLine.OutputStyle = (string)root["output_style"] ?? _statusLine.OutputStyle;
+            _statusLine.FastMode = string.Equals((string)root["fast_mode_state"], "on", StringComparison.OrdinalIgnoreCase);
+
             return One(AgentEvent.SessionStarted(
                 SessionId,
                 Model,
@@ -244,6 +259,9 @@ namespace ClaudeCodeVS.Agents
             _skipReplayedAssistant = manual;
             _shownTextThisTurn = true;
 
+            // As in the CLI: no current usage after a compaction until the next request reports one.
+            _statusLine.HasCurrentUsage = false;
+
             string text = before.HasValue && after.HasValue
                 ? string.Format(CultureInfo.InvariantCulture,
                     "Conversation compacted: {0:N0} → {1:N0} tokens of context.", before.Value, after.Value)
@@ -263,6 +281,12 @@ namespace ClaudeCodeVS.Agents
             {
                 _skipReplayedAssistant = false;
                 return Empty;
+            }
+
+            string messageModel = (string)root["message"]?["model"];
+            if (!string.IsNullOrEmpty(messageModel) && root["parent_tool_use_id"]?.Type != JTokenType.String)
+            {
+                _lastMainModel = messageModel;
             }
 
             // Measured: "Not logged in", a failed API call or an exhausted plan arrives as a synthetic
@@ -400,6 +424,21 @@ namespace ClaudeCodeVS.Agents
                 return Empty;
             }
 
+            // Measured: "unifiedWindows":{"five_hour":{"utilization":0.13,"resetsAt":…},"seven_day":{…}}.
+            JToken windows = info["unifiedWindows"];
+            double? fiveHour = (double?)windows?["five_hour"]?["utilization"];
+            if (fiveHour.HasValue)
+            {
+                _statusLine.FiveHourUsedPercentage = fiveHour.Value * 100.0;
+                _statusLine.FiveHourResetsAt = (long?)windows["five_hour"]["resetsAt"] ?? 0;
+            }
+            double? sevenDay = (double?)windows?["seven_day"]?["utilization"];
+            if (sevenDay.HasValue)
+            {
+                _statusLine.SevenDayUsedPercentage = sevenDay.Value * 100.0;
+                _statusLine.SevenDayResetsAt = (long?)windows["seven_day"]["resetsAt"] ?? 0;
+            }
+
             return One(AgentEvent.RateLimitUpdated(new AgentRateLimit
             {
                 Status = (string)info["status"] ?? string.Empty,
@@ -475,9 +514,76 @@ namespace ClaudeCodeVS.Agents
             _sawDeltas = false;
             _streamedMessageIds.Clear();
 
-            events.Add(AgentEvent.TurnCompleted(usage, denials, wasInterrupted));
+            UpdateStatusLineFromResult(root, usageNode);
+
+            AgentEvent completed = AgentEvent.TurnCompleted(usage, denials, wasInterrupted);
+            completed.StatusLine = _statusLine.Clone();
+            events.Add(completed);
 
             return events;
+        }
+
+        /// <summary>
+        /// Session totals and the live context for the status line. Measured: <c>total_cost_usd</c> and
+        /// <c>duration_api_ms</c> already accumulate over the session while <c>duration_ms</c> is per
+        /// turn; the top-level usage sums every request of the turn (a two-request turn reported 36.8K
+        /// cache reads for a 22.7K conversation), so the context comes from the last entry of
+        /// <c>usage.iterations</c> — the conversation as it now stands.
+        /// </summary>
+        private void UpdateStatusLineFromResult(JObject root, JObject usageNode)
+        {
+            double? cost = (double?)root["total_cost_usd"];
+            if (cost.HasValue) _statusLine.TotalCostUsd = cost.Value;
+
+            long? apiDuration = (long?)root["duration_api_ms"];
+            if (apiDuration.HasValue) _statusLine.TotalApiDurationMs = apiDuration.Value;
+
+            _statusLine.TotalDurationMs += (long?)root["duration_ms"] ?? 0;
+
+            var iterations = usageNode?["iterations"] as JArray;
+            if (iterations != null && iterations.Count > 0)
+            {
+                JToken last = iterations[iterations.Count - 1];
+                _statusLine.InputTokens = (int?)last["input_tokens"] ?? 0;
+                _statusLine.OutputTokens = (int?)last["output_tokens"] ?? 0;
+                _statusLine.CacheCreationTokens = (int?)last["cache_creation_input_tokens"] ?? 0;
+                _statusLine.CacheReadTokens = (int?)last["cache_read_input_tokens"] ?? 0;
+                _statusLine.HasCurrentUsage = true;
+            }
+
+            int window = ReadContextWindow(root["modelUsage"] as JObject, _lastMainModel);
+            if (window > 0) _statusLine.ContextWindowSize = window;
+        }
+
+        /// <summary>
+        /// The context window from <c>modelUsage</c>, keyed by model id. A turn can list more than one
+        /// model (subagents, side calls on a smaller model), so the main conversation's model wins;
+        /// without a match the largest window is the safer guess, since a percentage against a too-small
+        /// window would claim the conversation is nearly full.
+        /// </summary>
+        internal static int ReadContextWindow(JObject modelUsage, string mainModel)
+        {
+            if (modelUsage == null)
+            {
+                return 0;
+            }
+
+            if (!string.IsNullOrEmpty(mainModel) && modelUsage[mainModel] is JObject main)
+            {
+                int window = (int?)main["contextWindow"] ?? 0;
+                if (window > 0)
+                {
+                    return window;
+                }
+            }
+
+            int largest = 0;
+            foreach (JProperty entry in modelUsage.Properties())
+            {
+                largest = Math.Max(largest, (int?)entry.Value?["contextWindow"] ?? 0);
+            }
+
+            return largest;
         }
 
         /// <summary>

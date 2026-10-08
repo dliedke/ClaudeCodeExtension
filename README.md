@@ -143,6 +143,9 @@ Use native mode to avoid this issue.
 
 ## Version History
 
+### Version 229.0
+- **Status line in native chat**: if you set up a Claude Code status line, its output now appears under the summary after each Claude turn in native mode, for Claude Code on Windows and in WSL; nothing extra is shown when none is configured (issue #188).
+
 ### Version 228.0
 - **"/" command picker**: typing "/" in the prompt box of a Claude chat lists the built-in commands, your custom commands and skills with their descriptions, like the terminal does; PageUp/PageDown scroll the list faster.
 - **/compact** in the native chat now reports how much context was freed instead of repeating the previous answer.

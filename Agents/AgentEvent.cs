@@ -433,6 +433,12 @@ namespace ClaudeCodeVS.Agents
         public IReadOnlyList<AgentPermissionDenial> PermissionDenials { get; set; }
 
         /// <summary>
+        /// Claude only: the input for the user's status line command as of this turn, null for
+        /// providers that have no status line.
+        /// </summary>
+        public ClaudeStatusLineInput StatusLine { get; set; }
+
+        /// <summary>
         /// True when the turn ended because the user interrupted it, rather than completing normally.
         /// The UI shows this as a neutral "interrompido", not an error.
         /// </summary>

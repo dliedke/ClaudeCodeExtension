@@ -318,6 +318,67 @@ namespace ClaudeCodeExtension.Tests
         }
 
         [TestMethod]
+        public void ClaudeParser_StatusLineInputFollowsInitRateLimitsAndTheLastRequest()
+        {
+            // Figures recorded from real CLI 2.1.294 output (issue #188): the top-level usage sums both
+            // requests of the turn (36,849 cache reads), the last iteration is the conversation as it
+            // now stands; utilization arrives as a fraction; the subagent's model must not decide
+            // which context window applies.
+            var parser = new ClaudeStreamParser(expectDeltas: true);
+
+            List<AgentEvent> events = ParseAll(parser,
+                "{\"type\":\"system\",\"subtype\":\"init\",\"cwd\":\"C:\\\\Repo\",\"session_id\":\"s1\"," +
+                "\"model\":\"claude-opus-5-5\",\"claude_code_version\":\"2.1.294\",\"output_style\":\"default\",\"fast_mode_state\":\"off\"}",
+                "{\"type\":\"rate_limit_event\",\"rate_limit_info\":{\"status\":\"allowed\",\"unifiedWindows\":" +
+                "{\"five_hour\":{\"utilization\":0.13,\"resetsAt\":1791472200},\"seven_day\":{\"utilization\":0.02,\"resetsAt\":1791932400}}}}",
+                "{\"type\":\"assistant\",\"parent_tool_use_id\":null,\"message\":{\"id\":\"m1\",\"model\":\"claude-opus-5-5\",\"content\":[]}}",
+                "{\"type\":\"assistant\",\"parent_tool_use_id\":\"toolu_1\",\"message\":{\"id\":\"m2\",\"model\":\"claude-haiku-5-5\",\"content\":[]}}",
+                "{\"type\":\"result\",\"subtype\":\"success\",\"total_cost_usd\":0.25,\"duration_ms\":1000,\"duration_api_ms\":900," +
+                "\"usage\":{\"input_tokens\":4,\"cache_read_input_tokens\":36849,\"cache_creation_input_tokens\":8505," +
+                "\"iterations\":[{\"input_tokens\":2,\"output_tokens\":10,\"cache_read_input_tokens\":22623,\"cache_creation_input_tokens\":108}]}," +
+                "\"modelUsage\":{\"claude-haiku-5-5\":{\"contextWindow\":200000},\"claude-opus-5-5\":{\"contextWindow\":1000000}}}");
+
+            ClaudeStatusLineInput input = events[events.Count - 1].StatusLine;
+            Assert.IsNotNull(input);
+
+            JObject json = JObject.Parse(input.Build("xhigh", @"C:\Users\me\.claude"));
+            Assert.AreEqual(@"C:\Repo", (string)json["workspace"]["current_dir"]);
+            Assert.AreEqual("Opus 5.5", (string)json["model"]["display_name"]);
+            Assert.AreEqual("2.1.294", (string)json["version"]);
+            Assert.AreEqual("xhigh", (string)json["effort"]["level"]);
+            Assert.AreEqual(@"C:\Users\me\.claude\projects\C--Repo\s1.jsonl", (string)json["transcript_path"]);
+            Assert.AreEqual(22733, (int)json["context_window"]["total_input_tokens"]);
+            Assert.AreEqual(1000000, (int)json["context_window"]["context_window_size"]);
+            Assert.AreEqual(2, (int)json["context_window"]["used_percentage"]);
+            Assert.AreEqual(13.0, (double)json["rate_limits"]["five_hour"]["used_percentage"], 0.001);
+            Assert.AreEqual(1791932400L, (long)json["rate_limits"]["seven_day"]["resets_at"]);
+            Assert.AreEqual(0.25, (double)json["cost"]["total_cost_usd"], 0.0001);
+        }
+
+        [TestMethod]
+        public void ClaudeParser_StatusLineInputLeavesOutWhatTheStreamHasNotReported()
+        {
+            // Before any rate_limit_event (API-key users never get one) and after /compact, the CLI
+            // omits rate_limits and nulls the current usage; scripts rely on that to print "n/a".
+            var parser = new ClaudeStreamParser(expectDeltas: true);
+
+            List<AgentEvent> events = ParseAll(parser,
+                "{\"type\":\"system\",\"subtype\":\"compact_boundary\",\"compact_metadata\":{\"trigger\":\"auto\"}}",
+                "{\"type\":\"result\",\"subtype\":\"success\",\"usage\":{}}");
+
+            JObject json = JObject.Parse(events[events.Count - 1].StatusLine.Build(string.Empty, null));
+            Assert.IsNull(json["rate_limits"]);
+            Assert.IsNull(json["effort"]);
+            Assert.AreEqual(JTokenType.Null, json["context_window"]["used_percentage"].Type);
+            Assert.AreEqual(JTokenType.Null, json["context_window"]["current_usage"].Type);
+
+            // No match for the main model: the largest window, never a too-small one.
+            Assert.AreEqual(1000000, ClaudeStreamParser.ReadContextWindow(
+                JObject.Parse("{\"a\":{\"contextWindow\":200000},\"b\":{\"contextWindow\":1000000}}"), "unknown"));
+            Assert.AreEqual(0, ClaudeStreamParser.ReadContextWindow(null, "claude-opus-5-5"));
+        }
+
+        [TestMethod]
         public void ClaudeParser_AnAbortedTurnIsInterruptedRatherThanFailed()
         {
             // Clicking stop must not paint a red error banner in the transcript.

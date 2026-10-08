@@ -2736,12 +2736,16 @@ namespace ClaudeCodeVS
             // after scrolling back, and the status line is transient.
             if (wasInFlight)
             {
-                AddNativeMessage(ChatMessageKind.Notice,
+                ChatMessageViewModel footer = AddNativeMessage(ChatMessageKind.Notice,
                     FormatTurnFooter(
                         agentEvent.Usage,
                         elapsed,
                         agentEvent.WasInterrupted,
                         SupportsQueuedCodexNativeChat(_currentRunningProvider)));
+
+                AppendClaudeStatusLine(footer, agentEvent, _currentRunningProvider,
+                    _settings != null ? _settings.SelectedEffortLevel : EffortLevel.Auto,
+                    ChatTranscript != null ? ChatTranscript.ActualWidth : 0);
             }
 
             FireNativeAgentFinish(finishConfig, agentEvent);
@@ -2826,16 +2830,89 @@ namespace ClaudeCodeVS
             }
         }
 
-        private void AddNativeMessage(ChatMessageKind kind, string text)
+        private ChatMessageViewModel AddNativeMessage(ChatMessageKind kind, string text)
         {
             if (string.IsNullOrWhiteSpace(text) || ChatTranscript == null)
             {
-                return;
+                return null;
             }
 
             var message = new ChatMessageViewModel(kind) { Text = text };
             message.Complete();
             ChatTranscript.Messages.Add(message);
+            return message;
+        }
+
+        /// <summary>
+        /// Shows the user's own Claude Code status line under the turn footer (issue #188). Headless
+        /// Claude never runs it, so the extension does, with the JSON the CLI would have sent; nothing is
+        /// shown when no status line is configured or the command fails. Claude Code (WSL) reads the
+        /// distro's settings and runs the command inside it, as the CLI there would.
+        /// </summary>
+        private void AppendClaudeStatusLine(ChatMessageViewModel footer, AgentEvent agentEvent,
+            AiProvider? provider, EffortLevel effort, double transcriptWidth)
+        {
+            ClaudeStatusLineInput input = agentEvent.StatusLine;
+            bool isWsl = provider == AiProvider.ClaudeCodeWSL;
+            if (footer == null || input == null || (provider != AiProvider.ClaudeCode && !isWsl) || string.IsNullOrEmpty(input.Cwd))
+            {
+                return;
+            }
+
+            // The CLI reports the effort actually in force; "Auto" leaves it to the CLI, which the
+            // extension cannot see, so the field is omitted. Ultracode runs at xhigh.
+            string effortLevel = effort == EffortLevel.Ultracode ? "xhigh" : MapEffortArgument(effort);
+
+            // COLUMNS lets a script size itself; approximate the transcript's width in characters.
+            int columns = transcriptWidth > 0 ? (int)(transcriptWidth / 7.5) : 120;
+
+#pragma warning disable VSSDK007, VSTHRD110 // Fire-and-forget: the footer is already on screen
+            ThreadHelper.JoinableTaskFactory.RunAsync(async delegate
+            {
+                string output = await Task.Run(async () =>
+                {
+                    if (isWsl)
+                    {
+                        // The stream reports a Linux cwd; settings are read through the distro's share.
+                        WslLocation wsl = await ClaudeStatusLine.GetWslLocationAsync();
+                        if (wsl == null)
+                        {
+                            return null;
+                        }
+
+                        string wslCommand = ClaudeStatusLine.ResolveCommand(
+                            wsl.ToWindowsPath(ClaudeStatusLine.WslManagedSettingsPath),
+                            wsl.ToWindowsPath(wsl.ConfigDirectory),
+                            wsl.ToWindowsPath(input.Cwd));
+                        if (wslCommand == null)
+                        {
+                            return null;
+                        }
+
+                        return await ClaudeStatusLine.RunInWslAsync(wslCommand, input.Build(effortLevel, wsl.ConfigDirectory),
+                            input.Cwd, columns, CancellationToken.None);
+                    }
+
+                    string userDir = SlashCommandCatalog.GetUserClaudeDirectory();
+                    string command = ClaudeStatusLine.ResolveCommand(ClaudeStatusLine.ManagedSettingsPath, userDir, input.Cwd);
+                    if (command == null)
+                    {
+                        return null;
+                    }
+
+                    return await ClaudeStatusLine.RunAsync(command, input.Build(effortLevel, userDir),
+                        input.Cwd, columns, CancellationToken.None);
+                });
+
+                if (string.IsNullOrEmpty(output))
+                {
+                    return;
+                }
+
+                await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
+                footer.Text = footer.Text + "\n" + output;
+            }).FileAndForget("claudecode/nativemode/statusline");
+#pragma warning restore VSSDK007, VSTHRD110
         }
 
         /// <summary>
@@ -3202,10 +3279,11 @@ namespace ClaudeCodeVS
         }
 
         /// <summary>Adds a status message to a specific session's transcript.</summary>
-        private void AddNativeMessageToSession(NativeChatSessionState session, ChatMessageKind kind, string text)
+        private ChatMessageViewModel AddNativeMessageToSession(NativeChatSessionState session, ChatMessageKind kind, string text)
         {
             var msg = new ChatMessageViewModel(kind) { Text = text };
             session.ChatTranscript.Messages.Add(msg);
+            return msg;
         }
 
         /// <summary>Applies rate limit to a specific session.</summary>
@@ -3296,12 +3374,15 @@ namespace ClaudeCodeVS
 
             if (wasInFlight)
             {
-                AddNativeMessageToSession(session, ChatMessageKind.Notice,
+                ChatMessageViewModel footer = AddNativeMessageToSession(session, ChatMessageKind.Notice,
                     FormatTurnFooter(
                         agentEvent.Usage,
                         elapsed,
                         agentEvent.WasInterrupted,
                         SupportsQueuedCodexNativeChat(session.SelectedProvider)));
+
+                AppendClaudeStatusLine(footer, agentEvent, session.SelectedProvider,
+                    session.SelectedEffortLevel, session.ChatTranscript.ActualWidth);
             }
 
             FireNativeAgentFinish(finishConfig, agentEvent);

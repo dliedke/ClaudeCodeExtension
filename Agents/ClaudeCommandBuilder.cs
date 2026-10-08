@@ -408,7 +408,7 @@ namespace ClaudeCodeVS.Agents
         }
 
         /// <summary>Wraps in single quotes, escaping embedded ones the POSIX way.</summary>
-        private static string QuoteForBash(string value)
+        internal static string QuoteForBash(string value)
         {
             if (value == null) value = string.Empty;
             return "'" + value.Replace("'", "'\\''") + "'";
@@ -418,7 +418,7 @@ namespace ClaudeCodeVS.Agents
         /// Quotes for the Windows command-line parser: backslashes immediately before the closing quote
         /// have to be doubled, otherwise they escape it and swallow the rest of the argument.
         /// </summary>
-        private static string QuoteForWindowsArgument(string value)
+        internal static string QuoteForWindowsArgument(string value)
         {
             if (value == null) value = string.Empty;
 

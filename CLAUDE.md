@@ -6,7 +6,7 @@ Visual Studio Extension (VSIX) for VS 2022/2026 — integrates AI code assistant
 
 - Author: Daniel Carvalho Liedke (dliedke@gmail.com) | License: MIT
 - Repository: https://github.com/dliedke/ClaudeCodeExtension
-- Current Version: 228.0 | Target Framework: .NET Framework 4.7.2
+- Current Version: 229.0 | Target Framework: .NET Framework 4.7.2
 
 Step-by-step procedures for recurring tasks (release, Exp-hive debugging, publish, adding a
 provider/setting/UI file) live in `docs/SKILLS.md`. Short build/style brief for non-Claude agents: `docs/AGENTS.md`.
@@ -123,6 +123,7 @@ ClaudeCodeExtension/
 │   ├── ModelCatalog.cs                  # Model option DTO + pure parsers for each CLI's model-listing output
 │   ├── SlashCommandCatalog.cs           # "/" picker: command/skill discovery, front-matter parsing, ranking (pure)
 │   ├── ModelRecommender.cs              # "Recommend AI Model": rubric, JSON schema, stdin request, result parser
+│   ├── ClaudeStatusLine.cs              # Native mode: resolves + runs the user's Claude Code statusLine command, builds its stdin JSON
 │   ├── AgentEvent.cs                    # Provider-agnostic event/usage/permission model
 │   ├── JsonLineProcessHost.cs           # Shared process plumbing (stdio, line reader, tree teardown)
 │   ├── ProcessTree.cs                   # Process-tree enumeration/termination
