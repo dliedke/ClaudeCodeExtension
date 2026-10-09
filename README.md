@@ -143,6 +143,9 @@ Use native mode to avoid this issue.
 
 ## Version History
 
+### Version 235.0
+- **Native mode usage button** next to the composer's selectors shows the chat's context window use and your plan limits; *See detailed breakdown* opens the Claude Usage tab.
+
 ### Version 234.0
 - **Pull from git before the first prompt** now also pulls when you open another solution in the same Visual Studio session; before, the first prompt there could go out without a pull.
 

@@ -130,6 +130,15 @@ namespace ClaudeCodeVS.UI
         public event EventHandler<ChatSelector> SelectorClicked;
 
         /// <summary>
+        /// Raised when the usage button is clicked, as its popup opens. The parent refreshes the Claude Usage
+        /// data in the background; the popup is updated again when the new figures arrive.
+        /// </summary>
+        public event EventHandler UsageRequested;
+
+        /// <summary>Raised by the popup's "See detailed breakdown". The parent opens the Claude Usage tab.</summary>
+        public event EventHandler UsageDetailsRequested;
+
+        /// <summary>
         /// Raised once the user is done with the effort slider — when the popup closes — carrying the
         /// stop it was left on. Deliberately not raised per stop: applying a level restarts the agent,
         /// so reporting each stop the user passes through would restart it once per stop and lock the
@@ -1175,6 +1184,95 @@ namespace ClaudeCodeVS.UI
 
             _effortIndexOnOpen = _effortIndex;
             EffortChanged?.Invoke(this, _effortIndex);
+        }
+
+        /// <summary>
+        /// Opening the popup asks the parent to refresh the Claude Usage data; the popup is filled again
+        /// when the new figures arrive, so the numbers never lag the tab by more than one refresh.
+        /// </summary>
+        private void ComposerUsageButton_Click(object sender, RoutedEventArgs e)
+        {
+            UsagePopup.IsOpen = !UsagePopup.IsOpen;
+            if (UsagePopup.IsOpen)
+            {
+                UsageRequested?.Invoke(this, EventArgs.Empty);
+            }
+        }
+
+        private void UsageDetailsButton_Click(object sender, RoutedEventArgs e)
+        {
+            UsagePopup.IsOpen = false;
+            UsageDetailsRequested?.Invoke(this, EventArgs.Empty);
+        }
+
+        /// <summary>
+        /// Shows the ring and fills the popup. The ring fills with the context window in use, or with the
+        /// session limit when no turn has reported a context window yet. Null or not visible hides the button.
+        /// </summary>
+        public void SetUsageIndicator(ChatUsageIndicatorData data)
+        {
+            bool visible = data != null && data.Visible;
+            Visibility previous = ComposerUsageButton.Visibility;
+            ComposerUsageButton.Visibility = visible ? Visibility.Visible : Visibility.Collapsed;
+            if (previous != ComposerUsageButton.Visibility)
+            {
+                QueueComposerDensityRefresh();
+            }
+
+            if (!visible)
+            {
+                UsagePopup.IsOpen = false;
+                ComposerUsageRingArc.Data = null;
+                return;
+            }
+
+            int ringPercent = data.HasContext
+                ? ChatUsageIndicator.ClampPercent(data.ContextPercent)
+                : data.HasPlanUsage ? ChatUsageIndicator.ClampPercent(data.SessionPercent) : -1;
+            ComposerUsageRingArc.Data = ringPercent < 0
+                ? null
+                : ChatUsageIndicator.RingArc(ringPercent / 100.0, 7, 6);
+            ComposerUsageButton.ToolTip = ringPercent < 0
+                ? "Usage: context window and plan limits"
+                : "Usage: " + ringPercent + "% used";
+
+            UsageContextText.Text = data.HasContext
+                ? ChatUsageIndicator.ContextLine(data.ContextTokens, data.ContextWindow)
+                : "No turn yet";
+            UsageContextBar.Value = data.HasContext ? ChatUsageIndicator.ClampPercent(data.ContextPercent) : 0;
+
+            UsageNoPlanText.Visibility = data.HasPlanUsage ? Visibility.Collapsed : Visibility.Visible;
+            UsagePlanRows.Visibility = data.HasPlanUsage ? Visibility.Visible : Visibility.Collapsed;
+            if (data.HasPlanUsage)
+            {
+                UsageSessionLabel.Text = string.IsNullOrEmpty(data.SessionLabel) ? "Session limit" : data.SessionLabel;
+                SetPlanRow(UsageSessionText, UsageSessionBar, data.SessionPercent, true, data.SessionReset);
+
+                SetPlanRow(UsageWeeklyText, UsageWeeklyBar, data.WeeklyPercent, data.ShowWeekly, data.WeeklyReset);
+                UsageWeeklyRow.Visibility = data.ShowWeekly ? Visibility.Visible : Visibility.Collapsed;
+
+                SetPlanRow(UsageExtraText, UsageExtraBar, data.ExtraPercent, data.ShowExtra, data.ExtraSpent, data.ExtraReset);
+                UsageExtraRow.Visibility = data.ShowExtra ? Visibility.Visible : Visibility.Collapsed;
+            }
+
+            UsageUpdatedText.Text = data.UpdatedText ?? string.Empty;
+            UsageUpdatedText.Visibility = string.IsNullOrEmpty(data.UpdatedText) ? Visibility.Collapsed : Visibility.Visible;
+        }
+
+        /// <summary>
+        /// Writes one plan row ("41% used · Resets in 2 h") and its bar. The bar is hidden here; the caller hides
+        /// the row's label grid, since the bar sits outside it.
+        /// </summary>
+        private static void SetPlanRow(TextBlock text, ProgressBar bar, int percent, bool visible, params string[] details)
+        {
+            bar.Visibility = visible ? Visibility.Visible : Visibility.Collapsed;
+            if (!visible)
+            {
+                return;
+            }
+
+            text.Text = ChatUsageIndicator.PlanRowText(percent, details);
+            bar.Value = ChatUsageIndicator.ClampPercent(percent);
         }
 
         private void ComposerClearButton_Click(object sender, RoutedEventArgs e)

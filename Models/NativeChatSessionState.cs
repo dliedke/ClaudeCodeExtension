@@ -66,6 +66,12 @@ namespace ClaudeCodeVS
         public AgentFinishConfig TurnFinishConfig { get; set; }
         public string LastRateLimitNotice { get; set; }
 
+        /// <summary>
+        /// The status line the last completed turn reported (context window in use). Feeds the composer's
+        /// usage popup; null until a turn completes, and again after Clear Chat.
+        /// </summary>
+        public ClaudeStatusLineInput LastStatusLine { get; set; }
+
         // Codex native queue (one-shot agents)
         public Queue<string> CodexPromptQueue { get; }
         public bool IsCodexQueueOwner { get; set; }

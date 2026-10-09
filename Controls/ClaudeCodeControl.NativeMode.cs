@@ -2728,6 +2728,13 @@ namespace ClaudeCodeVS
             bool wasInFlight = _nativeTurnInFlight;
             _nativeTurnInFlight = false;
 
+            // Kept for the composer's usage popup, which reads the context window from the last turn.
+            if (agentEvent.StatusLine != null)
+            {
+                _mainStatusLine = agentEvent.StatusLine;
+                UpdateChatUsageIndicator(ChatTranscript, null, _currentRunningProvider);
+            }
+
             // The status line goes away rather than repeating the footer that is about to land right
             // above it — the two sat adjacent and said the same thing twice.
             ChatTranscript.EndActivity(string.Empty);
@@ -3361,6 +3368,12 @@ namespace ClaudeCodeVS
                 AddNativeMessageToSession(session, ChatMessageKind.Notice,
                     $"Blocked for lack of permission: {string.Join(", ", names)}. " +
                     "Enable \"Skip permissions\" in the agent menu to allow these tools.");
+            }
+
+            if (agentEvent.StatusLine != null)
+            {
+                session.LastStatusLine = agentEvent.StatusLine;
+                UpdateChatUsageIndicator(session.ChatTranscript, session, session.SelectedProvider);
             }
 
             // Read before EndActivity, which stops the clock this falls back to.

@@ -6,7 +6,7 @@ Visual Studio Extension (VSIX) for VS 2022/2026 — integrates AI code assistant
 
 - Author: Daniel Carvalho Liedke (dliedke@gmail.com) | License: MIT
 - Repository: https://github.com/dliedke/ClaudeCodeExtension
-- Current Version: 230.0 | Target Framework: .NET Framework 4.7.2
+- Current Version: 235.0 | Target Framework: .NET Framework 4.7.2
 
 Step-by-step procedures for recurring tasks (release, Exp-hive debugging, publish, adding a
 provider/setting/UI file) live in `docs/SKILLS.md`. Short build/style brief for non-Claude agents: `docs/AGENTS.md`.
@@ -118,7 +118,8 @@ ClaudeCodeExtension/
 │   ├── ClaudeCodeControl.Usage.cs       # Claude usage tool window wiring & inline bars
 │   ├── ClaudeCodeControl.SessionHistory.cs # Claude/Codex history dialog: list/view/resume/delete
 │   ├── ClaudeCodeControl.NativeMode.cs  # "Native mode": chat instead of the embedded terminal, adapter selection, event bridge
-│   └── ClaudeCodeControl.NativeChat.cs  # Native mode chat tab: document-tab hosting, composer, agent/model/effort/permission selectors, live switching
+│   ├── ClaudeCodeControl.NativeChat.cs  # Native mode chat tab: document-tab hosting, composer, agent/model/effort/permission selectors, live switching
+│   └── ClaudeCodeControl.ChatUsageIndicator.cs # Native mode composer usage button: context ring + plan-limit popup, background usage refresh
 ├── Agents/                              # Headless agent protocols (no WPF, no VS SDK — unit-testable)
 │   ├── IAgentSession.cs                 # Session contract shared by every adapter
 │   ├── ModelCatalog.cs                  # Model option DTO + pure parsers for each CLI's model-listing output
@@ -143,6 +144,7 @@ ClaudeCodeExtension/
 │   ├── ChatInteractionViewModels.cs     # Question/permission/plan card view-models (transcript rows)
 │   ├── ChatToolPresentation.cs          # Tool call → header line + rendered diff (pure, unit-tested)
 │   ├── ChatStyles.xaml                  # Chat resource dictionary (composer menu styles, brushes)
+│   ├── ChatUsageIndicator.cs            # Native composer usage button: token formatting, context/plan percentages, ring geometry (pure, unit-tested)
 │   ├── GlyphIcon.cs                     # Ink-centering of icon-only buttons (attached property, pure math unit-tested)
 │   ├── MarkdownFlowRenderer.cs          # Markdown → FlowDocument + the MarkdownBlock control
 │   └── DiffViewerControl.xaml(.cs)
@@ -233,7 +235,7 @@ Three cross-cutting rules (full text in `docs/ARCHITECTURE.md` → *Cross-Cuttin
 | `Controls/ClaudeCodeControl.ModelRecommendation.cs`, `Agents/ModelRecommender.cs` | Recommend AI Model — separate one-shot advisor CLI, lean flags, rubric command-line safety, prompt source/apply target |
 | `Controls/ClaudeCodeControl.OpenPets.cs`, `Agents/OpenPetsRelease.cs` | Install Latest OpenPets — release asset choice, checksum verification, download progress, installer start |
 | `Controls/ClaudeCodeControl.TerminalIO.cs` | Terminal I/O — paste/clipboard, chunking, large-prompt-as-file |
-| `Controls/ClaudeCodeControl.Usage.cs` | Claude Usage — WebView2 scraping, persistence, proxy interstitial |
+| `Controls/ClaudeCodeControl.Usage.cs`, `Controls/ClaudeCodeControl.ChatUsageIndicator.cs`, `UI/ChatUsageIndicator.cs` | Claude Usage — WebView2 scraping, persistence, proxy interstitial, native composer usage button |
 | `Controls/ClaudeCodeControl.Settings.cs` | Settings — init guard, layout inversion, prompt resize grip |
 | `Controls/ClaudeCodeControl.Workspace.cs` | Workspace — directory resolution priority |
 | `Controls/ClaudeCodeControl.Detach.cs` | Detach — re-parenting / auto-reattach |

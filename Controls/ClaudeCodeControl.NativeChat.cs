@@ -649,6 +649,11 @@ namespace ClaudeCodeVS
             transcript.EffortChanged -= OnComposerEffortChanged;
             transcript.EffortChanged += OnComposerEffortChanged;
 
+            transcript.UsageRequested -= OnComposerUsageRequested;
+            transcript.UsageRequested += OnComposerUsageRequested;
+            transcript.UsageDetailsRequested -= OnComposerUsageDetailsRequested;
+            transcript.UsageDetailsRequested += OnComposerUsageDetailsRequested;
+
             // Toolbar and composer affordances. These were missing entirely, which is why none of the
             // buttons under the prompt box did anything in a new tab.
             transcript.FilesDropped += OnComposerFilesDropped;
@@ -1131,6 +1136,8 @@ namespace ClaudeCodeVS
             ChatTranscript.InsertActiveFilePathRequested += OnComposerInsertActiveFilePathRequested;
             ChatTranscript.SelectorClicked += OnComposerSelectorClicked;
             ChatTranscript.EffortChanged += OnComposerEffortChanged;
+            ChatTranscript.UsageRequested += OnComposerUsageRequested;
+            ChatTranscript.UsageDetailsRequested += OnComposerUsageDetailsRequested;
             ChatTranscript.ClearChatRequested += OnComposerClearChatRequested;
             ChatTranscript.NewChatRequested += OnComposerNewChatRequested;
             ChatTranscript.RenameSessionRequested += OnComposerRenameSessionRequested;
@@ -1266,6 +1273,17 @@ namespace ClaudeCodeVS
                 }
 
                 transcript.Clear();
+
+                // A cleared chat has no context window in use until its next turn reports one.
+                if (owner != null)
+                {
+                    owner.LastStatusLine = null;
+                }
+                else
+                {
+                    _mainStatusLine = null;
+                }
+                RefreshChatUsageIndicators();
 
                 // No resume id is staged, so the relaunch below starts a brand new session.
                 if (owner != null)
@@ -1567,6 +1585,8 @@ namespace ClaudeCodeVS
             transcript.SendWithEnter = _settings?.SendWithEnter != false;
             transcript.SendWithCtrlEnter = _settings?.SendWithCtrlEnter == true;
 
+            UpdateChatUsageIndicator(transcript, null, provider);
+
             transcript.SetSelectorLabels(
                 GetChatProviderDisplayName(provider),
                 GetChatModelLabel(provider),
@@ -1629,6 +1649,8 @@ namespace ClaudeCodeVS
 
             transcript.SendWithEnter = _settings?.SendWithEnter != false;
             transcript.SendWithCtrlEnter = _settings?.SendWithCtrlEnter == true;
+
+            UpdateChatUsageIndicator(transcript, session, provider);
 
             string permissionLabel = GetChatPermissionLabel(session);
 

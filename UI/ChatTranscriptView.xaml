@@ -1179,6 +1179,22 @@
 								        ToolTip="Change how tool permissions are handled"
 								        Click="ComposerPermissionButton_Click"/>
 
+								<!-- Ring icon, not text: the fill is the context window in use (or the session limit before
+								     the first turn). Its popup repeats the Claude Usage figures; the full breakdown opens the tab. -->
+								<Button x:Name="ComposerUsageButton" DockPanel.Dock="Left"
+								        Style="{StaticResource ComposerSelectorStyle}"
+								        Visibility="Collapsed"
+								        ToolTip="Usage: context window and plan limits"
+								        Click="ComposerUsageButton_Click">
+									<Grid Width="14" Height="14">
+										<Ellipse Margin="1" StrokeThickness="2" Opacity="0.25"
+										         Stroke="{DynamicResource {x:Static vsshell:VsBrushes.WindowTextKey}}"/>
+										<Path x:Name="ComposerUsageRingArc" Width="14" Height="14"
+										      StrokeThickness="2" StrokeStartLineCap="Round" StrokeEndLineCap="Round"
+										      Stroke="{StaticResource ChatAccentBrush}"/>
+									</Grid>
+								</Button>
+
 								<Rectangle x:Name="ComposerMirrorSeparator" DockPanel.Dock="Left"
 								           Width="1" Margin="4,4,6,4" Opacity="0.25"
 								           Fill="{DynamicResource {x:Static vsshell:VsBrushes.WindowTextKey}}"/>
@@ -1250,6 +1266,99 @@
 					<Slider x:Name="EffortPopupSlider"
 					        Style="{StaticResource EffortSliderStyle}"
 					        ValueChanged="EffortPopupSlider_ValueChanged"/>
+				</StackPanel>
+			</Border>
+		</Popup>
+
+		<!-- Usage: the figures the ring stands for. Plan limits are read from the Claude Usage snapshot, so
+		     the numbers match that tab; the context line comes from the chat's last completed turn. -->
+		<Popup x:Name="UsagePopup" Grid.Row="2"
+		       Placement="Top"
+		       PlacementTarget="{Binding ElementName=ComposerUsageButton}"
+		       StaysOpen="False"
+		       AllowsTransparency="True"
+		       PopupAnimation="Fade">
+			<Border Padding="12,10,12,10" CornerRadius="5" Margin="6" Width="280"
+			        Background="{DynamicResource {x:Static vsshell:VsBrushes.CommandBarMenuBackgroundGradientKey}}"
+			        BorderBrush="{DynamicResource {x:Static vsshell:VsBrushes.CommandBarMenuBorderKey}}"
+			        BorderThickness="1">
+				<Border.Effect>
+					<DropShadowEffect BlurRadius="10" ShadowDepth="2" Opacity="0.35"/>
+				</Border.Effect>
+				<StackPanel>
+					<!-- Context window -->
+					<Grid>
+						<Grid.ColumnDefinitions>
+							<ColumnDefinition Width="*"/>
+							<ColumnDefinition Width="Auto"/>
+						</Grid.ColumnDefinitions>
+						<TextBlock Text="Context window" FontSize="{DynamicResource ChatSmallFontSize}"
+						           Foreground="{DynamicResource {x:Static vsshell:VsBrushes.CommandBarTextActiveKey}}"/>
+						<TextBlock x:Name="UsageContextText" Grid.Column="1" FontSize="{DynamicResource ChatSmallFontSize}"
+						           Opacity="0.75" Text="No turn yet"/>
+					</Grid>
+					<ProgressBar x:Name="UsageContextBar" Height="4" Margin="0,5,0,0" Maximum="100"
+					             Foreground="{StaticResource ChatAccentBrush}" Background="#33808080" BorderThickness="0"/>
+
+					<Rectangle Height="1" Margin="0,10,0,10" Opacity="0.25"
+					           Fill="{DynamicResource {x:Static vsshell:VsBrushes.WindowTextKey}}"/>
+
+					<TextBlock x:Name="UsagePlanHeader" Text="Plan usage limits" Margin="0,0,0,6"
+					           FontSize="{DynamicResource ChatSmallFontSize}" Opacity="0.75"/>
+					<TextBlock x:Name="UsageNoPlanText" Visibility="Collapsed" TextWrapping="Wrap"
+					           FontSize="{DynamicResource ChatSmallFontSize}" Opacity="0.75"
+					           Text="Plan limits appear once the Claude Usage tab has read your account."/>
+
+					<StackPanel x:Name="UsagePlanRows" Visibility="Collapsed">
+						<Grid>
+							<Grid.ColumnDefinitions>
+								<ColumnDefinition Width="*"/>
+								<ColumnDefinition Width="Auto"/>
+							</Grid.ColumnDefinitions>
+							<TextBlock x:Name="UsageSessionLabel" Text="Session limit" FontSize="{DynamicResource ChatSmallFontSize}"
+							           Foreground="{DynamicResource {x:Static vsshell:VsBrushes.CommandBarTextActiveKey}}"/>
+							<TextBlock x:Name="UsageSessionText" Grid.Column="1" FontSize="{DynamicResource ChatSmallFontSize}" Opacity="0.75"/>
+						</Grid>
+						<ProgressBar x:Name="UsageSessionBar" Height="4" Margin="0,5,0,8" Maximum="100"
+						             Foreground="{StaticResource ChatAccentBrush}" Background="#33808080" BorderThickness="0"/>
+
+						<Grid x:Name="UsageWeeklyRow">
+							<Grid.ColumnDefinitions>
+								<ColumnDefinition Width="*"/>
+								<ColumnDefinition Width="Auto"/>
+							</Grid.ColumnDefinitions>
+							<TextBlock Text="Weekly limit" FontSize="{DynamicResource ChatSmallFontSize}"
+							           Foreground="{DynamicResource {x:Static vsshell:VsBrushes.CommandBarTextActiveKey}}"/>
+							<TextBlock x:Name="UsageWeeklyText" Grid.Column="1" FontSize="{DynamicResource ChatSmallFontSize}" Opacity="0.75"/>
+						</Grid>
+						<ProgressBar x:Name="UsageWeeklyBar" Height="4" Margin="0,5,0,8" Maximum="100"
+						             Foreground="{StaticResource ChatAccentBrush}" Background="#33808080" BorderThickness="0"/>
+
+						<Grid x:Name="UsageExtraRow">
+							<Grid.ColumnDefinitions>
+								<ColumnDefinition Width="*"/>
+								<ColumnDefinition Width="Auto"/>
+							</Grid.ColumnDefinitions>
+							<TextBlock Text="Extra usage" FontSize="{DynamicResource ChatSmallFontSize}"
+							           Foreground="{DynamicResource {x:Static vsshell:VsBrushes.CommandBarTextActiveKey}}"/>
+							<TextBlock x:Name="UsageExtraText" Grid.Column="1" FontSize="{DynamicResource ChatSmallFontSize}" Opacity="0.75"/>
+						</Grid>
+						<ProgressBar x:Name="UsageExtraBar" Height="4" Margin="0,5,0,0" Maximum="100"
+						             Foreground="{StaticResource ChatAccentBrush}" Background="#33808080" BorderThickness="0"/>
+					</StackPanel>
+
+					<TextBlock x:Name="UsageUpdatedText" Margin="0,8,0,0" FontSize="{DynamicResource ChatSmallFontSize}"
+					           Opacity="0.6" Visibility="Collapsed"/>
+
+					<Rectangle Height="1" Margin="0,10,0,10" Opacity="0.25"
+					           Fill="{DynamicResource {x:Static vsshell:VsBrushes.WindowTextKey}}"/>
+
+					<Button x:Name="UsageDetailsButton" HorizontalAlignment="Left"
+					        Style="{StaticResource ComposerSelectorStyle}"
+					        Padding="8,2,8,2"
+					        Content="See detailed breakdown"
+					        ToolTip="Open the Claude Usage tab"
+					        Click="UsageDetailsButton_Click"/>
 				</StackPanel>
 			</Border>
 		</Popup>

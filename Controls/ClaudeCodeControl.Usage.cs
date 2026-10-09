@@ -359,6 +359,7 @@ namespace ClaudeCodeVS
                 }
                 UpdateInlineUsagePanelVisibility();
                 UpdateInlineUsageStaleNotice();
+                RefreshChatUsageIndicators();
 
                 // Signal any in-progress background show-hide that real data arrived —
                 // the tab can now be safely hidden.
