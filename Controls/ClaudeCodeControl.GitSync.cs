@@ -131,19 +131,18 @@ namespace ClaudeCodeVS
                 if (_settings == null || !_settings.AutoGitPullBeforePrompt)
                     return LogSkip(skipped, "setting is off");
 
-                // Do NOT rely on _gitRepositoryRoot alone: that field belongs to diff tracking and is
-                // only ever assigned by EnsureDiffTrackingStartedAsync, which on the send path runs
-                // *after* this call. On the first prompt of a session it is still null, which silently
-                // skipped every pull. Resolve the repository here when it isn't known yet.
-                string repoRoot = _gitRepositoryRoot;
-                if (string.IsNullOrEmpty(repoRoot))
-                {
-                    string workspaceDir = await GetWorkspaceDirectoryAsync();
-                    repoRoot = FindGitRepositoryRoot(workspaceDir);
-                }
+                // Always resolve the repository from the current workspace — never from
+                // _gitRepositoryRoot. That field belongs to diff tracking and is only assigned by
+                // EnsureDiffTrackingStartedAsync, which on the send path runs *after* this call. On
+                // the first prompt of a session it is still null, and after opening another solution
+                // in the same Visual Studio it still names the *previous* solution's repository: that
+                // root is already in _autoPulledRepositoryRoot, so the new solution's first prompt
+                // went out unpulled. The lookup is a local walk up the directory tree for ".git".
+                string workspaceDir = await GetWorkspaceDirectoryAsync();
+                string repoRoot = FindGitRepositoryRoot(workspaceDir);
 
                 if (string.IsNullOrEmpty(repoRoot) || !Directory.Exists(repoRoot))
-                    return LogSkip(skipped, "no git repository for the current workspace");
+                    return LogSkip(skipped, $"no git repository for the current workspace ({workspaceDir})");
 
                 // Pulling files out from under a turn that is already running would change the code
                 // the agent is in the middle of editing. Follow-ups sent while the agent is busy
@@ -258,12 +257,14 @@ namespace ClaudeCodeVS
         }
 
         /// <summary>
-        /// Records why no pull happened. Every skip is silent by design, so the debug log is the only
-        /// place that explains a prompt going out without a pull.
+        /// Records why no pull happened. Every skip is silent by design, so the log is the only place
+        /// that explains a prompt going out without a pull. Written to the terminal-launch log too:
+        /// Debug.WriteLine is compiled out of Release builds.
         /// </summary>
         private static GitPullOutcome LogSkip(GitPullOutcome skipped, string reason)
         {
             Debug.WriteLine($"Auto git pull skipped: {reason}.");
+            LogTerminalLaunch($"Auto git pull skipped: {reason}.");
             return skipped;
         }
 
@@ -278,6 +279,7 @@ namespace ClaudeCodeVS
                 return;
 
             Debug.WriteLine($"Auto git pull: {outcome.Kind} {outcome.Notice}");
+            LogTerminalLaunch($"Auto git pull: {outcome.Kind} {outcome.Notice}");
 
             if (string.IsNullOrWhiteSpace(outcome.Notice) || !IsNativeModeActive)
                 return;
@@ -319,7 +321,7 @@ namespace ClaudeCodeVS
                 return BuildConflictOutcome(repoRoot, pendingConflicts, pulled: false);
 
             if (!allowNetworkPull)
-                return LogSkip(skipped, "this workspace was already pulled once in this session");
+                return LogSkip(skipped, $"{repoRoot} was already pulled once in this session");
 
             // No tracking branch (detached HEAD, a local-only branch, a repo with no remote) means
             // there is nothing to pull from and `git pull` would only print an error.

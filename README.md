@@ -143,6 +143,9 @@ Use native mode to avoid this issue.
 
 ## Version History
 
+### Version 234.0
+- **Pull from git before the first prompt** now also pulls when you open another solution in the same Visual Studio session; before, the first prompt there could go out without a pull.
+
 ### Version 233.0
 - **Install latest OpenPets** in *⚙ → Settings... → Automation* downloads the newest OpenPets release for Windows, shows the download progress, and starts its installer.
 
