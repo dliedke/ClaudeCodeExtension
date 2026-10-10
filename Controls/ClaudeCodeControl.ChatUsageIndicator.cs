@@ -17,6 +17,7 @@
 using ClaudeCodeVS.Agents;
 using ClaudeCodeVS.UI;
 using Microsoft.VisualStudio.Shell;
+using Microsoft.VisualStudio.Threading;
 using Newtonsoft.Json;
 using System;
 using System.Diagnostics;
@@ -30,6 +31,12 @@ namespace ClaudeCodeVS
     {
         // Status line of the panel's own chat's last completed turn. Parallel tabs keep theirs on NativeChatSessionState.
         private ClaudeStatusLineInput _mainStatusLine;
+
+        // The refresh a ring click started; a second click while it runs waits on it instead of starting another.
+        private JoinableTask _indicatorRefresh;
+
+        // Completed by HandleScrapedSnapshot, so a ring click's refresh knows when the new figures are in.
+        private TaskCompletionSource<bool> _indicatorScrapeTcs;
 
         /// <summary>Pushes the usage figures for one chat tab. <paramref name="session"/> is null for the panel's own chat.</summary>
         private void UpdateChatUsageIndicator(ChatTranscriptView transcript, NativeChatSessionState session, AiProvider? provider)
@@ -154,20 +161,42 @@ namespace ClaudeCodeVS
         /// <summary>
         /// Ring click: the popup opens and the usage data refreshes behind it. The account guard comes first,
         /// as in the background timer. A visible tab is reloaded in place; a hidden one is scraped off-screen,
-        /// so the tab is never shown by this path.
+        /// so the tab is never shown by this path. The popup reads "Refreshing…" until the refresh is over.
         /// </summary>
         private void OnComposerUsageRequested(object sender, EventArgs e)
         {
             ThreadHelper.ThrowIfNotOnUIThread();
 
+            if (_indicatorRefresh == null || _indicatorRefresh.IsCompleted)
+            {
+#pragma warning disable VSSDK007 // Joined below by every click waiting on it
+                _indicatorRefresh = ThreadHelper.JoinableTaskFactory.RunAsync(RefreshUsageForIndicatorAsync);
+#pragma warning restore VSSDK007
+            }
+
+            JoinableTask refresh = _indicatorRefresh;
+            var transcript = sender as ChatTranscriptView;
 #pragma warning disable VSSDK007 // Fire-and-forget is intentional here
-            ThreadHelper.JoinableTaskFactory.RunAsync(RefreshUsageForIndicatorAsync).FileAndForget("claudecode/usage/indicator");
+            ThreadHelper.JoinableTaskFactory.RunAsync(async delegate
+            {
+                try
+                {
+                    await refresh.JoinAsync();
+                }
+                finally
+                {
+                    await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
+                    transcript?.EndUsageRefresh();
+                }
+            }).FileAndForget("claudecode/usage/indicator");
 #pragma warning restore VSSDK007
         }
 
         private async Task RefreshUsageForIndicatorAsync()
         {
             await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
+            var scraped = new TaskCompletionSource<bool>();
+            _indicatorScrapeTcs = scraped;
             try
             {
                 // A switch handled here means the page was signed out and the user is asked to sign in again.
@@ -176,10 +205,17 @@ namespace ClaudeCodeVS
                     return;
                 }
 
+                // A visible tab's reload returns at once; wait for the page to post the new figures.
+                // The off-screen path below already waits for them itself.
                 var control = _usageToolWindow?.UsageControl;
                 if (_usageToolWindow?.IsWindowVisible == true && control != null)
                 {
-                    control.Reload();
+                    if (control.Reload())
+                    {
+#pragma warning disable VSTHRD003 // scraped is completed by HandleScrapedSnapshot on the UI thread; no cross-context deadlock
+                        await Task.WhenAny(scraped.Task, Task.Delay(15000));
+#pragma warning restore VSTHRD003
+                    }
                     return;
                 }
 
@@ -188,6 +224,13 @@ namespace ClaudeCodeVS
             catch (Exception ex)
             {
                 Debug.WriteLine("RefreshUsageForIndicatorAsync failed: " + ex);
+            }
+            finally
+            {
+                if (_indicatorScrapeTcs == scraped)
+                {
+                    _indicatorScrapeTcs = null;
+                }
             }
         }
 

@@ -135,6 +135,12 @@ namespace ClaudeCodeVS.UI
         /// </summary>
         public event EventHandler UsageRequested;
 
+        // Set from a ring click until the parent calls EndUsageRefresh; the popup's last line reads "Refreshing…" meanwhile.
+        private bool _usageRefreshing;
+
+        // The latest snapshot's "Updated 2:15 PM" line, shown again once the refresh is over.
+        private string _usageUpdatedText = string.Empty;
+
         /// <summary>Raised by the popup's "See detailed breakdown". The parent opens the Claude Usage tab.</summary>
         public event EventHandler UsageDetailsRequested;
 
@@ -1195,8 +1201,28 @@ namespace ClaudeCodeVS.UI
             UsagePopup.IsOpen = !UsagePopup.IsOpen;
             if (UsagePopup.IsOpen)
             {
+                _usageRefreshing = true;
+                ShowUsageUpdatedText();
                 UsageRequested?.Invoke(this, EventArgs.Empty);
             }
+        }
+
+        /// <summary>
+        /// Called by the parent once the refresh a ring click started is over — new figures arrived, or it gave
+        /// up. Replaces "Refreshing…" with the snapshot's own "Updated" line again.
+        /// </summary>
+        public void EndUsageRefresh()
+        {
+            _usageRefreshing = false;
+            ShowUsageUpdatedText();
+        }
+
+        // "Refreshing…" while a ring click's refresh is running, else the last snapshot's "Updated" line.
+        private void ShowUsageUpdatedText()
+        {
+            string text = _usageRefreshing ? "Refreshing…" : _usageUpdatedText;
+            UsageUpdatedText.Text = text;
+            UsageUpdatedText.Visibility = string.IsNullOrEmpty(text) ? Visibility.Collapsed : Visibility.Visible;
         }
 
         private void UsageDetailsButton_Click(object sender, RoutedEventArgs e)
@@ -1255,8 +1281,8 @@ namespace ClaudeCodeVS.UI
                 UsageExtraRow.Visibility = data.ShowExtra ? Visibility.Visible : Visibility.Collapsed;
             }
 
-            UsageUpdatedText.Text = data.UpdatedText ?? string.Empty;
-            UsageUpdatedText.Visibility = string.IsNullOrEmpty(data.UpdatedText) ? Visibility.Collapsed : Visibility.Visible;
+            _usageUpdatedText = data.UpdatedText ?? string.Empty;
+            ShowUsageUpdatedText();
         }
 
         /// <summary>

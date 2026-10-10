@@ -143,6 +143,10 @@ Use native mode to avoid this issue.
 
 ## Version History
 
+### Version 236.0
+- **Native mode usage button**: plan limit labels such as *Current session* no longer get covered by long status text like "Starts with your first message"; the popup widens to fit.
+- **Native mode usage button** shows "Refreshing…" while it fetches your latest plan limits, then the time they were updated.
+
 ### Version 235.0
 - **Native mode usage button** next to the composer's selectors shows the chat's context window use and your plan limits; *See detailed breakdown* opens the Claude Usage tab.
 

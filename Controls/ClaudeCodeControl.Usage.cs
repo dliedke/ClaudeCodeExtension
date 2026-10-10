@@ -364,6 +364,7 @@ namespace ClaudeCodeVS
                 // Signal any in-progress background show-hide that real data arrived —
                 // the tab can now be safely hidden.
                 _backgroundScrapeCompletionTcs?.TrySetResult(true);
+                _indicatorScrapeTcs?.TrySetResult(true);
             }
             catch (Exception ex)
             {

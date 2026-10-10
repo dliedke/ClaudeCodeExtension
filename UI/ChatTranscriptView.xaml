@@ -1278,7 +1278,7 @@
 		       StaysOpen="False"
 		       AllowsTransparency="True"
 		       PopupAnimation="Fade">
-			<Border Padding="12,10,12,10" CornerRadius="5" Margin="6" Width="280"
+			<Border Padding="12,10,12,10" CornerRadius="5" Margin="6" MinWidth="280" MaxWidth="440"
 			        Background="{DynamicResource {x:Static vsshell:VsBrushes.CommandBarMenuBackgroundGradientKey}}"
 			        BorderBrush="{DynamicResource {x:Static vsshell:VsBrushes.CommandBarMenuBorderKey}}"
 			        BorderThickness="1">
@@ -1289,12 +1289,13 @@
 					<!-- Context window -->
 					<Grid>
 						<Grid.ColumnDefinitions>
-							<ColumnDefinition Width="*"/>
 							<ColumnDefinition Width="Auto"/>
+							<ColumnDefinition Width="*"/>
 						</Grid.ColumnDefinitions>
 						<TextBlock Text="Context window" FontSize="{DynamicResource ChatSmallFontSize}"
 						           Foreground="{DynamicResource {x:Static vsshell:VsBrushes.CommandBarTextActiveKey}}"/>
-						<TextBlock x:Name="UsageContextText" Grid.Column="1" FontSize="{DynamicResource ChatSmallFontSize}"
+						<TextBlock x:Name="UsageContextText" Grid.Column="1" Margin="16,0,0,0"
+						           HorizontalAlignment="Right" TextAlignment="Right" TextTrimming="CharacterEllipsis" FontSize="{DynamicResource ChatSmallFontSize}"
 						           Opacity="0.75" Text="No turn yet"/>
 					</Grid>
 					<ProgressBar x:Name="UsageContextBar" Height="4" Margin="0,5,0,0" Maximum="100"
@@ -1305,43 +1306,46 @@
 
 					<TextBlock x:Name="UsagePlanHeader" Text="Plan usage limits" Margin="0,0,0,6"
 					           FontSize="{DynamicResource ChatSmallFontSize}" Opacity="0.75"/>
-					<TextBlock x:Name="UsageNoPlanText" Visibility="Collapsed" TextWrapping="Wrap"
+					<TextBlock x:Name="UsageNoPlanText" Visibility="Collapsed" TextWrapping="Wrap" MaxWidth="256" HorizontalAlignment="Left"
 					           FontSize="{DynamicResource ChatSmallFontSize}" Opacity="0.75"
 					           Text="Plan limits appear once the Claude Usage tab has read your account."/>
 
 					<StackPanel x:Name="UsagePlanRows" Visibility="Collapsed">
 						<Grid>
 							<Grid.ColumnDefinitions>
-								<ColumnDefinition Width="*"/>
 								<ColumnDefinition Width="Auto"/>
+								<ColumnDefinition Width="*"/>
 							</Grid.ColumnDefinitions>
 							<TextBlock x:Name="UsageSessionLabel" Text="Session limit" FontSize="{DynamicResource ChatSmallFontSize}"
 							           Foreground="{DynamicResource {x:Static vsshell:VsBrushes.CommandBarTextActiveKey}}"/>
-							<TextBlock x:Name="UsageSessionText" Grid.Column="1" FontSize="{DynamicResource ChatSmallFontSize}" Opacity="0.75"/>
+							<TextBlock x:Name="UsageSessionText" Grid.Column="1" Margin="16,0,0,0"
+							           HorizontalAlignment="Right" TextAlignment="Right" TextTrimming="CharacterEllipsis" FontSize="{DynamicResource ChatSmallFontSize}" Opacity="0.75"/>
 						</Grid>
 						<ProgressBar x:Name="UsageSessionBar" Height="4" Margin="0,5,0,8" Maximum="100"
 						             Foreground="{StaticResource ChatAccentBrush}" Background="#33808080" BorderThickness="0"/>
 
 						<Grid x:Name="UsageWeeklyRow">
 							<Grid.ColumnDefinitions>
-								<ColumnDefinition Width="*"/>
 								<ColumnDefinition Width="Auto"/>
+								<ColumnDefinition Width="*"/>
 							</Grid.ColumnDefinitions>
 							<TextBlock Text="Weekly limit" FontSize="{DynamicResource ChatSmallFontSize}"
 							           Foreground="{DynamicResource {x:Static vsshell:VsBrushes.CommandBarTextActiveKey}}"/>
-							<TextBlock x:Name="UsageWeeklyText" Grid.Column="1" FontSize="{DynamicResource ChatSmallFontSize}" Opacity="0.75"/>
+							<TextBlock x:Name="UsageWeeklyText" Grid.Column="1" Margin="16,0,0,0"
+							           HorizontalAlignment="Right" TextAlignment="Right" TextTrimming="CharacterEllipsis" FontSize="{DynamicResource ChatSmallFontSize}" Opacity="0.75"/>
 						</Grid>
 						<ProgressBar x:Name="UsageWeeklyBar" Height="4" Margin="0,5,0,8" Maximum="100"
 						             Foreground="{StaticResource ChatAccentBrush}" Background="#33808080" BorderThickness="0"/>
 
 						<Grid x:Name="UsageExtraRow">
 							<Grid.ColumnDefinitions>
-								<ColumnDefinition Width="*"/>
 								<ColumnDefinition Width="Auto"/>
+								<ColumnDefinition Width="*"/>
 							</Grid.ColumnDefinitions>
 							<TextBlock Text="Extra usage" FontSize="{DynamicResource ChatSmallFontSize}"
 							           Foreground="{DynamicResource {x:Static vsshell:VsBrushes.CommandBarTextActiveKey}}"/>
-							<TextBlock x:Name="UsageExtraText" Grid.Column="1" FontSize="{DynamicResource ChatSmallFontSize}" Opacity="0.75"/>
+							<TextBlock x:Name="UsageExtraText" Grid.Column="1" Margin="16,0,0,0"
+							           HorizontalAlignment="Right" TextAlignment="Right" TextTrimming="CharacterEllipsis" FontSize="{DynamicResource ChatSmallFontSize}" Opacity="0.75"/>
 						</Grid>
 						<ProgressBar x:Name="UsageExtraBar" Height="4" Margin="0,5,0,0" Maximum="100"
 						             Foreground="{StaticResource ChatAccentBrush}" Background="#33808080" BorderThickness="0"/>

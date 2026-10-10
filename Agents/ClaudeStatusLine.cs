@@ -401,16 +401,31 @@ namespace ClaudeCodeVS.Agents
         /// (<c>$CLAUDE_CONFIG_DIR</c>, else <c>~/.claude</c>). Asked once per VS session; a failed
         /// probe is not kept, so the next turn tries again.
         /// </summary>
-        public static Task<WslLocation> GetWslLocationAsync()
+        public static async Task<WslLocation> GetWslLocationAsync()
         {
+            Task<WslLocation> probe;
             lock (WslLocationLock)
             {
-                if (_wslLocation == null || (_wslLocation.IsCompleted && _wslLocation.Result == null))
+                if (_wslLocation == null)
                 {
                     _wslLocation = Task.Run(ProbeWslLocationAsync);
                 }
-                return _wslLocation;
+                probe = _wslLocation;
             }
+
+            WslLocation location = await probe.ConfigureAwait(false);
+            if (location == null)
+            {
+                lock (WslLocationLock)
+                {
+                    // Only this probe's own entry; a newer one may already be running.
+                    if (_wslLocation == probe)
+                    {
+                        _wslLocation = null;
+                    }
+                }
+            }
+            return location;
         }
 
         private static async Task<WslLocation> ProbeWslLocationAsync()
@@ -583,11 +598,11 @@ namespace ClaudeCodeVS.Agents
 
                 if (process.ExitCode != 0)
                 {
-                    Debug.WriteLine($"ClaudeStatusLine: exit {process.ExitCode}: {stderr.Result}");
+                    Debug.WriteLine($"ClaudeStatusLine: exit {process.ExitCode}: {await stderr.ConfigureAwait(false)}");
                     return null;
                 }
 
-                string output = CleanOutput(stdout.Result);
+                string output = CleanOutput(await stdout.ConfigureAwait(false));
                 return output.Length > 0 ? output : null;
             }
             catch (Exception ex)
