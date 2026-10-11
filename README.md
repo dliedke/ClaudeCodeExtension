@@ -133,6 +133,16 @@ This binds a Claude Code skill that shells out to OpenAI Codex to audit pending 
 3. **Bind it as a custom command**: ⚙ → *Configure Custom Commands...* → Add... → Name: `Codex Review`, Command: `/codex-review`.
 4. **Use it**: ⚡ → *Codex Review*. Claude runs the skill, Codex audits your diff, findings appear inline.
 
+## Contributing
+
+Pull requests are welcome.
+
+- Use a high-quality AI model for coding, such as Claude Opus with High effort.
+- Test your changes carefully in Visual Studio (F5 experimental instance).
+- Run all unit tests with `test.cmd` and make sure they pass before submitting.
+- Bump the version by one major number (e.g. 236.0 → 237.0) in `Properties/AssemblyInfo.cs` and `source.extension.vsixmanifest`, and add a short `### Version X.0` entry at the top of Version History in this README. See `CLAUDE.md` for details.
+- The developer reviews the PR and publishes the new version to the Marketplace.
+
 ## Known Issues
 
 - I know it is a pain, but sometimes in plan mode when there is an AI question after a lot of text, the keyboard does not work to select answer.
