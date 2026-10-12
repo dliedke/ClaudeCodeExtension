@@ -35,6 +35,10 @@ namespace ClaudeCodeVS.UI
         public Brush CodeBorderBrush { get; set; } = Brushes.Gray;
         public Brush AccentBrush { get; set; } = Brushes.SteelBlue;
         public Brush MutedBrush { get; set; } = Brushes.Gray;
+        public Brush TextBrush { get; set; } = Brushes.Black;
+
+        /// <summary>Style for the copy button in each code block's top-right corner; null leaves the button out.</summary>
+        public Style CodeCopyButtonStyle { get; set; }
     }
 
     /// <summary>
@@ -442,33 +446,101 @@ namespace ClaudeCodeVS.UI
             return paragraph;
         }
 
+        private const string CopyCodeGlyph = "⧉";
+
         private static Block BuildCodeBlock(string code, string language, MarkdownStyleOptions options)
         {
-            var section = new Section { Margin = new Thickness(0, 2, 0, 8) };
+            string body = code.TrimEnd('\n');
+
+            // One bordered box: the top row holds the language label (left) and the copy button (top-right
+            // corner); the code below is a read-only TextBox so it stays selectable. The button lives in a
+            // BlockUIContainer, which only receives mouse input because MarkdownBlock keeps IsDocumentEnabled on.
+            var header = new DockPanel { LastChildFill = false, Margin = new Thickness(9, 4, 4, 0) };
 
             if (!string.IsNullOrEmpty(language))
             {
-                section.Blocks.Add(new Paragraph(new Run(language))
+                header.Children.Add(new TextBlock
                 {
-                    Margin = new Thickness(2, 0, 0, 2),
+                    Text = language,
                     FontSize = Math.Max(9, options.BaseFontSize - 2),
-                    Foreground = options.MutedBrush
+                    Foreground = options.MutedBrush,
+                    VerticalAlignment = VerticalAlignment.Center
                 });
             }
 
-            var body = new Paragraph(new Run(code.TrimEnd('\n')))
+            if (options.CodeCopyButtonStyle != null)
             {
-                Margin = new Thickness(0),
-                Padding = new Thickness(9, 7, 9, 7),
+                var copyButton = new Button
+                {
+                    Content = CopyCodeGlyph,
+                    Tag = body,
+                    Style = options.CodeCopyButtonStyle
+                };
+                copyButton.Click += CopyCodeButton_Click;
+                DockPanel.SetDock(copyButton, Dock.Right);
+                header.Children.Add(copyButton);
+            }
+
+            var text = new TextBox
+            {
+                Text = body,
+                IsReadOnly = true,
+                AcceptsReturn = true,
+                TextWrapping = TextWrapping.Wrap,
+                VerticalScrollBarVisibility = ScrollBarVisibility.Disabled,
+                HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
+                BorderThickness = new Thickness(0),
+                Background = Brushes.Transparent,
+                Foreground = options.TextBrush,
+                FontFamily = options.CodeFontFamily,
+                FontSize = Math.Max(9, options.BaseFontSize - 1),
+                Padding = new Thickness(9, 0, 9, 8)
+            };
+
+            var grid = new Grid();
+            grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+            grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+            Grid.SetRow(header, 0);
+            grid.Children.Add(header);
+            Grid.SetRow(text, 1);
+            grid.Children.Add(text);
+
+            return new BlockUIContainer(new Border
+            {
+                Margin = new Thickness(0, 2, 0, 8),
                 Background = options.CodeBackground,
                 BorderBrush = options.CodeBorderBrush,
                 BorderThickness = new Thickness(1),
-                FontFamily = options.CodeFontFamily,
-                FontSize = Math.Max(9, options.BaseFontSize - 1)
-            };
+                Child = grid
+            });
+        }
 
-            section.Blocks.Add(body);
-            return section;
+        /// <summary>
+        /// Copies the block's code (kept in the button's <see cref="FrameworkElement.Tag"/>). The icon
+        /// shows a check mark for a moment as confirmation.
+        /// </summary>
+        private static void CopyCodeButton_Click(object sender, RoutedEventArgs e)
+        {
+            var button = (Button)sender;
+            try
+            {
+                Clipboard.SetText((string)button.Tag);
+            }
+            catch (Exception ex)
+            {
+                // The clipboard is briefly locked by other apps now and then; a missed copy is not worth a dialog.
+                Debug.WriteLine($"Copy code failed: {ex.Message}");
+                return;
+            }
+
+            button.Content = "✓";
+            var resetTimer = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromSeconds(1.5) };
+            resetTimer.Tick += (s, args) =>
+            {
+                resetTimer.Stop();
+                button.Content = CopyCodeGlyph;
+            };
+            resetTimer.Start();
         }
 
         private static Block BuildTable(string headerLine, IList<string> rowLines, MarkdownStyleOptions options)
@@ -793,6 +865,10 @@ namespace ClaudeCodeVS.UI
             "CodeBorderBrush", typeof(Brush), typeof(MarkdownBlock),
             new PropertyMetadata(Brushes.Gray, OnVisualInputChanged));
 
+        public static readonly DependencyProperty CodeCopyButtonStyleProperty = DependencyProperty.Register(
+            "CodeCopyButtonStyle", typeof(Style), typeof(MarkdownBlock),
+            new PropertyMetadata(null, OnVisualInputChanged));
+
         public static readonly DependencyProperty AccentBrushProperty = DependencyProperty.Register(
             "AccentBrush", typeof(Brush), typeof(MarkdownBlock),
             new PropertyMetadata(Brushes.SteelBlue, OnVisualInputChanged));
@@ -811,7 +887,9 @@ namespace ClaudeCodeVS.UI
         {
             IsReadOnly = true;
             IsReadOnlyCaretVisible = false;
-            IsDocumentEnabled = false;
+            // Must stay true: with it false the RichTextBox does not hit-test UIElements inside
+            // BlockUIContainer, so the code block copy buttons never receive mouse clicks or tooltips.
+            IsDocumentEnabled = true;
             BorderThickness = new Thickness(0);
             Background = Brushes.Transparent;
             Padding = new Thickness(0);
@@ -857,11 +935,32 @@ namespace ClaudeCodeVS.UI
                 return;
             }
 
+            // A code block's copy button is not a link, even when the nearest text position it snaps to is one.
+            if (IsInsideButton(e.OriginalSource as DependencyObject))
+            {
+                return;
+            }
+
             string url = HitTestLink(upPosition);
             if (!string.IsNullOrEmpty(url))
             {
                 LinkClicked?.Invoke(this, url);
             }
+        }
+
+        private static bool IsInsideButton(DependencyObject element)
+        {
+            while (element != null)
+            {
+                if (element is System.Windows.Controls.Primitives.ButtonBase)
+                {
+                    return true;
+                }
+
+                element = VisualTreeHelper.GetParent(element);
+            }
+
+            return false;
         }
 
         /// <summary>Walks up from the clicked point to the nearest text element carrying a link's URL in its Tag.</summary>
@@ -927,6 +1026,12 @@ namespace ClaudeCodeVS.UI
             set { SetValue(CodeFontFamilyProperty, value); }
         }
 
+        public Style CodeCopyButtonStyle
+        {
+            get { return (Style)GetValue(CodeCopyButtonStyleProperty); }
+            set { SetValue(CodeCopyButtonStyleProperty, value); }
+        }
+
         /// <summary>
         /// Headings scale off the base size, so a font-size change has to rebuild the document — the
         /// scaled sizes are baked into it and would otherwise stay at the previous scale.
@@ -935,7 +1040,7 @@ namespace ClaudeCodeVS.UI
         {
             base.OnPropertyChanged(e);
 
-            if (e.Property == FontSizeProperty)
+            if (e.Property == FontSizeProperty || e.Property == ForegroundProperty)
             {
                 Rebuild();
             }
@@ -954,8 +1059,10 @@ namespace ClaudeCodeVS.UI
                 CodeFontFamily = CodeFontFamily,
                 CodeBackground = CodeBackground,
                 CodeBorderBrush = CodeBorderBrush,
+                CodeCopyButtonStyle = CodeCopyButtonStyle,
                 AccentBrush = AccentBrush,
-                MutedBrush = Foreground
+                MutedBrush = Foreground,
+                TextBrush = Foreground
             };
 
             Document = IsPlainText

@@ -75,6 +75,41 @@
 			<Setter Property="HorizontalScrollBarVisibility" Value="Auto"/>
 		</Style>
 
+		<!-- Copy icon for a fenced code block. Always visible: it sits in the block's header row, above the
+		     code box, so it never covers the code. Applied to every markdown body via MarkdownBodyStyle. -->
+		<Style x:Key="CodeCopyButtonStyle" TargetType="Button">
+			<Setter Property="Background" Value="Transparent"/>
+			<Setter Property="BorderBrush" Value="Transparent"/>
+			<Setter Property="BorderThickness" Value="1"/>
+			<Setter Property="Padding" Value="4,0,4,0"/>
+			<Setter Property="Height" Value="18"/>
+			<Setter Property="MinWidth" Value="18"/>
+			<Setter Property="Cursor" Value="Hand"/>
+			<Setter Property="Focusable" Value="False"/>
+			<Setter Property="ToolTip" Value="Copy code"/>
+			<Setter Property="FontSize" Value="{DynamicResource ChatSmallFontSize}"/>
+			<Setter Property="Foreground" Value="{DynamicResource {x:Static vsshell:VsBrushes.WindowTextKey}}"/>
+			<Setter Property="Template">
+				<Setter.Value>
+					<ControlTemplate TargetType="Button">
+						<Border Background="{TemplateBinding Background}"
+						        BorderBrush="{TemplateBinding BorderBrush}"
+						        BorderThickness="{TemplateBinding BorderThickness}"
+						        CornerRadius="3">
+							<ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"
+							                  Margin="{TemplateBinding Padding}"/>
+						</Border>
+						<ControlTemplate.Triggers>
+							<Trigger Property="IsMouseOver" Value="True">
+								<Setter Property="Background" Value="{DynamicResource {x:Static vsshell:VsBrushes.CommandBarHoverOverSelectedKey}}"/>
+								<Setter Property="BorderBrush" Value="{DynamicResource {x:Static vsshell:VsBrushes.CommandBarSelectedBorderKey}}"/>
+							</Trigger>
+						</ControlTemplate.Triggers>
+					</ControlTemplate>
+				</Setter.Value>
+			</Setter>
+		</Style>
+
 		<!-- Rendered markdown: headings, lists, tables, emphasis and fenced code. -->
 		<Style x:Key="MarkdownBodyStyle" TargetType="local:MarkdownBlock">
 			<Setter Property="FontFamily" Value="{DynamicResource ChatFontFamily}"/>
@@ -86,6 +121,7 @@
 			<Setter Property="Foreground" Value="{DynamicResource {x:Static vsshell:VsBrushes.WindowTextKey}}"/>
 			<Setter Property="SelectionBrush" Value="{StaticResource ChatSelectionBrush}"/>
 			<Setter Property="SelectionOpacity" Value="1"/>
+			<Setter Property="CodeCopyButtonStyle" Value="{StaticResource CodeCopyButtonStyle}"/>
 		</Style>
 
 		<!-- Message body: raw text while streaming, rendered markdown once the turn ends. Splitting
@@ -197,8 +233,10 @@
 				<Border Margin="18,2,0,6" Padding="9,7,9,7" CornerRadius="4"
 				        Opacity="0.8"
 				        Background="{DynamicResource {x:Static vsshell:VsBrushes.WindowKey}}">
+					<!-- Thinking is not a reply, so its code blocks get no copy button -->
 					<local:MarkdownBlock Style="{StaticResource MarkdownBodyStyle}"
 					                     FontStyle="Italic"
+					                     CodeCopyButtonStyle="{x:Null}"
 					                     Markdown="{Binding RenderedText, Mode=OneWay}"
 					                     LinkClicked="MarkdownBlock_LinkClicked"/>
 				</Border>
