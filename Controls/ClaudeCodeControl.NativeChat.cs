@@ -935,6 +935,11 @@ namespace ClaudeCodeVS
 
             string agentSessionId = session.AgentSession?.SessionId;
             string title = GetNativeSessionTitle(agentSessionId);
+            if (string.IsNullOrWhiteSpace(title) && session.IssueNumber > 0)
+            {
+                // A GitHub issue fix tab is named after its issue until the user renames it.
+                title = "Issue #" + session.IssueNumber + (string.IsNullOrWhiteSpace(session.IssueTitle) ? string.Empty : ": " + session.IssueTitle.Trim());
+            }
 
             session.Window?.UpdateCaption(BuildChatTabCaption(session.SelectedProvider, title));
             session.ChatTranscript.SetSessionTitle(title);
@@ -1342,45 +1347,65 @@ namespace ClaudeCodeVS
                 // Create new session, seeded from the owner tab's own model/effort/permission/plan-mode
                 // snapshot so a "+" clicked inside e.g. a Devin tab running a non-default model opens
                 // another Devin tab on that same model, not the global settings' defaults.
-                var newSession = CreateAndRegisterSession(provider, workspace, owner);
-                if (newSession?.AgentSession == null)
+                var newSession = await StartParallelSessionAsync(provider, workspace, owner);
+                if (newSession == null)
                 {
                     MessageBox.Show("Failed to create new session.", "New Session", MessageBoxButton.OK, MessageBoxImage.Error);
-                    return;
                 }
-
-                // Composer/transcript events are wired by ShowSessionInTabAsync below.
-
-                // Clear and start
-                newSession.ChatTranscript.Clear();
-                newSession.ChatTranscript.SetStatus("Starting new session...");
-
-                // Show new session in its own tab. Marked focused right away rather than waiting for
-                // the tab's own activation event, so a build/runtime error landing before the user
-                // clicks anything still targets the tab they just opened, not the old one.
-                await ShowSessionInTabAsync(newSession, focusComposer: false);
-                _lastFocusedNativeSessionId = newSession.SessionId;
-
-                // Configure composer controls for this session. Model/effort/permission are fully live
-                // here (v163.0) — they relaunch this tab's own session via RelaunchSessionAsync, not
-                // the global one.
-                UpdateChatComposerState(newSession);
-                // Apply the same zoom as the main session for consistency
-                newSession.ChatTranscript.Zoom = _settings?.NativeChatZoom ?? 1.0;
-
-                // Start the agent
-                newSession.SessionCts = new CancellationTokenSource();
-                await newSession.AgentSession.StartAsync(workspace, newSession.SessionCts.Token);
-
-                newSession.ChatTranscript.SetStatus("Ready.");
-                // Show welcome card in the new session, not the global one
-                ShowChatWelcome(newSession.ChatTranscript, workspace);
             }
             catch (Exception ex)
             {
                 Debug.WriteLine($"Chat new-session failed: {ex.Message}");
                 MessageBox.Show($"Failed to create new session: {ex.Message}", "New Session", MessageBoxButton.OK, MessageBoxImage.Error);
             }
+        }
+
+        /// <summary>
+        /// Creates a parallel chat session, shows it in its own document tab and starts its agent in
+        /// <paramref name="workspace"/>. <paramref name="configure"/> runs before the tab is shown, so
+        /// fields it sets (e.g. a GitHub issue tab's worktree and issue number) already shape the tab's
+        /// caption. Returns null when the agent session could not be created; a launch failure throws.
+        /// </summary>
+        internal async Task<NativeChatSessionState> StartParallelSessionAsync(
+            AiProvider provider, string workspace, NativeChatSessionState seed, Action<NativeChatSessionState> configure = null)
+        {
+            await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
+
+            var newSession = CreateAndRegisterSession(provider, workspace, seed);
+            if (newSession?.AgentSession == null)
+            {
+                return null;
+            }
+
+            configure?.Invoke(newSession);
+
+            // Composer/transcript events are wired by ShowSessionInTabAsync below.
+
+            // Clear and start
+            newSession.ChatTranscript.Clear();
+            newSession.ChatTranscript.SetStatus("Starting new session...");
+
+            // Show new session in its own tab. Marked focused right away rather than waiting for
+            // the tab's own activation event, so a build/runtime error landing before the user
+            // clicks anything still targets the tab they just opened, not the old one.
+            await ShowSessionInTabAsync(newSession, focusComposer: false);
+            _lastFocusedNativeSessionId = newSession.SessionId;
+
+            // Configure composer controls for this session. Model/effort/permission are fully live
+            // here (v163.0) — they relaunch this tab's own session via RelaunchSessionAsync, not
+            // the global one.
+            UpdateChatComposerState(newSession);
+            // Apply the same zoom as the main session for consistency
+            newSession.ChatTranscript.Zoom = _settings?.NativeChatZoom ?? 1.0;
+
+            // Start the agent
+            newSession.SessionCts = new CancellationTokenSource();
+            await newSession.AgentSession.StartAsync(workspace, newSession.SessionCts.Token);
+
+            newSession.ChatTranscript.SetStatus("Ready.");
+            // Show welcome card in the new session, not the global one
+            ShowChatWelcome(newSession.ChatTranscript, workspace);
+            return newSession;
         }
 
         /// <summary>
@@ -5294,7 +5319,10 @@ namespace ClaudeCodeVS
                     provider == AiProvider.Codex || provider == AiProvider.CodexNative;
                 bool canResume = !forceNewSession && providerCanResume && !string.IsNullOrEmpty(resumeId);
 
-                string workspace = await GetWorkspaceDirectoryAsync();
+                // A GitHub issue tab keeps running in its own worktree across relaunches.
+                string workspace = !string.IsNullOrEmpty(session.WorkspaceOverride)
+                    ? session.WorkspaceOverride
+                    : await GetWorkspaceDirectoryAsync();
 
                 await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
 

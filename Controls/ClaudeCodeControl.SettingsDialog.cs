@@ -1659,6 +1659,7 @@ namespace ClaudeCodeVS
                 case ToolbarButton.GenerateCommitMessage: return ("📝  Generate Commit Message", "Ask the agent to write a commit message from the current git diff and fill it into the Git Changes window. Requires Native Mode.");
                 case ToolbarButton.GenerateCommitMessageAndPush: return ("🚀  Generate Commit Message, Commit and Push", "Same as Generate Commit Message, then stage, commit and push all changes immediately. Requires Native Mode.");
                 case ToolbarButton.RecommendModel: return ("💡  Recommend AI Model", "Ask Opus (Extra High) which Claude model and effort suit the prompt you typed, then confirm or adjust before it is applied. Claude Code only.");
+                case ToolbarButton.GitHubIssues: return ("🐞  GitHub Issues", "List the repository's GitHub issues and fix one in its own branch, worktree and chat tab, then commit, merge and reply on the issue. Requires Native Mode.");
                 default: return (id.ToString(), string.Empty);
             }
         }

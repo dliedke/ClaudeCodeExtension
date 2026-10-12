@@ -32,6 +32,7 @@ Enjoying the extension? [Buy me a coffee](https://www.buymeacoffee.com/dliedke) 
 - **Auto-send build and runtime errors** — Optionally send build errors (with warnings for context) to the active agent automatically whenever a Visual Studio build finishes with errors, so it can fix them. While debugging, unhandled exceptions can be sent the same way, with their stack trace. Opt-in via *⚙ → Settings... → Automation*.
 - **Generate Commit Message** — Toolbar/menu action that asks the active agent to write a commit message from the current changes and fills it into the Git Changes window. Requires native mode; falls back to the clipboard if the commit message box can't be found. A sibling action, **Generate Commit Message, Commit and Push**, does the same then immediately stages, commits and pushes all changes.
 - **Recommend AI Model** — Claude Code only: asks Opus (Extra High) which model and effort suit the prompt you typed, then lets you adjust and apply them.
+- **GitHub Issues** — Lists the repository's GitHub issues and fixes each one in its own branch, worktree and chat tab, then commits, merges and replies on the issue. Requires native mode; uses the GitHub CLI (`gh`) for private repositories, replies and closing.
 - **Model selection** — 🤖 button to switch models: for Claude, Fable / Opus / Sonnet / Haiku / Opus Plan plus an effort level; for Codex, its reported models plus a reasoning level (Model default / Low / Medium / High / Extra High / Max / Ultra); for Devin, a searchable picker with favorites and per-model prices; for every other agent, the models it reports itself, with *Refresh Models* to re-read them and *Choose in the Agent...* to fall back to its own picker.
 - **Detach / attach terminal** — Pop the terminal into a separate VS tab and bring it back at any time. State persists across sessions.
 - **Theme aware** — Follows VS dark/light theme automatically, or force dark, light, or a custom background color via *⚙ → Settings → Theme*. Prompt zoom is persisted across sessions, and native chat zoom (Ctrl+Scroll, Ctrl+0 resets it) is too; set the terminal's console font and size via *⚙ → Settings → Terminal* (Ctrl+Scroll zoom applies for the current session).
@@ -116,7 +117,7 @@ Then choose it via *⚙ → Set Terminal Type...*.
 - *Hide Prompt Input Box*, *Configure Custom Commands...*, *Settings...*, About
 - *Settings...* opens the consolidated dialog with tabs for On Agent Finish, Prompt (send key, large prompts, clipboard, font size, @ file picker), Automation (auto-open Changes, track agent changes for review, pull before sending, TFVC checkout, auto-send build and runtime errors, Install Caveman, Install latest OpenPets), Layout (prompt panel position, prompt box, usage bars), Terminal (native mode, terminal type, encoding, fonts), Theme, Toolbar, CLI Paths (including extra launch arguments), and Backup (save/load all settings to a file)
 
-**☰ Tools dropdown**: Holds *Update Code Agent*, *Restart Code Agent*, *Detach/Attach Terminal*, *View Code Changes*, *Session History*, *Show Usage*, *Set Working Directory...*, *Send Build Errors to Agent*, *Generate Commit Message*, *Generate Commit Message, Commit and Push*, and *Recommend AI Model*. Promote any of these to one-click toolbar buttons — and reorder them by dragging — via *⚙ → Settings... → Toolbar*; promoted features leave the dropdown, which hides once they all become buttons.
+**☰ Tools dropdown**: Holds *Update Code Agent*, *Restart Code Agent*, *Detach/Attach Terminal*, *View Code Changes*, *Session History*, *Show Usage*, *Set Working Directory...*, *Send Build Errors to Agent*, *Generate Commit Message*, *Generate Commit Message, Commit and Push*, *Recommend AI Model*, and *GitHub Issues*. Promote any of these to one-click toolbar buttons — and reorder them by dragging — via *⚙ → Settings... → Toolbar*; promoted features leave the dropdown, which hides once they all become buttons.
 
 **🤖 Model menu**: For Claude — Fable / Opus / Sonnet / Haiku / Opus Plan, effort level for Opus (Auto / Low / Medium / High / Max), Change Account, Set Language. For every other agent — its own models (grouped into submenus when the list is long), *Refresh Models*, and *Choose in the Agent...*.
 
@@ -157,6 +158,12 @@ https://github.com/anthropics/claude-code/issues/41501
 Use native mode to avoid this issue.
 
 ## Version History
+
+### Version 238.0
+- New **GitHub Issues** (🐞) action in the ☰ Tools menu lists the repository's issues; *Fix with Agent* opens a chat tab that works on the issue in its own branch and worktree, so several fixes can run side by side. Requires native mode.
+- From the same window, commit and push the fix branch, merge it into main/master/dev once tested, and post a reply on the issue and close it; the branch and worktree are cleaned up afterwards.
+- Each issue shows where its fix stands — Fixing, Fixed, Committed, Pushed or Merged — and the window refreshes on its own when that changes, keeping a just-closed issue visible with its final comments.
+- Issue descriptions and comments show formatted text and their screenshots, scaled to fit the window; click an image to open it full size.
 
 ### Version 237.0
 - **Native mode code blocks** have a copy button in the top-right corner that copies just the code.

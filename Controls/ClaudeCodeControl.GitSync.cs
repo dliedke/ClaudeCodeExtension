@@ -131,6 +131,12 @@ namespace ClaudeCodeVS
                 if (_settings == null || !_settings.AutoGitPullBeforePrompt)
                     return LogSkip(skipped, "setting is off");
 
+                // A GitHub issue tab works on its own fix branch in a worktree; pulling the solution's
+                // repository is unrelated to it, and the Issues window brings the base in at merge time.
+                string focusedSessionId = ResolveFocusedNativeSessionId();
+                if (!string.IsNullOrEmpty(focusedSessionId) && !string.IsNullOrEmpty(GetSession(focusedSessionId)?.WorkspaceOverride))
+                    return LogSkip(skipped, "the focused chat works in a GitHub issue worktree");
+
                 // Always resolve the repository from the current workspace — never from
                 // _gitRepositoryRoot. That field belongs to diff tracking and is only assigned by
                 // EnsureDiffTrackingStartedAsync, which on the send path runs *after* this call. On
@@ -452,11 +458,20 @@ namespace ClaudeCodeVS
             if (string.IsNullOrEmpty(gitPath))
                 return null;
 
+            return RunProcessDetailed(gitPath, workingDirectory, arguments, timeoutMs);
+        }
+
+        /// <summary>
+        /// Runs a command-line tool (git, gh) hidden, with prompts disabled, and returns its exit code
+        /// and both output streams; null when it could not start or ran past <paramref name="timeoutMs"/>.
+        /// </summary>
+        private static GitCommandResult RunProcessDetailed(string fileName, string workingDirectory, string arguments, int timeoutMs)
+        {
             try
             {
                 var processStart = new ProcessStartInfo
                 {
-                    FileName = gitPath,
+                    FileName = fileName,
                     Arguments = arguments,
                     WorkingDirectory = workingDirectory,
                     RedirectStandardOutput = true,
@@ -471,6 +486,10 @@ namespace ClaudeCodeVS
                 // timeout. Fail fast instead and leave the prompt to go out unpulled.
                 processStart.EnvironmentVariables["GIT_TERMINAL_PROMPT"] = "0";
                 processStart.EnvironmentVariables["GCM_INTERACTIVE"] = "never";
+                // Same for the GitHub CLI (GitHub Issues window): no prompts, no update banner on stderr.
+                processStart.EnvironmentVariables["GH_PROMPT_DISABLED"] = "1";
+                processStart.EnvironmentVariables["GH_NO_UPDATE_NOTIFIER"] = "1";
+                processStart.EnvironmentVariables["NO_COLOR"] = "1";
 
                 using (var process = Process.Start(processStart))
                 {

@@ -94,6 +94,19 @@ namespace ClaudeCodeVS
         /// </summary>
         public string MigrationSourceSessionId { get; set; }
 
+        /// <summary>
+        /// Directory this tab's agent runs in instead of the solution's workspace, or null. Set for a
+        /// GitHub issue fix tab, whose agent works in the issue's own git worktree; relaunches (model,
+        /// effort, permission switch, "New chat") keep it.
+        /// </summary>
+        public string WorkspaceOverride { get; set; }
+
+        /// <summary>GitHub issue this tab is fixing (0 for an ordinary chat); used for the tab caption and to find the tab again.</summary>
+        public int IssueNumber { get; set; }
+
+        /// <summary>Title of <see cref="IssueNumber"/>, shown in the tab caption.</summary>
+        public string IssueTitle { get; set; }
+
         // Claude-specific
         public ClaudeSessionOptions ClaudeOptions { get; set; }
 

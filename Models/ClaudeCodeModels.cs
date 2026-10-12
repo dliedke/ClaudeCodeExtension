@@ -178,7 +178,8 @@ namespace ClaudeCodeVS
         SendBuildErrors,
         GenerateCommitMessage,
         GenerateCommitMessageAndPush,
-        RecommendModel
+        RecommendModel,
+        GitHubIssues
     }
 
     /// <summary>

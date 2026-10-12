@@ -1666,6 +1666,21 @@ namespace ClaudeCodeVS
 
             sessionState.TurnStartedUtc = DateTime.UtcNow;
             sessionState.TurnFinishConfig = _suppressNextNativeAgentFinish ? null : GetEffectiveAgentFinish();
+            if (sessionState.TurnFinishConfig != null && !string.IsNullOrEmpty(sessionState.WorkspaceOverride))
+            {
+                // A GitHub issue tab runs in its own worktree, but the configured actions (build, run,
+                // commit & push, ...) target the open solution — keep only the sound and the info bar.
+                AgentFinishConfig full = sessionState.TurnFinishConfig;
+                sessionState.TurnFinishConfig = new AgentFinishConfig
+                {
+                    Enabled = full.Enabled,
+                    PlaySound = full.PlaySound,
+                    PlayQuestionSound = full.PlayQuestionSound,
+                    ShowToast = full.ShowToast,
+                    IdleSeconds = full.IdleSeconds,
+                    Action = AgentFinishActionType.None
+                };
+            }
             _suppressNextNativeAgentFinish = false;
 
             // "Track agent changes for review": snapshot before the agent can write anything

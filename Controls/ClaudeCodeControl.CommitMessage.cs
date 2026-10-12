@@ -233,7 +233,10 @@ namespace ClaudeCodeVS
                 return null;
             }
 
-            string workspace = await GetWorkspaceDirectoryAsync();
+            // A GitHub issue tab works in its own worktree: describe (and commit) that, not the solution.
+            string focusedSessionId = ResolveFocusedNativeSessionId();
+            string workspaceOverride = string.IsNullOrEmpty(focusedSessionId) ? null : GetSession(focusedSessionId)?.WorkspaceOverride;
+            string workspace = !string.IsNullOrEmpty(workspaceOverride) ? workspaceOverride : await GetWorkspaceDirectoryAsync();
             string repoRoot = FindGitRepositoryRoot(workspace);
             if (string.IsNullOrEmpty(repoRoot))
             {

@@ -427,6 +427,17 @@
                             Visibility="Collapsed"
                             Margin="0,0,6,0"/>
 
+						<Button x:Name="GitHubIssuesToolbarButton"
+                            Content="🐞"
+                            Width="30"
+                            MinWidth="30"
+                            FontSize="14"
+                            Style="{StaticResource IconButtonStyle}"
+                            Click="GitHubIssuesButton_Click"
+                            ToolTip="GitHub Issues"
+                            Visibility="Collapsed"
+                            Margin="0,0,6,0"/>
+
 						<!-- These used to be a separate right-pinned group that never scrolled; moved
 						     inside the scroller in v177.0 so one ◀ / ▶ pair scrolls the whole panel
 						     toolbar and no slack pools mid-row. Tools/Custom Commands still reach
@@ -484,6 +495,7 @@
 									<MenuItem Header="📝  Generate Commit Message" x:Name="GenerateCommitMessageMenuItem" Click="GenerateCommitMessageButton_Click" ToolTip="Ask the agent to write a commit message from the current git diff and fill it into the Git Changes window."/>
 									<MenuItem Header="🚀  Generate Commit Message, Commit and Push" x:Name="GenerateCommitMessageAndPushMenuItem" Click="GenerateCommitMessageAndPushButton_Click" ToolTip="Ask the agent to write a commit message from the current git diff, fill it into the Git Changes window, then stage, commit and push all changes immediately."/>
 									<MenuItem Header="💡  Recommend AI Model" x:Name="RecommendModelMenuItem" Click="RecommendModelButton_Click" ToolTip="Ask Opus (Extra High) which Claude model and effort suit the prompt you typed, then confirm or adjust before it is applied. Claude Code only."/>
+									<MenuItem Header="🐞  GitHub Issues" x:Name="GitHubIssuesMenuItem" Click="GitHubIssuesButton_Click" ToolTip="List the repository's GitHub issues and fix one in its own branch, worktree and chat tab, then commit, merge and reply on the issue. Requires Native Mode."/>
 								</ContextMenu>
 							</Button.ContextMenu>
 						</Button>
