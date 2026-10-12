@@ -27,7 +27,9 @@ using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Documents;
+using System.Windows.Controls.Primitives;
 using System.Windows.Input;
+using System.Windows.Interop;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
 
@@ -36,6 +38,7 @@ using ClaudeCodeVS.UI;
 
 using Microsoft.VisualStudio.Shell;
 using Microsoft.VisualStudio.Shell.Interop;
+using Microsoft.VisualStudio.Threading;
 
 namespace ClaudeCodeVS
 {
@@ -324,7 +327,7 @@ namespace ClaudeCodeVS
 
             // Downloaded images by URL, shared by every render in this window (the details re-render
             // when comments arrive, and re-selecting an issue must not download again).
-            var imageCache = new Dictionary<string, Task<BitmapSource>>(StringComparer.Ordinal);
+            var imageCache = new Dictionary<string, AsyncLazy<BitmapSource>>(StringComparer.Ordinal);
             Brush mutedBrush = new SolidColorBrush(Color.FromArgb(0xA8, fgColor.R, fgColor.G, fgColor.B));
             Brush ruleBrush = new SolidColorBrush(Color.FromArgb(0x40, fgColor.R, fgColor.G, fgColor.B));
 
@@ -1904,7 +1907,7 @@ namespace ClaudeCodeVS
         /// then the image scaled down to the details pane width (never up past its natural size or the
         /// width the author gave it). On failure, a link that opens it in the browser.
         /// </summary>
-        private static BlockUIContainer BuildIssueImageBlock(IssueBodySegment segment, Dictionary<string, Task<BitmapSource>> cache,
+        private static BlockUIContainer BuildIssueImageBlock(IssueBodySegment segment, Dictionary<string, AsyncLazy<BitmapSource>> cache,
             Brush mutedBrush, Brush accentBrush)
         {
             string url = segment.ImageUrl;
@@ -1918,9 +1921,14 @@ namespace ClaudeCodeVS
                 Child = new TextBlock { Text = "🖼 Loading " + label + "…", Foreground = mutedBrush, FontStyle = FontStyles.Italic }
             };
 
-            if (!cache.TryGetValue(url, out Task<BitmapSource> download))
+            if (!cache.TryGetValue(url, out AsyncLazy<BitmapSource> download))
             {
-                download = Task.Run(() => DownloadIssueImageAsync(url));
+                // AsyncLazy (not a bare Task) so a later render awaiting the same download can't deadlock the UI thread.
+                download = new AsyncLazy<BitmapSource>(async () =>
+                {
+                    await TaskScheduler.Default;
+                    return await DownloadIssueImageAsync(url).ConfigureAwait(false);
+                }, ThreadHelper.JoinableTaskFactory);
                 cache[url] = download;
             }
 
@@ -1929,7 +1937,7 @@ namespace ClaudeCodeVS
                 BitmapSource bitmap = null;
                 try
                 {
-                    bitmap = await download.ConfigureAwait(false);
+                    bitmap = await download.GetValueAsync().ConfigureAwait(false);
                 }
                 catch (Exception ex)
                 {
@@ -1965,11 +1973,11 @@ namespace ClaudeCodeVS
                     StretchDirection = StretchDirection.Both,
                     MaxWidth = maxWidth,
                     HorizontalAlignment = HorizontalAlignment.Left,
-                    Cursor = Cursors.Hand,
-                    ToolTip = "Click to open full size"
+                    Cursor = Cursors.Hand
                 };
                 RenderOptions.SetBitmapScalingMode(image, BitmapScalingMode.HighQuality);
                 image.MouseLeftButtonDown += (s, e) => { e.Handled = true; OpenUrl(url); };
+                AttachIssueImagePreview(image, bitmap);
 
                 // Stretch so the image can take the pane width; MaxWidth keeps small images at natural size.
                 host.HorizontalAlignment = HorizontalAlignment.Stretch;
@@ -1978,6 +1986,54 @@ namespace ClaudeCodeVS
 
             return new BlockUIContainer(host) { Margin = new Thickness(0) };
         }
+
+        /// <summary>
+        /// Hovering an issue image shows it larger (natural size, capped to most of the screen) in a
+        /// tooltip centered on it. The tooltip window is made click-through: a big preview usually lands
+        /// under the cursor, and without that the image would lose the mouse, close the tooltip and
+        /// reopen it in a loop; it also lets a click still reach the image and open it in the browser.
+        /// </summary>
+        private static void AttachIssueImagePreview(Image image, BitmapSource bitmap)
+        {
+            Rect workArea = SystemParameters.WorkArea;
+            var preview = new Image
+            {
+                Source = bitmap,
+                Stretch = Stretch.Uniform,
+                StretchDirection = StretchDirection.DownOnly,
+                MaxWidth = Math.Min(bitmap.PixelWidth, workArea.Width * 0.85),
+                MaxHeight = Math.Min(bitmap.PixelHeight, workArea.Height * 0.8)
+            };
+            RenderOptions.SetBitmapScalingMode(preview, BitmapScalingMode.HighQuality);
+
+            var content = new StackPanel();
+            content.Children.Add(preview);
+            content.Children.Add(new TextBlock { Text = "Click to open in the browser", Margin = new Thickness(0, 4, 0, 0), FontStyle = FontStyles.Italic });
+
+            var tip = new ToolTip { Content = content, Padding = new Thickness(4), Placement = PlacementMode.Center, PlacementTarget = image };
+            tip.Opened += (s, e) =>
+            {
+                try
+                {
+                    if (PresentationSource.FromVisual(tip) is HwndSource source && source.Handle != IntPtr.Zero)
+                    {
+                        int exStyle = GetWindowLong(source.Handle, GWL_EXSTYLE);
+                        SetWindowLong(source.Handle, GWL_EXSTYLE, exStyle | IssuePreviewTransparentStyle);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Debug.WriteLine($"GitHub Issues: could not make the image preview click-through: {ex.Message}");
+                }
+            };
+
+            image.ToolTip = tip;
+            ToolTipService.SetInitialShowDelay(image, 350);
+            ToolTipService.SetShowDuration(image, int.MaxValue);
+            ToolTipService.SetBetweenShowDelay(image, 0);
+        }
+
+        private const int IssuePreviewTransparentStyle = 0x00000020 /* WS_EX_TRANSPARENT */ | 0x00080000 /* WS_EX_LAYERED */;
 
         private static async Task<BitmapSource> DownloadIssueImageAsync(string url)
         {

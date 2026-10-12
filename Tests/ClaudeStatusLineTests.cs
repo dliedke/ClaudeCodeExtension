@@ -14,6 +14,7 @@
 using System;
 using System.IO;
 using System.Threading;
+using System.Threading.Tasks;
 using ClaudeCodeVS.Agents;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 
@@ -168,13 +169,13 @@ namespace ClaudeCodeExtension.Tests
         }
 
         [TestMethod]
-        public void TheCommandRunsWithTheJsonOnStdinAndOnlySucceedsOnExitZero()
+        public async Task TheCommandRunsWithTheJsonOnStdinAndOnlySucceedsOnExitZeroAsync()
         {
             // "echo" and "exit" behave alike in Git Bash and PowerShell, whichever this machine has.
-            string ok = ClaudeStatusLine.RunAsync("echo hello", "{}", _project, 80, CancellationToken.None).GetAwaiter().GetResult();
+            string ok = await ClaudeStatusLine.RunAsync("echo hello", "{}", _project, 80, CancellationToken.None);
             Assert.AreEqual("hello", ok);
 
-            string failed = ClaudeStatusLine.RunAsync("exit 3", "{}", _project, 80, CancellationToken.None).GetAwaiter().GetResult();
+            string failed = await ClaudeStatusLine.RunAsync("exit 3", "{}", _project, 80, CancellationToken.None);
             Assert.IsNull(failed);
         }
     }

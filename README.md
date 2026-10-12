@@ -159,6 +159,10 @@ Use native mode to avoid this issue.
 
 ## Version History
 
+### Version 239.0
+- Images in the GitHub Issues window now load without any risk of briefly freezing Visual Studio.
+- Hovering an image in the GitHub Issues window shows a larger preview; clicking it still opens the image in the browser.
+
 ### Version 238.0
 - New **GitHub Issues** (🐞) action in the ☰ Tools menu lists the repository's issues; *Fix with Agent* opens a chat tab that works on the issue in its own branch and worktree, so several fixes can run side by side. Requires native mode.
 - From the same window, commit and push the fix branch, merge it into main/master/dev once tested, and post a reply on the issue and close it; the branch and worktree are cleaned up afterwards.
