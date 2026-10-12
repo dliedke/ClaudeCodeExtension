@@ -8,7 +8,7 @@ Native or terminal inside Visual Studio for **Claude Code, OpenAI Codex, Cursor 
 <img src="https://raw.githubusercontent.com/dliedke/ClaudeCodeExtension/master/docs/images/extension-screenshot.png" alt="Claude Code Extension Screenshot" width=900 />
 </center>
 
-Enjoying the extension? [Buy me a coffee](https://www.buymeacoffee.com/dliedke) — every cup helps keep it free. Bug reports, suggestions, and pull requests are welcome on [GitHub](https://github.com/dliedke/ClaudeCodeExtension).
+Enjoying the extension? [Buy me a coffee](https://www.buymeacoffee.com/dliedke) — every cup helps keep it free. Companies can use the extension for free too. Bug reports, suggestions, and pull requests are welcome on [GitHub](https://github.com/dliedke/ClaudeCodeExtension).
 
 [Mentioned in Awesome Codex CLI](https://github.com/RoggeOhta/awesome-codex-cli)
 
