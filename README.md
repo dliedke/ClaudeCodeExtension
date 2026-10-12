@@ -135,7 +135,7 @@ This binds a Claude Code skill that shells out to OpenAI Codex to audit pending 
 
 ## Contributing
 
-Pull requests are welcome.
+Pull requests are welcome. Issues can also be fixed, so feel free to pick one up.
 
 - Use a high-quality AI model for coding, such as Claude Opus with High effort.
 - Test your changes carefully in Visual Studio (F5 experimental instance).
