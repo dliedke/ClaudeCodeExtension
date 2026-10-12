@@ -15,25 +15,26 @@ Enjoying the extension? [Buy me a coffee](https://www.buymeacoffee.com/dliedke) 
 ## Features
 
 - **Embedded AI terminal** — Run any supported AI coding agent inside a Visual Studio tool window. Auto-detects the solution directory; restarts when you switch solutions. Optionally use Windows Terminal instead of Command Prompt for better emoji/Unicode rendering.
-- **Native mode (default for new installs)** — Show the conversation as a chat in its own document tab instead of an embedded terminal: answers arrive as formatted text, file edits open into a colored diff, and each turn ends with how long it took and what it cost. The tab has its own message box with image paste and file attachments, plus agent, model, effort and permission selectors you can change mid-conversation. Turn off via *⚙ → Settings... → Terminal* to use the embedded terminal instead; Reasonix and any agent that can't run this way keep using the terminal.
-- **Multi-line prompts** — Press **Enter** to send, **Shift+Enter** or **Ctrl+Enter** for a new line. Toggle "Send with Enter" off in the ⚙ menu to make Enter insert a newline and reveal a Send button.
-- **File and image attachments** — Paste images with **Ctrl+V**, drag & drop files onto the prompt area, or use the 📎 button. Any file type is accepted (no limit). Text content like Excel cells pastes as text, not as an image.
-- **Editor selection → prompt** — Click 📋 or right-click selected code → *Send Selection to Claude Code* to insert a formatted snippet (file path + line numbers + syntax-highlighted code fence) into the prompt.
+- **Native mode (default for new installs)** — Show the conversation as a chat in its own document tab instead of an embedded terminal: answers arrive as formatted text, file edits open into a colored diff, and each turn ends with how long it took, what it cost, and (for Claude Code) your status line if you have one. The tab has its own message box with image paste and file attachments, plus agent, model, effort and permission selectors you can change mid-conversation. Turn off via *⚙ → Settings... → Terminal* to use the embedded terminal instead; Reasonix and any agent that can't run this way keep using the terminal.
+- **Multi-line prompts** — Press **Enter** to send, **Shift+Enter** or **Ctrl+Enter** for a new line. To send with Ctrl+Enter instead, or to use a Send button, change the send key in *⚙ → Settings... → Prompt*.
+- **File and image attachments** — Paste images with **Ctrl+V**, drag & drop files onto the prompt area, or use the 📎 menu (attach a file, insert the editor selection or the active file's path). Any file type is accepted (no limit). Text content like Excel cells pastes as text, not as an image.
+- **Editor selection → prompt** — Click 📋 or right-click selected code → *Send Selection to Claude Code* to insert a formatted snippet (file path + line numbers + syntax-highlighted code fence) into the prompt. Turn on *Send selection as reference only* in *⚙ → Settings... → Prompt* to insert just the file path and line numbers.
 - **Integrated diff viewer** — For Git projects, the 📊 view shows uncommitted changes in a dedicated tab with search, double-click-to-open, and double-click-line-to-navigate. Optionally auto-opens when you send a prompt, and can track agent changes for per-file Keep/Undo review.
 - **Prompt history** — Last 50 prompts saved (with attached files). Browse with **Ctrl+Up / Ctrl+Down**; clear via right-click.
 - **Claude Code and Codex session history** — 📜 toolbar button lists past sessions for the current workspace; view, rename, delete, or resume any session, including the most recent one. Works on Windows and WSL.
 - **Claude usage in VS** — 📊 button (when Claude is active) opens the claude.ai usage page inside a dockable tab. Inline session/weekly progress bars below the prompt update automatically and adapt to the active theme.
 - **Custom commands (⚡)** — Save slash commands or canned prompts and dispatch them to the active agent in one click. Configure via *⚙ → Configure Custom Commands...*.
 - **"@" file picker** — Type **@** in the prompt box (or the native mode chat composer) to search your solution's files and folders and insert one with the keyboard; keep typing to filter, arrow keys + Enter to insert, pick a folder to drill in. File types and skipped folders are configurable in Settings → Prompt.
+- **"/" command picker** — Claude Code only: type **/** at the start of a prompt (in the prompt box or the native chat composer) to list the built-in commands, your custom commands and skills, with their descriptions.
 - **On Agent Finish** — Optionally play a sound, show a notification (with duration, plus token count for Claude Code), and run an action (build/rebuild, run, tests, a script, or a follow-up command) when the agent goes idle. Configured per solution. Configure via *⚙ → Settings...*.
 - **Pull before sending** — Runs `git pull` in the solution’s repository before your first prompt, so the agent never edits a file that is already out of date on the remote. Conflicts from that pull are handed to the agent to resolve. On by default; turn it off via *⚙ → Settings... → Automation*.
 - **TFVC checkout** — In TFVC-bound solutions, Claude Code in native mode has read-only files checked out through Visual Studio before it edits them. On by default; turn it off via *⚙ → Settings... → Automation*.
-- **Auto-send build errors** — Optionally send build errors (with warnings for context) to the active agent automatically whenever a Visual Studio build finishes with errors, so it can fix them. Opt-in via *⚙ → Settings... → Automation*.
+- **Auto-send build and runtime errors** — Optionally send build errors (with warnings for context) to the active agent automatically whenever a Visual Studio build finishes with errors, so it can fix them. While debugging, unhandled exceptions can be sent the same way, with their stack trace. Opt-in via *⚙ → Settings... → Automation*.
 - **Generate Commit Message** — Toolbar/menu action that asks the active agent to write a commit message from the current changes and fills it into the Git Changes window. Requires native mode; falls back to the clipboard if the commit message box can't be found. A sibling action, **Generate Commit Message, Commit and Push**, does the same then immediately stages, commits and pushes all changes.
 - **Recommend AI Model** — Claude Code only: asks Opus (Extra High) which model and effort suit the prompt you typed, then lets you adjust and apply them.
-- **Model selection** — 🤖 button to switch models: for Claude, Fable / Opus / Sonnet / Haiku / Opus Plan plus an effort level; for Codex, its reported models plus a reasoning level (Model default / Low / Medium / High / Extra High / Max / Ultra); for every other agent, the models it reports itself, with *Refresh Models* to re-read them and *Choose in the Agent...* to fall back to its own picker.
+- **Model selection** — 🤖 button to switch models: for Claude, Fable / Opus / Sonnet / Haiku / Opus Plan plus an effort level; for Codex, its reported models plus a reasoning level (Model default / Low / Medium / High / Extra High / Max / Ultra); for Devin, a searchable picker with favorites and per-model prices; for every other agent, the models it reports itself, with *Refresh Models* to re-read them and *Choose in the Agent...* to fall back to its own picker.
 - **Detach / attach terminal** — Pop the terminal into a separate VS tab and bring it back at any time. State persists across sessions.
-- **Theme aware** — Follows VS dark/light theme automatically, or force dark, light, or a custom background color via *⚙ → Settings → Theme*. Prompt zoom is persisted across sessions; set the terminal's console font and size via *⚙ → Settings → Terminal* (Ctrl+Scroll zoom applies for the current session).
+- **Theme aware** — Follows VS dark/light theme automatically, or force dark, light, or a custom background color via *⚙ → Settings → Theme*. Prompt zoom is persisted across sessions, and native chat zoom (Ctrl+Scroll, Ctrl+0 resets it) is too; set the terminal's console font and size via *⚙ → Settings → Terminal* (Ctrl+Scroll zoom applies for the current session).
 - **Persistent settings** — Layout, provider choice, model, flags, and font sizes all saved to `%LocalAppData%\ClaudeCodeExtension\claudecode-settings.json`.
 
 ## Native Mode
@@ -48,13 +49,17 @@ The default chat experience for new installs — turn it off via *⚙ → Settin
 
 <img src="https://raw.githubusercontent.com/dliedke/ClaudeCodeExtension/master/docs/images/native-mode-question.png" alt="Native mode: answering an agent question in the chat" width="900" />
 
-**Plan review** — in plan mode the agent proposes a plan first; approve it or send it back for changes without leaving the transcript.
+**Plan review** — in plan mode the agent proposes a plan first; approve it (optionally on a different model) or send it back for changes without leaving the transcript.
 
 <img src="https://raw.githubusercontent.com/dliedke/ClaudeCodeExtension/master/docs/images/native-mode-plan.png" alt="Native mode: reviewing and approving a plan" width="900" />
 
 **Real diffs for file edits** — every edit opens into a colored diff with a line count, so you can see what changed without switching tabs.
 
 <img src="https://raw.githubusercontent.com/dliedke/ClaudeCodeExtension/master/docs/images/native-mode-diff.png" alt="Native mode: a file edit shown as a colored diff" width="900" />
+
+**Parallel chats and session buttons** — ✚ opens another chat tab with its own agent, model and permission selectors; ✎ renames the session, 🎨 changes its color and ↻ clears the conversation.
+
+**Permission prompts and tool cards** — the caret beside Allow offers *Allow for the rest of this session*, and a tool card's ↗ icon opens the file it touched in the editor.
 
 ## Supported AI Providers
 
@@ -107,13 +112,13 @@ Then choose it via *⚙ → Set Terminal Type...*.
 
 **⚙ Settings menu** (gear button, top-right):
 - Pick an AI provider, *Configure Visible Code Agents...*
-- Provider-specific flags: Claude *Skip Permissions*, Codex *Approval Never*, Cursor *Yolo Mode*, Devin *Dangerous Mode*, Antigravity *Skip Permissions*, Qwen Code *Yolo Mode*, Grok *Always Approve*
-- *Configure Custom Commands...*, *Settings...*, About
-- *Settings...* opens the consolidated dialog with tabs for On Agent Finish, Prompt (send key, large prompts, font size, @ file picker), Automation (auto-open Changes, track agent changes for review, pull before sending, auto-send build errors), Layout (prompt panel position, usage bars), Terminal type, Theme, Toolbar, CLI Paths, and Backup (save/load all settings to a file)
+- Provider-specific flags: Claude *Skip Permissions* and *Start in Plan Mode*, Codex *Approval Never*, Cursor *Yolo Mode*, Devin *Dangerous Mode*, Antigravity *Skip Permissions*, Qwen Code *Yolo Mode*, Grok *Always Approve*
+- *Hide Prompt Input Box*, *Configure Custom Commands...*, *Settings...*, About
+- *Settings...* opens the consolidated dialog with tabs for On Agent Finish, Prompt (send key, large prompts, clipboard, font size, @ file picker), Automation (auto-open Changes, track agent changes for review, pull before sending, TFVC checkout, auto-send build and runtime errors, Install Caveman, Install latest OpenPets), Layout (prompt panel position, prompt box, usage bars), Terminal (native mode, terminal type, encoding, fonts), Theme, Toolbar, CLI Paths (including extra launch arguments), and Backup (save/load all settings to a file)
 
-**☰ Tools dropdown**: Holds *Update Code Agent*, *Restart Code Agent*, *Detach/Attach Terminal*, *View Code Changes*, *Session History*, *Show Usage*, *Set Working Directory...*, *Send Build Errors to Agent*, *Generate Commit Message*, and *Recommend AI Model*. Promote any of these to one-click toolbar buttons — and reorder them by dragging — via *⚙ → Settings... → Toolbar*; promoted features leave the dropdown, which hides once they all become buttons.
+**☰ Tools dropdown**: Holds *Update Code Agent*, *Restart Code Agent*, *Detach/Attach Terminal*, *View Code Changes*, *Session History*, *Show Usage*, *Set Working Directory...*, *Send Build Errors to Agent*, *Generate Commit Message*, *Generate Commit Message, Commit and Push*, and *Recommend AI Model*. Promote any of these to one-click toolbar buttons — and reorder them by dragging — via *⚙ → Settings... → Toolbar*; promoted features leave the dropdown, which hides once they all become buttons.
 
-**🤖 Model menu**: For Claude — Opus / Sonnet / Haiku, effort level for Opus (Auto / Low / Medium / High / Max), Change Account. For every other agent — its own models (grouped into submenus when the list is long), *Refresh Models*, and *Choose in the Agent...*.
+**🤖 Model menu**: For Claude — Fable / Opus / Sonnet / Haiku / Opus Plan, effort level for Opus (Auto / Low / Medium / High / Max), Change Account, Set Language. For every other agent — its own models (grouped into submenus when the list is long), *Refresh Models*, and *Choose in the Agent...*.
 
 **On Agent Finish**: Configure via *⚙ → Settings... → On Agent Finish* tab. For scripts, enable *Close script window when it finishes* to auto-close the script console. For *Run (F5)* and *Run without debugging (Ctrl+F5)*, use *Clean solution before running* and *Rebuild solution before running* to control whether the solution is prepared before launch.
 
