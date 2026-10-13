@@ -130,6 +130,14 @@ namespace ClaudeCodeVS
         public ClaudePermissionChoice? PlanExitChoice { get; set; }
 
         /// <summary>
+        /// A permission pick that waits for this tab's plan to end (issue #193): the notice to show
+        /// when it applies, and the agent session it was picked for (a relaunch replaces it, and the
+        /// new one already launches with the pick).
+        /// </summary>
+        public string DeferredPermissionNotice { get; set; }
+        public IAgentSession DeferredPermissionAgent { get; set; }
+
+        /// <summary>
         /// Serializes this session's own relaunches (model/effort/permission switch, "New chat").
         /// Deliberately separate from the panel's <c>_nativeLifecycleSemaphore</c>: that one also
         /// guards a full agent switch, which never touches a parallel session, so sharing it would

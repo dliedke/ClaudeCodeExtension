@@ -114,6 +114,23 @@ namespace ClaudeCodeVS.Agents
         /// </summary>
         public Action<string, JObject> HookCallbackReceived { get; set; }
 
+        /// <summary>
+        /// Fired with the session's permission mode whenever the CLI reports it — on every
+        /// <c>system/init</c> and on the <c>system/status</c> frame that follows any mode change
+        /// (measured against CLI 2.1.296: a live <c>set_permission_mode</c> and a plan approval both
+        /// produce one). Note the CLI reports <c>manual</c> as <c>default</c>.
+        /// </summary>
+        public Action<string> PermissionModeReported { get; set; }
+
+        /// <summary>
+        /// Asked when a plan is approved (the <c>ExitPlanMode</c> card): the mode the session should
+        /// move to with the approval, or null to leave it to the CLI. Set by the session for a
+        /// permission pick made while the agent was still planning (issue #193) — riding on the allow,
+        /// the CLI applies it in the same step, so the work after the plan never starts in the wrong
+        /// mode.
+        /// </summary>
+        public Func<string> PlanExitModeProvider { get; set; }
+
         public IReadOnlyList<AgentEvent> Parse(string line)
         {
             if (string.IsNullOrWhiteSpace(line))
@@ -162,8 +179,15 @@ namespace ClaudeCodeVS.Agents
 
         private IReadOnlyList<AgentEvent> ParseSystem(JObject root)
         {
-            // "status" and "thinking_tokens" are progress chatter with no UI counterpart yet.
+            // "status" and "thinking_tokens" are progress chatter with no UI counterpart yet, apart from
+            // the permission mode both "status" and "init" carry.
             // "init" arrives once per turn rather than once per session — see AgentEventKind.SessionStarted.
+            string permissionMode = (string)root["permissionMode"];
+            if (!string.IsNullOrEmpty(permissionMode))
+            {
+                PermissionModeReported?.Invoke(permissionMode);
+            }
+
             if ((string)root["subtype"] == "compact_boundary")
             {
                 return ParseCompactBoundary(root);
@@ -675,19 +699,31 @@ namespace ClaudeCodeVS.Agents
                     updated["answers"] = map;
                 }
 
+                // Approving the plan into skip-permissions: the CLI applies the mode change itself as
+                // part of the allow, so there is no window where the resumed turn still asks. Measured
+                // against CLI 2.1.273 — needs the session launched with
+                // --allow-dangerously-skip-permissions, which the command builder adds. Otherwise a
+                // mode picked while the agent was planning rides along the same way (issue #193;
+                // measured on CLI 2.1.296 with acceptEdits and auto).
+                string exitMode = null;
                 if (interaction != null && interaction.SkipPermissionsRequested)
                 {
-                    // Approving the plan into skip-permissions: the CLI applies the mode change itself
-                    // as part of the allow, so there is no window where the resumed turn still asks.
-                    // Measured against CLI 2.1.273 — needs the session launched with
-                    // --allow-dangerously-skip-permissions, which the command builder adds.
+                    exitMode = "bypassPermissions";
+                }
+                else if (interaction != null && interaction.Kind == AgentInteractionKind.PlanReview)
+                {
+                    exitMode = PlanExitModeProvider?.Invoke();
+                }
+
+                if (!string.IsNullOrEmpty(exitMode))
+                {
                     target(requestId, new
                     {
                         behavior = "allow",
                         updatedInput = updated,
                         updatedPermissions = new[]
                         {
-                            new { type = "setMode", mode = "bypassPermissions", destination = "session" }
+                            new { type = "setMode", mode = exitMode, destination = "session" }
                         }
                     });
                     return;

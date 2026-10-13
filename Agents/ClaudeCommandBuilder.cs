@@ -214,6 +214,34 @@ namespace ClaudeCodeVS.Agents
             }
         }
 
+        /// <summary>
+        /// The <c>set_permission_mode</c> value that puts an already-running session into
+        /// <paramref name="choice"/> (issue #193). Same as <see cref="ToPermissionMode"/> except
+        /// <see cref="ClaudePermissionChoice.SkipPermissions"/>, which at launch is a separate flag but
+        /// live is the <c>bypassPermissions</c> mode.
+        /// </summary>
+        public static string ToLivePermissionMode(ClaudePermissionChoice choice)
+        {
+            return choice == ClaudePermissionChoice.SkipPermissions
+                ? "bypassPermissions"
+                : ToPermissionMode(choice);
+        }
+
+        /// <summary>
+        /// Whether a permission pick has to wait instead of reaching the running session at once
+        /// (issue #193): leaving plan mode while a turn is running. Applied live, the agent reads it
+        /// as "planning is over" and starts making changes from a plan nobody approved, so the switch
+        /// waits for the plan's approval or the end of the turn. Every other switch, entering plan
+        /// mode included, applies at once.
+        /// </summary>
+        /// <param name="liveMode">The session's current mode as the CLI last reported it.</param>
+        public static bool ShouldWaitForPlanToEnd(string liveMode, ClaudePermissionChoice target, bool turnInFlight)
+        {
+            return turnInFlight &&
+                string.Equals(liveMode, "plan", StringComparison.Ordinal) &&
+                target != ClaudePermissionChoice.PlanMode;
+        }
+
         /// <summary>Executable to hand to <see cref="System.Diagnostics.ProcessStartInfo"/>.</summary>
         public static string GetFileName(ClaudeSessionOptions options)
         {
