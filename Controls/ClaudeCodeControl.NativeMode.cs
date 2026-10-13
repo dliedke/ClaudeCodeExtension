@@ -3456,8 +3456,11 @@ namespace ClaudeCodeVS
         /// this (null for the panel's default session): when set, its own model/effort/permission/
         /// plan-mode snapshot is copied instead of the global <c>_settings</c>, so a new tab opened
         /// from a parallel session matches that session, not whatever the panel last had selected.
+        /// <paramref name="configure"/> runs on that snapshot before the agent is created, so a model
+        /// or effort it sets (a GitHub issue's fix chat) is already on the agent's launch flags.
         /// </summary>
-        internal NativeChatSessionState CreateAndRegisterSession(AiProvider provider, string workspace, NativeChatSessionState seed = null)
+        internal NativeChatSessionState CreateAndRegisterSession(AiProvider provider, string workspace, NativeChatSessionState seed = null,
+            Action<NativeChatSessionState> configure = null)
         {
             _sessionIdCounter++;
             string sessionId = $"session_{_sessionIdCounter}";
@@ -3480,6 +3483,8 @@ namespace ClaudeCodeVS
             state.PlanMode = seed != null ? seed.PlanMode : (IsClaudeProvider(provider) && _settings?.ClaudePlanMode == true);
             state.AutoPermissions = seed != null ? seed.AutoPermissions : (IsClaudeProvider(provider) && _settings?.ClaudeAutoPermissions == true);
             state.ManualMode = seed != null ? seed.ManualMode : (IsClaudeProvider(provider) && _settings?.ClaudeManualMode == true);
+
+            configure?.Invoke(state);
 
             // Create agent session from this tab's own snapshot rather than the global settings.
             var agentSession = CreateAgentSession(provider, workspace, state);

@@ -1068,6 +1068,15 @@ namespace ClaudeCodeVS
                 issue.Comments = await FetchIssueCommentsAsync(context, ghPath, issue.Number);
             }
 
+            // Asked before the worktree exists, so Cancel leaves nothing behind. The advisor sizes the
+            // prompt the agent will actually get.
+            AiProvider provider = _currentRunningProvider ?? _settings.SelectedProvider;
+            progress("Choosing the model…");
+            IssueAgentChoice agentChoice = ShowIssueAgentDialog(owner, provider, issue,
+                GitHubIssues.BuildFixPrompt(issue, GitHubIssues.BuildBranchName(issue.Number), baseBranch, false));
+            if (agentChoice == null)
+                return;
+
             progress("Preparing the worktree…");
             var prepared = await Task.Run(() => PrepareIssueWorktree(context, issue.Number, baseBranch));
             await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
@@ -1079,12 +1088,12 @@ namespace ClaudeCodeVS
 
             progress("Starting the agent…");
             string worktree = prepared.Path;
-            AiProvider provider = _currentRunningProvider ?? _settings.SelectedProvider;
             NativeChatSessionState session = await StartParallelSessionAsync(provider, worktree, null, s =>
             {
                 s.WorkspaceOverride = worktree;
                 s.IssueNumber = issue.Number;
                 s.IssueTitle = issue.Title;
+                agentChoice.ApplyTo(s);
             });
 
             if (session == null)
@@ -2077,6 +2086,315 @@ namespace ClaudeCodeVS
             if (!(brush is SolidColorBrush solid)) return false;
             Color c = solid.Color;
             return 0.299 * c.R + 0.587 * c.G + 0.114 * c.B < 128;
+        }
+
+        #endregion
+
+        #region Model and effort
+
+        /// <summary>
+        /// The model and effort an issue's fix chat starts with. Only the fields the agent offers are
+        /// set; <see cref="ApplyTo"/> writes them to that chat's own session snapshot, never to Settings.
+        /// </summary>
+        private sealed class IssueAgentChoice
+        {
+            public ClaudeModel? Model;
+            public EffortLevel? Effort;
+            public string ProviderModelId;          // empty = the agent's default
+            public CodexReasoningLevel? Reasoning;
+
+            public void ApplyTo(NativeChatSessionState session)
+            {
+                if (Model.HasValue) session.SelectedClaudeModel = Model.Value;
+                if (Effort.HasValue) session.SelectedEffortLevel = Effort.Value;
+                if (ProviderModelId != null) session.SelectedModel = ProviderModelId;
+                if (Reasoning.HasValue) session.SelectedCodexReasoningLevel = Reasoning.Value;
+            }
+        }
+
+        /// <summary>
+        /// Asks which model and effort the issue's fix chat runs with, preselected to the panel's current
+        /// pair. For Claude Code, Recommend asks the same advisor as the toolbar's Recommend AI Model about
+        /// <paramref name="fixPrompt"/>. Returns null when cancelled. An agent with neither a model list
+        /// nor an effort level gets no dialog and an empty choice.
+        /// </summary>
+        private IssueAgentChoice ShowIssueAgentDialog(Window owner, AiProvider provider, GitHubIssue issue, string fixPrompt)
+        {
+            ThreadHelper.ThrowIfNotOnUIThread();
+
+            bool isClaude = IsClaudeProvider(provider);
+            bool isCodex = IsCodexProvider(provider);
+            bool hasCatalog = ProviderHasModelCatalog(provider);
+            if (!isClaude && !isCodex && !hasCatalog)
+                return new IssueAgentChoice();
+
+            GetThemeBrushes(out Brush themeBg, out Brush themeFg);
+            ResourceDictionary comboRes = BuildThemedComboResources(themeBg, themeFg);
+
+            var dialog = new Window
+            {
+                Title = $"Fix Issue #{issue.Number}",
+                Width = 560,
+                SizeToContent = SizeToContent.Height,
+                WindowStartupLocation = WindowStartupLocation.CenterOwner,
+                ResizeMode = ResizeMode.NoResize,
+                Background = themeBg,
+                Foreground = themeFg,
+                ShowInTaskbar = false
+            };
+            try { dialog.Owner = owner ?? Application.Current?.MainWindow; } catch { }
+
+            var root = new StackPanel { Margin = new Thickness(14) };
+            dialog.Content = root;
+
+            root.Children.Add(new TextBlock
+            {
+                Text = $"#{issue.Number}  {issue.Title}",
+                FontWeight = FontWeights.SemiBold,
+                Foreground = themeFg,
+                TextWrapping = TextWrapping.Wrap
+            });
+            root.Children.Add(new TextBlock
+            {
+                Text = $"Agent: {GetChatProviderDisplayName(provider)} — the choice applies to this issue's chat only.",
+                Foreground = themeFg,
+                Opacity = 0.7,
+                TextWrapping = TextWrapping.Wrap,
+                Margin = new Thickness(0, 4, 0, 0)
+            });
+
+            // ---- Model / effort pickers ----
+            var pickers = new Grid { Margin = new Thickness(0, 14, 0, 0) };
+            pickers.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+            pickers.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+            pickers.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+            pickers.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+            root.Children.Add(pickers);
+
+            Func<string, int, TextBlock> makeLabel = (text, column) =>
+            {
+                var label = new TextBlock
+                {
+                    Text = text,
+                    Foreground = themeFg,
+                    VerticalAlignment = VerticalAlignment.Center,
+                    Margin = new Thickness(column == 0 ? 0 : 14, 0, 8, 0)
+                };
+                Grid.SetColumn(label, column);
+                pickers.Children.Add(label);
+                return label;
+            };
+            Action<ComboBox, string, object> addItem = (combo, caption, tag) =>
+            {
+                var item = new ComboBoxItem { Content = caption, Tag = tag, Foreground = themeFg };
+                if (comboRes["cbi"] is Style cbiStyle) item.Style = cbiStyle;
+                combo.Items.Add(item);
+            };
+            Action<ComboBox, Func<object, bool>> selectWhere = (combo, match) =>
+            {
+                foreach (ComboBoxItem item in combo.Items)
+                {
+                    if (match(item.Tag)) { combo.SelectedItem = item; return; }
+                }
+            };
+
+            makeLabel("Model:", 0);
+            var modelCombo = MakeThemedComboBox(comboRes, themeFg);
+            Grid.SetColumn(modelCombo, 1);
+            pickers.Children.Add(modelCombo);
+
+            TextBlock effortLabel = makeLabel(isCodex ? "Reasoning:" : "Effort:", 2);
+            var effortCombo = MakeThemedComboBox(comboRes, themeFg);
+            Grid.SetColumn(effortCombo, 3);
+            pickers.Children.Add(effortCombo);
+
+            // Fable needs usage credits — left out on a zero balance unless it is the current pick.
+            ClaudeModel currentClaudeModel = _settings.SelectedClaudeModel;
+            bool offerFable = currentClaudeModel == ClaudeModel.Fable || IsFableModelOffered();
+
+            if (isClaude)
+            {
+                // Same order as the composer's model menu.
+                foreach (ClaudeModel model in new[] { ClaudeModel.Fable, ClaudeModel.Opus, ClaudeModel.Sonnet, ClaudeModel.Haiku, ClaudeModel.OpusPlan })
+                {
+                    if (model == ClaudeModel.Fable && !offerFable) continue;
+                    addItem(modelCombo, GetClaudeModelDisplayName(model), model);
+                }
+                selectWhere(modelCombo, tag => tag is ClaudeModel m && m == currentClaudeModel);
+
+                foreach (EffortLevel level in _effortSliderOrder)
+                    addItem(effortCombo, GetChatEffortLabel(level), level);
+                effortCombo.SelectedIndex = EffortToSliderIndex(_settings.SelectedEffortLevel);
+            }
+            else
+            {
+                // The agent's own list from the model catalog, re-read in the background when stale.
+                Action<List<ModelOption>, string> fillModels = (models, selected) =>
+                {
+                    modelCombo.Items.Clear();
+                    addItem(modelCombo, "Agent default", string.Empty);
+                    if (!string.IsNullOrWhiteSpace(selected) && FindProviderModel(models, selected) == null)
+                    {
+                        ModelOption current = GetSelectedModelOption(provider, models, selected);
+                        addItem(modelCombo, current.BuildMenuCaption(), current.Id);
+                    }
+                    foreach (ModelOption model in models)
+                        addItem(modelCombo, model.BuildMenuCaption(), model.Id);
+                    selectWhere(modelCombo, tag => string.Equals(tag as string, selected ?? string.Empty, StringComparison.OrdinalIgnoreCase));
+                    if (modelCombo.SelectedIndex < 0) modelCombo.SelectedIndex = 0;
+                };
+
+                fillModels(GetCachedProviderModels(provider), GetSelectedProviderModelId(provider));
+
+                if (ShouldRefreshProviderModels(provider))
+                {
+#pragma warning disable VSSDK007, VSTHRD110 // Fire and forget: FileAndForget is the handler
+                    ThreadHelper.JoinableTaskFactory.RunAsync(async delegate
+                    {
+                        List<ModelOption> fresh = await RefreshProviderModelsAsync(provider);
+                        await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
+                        if (!dialog.IsVisible || fresh == null || fresh.Count == 0) return;
+                        fillModels(fresh, (modelCombo.SelectedItem as ComboBoxItem)?.Tag as string);
+                    }).FileAndForget("claudecode/githubissues/models");
+#pragma warning restore VSSDK007, VSTHRD110
+                }
+
+                if (isCodex)
+                {
+                    foreach (CodexReasoningLevel level in _codexReasoningSliderOrder)
+                        addItem(effortCombo, GetCodexReasoningLabel(level), level);
+                    effortCombo.SelectedIndex = CodexReasoningToSliderIndex(_settings.SelectedCodexReasoningLevel);
+                }
+                else
+                {
+                    effortLabel.Visibility = Visibility.Collapsed;
+                    effortCombo.Visibility = Visibility.Collapsed;
+                }
+            }
+
+            // ---- Recommend (Claude Code only) ----
+            var recommendRow = new DockPanel { Margin = new Thickness(0, 12, 0, 0), LastChildFill = true };
+            var status = new TextBlock
+            {
+                Foreground = themeFg,
+                TextWrapping = TextWrapping.Wrap,
+                VerticalAlignment = VerticalAlignment.Center,
+                Margin = new Thickness(10, 0, 0, 0),
+                Text = "Not sure? Recommend asks Claude which model and effort suit this issue."
+            };
+            var progress = new ProgressBar { IsIndeterminate = true, Height = 4, Margin = new Thickness(0, 6, 0, 0), Visibility = Visibility.Collapsed };
+            var reason = new TextBlock
+            {
+                Foreground = themeFg,
+                Opacity = 0.85,
+                TextWrapping = TextWrapping.Wrap,
+                Margin = new Thickness(0, 6, 0, 0),
+                Visibility = Visibility.Collapsed
+            };
+
+            Style buttonStyle = GetDialogButtonStyle();
+            Func<string, Button> makeButton = text =>
+            {
+                var button = new Button { Content = text, MinWidth = 96, Height = 28, Margin = new Thickness(8, 0, 0, 0) };
+                if (buttonStyle != null) button.Style = buttonStyle;
+                else { button.Background = themeBg; button.Foreground = themeFg; button.BorderBrush = themeFg; }
+                return button;
+            };
+
+            var recommendButton = makeButton("💡 Recommend");
+            recommendButton.Margin = new Thickness(0);
+            recommendButton.ToolTip = $"Ask {GetClaudeModelDisplayName(ClaudeModel.Opus)} ({GetChatEffortLabel(EffortLevel.XHigh)}) which model and effort suit this issue. Nothing starts until Start Fix.";
+            DockPanel.SetDock(recommendButton, Dock.Left);
+            recommendRow.Children.Add(recommendButton);
+            recommendRow.Children.Add(status);
+
+            if (isClaude)
+            {
+                root.Children.Add(recommendRow);
+                root.Children.Add(progress);
+                root.Children.Add(reason);
+            }
+
+            // ---- Buttons ----
+            var startButton = makeButton("Start Fix");
+            startButton.IsDefault = true;
+            startButton.ToolTip = "Create the fix branch and worktree and open the issue's chat with this model and effort.";
+            var cancelButton = makeButton("Cancel");
+            cancelButton.IsCancel = true;
+
+            var buttons = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right, Margin = new Thickness(0, 16, 0, 0) };
+            buttons.Children.Add(startButton);
+            buttons.Children.Add(cancelButton);
+            root.Children.Add(buttons);
+
+            var cts = new System.Threading.CancellationTokenSource();
+            dialog.Closed += delegate { cts.Cancel(); };
+
+            recommendButton.Click += delegate
+            {
+                recommendButton.IsEnabled = false;
+                progress.Visibility = Visibility.Visible;
+                reason.Visibility = Visibility.Collapsed;
+                status.FontWeight = FontWeights.Normal;
+                status.Text = $"Asking {GetClaudeModelDisplayName(ClaudeModel.Opus)} ({GetChatEffortLabel(EffortLevel.XHigh)}) which model and effort suit this issue…";
+
+#pragma warning disable VSSDK007, VSTHRD110 // Fire and forget: FileAndForget is the handler
+                ThreadHelper.JoinableTaskFactory.RunAsync(async delegate
+                {
+                    (ModelRecommendation recommendation, string error) =
+                        await RequestModelRecommendationAsync(provider, fixPrompt, cts.Token);
+
+                    await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
+                    if (cts.IsCancellationRequested) return;
+
+                    progress.Visibility = Visibility.Collapsed;
+                    recommendButton.IsEnabled = true;
+
+                    if (recommendation != null && TryMapRecommendation(recommendation, out ClaudeModel model, out EffortLevel effort))
+                    {
+                        // No usage credits: Fable is not on offer, so its nearest, Opus, is proposed.
+                        bool fableUnavailable = model == ClaudeModel.Fable && !offerFable;
+                        if (fableUnavailable) model = ClaudeModel.Opus;
+
+                        selectWhere(modelCombo, tag => tag is ClaudeModel m && m == model);
+                        effortCombo.SelectedIndex = EffortToSliderIndex(effort);
+
+                        status.Text = $"Recommended: {GetClaudeModelDisplayName(model)} · {GetChatEffortLabel(effort)}";
+                        status.FontWeight = FontWeights.SemiBold;
+
+                        string reasonText = recommendation.Reason?.Trim() ?? string.Empty;
+                        if (fableUnavailable)
+                            reasonText = (reasonText + " Fable was recommended, but it needs usage credits and the balance is zero.").Trim();
+                        if (reasonText.Length > 0)
+                        {
+                            reason.Text = reasonText;
+                            reason.Visibility = Visibility.Visible;
+                        }
+                        startButton.Focus();
+                    }
+                    else
+                    {
+                        status.Text = "No recommendation: " + (error ?? "the answer could not be read.") + " You can still pick a model and effort yourself.";
+                    }
+                }).FileAndForget("claudecode/githubissues/recommend");
+#pragma warning restore VSSDK007, VSTHRD110
+            };
+
+            IssueAgentChoice result = null;
+            startButton.Click += delegate
+            {
+                result = new IssueAgentChoice();
+                object modelTag = (modelCombo.SelectedItem as ComboBoxItem)?.Tag;
+                object effortTag = (effortCombo.SelectedItem as ComboBoxItem)?.Tag;
+                if (modelTag is ClaudeModel claudeModel) result.Model = claudeModel;
+                else if (modelTag is string modelId) result.ProviderModelId = modelId;
+                if (effortTag is EffortLevel effortLevel) result.Effort = effortLevel;
+                else if (effortTag is CodexReasoningLevel reasoningLevel) result.Reasoning = reasoningLevel;
+                dialog.DialogResult = true;
+            };
+
+            dialog.ShowDialog();
+            return result;
         }
 
         #endregion

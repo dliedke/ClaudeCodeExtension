@@ -1362,22 +1362,21 @@ namespace ClaudeCodeVS
 
         /// <summary>
         /// Creates a parallel chat session, shows it in its own document tab and starts its agent in
-        /// <paramref name="workspace"/>. <paramref name="configure"/> runs before the tab is shown, so
-        /// fields it sets (e.g. a GitHub issue tab's worktree and issue number) already shape the tab's
-        /// caption. Returns null when the agent session could not be created; a launch failure throws.
+        /// <paramref name="workspace"/>. <paramref name="configure"/> runs before the agent is created and
+        /// the tab is shown, so fields it sets (e.g. a GitHub issue tab's worktree, issue number, model
+        /// and effort) already shape the launch flags and the tab's caption. Returns null when the agent
+        /// session could not be created; a launch failure throws.
         /// </summary>
         internal async Task<NativeChatSessionState> StartParallelSessionAsync(
             AiProvider provider, string workspace, NativeChatSessionState seed, Action<NativeChatSessionState> configure = null)
         {
             await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
 
-            var newSession = CreateAndRegisterSession(provider, workspace, seed);
+            var newSession = CreateAndRegisterSession(provider, workspace, seed, configure);
             if (newSession?.AgentSession == null)
             {
                 return null;
             }
-
-            configure?.Invoke(newSession);
 
             // Composer/transcript events are wired by ShowSessionInTabAsync below.
 

@@ -159,6 +159,10 @@ Use native mode to avoid this issue.
 
 ## Version History
 
+### Version 240.0
+- *Fix with Agent* in the GitHub Issues window now asks which model and effort the fix runs with, preselected to your current choice; the pick applies to that issue's chat only.
+- With Claude Code, the same dialog offers 💡 Recommend to suggest the model and effort that suit the issue.
+
 ### Version 239.0
 - Images in the GitHub Issues window now load without any risk of briefly freezing Visual Studio.
 - Hovering an image in the GitHub Issues window shows a larger preview; clicking it still opens the image in the browser.
