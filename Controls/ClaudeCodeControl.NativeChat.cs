@@ -4726,6 +4726,203 @@ namespace ClaudeCodeVS
         }
 
         /// <summary>
+        /// Asks a live Claude session to change its permission mode over <c>set_permission_mode</c>
+        /// instead of relaunching (issue #193): the relaunch killed a turn that was still running, the
+        /// live switch lets it finish under the new mode. False for any other agent, no live process
+        /// or a CLI that declines — the caller then relaunches as before.
+        /// </summary>
+        private async Task<bool> TrySwitchClaudePermissionAsync(IAgentSession agentSession, ClaudePermissionChoice choice)
+        {
+            var claudeSession = agentSession as ClaudeStreamJsonSession;
+            if (claudeSession == null)
+            {
+                return false;
+            }
+
+            try
+            {
+                return await claudeSession.SetPermissionModeAsync(
+                    ClaudeCommandBuilder.ToLivePermissionMode(choice), CancellationToken.None);
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"Native chat: switching the Claude permission mode on the live session failed: {ex.Message}");
+                return false;
+            }
+        }
+
+        /// <summary>Appended to a permission notice whose switch waits for the plan to end.</summary>
+        private const string PlanDeferredNoticeSuffix =
+            " once the plan is approved or this response ends — the agent finishes planning first.";
+
+        /// <summary>
+        /// Applies a permission/plan-mode pick the handlers below have already saved: live on a Claude
+        /// session, otherwise (other agents, or the live switch declined) by relaunching. Leaving plan
+        /// mode while the agent is still planning waits instead — see
+        /// <see cref="ClaudeCommandBuilder.ShouldWaitForPlanToEnd"/> — and is applied by the plan
+        /// approval or by <see cref="ApplyDeferredNativePermissionSwitch"/> at the end of the turn.
+        /// </summary>
+        private async Task ApplyNativePermissionSwitchAsync(string notice)
+        {
+            ClaudePermissionChoice choice = GetNativeClaudePermissionChoice(_settings?.ClaudeDangerouslySkipPermissions == true);
+
+            var claudeSession = _agentSession as ClaudeStreamJsonSession;
+            if (claudeSession != null)
+            {
+                if (ClaudeCommandBuilder.ShouldWaitForPlanToEnd(claudeSession.PermissionMode, choice, _nativeTurnInFlight))
+                {
+                    claudeSession.PendingPlanExitMode = ClaudeCommandBuilder.ToLivePermissionMode(choice);
+                    _deferredNativePermissionNotice = notice;
+                    _deferredNativePermissionSession = claudeSession;
+                    AddNativeMessage(ChatMessageKind.Notice, notice + PlanDeferredNoticeSuffix);
+                    return;
+                }
+
+                claudeSession.PendingPlanExitMode = null;
+            }
+
+            _deferredNativePermissionNotice = null;
+            _deferredNativePermissionSession = null;
+
+            if (await TrySwitchClaudePermissionAsync(_agentSession, choice))
+            {
+                AddNativeMessage(ChatMessageKind.Notice, notice + ".");
+                return;
+            }
+
+            await RelaunchNativeSessionAsync(notice);
+        }
+
+        /// <summary>The parallel-tab counterpart of <see cref="ApplyNativePermissionSwitchAsync"/>.</summary>
+        private async Task ApplySessionPermissionSwitchAsync(NativeChatSessionState session, string notice)
+        {
+            ClaudePermissionChoice choice = GetNativeClaudePermissionChoice(session);
+
+            var claudeSession = session.AgentSession as ClaudeStreamJsonSession;
+            if (claudeSession != null)
+            {
+                if (ClaudeCommandBuilder.ShouldWaitForPlanToEnd(claudeSession.PermissionMode, choice, session.TurnInFlight))
+                {
+                    claudeSession.PendingPlanExitMode = ClaudeCommandBuilder.ToLivePermissionMode(choice);
+                    session.DeferredPermissionNotice = notice;
+                    session.DeferredPermissionAgent = claudeSession;
+                    AddNativeMessageToSession(session, ChatMessageKind.Notice, notice + PlanDeferredNoticeSuffix);
+                    return;
+                }
+
+                claudeSession.PendingPlanExitMode = null;
+            }
+
+            session.DeferredPermissionNotice = null;
+            session.DeferredPermissionAgent = null;
+
+            if (await TrySwitchClaudePermissionAsync(session.AgentSession, choice))
+            {
+                AddNativeMessageToSession(session, ChatMessageKind.Notice, notice + ".");
+                return;
+            }
+
+            await RelaunchSessionAsync(session, notice);
+        }
+
+        /// <summary>
+        /// Called when a panel turn ends: applies a permission pick that was waiting for the plan to
+        /// end (issue #193) and was not already carried by a plan approval. The turn is over, so the
+        /// relaunch fallback no longer cuts anything short.
+        /// </summary>
+        private void ApplyDeferredNativePermissionSwitch()
+        {
+            ThreadHelper.ThrowIfNotOnUIThread();
+
+            string notice = _deferredNativePermissionNotice;
+            bool sameSession = ReferenceEquals(_deferredNativePermissionSession, _agentSession);
+            _deferredNativePermissionNotice = null;
+            _deferredNativePermissionSession = null;
+
+            if (notice == null || !sameSession)
+            {
+                return;
+            }
+
+#pragma warning disable VSSDK007 // Deliberately detached: called from the turn-completed handler, which must not wait on the switch
+            ThreadHelper.JoinableTaskFactory.RunAsync(async delegate
+            {
+                await ApplyNativePermissionSwitchAsync(notice);
+            }).FileAndForget("claudecode/nativechat/deferredpermission");
+#pragma warning restore VSSDK007
+        }
+
+        /// <summary>The parallel-tab counterpart of <see cref="ApplyDeferredNativePermissionSwitch"/>.</summary>
+        private void ApplyDeferredSessionPermissionSwitch(NativeChatSessionState session)
+        {
+            ThreadHelper.ThrowIfNotOnUIThread();
+
+            string notice = session.DeferredPermissionNotice;
+            bool sameSession = ReferenceEquals(session.DeferredPermissionAgent, session.AgentSession);
+            session.DeferredPermissionNotice = null;
+            session.DeferredPermissionAgent = null;
+
+            if (notice == null || !sameSession)
+            {
+                return;
+            }
+
+#pragma warning disable VSSDK007 // Deliberately detached: called from the turn-completed handler, which must not wait on the switch
+            ThreadHelper.JoinableTaskFactory.RunAsync(async delegate
+            {
+                await ApplySessionPermissionSwitchAsync(session, notice);
+            }).FileAndForget("claudecode/nativechat/deferredpermission");
+#pragma warning restore VSSDK007
+        }
+
+        /// <summary>
+        /// A plan was approved while a permission pick was waiting for it: plain "Approve" already
+        /// carried the pick to the CLI (<see cref="ClaudeStreamJsonSession.PendingPlanExitMode"/>), so
+        /// only the notice remains; "Approve and skip permissions" chose its own mode and the pick is
+        /// dropped. Either way nothing is left for the end of the turn.
+        /// </summary>
+        private void CompleteDeferredPermissionSwitchOnPlanApproval(NativeChatSessionState owner, bool approvedIntoSkip)
+        {
+            ThreadHelper.ThrowIfNotOnUIThread();
+
+            string notice = owner != null ? owner.DeferredPermissionNotice : _deferredNativePermissionNotice;
+            IAgentSession agent = owner != null ? owner.DeferredPermissionAgent : _deferredNativePermissionSession;
+            if (notice == null)
+            {
+                return;
+            }
+
+            if (owner != null)
+            {
+                owner.DeferredPermissionNotice = null;
+                owner.DeferredPermissionAgent = null;
+            }
+            else
+            {
+                _deferredNativePermissionNotice = null;
+                _deferredNativePermissionSession = null;
+            }
+
+            var claudeSession = agent as ClaudeStreamJsonSession;
+            if (claudeSession != null)
+            {
+                claudeSession.PendingPlanExitMode = null;
+            }
+
+            if (!approvedIntoSkip)
+            {
+                if (owner != null)
+                {
+                    AddNativeMessageToSession(owner, ChatMessageKind.Notice, notice + ".");
+                }
+                else
+                {
+                    AddNativeMessage(ChatMessageKind.Notice, notice + ".");
+                }
+            }
+        }
+
+        /// <summary>
         /// The composer's effort popup closed on a stop other than the one it opened on. Same slider
         /// order as the panel, so both controls always agree on what "High" means.
         /// </summary>
@@ -4834,6 +5031,8 @@ namespace ClaudeCodeVS
         /// <summary>
         /// Permission handling is a launch flag for every agent that has one, so the switch relaunches
         /// the session — resuming it where the protocol allows, so the conversation is not lost.
+        /// Claude is the exception: its running process takes the new mode live, see
+        /// <see cref="ApplyNativePermissionSwitchAsync"/>.
         /// </summary>
 #pragma warning disable VSTHRD100 // Async void is required by the UI event signature
         private async void OnChatPermissionSelected(bool skip)
@@ -4868,7 +5067,7 @@ namespace ClaudeCodeVS
                 SaveSettings();
                 UpdateChatComposerState();
 
-                await RelaunchNativeSessionAsync(skip
+                await ApplyNativePermissionSwitchAsync(skip
                     ? "🤖 Switched to skipping permission prompts"
                     : "🤖 Switched to asking for permission");
             }
@@ -4879,8 +5078,9 @@ namespace ClaudeCodeVS
         }
 
         /// <summary>
-        /// Turns plan mode on or off. It is a launch flag, so the session is relaunched — resumed, so
-        /// the conversation so far still counts as the plan's input.
+        /// Turns plan mode on or off on the running session, mid-turn included (issue #193), relaunching
+        /// — resumed, so the conversation so far still counts as the plan's input — only when the live
+        /// switch is not possible.
         /// </summary>
 #pragma warning disable VSTHRD100 // Async void is required by the UI event signature
         private async void OnChatPlanModeSelected(bool planning)
@@ -4913,7 +5113,7 @@ namespace ClaudeCodeVS
                 SaveSettings();
                 UpdateChatComposerState();
 
-                await RelaunchNativeSessionAsync(planning
+                await ApplyNativePermissionSwitchAsync(planning
                     ? "🤖 Plan mode on — the agent will propose a plan before making changes"
                     : "🤖 Plan mode off");
             }
@@ -4970,7 +5170,7 @@ namespace ClaudeCodeVS
                 SaveSettings();
                 UpdateChatComposerState();
 
-                await RelaunchNativeSessionAsync("🤖 Switched to accepting edits");
+                await ApplyNativePermissionSwitchAsync("🤖 Switched to accepting edits");
             }
             catch (Exception ex)
             {
@@ -5022,7 +5222,7 @@ namespace ClaudeCodeVS
                 SaveSettings();
                 UpdateChatComposerState();
 
-                await RelaunchNativeSessionAsync("🤖 Switched to auto permissions");
+                await ApplyNativePermissionSwitchAsync("🤖 Switched to auto permissions");
             }
             catch (Exception ex)
             {
@@ -5073,7 +5273,7 @@ namespace ClaudeCodeVS
                 SaveSettings();
                 UpdateChatComposerState();
 
-                await RelaunchNativeSessionAsync("🤖 Switched to manual permissions");
+                await ApplyNativePermissionSwitchAsync("🤖 Switched to manual permissions");
             }
             catch (Exception ex)
             {
@@ -5573,7 +5773,7 @@ namespace ClaudeCodeVS
 
                 UpdateChatComposerState(session);
 
-                await RelaunchSessionAsync(session, skip
+                await ApplySessionPermissionSwitchAsync(session, skip
                     ? "🤖 Switched to skipping permission prompts"
                     : "🤖 Switched to asking for permission");
             }
@@ -5609,7 +5809,7 @@ namespace ClaudeCodeVS
 
                 UpdateChatComposerState(session);
 
-                await RelaunchSessionAsync(session, planning
+                await ApplySessionPermissionSwitchAsync(session, planning
                     ? "🤖 Plan mode on — the agent will propose a plan before making changes"
                     : "🤖 Plan mode off");
             }
@@ -5641,7 +5841,7 @@ namespace ClaudeCodeVS
                 session.SkipPermissions = false;
                 UpdateChatComposerState(session);
 
-                await RelaunchSessionAsync(session, "🤖 Switched to accepting edits");
+                await ApplySessionPermissionSwitchAsync(session, "🤖 Switched to accepting edits");
             }
             catch (Exception ex)
             {
@@ -5672,7 +5872,7 @@ namespace ClaudeCodeVS
                 session.SkipPermissions = false;
                 UpdateChatComposerState(session);
 
-                await RelaunchSessionAsync(session, "🤖 Switched to auto permissions");
+                await ApplySessionPermissionSwitchAsync(session, "🤖 Switched to auto permissions");
             }
             catch (Exception ex)
             {
@@ -5703,7 +5903,7 @@ namespace ClaudeCodeVS
                 session.SkipPermissions = false;
                 UpdateChatComposerState(session);
 
-                await RelaunchSessionAsync(session, "🤖 Switched to manual permissions");
+                await ApplySessionPermissionSwitchAsync(session, "🤖 Switched to manual permissions");
             }
             catch (Exception ex)
             {

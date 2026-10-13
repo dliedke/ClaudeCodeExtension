@@ -78,6 +78,11 @@ namespace ClaudeCodeVS.Agents
         // user sees why (bad flag, missing CLI under WSL) instead of only an exit code.
         private volatile string _lastErrorLine;
 
+        // The permission mode the CLI last reported (see PermissionMode), and the one a plan approval
+        // should switch to (see PendingPlanExitMode).
+        private volatile string _permissionMode = string.Empty;
+        private string _pendingPlanExitMode;
+
         /// <summary>Shown when the CLI cannot be launched because it is not installed (or the custom path is wrong).</summary>
         internal const string CliNotFoundMessage =
             "Claude Code was not found on this machine. Install it (https://code.claude.com/docs/en/setup) " +
@@ -124,6 +129,24 @@ namespace ClaudeCodeVS.Agents
         }
 
         public string Model { get; private set; } = string.Empty;
+
+        /// <summary>
+        /// The permission mode the running CLI is in: the launch mode until the CLI reports otherwise
+        /// on <c>system/init</c> or <c>system/status</c> — which it does for a live switch and for a
+        /// plan approval alike, so this follows the session out of plan mode on its own.
+        /// </summary>
+        public string PermissionMode { get { return _permissionMode; } }
+
+        /// <summary>
+        /// The mode a plan approval moves the session to, or null to leave that to the CLI (issue #193).
+        /// Set for a permission pick made while the agent was still planning; the next plain
+        /// "Approve" on the plan card carries it and clears it.
+        /// </summary>
+        public string PendingPlanExitMode
+        {
+            get { return Volatile.Read(ref _pendingPlanExitMode); }
+            set { Volatile.Write(ref _pendingPlanExitMode, string.IsNullOrWhiteSpace(value) ? null : value); }
+        }
 
         public bool SupportsInterrupt { get { return true; } }
 
@@ -292,6 +315,76 @@ namespace ClaudeCodeVS.Agents
         }
 
         /// <summary>
+        /// Switches the running session's permission mode via <c>set_permission_mode</c> — the live
+        /// counterpart of <c>--permission-mode</c>/<c>--dangerously-skip-permissions</c> (issue #193).
+        /// Measured against CLI 2.1.296: the request is honoured in the middle of a turn and the turn
+        /// carries on to its normal result, whereas the relaunch it replaces killed the running turn.
+        /// <c>bypassPermissions</c> is accepted because every launch either already skips permissions
+        /// or carries <c>--allow-dangerously-skip-permissions</c>. Returns false — never throws — on
+        /// anything short of a CLI-confirmed switch, so the caller's relaunch stays the fallback.
+        /// </summary>
+        /// <param name="mode">The CLI's own mode name — see <see cref="ClaudeCommandBuilder.ToLivePermissionMode"/>.</param>
+        public async Task<bool> SetPermissionModeAsync(string mode, CancellationToken cancellationToken)
+        {
+            if (_disposed || string.IsNullOrWhiteSpace(mode))
+            {
+                return false;
+            }
+
+            // The launch options follow first, so a relaunch of this process starts in the new mode.
+            // While an interrupt is being honoured the CLI is about to exit and come back on exactly
+            // those options (OnHostExited), so there is no live process worth asking — and asking one
+            // that is exiting would only time out.
+            RememberPermissionMode(mode);
+            if (_interruptRequested)
+            {
+                return true;
+            }
+
+            JObject response = await SendControlRequestAsync(
+                new { subtype = "set_permission_mode", mode }, "set_permission_mode", cancellationToken).ConfigureAwait(false);
+
+            if (!IsSuccess(response))
+            {
+                return false;
+            }
+
+            _permissionMode = mode;
+            return true;
+        }
+
+        /// <summary>
+        /// Hands the pending plan-exit mode to the plan approval that is about to carry it, once, and
+        /// keeps the launch options in step the same way <see cref="SetPermissionModeAsync"/> does.
+        /// </summary>
+        private string TakePendingPlanExitMode()
+        {
+            string mode = Interlocked.Exchange(ref _pendingPlanExitMode, null);
+            if (mode != null)
+            {
+                RememberPermissionMode(mode);
+            }
+            return mode;
+        }
+
+        /// <summary>
+        /// Writes a mode the running session moved to into its own launch options, which is what an
+        /// interrupt-recovery relaunch launches with — otherwise Stop would quietly put the session
+        /// back in the mode it was started in.
+        /// </summary>
+        private void RememberPermissionMode(string mode)
+        {
+            if (string.Equals(mode, "bypassPermissions", StringComparison.Ordinal))
+            {
+                _options.DangerouslySkipPermissions = true;
+                return;
+            }
+
+            _options.DangerouslySkipPermissions = false;
+            _options.PermissionMode = mode;
+        }
+
+        /// <summary>
         /// Sends a control request the session itself originates (as opposed to <see cref="WriteControlResponse"/>,
         /// which answers one the CLI sent) and awaits the matching <c>control_response</c>, correlated by
         /// a fresh <c>request_id</c>. Null on no live process, a write failure, or a timeout — every
@@ -401,8 +494,12 @@ namespace ClaudeCodeVS.Agents
             {
                 ControlResponder = WriteControlResponse,
                 ControlResponseReceived = OnControlResponseReceived,
-                HookCallbackReceived = _options.BeforeFileEdit != null ? (Action<string, JObject>)OnHookCallback : null
+                HookCallbackReceived = _options.BeforeFileEdit != null ? (Action<string, JObject>)OnHookCallback : null,
+                PermissionModeReported = mode => _permissionMode = mode,
+                PlanExitModeProvider = TakePendingPlanExitMode
             };
+
+            _permissionMode = _options.DangerouslySkipPermissions ? "bypassPermissions" : (_options.PermissionMode ?? string.Empty);
 
             var host = new JsonLineProcessHost(hostOptions);
             host.LineReceived += OnLineReceived;

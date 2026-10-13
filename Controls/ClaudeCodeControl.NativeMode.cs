@@ -254,6 +254,14 @@ namespace ClaudeCodeVS
         /// </summary>
         private ClaudePermissionChoice? _nativePlanExitChoice;
 
+        /// <summary>
+        /// A permission pick that waits for the panel agent's plan to end (issue #193): the notice to
+        /// show when it applies, and the agent session it was picked for — a relaunch or agent switch
+        /// in between replaces the session, and the new one already launches with the pick.
+        /// </summary>
+        private string _deferredNativePermissionNotice;
+        private IAgentSession _deferredNativePermissionSession;
+
         #endregion
 
         #region Native Mode State
@@ -2601,6 +2609,9 @@ namespace ClaudeCodeVS
                         UpdateChatComposerState();
                     }
                 }
+
+                // A mode picked while the agent was planning was waiting for exactly this (#193).
+                CompleteDeferredPermissionSwitchOnPlanApproval(owner, interaction.WasApprovedAndSkippedPermissions);
             }
 
             if (interaction.IsPlanReview && interaction.ApprovedModel.HasValue)
@@ -2769,6 +2780,9 @@ namespace ClaudeCodeVS
                     _settings != null ? _settings.SelectedEffortLevel : EffortLevel.Auto,
                     ChatTranscript != null ? ChatTranscript.ActualWidth : 0);
             }
+
+            // A permission pick that waited for the plan to end (#193) and no plan approval carried.
+            ApplyDeferredNativePermissionSwitch();
 
             FireNativeAgentFinish(finishConfig, agentEvent);
         }
@@ -3412,6 +3426,9 @@ namespace ClaudeCodeVS
                 AppendClaudeStatusLine(footer, agentEvent, session.SelectedProvider,
                     session.SelectedEffortLevel, session.ChatTranscript.ActualWidth);
             }
+
+            // A permission pick that waited for the plan to end (#193) and no plan approval carried.
+            ApplyDeferredSessionPermissionSwitch(session);
 
             FireNativeAgentFinish(finishConfig, agentEvent);
         }

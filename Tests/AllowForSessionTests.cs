@@ -136,6 +136,78 @@ namespace ClaudeCodeExtension.Tests
         }
 
         [TestMethod]
+        public void PlainPlanApproval_CarriesAModePickedWhilePlanning()
+        {
+            // Issue #193: a mode picked mid-plan waits for the approval and rides on it.
+            List<KeyValuePair<string, object>> sent;
+            ClaudeStreamParser parser = NewParser(out sent);
+            parser.PlanExitModeProvider = () => "auto";
+
+            AgentInteractionRequest interaction = ParsePlanReview(parser);
+            interaction.Allow(null);
+
+            string json = JsonConvert.SerializeObject(sent[0].Value);
+            StringAssert.Contains(json, "\"type\":\"setMode\"");
+            StringAssert.Contains(json, "\"mode\":\"auto\"");
+        }
+
+        [TestMethod]
+        public void ApproveAndSkipPermissions_WinsOverAModePickedWhilePlanning()
+        {
+            List<KeyValuePair<string, object>> sent;
+            ClaudeStreamParser parser = NewParser(out sent);
+            bool asked = false;
+            parser.PlanExitModeProvider = () => { asked = true; return "auto"; };
+
+            AgentInteractionRequest interaction = ParsePlanReview(parser);
+            interaction.OnApproveAndSkipPermissions = () => { };
+            interaction.AllowAndSkipPermissions();
+
+            Assert.IsFalse(asked);
+            StringAssert.Contains(JsonConvert.SerializeObject(sent[0].Value), "\"mode\":\"bypassPermissions\"");
+        }
+
+        [TestMethod]
+        public void ToolApproval_NeverCarriesAPlanExitMode()
+        {
+            List<KeyValuePair<string, object>> sent;
+            ClaudeStreamParser parser = NewParser(out sent);
+            parser.PlanExitModeProvider = () => "auto";
+
+            AgentInteractionRequest interaction = ParseToolApproval(parser, "Bash");
+            interaction.Allow(null);
+
+            Assert.IsFalse(JsonConvert.SerializeObject(sent[0].Value).Contains("setMode"));
+        }
+
+        [TestMethod]
+        public void SystemFrames_ReportThePermissionMode()
+        {
+            var parser = new ClaudeStreamParser(expectDeltas: true);
+            var reported = new List<string>();
+            parser.PermissionModeReported = reported.Add;
+
+            parser.Parse("{\"type\":\"system\",\"subtype\":\"init\",\"session_id\":\"s\",\"permissionMode\":\"plan\"}");
+            parser.Parse("{\"type\":\"system\",\"subtype\":\"status\",\"permissionMode\":\"acceptEdits\"}");
+            parser.Parse("{\"type\":\"system\",\"subtype\":\"thinking_tokens\"}");
+
+            CollectionAssert.AreEqual(new[] { "plan", "acceptEdits" }, reported);
+        }
+
+        [TestMethod]
+        public void LeavingPlanMode_WaitsOnlyWhileATurnIsRunning()
+        {
+            Assert.IsTrue(ClaudeCommandBuilder.ShouldWaitForPlanToEnd("plan", ClaudePermissionChoice.SkipPermissions, true));
+            Assert.IsTrue(ClaudeCommandBuilder.ShouldWaitForPlanToEnd("plan", ClaudePermissionChoice.AcceptEdits, true));
+            Assert.IsFalse(ClaudeCommandBuilder.ShouldWaitForPlanToEnd("plan", ClaudePermissionChoice.SkipPermissions, false));
+            Assert.IsFalse(ClaudeCommandBuilder.ShouldWaitForPlanToEnd("plan", ClaudePermissionChoice.PlanMode, true));
+
+            // Entering plan mode mid-turn is what the issue asked for, and applies at once.
+            Assert.IsFalse(ClaudeCommandBuilder.ShouldWaitForPlanToEnd("auto", ClaudePermissionChoice.PlanMode, true));
+            Assert.IsFalse(ClaudeCommandBuilder.ShouldWaitForPlanToEnd("acceptEdits", ClaudePermissionChoice.SkipPermissions, true));
+        }
+
+        [TestMethod]
         public void AllowForSession_RunsTheBookkeepingCallbackThenAllowsTheCall()
         {
             List<KeyValuePair<string, object>> sent;

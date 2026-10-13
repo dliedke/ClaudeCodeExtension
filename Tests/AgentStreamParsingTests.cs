@@ -690,6 +690,18 @@ namespace ClaudeCodeExtension.Tests
         }
 
         [TestMethod]
+        public void ClaudeCommandBuilder_PermissionChoiceMapsToTheLiveSwitchModes()
+        {
+            // Issue #193: the composer switches a running session over set_permission_mode, where
+            // skipping is the bypassPermissions mode rather than a separate launch flag.
+            Assert.AreEqual("bypassPermissions", ClaudeCommandBuilder.ToLivePermissionMode(ClaudePermissionChoice.SkipPermissions));
+            Assert.AreEqual("plan", ClaudeCommandBuilder.ToLivePermissionMode(ClaudePermissionChoice.PlanMode));
+            Assert.AreEqual("auto", ClaudeCommandBuilder.ToLivePermissionMode(ClaudePermissionChoice.Auto));
+            Assert.AreEqual("acceptEdits", ClaudeCommandBuilder.ToLivePermissionMode(ClaudePermissionChoice.AcceptEdits));
+            Assert.AreEqual("manual", ClaudeCommandBuilder.ToLivePermissionMode(ClaudePermissionChoice.ManualMode));
+        }
+
+        [TestMethod]
         public void ClaudeCommandBuilder_AskingForPermissionsMakesBypassAvailableWithoutEnablingIt()
         {
             // "Approve and skip permissions" on a plan card switches the live session with a
