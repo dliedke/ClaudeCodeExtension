@@ -1977,10 +1977,13 @@ namespace ClaudeCodeVS
         /// The id the user asked to resume, or null/"-c" for anything else. Codex resolves "Resume Last"
         /// to an explicit id before this point; Claude's "-c" sentinel has no native-mode equivalent.
         /// </param>
+        /// <param name="target">The parallel tab to replay into, or null for the default session's chat.</param>
         /// <returns>False when there is nothing to replay, and the caller shows the welcome card.</returns>
-        private async Task<bool> TryReplayResumedTranscriptAsync(AiProvider provider, string workspace, string sessionId)
+        private async Task<bool> TryReplayResumedTranscriptAsync(AiProvider provider, string workspace, string sessionId,
+            NativeChatSessionState target = null)
         {
-            if (string.IsNullOrEmpty(sessionId) || sessionId == "-c" || ChatTranscript == null)
+            ChatTranscriptView chat = target != null ? target.ChatTranscript : ChatTranscript;
+            if (string.IsNullOrEmpty(sessionId) || sessionId == "-c" || chat == null)
             {
                 return false;
             }
@@ -1998,18 +2001,18 @@ namespace ClaudeCodeVS
 
                     int start = Math.Max(0, messages.Count - ResumedTranscriptMaxRows);
                     await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
-                    AddNativeMessage(ChatMessageKind.Notice, start > 0
+                    AddNativeMessage(chat, ChatMessageKind.Notice, start > 0
                         ? $"🕘 Resumed this Codex conversation — showing the last {messages.Count - start} of {messages.Count} messages."
                         : $"🕘 Resumed this Codex conversation — {messages.Count} earlier messages restored.");
 
                     for (int index = start; index < messages.Count; index++)
                     {
                         CodexTranscriptMessage message = messages[index];
-                        AddNativeMessage(message.IsUser ? ChatMessageKind.User : ChatMessageKind.Assistant,
+                        AddNativeMessage(chat, message.IsUser ? ChatMessageKind.User : ChatMessageKind.Assistant,
                             message.Text.TrimEnd());
                     }
 
-                    ChatTranscript.ScrollToEndIfFollowing();
+                    chat.ScrollToEndIfFollowing();
                     return true;
                 }
 
@@ -2040,7 +2043,7 @@ namespace ClaudeCodeVS
                 await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
 
                 int dropped = total - rows.Count;
-                AddNativeMessage(ChatMessageKind.Notice, dropped > 0
+                AddNativeMessage(chat, ChatMessageKind.Notice, dropped > 0
                     ? $"🕘 Resumed this conversation — showing the last {rows.Count} of {total} messages."
                     : $"🕘 Resumed this conversation — {rows.Count} earlier messages restored.");
 
@@ -2066,16 +2069,16 @@ namespace ClaudeCodeVS
 
                     if (!string.IsNullOrEmpty(account))
                     {
-                        AddNativeMessage(ChatMessageKind.Notice, "Signed in as " + account);
+                        AddNativeMessage(chat, ChatMessageKind.Notice, "Signed in as " + account);
                     }
                 }
 
                 foreach (KeyValuePair<ChatMessageKind, string> row in rows)
                 {
-                    AddNativeMessage(row.Key, row.Value);
+                    AddNativeMessage(chat, row.Key, row.Value);
                 }
 
-                ChatTranscript.ScrollToEndIfFollowing();
+                chat.ScrollToEndIfFollowing();
                 return true;
             }
             catch (Exception ex)
@@ -3709,6 +3712,10 @@ namespace ClaudeCodeVS
                 return;
             }
 
+            // The panel's menus act on the focused chat (e.g. Session History resumes into it), so
+            // the tab whose mirror was clicked has to be that chat even if focus never entered it.
+            MarkNativeSessionFocused(ResolveSessionFromSender(sender)?.SessionId);
+
             ContextMenu target;
             switch (menu)
             {
@@ -3741,6 +3748,9 @@ namespace ClaudeCodeVS
             {
                 return;
             }
+
+            // See OnComposerConfigMenuClicked: the panel's handler targets the focused chat.
+            MarkNativeSessionFocused(ResolveSessionFromSender(sender)?.SessionId);
 
             Button panelButton = GetToolbarButtonControl(button);
             panelButton?.RaiseEvent(new RoutedEventArgs(System.Windows.Controls.Primitives.ButtonBase.ClickEvent));
@@ -4498,14 +4508,7 @@ namespace ClaudeCodeVS
                     return;
                 }
 
-                session.SelectedProvider = provider;
-                session.SelectedModel = GetSelectedProviderModelId(provider);
-                session.SkipPermissions = GetChatPermissionSkipFlag(provider) ?? false;
-                session.PlanMode = IsClaudeProvider(provider) && _settings?.ClaudePlanMode == true;
-                session.AutoPermissions = IsClaudeProvider(provider) && _settings?.ClaudeAutoPermissions == true;
-                session.ManualMode = IsClaudeProvider(provider) && _settings?.ClaudeManualMode == true;
-                session.PlanExitChoice = null;
-
+                ApplyProviderToSession(session, provider);
                 UpdateChatComposerState(session);
 
                 await RelaunchSessionAsync(session,
@@ -4519,6 +4522,21 @@ namespace ClaudeCodeVS
                 await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
                 AddNativeMessageToSession(session, ChatMessageKind.Error, $"Could not switch agent: {ex.Message}");
             }
+        }
+
+        /// <summary>
+        /// Points a parallel tab at another provider and resets its model/permission snapshot to that
+        /// provider's defaults — never written back to <c>Settings</c>. The caller relaunches.
+        /// </summary>
+        private void ApplyProviderToSession(NativeChatSessionState session, AiProvider provider)
+        {
+            session.SelectedProvider = provider;
+            session.SelectedModel = GetSelectedProviderModelId(provider);
+            session.SkipPermissions = GetChatPermissionSkipFlag(provider) ?? false;
+            session.PlanMode = IsClaudeProvider(provider) && _settings?.ClaudePlanMode == true;
+            session.AutoPermissions = IsClaudeProvider(provider) && _settings?.ClaudeAutoPermissions == true;
+            session.ManualMode = IsClaudeProvider(provider) && _settings?.ClaudeManualMode == true;
+            session.PlanExitChoice = null;
         }
 
         /// <summary>
@@ -5495,9 +5513,14 @@ namespace ClaudeCodeVS
         /// this one for nothing. <c>appendAccountLabel</c> is intentionally not offered here — account
         /// switching (Change Account) is panel-only.
         /// </para>
+        /// <para>
+        /// <paramref name="resumeSessionId"/> is a conversation the user picked in Session History: the
+        /// tab switches to it (its own transcript replaced by the resumed one) instead of carrying on
+        /// with its current conversation.
+        /// </para>
         /// </summary>
         private async Task RelaunchSessionAsync(NativeChatSessionState session, string notice,
-            bool forceNewSession = false, Func<Task> midRelaunchAsync = null)
+            bool forceNewSession = false, Func<Task> midRelaunchAsync = null, string resumeSessionId = null)
         {
             if (session?.AgentSession == null)
             {
@@ -5510,11 +5533,12 @@ namespace ClaudeCodeVS
             {
                 IAgentSession previous = session.AgentSession;
                 AiProvider provider = session.SelectedProvider;
+                bool isHistoryResume = !string.IsNullOrEmpty(resumeSessionId);
 
                 // Not SessionId — see the identical note on RelaunchNativeSessionAsync: a relaunch that
                 // never ran a turn only ever asked for this id, and resuming it fails the launch.
-                string resumeId = previous.ResumableSessionId;
-                bool providerCanResume = IsClaudeProvider(provider) ||
+                string resumeId = isHistoryResume ? resumeSessionId : previous.ResumableSessionId;
+                bool providerCanResume = isHistoryResume || IsClaudeProvider(provider) ||
                     provider == AiProvider.Codex || provider == AiProvider.CodexNative;
                 bool canResume = !forceNewSession && providerCanResume && !string.IsNullOrEmpty(resumeId);
 
@@ -5556,8 +5580,9 @@ namespace ClaudeCodeVS
                 // !forceNewSession rather than canResume — see the identical note on
                 // RelaunchNativeSessionAsync. newAgentSession.SessionId is still just the adapter's
                 // throwaway seed here, but the CLI can still swap it for a different confirmed one on
-                // the first turn, so the field is left set below for that later migration too.
-                if (!forceNewSession)
+                // the first turn, so the field is left set below for that later migration too. A
+                // conversation resumed from Session History is a different one with its own title.
+                if (!forceNewSession && !isHistoryResume)
                 {
                     MigrateSessionTitleAndColor(previous.SessionId, newAgentSession.SessionId);
                 }
@@ -5569,15 +5594,33 @@ namespace ClaudeCodeVS
                 session.TurnFinishConfig = null;
                 session.TurnInFlight = false;
 
+                // Cleared before StartAsync: an ACP agent resumed via session/load replays the
+                // conversation as live events during the start.
+                if (isHistoryResume)
+                {
+                    transcript.Clear();
+                }
+
                 await newAgentSession.StartAsync(workspace, session.SessionCts.Token);
 
                 await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
 
                 transcript.SetStatus("Ready.");
 
-                AddNativeMessageToSession(session, ChatMessageKind.Notice, canResume || forceNewSession || providerCanResume
-                    ? notice
-                    : notice + " — this agent cannot resume, so the conversation starts over.");
+                // Same replay the default session does on a Session History resume (see
+                // StartNativeModeAsync): the CLI restores the agent's memory but none of the messages.
+                bool replayed = isHistoryResume &&
+                    ((newAgentSession as AcpSession)?.WasResumedFromLoad == true ||
+                     await TryReplayResumedTranscriptAsync(provider, workspace, resumeSessionId, session));
+
+                await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
+
+                if (!replayed)
+                {
+                    AddNativeMessageToSession(session, ChatMessageKind.Notice, canResume || forceNewSession || providerCanResume
+                        ? notice
+                        : notice + " — this agent cannot resume, so the conversation starts over.");
+                }
 
                 UpdateChatComposerState(session);
                 UpdateSessionTabCaption(session);

@@ -163,6 +163,7 @@ Use native mode to avoid this issue.
 - Native mode: switching Claude Code between Plan, Auto, Accept edits, Manual and Skip permissions mid-response no longer stops the agent — the running turn continues under the new mode (#193).
 - Leaving Plan mode while the agent is still planning waits until the plan is approved or the response ends, so the agent never starts changing files from an unapproved plan.
 - Native mode: tool calls that describe themselves, such as Claude Code's shell commands, now show that short description in the collapsed card instead of the raw command, and in the title of the permission prompt.
+- Native mode: resuming a conversation from Session History opened in a second or later chat tab now resumes it in that tab instead of the first one.
 
 ### Version 240.0
 - *Fix with Agent* in the GitHub Issues window now asks which model and effort the fix runs with, preselected to your current choice; the pick applies to that issue's chat only.
