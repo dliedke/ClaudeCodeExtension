@@ -159,16 +159,15 @@ Use native mode to avoid this issue.
 
 ## Version History
 
-### Version 242.0
-- Native mode: replies stream smoothly instead of in bursts, even when they get long.
-- Native mode: formatting such as headings, lists, tables and code blocks now appears while the reply is being written, not only once it is finished.
-
 ### Version 241.0
 - Native mode: switching Claude Code between Plan, Auto, Accept edits, Manual and Skip permissions mid-response no longer stops the agent — the running turn continues under the new mode (#193).
 - Leaving Plan mode while the agent is still planning waits until the plan is approved or the response ends, so the agent never starts changing files from an unapproved plan.
 - Native mode: tool calls that describe themselves, such as Claude Code's shell commands, now show that short description in the collapsed card instead of the raw command, and in the title of the permission prompt.
 - Native mode: resuming a conversation from Session History opened in a second or later chat tab now resumes it in that tab instead of the first one.
 - Native mode: a resumed Claude Code conversation shows its earlier tool calls as the same cards the live chat shows, with their results; the oldest ones in a very long conversation are listed in brief.
+- Native mode: replies stream smoothly instead of in bursts, even when they get long.
+- Native mode: formatting such as headings, lists, tables and code blocks now appears while the reply is being written, not only once it is finished.
+- Thanks to [@gh61](https://github.com/Gh61) for contributing these improvements (#194, #195, #196, #197, #198).
 
 ### Version 240.0
 - *Fix with Agent* in the GitHub Issues window now asks which model and effort the fix runs with, preselected to your current choice; the pick applies to that issue's chat only.
