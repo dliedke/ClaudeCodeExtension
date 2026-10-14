@@ -2347,10 +2347,27 @@ namespace ClaudeCodeVS
             // row does not end up above still-growing text.
             FinishStreamingMessages();
 
-            // Collapsed, the row is one line — so that line has to say what the tool did and to what,
-            // not just "Edit". The presenter turns the raw payload into that line plus, for the editing
-            // tools, the diff shown when the row is opened.
-            ChatToolPresentation presentation = ChatToolPresenter.Describe(agentEvent.ToolName, agentEvent.ToolInputJson);
+            ChatMessageViewModel message = BuildToolCallMessage(agentEvent, deferDiff: false);
+
+            ChatTranscript.Messages.Add(message);
+
+            if (!string.IsNullOrEmpty(agentEvent.ToolCallId))
+            {
+                _pendingToolCalls[agentEvent.ToolCallId] = message;
+            }
+        }
+
+        /// <summary>
+        /// The running tool card for a tool call, shared by the default session, the parallel tabs and
+        /// a replayed transcript. Collapsed, the row is one line — so that line has to say what the
+        /// tool did and to what, not just "Edit". The presenter turns the raw payload into that line
+        /// plus, for the editing tools, the diff shown when the row is opened; <paramref name="deferDiff"/>
+        /// leaves that diff (and the change-count badge) until the card is first opened.
+        /// </summary>
+        private static ChatMessageViewModel BuildToolCallMessage(AgentEvent agentEvent, bool deferDiff)
+        {
+            ChatToolPresentation presentation = ChatToolPresenter.Describe(
+                agentEvent.ToolName, agentEvent.ToolInputJson, includeDiff: !deferDiff);
 
             var message = new ChatMessageViewModel(ChatMessageKind.ToolCall)
             {
@@ -2366,14 +2383,18 @@ namespace ClaudeCodeVS
                 IsRunning = true
             };
 
-            message.SetDiff(presentation.Diff);
-
-            ChatTranscript.Messages.Add(message);
-
-            if (!string.IsNullOrEmpty(agentEvent.ToolCallId))
+            if (presentation.DiffDeferred)
             {
-                _pendingToolCalls[agentEvent.ToolCallId] = message;
+                string toolName = agentEvent.ToolName;
+                string inputJson = agentEvent.ToolInputJson;
+                message.SetDeferredDiff(() => ChatToolPresenter.Describe(toolName, inputJson, includeDiff: true));
             }
+            else
+            {
+                message.SetDiff(presentation.Diff);
+            }
+
+            return message;
         }
 
         /// <summary>
@@ -3276,23 +3297,7 @@ namespace ClaudeCodeVS
         {
             FinishStreamingMessages(session);
 
-            ChatToolPresentation presentation = ChatToolPresenter.Describe(agentEvent.ToolName, agentEvent.ToolInputJson);
-
-            var message = new ChatMessageViewModel(ChatMessageKind.ToolCall)
-            {
-                ToolCallId = agentEvent.ToolCallId,
-                ToolName = agentEvent.ToolName,
-                ToolInputJson = FormatToolInput(agentEvent.ToolInputJson),
-                Header = presentation.Title,
-                ToolIcon = presentation.Icon,
-                ToolTarget = ResolveToolTarget(agentEvent, presentation),
-                ToolFilePath = ResolveToolFilePath(agentEvent, presentation),
-                ToolBadge = presentation.Badge,
-                ToolAccent = ChatToolAccents.For(presentation.Category),
-                IsRunning = true
-            };
-
-            message.SetDiff(presentation.Diff);
+            ChatMessageViewModel message = BuildToolCallMessage(agentEvent, deferDiff: false);
             session.ChatTranscript.Messages.Add(message);
 
             if (!string.IsNullOrEmpty(agentEvent.ToolCallId))

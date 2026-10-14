@@ -164,7 +164,17 @@ namespace ClaudeCodeVS.UI
         public bool IsExpanded
         {
             get { return _isExpanded; }
-            set { Set(ref _isExpanded, value, nameof(IsExpanded)); }
+            set
+            {
+                // Built before the change is published, so the card opens with its diff rather than
+                // flashing the raw input first.
+                if (value)
+                {
+                    BuildDeferredDiff();
+                }
+
+                Set(ref _isExpanded, value, nameof(IsExpanded));
+            }
         }
 
         /// <summary>Title line for collapsible rows, e.g. <c>Read · src\Program.cs</c>.</summary>
@@ -290,6 +300,52 @@ namespace ClaudeCodeVS.UI
 
             RaisePropertyChanged(nameof(HasDiff));
             RaisePropertyChanged(nameof(ShowRawInput));
+        }
+
+        private Func<ChatToolPresentation> _deferredDiff;
+
+        /// <summary>
+        /// Leaves the diff to be built when the card is first opened. A replayed transcript creates
+        /// hundreds of cards at once and most are never opened; the diff is the costly part of a card.
+        /// The factory's <see cref="ChatToolPresentation.Badge"/> (the <c>+12 -3</c> change count, which
+        /// comes from the diff) replaces the row's badge at the same time.
+        /// </summary>
+        public void SetDeferredDiff(Func<ChatToolPresentation> buildPresentation)
+        {
+            _deferredDiff = buildPresentation;
+        }
+
+        private void BuildDeferredDiff()
+        {
+            Func<ChatToolPresentation> build = _deferredDiff;
+            if (build == null)
+            {
+                return;
+            }
+
+            _deferredDiff = null;
+
+            ChatToolPresentation presentation;
+            try
+            {
+                presentation = build();
+            }
+            catch (Exception)
+            {
+                // A card whose diff cannot be built still opens, on its raw input.
+                return;
+            }
+
+            if (presentation == null)
+            {
+                return;
+            }
+
+            SetDiff(presentation.Diff);
+            if (!string.IsNullOrEmpty(presentation.Badge))
+            {
+                ToolBadge = presentation.Badge;
+            }
         }
 
         /// <summary>Appends a streamed chunk.</summary>

@@ -1960,11 +1960,27 @@ namespace ClaudeCodeVS
         }
 
         /// <summary>
-        /// Most rows a replayed transcript may add. A long conversation would otherwise take seconds to
-        /// render and bury the composer under thousands of bubbles; the newest ones are the ones worth
-        /// showing, so the cap keeps the tail and says how much it dropped.
+        /// Most user/assistant messages a replayed transcript may add. A long conversation would
+        /// otherwise take seconds to render and bury the composer under thousands of bubbles; the newest
+        /// ones are the ones worth showing, so the cap keeps the tail and says how much it dropped. The
+        /// value is a judgement call from v89.0, not a measurement. Tool cards do not count against it.
         /// </summary>
-        private const int ResumedTranscriptMaxRows = 200;
+        private const int ResumedTranscriptMaxMessages = 200;
+
+        /// <summary>
+        /// Most tool calls of a replayed Claude transcript shown as full tool cards; older ones inside
+        /// the shown messages collapse into one-line summaries. Kept apart from (and above)
+        /// <see cref="ResumedTranscriptMaxMessages"/> because a single turn often runs several tools. A
+        /// starting value, not a measurement — cards are built without their diff (built on first
+        /// open), so a collapsed card costs little more than its header.
+        /// </summary>
+        internal const int ResumedTranscriptMaxToolCards = 500;
+
+        /// <summary>
+        /// Lines of one summary row of older tool calls. The row is a single text block, and a long run
+        /// of calls between two messages would otherwise make it as heavy as the cards it replaces.
+        /// </summary>
+        internal const int ResumedToolSummaryMaxLines = 30;
 
         /// <summary>
         /// Replays a resumed conversation into the chat. The CLI is the reason this exists: measured,
@@ -1999,7 +2015,7 @@ namespace ClaudeCodeVS
                     LogTerminalLaunch($"Native mode: Codex replay thread={sessionId}, messages={messages.Count}");
                     if (messages.Count == 0) return false;
 
-                    int start = Math.Max(0, messages.Count - ResumedTranscriptMaxRows);
+                    int start = Math.Max(0, messages.Count - ResumedTranscriptMaxMessages);
                     await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
                     AddNativeMessage(chat, ChatMessageKind.Notice, start > 0
                         ? $"🕘 Resumed this Codex conversation — showing the last {messages.Count - start} of {messages.Count} messages."
@@ -2031,21 +2047,18 @@ namespace ClaudeCodeVS
 
                 // Parsed off the UI thread — a long session is megabytes of JSONL — and returned as
                 // plain data, because a WPF view model may only be built on the thread that owns it.
-                int total = 0;
-                List<KeyValuePair<ChatMessageKind, string>> rows =
-                    await Task.Run(() => ReadResumedTranscript(path, out total));
+                ResumedTranscript replay = await Task.Run(() => ReadResumedTranscript(path));
 
-                if (rows == null || rows.Count == 0)
+                if (replay == null || replay.Rows.Count == 0)
                 {
                     return false;
                 }
 
                 await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
 
-                int dropped = total - rows.Count;
-                AddNativeMessage(chat, ChatMessageKind.Notice, dropped > 0
-                    ? $"🕘 Resumed this conversation — showing the last {rows.Count} of {total} messages."
-                    : $"🕘 Resumed this conversation — {rows.Count} earlier messages restored.");
+                AddNativeMessage(chat, ChatMessageKind.Notice, replay.TotalMessages > replay.ShownMessages
+                    ? $"🕘 Resumed this conversation — showing the last {replay.ShownMessages} of {replay.TotalMessages} messages."
+                    : $"🕘 Resumed this conversation — {replay.ShownMessages} earlier messages restored.");
 
                 // A replayed transcript skips ShowChatWelcome entirely (see its caller), which is the
                 // only other place this label is shown — so a resumed conversation never said who is
@@ -2073,9 +2086,16 @@ namespace ClaudeCodeVS
                     }
                 }
 
-                foreach (KeyValuePair<ChatMessageKind, string> row in rows)
+                foreach (ResumedTranscriptRow row in replay.Rows)
                 {
-                    AddNativeMessage(chat, row.Key, row.Value);
+                    if (row.Kind == ChatMessageKind.ToolCall)
+                    {
+                        chat.Messages.Add(BuildReplayedToolCallMessage(row));
+                    }
+                    else
+                    {
+                        AddNativeMessage(chat, row.Kind, row.Text);
+                    }
                 }
 
                 chat.ScrollToEndIfFollowing();
@@ -2091,55 +2111,348 @@ namespace ClaudeCodeVS
         }
 
         /// <summary>
-        /// Reads a session's JSONL into chat rows, newest-last, capped at
-        /// <see cref="ResumedTranscriptMaxRows"/>. <paramref name="total"/> reports how many rows the
-        /// file held before the cap, so the caller can say what it left out. Shares the extraction
-        /// helpers with the Session History dialog, so both read a transcript the same way — including
-        /// skipping the tool-result rows the CLI re-injects as "user" messages.
+        /// A replayed tool row as the live stream would have drawn it — the same card, finished, with
+        /// the result the transcript recorded. The diff is left for the first open
+        /// (<see cref="ChatMessageViewModel.SetDeferredDiff"/>), and a failed call stays collapsed
+        /// rather than opening itself as a live one does: a replay is history, not something to act on.
         /// </summary>
-        private static List<KeyValuePair<ChatMessageKind, string>> ReadResumedTranscript(string path, out int total)
+        private static ChatMessageViewModel BuildReplayedToolCallMessage(ResumedTranscriptRow row)
         {
-            var rows = new List<KeyValuePair<ChatMessageKind, string>>();
-            total = 0;
+            AgentEvent call = AgentEvent.ToolCallStarted(row.ToolCallId, row.ToolName, row.ToolInputJson);
+            ChatMessageViewModel message = BuildToolCallMessage(call, deferDiff: true);
 
+            message.ToolResult = row.ToolResult;
+            message.IsError = row.IsError;
+            message.IsRunning = false;
+
+            return message;
+        }
+
+        /// <summary>
+        /// Reads a session's JSONL for the chat replay. See
+        /// <see cref="ReadResumedTranscript(TextReader, int, int, int)"/> for what it returns.
+        /// </summary>
+        private static ResumedTranscript ReadResumedTranscript(string path)
+        {
             using (var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite))
             using (var reader = new StreamReader(stream, Encoding.UTF8))
             {
-                string line;
-                while ((line = reader.ReadLine()) != null)
+                return ReadResumedTranscript(reader,
+                    ResumedTranscriptMaxMessages, ResumedTranscriptMaxToolCards, ResumedToolSummaryMaxLines);
+            }
+        }
+
+        /// <summary>
+        /// Turns a Claude transcript into replay rows, oldest first: user and assistant messages, the
+        /// assistant's tool calls (each paired with its <c>tool_result</c> by <c>tool_use_id</c>), and
+        /// summary rows for older tool calls.
+        /// <list type="bullet">
+        /// <item>Only messages count against <paramref name="maxMessages"/>; the tail is kept, along with
+        /// every tool call that follows the oldest kept message.</item>
+        /// <item>The newest <paramref name="maxToolCards"/> tool calls are full cards. Older ones become
+        /// one line each (<c>▤ Read · …\src\Foo.cs</c>), and each run of them between two messages is
+        /// merged into one <see cref="ChatMessageKind.Notice"/> row of at most
+        /// <paramref name="maxSummaryLines"/> lines — so the rows stay bounded by the message cap.</item>
+        /// <item>The <c>tool_result</c> blocks the CLI re-injects as "user" lines fill the cards, never
+        /// a user bubble — the same rule the Session History dialog and the exported text follow.</item>
+        /// </list>
+        /// Trimmed while reading, so a very long transcript is never held in full. Pure, for the tests.
+        /// </summary>
+        internal static ResumedTranscript ReadResumedTranscript(TextReader reader, int maxMessages, int maxToolCards,
+            int maxSummaryLines)
+        {
+            var builder = new ResumedTranscriptBuilder(maxMessages, maxToolCards);
+
+            string line;
+            while ((line = reader.ReadLine()) != null)
+            {
+                if (string.IsNullOrWhiteSpace(line)) continue;
+
+                JObject obj;
+                try { obj = JObject.Parse(line); }
+                catch { continue; }
+
+                string type = (string)obj["type"];
+                if (type != "user" && type != "assistant") continue;
+
+                JToken message = obj["message"];
+                if (message == null) continue;
+
+                JToken content = message["content"];
+
+                if (type == "user")
                 {
-                    if (string.IsNullOrWhiteSpace(line)) continue;
-
-                    JObject obj;
-                    try { obj = JObject.Parse(line); }
-                    catch { continue; }
-
-                    string type = (string)obj["type"];
-                    if (type != "user" && type != "assistant") continue;
-
-                    JToken message = obj["message"];
-                    if (message == null) continue;
-
-                    bool isUser = type == "user";
-                    string text = isUser
-                        ? ExtractUserText(message["content"])
-                        : ExtractAssistantText(message["content"]);
-
-                    if (string.IsNullOrWhiteSpace(text)) continue;
-
-                    total++;
-                    rows.Add(new KeyValuePair<ChatMessageKind, string>(
-                        isUser ? ChatMessageKind.User : ChatMessageKind.Assistant, text.TrimEnd()));
-
-                    // Trimming as we go keeps a very long transcript from being held in full.
-                    if (rows.Count > ResumedTranscriptMaxRows)
+                    // Results first: a line that carries both closes the previous calls before the
+                    // next message starts.
+                    var parts = content as JArray;
+                    if (parts != null)
                     {
-                        rows.RemoveAt(0);
+                        foreach (JToken part in parts)
+                        {
+                            if ((string)part["type"] == "tool_result")
+                            {
+                                builder.AddToolResult((string)part["tool_use_id"], part["content"],
+                                    (bool?)part["is_error"] ?? false);
+                            }
+                        }
                     }
+
+                    builder.AddMessage(ChatMessageKind.User, ExtractUserText(content));
+                    continue;
+                }
+
+                if (content == null || content.Type != JTokenType.Array)
+                {
+                    builder.AddMessage(ChatMessageKind.Assistant, ExtractAssistantText(content));
+                    continue;
+                }
+
+                // Text before and after a tool call stays on its own side of the card.
+                var text = new StringBuilder();
+                foreach (JToken part in content.Children())
+                {
+                    if ((string)part["type"] == "tool_use")
+                    {
+                        builder.AddMessage(ChatMessageKind.Assistant, text.ToString());
+                        text.Clear();
+
+                        // Serialized the way the live stream parser does (never JToken.ToString(Formatting), #112).
+                        JToken input = part["input"];
+                        builder.AddToolCall((string)part["id"], (string)part["name"],
+                            input != null ? Newtonsoft.Json.JsonConvert.SerializeObject(input) : string.Empty);
+                    }
+                    else
+                    {
+                        AppendAssistantTextPart(text, part);
+                    }
+                }
+
+                builder.AddMessage(ChatMessageKind.Assistant, text.ToString());
+            }
+
+            return builder.Build(maxSummaryLines);
+        }
+
+        /// <summary>One line of a summary row: the tool's glyph, name and target, as its card header reads.</summary>
+        internal static string BuildToolSummaryLine(string toolName, string inputJson)
+        {
+            ChatToolPresentation presentation = ChatToolPresenter.Describe(toolName, inputJson, includeDiff: false);
+
+            return string.IsNullOrEmpty(presentation.Subtitle)
+                ? presentation.Icon + " " + presentation.Title
+                : presentation.Icon + " " + presentation.Title + " · " + presentation.Subtitle;
+        }
+
+        /// <summary>The rows <see cref="ReadResumedTranscript(TextReader, int, int, int)"/> produced.</summary>
+        internal sealed class ResumedTranscript
+        {
+            public List<ResumedTranscriptRow> Rows { get; } = new List<ResumedTranscriptRow>();
+
+            /// <summary>User and assistant messages in the whole transcript.</summary>
+            public int TotalMessages { get; set; }
+
+            /// <summary>User and assistant messages among <see cref="Rows"/>.</summary>
+            public int ShownMessages { get; set; }
+
+            /// <summary>Tool calls among the shown rows that were reduced to a summary line.</summary>
+            public int SummarizedToolCalls { get; set; }
+        }
+
+        /// <summary>
+        /// One replay row. <see cref="ChatMessageKind.User"/>/<see cref="ChatMessageKind.Assistant"/>
+        /// carry <see cref="Text"/>; <see cref="ChatMessageKind.ToolCall"/> carries the tool fields;
+        /// <see cref="ChatMessageKind.Notice"/> is a summary of older tool calls in <see cref="Text"/>.
+        /// </summary>
+        internal sealed class ResumedTranscriptRow
+        {
+            public ChatMessageKind Kind { get; set; }
+            public string Text { get; set; } = string.Empty;
+            public string ToolCallId { get; set; } = string.Empty;
+            public string ToolName { get; set; } = string.Empty;
+            public string ToolInputJson { get; set; } = string.Empty;
+            public string ToolResult { get; set; } = string.Empty;
+            public bool IsError { get; set; }
+
+            /// <summary>Set once the call fell out of the newest tool cards; only this line is kept.</summary>
+            public string SummaryLine { get; set; }
+        }
+
+        /// <summary>
+        /// The sliding windows behind <see cref="ReadResumedTranscript(TextReader, int, int, int)"/>: the
+        /// last N messages (with the tool calls that follow them) and, within those, the last M full
+        /// tool cards.
+        /// </summary>
+        private sealed class ResumedTranscriptBuilder
+        {
+            private readonly int _maxMessages;
+            private readonly int _maxToolCards;
+            private readonly LinkedList<ResumedTranscriptRow> _window = new LinkedList<ResumedTranscriptRow>();
+
+            /// <summary>Full cards, oldest first — the next one to reduce to a summary line is the head.</summary>
+            private readonly Queue<ResumedTranscriptRow> _fullCards = new Queue<ResumedTranscriptRow>();
+
+            /// <summary>Full cards still waiting for their <c>tool_result</c>.</summary>
+            private readonly Dictionary<string, ResumedTranscriptRow> _awaitingResult =
+                new Dictionary<string, ResumedTranscriptRow>(StringComparer.Ordinal);
+
+            private int _totalMessages;
+            private int _shownMessages;
+
+            public ResumedTranscriptBuilder(int maxMessages, int maxToolCards)
+            {
+                _maxMessages = Math.Max(1, maxMessages);
+                _maxToolCards = Math.Max(0, maxToolCards);
+            }
+
+            public void AddMessage(ChatMessageKind kind, string text)
+            {
+                if (string.IsNullOrWhiteSpace(text))
+                {
+                    return;
+                }
+
+                _totalMessages++;
+                _shownMessages++;
+                _window.AddLast(new ResumedTranscriptRow { Kind = kind, Text = text.TrimEnd() });
+
+                if (_shownMessages <= _maxMessages)
+                {
+                    return;
+                }
+
+                // Drop the oldest message, then the tool calls that belonged to it, so the replay never
+                // opens on cards whose message is gone.
+                RemoveFirst();
+                while (_window.First != null && _window.First.Value.Kind == ChatMessageKind.ToolCall)
+                {
+                    RemoveFirst();
                 }
             }
 
-            return rows;
+            public void AddToolCall(string id, string name, string inputJson)
+            {
+                var row = new ResumedTranscriptRow
+                {
+                    Kind = ChatMessageKind.ToolCall,
+                    ToolCallId = id ?? string.Empty,
+                    ToolName = name ?? string.Empty,
+                    ToolInputJson = inputJson ?? string.Empty
+                };
+
+                _window.AddLast(row);
+                _fullCards.Enqueue(row);
+                if (!string.IsNullOrEmpty(row.ToolCallId))
+                {
+                    _awaitingResult[row.ToolCallId] = row;
+                }
+
+                if (_fullCards.Count > _maxToolCards)
+                {
+                    Summarize(_fullCards.Dequeue());
+                }
+            }
+
+            public void AddToolResult(string id, JToken content, bool isError)
+            {
+                ResumedTranscriptRow row;
+                if (string.IsNullOrEmpty(id) || !_awaitingResult.TryGetValue(id, out row))
+                {
+                    return;
+                }
+
+                _awaitingResult.Remove(id);
+                row.ToolResult = TruncateToolResult(ClaudeStreamParser.FlattenResultContent(content)) ?? string.Empty;
+                row.IsError = isError;
+            }
+
+            public ResumedTranscript Build(int maxSummaryLines)
+            {
+                var result = new ResumedTranscript
+                {
+                    TotalMessages = _totalMessages,
+                    ShownMessages = _shownMessages
+                };
+
+                var run = new List<string>();
+                foreach (ResumedTranscriptRow row in _window)
+                {
+                    if (row.SummaryLine != null)
+                    {
+                        run.Add(row.SummaryLine);
+                        result.SummarizedToolCalls++;
+                        continue;
+                    }
+
+                    FlushSummary(result, run, maxSummaryLines);
+                    result.Rows.Add(row);
+                }
+
+                FlushSummary(result, run, maxSummaryLines);
+                return result;
+            }
+
+            private static void FlushSummary(ResumedTranscript result, List<string> run, int maxSummaryLines)
+            {
+                if (run.Count == 0)
+                {
+                    return;
+                }
+
+                int shown = Math.Min(run.Count, Math.Max(1, maxSummaryLines));
+                var text = new StringBuilder();
+                text.Append(run.Count == 1 ? "1 earlier tool call:" : run.Count + " earlier tool calls:");
+                for (int index = 0; index < shown; index++)
+                {
+                    text.Append('\n').Append(run[index]);
+                }
+                if (run.Count > shown)
+                {
+                    text.Append('\n').Append("… and ").Append(run.Count - shown).Append(" more");
+                }
+
+                result.Rows.Add(new ResumedTranscriptRow { Kind = ChatMessageKind.Notice, Text = text.ToString() });
+                run.Clear();
+            }
+
+            private void RemoveFirst()
+            {
+                ResumedTranscriptRow row = _window.First.Value;
+                _window.RemoveFirst();
+
+                if (row.Kind != ChatMessageKind.ToolCall)
+                {
+                    _shownMessages--;
+                    return;
+                }
+
+                // The oldest card in the window is also the oldest full card, unless it was already
+                // reduced to a summary line.
+                if (row.SummaryLine == null && _fullCards.Count > 0 && ReferenceEquals(_fullCards.Peek(), row))
+                {
+                    _fullCards.Dequeue();
+                }
+
+                Forget(row);
+            }
+
+            /// <summary>Keeps only the one-line summary; the input and result are not shown any more.</summary>
+            private void Summarize(ResumedTranscriptRow row)
+            {
+                row.SummaryLine = BuildToolSummaryLine(row.ToolName, row.ToolInputJson);
+                row.ToolInputJson = string.Empty;
+                row.ToolResult = string.Empty;
+                Forget(row);
+            }
+
+            private void Forget(ResumedTranscriptRow row)
+            {
+                ResumedTranscriptRow waiting;
+                if (!string.IsNullOrEmpty(row.ToolCallId) &&
+                    _awaitingResult.TryGetValue(row.ToolCallId, out waiting) && ReferenceEquals(waiting, row))
+                {
+                    _awaitingResult.Remove(row.ToolCallId);
+                }
+            }
         }
 
         /// <summary>Caption on the card's frame: the agent, and its CLI version once that is known.</summary>

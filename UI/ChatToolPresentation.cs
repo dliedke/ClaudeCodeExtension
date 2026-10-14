@@ -99,6 +99,13 @@ namespace ClaudeCodeVS.UI
         public IReadOnlyList<ChatDiffLine> Diff { get; set; } = new List<ChatDiffLine>();
 
         public bool HasDiff { get { return Diff != null && Diff.Count > 0; } }
+
+        /// <summary>
+        /// True when the tool has a diff that was not computed because the caller asked for none
+        /// (a replayed transcript builds hundreds of cards at once). <see cref="Badge"/>'s change
+        /// count comes from the diff, so it is empty too until the diff is built.
+        /// </summary>
+        public bool DiffDeferred { get; set; }
     }
 
     /// <summary>
@@ -122,6 +129,15 @@ namespace ClaudeCodeVS.UI
 
         public static ChatToolPresentation Describe(string toolName, string inputJson)
         {
+            return Describe(toolName, inputJson, true);
+        }
+
+        /// <summary>
+        /// <paramref name="includeDiff"/> false skips building the editing tools' diff and only marks it
+        /// as <see cref="ChatToolPresentation.DiffDeferred"/>; the diff is the expensive part of a card.
+        /// </summary>
+        public static ChatToolPresentation Describe(string toolName, string inputJson, bool includeDiff)
+        {
             var result = new ChatToolPresentation
             {
                 Title = string.IsNullOrWhiteSpace(toolName) ? "Tool" : NormalizeToolName(toolName)
@@ -131,7 +147,7 @@ namespace ClaudeCodeVS.UI
 
             try
             {
-                Populate(result, result.Title, input);
+                Populate(result, result.Title, input, includeDiff);
             }
             catch (Exception)
             {
@@ -165,7 +181,7 @@ namespace ClaudeCodeVS.UI
             return name;
         }
 
-        private static void Populate(ChatToolPresentation result, string name, JObject input)
+        private static void Populate(ChatToolPresentation result, string name, JObject input, bool includeDiff)
         {
             switch (name.ToLowerInvariant())
             {
@@ -181,7 +197,7 @@ namespace ClaudeCodeVS.UI
                     result.Category = ChatToolCategory.Edit;
                     result.FilePath = GetString(input, "file_path", "path", "filePath");
                     result.Subtitle = ShortenPath(result.FilePath);
-                    ApplyDiff(result, string.Empty, GetString(input, "content", "contents", "text"));
+                    ApplyDiff(result, string.Empty, GetString(input, "content", "contents", "text"), includeDiff);
                     return;
 
                 case "edit":
@@ -192,21 +208,22 @@ namespace ClaudeCodeVS.UI
                     result.Subtitle = ShortenPath(result.FilePath);
                     ApplyDiff(result,
                         GetString(input, "old_string", "oldString", "old_str"),
-                        GetString(input, "new_string", "newString", "new_str"));
+                        GetString(input, "new_string", "newString", "new_str"),
+                        includeDiff);
                     return;
 
                 case "multiedit":
                     result.Category = ChatToolCategory.Edit;
                     result.FilePath = GetString(input, "file_path", "path", "filePath");
                     result.Subtitle = ShortenPath(result.FilePath);
-                    ApplyMultiEditDiff(result, input);
+                    ApplyMultiEditDiff(result, input, includeDiff);
                     return;
 
                 case "notebookedit":
                     result.Category = ChatToolCategory.Edit;
                     result.FilePath = GetString(input, "notebook_path", "file_path", "path");
                     result.Subtitle = ShortenPath(result.FilePath);
-                    ApplyDiff(result, string.Empty, GetString(input, "new_source", "source", "content"));
+                    ApplyDiff(result, string.Empty, GetString(input, "new_source", "source", "content"), includeDiff);
                     return;
 
                 case "bash":
@@ -328,10 +345,16 @@ namespace ClaudeCodeVS.UI
 
         #region Diff
 
-        private static void ApplyDiff(ChatToolPresentation result, string oldText, string newText)
+        private static void ApplyDiff(ChatToolPresentation result, string oldText, string newText, bool includeDiff)
         {
             if (string.IsNullOrEmpty(oldText) && string.IsNullOrEmpty(newText))
             {
+                return;
+            }
+
+            if (!includeDiff)
+            {
+                result.DiffDeferred = true;
                 return;
             }
 
@@ -347,11 +370,17 @@ namespace ClaudeCodeVS.UI
         /// One card for all the edits of a MultiEdit, each introduced by a separator row — the file is
         /// the same, so N collapsed cards would only make the same path harder to find N times.
         /// </summary>
-        private static void ApplyMultiEditDiff(ChatToolPresentation result, JObject input)
+        private static void ApplyMultiEditDiff(ChatToolPresentation result, JObject input, bool includeDiff)
         {
             JArray edits = input?["edits"] as JArray;
             if (edits == null || edits.Count == 0)
             {
+                return;
+            }
+
+            if (!includeDiff)
+            {
+                result.DiffDeferred = true;
                 return;
             }
 
