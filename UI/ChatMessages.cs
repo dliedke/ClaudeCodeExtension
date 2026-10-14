@@ -14,8 +14,10 @@ using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
+using System.Diagnostics;
 using System.Text;
 using System.Windows.Media;
+using System.Windows.Threading;
 
 namespace ClaudeCodeVS.UI
 {
@@ -104,16 +106,39 @@ namespace ClaudeCodeVS.UI
     /// <summary>
     /// One row of the chat transcript.
     /// <para>
-    /// Streaming appends into <see cref="Text"/> and the row renders as plain text; building a
-    /// <c>FlowDocument</c> on every token delta would re-layout the list dozens of times a second.
-    /// <see cref="Complete"/> is called when the turn ends and publishes <see cref="RenderedText"/>,
-    /// which is what the markdown view binds to. That is why the object is mutated rather than
-    /// replaced — recreating the item makes the list flicker and drops the user's text selection.
+    /// Streaming appends into <see cref="Text"/>. An assistant reply's markdown view binds
+    /// <see cref="Text"/> with <see cref="IsStreaming"/> as its incremental flag, so it renders the
+    /// finished blocks once and only re-renders the unfinished tail; <see cref="Complete"/> ends that
+    /// and the view rebuilds the document whole, once. Thinking rows still bind
+    /// <see cref="RenderedText"/>, published by <see cref="Complete"/> — they are collapsed while they
+    /// stream. That is why the object is mutated rather than replaced — recreating the item makes the
+    /// list flicker and drops the user's text selection.
+    /// </para>
+    /// <para>
+    /// <see cref="Append"/> only grows the buffer; the change to <see cref="Text"/> is announced at most
+    /// once per <see cref="StreamingPublishInterval"/>. The CLI streams a delta per token, and each
+    /// announcement costs the view an update, so announcing every delta left the UI thread behind.
+    /// Reading <see cref="Text"/> always returns everything appended so far.
     /// </para>
     /// </summary>
     public class ChatMessageViewModel : INotifyPropertyChanged
     {
+        /// <summary>
+        /// Shortest gap between two <see cref="Text"/> change notifications while streaming: at most
+        /// 20 a second, which still reads as live typing. Settable for the tests only.
+        /// </summary>
+        internal static TimeSpan StreamingPublishInterval = TimeSpan.FromMilliseconds(50);
+
         private readonly StringBuilder _buffer = new StringBuilder();
+
+        /// <summary>The buffer holds text <see cref="_text"/> does not have yet.</summary>
+        private bool _bufferAhead;
+
+        /// <summary>Text changed since the last notification, which is still owed.</summary>
+        private bool _textNotificationPending;
+        private long _lastTextNotification;
+        private DispatcherTimer _textNotificationTimer;
+
         private string _text = string.Empty;
         private string _renderedText = string.Empty;
         private bool _isStreaming;
@@ -138,14 +163,27 @@ namespace ClaudeCodeVS.UI
 
         public string Text
         {
-            get { return _text; }
-            set { Set(ref _text, value ?? string.Empty, nameof(Text)); }
+            get
+            {
+                if (_bufferAhead)
+                {
+                    _text = _buffer.ToString();
+                    _bufferAhead = false;
+                }
+
+                return _text;
+            }
+            set
+            {
+                _bufferAhead = false;
+                CancelTextNotification();
+                Set(ref _text, value ?? string.Empty, nameof(Text));
+            }
         }
 
         /// <summary>
-        /// The finished text, published by <see cref="Complete"/> and bound by the markdown view. Kept
-        /// apart from <see cref="Text"/> so that rendering happens once per message instead of once per
-        /// streamed token.
+        /// The finished text, published by <see cref="Complete"/>. Bound by the thinking row, whose
+        /// markdown is rendered once per message instead of once per streamed token.
         /// </summary>
         public string RenderedText
         {
@@ -153,7 +191,7 @@ namespace ClaudeCodeVS.UI
             private set { Set(ref _renderedText, value ?? string.Empty, nameof(RenderedText)); }
         }
 
-        /// <summary>True while text is still arriving; the row shows raw text and a caret cue.</summary>
+        /// <summary>True while text is still arriving; an assistant row renders its markdown incrementally meanwhile.</summary>
         public bool IsStreaming
         {
             get { return _isStreaming; }
@@ -348,7 +386,11 @@ namespace ClaudeCodeVS.UI
             }
         }
 
-        /// <summary>Appends a streamed chunk.</summary>
+        /// <summary>
+        /// Appends a streamed chunk. The first chunk after a quiet <see cref="StreamingPublishInterval"/>
+        /// is announced at once, so the reply starts showing without delay; the ones inside the interval
+        /// are announced together when it ends (or by <see cref="Complete"/>).
+        /// </summary>
         public void Append(string chunk)
         {
             if (string.IsNullOrEmpty(chunk))
@@ -357,7 +399,60 @@ namespace ClaudeCodeVS.UI
             }
 
             _buffer.Append(chunk);
-            Text = _buffer.ToString();
+            _bufferAhead = true;
+
+            long now = Stopwatch.GetTimestamp();
+            long interval = (long)(StreamingPublishInterval.TotalSeconds * Stopwatch.Frequency);
+            if (_lastTextNotification == 0 || now - _lastTextNotification >= interval)
+            {
+                NotifyText(now);
+                return;
+            }
+
+            _textNotificationPending = true;
+            if (_textNotificationTimer == null)
+            {
+                _textNotificationTimer = new DispatcherTimer(DispatcherPriority.Normal);
+                _textNotificationTimer.Tick += OnTextNotificationTimerTick;
+            }
+
+            if (!_textNotificationTimer.IsEnabled)
+            {
+                _textNotificationTimer.Interval = TimeSpan.FromTicks(
+                    Math.Max(1, (interval - (now - _lastTextNotification)) * TimeSpan.TicksPerSecond / Stopwatch.Frequency));
+                _textNotificationTimer.Start();
+            }
+        }
+
+        private void OnTextNotificationTimerTick(object sender, EventArgs e)
+        {
+            _textNotificationTimer.Stop();
+            if (_textNotificationPending)
+            {
+                NotifyText(Stopwatch.GetTimestamp());
+            }
+        }
+
+        private void NotifyText(long timestamp)
+        {
+            CancelTextNotification();
+            _lastTextNotification = timestamp;
+            RaisePropertyChanged(nameof(Text));
+        }
+
+        /// <summary>Announces a change still held back by the throttle, if there is one.</summary>
+        private void FlushTextNotification()
+        {
+            if (_textNotificationPending)
+            {
+                NotifyText(Stopwatch.GetTimestamp());
+            }
+        }
+
+        private void CancelTextNotification()
+        {
+            _textNotificationPending = false;
+            _textNotificationTimer?.Stop();
         }
 
         /// <summary>
@@ -380,6 +475,7 @@ namespace ClaudeCodeVS.UI
         /// </summary>
         public void Complete()
         {
+            FlushTextNotification();
             IsStreaming = false;
             RenderedText = Text;
         }
