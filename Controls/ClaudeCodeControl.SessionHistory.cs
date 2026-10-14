@@ -1045,7 +1045,11 @@ namespace ClaudeCodeVS
         /// </summary>
         private async Task ShowSessionHistoryDialogAsync()
         {
-            AiProvider? selected = _settings?.SelectedProvider;
+            // Opened from a parallel chat tab, the dialog lists and resumes that tab's conversations;
+            // null means the default session (panel / first chat tab), which resumes as before.
+            NativeChatSessionState targetTab = IsNativeModeActive ? GetSession(ResolveFocusedNativeSessionId()) : null;
+
+            AiProvider? selected = targetTab != null ? targetTab.SelectedProvider : _settings?.SelectedProvider;
             ISessionHistoryProvider adapter = ResolveSessionHistoryProvider(selected);
             if (adapter == null)
             {
@@ -1057,7 +1061,10 @@ namespace ClaudeCodeVS
                 return;
             }
 
-            string workspaceDir = await GetWorkspaceDirectoryAsync();
+            // A GitHub issue tab runs in its own worktree, and the CLI only resumes from the same cwd.
+            string workspaceDir = !string.IsNullOrEmpty(targetTab?.WorkspaceOverride)
+                ? targetTab.WorkspaceOverride
+                : await GetWorkspaceDirectoryAsync();
             if (string.IsNullOrEmpty(workspaceDir))
             {
                 MessageBox.Show("Could not determine the current workspace directory.",
@@ -1534,7 +1541,7 @@ namespace ClaudeCodeVS
                 var sel = currentSelection();
                 if (sel == null) return;
                 dialog.DialogResult = true;
-                StartSessionHistoryTask(() => ResumeSessionAsync(sel), "claudecode/sessionhistory");
+                StartSessionHistoryTask(() => ResumeSessionAsync(sel, targetTab), "claudecode/sessionhistory");
             };
 
             listBox.MouseDoubleClick += (s, args) =>
@@ -1542,7 +1549,7 @@ namespace ClaudeCodeVS
                 var sel = currentSelection();
                 if (sel == null) return;
                 dialog.DialogResult = true;
-                StartSessionHistoryTask(() => ResumeSessionAsync(sel), "claudecode/sessionhistory");
+                StartSessionHistoryTask(() => ResumeSessionAsync(sel, targetTab), "claudecode/sessionhistory");
             };
 
             // F2 renames the selected session (issue #95) — the familiar shell rename key.
@@ -1558,7 +1565,7 @@ namespace ClaudeCodeVS
             continueButton.Click += (s, args) =>
             {
                 dialog.DialogResult = true;
-                StartSessionHistoryTask(() => ContinueLastSessionAsync(), "claudecode/sessionhistory");
+                StartSessionHistoryTask(() => ContinueLastSessionAsync(targetTab), "claudecode/sessionhistory");
             };
 
             viewButton.Click += (s, args) =>
@@ -1912,10 +1919,21 @@ namespace ClaudeCodeVS
         /// Stops the current agent (if any), arms the one-shot resume token consumed by the selected
         /// provider's terminal/native command builder, and restarts with the matching environment.
         /// Switching native↔WSL is intentional because the two environments own separate stores.
+        /// With <paramref name="targetTab"/> (the parallel chat tab the dialog was opened from) only
+        /// that tab is relaunched into the conversation; the panel's session is left alone.
         /// </summary>
-        private async Task ResumeSessionAsync(SessionInfo session)
+        private async Task ResumeSessionAsync(SessionInfo session, NativeChatSessionState targetTab = null)
         {
             if (session == null) return;
+
+            await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
+
+            // The tab may have been closed while the dialog was open; the default session takes it then.
+            if (targetTab != null && GetSession(targetTab.SessionId) == targetTab)
+            {
+                await ResumeSessionInTabAsync(session, targetTab);
+                return;
+            }
 
             _settings.SelectedProvider = session.Provider;
             SaveSettings();
@@ -1931,22 +1949,50 @@ namespace ClaudeCodeVS
         }
 
         /// <summary>
+        /// Resumes a Session History conversation in a parallel chat tab: switches the tab to the
+        /// session's provider if needed (per-tab, never written to <c>Settings</c>) and relaunches only
+        /// that tab with the session's id. The shared <c>_pendingResumeSessionId</c> is not touched —
+        /// it belongs to the default session's next launch.
+        /// </summary>
+        private async Task ResumeSessionInTabAsync(SessionInfo session, NativeChatSessionState targetTab)
+        {
+            await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
+
+            if (targetTab.SelectedProvider != session.Provider)
+            {
+                ApplyProviderToSession(targetTab, session.Provider);
+            }
+
+            // A plan approved in the conversation being left does not carry over to this one (#181).
+            targetTab.PlanExitChoice = null;
+            UpdateChatComposerState(targetTab);
+            BringSessionTabToFront(targetTab);
+
+            await RelaunchSessionAsync(targetTab,
+                $"🕘 Resumed the {GetSessionHistoryProviderName(session.Provider)} session.",
+                resumeSessionId: session.SessionId);
+        }
+
+        /// <summary>
         /// Resumes the most recent session in the current workspace. Claude and Devin use their own
         /// native continue switch; Codex resolves the latest thread id first so terminal and native
-        /// mode behave alike.
+        /// mode behave alike. A parallel chat tab always resolves the latest id, since the continue
+        /// switch only exists on the default session's launch path.
         /// </summary>
-        private async Task ContinueLastSessionAsync()
+        private async Task ContinueLastSessionAsync(NativeChatSessionState targetTab = null)
         {
-            AiProvider? selected = _settings?.SelectedProvider;
+            AiProvider? selected = targetTab != null ? targetTab.SelectedProvider : _settings?.SelectedProvider;
             ISessionHistoryProvider adapter = ResolveSessionHistoryProvider(selected);
             if (adapter == null)
             {
                 return;
             }
 
-            if (!adapter.SupportsContinueSentinel)
+            if (!adapter.SupportsContinueSentinel || targetTab != null)
             {
-                string workspaceDir = await GetWorkspaceDirectoryAsync();
+                string workspaceDir = !string.IsNullOrEmpty(targetTab?.WorkspaceOverride)
+                    ? targetTab.WorkspaceOverride
+                    : await GetWorkspaceDirectoryAsync();
                 if (string.IsNullOrWhiteSpace(workspaceDir)) return;
 
                 List<SessionInfo> sessions;
@@ -1972,7 +2018,7 @@ namespace ClaudeCodeVS
                     return;
                 }
 
-                await ResumeSessionAsync(latest);
+                await ResumeSessionAsync(latest, targetTab);
                 return;
             }
 

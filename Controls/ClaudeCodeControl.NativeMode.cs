@@ -2868,14 +2868,23 @@ namespace ClaudeCodeVS
 
         private ChatMessageViewModel AddNativeMessage(ChatMessageKind kind, string text)
         {
-            if (string.IsNullOrWhiteSpace(text) || ChatTranscript == null)
+            return AddNativeMessage(ChatTranscript, kind, text);
+        }
+
+        /// <summary>
+        /// Adds a completed message to a specific transcript — the panel's own or a parallel tab's (a
+        /// Session History resume into a tab replays the conversation there, not into the panel).
+        /// </summary>
+        private static ChatMessageViewModel AddNativeMessage(ChatTranscriptView transcript, ChatMessageKind kind, string text)
+        {
+            if (string.IsNullOrWhiteSpace(text) || transcript == null)
             {
                 return null;
             }
 
             var message = new ChatMessageViewModel(kind) { Text = text };
             message.Complete();
-            ChatTranscript.Messages.Add(message);
+            transcript.Messages.Add(message);
             return message;
         }
 
