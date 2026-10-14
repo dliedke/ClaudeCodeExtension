@@ -124,18 +124,14 @@
 			<Setter Property="CodeCopyButtonStyle" Value="{StaticResource CodeCopyButtonStyle}"/>
 		</Style>
 
-		<!-- Message body: raw text while streaming, rendered markdown once the turn ends. Splitting
-		     markdown on every token delta would re-layout the list dozens of times a second. -->
+		<!-- Message body: rendered markdown, also while the reply is still streaming. IsIncremental
+		     makes each (throttled) Text change append the finished blocks once and re-render only the
+		     unfinished tail; when streaming ends the document is rebuilt whole, once. -->
 		<DataTemplate x:Key="MessageBodyTemplate">
-			<Grid>
-				<TextBox Style="{StaticResource SelectableTextStyle}"
-				         Text="{Binding Text, Mode=OneWay}"
-				         Visibility="{Binding IsStreaming, Converter={StaticResource BoolToVis}}"/>
-				<local:MarkdownBlock Style="{StaticResource MarkdownBodyStyle}"
-				                     Markdown="{Binding RenderedText, Mode=OneWay}"
-				                     Visibility="{Binding IsStreaming, Converter={StaticResource InverseBoolToVis}}"
-				                     LinkClicked="MarkdownBlock_LinkClicked"/>
-			</Grid>
+			<local:MarkdownBlock Style="{StaticResource MarkdownBodyStyle}"
+			                     Markdown="{Binding Text, Mode=OneWay}"
+			                     IsIncremental="{Binding IsStreaming, Mode=OneWay}"
+			                     LinkClicked="MarkdownBlock_LinkClicked"/>
 		</DataTemplate>
 
 		<!-- User prompt -->

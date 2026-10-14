@@ -74,30 +74,122 @@ namespace ClaudeCodeVS.UI
         {
             if (options == null) options = new MarkdownStyleOptions();
 
+            FlowDocument document = CreateDocument(options);
+            foreach (Block block in BuildBlockList(markdown, options))
+            {
+                document.Blocks.Add(block);
+            }
+
+            return document;
+        }
+
+        /// <summary>An empty document with the renderer's page settings, for callers that fill it themselves.</summary>
+        public static FlowDocument CreateDocument(MarkdownStyleOptions options)
+        {
             // FontFamily is deliberately left alone: with no local value the document inherits the host's
             // font, which is the whole point of the chat font setting. (Assigning null throws.)
-            var document = new FlowDocument
+            return new FlowDocument
             {
                 PagePadding = new Thickness(0),
-                FontSize = options.BaseFontSize
+                FontSize = (options ?? new MarkdownStyleOptions()).BaseFontSize
             };
+        }
+
+        /// <summary>
+        /// The blocks for one piece of markdown, falling back to a single plain paragraph if the render
+        /// fails. Rendering a text in pieces split at <see cref="FindStableBoundary"/> gives the same
+        /// blocks as rendering it whole, which is what lets a streaming reply be rendered incrementally.
+        /// </summary>
+        public static List<Block> BuildBlockList(string markdown, MarkdownStyleOptions options)
+        {
+            if (options == null) options = new MarkdownStyleOptions();
 
             try
             {
-                foreach (Block block in BuildBlocks(markdown ?? string.Empty, options))
-                {
-                    document.Blocks.Add(block);
-                }
+                return BuildBlocks(markdown ?? string.Empty, options);
             }
             catch (Exception ex)
             {
                 Debug.WriteLine($"Markdown render failed, falling back to plain text: {ex.Message}");
+                return new List<Block> { new Paragraph(new Run(markdown ?? string.Empty)) { Margin = new Thickness(0) } };
+            }
+        }
 
-                document.Blocks.Clear();
-                document.Blocks.Add(new Paragraph(new Run(markdown ?? string.Empty)) { Margin = new Thickness(0) });
+        /// <summary>
+        /// The end of the last finished blocks in a text that is still growing: just past the last
+        /// complete blank line that is not inside a fenced code block. Every block the parser knows
+        /// (paragraph, list, table, quote, heading, rule) ends at a blank line and none looks back
+        /// across one, so the text before the boundary renders the same no matter what is appended —
+        /// only a code fence spans blank lines, hence the fence tracking. A blank line counts only once
+        /// its newline has arrived: "para\n" followed by "more" is still one paragraph.
+        /// </summary>
+        /// <param name="text">The text so far.</param>
+        /// <param name="start">A previous boundary (or 0) to scan from; it must not be inside a fence.</param>
+        /// <returns><paramref name="start"/> when no new boundary was found.</returns>
+        public static int FindStableBoundary(string text, int start)
+        {
+            if (string.IsNullOrEmpty(text) || start < 0 || start >= text.Length)
+            {
+                return Math.Max(0, Math.Min(start, text?.Length ?? 0));
             }
 
-            return document;
+            int boundary = start;
+            string openFence = null;
+            int lineStart = start;
+
+            while (lineStart < text.Length)
+            {
+                int newline = text.IndexOf('\n', lineStart);
+                if (newline < 0)
+                {
+                    // The last line is still being written; it cannot decide anything yet.
+                    break;
+                }
+
+                if (openFence != null)
+                {
+                    // Same test the parser uses to close a fence: the trimmed line starts with it.
+                    if (LineStartsWith(text, lineStart, newline, openFence))
+                    {
+                        openFence = null;
+                    }
+                }
+                else if (IsBlankLine(text, lineStart, newline))
+                {
+                    boundary = newline + 1;
+                }
+                else if (LineStartsWith(text, lineStart, newline, "```"))
+                {
+                    openFence = "```";
+                }
+                else if (LineStartsWith(text, lineStart, newline, "~~~"))
+                {
+                    openFence = "~~~";
+                }
+
+                lineStart = newline + 1;
+            }
+
+            return boundary;
+        }
+
+        private static bool IsBlankLine(string text, int start, int end)
+        {
+            for (int i = start; i < end; i++)
+            {
+                if (!char.IsWhiteSpace(text[i])) return false;
+            }
+
+            return true;
+        }
+
+        /// <summary>Whether the line, with its leading whitespace skipped, starts with <paramref name="prefix"/>.</summary>
+        private static bool LineStartsWith(string text, int start, int end, string prefix)
+        {
+            int i = start;
+            while (i < end && char.IsWhiteSpace(text[i])) i++;
+
+            return end - i >= prefix.Length && string.CompareOrdinal(text, i, prefix, 0, prefix.Length) == 0;
         }
 
         /// <summary>
@@ -154,7 +246,7 @@ namespace ClaudeCodeVS.UI
 
         #region Block level
 
-        private static IEnumerable<Block> BuildBlocks(string markdown, MarkdownStyleOptions options)
+        private static List<Block> BuildBlocks(string markdown, MarkdownStyleOptions options)
         {
             var blocks = new List<Block>();
             string[] lines = markdown.Replace("\r\n", "\n").Replace('\r', '\n').Split('\n');
@@ -850,7 +942,16 @@ namespace ClaudeCodeVS.UI
     {
         public static readonly DependencyProperty MarkdownProperty = DependencyProperty.Register(
             "Markdown", typeof(string), typeof(MarkdownBlock),
-            new PropertyMetadata(string.Empty, OnVisualInputChanged));
+            new PropertyMetadata(string.Empty, OnMarkdownChanged));
+
+        /// <summary>
+        /// True while <see cref="Markdown"/> is a reply still being streamed (it only grows). Each change
+        /// then appends the newly finished blocks once and re-renders only the unfinished tail, instead
+        /// of rebuilding the whole document. Turning it off rebuilds the document whole, once.
+        /// </summary>
+        public static readonly DependencyProperty IsIncrementalProperty = DependencyProperty.Register(
+            "IsIncremental", typeof(bool), typeof(MarkdownBlock),
+            new PropertyMetadata(false, OnVisualInputChanged));
 
         /// <summary>When true the text is shown as-is with only URLs linked (notices, errors), not parsed as markdown.</summary>
         public static readonly DependencyProperty IsPlainTextProperty = DependencyProperty.Register(
@@ -1046,14 +1147,47 @@ namespace ClaudeCodeVS.UI
             }
         }
 
+        public bool IsIncremental
+        {
+            get { return (bool)GetValue(IsIncrementalProperty); }
+            set { SetValue(IsIncrementalProperty, value); }
+        }
+
         private static void OnVisualInputChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
         {
             ((MarkdownBlock)d).Rebuild();
         }
 
-        private void Rebuild()
+        private static void OnMarkdownChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
         {
-            var options = new MarkdownStyleOptions
+            var block = (MarkdownBlock)d;
+            if (block.IsIncremental && !block.IsPlainText && block._incrementalOptions != null)
+            {
+                block.UpdateIncremental();
+            }
+            else
+            {
+                block.Rebuild();
+            }
+        }
+
+        // ---- incremental (streaming) state ----
+
+        /// <summary>The options the incremental document was started with; null when not incremental.</summary>
+        private MarkdownStyleOptions _incrementalOptions;
+
+        /// <summary>The text the document currently shows; its first <see cref="_frozenLength"/> chars are final.</summary>
+        private string _incrementalText = string.Empty;
+
+        /// <summary>Length of the leading text whose blocks are in the document for good.</summary>
+        private int _frozenLength;
+
+        /// <summary>The blocks of the unfinished tail, replaced on every update.</summary>
+        private readonly List<Block> _tailBlocks = new List<Block>();
+
+        private MarkdownStyleOptions CreateOptions()
+        {
+            return new MarkdownStyleOptions
             {
                 BaseFontSize = FontSize,
                 CodeFontFamily = CodeFontFamily,
@@ -1064,6 +1198,80 @@ namespace ClaudeCodeVS.UI
                 MutedBrush = Foreground,
                 TextBrush = Foreground
             };
+        }
+
+        /// <summary>
+        /// Starts the document over in incremental mode. Any later change of style input comes back
+        /// here through <see cref="Rebuild"/>, since the finished blocks carry the old style baked in.
+        /// </summary>
+        private void StartIncremental(MarkdownStyleOptions options)
+        {
+            _incrementalOptions = options;
+            _incrementalText = string.Empty;
+            _frozenLength = 0;
+            _tailBlocks.Clear();
+            Document = MarkdownFlowRenderer.CreateDocument(options);
+
+            UpdateIncremental();
+        }
+
+        /// <summary>
+        /// Brings the document up to <see cref="Markdown"/>: blocks finished since the last update are
+        /// appended for good, and the unfinished tail is rendered again in place of its previous blocks.
+        /// The cost therefore follows the size of the tail, not of the whole reply.
+        /// </summary>
+        private void UpdateIncremental()
+        {
+            string text = Markdown ?? string.Empty;
+
+            // Not an append of what is showing (replaced or cleared text): start over.
+            if (text.Length < _frozenLength ||
+                string.CompareOrdinal(text, 0, _incrementalText, 0, _frozenLength) != 0)
+            {
+                StartIncremental(_incrementalOptions);
+                return;
+            }
+
+            BlockCollection blocks = Document.Blocks;
+            foreach (Block block in _tailBlocks)
+            {
+                blocks.Remove(block);
+            }
+            _tailBlocks.Clear();
+
+            int boundary = MarkdownFlowRenderer.FindStableBoundary(text, _frozenLength);
+            if (boundary > _frozenLength)
+            {
+                foreach (Block block in MarkdownFlowRenderer.BuildBlockList(
+                    text.Substring(_frozenLength, boundary - _frozenLength), _incrementalOptions))
+                {
+                    blocks.Add(block);
+                }
+
+                _frozenLength = boundary;
+            }
+
+            foreach (Block block in MarkdownFlowRenderer.BuildBlockList(text.Substring(boundary), _incrementalOptions))
+            {
+                blocks.Add(block);
+                _tailBlocks.Add(block);
+            }
+
+            _incrementalText = text;
+        }
+
+        private void Rebuild()
+        {
+            MarkdownStyleOptions options = CreateOptions();
+
+            if (IsIncremental && !IsPlainText)
+            {
+                StartIncremental(options);
+                return;
+            }
+
+            _incrementalOptions = null;
+            _tailBlocks.Clear();
 
             Document = IsPlainText
                 ? MarkdownFlowRenderer.BuildPlain(Markdown, options)
