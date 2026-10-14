@@ -815,9 +815,10 @@ namespace ClaudeCodeVS.Agents
 
         /// <summary>
         /// Tool results are a string for simple tools and an array of content blocks for the ones that
-        /// return images or structured output.
+        /// return images or structured output. Also used to replay a resumed transcript, whose
+        /// <c>tool_result</c> blocks have the same shape.
         /// </summary>
-        private static string FlattenResultContent(JToken content)
+        internal static string FlattenResultContent(JToken content)
         {
             if (content == null)
             {

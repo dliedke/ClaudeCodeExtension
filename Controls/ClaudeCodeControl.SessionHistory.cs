@@ -1866,31 +1866,43 @@ namespace ClaudeCodeVS
                 var sb = new StringBuilder();
                 foreach (var part in content.Children())
                 {
-                    string partType = (string)part["type"];
-                    if (partType == "text")
-                    {
-                        string text = (string)part["text"];
-                        if (!string.IsNullOrEmpty(text)) sb.AppendLine(text);
-                    }
-                    else if (partType == "thinking")
-                    {
-                        string thinking = (string)part["thinking"];
-                        if (!string.IsNullOrWhiteSpace(thinking))
-                        {
-                            sb.AppendLine("[thinking]");
-                            sb.AppendLine(thinking);
-                        }
-                    }
-                    else if (partType == "tool_use")
+                    if ((string)part["type"] == "tool_use")
                     {
                         string toolName = (string)part["name"];
                         sb.AppendLine($"[tool: {(string.IsNullOrEmpty(toolName) ? "?" : toolName)}]");
+                    }
+                    else
+                    {
+                        AppendAssistantTextPart(sb, part);
                     }
                 }
                 return sb.ToString();
             }
 
             return string.Empty;
+        }
+
+        /// <summary>
+        /// Appends an assistant <c>text</c> or <c>thinking</c> part as readable text; any other part
+        /// type is ignored. Shared by the exported transcript and the chat's resume replay.
+        /// </summary>
+        private static void AppendAssistantTextPart(StringBuilder sb, JToken part)
+        {
+            string partType = (string)part["type"];
+            if (partType == "text")
+            {
+                string text = (string)part["text"];
+                if (!string.IsNullOrEmpty(text)) sb.AppendLine(text);
+            }
+            else if (partType == "thinking")
+            {
+                string thinking = (string)part["thinking"];
+                if (!string.IsNullOrWhiteSpace(thinking))
+                {
+                    sb.AppendLine("[thinking]");
+                    sb.AppendLine(thinking);
+                }
+            }
         }
 
         /// <summary>
