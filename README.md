@@ -159,6 +159,10 @@ Use native mode to avoid this issue.
 
 ## Version History
 
+### Version 242.0
+- Native mode: replies stream smoothly instead of in bursts, even when they get long.
+- Native mode: formatting such as headings, lists, tables and code blocks now appears while the reply is being written, not only once it is finished.
+
 ### Version 241.0
 - Native mode: switching Claude Code between Plan, Auto, Accept edits, Manual and Skip permissions mid-response no longer stops the agent — the running turn continues under the new mode (#193).
 - Leaving Plan mode while the agent is still planning waits until the plan is approved or the response ends, so the agent never starts changing files from an unapproved plan.
