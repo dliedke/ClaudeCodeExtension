@@ -36,10 +36,12 @@ shift
 goto parseargs
 :parsed
 
-REM --- Tool locations, VS 2026 first then VS 2022 -----------------------
-set "VSROOT=C:\Program Files\Microsoft Visual Studio\18\Enterprise"
-if not exist "%VSROOT%\MSBuild\Current\Bin\MSBuild.exe" (
-    set "VSROOT=C:\Program Files\Microsoft Visual Studio\2022\Enterprise"
+REM --- Tool locations, VS 2026 first then VS 2022, any edition -----------
+set "VSROOT="
+for %%V in (18 2022) do for %%E in (Enterprise Professional Community) do (
+    if not defined VSROOT if exist "C:\Program Files\Microsoft Visual Studio\%%V\%%E\MSBuild\Current\Bin\MSBuild.exe" (
+        set "VSROOT=C:\Program Files\Microsoft Visual Studio\%%V\%%E"
+    )
 )
 
 set "MSBUILD=%VSROOT%\MSBuild\Current\Bin\MSBuild.exe"
