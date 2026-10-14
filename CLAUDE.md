@@ -110,6 +110,7 @@ ClaudeCodeExtension/
 │   ├── ClaudeCodeControl.CliPaths.cs    # Per-provider custom CLI executable path: Settings "CLI Paths" tab content, resolution/validation helpers
 │   ├── ClaudeCodeControl.CommitMessage.cs # "Generate Commit Message": AI-drafted commit message from the git diff, filled into the Git Changes window via best-effort UI Automation
 │   ├── ClaudeCodeControl.ModelCatalog.cs # Per-provider model list: CLI discovery + cache, selection storage, launch flags / live switch commands
+│   ├── ClaudeCodeControl.ModelPickerDialog.cs # Searchable model picker window (Devin)
 │   ├── ClaudeCodeControl.ModelRecommendation.cs # "Recommend AI Model" (Claude Code only): one-shot Opus/xhigh advisor call, confirm dialog, applies model + effort
 │   ├── ClaudeCodeControl.OpenPets.cs    # "Install latest OpenPets" (Automation tab): GitHub release download with progress, SHA-256 check, starts the installer
 │   ├── ClaudeCodeControl.GitHubIssues.cs # "GitHub Issues": issue list window, fix in a fix/issue-N branch + worktree + chat tab, commit/push, merge into base, reply + close
@@ -117,7 +118,8 @@ ClaudeCodeExtension/
 │   ├── ClaudeCodeControl.Theme.cs       # Dark/light theme support
 │   ├── ClaudeCodeControl.Detach.cs      # Terminal detach/attach to separate VS tab
 │   ├── ClaudeCodeControl.Usage.cs       # Claude usage tool window wiring & inline bars
-│   ├── ClaudeCodeControl.SessionHistory.cs # Claude/Codex history dialog: list/view/resume/delete
+│   ├── ClaudeCodeControl.SessionHistory.cs # Claude/Codex/Devin history dialog: list/view/resume/delete
+│   ├── ClaudeCodeControl.SessionHistoryProviders.cs # Per-CLI history adapters (Claude, Codex, Devin) behind ISessionHistoryProvider
 │   ├── ClaudeCodeControl.NativeMode.cs  # "Native mode": chat instead of the embedded terminal, adapter selection, event bridge
 │   ├── ClaudeCodeControl.NativeChat.cs  # Native mode chat tab: document-tab hosting, composer, agent/model/effort/permission selectors, live switching
 │   └── ClaudeCodeControl.ChatUsageIndicator.cs # Native mode composer usage button: context ring + plan-limit popup, background usage refresh
@@ -136,6 +138,10 @@ ClaudeCodeExtension/
 │   ├── AcpSession.cs / AcpCommandBuilder.cs # ACP (OpenCode, Devin, Devin native, Qwen Code, Grok, Reasonix)
 │   ├── OneShotResumeSession.cs / CodexExecProtocol.cs / CursorAgentProtocol.cs # CLIs that exit each turn
 │   ├── CodexAppServerClient.cs        # Codex thread list/read/delete client for session history
+│   ├── DevinSessionHistoryClient.cs     # Devin history via `devin list` + ACP session/load
+│   ├── DevinUsageClient.cs              # Devin account usage (ACUs, quotas) for native mode
+│   ├── ClaudeSessionColor.cs            # Parses Claude Code's /color answer
+│   ├── AgentCliNotFoundException.cs / AgentModelUnavailableException.cs # Native session start failures
 │   ├── PiRpcSession.cs                  # PI's own RPC mode
 │   └── PrintModeSession.cs              # Antigravity (--print, no event stream)
 ├── UI/                                  # XAML controls + paired code-behind
@@ -148,6 +154,8 @@ ClaudeCodeExtension/
 │   ├── ChatStyles.xaml                  # Chat resource dictionary (composer menu styles, brushes)
 │   ├── ChatUsageIndicator.cs            # Native composer usage button: token formatting, context/plan percentages, ring geometry (pure, unit-tested)
 │   ├── GlyphIcon.cs                     # Ink-centering of icon-only buttons (attached property, pure math unit-tested)
+│   ├── ComposerLabels.cs                # Short composer selector captions for narrow chat tabs (pure)
+│   ├── HostedWindowBounds.cs            # Detects a native child window (Usage WebView2) drifted from its WPF slot (pure)
 │   ├── MarkdownFlowRenderer.cs          # Markdown → FlowDocument + the MarkdownBlock control
 │   └── DiffViewerControl.xaml(.cs)
 ├── ToolWindows/                         # VS tool window hosts
@@ -166,6 +174,7 @@ ClaudeCodeExtension/
 │   ├── DiffComputer.cs
 │   ├── FileChangeTracker.cs
 │   ├── PendingReviewTracker.cs          # Pending-review baselines per turn (pure, unit-tested behind IPendingReviewSource)
+│   ├── PendingReviewMessages.cs         # Wording of the Keep/Undo/turn-off confirmations
 │   ├── GitPendingReviewSource.cs        # Git implementation of IPendingReviewSource
 │   └── ChangedFile.cs
 ├── Tests/                               # Unit suite (xUnit-style MSTest, no VS required — run via test.cmd)
@@ -244,7 +253,7 @@ Three cross-cutting rules (full text in `docs/ARCHITECTURE.md` → *Cross-Cuttin
 | `Controls/ClaudeCodeControl.Detach.cs` | Detach — re-parenting / auto-reattach |
 | `Controls/ClaudeCodeControl.Theme.cs` | Theme — agent vs panel color, restart prompt, custom color |
 | `Controls/ClaudeCodeControl.SettingsDialog.cs`, `Controls/ClaudeCodeControl.SettingsBackup.cs` | Consolidated Settings Dialog — tabs, batched apply, themed templates, Backup tab save/load |
-| `Controls/ClaudeCodeControl.SessionHistory.cs` | Session History — JSONL parsing, path encoding, resume flow |
+| `Controls/ClaudeCodeControl.SessionHistory.cs`, `Controls/ClaudeCodeControl.SessionHistoryProviders.cs`, `Agents/DevinSessionHistoryClient.cs` | Session History — JSONL parsing, path encoding, resume flow |
 | `Controls/ClaudeCodeControl.AgentCompletion.cs` | On Agent Finish — console-buffer idle detection, console-attach leak guard |
 | `Controls/ClaudeCodeControl.AgentFinishDialog.cs` | On Agent Finish — first Settings tab, per-solution config only, follow-up presets |
 | `Controls/ClaudeCodeControl.BuildErrors.cs` | Auto-Send Build Errors — build-event hook, Error List collection, dedupe/loop guard |
