@@ -79,6 +79,12 @@ namespace ClaudeCodeVS.UI
         public string Subtitle { get; set; } = string.Empty;
 
         /// <summary>
+        /// The tool call's own one-line explanation (its <c>description</c> argument), flattened. Empty
+        /// when the call sent none. Set even for file-scoped tools, whose <see cref="Subtitle"/> keeps the path.
+        /// </summary>
+        public string Description { get; set; } = string.Empty;
+
+        /// <summary>
         /// The unshortened path the tool reported, exactly as the CLI sent it — set only for the tools
         /// that act on a single file (<c>Read</c>, <c>Write</c>, <c>Edit</c>, <c>MultiEdit</c>,
         /// <c>NotebookEdit</c>). <see cref="Subtitle"/> is trimmed for display and is not enough to
@@ -131,6 +137,8 @@ namespace ClaudeCodeVS.UI
             {
                 // A tool whose arguments changed shape must still render as a row.
             }
+
+            ApplyDescription(result, input);
 
             if (string.IsNullOrEmpty(result.Icon) || result.Icon == "•")
             {
@@ -275,6 +283,31 @@ namespace ClaudeCodeVS.UI
                     // would make the icon try to open a shell command or a web address as a file.
                     result.FilePath = GetString(input, "file_path", "path", "filePath", "target_file", "notebook_path");
                     return;
+            }
+        }
+
+        /// <summary>
+        /// A tool call that explains itself (Claude's <c>Bash</c> sends <c>description</c> next to
+        /// <c>command</c>) shows that sentence in the collapsed header instead of the raw target: "List
+        /// changed files" says more at a glance than the first 160 characters of a piped command line.
+        /// The command itself stays in the expanded card's input. File-scoped tools keep their path,
+        /// which is what the row's "open file" icon acts on.
+        /// </summary>
+        private static void ApplyDescription(ChatToolPresentation result, JObject input)
+        {
+            JToken token;
+            if (input == null ||
+                !input.TryGetValue("description", StringComparison.OrdinalIgnoreCase, out token) ||
+                token == null || token.Type != JTokenType.String)
+            {
+                return;
+            }
+
+            result.Description = Flatten(token.Value<string>());
+
+            if (!string.IsNullOrEmpty(result.Description) && string.IsNullOrEmpty(result.FilePath))
+            {
+                result.Subtitle = result.Description;
             }
         }
 

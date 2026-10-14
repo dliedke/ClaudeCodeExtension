@@ -209,7 +209,14 @@ namespace ClaudeCodeVS.UI
             // (issue #160). Diff/HasDiff/ShowRawInput are inherited from the base tool-call row.
             ChatToolPresentation presentation = ChatToolPresenter.Describe(ToolName, ToolInputJson);
             SetDiff(presentation.Diff);
+            ToolDescription = presentation.Description;
         }
+
+        /// <summary>
+        /// What the tool call says it is for (its <c>description</c> argument), shown in the approval
+        /// card's title so "Allow PowerShell?" also says what the command will do. Empty when absent.
+        /// </summary>
+        public string ToolDescription { get; }
 
         /// <summary>Which of the three card shapes this row is. Distinct from the row kind in the base class.</summary>
         public AgentInteractionKind InteractionKind
@@ -255,7 +262,10 @@ namespace ClaudeCodeVS.UI
 
         public string PlanText { get { return _request.PlanText; } }
 
-        /// <summary>Title line, e.g. <c>Allow Bash?</c> or <c>Plan ready for review</c>.</summary>
+        /// <summary>
+        /// Title line, e.g. <c>Allow Bash - List changed files?</c> (the part after the dash is the tool
+        /// call's description, when it sent one) or <c>Plan ready for review</c>.
+        /// </summary>
         public string Title
         {
             get
@@ -265,9 +275,11 @@ namespace ClaudeCodeVS.UI
                     case AgentInteractionKind.PlanReview: return "Plan ready for review";
                     case AgentInteractionKind.Question: return "The agent needs your input";
                     default:
+                        string suffix = string.IsNullOrEmpty(ToolDescription) ? string.Empty : " - " + ToolDescription;
+
                         return string.IsNullOrEmpty(ToolName)
-                            ? "The agent needs permission"
-                            : "Allow " + ToolName + "?";
+                            ? "The agent needs permission" + suffix
+                            : "Allow " + ToolName + suffix + "?";
                 }
             }
         }

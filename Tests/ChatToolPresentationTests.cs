@@ -141,6 +141,51 @@ namespace ClaudeCodeExtension.Tests
         }
 
         [TestMethod]
+        public void ToolDescription_ReplacesTheCommandInTheHeader()
+        {
+            var bash = ChatToolPresenter.Describe("Bash",
+                "{\"command\":\"git status --short\",\"description\":\"List\\n changed files\"}");
+            Assert.AreEqual("List changed files", bash.Subtitle);
+
+            var unknown = ChatToolPresenter.Describe("run_shell", "{\"command\":\"echo hi\",\"description\":\"Say hi\"}");
+            Assert.AreEqual("Say hi", unknown.Subtitle);
+
+            // Empty or non-string descriptions fall back to the command.
+            var blank = ChatToolPresenter.Describe("Bash", "{\"command\":\"ls\",\"description\":\"  \"}");
+            Assert.AreEqual("ls", blank.Subtitle);
+
+            var structured = ChatToolPresenter.Describe("Bash", "{\"command\":\"ls\",\"description\":{\"a\":1}}");
+            Assert.AreEqual("ls", structured.Subtitle);
+
+            // A file-scoped tool keeps its path, which the "open file" icon acts on, but still reports the description.
+            var read = ChatToolPresenter.Describe("Read", "{\"file_path\":\"a.cs\",\"description\":\"Look\"}");
+            Assert.AreEqual("a.cs", read.Subtitle);
+            Assert.AreEqual("Look", read.Description);
+        }
+
+        [TestMethod]
+        public void ToolApprovalTitle_IncludesTheDescription()
+        {
+            var withDescription = new ClaudeCodeVS.UI.ChatInteractionViewModel(
+                new ClaudeCodeVS.Agents.AgentInteractionRequest((allow, message, answers) => { })
+                {
+                    Kind = ClaudeCodeVS.Agents.AgentInteractionKind.ToolApproval,
+                    ToolName = "PowerShell",
+                    ToolInputJson = "{\"command\":\"git status\",\"description\":\"Show working tree status\"}"
+                });
+            Assert.AreEqual("Allow PowerShell - Show working tree status?", withDescription.Title);
+
+            var without = new ClaudeCodeVS.UI.ChatInteractionViewModel(
+                new ClaudeCodeVS.Agents.AgentInteractionRequest((allow, message, answers) => { })
+                {
+                    Kind = ClaudeCodeVS.Agents.AgentInteractionKind.ToolApproval,
+                    ToolName = "PowerShell",
+                    ToolInputJson = "{\"command\":\"git status\"}"
+                });
+            Assert.AreEqual("Allow PowerShell?", without.Title);
+        }
+
+        [TestMethod]
         public void Edit_BuildsADiffAndCountsTheChange()
         {
             string input = "{\"file_path\":\"a.cs\"," +
