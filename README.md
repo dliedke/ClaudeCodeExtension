@@ -159,6 +159,9 @@ Use native mode to avoid this issue.
 
 ## Version History
 
+### Version 245.0
+- Fixed new native chat tabs opened with "+" ignoring the configured chat font and size.
+
 ### Version 244.0
 - Native mode: in a narrow chat tab the welcome card moves its tips below the welcome details instead of stretching tall, and the signed-in email gets its own line.
 - Thanks to [@gh61](https://github.com/Gh61) for contributing this improvement (#200).
