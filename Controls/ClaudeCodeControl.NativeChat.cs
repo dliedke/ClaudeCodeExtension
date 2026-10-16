@@ -1657,7 +1657,7 @@ namespace ClaudeCodeVS
         /// own model/effort/permission snapshot instead of the global settings the panel and default
         /// tab use — the same four selectors, sourced differently. Attachment chips and the shared
         /// appearance settings (font, zoom, composer height) are handled separately for a parallel
-        /// tab (<see cref="AddSessionAttachments"/>, the explicit <c>.Zoom</c> assignment where the tab
+        /// tab (<see cref="AddSessionAttachments"/>, the explicit font/zoom/composer-height assignments where the tab
         /// is created) since <see cref="ApplyChatAppearance"/> and <see cref="UpdateComposerAttachmentChips"/>
         /// both only ever target the panel's own <c>ChatTranscript</c>.
         /// </summary>
