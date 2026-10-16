@@ -155,6 +155,7 @@ ClaudeCodeExtension/
 │   ├── ChatUsageIndicator.cs            # Native composer usage button: token formatting, context/plan percentages, ring geometry (pure, unit-tested)
 │   ├── GlyphIcon.cs                     # Ink-centering of icon-only buttons (attached property, pure math unit-tested)
 │   ├── ComposerLabels.cs                # Short composer selector captions for narrow chat tabs (pure)
+│   ├── WelcomeCardLayout.cs             # Welcome card layout rule: tips stack once taller than 120 % of the left column width, account email line break (pure, unit-tested)
 │   ├── HostedWindowBounds.cs            # Detects a native child window (Usage WebView2) drifted from its WPF slot (pure)
 │   ├── MarkdownFlowRenderer.cs          # Markdown → FlowDocument + the MarkdownBlock control
 │   └── DiffViewerControl.xaml(.cs)
