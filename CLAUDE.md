@@ -6,7 +6,7 @@ Visual Studio Extension (VSIX) for VS 2022/2026 — integrates AI code assistant
 
 - Author: Daniel Carvalho Liedke (dliedke@gmail.com) | License: MIT
 - Repository: https://github.com/dliedke/ClaudeCodeExtension
-- Current Version: 242.0 | Target Framework: .NET Framework 4.7.2
+- Current Version: 245.0 | Target Framework: .NET Framework 4.7.2
 
 Step-by-step procedures for recurring tasks (release, Exp-hive debugging, publish, adding a
 provider/setting/UI file) live in `docs/SKILLS.md`. Short build/style brief for non-Claude agents: `docs/AGENTS.md`.
@@ -155,6 +155,7 @@ ClaudeCodeExtension/
 │   ├── ChatUsageIndicator.cs            # Native composer usage button: token formatting, context/plan percentages, ring geometry (pure, unit-tested)
 │   ├── GlyphIcon.cs                     # Ink-centering of icon-only buttons (attached property, pure math unit-tested)
 │   ├── ComposerLabels.cs                # Short composer selector captions for narrow chat tabs (pure)
+│   ├── WelcomeCardLayout.cs             # Welcome card layout rule: tips stack once taller than 120 % of the left column width, account email line break (pure, unit-tested)
 │   ├── HostedWindowBounds.cs            # Detects a native child window (Usage WebView2) drifted from its WPF slot (pure)
 │   ├── MarkdownFlowRenderer.cs          # Markdown → FlowDocument + the MarkdownBlock control
 │   └── DiffViewerControl.xaml(.cs)

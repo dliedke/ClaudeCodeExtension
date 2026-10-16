@@ -810,14 +810,22 @@
 					<Border BorderBrush="{StaticResource ChatAccentBrush}"
 					        BorderThickness="1" CornerRadius="4"
 					        Margin="0,8,0,0" Padding="14,14,14,12">
-						<Grid>
+						<!-- Side by side while that card would be no taller than the left column is wide;
+						     otherwise stacked, the tips under a horizontal rule. The left column keeps its
+						     natural width in both. RefreshWelcomeLayout switches between the two. -->
+						<Grid x:Name="WelcomeBannerContent" SizeChanged="WelcomeBannerContent_SizeChanged">
 							<Grid.ColumnDefinitions>
 								<ColumnDefinition Width="Auto"/>
 								<ColumnDefinition Width="Auto"/>
 								<ColumnDefinition Width="*"/>
 							</Grid.ColumnDefinitions>
+							<Grid.RowDefinitions>
+								<RowDefinition Height="Auto"/>
+								<RowDefinition Height="Auto"/>
+								<RowDefinition Height="Auto"/>
+							</Grid.RowDefinitions>
 
-							<StackPanel Grid.Column="0" MinWidth="150" Margin="6,0,14,0">
+							<StackPanel x:Name="WelcomeLeftPanel" Grid.Column="0" MinWidth="150" Margin="6,0,14,0">
 								<TextBlock Text="Welcome back!"
 								           HorizontalAlignment="Center"
 								           FontWeight="SemiBold"
@@ -863,10 +871,10 @@
 								</ItemsControl>
 							</StackPanel>
 
-							<Rectangle Grid.Column="1" Width="1" Margin="0,2,14,2" Opacity="0.35"
+							<Rectangle x:Name="WelcomeDivider" Grid.Column="1" Width="1" Margin="0,2,14,2" Opacity="0.35"
 							           Fill="{StaticResource ChatAccentBrush}"/>
 
-							<StackPanel Grid.Column="2" VerticalAlignment="Center">
+							<StackPanel x:Name="WelcomeTipsPanel" Grid.Column="2" VerticalAlignment="Center">
 								<TextBlock Text="Tips for getting started"
 								           FontWeight="SemiBold"
 								           Margin="0,0,0,4"

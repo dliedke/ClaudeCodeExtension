@@ -2876,7 +2876,7 @@ namespace ClaudeCodeVS
 
                 if (!string.IsNullOrEmpty(account))
                 {
-                    facts.Add("Signed in as " + account);
+                    facts.Add(WelcomeCardLayout.BreakBeforeEmail("Signed in as " + account));
                 }
             }
             else if (isCodex)
@@ -2892,7 +2892,7 @@ namespace ClaudeCodeVS
                     _codexAccountLabels.TryGetValue(provider.Value, out string account) &&
                     !string.IsNullOrWhiteSpace(account))
                 {
-                    facts.Add("Signed in as " + account);
+                    facts.Add(WelcomeCardLayout.BreakBeforeEmail("Signed in as " + account));
                 }
             }
             else if (isDevin)
