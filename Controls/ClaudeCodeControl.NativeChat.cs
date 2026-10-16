@@ -1394,7 +1394,12 @@ namespace ClaudeCodeVS
             // here (v163.0) — they relaunch this tab's own session via RelaunchSessionAsync, not
             // the global one.
             UpdateChatComposerState(newSession);
-            // Apply the same zoom as the main session for consistency
+            // Apply the same font, zoom and composer height as the main session for consistency
+            if (_settings != null)
+            {
+                newSession.ChatTranscript.SetChatFont(_settings.NativeChatFontFaceName, _settings.NativeChatFontSizePt);
+                newSession.ChatTranscript.ComposerHeight = _settings.NativeChatComposerHeight;
+            }
             newSession.ChatTranscript.Zoom = _settings?.NativeChatZoom ?? 1.0;
 
             // Start the agent
