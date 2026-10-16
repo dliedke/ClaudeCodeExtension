@@ -289,6 +289,25 @@ namespace ClaudeCodeExtension.Tests
         }
 
         /// <summary>
+        /// ScrollChanged bubbles, so scrolling inside an expanded tool card (a long command's
+        /// horizontal scrollbar) reached the transcript handler with the inner viewer's offsets.
+        /// Those always read as "at the bottom", re-armed following, and the next streamed line
+        /// yanked the view back down while the user was reading the card.
+        /// </summary>
+        [TestMethod]
+        public void TranscriptScrollChanged_IgnoresScrollingInsideNestedViewers()
+        {
+            string cs = RepositoryLayout.ReadText("UI", "ChatTranscriptView.xaml.cs");
+            string body = ExtractMethodBody(cs,
+                "private void TranscriptScroll_ScrollChanged(object sender, ScrollChangedEventArgs e)");
+
+            int guard = body.IndexOf("if (!ReferenceEquals(e.OriginalSource, TranscriptScroll))", System.StringComparison.Ordinal);
+            int rearm = body.IndexOf("_autoScroll = atBottom;", System.StringComparison.Ordinal);
+            Assert.IsTrue(guard >= 0, "The handler must ignore ScrollChanged bubbling up from nested scroll viewers.");
+            Assert.IsTrue(rearm > guard, "The nested-viewer guard must run before following is re-armed.");
+        }
+
+        /// <summary>
         /// Round 5 originally toggled the arrows with <c>Visibility.Hidden</c> instead of
         /// <c>Collapsed</c>, reasoning that a collapsed "Auto" Grid column would widen the
         /// scroller column and shift the toolbar's footprint whenever an arrow appeared or

@@ -2073,6 +2073,14 @@ namespace ClaudeCodeVS.UI
 
         private void TranscriptScroll_ScrollChanged(object sender, ScrollChangedEventArgs e)
         {
+            // ScrollChanged bubbles: scrolling inside an expanded card (a long command's horizontal
+            // scrollbar, a tool result) reaches this handler with the inner viewer's offsets, which
+            // always read as "at the bottom" and would re-arm following while the user is reading.
+            if (!ReferenceEquals(e.OriginalSource, TranscriptScroll))
+            {
+                return;
+            }
+
             // Following is re-armed automatically once the user scrolls back to the bottom.
             bool atBottom = e.VerticalOffset >= e.ExtentHeight - e.ViewportHeight - BottomTolerance;
 

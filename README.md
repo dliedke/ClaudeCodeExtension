@@ -161,6 +161,8 @@ Use native mode to avoid this issue.
 
 ### Version 243.0
 - Native mode: in a narrow chat tab the welcome card moves its tips below the welcome details instead of stretching tall, and the signed-in email gets its own line.
+- Native mode: scrolling inside an expanded tool card, such as a long shell command, no longer jumps the chat back to the newest reply while the agent keeps writing.
+- Thanks to [@gh61](https://github.com/Gh61) for contributing this fix (#199).
 
 ### Version 242.0
 - Native mode: tool calls that describe themselves, such as Claude Code's shell commands, now show that short description in the collapsed card instead of the raw command, and in the title of the permission prompt.
