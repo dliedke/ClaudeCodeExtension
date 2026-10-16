@@ -235,6 +235,10 @@ namespace ClaudeCodeVS
                     PromptTextBox.FontSize = _settings.PromptFontSize;
                 }
 
+                // LoadSettings re-runs (settings backup load), so re-evaluate the "Keep last prompt
+                // visible" hint against the value just read.
+                UpdateLastPromptHint();
+
                 // Restore the color the agent was last launched with so theme-
                 // change prompts work correctly across VS restarts. The value
                 // is overwritten the next time the embedded terminal launches.

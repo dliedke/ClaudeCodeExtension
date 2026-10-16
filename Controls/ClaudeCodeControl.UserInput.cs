@@ -39,6 +39,10 @@ namespace ClaudeCodeVS
         /// </summary>
         private string _tempCurrentText = string.Empty;
 
+        /// <summary>Last prompt sent from this panel, shown dimmed in the empty prompt box when
+        /// "Keep last prompt visible" is on (issue #201). In memory only, so a new VS session starts blank.</summary>
+        private string _lastSentPrompt = string.Empty;
+
         /// <summary>
         /// Temporary storage for current attached file paths when navigating history
         /// </summary>
@@ -655,6 +659,11 @@ namespace ClaudeCodeVS
             if (_settings.PromptHistory == null)
                 _settings.PromptHistory = new System.Collections.Generic.List<PromptHistoryEntry>();
 
+            // Every prompt the user sends from the panel or the docked chat comes through here, so this
+            // is also where the "Keep last prompt visible" hint learns what to show.
+            _lastSentPrompt = prompt;
+            UpdateLastPromptHint();
+
             // Remove duplicate if it exists (same text)
             _settings.PromptHistory.RemoveAll(e => e.Text == prompt);
 
@@ -853,10 +862,43 @@ namespace ClaudeCodeVS
             _historyIndex = -1;
             _tempCurrentText = string.Empty;
             _tempCurrentFiles = new List<string>();
+            _lastSentPrompt = string.Empty;
+            UpdateLastPromptHint();
 
             SaveSettings();
 
             MessageBox.Show("Prompt history cleared.", "History Cleared", MessageBoxButton.OK, MessageBoxImage.Information);
+        }
+
+        /// <summary>
+        /// Shows the last prompt sent, dimmed, over the prompt box while the box is empty and
+        /// "Keep last prompt visible" is on (issue #201); hides it otherwise. Called whenever the box's
+        /// text, the last prompt or the setting changes. Only the box's own text decides — a prompt
+        /// recalled with Ctrl+Up or anything typed replaces the hint, so it can never be sent by mistake.
+        /// </summary>
+        private void UpdateLastPromptHint()
+        {
+            if (LastPromptHint == null || PromptTextBox == null)
+                return;
+
+            bool show = _settings?.KeepLastPromptVisible == true
+                        && !string.IsNullOrEmpty(_lastSentPrompt)
+                        && string.IsNullOrEmpty(PromptTextBox.Text);
+
+            if (!show)
+            {
+                LastPromptHint.Visibility = Visibility.Collapsed;
+                return;
+            }
+
+            LastPromptHint.Inlines.Clear();
+            LastPromptHint.Inlines.Add(new System.Windows.Documents.Run("Last prompt sent (Ctrl+Up to edit and resend):")
+            {
+                FontStyle = FontStyles.Italic
+            });
+            LastPromptHint.Inlines.Add(new System.Windows.Documents.LineBreak());
+            LastPromptHint.Inlines.Add(new System.Windows.Documents.Run(_lastSentPrompt));
+            LastPromptHint.Visibility = Visibility.Visible;
         }
 
         /// <summary>

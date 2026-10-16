@@ -79,6 +79,7 @@ namespace ClaudeCodeVS
             bool origSendLargeAsFile          = _settings.SendLargePromptsAsFile;
             bool origDisableClipboardSend     = _settings.DisableClipboardSend;
             bool origSendSelectionRefOnly     = _settings.SendSelectionReferenceOnly;
+            bool origKeepLastPromptVisible    = _settings.KeepLastPromptVisible;
             string origAtFileTypes            = _settings.AtMentionFileTypes ?? string.Empty;
             string origAtExcludedFolders      = _settings.AtMentionExcludedFolders ?? string.Empty;
             bool origAutoSendBuildErrors      = _settings.AutoSendBuildErrorsToAgent;
@@ -222,6 +223,12 @@ namespace ClaudeCodeVS
                 "When enabled, \"Send Selection\" only inserts the file path and line numbers (e.g. \"File: foo.cs (lines 10-15)\"), without the selected code. The AI agent reads the file directly.",
                 origSendSelectionRefOnly, themeFg);
             promptStack.Children.Add(sendSelectionRefOnlyCheck);
+
+            var keepLastPromptCheck = MakeCheckBox(
+                "Keep last prompt visible",
+                "When enabled, the prompt box shows the last prompt you sent, dimmed, until you start typing — so you can see what the agent is working on while its output scrolls by. It is only a reminder and is never sent again; press Ctrl+Up to edit and resend it.",
+                origKeepLastPromptVisible, themeFg);
+            promptStack.Children.Add(keepLastPromptCheck);
 
             // Prompt font size
             promptStack.Children.Add(MakeSectionHeader("Prompt font size", themeFg));
@@ -1292,6 +1299,7 @@ namespace ClaudeCodeVS
             bool newSendLargeAsFile = largeAsFileCheck.IsChecked == true;
             bool newDisableClipboardSend = disableClipboardCheck.IsChecked == true;
             bool newSendSelectionRefOnly = sendSelectionRefOnlyCheck.IsChecked == true;
+            bool newKeepLastPromptVisible = keepLastPromptCheck.IsChecked == true;
             bool newAutoSendBuildErrors = autoSendBuildErrorsCheck.IsChecked == true;
             bool newAutoSendRuntimeErrors = autoSendRuntimeErrorsCheck.IsChecked == true;
             bool newAutoOpenChanges = autoOpenCheck.IsChecked == true;
@@ -1410,6 +1418,8 @@ namespace ClaudeCodeVS
             _settings.SendLargePromptsAsFile  = newSendLargeAsFile;
             _settings.DisableClipboardSend    = newDisableClipboardSend;
             _settings.SendSelectionReferenceOnly = newSendSelectionRefOnly;
+            _settings.KeepLastPromptVisible   = newKeepLastPromptVisible;
+            UpdateLastPromptHint();
             _settings.AtMentionFileTypes = (atFileTypesBox.Text ?? string.Empty).Trim();
             _settings.AtMentionExcludedFolders = (atExcludedFoldersBox.Text ?? string.Empty).Trim();
             _settings.AutoSendBuildErrorsToAgent = newAutoSendBuildErrors;

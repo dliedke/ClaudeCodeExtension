@@ -206,6 +206,18 @@
 						</ContextMenu>
 					</TextBox.ContextMenu>
 				</TextBox>
+					<!-- "Keep last prompt visible" (issue #201): the last prompt sent, dimmed, laid over the
+					     empty prompt box. Display only — clicks go through to the box and it is never sent. -->
+					<TextBlock x:Name="LastPromptHint" Grid.Column="0"
+					           IsHitTestVisible="False"
+					           Visibility="Collapsed"
+					           TextWrapping="Wrap"
+					           ClipToBounds="True"
+					           Margin="3,1,3,1"
+					           Opacity="0.5"
+					           FontFamily="{Binding FontFamily, ElementName=PromptTextBox}"
+					           FontSize="{Binding FontSize, ElementName=PromptTextBox}"
+					           Foreground="{DynamicResource {x:Static vsshell:VsBrushes.WindowTextKey}}"/>
 					<!-- Send button (visible only while Enter does not send), tucked into the bottom-right
 					     corner of the prompt box like the chat composer's. -->
 					<Button x:Name="SendPromptButton" Grid.Column="1"

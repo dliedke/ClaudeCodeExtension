@@ -446,6 +446,13 @@ namespace ClaudeCodeVS
         public bool SendSelectionReferenceOnly { get; set; } = false;
 
         /// <summary>
+        /// When true, the panel's prompt box shows the last prompt sent, dimmed, while it is empty
+        /// (issue #201) — a reminder of what the agent is working on while its output scrolls by.
+        /// It is display only: typing replaces it and it is never sent. Default false.
+        /// </summary>
+        public bool KeepLastPromptVisible { get; set; } = false;
+
+        /// <summary>
         /// "@" file picker: file types to list (e.g. ".cs, .lua"); empty = every file. Folders are
         /// shown only when they contain a matching file. Issue #174. See ClaudeCodeControl.AtMention.cs.
         /// </summary>

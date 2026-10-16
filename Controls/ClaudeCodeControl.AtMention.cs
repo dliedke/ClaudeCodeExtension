@@ -104,6 +104,9 @@ namespace ClaudeCodeVS
         /// </summary>
         private void PromptTextBox_TextChanged(object sender, TextChangedEventArgs e)
         {
+            // "Keep last prompt visible" (issue #201) hides its hint as soon as the box has text.
+            UpdateLastPromptHint();
+
             AtMentionTarget target = GetAtMentionPanelTarget();
             if (target.SuppressTextChanged) return;
             UpdateAtMentionPopup(target);
