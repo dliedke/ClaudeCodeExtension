@@ -123,9 +123,8 @@ namespace ClaudeCodeVS
 
         /// <summary>
         /// Same drafting flow as <see cref="GenerateCommitMessageAsync"/>, then stages every
-        /// change, commits and pushes with no further confirmation — the Git Changes box is still
-        /// filled first (best-effort) so the user sees what was committed after the fact, but the
-        /// action itself runs straight through once triggered (toolbar/☰ Tools click or "On Agent
+        /// change, commits and pushes with no further confirmation and without touching the Git
+        /// Changes window (no focus steal) — the action runs straight through once triggered (toolbar/☰ Tools click or "On Agent
         /// Finish" follow-up), matching Visual Studio's own "Commit All and Push".
         /// </summary>
         private async Task GenerateCommitMessageCommitAndPushAsync()
@@ -138,11 +137,9 @@ namespace ClaudeCodeVS
                 string repoRoot = generated.Value.RepoRoot;
                 string message = generated.Value.Message;
 
-                if (!await TryFillGitChangesCommitMessageAsync(message))
-                {
-                    await ClipboardRetryAsync(() => Clipboard.SetText(message));
-                }
-
+                // No Git Changes fill here: filling it activates that window and brings Visual Studio
+                // to the foreground, and the commit runs in the background while the user keeps working
+                // elsewhere. The message would be cleared right after the commit anyway.
                 await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
 
                 GitCommandResult addResult = RunGitDetailed(repoRoot, "add -A", GitCommitTimeoutMs);
@@ -178,13 +175,6 @@ namespace ClaudeCodeVS
                         MessageBoxImage.Error);
                     return;
                 }
-
-                // The commit just happened through the git CLI, not VS's own "Commit All" button, so
-                // Visual Studio has no reason to clear the message box on its own — left alone it would
-                // keep showing the message that was just committed as if it were still pending. Clear it
-                // (best-effort, same as the fill above) right after the commit succeeds, matching what
-                // clicking VS's own Commit button does.
-                await TryFillGitChangesCommitMessageAsync(string.Empty);
 
                 GitCommandResult pushResult = RunGitDetailed(repoRoot, "push", GitPushTimeoutMs);
                 if (pushResult == null || pushResult.ExitCode != 0)

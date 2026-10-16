@@ -159,6 +159,9 @@ Use native mode to avoid this issue.
 
 ## Version History
 
+### Version 247.0
+- "Generate Commit Message, Commit and Push" no longer brings Visual Studio to the front or opens Git Changes, so it runs quietly in the background while you work elsewhere.
+
 ### Version 246.0
 - New "Keep last prompt visible" option (Settings → Prompt, off by default): the prompt box keeps showing your last prompt, dimmed, until you start typing, so you can see what the agent is working on. It is never resent by accident; Ctrl+Up recalls it for editing (issue #201).
 
