@@ -993,6 +993,110 @@ namespace ClaudeCodeVS.UI
             WelcomeFacts.ItemsSource = ToLines(facts);
             WelcomeTips.ItemsSource = ToLines(tips);
             WelcomeBanner.Visibility = Visibility.Visible;
+            QueueWelcomeLayoutRefresh();
+        }
+
+        private static readonly Thickness _welcomeLeftSideBySideMargin = new Thickness(6, 0, 14, 0);
+        private static readonly Thickness _welcomeStackedMargin = new Thickness(6, 0, 6, 0);
+
+        private bool? _welcomeStacked;
+        private bool _welcomeLayoutRefreshQueued;
+
+        private void WelcomeBannerContent_SizeChanged(object sender, SizeChangedEventArgs e)
+        {
+            // Height changes count too: a zoom or new content changes how tall the side-by-side card
+            // would be. Re-running is idempotent, so the flip's own resize settles after one pass.
+            QueueWelcomeLayoutRefresh();
+        }
+
+        /// <summary>
+        /// Defers the decision past the current layout pass — it measures the card's panels, which
+        /// cannot be done from inside the arrange it reacts to — and collapses bursts into one pass.
+        /// </summary>
+        private void QueueWelcomeLayoutRefresh()
+        {
+            if (_welcomeLayoutRefreshQueued)
+            {
+                return;
+            }
+
+            _welcomeLayoutRefreshQueued = true;
+
+            // Loaded priority so the card has been arranged and has an ActualWidth. The VS threading
+            // helpers cannot express a dispatcher priority; every caller is already on the UI thread.
+#pragma warning disable VSTHRD001, VSTHRD110
+            Dispatcher.BeginInvoke(new Action(() =>
+            {
+                _welcomeLayoutRefreshQueued = false;
+                RefreshWelcomeLayout();
+            }), System.Windows.Threading.DispatcherPriority.Loaded);
+#pragma warning restore VSTHRD001, VSTHRD110
+        }
+
+        /// <summary>
+        /// Moves the tips under the facts once, beside the left column, they would be more than
+        /// <see cref="WelcomeCardLayout.StackHeightRatio"/> times as tall as that column is wide. The
+        /// left column keeps its natural width either way; what is measured is
+        /// the side-by-side layout, never the current one (see <see cref="WelcomeCardLayout.ShouldStack"/>).
+        /// </summary>
+        private void RefreshWelcomeLayout()
+        {
+            double cardWidth = WelcomeBannerContent.ActualWidth;
+            if (WelcomeBanner.Visibility != Visibility.Visible || cardWidth <= 0)
+            {
+                return;
+            }
+
+            // Unconstrained, as the Auto column measures it side by side; DesiredSize carries the
+            // current margins, which are swapped for the side-by-side ones.
+            Thickness leftMargin = WelcomeLeftPanel.Margin;
+            WelcomeLeftPanel.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
+            double leftWidth = WelcomeLeftPanel.DesiredSize.Width
+                - leftMargin.Left - leftMargin.Right
+                + _welcomeLeftSideBySideMargin.Left + _welcomeLeftSideBySideMargin.Right;
+            double tipsHeight = 0;
+            double tipsWidth = WelcomeCardLayout.TipsWidth(cardWidth, leftWidth);
+            if (tipsWidth > 0)
+            {
+                Thickness tipsMargin = WelcomeTipsPanel.Margin;
+                WelcomeTipsPanel.Measure(new Size(tipsWidth + tipsMargin.Left + tipsMargin.Right, double.PositiveInfinity));
+                tipsHeight = WelcomeTipsPanel.DesiredSize.Height - tipsMargin.Top - tipsMargin.Bottom;
+            }
+
+            // The probes measured outside the layout pass; the grid's next pass re-measures both
+            // panels with the constraints it actually gives them.
+            WelcomeBannerContent.InvalidateMeasure();
+
+            bool stacked = WelcomeCardLayout.ShouldStack(cardWidth, leftWidth, tipsHeight);
+            if (_welcomeStacked == stacked)
+            {
+                return;
+            }
+
+            _welcomeStacked = stacked;
+            ApplyWelcomeLayout(stacked);
+        }
+
+        /// <summary>
+        /// Stacked: facts on top, a horizontal rule, then the tips, each across the full card.
+        /// Side by side: the three columns the XAML declares, with the vertical rule between them.
+        /// </summary>
+        private void ApplyWelcomeLayout(bool stacked)
+        {
+            Grid.SetColumnSpan(WelcomeLeftPanel, stacked ? 3 : 1);
+            WelcomeLeftPanel.Margin = stacked ? _welcomeStackedMargin : _welcomeLeftSideBySideMargin;
+
+            Grid.SetRow(WelcomeDivider, stacked ? 1 : 0);
+            Grid.SetColumn(WelcomeDivider, stacked ? 0 : 1);
+            Grid.SetColumnSpan(WelcomeDivider, stacked ? 3 : 1);
+            WelcomeDivider.Width = stacked ? double.NaN : 1;
+            WelcomeDivider.Height = stacked ? 1 : double.NaN;
+            WelcomeDivider.Margin = stacked ? new Thickness(6, 10, 6, 10) : new Thickness(0, 2, 14, 2);
+
+            Grid.SetRow(WelcomeTipsPanel, stacked ? 2 : 0);
+            Grid.SetColumn(WelcomeTipsPanel, stacked ? 0 : 2);
+            Grid.SetColumnSpan(WelcomeTipsPanel, stacked ? 3 : 1);
+            WelcomeTipsPanel.Margin = stacked ? _welcomeStackedMargin : new Thickness(0);
         }
 
         /// <summary>Drops the welcome card. Idempotent.</summary>

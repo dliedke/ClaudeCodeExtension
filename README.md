@@ -160,6 +160,7 @@ Use native mode to avoid this issue.
 ## Version History
 
 ### Version 243.0
+- Native mode: in a narrow chat tab the welcome card moves its tips below the welcome details instead of stretching tall, and the signed-in email gets its own line.
 - Native mode: scrolling inside an expanded tool card, such as a long shell command, no longer jumps the chat back to the newest reply while the agent keeps writing.
 - Thanks to [@gh61](https://github.com/Gh61) for contributing this fix (#199).
 

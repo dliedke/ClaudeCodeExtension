@@ -128,6 +128,7 @@
     <Compile Include="UI\GlyphIcon.cs" />
     <Compile Include="UI\HostedWindowBounds.cs" />
     <Compile Include="UI\ComposerLabels.cs" />
+    <Compile Include="UI\WelcomeCardLayout.cs" />
     <Compile Include="UI\MarkdownFlowRenderer.cs" />
     <Compile Include="UI\ChatTranscriptView.xaml.cs">
       <DependentUpon>ChatTranscriptView.xaml</DependentUpon>
