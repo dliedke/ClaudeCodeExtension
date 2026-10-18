@@ -104,6 +104,7 @@ namespace ClaudeCodeVS
             bool origSkipThemePrompt          = _settings.SkipThemeRestartPrompt;
             string origDefaultNativeColor     = _settings.DefaultNativeSessionColor ?? string.Empty;
             bool origShowInlineBars           = _settings.ShowInlineUsageBars;
+            bool origShowSubagentCount        = _settings.ShowSubagentCount;
             // 30s is no longer selectable; a legacy JSON value below 1m floors to it.
             int  origAutoRefresh              = _settings.UsageAutoRefreshSeconds;
             if (origAutoRefresh > 0 && origAutoRefresh < 60) origAutoRefresh = 60;
@@ -478,6 +479,13 @@ namespace ClaudeCodeVS
                 "Refresh usage data every 1 minute in the background, even while the Claude Usage tab is closed or unfocused. Off refreshes only when the usage window is open or refreshed manually.",
                 origAutoRefresh > 0, themeFg);
             layoutStack.Children.Add(autoRefreshCheck);
+
+            layoutStack.Children.Add(MakeSectionHeader("Subagents", themeFg));
+            var showSubagentCountCheck = MakeCheckBox(
+                "Show active subagent count (Claude Code)",
+                "Show a live count of the subagents Claude Code is running in the panel toolbar, next to the toolbar buttons. Hover it to see what each one is working on. Hidden while no subagent is running. Claude Code only.",
+                origShowSubagentCount, themeFg);
+            layoutStack.Children.Add(showSubagentCountCheck);
 
             // ========================= Terminal tab =========================
             var terminalStack = AddTab("Terminal");
@@ -1242,6 +1250,7 @@ namespace ClaudeCodeVS
                 skipPromptCheck.IsChecked = false;
                 showBarsCheck.IsChecked = true;
                 autoRefreshCheck.IsChecked = false;       // Off
+                showSubagentCountCheck.IsChecked = false;
                 agentFinishEditor?.Reset();               // Off for this solution
 
                 // CLI Paths tab: default is no custom path (use detection) for every provider,
@@ -1383,6 +1392,7 @@ namespace ClaudeCodeVS
                 }
             }
             bool newShowInlineBars = showBarsCheck.IsChecked == true;
+            bool newShowSubagentCount = showSubagentCountCheck.IsChecked == true;
             int newAutoRefresh = autoRefreshCheck.IsChecked == true ? 60 : 0;
             var newToolbarOrder = ReadToolbarRowOrder(toolbarRowsPanel);
             var newVisibleToolbarButtons = newToolbarOrder
@@ -1467,6 +1477,7 @@ namespace ClaudeCodeVS
             _settings.SkipThemeRestartPrompt  = newSkipThemePrompt;
             _settings.DefaultNativeSessionColor = newDefaultNativeColor;
             _settings.ShowInlineUsageBars    = newShowInlineBars;
+            _settings.ShowSubagentCount      = newShowSubagentCount;
             _settings.UsageAutoRefreshSeconds = newAutoRefresh;
             _settings.PromptFontSize          = newFontSize;
             _settings.VisibleToolbarButtons   = newVisibleToolbarButtons;
@@ -1542,6 +1553,11 @@ namespace ClaudeCodeVS
             if (!string.Equals(newDefaultNativeColor, origDefaultNativeColor, StringComparison.OrdinalIgnoreCase))
             {
                 RefreshNativeSessionColors();
+            }
+
+            if (newShowSubagentCount != origShowSubagentCount)
+            {
+                RefreshSubagentCountMonitor();
             }
 
             // Usage settings change: refresh inline bars visibility and auto-refresh cadence

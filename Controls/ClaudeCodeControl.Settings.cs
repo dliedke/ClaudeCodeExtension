@@ -1105,6 +1105,9 @@ namespace ClaudeCodeVS
 
             // Show the session-history button only for Claude Code providers
             RefreshSessionHistoryButton();
+
+            // Start/stop the live subagent count to match its setting
+            RefreshSubagentCountMonitor();
         }
 
         #endregion

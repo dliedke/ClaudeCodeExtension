@@ -938,6 +938,13 @@ namespace ClaudeCodeVS
         public bool ShowInlineUsageBars { get; set; } = true;
 
         /// <summary>
+        /// If true, the panel toolbar shows a live count of the subagents Claude Code is running
+        /// (read from its session transcripts), with their descriptions in the tooltip. Claude Code only;
+        /// off by default.
+        /// </summary>
+        public bool ShowSubagentCount { get; set; } = false;
+
+        /// <summary>
         /// User-assigned custom titles for Claude Code sessions, keyed by session UUID
         /// (the JSONL filename without extension). When an entry exists it replaces the
         /// auto-generated preview in the session-history list, and it persists across

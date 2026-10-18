@@ -1237,6 +1237,17 @@
 									</Grid>
 								</Button>
 
+								<!-- "Show active subagent count" (Settings → Layout): running subagents of this tab's session. -->
+								<Border x:Name="ComposerSubagentBadge" DockPanel.Dock="Left"
+								        Visibility="Collapsed" Height="22" Margin="0,0,2,0" Padding="7,0,7,0"
+								        CornerRadius="9" BorderThickness="1" VerticalAlignment="Center"
+								        BorderBrush="{DynamicResource {x:Static vsshell:VsBrushes.ToolWindowBorderKey}}"
+								        ToolTipService.ShowDuration="60000">
+									<TextBlock x:Name="ComposerSubagentText" VerticalAlignment="Center"
+									           FontSize="{DynamicResource ChatSmallFontSize}"
+									           Foreground="{DynamicResource {x:Static vsshell:VsBrushes.ToolWindowTextKey}}"/>
+								</Border>
+
 								<Rectangle x:Name="ComposerMirrorSeparator" DockPanel.Dock="Left"
 								           Width="1" Margin="4,4,6,4" Opacity="0.25"
 								           Fill="{DynamicResource {x:Static vsshell:VsBrushes.WindowTextKey}}"/>

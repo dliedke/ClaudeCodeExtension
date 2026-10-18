@@ -284,6 +284,20 @@
 				     (issue #151 round 9). -->
 				<DockPanel x:Name="RightButtonsRow" Grid.Column="2" Margin="6,0,0,0" LastChildFill="True">
 
+					<!-- Live count of running Claude Code subagents (Settings → Layout, off by default).
+					     Docked left of the ◀ arrow so it never scrolls away; collapsed unless at least one
+					     subagent is running. See ClaudeCodeControl.SubagentCount.cs. -->
+					<Border x:Name="SubagentCountBadge" DockPanel.Dock="Left"
+					        Visibility="Collapsed"
+					        VerticalAlignment="Center"
+					        Margin="0,0,6,0" Padding="6,2" CornerRadius="9"
+					        BorderThickness="1"
+					        BorderBrush="{DynamicResource {x:Static vsshell:VsBrushes.ToolWindowBorderKey}}"
+					        ToolTipService.ShowDuration="60000">
+						<TextBlock x:Name="SubagentCountText" FontSize="12"
+						           Foreground="{DynamicResource {x:Static vsshell:VsBrushes.ToolWindowTextKey}}"/>
+					</Border>
+
 					<Button x:Name="RightButtonsScrollLeftButton" DockPanel.Dock="Left"
 					        Style="{StaticResource IconButtonStyle}"
 					        Content="◀" Width="16" MinWidth="16" FontSize="9" Padding="0"

@@ -153,6 +153,9 @@ namespace ClaudeCodeVS
                 // Dispose hidden usage scraper WebView2
                 DisposeUsageMonitoring();
 
+                // Stop the live subagent count poll
+                StopSubagentCountMonitor();
+
                 // Unsubscribe from theme change events
                 CleanupThemeEvents();
 

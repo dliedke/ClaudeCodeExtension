@@ -1336,6 +1336,25 @@ namespace ClaudeCodeVS.UI
         }
 
         /// <summary>
+        /// Shows the running-subagent count of this tab's session, or hides the badge for zero.
+        /// </summary>
+        public void SetSubagentCount(int count, string tooltip)
+        {
+            Visibility previous = ComposerSubagentBadge.Visibility;
+            ComposerSubagentBadge.Visibility = count > 0 ? Visibility.Visible : Visibility.Collapsed;
+            if (count > 0)
+            {
+                ComposerSubagentText.Text = "👥 " + count;
+                ComposerSubagentBadge.ToolTip = tooltip;
+            }
+
+            if (previous != ComposerSubagentBadge.Visibility)
+            {
+                QueueComposerDensityRefresh();
+            }
+        }
+
+        /// <summary>
         /// Shows the ring and fills the popup. The ring fills with the context window in use, or with the
         /// session limit when no turn has reported a context window yet. Null or not visible hides the button.
         /// </summary>
