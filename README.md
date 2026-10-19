@@ -159,6 +159,9 @@ Use native mode to avoid this issue.
 
 ## Version History
 
+### Version 249.0
+- Fixed picking another agent in the native chat sometimes doing nothing until a different project was opened.
+
 ### Version 248.0
 - New "Show active subagent count" option (Settings → Layout, off by default): the panel toolbar, or each chat tab in native mode, shows a live count of the subagents Claude Code is running, and hovering it lists what each one is working on. Claude Code only.
 

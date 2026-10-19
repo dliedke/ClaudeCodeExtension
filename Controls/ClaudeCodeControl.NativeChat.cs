@@ -4753,14 +4753,20 @@ namespace ClaudeCodeVS
             {
                 await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
 
-                if (_settings == null || _settings.SelectedProvider == provider)
+                // Compared against the agent that is actually running (what the menu checks), not
+                // _settings.SelectedProvider: the two drift apart whenever a switch is superseded or a
+                // relaunch keeps the running provider, and the settings check then turned every click
+                // on the "new" agent into a silent no-op until a solution load restarted from Settings.
+                if (_settings == null ||
+                    (GetActiveOrSelectedProvider() == provider && _settings.SelectedProvider == provider))
                 {
                     return;
                 }
 
                 _settings.SelectedProvider = provider;
                 UpdateProviderSelection();
-                SaveSettings();
+                SaveSettings(nameof(ClaudeCodeSettings.SelectedProvider));
+                ChatTranscript?.SetStatus($"Switching to {GetChatProviderDisplayName(provider)}...");
 
                 if (!await RestartTerminalWithSelectedProviderAsync())
                 {
