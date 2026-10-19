@@ -56,10 +56,10 @@ newest README heading, and that the minor is `.0`. A missed file fails the suite
   the menu or setting name they interact with.
 - Technical detail belongs in the commit message and `ARCHITECTURE.md`.
 
-**Other README sections** (Features, System Requirements, Provider Menu, Updating…): edit the
-exact line affected and nothing else. New provider → one row. Reworded feature → one word. Do
-not rewrite paragraphs, add subsections, reorder, or restructure tables. README is reference
-doc; keep it slim.
+**Other README sections** (Features, Supported AI Providers, System Requirements, Settings &
+Menus…): edit the exact line affected and nothing else. New provider → one row. Reworded
+feature → one word. Do not rewrite paragraphs, add subsections, reorder, or restructure
+tables. README is reference doc; keep it slim.
 
 ---
 
@@ -154,18 +154,20 @@ unless they just asked for it.
 5. `UserInput.cs` — add to the `isWSLProvider` check for WSL path conversion.
 6. `Detach.cs` — add to the `GetCurrentProviderName()` switch.
 7. `ClaudeCodeControl.xaml` — context menu item, plus a settings item if the provider has flags.
-8. `SessionHistory.cs` — update `IsClaudeCodeSessionHistoryProvider()` if it supports JSONL
-   transcripts; call `RefreshSessionHistoryButton()` from `UpdateProviderSelection()`.
+8. `SessionHistoryProviders.cs` — if the CLI can list and resume its conversations, add an
+   `ISessionHistoryProvider` class and register it in `_sessionHistoryProviders`. No button
+   wiring: the 📜 button is always shown and `UpdateProviderSelection()` refreshes it.
 9. `ModelCatalog.cs` — add a `ModelCatalogSources` entry if the CLI can list its models (plus a
    parser in `Agents/ModelCatalog.cs` if no existing shape fits), and teach
    `GetModelLaunchFlag` / `GetLiveModelSwitchCommand` how the pick is applied. Skip this and
    the agent gets no model menu at all.
-10. `README.md` — one row/line each in Features, System Requirements, AI Provider Menu, Updating.
+10. `README.md` — the intro line's provider list, one row in *Supported AI Providers*, and the
+    launch flag (if any) in the ⚙ menu line of *Settings & Menus*.
 11. `CLAUDE.md` — one row in the Supported AI Providers table.
 
-For native mode, also add an `IAgentSession` adapter under `Agents/` — see
-`ARCHITECTURE.md` → *Native Mode — Agent Sessions* for the contract and the
-streaming-duplication traps.
+For native mode, also add an `IAgentSession` adapter under `Agents/` and list the provider in
+`SupportsNativeMode` (NativeMode.cs) — see `ARCHITECTURE.md` → *Native Mode — Agent Sessions*
+for the contract and the streaming-duplication traps.
 
 ---
 

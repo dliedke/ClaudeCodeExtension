@@ -2,7 +2,7 @@
 
 ## Project Overview
 
-Visual Studio Extension (VSIX) for VS 2022/2026 — integrates AI code assistants (Claude Code, OpenAI Codex, Cursor Agent, Open Code, Devin, PI, Google Antigravity, Reasonix, Qwen Code, and Grok) via embedded terminal (Win32 `SetParent` interop).
+Visual Studio Extension (VSIX) for VS 2022/2026 — integrates AI code assistants (Claude Code, OpenAI Codex, Cursor Agent, Open Code, Devin, PI, Google Antigravity, Reasonix, Qwen Code, and Grok) via a native chat tab driven by each CLI's headless protocol ("native mode", default since v179.0) or an embedded terminal (Win32 `SetParent` interop).
 
 - Author: Daniel Carvalho Liedke (dliedke@gmail.com) | License: MIT
 - Repository: https://github.com/dliedke/ClaudeCodeExtension
@@ -26,7 +26,7 @@ Versioning scheme (since 11.0): each release bumps the MAJOR version by one — 
    - Avoid: code/file/class/method names, internal selectors, file paths, constants, line numbers, JS snippets, framework jargon (`CoreWebView2`, `INPUT_RECORD`, `NavigationCompleted`, etc.), step-by-step "how it works" explanations, and PR-description-style root-cause analysis.
    - Keep: what the user gets ("auto-confirms proxy block screens"), opt-in/opt-out status, and the menu/setting name they interact with.
    - Technical details belong in commit messages and `docs/ARCHITECTURE.md`, not in release notes.
-   - Other README sections (Features, System Requirements, Provider Menu, Updating, etc.): Edits MUST be minimal. Update only the exact line/bullet affected by the change. Do not rewrite paragraphs, expand explanations, add subsections, reorder content, or restructure tables. If a new provider/setting needs a row, add one row. If a feature description needs a word change, change the word. README is reference doc — keep it slim to avoid file bloat.
+   - Other README sections (Features, Supported AI Providers, System Requirements, Settings & Menus, etc.): Edits MUST be minimal. Update only the exact line/bullet affected by the change. Do not rewrite paragraphs, expand explanations, add subsections, reorder content, or restructure tables. If a new provider/setting needs a row, add one row. If a feature description needs a word change, change the word. README is reference doc — keep it slim to avoid file bloat.
 
 ---
 
@@ -85,7 +85,7 @@ ClaudeCodeExtension/
 ├── Controls/                            # Partial classes of ClaudeCodeControl
 │   ├── ClaudeCodeControl.cs             # Core initialization & orchestration
 │   ├── ClaudeCodeControl.Terminal.cs    # Terminal embedding, process init, F5 forwarding
-│   ├── ClaudeCodeControl.ProviderManagement.cs  # AI provider detection & switching, Caveman plugin install
+│   ├── ClaudeCodeControl.ProviderManagement.cs  # AI provider detection & switching, toolbar layout, Caveman skill install
 │   ├── ClaudeCodeControl.TerminalIO.cs  # Terminal I/O, command execution
 │   ├── ClaudeCodeControl.Diff.cs        # Diff view integration, git polling
 │   ├── ClaudeCodeControl.DisplayChange.cs # Repairs terminal geometry/console grid when the session DPI changes (RDP reconnect, monitor switch)
@@ -180,20 +180,22 @@ ClaudeCodeExtension/
 │   ├── PendingReviewMessages.cs         # Wording of the Keep/Undo/turn-off confirmations
 │   ├── GitPendingReviewSource.cs        # Git implementation of IPendingReviewSource
 │   └── ChangedFile.cs
-├── Tests/                               # Unit suite (xUnit-style MSTest, no VS required — run via test.cmd)
+├── Tests/                               # Unit suite (MSTest, no VS required — run via test.cmd)
 │   ├── ClaudeCodeExtension.Tests.csproj # Not built by the Release rebuild in publish.cmd
 │   ├── VersionConsistencyTests.cs / PackageVersionGuardTests.cs / TypeLoadProbeTests.cs # Version + package guards
 │   └── AgentStreamParsingTests.cs, ChatToolPresentationTests.cs, SessionTranscriptFilterTests.cs, … # Pure-helper tests
 ├── docs/
 │   ├── ARCHITECTURE.md                  # Per-file non-obvious details (on-demand reference; indexed from CLAUDE.md)
 │   ├── SKILLS.md                        # Step-by-step task recipes (release, Exp debugging, publish, add provider/setting/UI file)
-│   └── AGENTS.md                        # Short instructions file for non-Claude agents
+│   ├── AGENTS.md                        # Short instructions file for non-Claude agents
+│   └── images/                          # README screenshots (linked by raw GitHub URL so the Marketplace page resolves them)
+├── Properties/AssemblyInfo.cs           # AssemblyVersion/FileVersion (bumped every release) + InternalsVisibleTo for Tests
 ├── Root (project metadata only):
 │   ├── ClaudeCodeExtensionPackage.vsct  # Command table
 │   ├── source.extension.vsixmanifest
 │   └── ClaudeCodeExtension.csproj / .sln
 └── Scripts:
-    ├── publish.cmd                      # Automated marketplace deployment script (runs test.cmd first)
+    ├── publish.cmd                      # Automated marketplace deployment script (runs test.cmd first; gitignored, local only)
     ├── test.cmd                         # Build + run the unit suite
     ├── deploy-exp.cmd                   # Build + deploy into the VS experimental (Exp) hive
     └── publishManifest.json             # VS Marketplace metadata
@@ -239,7 +241,7 @@ Three cross-cutting rules (full text in `docs/ARCHITECTURE.md` → *Cross-Cuttin
 | File | `docs/ARCHITECTURE.md` section |
 |------|-------------------------------|
 | `Controls/ClaudeCodeControl.Terminal.cs` | Terminal Embedding — SetParent embed, conhost/WT modes, F5/mouse hooks, focus reclaim (#65), click-to-foreground (#69), WSL command patterns |
-| `Controls/ClaudeCodeControl.ProviderManagement.cs` | Provider Detection · Caveman Plugin · Visible Agents — caching, per-provider detect/paste quirks |
+| `Controls/ClaudeCodeControl.ProviderManagement.cs` | Provider Detection · Caveman Skill · Visible Agents · Configurable Toolbar Buttons — caching, per-provider detect/paste quirks, toolbar vs ☰ Tools placement |
 | `Controls/ClaudeCodeControl.CustomCommands.cs` | Custom Commands |
 | `Controls/ClaudeCodeControl.DebugVisibility.cs` | Debug Visibility — always-on visibility restore for the panel and its tabs while debugging |
 | `Controls/ClaudeCodeControl.DisplayChange.cs` | Display / DPI Change Repair — reported-vs-painted cell size, width guard, console grid fit, pass schedule |
@@ -251,7 +253,7 @@ Three cross-cutting rules (full text in `docs/ARCHITECTURE.md` → *Cross-Cuttin
 | `Controls/ClaudeCodeControl.OpenPets.cs`, `Agents/OpenPetsRelease.cs` | Install Latest OpenPets — release asset choice, checksum verification, download progress, installer start |
 | `Controls/ClaudeCodeControl.GitHubIssues.cs`, `Agents/GitHubIssues.cs` | GitHub Issues — gh vs REST, worktree layout, `WorkspaceOverride` sessions, detached merge, conflict hand-off, cleanup |
 | `Controls/ClaudeCodeControl.TerminalIO.cs` | Terminal I/O — paste/clipboard, chunking, large-prompt-as-file |
-| `Controls/ClaudeCodeControl.Usage.cs`, `Controls/ClaudeCodeControl.ChatUsageIndicator.cs`, `UI/ChatUsageIndicator.cs` | Claude Usage — WebView2 scraping, persistence, proxy interstitial, native composer usage button |
+| `Controls/ClaudeCodeControl.Usage.cs`, `Controls/ClaudeCodeControl.ChatUsageIndicator.cs`, `UI/ChatUsageIndicator.cs`, `Agents/DevinUsageClient.cs` | Claude Usage · Devin Usage — WebView2 scraping, persistence, proxy interstitial, native composer usage button, Devin ACU usage |
 | `Controls/ClaudeCodeControl.Settings.cs` | Settings — init guard, layout inversion, prompt resize grip |
 | `Controls/ClaudeCodeControl.Workspace.cs` | Workspace — directory resolution priority |
 | `Controls/ClaudeCodeControl.Detach.cs` | Detach — re-parenting / auto-reattach |
@@ -276,7 +278,7 @@ When you add or materially change behavior in one of these files, update its sec
 
 ## Data Models (ClaudeCodeModels.cs)
 
-Enums (`AiProvider`, `ClaudeModel`, `EffortLevel`, `TerminalType`, `AgentFinishActionType`), settings/DTO classes, and the full annotated `Settings` field reference live in `docs/ARCHITECTURE.md` → *Data Models & Settings*. Update that section when adding or changing a model, enum value, or setting.
+Enums (`AiProvider`, `ClaudeModel`, `EffortLevel`, `CodexReasoningLevel`, `ThemePreference`, `TerminalType`, `LayoutOrientation`, `AgentFinishActionType`, `ToolbarButton`), settings/DTO classes, and the full annotated `Settings` field reference live in `docs/ARCHITECTURE.md` → *Data Models & Settings*. Update that section when adding or changing a model, enum value, or setting.
 
 ---
 
@@ -299,7 +301,7 @@ Enums (`AiProvider`, `ClaudeModel`, `EffortLevel`, `TerminalType`, `AgentFinishA
 | Qwen Code | `QwenCode` | Windows | `qwen` | `/quit` |
 | Grok | `Grok` | Windows | `grok` | `/quit` |
 
-Plugin: Caveman (JuliusBrussee/caveman) — installable into Claude Code sessions via model menu
+Plugin: Caveman (JuliusBrussee/caveman) — Claude Code skill, installed for Windows or WSL from *⚙ → Settings... → Automation* (Install Caveman)
 
 ---
 
