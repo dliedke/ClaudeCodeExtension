@@ -182,6 +182,27 @@ namespace ClaudeCodeExtension.Tests
         }
 
         [TestMethod]
+        public void ThinkingPartsAreNotReplayedButTextPartsAre()
+        {
+            var replay = Replay(200, 500, 30,
+                User("Explain"),
+                @"{""type"":""assistant"",""message"":{""content"":[" +
+                    @"{""type"":""thinking"",""thinking"":""private reasoning""}," +
+                    @"{""type"":""text"",""text"":""Visible answer.""}]}}",
+                @"{""type"":""assistant"",""message"":{""content"":[" +
+                    @"{""type"":""thinking"",""thinking"":""thinking only""}]}}");
+
+            // Thinking dominates a real transcript's size, so it is not replayed. A text part in the
+            // same message still is, and a thinking-only message adds no row at all.
+            CollectionAssert.AreEqual(
+                new[] { ChatMessageKind.User, ChatMessageKind.Assistant },
+                replay.Rows.Select(row => row.Kind).ToArray());
+            Assert.AreEqual("Visible answer.", replay.Rows[1].Text.Trim());
+            Assert.IsFalse(replay.Rows.Any(row => row.Text.Contains("private reasoning")));
+            Assert.IsFalse(replay.Rows.Any(row => row.Text.Contains("thinking only")));
+        }
+
+        [TestMethod]
         public void DescribeWithoutDiffMarksItDeferred()
         {
             const string input = @"{""file_path"":""C:\\src\\Foo.cs"",""old_string"":""a"",""new_string"":""b""}";

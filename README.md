@@ -159,6 +159,9 @@ Use native mode to avoid this issue.
 
 ## Version History
 
+### Version 252.0
+- Resuming a long native chat no longer stalls Visual Studio: historical thinking is not replayed (live thinking still streams as before), and only the newest 40 tool calls are replayed as full cards, with older ones kept as one-line summaries.
+
 ### Version 251.0
 - Qwen Code questions in the native chat now show the actual question and its choices, with a box for your own answer, instead of an empty window with only Submit and Cancel (issue #203).
 

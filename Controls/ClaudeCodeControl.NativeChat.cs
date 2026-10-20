@@ -1975,11 +1975,11 @@ namespace ClaudeCodeVS
         /// <summary>
         /// Most tool calls of a replayed Claude transcript shown as full tool cards; older ones inside
         /// the shown messages collapse into one-line summaries. Kept apart from (and above)
-        /// <see cref="ResumedTranscriptMaxMessages"/> because a single turn often runs several tools. A
-        /// starting value, not a measurement — cards are built without their diff (built on first
-        /// open), so a collapsed card costs little more than its header.
+        /// <see cref="ResumedTranscriptMaxMessages"/> because a single turn often runs several tools.
+        /// Lowered from 500 after measuring a real resume: 116 full cards still cost enough layout
+        /// work to stall Visual Studio for seconds, and a one-line summary keeps the call traceable.
         /// </summary>
-        internal const int ResumedTranscriptMaxToolCards = 500;
+        internal const int ResumedTranscriptMaxToolCards = 40;
 
         /// <summary>
         /// Lines of one summary row of older tool calls. The row is a single text block, and a long run
@@ -2104,6 +2104,8 @@ namespace ClaudeCodeVS
                 }
 
                 chat.ScrollToEndIfFollowing();
+                LogTerminalLaunch($"Native mode: replayed session={sessionId}, " +
+                    $"messages={replay.ShownMessages}/{replay.TotalMessages}, rows={replay.Rows.Count}");
                 return true;
             }
             catch (Exception ex)
@@ -2226,8 +2228,12 @@ namespace ClaudeCodeVS
                         builder.AddToolCall((string)part["id"], (string)part["name"],
                             input != null ? Newtonsoft.Json.JsonConvert.SerializeObject(input) : string.Empty);
                     }
-                    else
+                    else if ((string)part["type"] == "text")
                     {
+                        // Historical thinking is deliberately not replayed: in real sessions it is the
+                        // bulk of the transcript (measured: 267k of 315k replay characters), and
+                        // rendering it as markdown on the UI thread is what made a resumed chat stall
+                        // Visual Studio for ~30 seconds. Live thinking still streams normally.
                         AppendAssistantTextPart(text, part);
                     }
                 }
