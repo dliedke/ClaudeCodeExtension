@@ -159,6 +159,9 @@ Use native mode to avoid this issue.
 
 ## Version History
 
+### Version 251.0
+- Qwen Code questions in the native chat now show the actual question and its choices, with a box for your own answer, instead of an empty window with only Submit and Cancel (issue #203).
+
 ### Version 250.0
 - The Claude Code panel and its chat tab now load automatically when Visual Studio starts, even when the panel is behind another tab, so you no longer have to click the panel first (issue #204).
 

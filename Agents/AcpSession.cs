@@ -1025,7 +1025,13 @@ namespace ClaudeCodeVS.Agents
             string title = toolCall?["title"]?.ToString() ?? string.Empty;
 
             string key = Guid.NewGuid().ToString("N");
-            var request = new AgentPermissionRequest(optionId => AnswerPermission(key, idToken, optionId))
+
+            if (TryRaiseUserQuestion(key, idToken, toolCall, toolCallId, options))
+            {
+                return;
+            }
+
+            var request = new AgentPermissionRequest(optionId => AnswerPermission(key, idToken, optionId, null))
             {
                 ToolCallId = toolCallId,
                 ToolName = title,
@@ -1045,7 +1051,138 @@ namespace ClaudeCodeVS.Agents
             Raise(AgentEvent.PermissionRequested(request));
         }
 
-        private void AnswerPermission(string key, JToken idToken, string optionId)
+        /// <summary>
+        /// Qwen Code's <c>ask_user_question</c> arrives as an ordinary permission request whose only
+        /// options are "Submit" and "Cancel" — the questions themselves ride in the tool call's
+        /// <c>_meta</c>/<c>rawInput</c>, and the answers go back in an extra <c>answers</c> member of
+        /// the reply. Shown as a plain permission dialog the user saw two buttons and no question
+        /// (issue #203), so it is raised as the same question card Claude's <c>AskUserQuestion</c> uses.
+        /// Returns false when the request is not a question, leaving it to the permission dialog.
+        /// </summary>
+        private bool TryRaiseUserQuestion(
+            string key,
+            JToken idToken,
+            JToken toolCall,
+            string toolCallId,
+            IReadOnlyList<AgentPermissionOption> options)
+        {
+            JArray questionArray = ReadUserQuestions(toolCall);
+            if (questionArray == null)
+            {
+                return false;
+            }
+
+            IReadOnlyList<AgentQuestion> questions =
+                ClaudeStreamParser.ParseQuestions(new JObject { ["questions"] = questionArray });
+            if (questions.Count == 0)
+            {
+                return false;
+            }
+
+            string submitOptionId = FindOptionId(options, "allow");
+            string cancelOptionId = FindOptionId(options, "reject");
+            if (string.IsNullOrEmpty(submitOptionId))
+            {
+                return false;
+            }
+
+            // The gate is what teardown cancels, and what makes the reply go out exactly once.
+            JObject answerMap = null;
+            var gate = new AgentPermissionRequest(optionId => AnswerPermission(key, idToken, optionId, answerMap));
+            _openPermissions[key] = gate;
+
+            JToken rawInput = toolCall?["rawInput"];
+            var interaction = new AgentInteractionRequest((allow, denyMessage, answers) =>
+            {
+                if (allow)
+                {
+                    answerMap = BuildUserQuestionAnswers(questionArray, answers);
+                    gate.Respond(submitOptionId);
+                }
+                else
+                {
+                    // No reject option means the only way to say no is to cancel the request.
+                    gate.Respond(cancelOptionId);
+                }
+            })
+            {
+                Kind = AgentInteractionKind.Question,
+                ToolName = "ask_user_question",
+                ToolUseId = toolCallId,
+                ToolInputJson = rawInput != null ? rawInput.ToString(Formatting.Indented) : string.Empty,
+                Questions = questions
+            };
+
+            Log($"ask_user_question: {questions.Count} question(s)");
+            Raise(AgentEvent.InteractionRequested(interaction));
+            return true;
+        }
+
+        /// <summary>
+        /// The questions of a Qwen Code <c>ask_user_question</c> permission request, or null when the
+        /// request is anything else. Same detection as Qwen's own ACP bridge: the
+        /// <c>_meta.qwenInteractionKind</c> tag, then the questions from <c>_meta.qwenQuestions</c>
+        /// falling back to <c>rawInput.questions</c>. The tool name is accepted as well, for builds
+        /// that predate the tag.
+        /// </summary>
+        internal static JArray ReadUserQuestions(JToken toolCall)
+        {
+            JObject meta = toolCall?["_meta"] as JObject;
+            JObject rawInput = toolCall?["rawInput"] as JObject;
+
+            bool isQuestion =
+                string.Equals((string)meta?["qwenInteractionKind"], "user_question", StringComparison.Ordinal) ||
+                string.Equals((string)meta?["toolName"], "ask_user_question", StringComparison.Ordinal);
+            if (!isQuestion)
+            {
+                return null;
+            }
+
+            return meta?["qwenQuestions"] as JArray ?? rawInput?["questions"] as JArray;
+        }
+
+        /// <summary>
+        /// Converts the card's answers (keyed by question text) into the map Qwen Code reads: keyed by
+        /// the question's position in the original array, as a string ("0", "1", ...). Questions left
+        /// blank are omitted.
+        /// </summary>
+        internal static JObject BuildUserQuestionAnswers(JArray questionArray, IDictionary<string, string> answers)
+        {
+            var map = new JObject();
+            if (questionArray == null || answers == null)
+            {
+                return map;
+            }
+
+            for (int i = 0; i < questionArray.Count; i++)
+            {
+                string text = (string)questionArray[i]?["question"];
+                if (string.IsNullOrEmpty(text))
+                {
+                    continue;
+                }
+
+                if (answers.TryGetValue(text, out string answer) && !string.IsNullOrEmpty(answer))
+                {
+                    map[i.ToString(System.Globalization.CultureInfo.InvariantCulture)] = answer;
+                }
+            }
+
+            return map;
+        }
+
+        /// <summary>First option whose ACP kind starts with the prefix ("allow" / "reject"), or null.</summary>
+        internal static string FindOptionId(IReadOnlyList<AgentPermissionOption> options, string kindPrefix)
+        {
+            AgentPermissionOption match = options?.FirstOrDefault(o =>
+                o != null &&
+                !string.IsNullOrEmpty(o.OptionId) &&
+                (o.Kind ?? string.Empty).StartsWith(kindPrefix, StringComparison.OrdinalIgnoreCase));
+
+            return match?.OptionId;
+        }
+
+        private void AnswerPermission(string key, JToken idToken, string optionId, JObject answers)
         {
             _openPermissions.TryRemove(key, out _);
 
@@ -1059,6 +1196,12 @@ namespace ClaudeCodeVS.Agents
                         ["optionId"] = optionId
                     }
                 };
+
+            // Qwen Code's ask_user_question reads the answers from beside the outcome.
+            if (answers != null && !string.IsNullOrEmpty(optionId))
+            {
+                outcome["answers"] = answers;
+            }
 
             RespondAsync(idToken, outcome).Forget();
         }

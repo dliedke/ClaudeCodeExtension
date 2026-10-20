@@ -763,7 +763,12 @@ namespace ClaudeCodeVS.Agents
             return One(AgentEvent.InteractionRequested(interaction));
         }
 
-        private static IReadOnlyList<AgentQuestion> ParseQuestions(JObject input)
+        /// <summary>
+        /// Reads an <c>AskUserQuestion</c>-shaped <c>{questions:[{question, header, options, multiSelect}]}</c>
+        /// payload. Shared with <see cref="AcpSession"/>, whose Qwen Code <c>ask_user_question</c> uses
+        /// the same shape.
+        /// </summary>
+        internal static IReadOnlyList<AgentQuestion> ParseQuestions(JObject input)
         {
             var array = input?["questions"] as JArray;
             if (array == null)
