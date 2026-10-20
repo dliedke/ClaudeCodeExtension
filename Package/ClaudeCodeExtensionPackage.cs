@@ -111,6 +111,210 @@ namespace ClaudeCodeExtension
             }
 
             ScheduleUsageWindowRestore(cancellationToken);
+            SchedulePanelBackgroundLoad(cancellationToken);
+        }
+
+        /// <summary>
+        /// How long after package load to wait before loading a panel restored behind another tab,
+        /// so Visual Studio has finished restoring the window layout.
+        /// </summary>
+        private const int PanelBackgroundLoadDelayMs = 1500;
+
+        /// <summary>How long to wait for the panel's control to load once its frame was brought forward.</summary>
+        private const int PanelLoadTimeoutMs = 5000;
+
+        /// <summary>
+        /// Visual Studio restores the panel at startup but does not create its content while it sits
+        /// behind another tab in its dock group (or collapsed as an auto-hide tab). Everything the
+        /// extension does at startup — launching the agent and opening the native chat tab — runs when
+        /// that content loads, so until the user clicked the panel's tab nothing appeared (issue #204).
+        /// </summary>
+        private void SchedulePanelBackgroundLoad(CancellationToken cancellationToken)
+        {
+#pragma warning disable VSSDK007 // Fire-and-forget is intentional; startup restore should not block package load
+            _ = JoinableTaskFactory.RunAsync(async delegate
+            {
+                try
+                {
+                    await Task.Delay(PanelBackgroundLoadDelayMs, cancellationToken);
+                    await JoinableTaskFactory.SwitchToMainThreadAsync(cancellationToken);
+                    await LoadPanelRestoredOffScreenAsync(cancellationToken);
+                }
+                catch (OperationCanceledException)
+                {
+                }
+                catch (Exception ex)
+                {
+                    Debug.WriteLine("Error loading the Claude Code panel in the background: " + ex);
+                }
+            });
+#pragma warning restore VSSDK007
+        }
+
+        /// <summary>
+        /// Loads the panel when it is open in the layout but off screen: brings its frame forward just
+        /// long enough for its content to load, then puts back every tab it displaced and returns
+        /// focus to the window that had it. A panel the user closed stays closed, and one already on
+        /// screen loads on its own.
+        /// </summary>
+        private async Task LoadPanelRestoredOffScreenAsync(CancellationToken cancellationToken)
+        {
+            ThreadHelper.ThrowIfNotOnUIThread();
+
+            if ((FindToolWindow(typeof(ClaudeCodeVS.ClaudeCodeToolWindow), 0, false) as ClaudeCodeVS.ClaudeCodeToolWindow)?.HasInitialized == true)
+            {
+                return;
+            }
+
+            var shell = await GetServiceAsync(typeof(SVsUIShell)) as IVsUIShell;
+            await JoinableTaskFactory.SwitchToMainThreadAsync(cancellationToken);
+            if (shell == null)
+            {
+                return;
+            }
+
+            // Frame only: finds the frame VS restored from the layout without creating the pane, and
+            // finds nothing when the panel was closed.
+            Guid panelSlot = typeof(ClaudeCodeVS.ClaudeCodeToolWindow).GUID;
+            if (shell.FindToolWindow((uint)__VSFINDTOOLWIN.FTW_fFrameOnly, ref panelSlot, out IVsWindowFrame panelFrame) != VSConstants.S_OK ||
+                panelFrame == null ||
+                panelFrame.IsVisible() != VSConstants.S_OK ||
+                IsFrameOnScreen(panelFrame))
+            {
+                return;
+            }
+
+            var onScreenBefore = GetFramesOnScreen(shell);
+            IVsWindowFrame activeFrame = await GetActiveWindowFrameAsync(cancellationToken);
+            bool focusMoved = false;
+
+            // ShowNoActivate keeps focus where it is; Show is the fallback for a tab group that does
+            // not switch tabs without activation.
+            panelFrame.ShowNoActivate();
+            if (!IsFrameOnScreen(panelFrame))
+            {
+                panelFrame.Show();
+                focusMoved = true;
+            }
+
+            for (int waited = 0; waited < PanelLoadTimeoutMs; waited += 100)
+            {
+                if ((FindToolWindow(typeof(ClaudeCodeVS.ClaudeCodeToolWindow), 0, false) as ClaudeCodeVS.ClaudeCodeToolWindow)?.HasInitialized == true)
+                {
+                    break;
+                }
+
+                await Task.Delay(100, cancellationToken);
+                await JoinableTaskFactory.SwitchToMainThreadAsync(cancellationToken);
+            }
+
+            // Put back the tab the panel pushed behind in its group.
+            foreach (var frame in onScreenBefore)
+            {
+                if (frame == panelFrame || IsFrameOnScreen(frame))
+                {
+                    continue;
+                }
+
+                frame.ShowNoActivate();
+                if (!IsFrameOnScreen(frame))
+                {
+                    frame.Show();
+                    focusMoved = true;
+                }
+            }
+
+            if (focusMoved && activeFrame != null && activeFrame != panelFrame)
+            {
+                activeFrame.Show();
+            }
+        }
+
+        private static bool IsFrameOnScreen(IVsWindowFrame frame)
+        {
+            ThreadHelper.ThrowIfNotOnUIThread();
+
+            try
+            {
+                return frame.IsOnScreen(out int onScreen) == VSConstants.S_OK && onScreen != 0;
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine("IsFrameOnScreen failed: " + ex.Message);
+                return false;
+            }
+        }
+
+        /// <summary>Every tool window and document frame currently on screen.</summary>
+        private static System.Collections.Generic.List<IVsWindowFrame> GetFramesOnScreen(IVsUIShell shell)
+        {
+            ThreadHelper.ThrowIfNotOnUIThread();
+
+            var frames = new System.Collections.Generic.List<IVsWindowFrame>();
+
+            try
+            {
+                if (shell.GetToolWindowEnum(out IEnumWindowFrames toolWindows) == VSConstants.S_OK)
+                {
+                    AddFramesOnScreen(toolWindows, frames);
+                }
+
+                if (shell.GetDocumentWindowEnum(out IEnumWindowFrames documents) == VSConstants.S_OK)
+                {
+                    AddFramesOnScreen(documents, frames);
+                }
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine("GetFramesOnScreen failed: " + ex.Message);
+            }
+
+            return frames;
+        }
+
+        private static void AddFramesOnScreen(IEnumWindowFrames enumerator, System.Collections.Generic.List<IVsWindowFrame> frames)
+        {
+            ThreadHelper.ThrowIfNotOnUIThread();
+
+            if (enumerator == null)
+            {
+                return;
+            }
+
+            var batch = new IVsWindowFrame[1];
+            while (enumerator.Next(1, batch, out uint fetched) == VSConstants.S_OK && fetched == 1)
+            {
+                if (batch[0] != null && IsFrameOnScreen(batch[0]))
+                {
+                    frames.Add(batch[0]);
+                }
+            }
+        }
+
+        /// <summary>The window frame that has focus right now (an editor, usually), or null.</summary>
+        private async System.Threading.Tasks.Task<IVsWindowFrame> GetActiveWindowFrameAsync(CancellationToken cancellationToken)
+        {
+            try
+            {
+                var monitorSelection = await GetServiceAsync(typeof(SVsShellMonitorSelection)) as IVsMonitorSelection;
+                await JoinableTaskFactory.SwitchToMainThreadAsync(cancellationToken);
+
+                if (monitorSelection != null &&
+                    monitorSelection.GetCurrentElementValue((uint)VSConstants.VSSELELEMID.SEID_WindowFrame, out object value) == VSConstants.S_OK)
+                {
+                    return value as IVsWindowFrame;
+                }
+            }
+            catch (OperationCanceledException)
+            {
+                throw;
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine("GetActiveWindowFrameAsync failed: " + ex.Message);
+            }
+
+            return null;
         }
 
         private void ScheduleUsageWindowRestore(CancellationToken cancellationToken)

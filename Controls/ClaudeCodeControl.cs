@@ -112,6 +112,9 @@ namespace ClaudeCodeVS
             _toolWindow.FrameShow += OnToolWindowFrameShow;
         }
 
+        /// <summary>True once the first Loaded has run the startup initialization.</summary>
+        internal bool HasInitialized => _hasInitialized;
+
         /// <summary>
         /// Handles the Loaded event - initializes settings and terminal
         /// </summary>
