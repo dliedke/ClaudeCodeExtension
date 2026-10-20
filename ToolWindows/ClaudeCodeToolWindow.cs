@@ -82,6 +82,12 @@ namespace ClaudeCodeVS
             claudeCodeControl?.InsertCodeSnippetIntoPrompt(code, filePath, startLine, endLine);
         }
 
+        /// <summary>
+        /// True once the panel's content has loaded and run its startup (agent launch, chat tab).
+        /// Visual Studio does not load it while the panel sits behind another tab (issue #204).
+        /// </summary>
+        public bool HasInitialized => claudeCodeControl?.HasInitialized == true;
+
         /// <summary>View &gt; Other Windows &gt; Claude Code Chat: brings the chat back wherever it went (issue #168).</summary>
         public void ShowChat()
         {
