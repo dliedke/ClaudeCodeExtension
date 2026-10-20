@@ -159,15 +159,17 @@ namespace ClaudeCodeExtension
         /// </summary>
         private async Task LoadPanelRestoredOffScreenAsync(CancellationToken cancellationToken)
         {
-            ThreadHelper.ThrowIfNotOnUIThread();
+            await JoinableTaskFactory.SwitchToMainThreadAsync(cancellationToken);
 
             if ((FindToolWindow(typeof(ClaudeCodeVS.ClaudeCodeToolWindow), 0, false) as ClaudeCodeVS.ClaudeCodeToolWindow)?.HasInitialized == true)
             {
                 return;
             }
 
-            var shell = await GetServiceAsync(typeof(SVsUIShell)) as IVsUIShell;
+            // Cast only after switching back: casting to a COM interface off the UI thread is VSTHRD010.
+            object shellService = await GetServiceAsync(typeof(SVsUIShell));
             await JoinableTaskFactory.SwitchToMainThreadAsync(cancellationToken);
+            var shell = shellService as IVsUIShell;
             if (shell == null)
             {
                 return;
@@ -296,8 +298,9 @@ namespace ClaudeCodeExtension
         {
             try
             {
-                var monitorSelection = await GetServiceAsync(typeof(SVsShellMonitorSelection)) as IVsMonitorSelection;
+                object selectionService = await GetServiceAsync(typeof(SVsShellMonitorSelection));
                 await JoinableTaskFactory.SwitchToMainThreadAsync(cancellationToken);
+                var monitorSelection = selectionService as IVsMonitorSelection;
 
                 if (monitorSelection != null &&
                     monitorSelection.GetCurrentElementValue((uint)VSConstants.VSSELELEMID.SEID_WindowFrame, out object value) == VSConstants.S_OK)
