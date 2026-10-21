@@ -10,6 +10,7 @@
  *
  * *******************************************************************************************************************/
 
+using System.Threading.Tasks;
 using ClaudeCodeVS;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 
@@ -70,6 +71,22 @@ namespace ClaudeCodeExtension.Tests
 
             Assert.IsFalse(ClaudeCodeControl.AcceptsNativeFollowUpsWhileBusy(AiProvider.ClaudeCode));
             Assert.IsFalse(ClaudeCodeControl.AcceptsNativeFollowUpsWhileBusy(null));
+        }
+
+        /// <summary>
+        /// A Codex chat tab's queue loop waits on CodexTurnRendered. Once the tab is closed its agent is
+        /// unsubscribed and that turn's completion can never arrive, so closing must release the wait.
+        /// </summary>
+        [TestMethod]
+        public void ClosingAChatTabReleasesItsCodexQueueWait()
+        {
+            var state = new NativeChatSessionState("session_1", null, null);
+            var turnRendered = new TaskCompletionSource<bool>();
+            state.CodexTurnRendered = turnRendered;
+
+            state.Dispose();
+
+            Assert.IsTrue(turnRendered.Task.IsCompleted);
         }
     }
 }

@@ -168,6 +168,7 @@ namespace ClaudeCodeVS
             try { ChatTranscript?.AbandonPendingInteractions(); } catch { }
             try { PendingToolCalls.Clear(); } catch { }
             try { CodexPromptQueue.Clear(); } catch { }
+            try { CodexTurnRendered?.TrySetResult(true); } catch { }
             try { while (PendingEvents.TryDequeue(out _)) { } } catch { }
             try { AttachedFiles.Clear(); } catch { }
             try { if (AgentSession != null && EventHandler != null) AgentSession.Received -= EventHandler; } catch { }

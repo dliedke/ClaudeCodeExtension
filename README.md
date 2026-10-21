@@ -159,6 +159,10 @@ Use native mode to avoid this issue.
 
 ## Version History
 
+### Version 254.0
+- GitHub Issues now works with every native agent, not only Claude Code: after Fix with Agent the window shows the agent working and unlocks Commit & Push as soon as it finishes, instead of staying stuck on "Starting the agent…".
+- Codex chat tabs opened with ✚ or from GitHub Issues now receive their prompts instead of silently ignoring them.
+
 ### Version 253.0
 - Session History's "Resume Last Session" button now reopens the most recent Claude Code or Devin conversation in the native chat instead of closing the window and starting a fresh chat (issue #208).
 

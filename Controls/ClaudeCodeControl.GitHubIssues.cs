@@ -1103,7 +1103,7 @@ namespace ClaudeCodeVS
             }
 
             string prompt = GitHubIssues.BuildFixPrompt(issue, GitHubIssues.BuildBranchName(issue.Number), prepared.BaseBranch, prepared.Resumed);
-            await SendPromptToNativeAgentAsync(prompt, session.SessionId);
+            StartIssuePrompt(session, prompt);
         }
 
         /// <summary>
@@ -1456,7 +1456,7 @@ namespace ClaudeCodeVS
             }
 
             BringSessionTabToFront(session);
-            await SendPromptToNativeAgentAsync(prompt, session.SessionId);
+            StartIssuePrompt(session, prompt);
             MessageBox.Show(owner,
                 $"Merging the latest {baseBranch} produced conflicts. They were sent to the issue's chat to resolve — run Merge again once the agent has finished.",
                 "Merge", MessageBoxButton.OK, MessageBoxImage.Information);
@@ -1636,8 +1636,20 @@ namespace ClaudeCodeVS
             // A behind-the-scenes question: the On Agent Finish sound/info bar must not fire for it.
             _suppressNextNativeAgentFinish = true;
             Task<string> capture = CaptureNextAssistantTurnAsync(session.AgentSession, TimeSpan.FromMilliseconds(SideQuestionTimeoutMs));
-            await SendPromptToNativeAgentAsync(prompt, session.SessionId);
+            StartIssuePrompt(session, prompt);
             return await capture;
+        }
+
+        /// <summary>
+        /// Hands an issue's chat a prompt and returns once its turn has started, not when it ends. Only
+        /// Claude Code's send completes as soon as the prompt is written; every other agent's completes
+        /// with the whole turn, which held the window on "Starting the agent…" with every button
+        /// disabled until the agent was done. The turn is followed through
+        /// <see cref="NativeChatSessionState.TurnInFlight"/> instead, by the window's session watcher.
+        /// </summary>
+        private void StartIssuePrompt(NativeChatSessionState session, string prompt)
+        {
+            StartSessionHistoryTask(() => SendPromptToNativeAgentAsync(prompt, session.SessionId), "claudecode/githubissues/prompt");
         }
 
         #endregion

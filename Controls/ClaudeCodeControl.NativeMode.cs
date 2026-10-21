@@ -1501,7 +1501,7 @@ namespace ClaudeCodeVS
 
             if (SupportsQueuedNativeFollowUps(sessionState.SelectedProvider))
             {
-                await SendPromptToCodexNativeAsync(sessionState.AgentSession, text);
+                await SendPromptToCodexNativeAsync(sessionState, text);
                 return;
             }
 
@@ -1645,6 +1645,71 @@ namespace ClaudeCodeVS
                 {
                     _codexNativeQueueOwner = null;
                     _codexNativeTurnRendered = null;
+                }
+            }
+        }
+
+        /// <summary>
+        /// The Codex follow-up queue for a chat tab's own session. The panel overload only serves
+        /// <see cref="_agentSession"/>, so a prompt sent to a Codex tab used to be dropped without a
+        /// trace (a GitHub Issues fix chat never received its issue). Same loop, kept on the tab's
+        /// <see cref="NativeChatSessionState"/>; a relaunch (<see cref="DisposeSessionAgent"/>) or
+        /// closing the tab ends it.
+        /// </summary>
+        private async Task SendPromptToCodexNativeAsync(NativeChatSessionState sessionState, string text)
+        {
+            await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
+
+            IAgentSession session = sessionState.AgentSession;
+            if (session == null)
+            {
+                return;
+            }
+
+            if (sessionState.IsCodexQueueOwner)
+            {
+                sessionState.CodexPromptQueue.Enqueue(text);
+                sessionState.ChatTranscript?.SetQueuedMessageCount(sessionState.CodexPromptQueue.Count);
+                return;
+            }
+
+            sessionState.IsCodexQueueOwner = true;
+
+            try
+            {
+                string nextPrompt = text;
+
+                while (ReferenceEquals(session, sessionState.AgentSession) && sessionState.IsCodexQueueOwner)
+                {
+                    var turnRendered = new TaskCompletionSource<bool>(
+                        TaskCreationOptions.RunContinuationsAsynchronously);
+                    sessionState.CodexTurnRendered = turnRendered;
+
+                    await SendSinglePromptToNativeAgentAsync(sessionState, nextPrompt);
+                    await turnRendered.Task;
+                    await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
+
+                    if (!ReferenceEquals(session, sessionState.AgentSession) ||
+                        !sessionState.IsCodexQueueOwner ||
+                        sessionState.CodexPromptQueue.Count == 0)
+                    {
+                        break;
+                    }
+
+                    nextPrompt = sessionState.CodexPromptQueue.Dequeue();
+                    sessionState.ChatTranscript?.SetQueuedMessageCount(sessionState.CodexPromptQueue.Count);
+                }
+            }
+            finally
+            {
+                await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
+
+                // A relaunch has already reset these, and the agent that replaced this one may own a
+                // loop of its own by now.
+                if (ReferenceEquals(session, sessionState.AgentSession))
+                {
+                    sessionState.IsCodexQueueOwner = false;
+                    sessionState.CodexTurnRendered = null;
                 }
             }
         }
@@ -2006,6 +2071,11 @@ namespace ClaudeCodeVS
 
             try
             {
+                if (SupportsQueuedNativeFollowUps(sessionState.SelectedProvider))
+                {
+                    sessionState.CancelledCodexPromptCount += ClearQueuedCodexNativePrompts(sessionState);
+                }
+
                 sessionState.ChatTranscript.SetBusy(false);
                 sessionState.ChatTranscript.SetActivityLabel("Stopping...");
 
@@ -2058,6 +2128,17 @@ namespace ClaudeCodeVS
             int count = _codexNativePromptQueue.Count;
             _codexNativePromptQueue.Clear();
             ChatTranscript?.SetQueuedMessageCount(0);
+            return count;
+        }
+
+        /// <summary>Removes a chat tab's follow-ups that have not started and returns how many were discarded.</summary>
+        private int ClearQueuedCodexNativePrompts(NativeChatSessionState sessionState)
+        {
+            ThreadHelper.ThrowIfNotOnUIThread();
+
+            int count = sessionState.CodexPromptQueue.Count;
+            sessionState.CodexPromptQueue.Clear();
+            sessionState.ChatTranscript?.SetQueuedMessageCount(0);
             return count;
         }
 
@@ -3398,6 +3479,17 @@ namespace ClaudeCodeVS
             if (agentEvent.WasInterrupted)
             {
                 AddNativeMessageToSession(session, ChatMessageKind.Notice, "Turn interrupted.");
+
+                if (session.CancelledCodexPromptCount > 0)
+                {
+                    AddNativeMessageToSession(
+                        session,
+                        ChatMessageKind.Notice,
+                        session.CancelledCodexPromptCount == 1
+                            ? "1 queued message was cancelled."
+                            : $"{session.CancelledCodexPromptCount} queued messages were cancelled.");
+                    session.CancelledCodexPromptCount = 0;
+                }
             }
 
             if (agentEvent.PermissionDenials != null && agentEvent.PermissionDenials.Count > 0)
