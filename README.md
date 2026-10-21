@@ -159,6 +159,9 @@ Use native mode to avoid this issue.
 
 ## Version History
 
+### Version 255.0
+- The Claude Code Chat tab now comes back after restarting Visual Studio even when you had closed the Claude Code panel and kept only the chat open (issue #209).
+
 ### Version 254.0
 - GitHub Issues now works with every native agent, not only Claude Code: after Fix with Agent the window shows the agent working and unlocks Commit & Push as soon as it finishes, instead of staying stuck on "Starting the agent…".
 - Codex chat tabs opened with ✚ or from GitHub Issues now receive their prompts instead of silently ignoring them.
