@@ -1987,9 +1987,9 @@ namespace ClaudeCodeVS
 
         /// <summary>
         /// Resumes the most recent session in the current workspace. Claude and Devin use their own
-        /// native continue switch; Codex resolves the latest thread id first so terminal and native
-        /// mode behave alike. A parallel chat tab always resolves the latest id, since the continue
-        /// switch only exists on the default session's launch path.
+        /// native continue switch in the embedded terminal; Codex resolves the latest thread id first
+        /// so terminal and native mode behave alike. Native mode and a parallel chat tab always resolve
+        /// the latest id, since the continue switch only exists on the terminal launch path.
         /// </summary>
         private async Task ContinueLastSessionAsync(NativeChatSessionState targetTab = null)
         {
@@ -2000,7 +2000,10 @@ namespace ClaudeCodeVS
                 return;
             }
 
-            if (!adapter.SupportsContinueSentinel || targetTab != null)
+            // Native mode launches ignore the "-c" sentinel (stream-json/ACP have no continue switch),
+            // so there the newest session id must be resolved first, too (#208).
+            bool nativeLaunch = _settings?.UseNativeMode == true && SupportsNativeMode(selected.Value);
+            if (!adapter.SupportsContinueSentinel || targetTab != null || nativeLaunch)
             {
                 string workspaceDir = !string.IsNullOrEmpty(targetTab?.WorkspaceOverride)
                     ? targetTab.WorkspaceOverride
