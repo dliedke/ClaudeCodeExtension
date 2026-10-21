@@ -873,6 +873,58 @@ namespace ClaudeCodeVS
                    && frame.IsVisible() == VSConstants.S_OK;
         }
 
+        /// <summary>The default session's chat tab is open (startup restore check, issue #209).</summary>
+        internal bool IsChatTabOpen
+        {
+            get
+            {
+                ThreadHelper.ThrowIfNotOnUIThread();
+                return IsNativeChatTabOnScreen();
+            }
+        }
+
+        /// <summary>The default session's chat tab frame, or null when it is not open.</summary>
+        internal IVsWindowFrame ChatTabFrame
+        {
+            get
+            {
+                ThreadHelper.ThrowIfNotOnUIThread();
+                return _nativeChatWindow?.Frame as IVsWindowFrame;
+            }
+        }
+
+        /// <summary>
+        /// Called by the package as Visual Studio shuts down, while every frame is still up: remembers
+        /// whether the chat tab was open with the panel closed. That layout is not restored by VS —
+        /// the closed panel is dropped and the chat tab is transient — so the package rebuilds it at
+        /// the next start (issue #209).
+        /// </summary>
+        internal void RecordChatLayoutForRestart()
+        {
+            ThreadHelper.ThrowIfNotOnUIThread();
+
+            if (_settings == null)
+            {
+                return;
+            }
+
+            bool panelOpen = _toolWindow?.Frame is IVsWindowFrame panelFrame && panelFrame.IsVisible() == VSConstants.S_OK;
+            bool restore = ShouldRestoreChatWithoutPanel(IsNativeChatTabOnScreen(), panelOpen);
+            if (_settings.RestoreChatWithoutPanel == restore)
+            {
+                return;
+            }
+
+            _settings.RestoreChatWithoutPanel = restore;
+            SaveSettings();
+        }
+
+        /// <summary>
+        /// Only the chat-without-panel layout needs the package's help: an open panel is restored by VS
+        /// and opens the chat itself, and a closed chat should stay closed.
+        /// </summary>
+        internal static bool ShouldRestoreChatWithoutPanel(bool chatTabOpen, bool panelOpen) => chatTabOpen && !panelOpen;
+
         /// <summary>Shows (and activates) the extension's own panel.</summary>
         private void ShowPanelFrame()
         {

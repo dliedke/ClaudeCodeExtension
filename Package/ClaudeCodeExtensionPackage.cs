@@ -180,8 +180,19 @@ namespace ClaudeCodeExtension
             Guid panelSlot = typeof(ClaudeCodeVS.ClaudeCodeToolWindow).GUID;
             if (shell.FindToolWindow((uint)__VSFINDTOOLWIN.FTW_fFrameOnly, ref panelSlot, out IVsWindowFrame panelFrame) != VSConstants.S_OK ||
                 panelFrame == null ||
-                panelFrame.IsVisible() != VSConstants.S_OK ||
-                IsFrameOnScreen(panelFrame))
+                panelFrame.IsVisible() != VSConstants.S_OK)
+            {
+                // A closed panel stays closed — unless VS last shut down with the chat tab open on its
+                // own, which only the panel can bring back (issue #209).
+                if (LoadSettingsForStartup()?.RestoreChatWithoutPanel == true)
+                {
+                    await RestoreChatWithoutPanelAsync(shell, cancellationToken);
+                }
+
+                return;
+            }
+
+            if (IsFrameOnScreen(panelFrame))
             {
                 return;
             }
@@ -211,9 +222,84 @@ namespace ClaudeCodeExtension
             }
 
             // Put back the tab the panel pushed behind in its group.
+            focusMoved |= ShowFramesPushedOffScreen(onScreenBefore, panelFrame);
+
+            if (focusMoved && activeFrame != null && activeFrame != panelFrame)
+            {
+                activeFrame.Show();
+            }
+        }
+
+        /// <summary>How long to wait for the panel to start the agent and reopen the chat tab.</summary>
+        private const int ChatRestoreTimeoutMs = 60000;
+
+        /// <summary>
+        /// Rebuilds the "chat tab open, panel closed" layout VS cannot restore by itself: the panel was
+        /// closed so it is not in the layout, and the chat tab is transient (issue #209). The chat is
+        /// hosted by the panel, so the panel is opened until its startup has brought the chat tab back,
+        /// then closed again. If the chat does not come back (native mode turned off, the agent fell
+        /// back to the terminal) the panel stays open, since it is then the only way in.
+        /// </summary>
+        private async Task RestoreChatWithoutPanelAsync(IVsUIShell shell, CancellationToken cancellationToken)
+        {
+            await JoinableTaskFactory.SwitchToMainThreadAsync(cancellationToken);
+
+            var panel = FindToolWindow(typeof(ClaudeCodeVS.ClaudeCodeToolWindow), 0, true) as ClaudeCodeVS.ClaudeCodeToolWindow;
+            if (!(panel?.Frame is IVsWindowFrame panelFrame))
+            {
+                return;
+            }
+
+            var onScreenBefore = GetFramesOnScreen(shell);
+
+            panelFrame.ShowNoActivate();
+            if (!IsFrameOnScreen(panelFrame))
+            {
+                panelFrame.Show();
+            }
+
+            for (int waited = 0; waited < ChatRestoreTimeoutMs && !panel.IsChatTabOpen; waited += 250)
+            {
+                await Task.Delay(250, cancellationToken);
+                await JoinableTaskFactory.SwitchToMainThreadAsync(cancellationToken);
+
+                // The user closed the panel meanwhile: nothing left to undo.
+                if (panelFrame.IsVisible() != VSConstants.S_OK)
+                {
+                    return;
+                }
+            }
+
+            if (!panel.IsChatTabOpen)
+            {
+                return;
+            }
+
+            panelFrame.Hide();
+
+            // Put back the tabs the panel displaced, but keep the chat in front when it shares a group
+            // with one of them — it is the window that was open at shutdown, and the chat tab took
+            // focus on opening exactly as it does when the panel is restored by VS.
+            ShowFramesPushedOffScreen(onScreenBefore, panelFrame);
+            IVsWindowFrame chatFrame = panel.ChatTabFrame;
+            if (chatFrame != null && !IsFrameOnScreen(chatFrame))
+            {
+                chatFrame.ShowNoActivate();
+            }
+        }
+
+        /// <summary>
+        /// Shows again, without activating, every frame of <paramref name="onScreenBefore"/> that is no
+        /// longer on screen. Returns true when a fallback <c>Show()</c> had to move focus.
+        /// </summary>
+        private static bool ShowFramesPushedOffScreen(System.Collections.Generic.List<IVsWindowFrame> onScreenBefore, IVsWindowFrame skip)
+        {
+            ThreadHelper.ThrowIfNotOnUIThread();
+
+            bool focusMoved = false;
             foreach (var frame in onScreenBefore)
             {
-                if (frame == panelFrame || IsFrameOnScreen(frame))
+                if (frame == skip || IsFrameOnScreen(frame))
                 {
                     continue;
                 }
@@ -226,10 +312,28 @@ namespace ClaudeCodeExtension
                 }
             }
 
-            if (focusMoved && activeFrame != null && activeFrame != panelFrame)
+            return focusMoved;
+        }
+
+        /// <summary>
+        /// Visual Studio is shutting down and every frame is still up: let the panel remember whether
+        /// the chat tab is open while the panel itself is closed (issue #209).
+        /// </summary>
+        protected override int QueryClose(out bool canClose)
+        {
+            int hr = base.QueryClose(out canClose);
+
+            try
             {
-                activeFrame.Show();
+                ThreadHelper.ThrowIfNotOnUIThread();
+                (FindToolWindow(typeof(ClaudeCodeVS.ClaudeCodeToolWindow), 0, false) as ClaudeCodeVS.ClaudeCodeToolWindow)?.RecordChatLayoutForRestart();
             }
+            catch (Exception ex)
+            {
+                Debug.WriteLine("Error recording the chat layout for restart: " + ex);
+            }
+
+            return hr;
         }
 
         private static bool IsFrameOnScreen(IVsWindowFrame frame)

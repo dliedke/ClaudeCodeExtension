@@ -931,6 +931,14 @@ namespace ClaudeCodeVS
         public bool UsageWindowOpened { get; set; } = false;
 
         /// <summary>
+        /// Persisted across sessions: true when Visual Studio last shut down with the native chat tab
+        /// open and the panel closed. Neither window is in the restored layout then (the panel was
+        /// closed, the chat tab is transient), so the package starts the panel itself at the next load
+        /// and closes it again once the chat tab is back (issue #209).
+        /// </summary>
+        public bool RestoreChatWithoutPanel { get; set; } = false;
+
+        /// <summary>
         /// If true, the inline mini usage bars are shown in the prompt panel
         /// when usage data has been successfully scraped. Hidden silently
         /// when scraping fails or the user is not signed in.

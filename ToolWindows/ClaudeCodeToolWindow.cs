@@ -88,6 +88,33 @@ namespace ClaudeCodeVS
         /// </summary>
         public bool HasInitialized => claudeCodeControl?.HasInitialized == true;
 
+        /// <summary>True while the native chat's own tab is open (issue #209).</summary>
+        public bool IsChatTabOpen
+        {
+            get
+            {
+                ThreadHelper.ThrowIfNotOnUIThread();
+                return claudeCodeControl?.IsChatTabOpen == true;
+            }
+        }
+
+        /// <summary>The native chat tab's frame, or null when it is not open.</summary>
+        public IVsWindowFrame ChatTabFrame
+        {
+            get
+            {
+                ThreadHelper.ThrowIfNotOnUIThread();
+                return claudeCodeControl?.ChatTabFrame;
+            }
+        }
+
+        /// <summary>Saves whether VS is closing with the chat tab open and the panel closed (issue #209).</summary>
+        public void RecordChatLayoutForRestart()
+        {
+            ThreadHelper.ThrowIfNotOnUIThread();
+            claudeCodeControl?.RecordChatLayoutForRestart();
+        }
+
         /// <summary>View &gt; Other Windows &gt; Claude Code Chat: brings the chat back wherever it went (issue #168).</summary>
         public void ShowChat()
         {
