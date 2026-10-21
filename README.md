@@ -159,6 +159,9 @@ Use native mode to avoid this issue.
 
 ## Version History
 
+### Version 253.0
+- Session History's "Resume Last Session" button now reopens the most recent Claude Code or Devin conversation in the native chat instead of closing the window and starting a fresh chat (issue #208).
+
 ### Version 252.0
 - Resuming a long native chat no longer stalls Visual Studio: historical thinking is not replayed (live thinking still streams as before), and only the newest 40 tool calls are replayed as full cards, with older ones kept as one-line summaries.
 
