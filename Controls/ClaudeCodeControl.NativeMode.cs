@@ -255,6 +255,14 @@ namespace ClaudeCodeVS
         private ClaudePermissionChoice? _nativePlanExitChoice;
 
         /// <summary>
+        /// Set when the panel's plan was approved with "Approve and skip permissions": the skip is for
+        /// that plan only (issue #210), so the end of the turn puts <see cref="_nativePlanExitChoice"/>
+        /// back to the value saved here — the mode the conversation was in before the approval.
+        /// </summary>
+        private bool _nativeSkipPlanRestorePending;
+        private ClaudePermissionChoice? _nativeSkipPlanRestoreChoice;
+
+        /// <summary>
         /// A permission pick that waits for the panel agent's plan to end (issue #193): the notice to
         /// show when it applies, and the agent session it was picked for — a relaunch or agent switch
         /// in between replaces the session, and the new one already launches with the pick.
@@ -2687,7 +2695,8 @@ namespace ClaudeCodeVS
             // for this conversation only: the saved choice stays Plan mode, so Restart and new chats
             // plan again instead of silently starting in Accept edits (#181). "Approve and skip
             // permissions" already switched the running CLI to bypass (#163) — no relaunch here, that
-            // would stop the agent mid-plan, the very thing the plan card option exists to avoid.
+            // would stop the agent mid-plan, the very thing the plan card option exists to avoid. That
+            // skip lasts for this plan only: the end of the turn switches back (#210).
             if (interaction.IsPlanReview && interaction.WasAccepted)
             {
                 bool planning = owner != null
@@ -2700,13 +2709,27 @@ namespace ClaudeCodeVS
 
                 if (exitChoice.HasValue)
                 {
+                    // Skipping is for this plan only (#210): remember the mode to come back to once
+                    // the turn that carries the plan out ends.
+                    bool restoreAfterTurn = interaction.WasApprovedAndSkippedPermissions;
+
                     if (owner != null)
                     {
+                        if (restoreAfterTurn)
+                        {
+                            owner.SkipPlanRestorePending = true;
+                            owner.SkipPlanRestoreChoice = owner.PlanExitChoice;
+                        }
                         owner.PlanExitChoice = exitChoice;
                         UpdateChatComposerState(owner);
                     }
                     else
                     {
+                        if (restoreAfterTurn)
+                        {
+                            _nativeSkipPlanRestorePending = true;
+                            _nativeSkipPlanRestoreChoice = _nativePlanExitChoice;
+                        }
                         _nativePlanExitChoice = exitChoice;
                         UpdateChatComposerState();
                     }
@@ -2885,6 +2908,9 @@ namespace ClaudeCodeVS
 
             // A permission pick that waited for the plan to end (#193) and no plan approval carried.
             ApplyDeferredNativePermissionSwitch();
+
+            // "Approve and skip permissions" skipped them for that plan only (#210).
+            RestoreNativeModeAfterSkippedPlan();
 
             FireNativeAgentFinish(finishConfig, agentEvent);
         }
@@ -3535,6 +3561,9 @@ namespace ClaudeCodeVS
 
             // A permission pick that waited for the plan to end (#193) and no plan approval carried.
             ApplyDeferredSessionPermissionSwitch(session);
+
+            // "Approve and skip permissions" skipped them for that plan only (#210).
+            RestoreSessionModeAfterSkippedPlan(session);
 
             FireNativeAgentFinish(finishConfig, agentEvent);
         }
