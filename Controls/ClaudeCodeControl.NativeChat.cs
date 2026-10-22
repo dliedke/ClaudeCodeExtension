@@ -5276,6 +5276,77 @@ namespace ClaudeCodeVS
         }
 
         /// <summary>
+        /// Called when a panel turn ends: "Approve and skip permissions" on a plan card skips the
+        /// prompts for that plan only (issue #210) — before, the conversation stayed in Skip
+        /// permissions for good. The turn that carried the plan out is over, so the override goes back
+        /// to what it was before the approval and the running session follows, live where it can.
+        /// A permission pick made since then replaced the override and is left alone.
+        /// </summary>
+        private void RestoreNativeModeAfterSkippedPlan()
+        {
+            ThreadHelper.ThrowIfNotOnUIThread();
+
+            if (!_nativeSkipPlanRestorePending)
+            {
+                return;
+            }
+
+            _nativeSkipPlanRestorePending = false;
+
+            if (_nativePlanExitChoice != ClaudePermissionChoice.SkipPermissions ||
+                !(_agentSession is ClaudeStreamJsonSession))
+            {
+                return;
+            }
+
+            _nativePlanExitChoice = _nativeSkipPlanRestoreChoice;
+            _nativeSkipPlanRestoreChoice = null;
+            UpdateChatComposerState();
+
+            string notice = "🤖 Plan carried out — back to " + GetClaudePermissionLabel(
+                GetNativeClaudePermissionChoice(_settings?.ClaudeDangerouslySkipPermissions == true));
+
+#pragma warning disable VSSDK007 // Deliberately detached: called from the turn-completed handler, which must not wait on the switch
+            ThreadHelper.JoinableTaskFactory.RunAsync(async delegate
+            {
+                await ApplyNativePermissionSwitchAsync(notice);
+            }).FileAndForget("claudecode/nativechat/skipplanrestore");
+#pragma warning restore VSSDK007
+        }
+
+        /// <summary>The parallel-tab counterpart of <see cref="RestoreNativeModeAfterSkippedPlan"/>.</summary>
+        private void RestoreSessionModeAfterSkippedPlan(NativeChatSessionState session)
+        {
+            ThreadHelper.ThrowIfNotOnUIThread();
+
+            if (!session.SkipPlanRestorePending)
+            {
+                return;
+            }
+
+            session.SkipPlanRestorePending = false;
+
+            if (session.PlanExitChoice != ClaudePermissionChoice.SkipPermissions ||
+                !(session.AgentSession is ClaudeStreamJsonSession))
+            {
+                return;
+            }
+
+            session.PlanExitChoice = session.SkipPlanRestoreChoice;
+            session.SkipPlanRestoreChoice = null;
+            UpdateChatComposerState(session);
+
+            string notice = "🤖 Plan carried out — back to " + GetClaudePermissionLabel(GetNativeClaudePermissionChoice(session));
+
+#pragma warning disable VSSDK007 // Deliberately detached: called from the turn-completed handler, which must not wait on the switch
+            ThreadHelper.JoinableTaskFactory.RunAsync(async delegate
+            {
+                await ApplySessionPermissionSwitchAsync(session, notice);
+            }).FileAndForget("claudecode/nativechat/skipplanrestore");
+#pragma warning restore VSSDK007
+        }
+
+        /// <summary>
         /// A plan was approved while a permission pick was waiting for it: plain "Approve" already
         /// carried the pick to the CLI (<see cref="ClaudeStreamJsonSession.PendingPlanExitMode"/>), so
         /// only the notice remains; "Approve and skip permissions" chose its own mode and the pick is
