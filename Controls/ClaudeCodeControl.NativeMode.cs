@@ -1755,16 +1755,7 @@ namespace ClaudeCodeVS
             {
                 // A GitHub issue tab runs in its own worktree, but the configured actions (build, run,
                 // commit & push, ...) target the open solution — keep only the sound and the info bar.
-                AgentFinishConfig full = sessionState.TurnFinishConfig;
-                sessionState.TurnFinishConfig = new AgentFinishConfig
-                {
-                    Enabled = full.Enabled,
-                    PlaySound = full.PlaySound,
-                    PlayQuestionSound = full.PlayQuestionSound,
-                    ShowToast = full.ShowToast,
-                    IdleSeconds = full.IdleSeconds,
-                    Action = AgentFinishActionType.None
-                };
+                sessionState.TurnFinishConfig = NotifyOnlyAgentFinish(sessionState.TurnFinishConfig);
             }
             _suppressNextNativeAgentFinish = false;
 
@@ -1787,6 +1778,73 @@ namespace ClaudeCodeVS
                 sessionState.ChatTranscript.SetStatus(string.Empty);
                 sessionState.ChatTranscript.SetBusy(false);
             }
+        }
+
+        /// <summary>
+        /// The "On Agent Finish" config with its action dropped: the sound and the info bar still
+        /// fire, the build/run/commit action does not. Null in, null out.
+        /// </summary>
+        private static AgentFinishConfig NotifyOnlyAgentFinish(AgentFinishConfig full)
+        {
+            if (full == null)
+                return null;
+
+            return new AgentFinishConfig
+            {
+                Enabled = full.Enabled,
+                PlaySound = full.PlaySound,
+                PlayQuestionSound = full.PlayQuestionSound,
+                ShowToast = full.ShowToast,
+                IdleSeconds = full.IdleSeconds,
+                Action = AgentFinishActionType.None
+            };
+        }
+
+        /// <summary>
+        /// A turn the agent started on its own (<see cref="AgentEventKind.TurnStarted"/>): Claude Code
+        /// resuming once its background tasks finish, after the previous turn already printed "Done".
+        /// Puts the tab back to running — clock, token count, Stop, tab glyph — so the end of this turn
+        /// gets its own footer. Its finish only notifies: nobody asked for it, so a configured build or
+        /// commit should not run off it. Not tracked for review — the snapshot could not precede the
+        /// agent's first write.
+        /// </summary>
+        private void BeginUnpromptedNativeTurn()
+        {
+            ThreadHelper.ThrowIfNotOnUIThread();
+
+            if (_nativeTurnInFlight || ChatTranscript == null || _agentSession == null)
+                return;
+
+            _nativeTurnOutputTokens = 0;
+            _nativeTurnInputTokens = 0;
+            _nativeTurnInFlight = true;
+            SetChatTabStatus(null, ChatTabStatus.Working);
+
+            ChatTranscript.BeginActivity();
+            ChatTranscript.SetBusy(_agentSession.SupportsInterrupt);
+
+            _nativeTurnStartedUtc = DateTime.UtcNow;
+            _nativeTurnFinishConfig = NotifyOnlyAgentFinish(GetEffectiveAgentFinish());
+        }
+
+        /// <summary>Per-tab counterpart of <see cref="BeginUnpromptedNativeTurn"/>.</summary>
+        private void BeginUnpromptedNativeTurnForSession(NativeChatSessionState session)
+        {
+            ThreadHelper.ThrowIfNotOnUIThread();
+
+            if (session.TurnInFlight || session.ChatTranscript == null || session.AgentSession == null)
+                return;
+
+            session.TurnOutputTokens = 0;
+            session.TurnInputTokens = 0;
+            session.TurnInFlight = true;
+            SetChatTabStatus(session, ChatTabStatus.Working);
+
+            session.ChatTranscript.BeginActivity();
+            session.ChatTranscript.SetBusy(session.AgentSession.SupportsInterrupt);
+
+            session.TurnStartedUtc = DateTime.UtcNow;
+            session.TurnFinishConfig = NotifyOnlyAgentFinish(GetEffectiveAgentFinish());
         }
 
         private async Task SendSinglePromptToNativeAgentAsync(IAgentSession session, string text)
@@ -2303,6 +2361,10 @@ namespace ClaudeCodeVS
                     SetChatTabStatus(session, ChatTabStatus.Error);
                     break;
 
+                case AgentEventKind.TurnStarted:
+                    BeginUnpromptedNativeTurnForSession(session);
+                    break;
+
                 case AgentEventKind.TurnCompleted:
                     try
                     {
@@ -2375,6 +2437,10 @@ namespace ClaudeCodeVS
                 case AgentEventKind.SessionError:
                     AddNativeMessage(ChatMessageKind.Error, agentEvent.Text);
                     SetChatTabStatus(null, ChatTabStatus.Error);
+                    break;
+
+                case AgentEventKind.TurnStarted:
+                    BeginUnpromptedNativeTurn();
                     break;
 
                 case AgentEventKind.TurnCompleted:

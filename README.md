@@ -173,6 +173,9 @@ Pull requests for new features are welcome. Bug fixes too — if you find an iss
 
 ## Version History
 
+### Version 260.0
+- When Claude Code resumes on its own after its background tasks finish, the native chat now shows the turn as running again (clock, tokens, Stop and tab status) instead of leaving it at "Done". The end of such a turn only plays the finish sound and notification, without running the configured action.
+
 ### Version 259.0
 - Native chat tabs now show what each session is doing in front of their name (⏳ working, ❓ waiting for your answer, ✳ done, ❌ error), so you no longer need to open every tab to check on it.
 - Chat tabs you have not renamed are named after their topic, taken from your first message or, for Claude Code, written by a low-cost AI model. Both options are on by default in *Settings → Layout → Chat tabs*.
