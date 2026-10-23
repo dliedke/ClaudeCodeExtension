@@ -93,6 +93,7 @@ tables. README is reference doc; keep it slim.
 ./deploy-exp.cmd            # build Debug + deploy to Exp
 ./deploy-exp.cmd -release   # Release instead
 ./deploy-exp.cmd -run       # deploy, then launch devenv /rootsuffix Exp with the solution
+./deploy-exp.cmd -run -open <path.sln>   # launch Exp with another solution (a demo app to F5)
 ```
 
 F5 / Ctrl+F5 inside Visual Studio does the same for Debug and Release: the csproj sets

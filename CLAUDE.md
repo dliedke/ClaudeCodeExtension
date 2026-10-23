@@ -50,6 +50,7 @@ The VSSDK targets default `DeployExtension` to false, so the csproj sets `VSSDKT
 ./deploy-exp.cmd            # build Debug + deploy to the Exp hive
 ./deploy-exp.cmd -release   # build Release instead of Debug
 ./deploy-exp.cmd -run       # the above, then start devenv /rootsuffix Exp with the solution
+./deploy-exp.cmd -run -open <path.sln>   # start Exp with another solution (e.g. a demo app, so F5 debugs it)
 ```
 
 - Close the Exp instance before deploying — otherwise it keeps running the previous build.
