@@ -84,6 +84,15 @@ namespace ClaudeCodeExtension.Tests
                 "Creating the tool window here would reopen a panel the user closed every time they hit F5.");
         }
 
+        [TestMethod]
+        public void APanelHiddenForTheChatTabIsNotRestoredByDebugging()
+        {
+            StringAssert.Contains(
+                ExtractMethodBody(Source, "private async Task ShowExtensionAndCreatedTabsAsync()"),
+                "if (!_panelAutoHidden)",
+                "The panel hidden because the chat moved to its own tab must not come back on every F5.");
+        }
+
         /// <summary>
         /// Issue #142: the tool window frame can stay visible-per-VS through a debug-mode layout
         /// change while the embedded conhost/wt.exe HWND — a foreign window joined via SetParent,

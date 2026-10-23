@@ -584,6 +584,7 @@ namespace ClaudeCodeVS
                 // Native mode always lives in its own document tab: the conversation gets the full
                 // editor width and its own composer, instead of the narrow panel strip.
                 await ShowNativeChatTabAsync(focusComposer: false);
+                HidePanelIfChatInOwnTab();
 
                 LogTerminalLaunch($"Native mode: started successfully for provider={provider}");
                 return NativeStartOutcome.Started;

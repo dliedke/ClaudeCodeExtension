@@ -540,6 +540,14 @@ namespace ClaudeCodeVS
         public bool AutoHidePromptInNativeMode { get; set; } = true;
 
         /// <summary>
+        /// If true, the panel itself is hidden once native mode's chat is showing in its own document
+        /// tab — by then the panel holds nothing but the usage bars and a Show Chat button. It comes
+        /// back whenever the chat docks back into it or native mode ends, and View &gt; Other Windows
+        /// &gt; Claude Code Extension still shows it on demand. On by default.
+        /// </summary>
+        public bool AutoHidePanelInNativeMode { get; set; } = true;
+
+        /// <summary>
         /// Zoom factor of the native-mode chat tab, set with Ctrl+Scroll. 1.0 is 100%.
         /// </summary>
         public double NativeChatZoom { get; set; } = 1.0;

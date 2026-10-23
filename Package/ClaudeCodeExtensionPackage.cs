@@ -588,11 +588,16 @@ namespace ClaudeCodeExtension
                 if (window?.Frame == null)
                     return;
 
-                IVsWindowFrame windowFrame = (IVsWindowFrame)window.Frame;
-                Microsoft.VisualStudio.ErrorHandler.ThrowOnFailure(windowFrame.Show());
+                // With the native chat in its own tab the snippet goes to the chat, so the panel
+                // (possibly hidden on purpose) has nothing to show.
+                var toolWindow = window as ClaudeCodeVS.ClaudeCodeToolWindow;
+                if (toolWindow?.IsChatDetachedToOwnTab != true)
+                {
+                    IVsWindowFrame windowFrame = (IVsWindowFrame)window.Frame;
+                    Microsoft.VisualStudio.ErrorHandler.ThrowOnFailure(windowFrame.Show());
+                }
 
                 // Insert snippet into the prompt
-                var toolWindow = window as ClaudeCodeVS.ClaudeCodeToolWindow;
                 toolWindow?.InsertCodeSnippet(code, filePath, startLine, endLine);
             }
             catch (Exception ex)

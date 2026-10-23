@@ -173,6 +173,9 @@ Pull requests for new features are welcome. Bug fixes too — if you find an iss
 
 ## Version History
 
+### Version 258.0
+- In native mode the Claude Code panel now hides itself once the chat opens in its own tab, instead of staying open as an empty window. It comes back when the chat is docked back or native mode is turned off; turn it off in *Settings → Layout* ("Hide this panel while the native chat is in its own tab").
+
 ### Version 257.0
 - "Approve and skip permissions" on a plan now skips permission prompts for that plan only: once the agent finishes it, the chat returns to the mode it was in before, such as Plan mode (issue #210).
 
