@@ -632,6 +632,15 @@ namespace ClaudeCodeVS.Agents
 
             foreach (AgentEvent agentEvent in _parser.Parse(line))
             {
+                // Output with no turn running: the CLI started one on its own (background tasks
+                // finished, or a prompt queued during the last turn). Busy again, so Stop works, and
+                // the UI is told so it shows the turn as running instead of leaving it at "Done".
+                if (IsTurnOutput(agentEvent.Kind) &&
+                    Interlocked.CompareExchange(ref _busy, 1, 0) == 0)
+                {
+                    Raise(AgentEvent.TurnStarted());
+                }
+
                 if (agentEvent.Kind == AgentEventKind.InteractionRequested)
                 {
                     AgentInteractionRequest interaction = agentEvent.Interaction;
@@ -709,6 +718,15 @@ namespace ClaudeCodeVS.Agents
 
                 Raise(agentEvent);
             }
+        }
+
+        /// <summary>Events only a running turn produces — the ones that mean the agent is working.</summary>
+        internal static bool IsTurnOutput(AgentEventKind kind)
+        {
+            return kind == AgentEventKind.AssistantText ||
+                   kind == AgentEventKind.Thinking ||
+                   kind == AgentEventKind.ToolCallStarted ||
+                   kind == AgentEventKind.InteractionRequested;
         }
 
         private void OnErrorLineReceived(object sender, string line)

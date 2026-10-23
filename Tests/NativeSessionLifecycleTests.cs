@@ -71,6 +71,29 @@ namespace ClaudeCodeExtension.Tests
             StringAssert.Contains(body, "ShowNativeTranscript(false)");
         }
 
+        [TestMethod]
+        public void ClaudeOutputAfterTheTurnEnded_ReopensTheTurn()
+        {
+            // Claude Code resumes on its own when background tasks finish; without TurnStarted the tab
+            // sat on "Done" while the agent kept working, with no clock, no tokens and no Stop.
+            Assert.IsTrue(ClaudeStreamJsonSession.IsTurnOutput(AgentEventKind.AssistantText));
+            Assert.IsTrue(ClaudeStreamJsonSession.IsTurnOutput(AgentEventKind.Thinking));
+            Assert.IsTrue(ClaudeStreamJsonSession.IsTurnOutput(AgentEventKind.ToolCallStarted));
+            Assert.IsTrue(ClaudeStreamJsonSession.IsTurnOutput(AgentEventKind.InteractionRequested));
+
+            // Bookkeeping that can trail the result line must not restart a finished turn.
+            Assert.IsFalse(ClaudeStreamJsonSession.IsTurnOutput(AgentEventKind.TurnCompleted));
+            Assert.IsFalse(ClaudeStreamJsonSession.IsTurnOutput(AgentEventKind.RateLimitUpdated));
+            Assert.IsFalse(ClaudeStreamJsonSession.IsTurnOutput(AgentEventKind.UsageUpdated));
+            Assert.IsFalse(ClaudeStreamJsonSession.IsTurnOutput(AgentEventKind.SessionStarted));
+
+            string source = NativeModeSource;
+            StringAssert.Contains(source, "BeginUnpromptedNativeTurn();",
+                "The default chat must handle TurnStarted.");
+            StringAssert.Contains(source, "BeginUnpromptedNativeTurnForSession(session);",
+                "Each parallel chat tab must handle TurnStarted.");
+        }
+
         /// <summary>
         /// Returns the text of a method's body, located by its signature and closed by brace matching.
         /// </summary>

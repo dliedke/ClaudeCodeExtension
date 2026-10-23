@@ -558,6 +558,7 @@ namespace ClaudeCodeVS
                 _lastNativeRateLimitNotice = null;
                 _nativeTurnFinishConfig = null;
                 _nativeTurnInFlight = false;
+                ResetChatTabTopic(null);
                 ChatTranscript.SetStatus("Starting the agent...");
 
                 await session.StartAsync(workspace, _nativeSessionCts.Token);
@@ -1742,6 +1743,8 @@ namespace ClaudeCodeVS
             sessionState.TurnOutputTokens = 0;
             sessionState.TurnInputTokens = 0;
             sessionState.TurnInFlight = true;
+            SetChatTabStatus(sessionState, ChatTabStatus.Working);
+            BeginAutoChatTitle(sessionState, sessionState.SelectedProvider, text);
 
             sessionState.ChatTranscript.BeginActivity();
             sessionState.ChatTranscript.SetBusy(sessionState.AgentSession.SupportsInterrupt);
@@ -1752,16 +1755,7 @@ namespace ClaudeCodeVS
             {
                 // A GitHub issue tab runs in its own worktree, but the configured actions (build, run,
                 // commit & push, ...) target the open solution — keep only the sound and the info bar.
-                AgentFinishConfig full = sessionState.TurnFinishConfig;
-                sessionState.TurnFinishConfig = new AgentFinishConfig
-                {
-                    Enabled = full.Enabled,
-                    PlaySound = full.PlaySound,
-                    PlayQuestionSound = full.PlayQuestionSound,
-                    ShowToast = full.ShowToast,
-                    IdleSeconds = full.IdleSeconds,
-                    Action = AgentFinishActionType.None
-                };
+                sessionState.TurnFinishConfig = NotifyOnlyAgentFinish(sessionState.TurnFinishConfig);
             }
             _suppressNextNativeAgentFinish = false;
 
@@ -1779,10 +1773,78 @@ namespace ClaudeCodeVS
                 EndPendingReviewTurn(reviewKey);
                 AddNativeMessageToSession(sessionState, ChatMessageKind.Error, DescribeNativeSendFailure(ex));
                 sessionState.TurnInFlight = false;
+                SetChatTabStatus(sessionState, ChatTabStatus.Error);
                 sessionState.ChatTranscript.EndActivity(string.Empty);
                 sessionState.ChatTranscript.SetStatus(string.Empty);
                 sessionState.ChatTranscript.SetBusy(false);
             }
+        }
+
+        /// <summary>
+        /// The "On Agent Finish" config with its action dropped: the sound and the info bar still
+        /// fire, the build/run/commit action does not. Null in, null out.
+        /// </summary>
+        private static AgentFinishConfig NotifyOnlyAgentFinish(AgentFinishConfig full)
+        {
+            if (full == null)
+                return null;
+
+            return new AgentFinishConfig
+            {
+                Enabled = full.Enabled,
+                PlaySound = full.PlaySound,
+                PlayQuestionSound = full.PlayQuestionSound,
+                ShowToast = full.ShowToast,
+                IdleSeconds = full.IdleSeconds,
+                Action = AgentFinishActionType.None
+            };
+        }
+
+        /// <summary>
+        /// A turn the agent started on its own (<see cref="AgentEventKind.TurnStarted"/>): Claude Code
+        /// resuming once its background tasks finish, after the previous turn already printed "Done".
+        /// Puts the tab back to running — clock, token count, Stop, tab glyph — so the end of this turn
+        /// gets its own footer. Its finish only notifies: nobody asked for it, so a configured build or
+        /// commit should not run off it. Not tracked for review — the snapshot could not precede the
+        /// agent's first write.
+        /// </summary>
+        private void BeginUnpromptedNativeTurn()
+        {
+            ThreadHelper.ThrowIfNotOnUIThread();
+
+            if (_nativeTurnInFlight || ChatTranscript == null || _agentSession == null)
+                return;
+
+            _nativeTurnOutputTokens = 0;
+            _nativeTurnInputTokens = 0;
+            _nativeTurnInFlight = true;
+            SetChatTabStatus(null, ChatTabStatus.Working);
+
+            ChatTranscript.BeginActivity();
+            ChatTranscript.SetBusy(_agentSession.SupportsInterrupt);
+
+            _nativeTurnStartedUtc = DateTime.UtcNow;
+            _nativeTurnFinishConfig = NotifyOnlyAgentFinish(GetEffectiveAgentFinish());
+        }
+
+        /// <summary>Per-tab counterpart of <see cref="BeginUnpromptedNativeTurn"/>.</summary>
+        private void BeginUnpromptedNativeTurnForSession(NativeChatSessionState session)
+        {
+            ThreadHelper.ThrowIfNotOnUIThread();
+
+            if (session.TurnInFlight || session.ChatTranscript == null || session.AgentSession == null)
+                return;
+
+            session.TurnOutputTokens = 0;
+            session.TurnInputTokens = 0;
+            session.TurnInFlight = true;
+            SetChatTabStatus(session, ChatTabStatus.Working);
+
+            session.ChatTranscript.BeginActivity();
+            session.ChatTranscript.SetBusy(session.AgentSession.SupportsInterrupt);
+
+            session.TurnStartedUtc = DateTime.UtcNow;
+            session.TurnFinishConfig = NotifyOnlyAgentFinish(GetEffectiveAgentFinish());
         }
 
         private async Task SendSinglePromptToNativeAgentAsync(IAgentSession session, string text)
@@ -1804,6 +1866,8 @@ namespace ClaudeCodeVS
             _nativeTurnOutputTokens = 0;
             _nativeTurnInputTokens = 0;
             _nativeTurnInFlight = true;
+            SetChatTabStatus(null, ChatTabStatus.Working);
+            BeginAutoChatTitle(null, GetActiveOrSelectedProvider(), text);
 
             // A spinner and a running clock rather than a motionless "Working...": on a twenty-minute
             // turn there is otherwise no way to tell progress from a hang.
@@ -1831,6 +1895,7 @@ namespace ClaudeCodeVS
                 EndPendingReviewTurn(session);
                 AddNativeMessage(ChatMessageKind.Error, DescribeNativeSendFailure(ex));
                 _nativeTurnInFlight = false;
+                SetChatTabStatus(null, ChatTabStatus.Error);
                 ChatTranscript.EndActivity(string.Empty);
                 ChatTranscript.SetStatus(string.Empty);
                 ChatTranscript.SetBusy(false);
@@ -2293,6 +2358,11 @@ namespace ClaudeCodeVS
 
                 case AgentEventKind.SessionError:
                     AddNativeMessageToSession(session, ChatMessageKind.Error, agentEvent.Text);
+                    SetChatTabStatus(session, ChatTabStatus.Error);
+                    break;
+
+                case AgentEventKind.TurnStarted:
+                    BeginUnpromptedNativeTurnForSession(session);
                     break;
 
                 case AgentEventKind.TurnCompleted:
@@ -2366,6 +2436,11 @@ namespace ClaudeCodeVS
 
                 case AgentEventKind.SessionError:
                     AddNativeMessage(ChatMessageKind.Error, agentEvent.Text);
+                    SetChatTabStatus(null, ChatTabStatus.Error);
+                    break;
+
+                case AgentEventKind.TurnStarted:
+                    BeginUnpromptedNativeTurn();
                     break;
 
                 case AgentEventKind.TurnCompleted:
@@ -2620,6 +2695,7 @@ namespace ClaudeCodeVS
 
             var interaction = new ChatInteractionViewModel(request);
             transcript.AddInteraction(interaction);
+            SetChatTabStatus(owner, ChatTabStatus.WaitingForUser);
 
             // The label changes but the clock keeps running: the turn is still open, and the time spent
             // waiting for the user is part of how long it took.
@@ -2690,6 +2766,8 @@ namespace ClaudeCodeVS
             {
                 return;
             }
+
+            ResumeWorkingChatTabStatus(owner);
 
             // Approving the plan is how a conversation leaves plan mode, so a resumed relaunch
             // (model/effort switch) must not put the agent straight back into planning. That is kept
@@ -2879,6 +2957,7 @@ namespace ClaudeCodeVS
             TimeSpan elapsed = ResolveTurnDuration(agentEvent.Usage);
             bool wasInFlight = _nativeTurnInFlight;
             _nativeTurnInFlight = false;
+            CompleteChatTabStatus(null);
 
             // Kept for the composer's usage popup, which reads the context window from the last turn.
             if (agentEvent.StatusLine != null)
@@ -3188,6 +3267,8 @@ namespace ClaudeCodeVS
             // Keep the originating transcript visibly blocked while the modal is up; the turn clock
             // keeps running, so waiting time still counts toward the turn.
             transcript?.SetActivityLabel("Waiting for your answer...");
+            NativeChatSessionState owner = ResolveSessionFromSender(transcript);
+            SetChatTabStatus(owner, ChatTabStatus.WaitingForUser);
 
             GetThemeBrushes(out Brush themeBg, out Brush themeFg);
 
@@ -3279,6 +3360,7 @@ namespace ClaudeCodeVS
             {
                 // Hand the status line back to the rotating verbs: the agent runs again once answered.
                 transcript?.SetActivityLabel(string.Empty);
+                ResumeWorkingChatTabStatus(owner);
 
                 if (string.IsNullOrEmpty(chosenOptionId))
                 {
@@ -3542,6 +3624,7 @@ namespace ClaudeCodeVS
             TimeSpan elapsed = ResolveTurnDurationForSession(session, agentEvent.Usage);
             bool wasInFlight = session.TurnInFlight;
             session.TurnInFlight = false;
+            CompleteChatTabStatus(session);
 
             // Stops the spinner and the running clock. Without this the tab shows "Puzzling... 51s"
             // forever even though the turn already ended.

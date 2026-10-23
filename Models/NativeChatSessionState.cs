@@ -64,6 +64,15 @@ namespace ClaudeCodeVS
         public int TurnOutputTokens { get; set; }
         public int TurnInputTokens { get; set; }
         public AgentFinishConfig TurnFinishConfig { get; set; }
+
+        /// <summary>What the tab shows in front of its caption (working, waiting, done, error).</summary>
+        public ChatTabStatus TabStatus { get; set; }
+
+        /// <summary>Title taken from the conversation's topic while the user has not named the tab.</summary>
+        public string AutoTitle { get; set; }
+
+        /// <summary>Identifies the AI title call in flight; null when none. A reset makes a late answer stale.</summary>
+        public object AutoTitleRequest { get; set; }
         public string LastRateLimitNotice { get; set; }
 
         /// <summary>

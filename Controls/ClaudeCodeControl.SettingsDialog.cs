@@ -496,6 +496,29 @@ namespace ClaudeCodeVS
                 origShowSubagentCount, themeFg);
             layoutStack.Children.Add(showSubagentCountCheck);
 
+            layoutStack.Children.Add(MakeSectionHeader("Chat tabs (native mode)", themeFg));
+            var showChatTabStatusCheck = MakeCheckBox(
+                "Show the session status on each chat tab",
+                "Puts a symbol in front of each chat tab's name, so you can tell from the tab strip what every session is doing: ⏳ working, ❓ waiting for your answer, ✳ done, ❌ error.",
+                _settings.ShowChatTabStatus, themeFg);
+            layoutStack.Children.Add(showChatTabStatusCheck);
+
+            var autoTitleCheck = MakeCheckBox(
+                "Automatically name chat tabs after the topic",
+                "A chat tab you have not renamed takes its name from your first message in it. Renaming the session always wins.",
+                _settings.AutoTitleChatTabs, themeFg);
+            layoutStack.Children.Add(autoTitleCheck);
+
+            var autoTitleAiCheck = MakeCheckBox(
+                "Use a low-cost AI model to generate the topic",
+                "Claude Code chats get a short title written by a low-cost model (Claude Haiku) from your first message, instead of its first words. One small extra call per chat. Other agents keep the first-words title.",
+                _settings.AutoTitleChatTabsWithAi, themeFg);
+            autoTitleAiCheck.Margin = new Thickness(20, autoTitleAiCheck.Margin.Top, autoTitleAiCheck.Margin.Right, autoTitleAiCheck.Margin.Bottom);
+            autoTitleAiCheck.IsEnabled = autoTitleCheck.IsChecked == true;
+            autoTitleCheck.Checked += (s, e) => autoTitleAiCheck.IsEnabled = true;
+            autoTitleCheck.Unchecked += (s, e) => autoTitleAiCheck.IsEnabled = false;
+            layoutStack.Children.Add(autoTitleAiCheck);
+
             // ========================= Terminal tab =========================
             var terminalStack = AddTab("Terminal");
 
@@ -1489,6 +1512,13 @@ namespace ClaudeCodeVS
             _settings.DefaultNativeSessionColor = newDefaultNativeColor;
             _settings.ShowInlineUsageBars    = newShowInlineBars;
             _settings.ShowSubagentCount      = newShowSubagentCount;
+
+            // Chat tab captions only need a refresh; a new AI/title choice applies from the next chat.
+            bool chatTabCaptionsChanged = (showChatTabStatusCheck.IsChecked == true) != _settings.ShowChatTabStatus
+                                          || (autoTitleCheck.IsChecked == true) != _settings.AutoTitleChatTabs;
+            _settings.ShowChatTabStatus       = showChatTabStatusCheck.IsChecked == true;
+            _settings.AutoTitleChatTabs       = autoTitleCheck.IsChecked == true;
+            _settings.AutoTitleChatTabsWithAi = autoTitleAiCheck.IsChecked == true;
             _settings.UsageAutoRefreshSeconds = newAutoRefresh;
             _settings.PromptFontSize          = newFontSize;
             _settings.VisibleToolbarButtons   = newVisibleToolbarButtons;
@@ -1581,6 +1611,11 @@ namespace ClaudeCodeVS
             if (newShowSubagentCount != origShowSubagentCount)
             {
                 RefreshSubagentCountMonitor();
+            }
+
+            if (chatTabCaptionsChanged)
+            {
+                RefreshAllChatTabCaptions();
             }
 
             // Usage settings change: refresh inline bars visibility and auto-refresh cadence

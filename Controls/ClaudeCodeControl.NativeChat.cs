@@ -1012,7 +1012,8 @@ namespace ClaudeCodeVS
             }
 
             string title = GetCurrentNativeSessionTitle();
-            _nativeChatWindow.UpdateCaption(BuildChatTabCaption(GetActiveOrSelectedProvider(), title));
+            string captionTitle = string.IsNullOrWhiteSpace(title) ? GetAutoChatTitle(null) : title;
+            _nativeChatWindow.UpdateCaption(DecorateChatTabCaption(null, BuildChatTabCaption(GetActiveOrSelectedProvider(), captionTitle)));
 
             // Also kept as a header above the transcript: the VS tab strip truncates, and with several
             // chats open the header is what tells them apart once a tab is selected.
@@ -1021,17 +1022,19 @@ namespace ClaudeCodeVS
         }
 
         /// <summary>
-        /// Tab caption for a chat: the agent's name plus the session's custom title when it has one,
-        /// so several open chats are distinguishable from the tab strip alone.
+        /// Tab caption for a chat: the session's title (custom or automatic) when it has one, so several
+        /// open chats are distinguishable from the tab strip alone — the agent's name in front of it
+        /// left no room for the title once VS truncated the tab (v259.0). Untitled: the agent's name.
         /// </summary>
         private string BuildChatTabCaption(AiProvider? provider, string sessionTitle)
         {
-            string name = GetProviderDisplayName(provider);
-            string caption = string.IsNullOrEmpty(name) ? "Chat" : name + " Chat";
+            if (!string.IsNullOrWhiteSpace(sessionTitle))
+            {
+                return sessionTitle.Trim();
+            }
 
-            return string.IsNullOrWhiteSpace(sessionTitle)
-                ? caption
-                : caption + " — " + sessionTitle.Trim();
+            string name = GetProviderDisplayName(provider);
+            return string.IsNullOrEmpty(name) ? "Chat" : name + " Chat";
         }
 
         /// <summary>Refreshes the caption and header of one session's tab, leaving the others alone.</summary>
@@ -1052,7 +1055,8 @@ namespace ClaudeCodeVS
                 title = "Issue #" + session.IssueNumber + (string.IsNullOrWhiteSpace(session.IssueTitle) ? string.Empty : ": " + session.IssueTitle.Trim());
             }
 
-            session.Window?.UpdateCaption(BuildChatTabCaption(session.SelectedProvider, title));
+            string captionTitle = string.IsNullOrWhiteSpace(title) ? GetAutoChatTitle(session) : title;
+            session.Window?.UpdateCaption(DecorateChatTabCaption(session, BuildChatTabCaption(session.SelectedProvider, captionTitle)));
             session.ChatTranscript.SetSessionTitle(title);
             session.ChatTranscript.SetSessionTitleColor(GetNativeSessionColor(agentSessionId));
         }
@@ -5873,6 +5877,16 @@ namespace ClaudeCodeVS
 
                 await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
 
+                // Without a resume the relaunch starts another conversation: the old topic no longer applies.
+                if (!canResume)
+                {
+                    ResetChatTabTopic(null);
+                }
+                else
+                {
+                    SettleChatTabStatusAfterRelaunch(null);
+                }
+
                 ChatTranscript.SetBusy(false);
                 ChatTranscript.SetQueuedMessageCount(0);
                 ChatTranscript.SetStatus("Restarting the agent...");
@@ -6060,6 +6074,16 @@ namespace ClaudeCodeVS
                     : await GetWorkspaceDirectoryAsync();
 
                 await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
+
+                // A new or another conversation (no resume, or one picked from history): the old topic no longer applies.
+                if (!canResume || isHistoryResume)
+                {
+                    ResetChatTabTopic(session);
+                }
+                else
+                {
+                    SettleChatTabStatusAfterRelaunch(session);
+                }
 
                 ChatTranscriptView transcript = session.ChatTranscript;
                 transcript.SetBusy(false);

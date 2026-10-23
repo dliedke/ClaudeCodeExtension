@@ -176,7 +176,7 @@ namespace ClaudeCodeVS.Agents
             };
         }
 
-        private static JObject FindResultEnvelope(string output)
+        internal static JObject FindResultEnvelope(string output)
         {
             if (string.IsNullOrWhiteSpace(output))
             {

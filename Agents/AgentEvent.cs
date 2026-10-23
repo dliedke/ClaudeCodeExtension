@@ -64,6 +64,13 @@ namespace ClaudeCodeVS.Agents
         TurnCompleted,
 
         /// <summary>
+        /// The agent started a turn nobody sent a prompt for — Claude Code resuming on its own when
+        /// background tasks finish, or picking up a prompt queued during the previous turn. Raised
+        /// just before that turn's first output; prompted turns never raise it.
+        /// </summary>
+        TurnStarted,
+
+        /// <summary>
         /// Token counts reported <b>during</b> a turn, so the status line can count up live instead of
         /// only settling once at the end. Providers whose protocol says nothing until the turn is over
         /// simply never raise it — the elapsed clock still runs.
@@ -509,6 +516,11 @@ namespace ClaudeCodeVS.Agents
                 PermissionDenials = denials,
                 WasInterrupted = wasInterrupted
             };
+        }
+
+        public static AgentEvent TurnStarted()
+        {
+            return new AgentEvent { Kind = AgentEventKind.TurnStarted };
         }
 
         /// <summary>

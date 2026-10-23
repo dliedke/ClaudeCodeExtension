@@ -408,14 +408,48 @@ namespace ClaudeCodeVS
         }
 
         /// <summary>
-        /// Runs the advisor: a one-shot <c>claude --print</c> in the workspace, prompt over stdin
-        /// (nothing to escape, no length limit), answer read from the single JSON result line. Uses the
-        /// same CLI the conversation does — the WSL one for Claude Code (WSL), the resolved Windows
-        /// executable (custom path included) otherwise. Returns a recommendation or an error message;
-        /// both are null when <paramref name="cancellationToken"/> fired first.
+        /// Runs the advisor (see <see cref="RunClaudeOneShotAsync"/>). Returns a recommendation or an
+        /// error message; both are null when <paramref name="cancellationToken"/> fired first.
         /// </summary>
         private async Task<(ModelRecommendation Recommendation, string Error)> RequestModelRecommendationAsync(
             AiProvider provider, string prompt, CancellationToken cancellationToken)
+        {
+            (string text, string error) = await RunClaudeOneShotAsync(
+                provider,
+                ClaudeCommandBuilder.GetModelRecommendationArguments,
+                ModelRecommender.BuildRequest(prompt),
+                ModelRecommendationTimeoutMs,
+                cancellationToken);
+
+            if (text == null)
+            {
+                return (null, error);
+            }
+
+            ModelRecommendation recommendation = ModelRecommender.ParseOutput(text, out string parseError);
+            if (recommendation != null)
+            {
+                return (recommendation, null);
+            }
+
+            // Nothing on stdout at all usually means the CLI failed to start (not installed in the
+            // distro, bad custom path); stderr says why.
+            return (null, string.IsNullOrWhiteSpace(text) && !string.IsNullOrEmpty(error) ? error : parseError);
+        }
+
+        /// <summary>
+        /// Runs a one-shot <c>claude --print</c> in the workspace, request over stdin (nothing to escape,
+        /// no length limit). Uses the same CLI the conversation does — the WSL one for Claude Code (WSL),
+        /// the resolved Windows executable (custom path included) otherwise. Returns stdout plus stderr
+        /// (as Error) once the CLI exits; stdout is null when it failed to run or timed out (Error says
+        /// why) and both are null when <paramref name="cancellationToken"/> fired first.
+        /// </summary>
+        private async Task<(string Output, string Error)> RunClaudeOneShotAsync(
+            AiProvider provider,
+            Func<ClaudeSessionOptions, string> buildArguments,
+            string request,
+            int timeoutMs,
+            CancellationToken cancellationToken)
         {
             string workspace = await GetWorkspaceDirectoryAsync();
             if (string.IsNullOrWhiteSpace(workspace) || !Directory.Exists(workspace))
@@ -435,7 +469,7 @@ namespace ClaudeCodeVS
             var hostOptions = new JsonLineProcessOptions
             {
                 FileName = ClaudeCommandBuilder.GetFileName(options),
-                Arguments = ClaudeCommandBuilder.GetModelRecommendationArguments(options),
+                Arguments = buildArguments(options),
                 WorkingDirectory = workspace
             };
 
@@ -465,10 +499,10 @@ namespace ClaudeCodeVS
                 await host.StartAsync(cancellationToken);
 
                 // EOF is what tells the CLI the prompt is complete.
-                await host.WriteLineAsync(ModelRecommender.BuildRequest(prompt), cancellationToken);
+                await host.WriteLineAsync(request, cancellationToken);
                 host.CloseInput();
 
-                Task completed = await Task.WhenAny(exited.Task, Task.Delay(ModelRecommendationTimeoutMs, cancellationToken));
+                Task completed = await Task.WhenAny(exited.Task, Task.Delay(timeoutMs, cancellationToken));
                 if (cancellationToken.IsCancellationRequested)
                 {
                     return (null, null);
@@ -484,18 +518,10 @@ namespace ClaudeCodeVS
                 string text;
                 lock (output) { text = output.ToString(); }
 
-                ModelRecommendation recommendation = ModelRecommender.ParseOutput(text, out string error);
-                if (recommendation != null)
-                {
-                    return (recommendation, null);
-                }
-
-                // Nothing on stdout at all usually means the CLI failed to start (not installed in the
-                // distro, bad custom path); stderr says why.
                 string detail;
                 lock (stderr) { detail = stderr.ToString().Trim(); }
 
-                return (null, string.IsNullOrWhiteSpace(text) && detail.Length > 0 ? detail : error);
+                return (text, detail);
             }
             catch (OperationCanceledException)
             {
@@ -503,7 +529,7 @@ namespace ClaudeCodeVS
             }
             catch (Exception ex)
             {
-                Debug.WriteLine($"Recommend AI Model failed: {ex}");
+                Debug.WriteLine($"Claude one-shot call failed: {ex}");
                 return (null, ex.Message);
             }
             finally

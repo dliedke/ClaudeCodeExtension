@@ -1,0 +1,291 @@
+/* *******************************************************************************************************************
+ * Application: ClaudeCodeExtension
+ *
+ * Autor:  Daniel Carvalho Liedke / Claude Code
+ *
+ * Copyright © Daniel Carvalho Liedke 2026
+ * Usage and reproduction in any manner whatsoever without the written permission of Daniel Carvalho Liedke is strictly forbidden.
+ *
+ * Purpose: Native chat tab status glyph (working / waiting for the user / done / error) and automatic tab
+ *          title from the conversation's topic (first prompt, or a low-cost AI call for Claude Code)
+ *
+ * *******************************************************************************************************************/
+
+using System;
+using System.Diagnostics;
+using System.Threading;
+using System.Threading.Tasks;
+using ClaudeCodeVS.Agents;
+using ClaudeCodeVS.UI;
+using Microsoft.VisualStudio.Shell;
+
+namespace ClaudeCodeVS
+{
+    public partial class ClaudeCodeControl
+    {
+        #region Chat Tab Status & Auto Title
+
+        /// <summary>Longest the title call is given; a slow answer just leaves the prompt-based title.</summary>
+        private const int SessionTitleTimeoutMs = 60000;
+
+        // The default session's counterparts of NativeChatSessionState.TabStatus / AutoTitle /
+        // AutoTitleRequest (the default session is not in _nativeSessions).
+        private ChatTabStatus _defaultTabStatus;
+        private string _defaultAutoTitle;
+        private object _defaultAutoTitleRequest;
+
+        /// <summary>
+        /// Sets what the tab of <paramref name="session"/> (null = the default session) shows in front of
+        /// its caption, and refreshes the caption when it changed.
+        /// </summary>
+        private void SetChatTabStatus(NativeChatSessionState session, ChatTabStatus status)
+        {
+            ThreadHelper.ThrowIfNotOnUIThread();
+
+            if (session != null)
+            {
+                if (session.TabStatus == status)
+                {
+                    return;
+                }
+
+                session.TabStatus = status;
+                UpdateSessionTabCaption(session);
+                return;
+            }
+
+            if (_defaultTabStatus == status)
+            {
+                return;
+            }
+
+            _defaultTabStatus = status;
+            UpdateChatTabCaption();
+        }
+
+        private ChatTabStatus GetChatTabStatus(NativeChatSessionState session)
+        {
+            return session != null ? session.TabStatus : _defaultTabStatus;
+        }
+
+        /// <summary>A question, permission or plan card was answered: back to "working" while the turn runs.</summary>
+        private void ResumeWorkingChatTabStatus(NativeChatSessionState session)
+        {
+            ThreadHelper.ThrowIfNotOnUIThread();
+
+            bool turnInFlight = session != null ? session.TurnInFlight : _nativeTurnInFlight;
+            if (turnInFlight && GetChatTabStatus(session) == ChatTabStatus.WaitingForUser)
+            {
+                SetChatTabStatus(session, ChatTabStatus.Working);
+            }
+        }
+
+        /// <summary>The turn ended. An error reported during it stays visible until the next prompt.</summary>
+        private void CompleteChatTabStatus(NativeChatSessionState session)
+        {
+            ThreadHelper.ThrowIfNotOnUIThread();
+
+            if (GetChatTabStatus(session) != ChatTabStatus.Error)
+            {
+                SetChatTabStatus(session, ChatTabStatus.Done);
+            }
+        }
+
+        /// <summary>
+        /// A relaunch that resumes the same conversation (model/effort/permission switch, interrupt) ends
+        /// whatever turn was running, so a tab still showing "working" or "waiting" would never clear.
+        /// </summary>
+        private void SettleChatTabStatusAfterRelaunch(NativeChatSessionState session)
+        {
+            ThreadHelper.ThrowIfNotOnUIThread();
+
+            ChatTabStatus status = GetChatTabStatus(session);
+            if (status == ChatTabStatus.Working || status == ChatTabStatus.WaitingForUser)
+            {
+                SetChatTabStatus(session, ChatTabStatus.Done);
+            }
+        }
+
+        /// <summary>
+        /// A different conversation starts in this tab (new chat, resume from history): its status and
+        /// automatic title belong to the previous one. A title call still running is ignored when it lands.
+        /// </summary>
+        private void ResetChatTabTopic(NativeChatSessionState session)
+        {
+            ThreadHelper.ThrowIfNotOnUIThread();
+
+            if (session != null)
+            {
+                session.AutoTitle = null;
+                session.AutoTitleRequest = null;
+            }
+            else
+            {
+                _defaultAutoTitle = null;
+                _defaultAutoTitleRequest = null;
+            }
+
+            SetChatTabStatus(session, ChatTabStatus.None);
+        }
+
+        /// <summary>The automatic title for the tab, or empty when there is none or the feature is off.</summary>
+        private string GetAutoChatTitle(NativeChatSessionState session)
+        {
+            if (_settings?.AutoTitleChatTabs != true)
+            {
+                return string.Empty;
+            }
+
+            return (session != null ? session.AutoTitle : _defaultAutoTitle) ?? string.Empty;
+        }
+
+        /// <summary>The caption text for a tab: the status glyph (when on) in front of the base caption.</summary>
+        private string DecorateChatTabCaption(NativeChatSessionState session, string caption)
+        {
+            return ChatTabCaption.WithStatus(caption, GetChatTabStatus(session), _settings?.ShowChatTabStatus != false);
+        }
+
+        /// <summary>
+        /// Names an untitled tab after the first prompt sent in it: the first words at once, then — for
+        /// Claude Code with the AI option on — a short title from the low-cost model when it answers.
+        /// Does nothing once the tab has a title of any kind (renamed, GitHub issue, automatic).
+        /// </summary>
+        private void BeginAutoChatTitle(NativeChatSessionState session, AiProvider? provider, string prompt)
+        {
+            ThreadHelper.ThrowIfNotOnUIThread();
+
+            if (_settings?.AutoTitleChatTabs != true || string.IsNullOrWhiteSpace(prompt))
+            {
+                return;
+            }
+
+            // A slash command says nothing about the topic; wait for a real prompt.
+            if (prompt.TrimStart().StartsWith("/", StringComparison.Ordinal))
+            {
+                return;
+            }
+
+            string agentSessionId = session != null ? session.AgentSession?.SessionId : _agentSession?.SessionId;
+            bool hasTitle = !string.IsNullOrWhiteSpace(GetNativeSessionTitle(agentSessionId))
+                            || (session != null && session.IssueNumber > 0)
+                            || !string.IsNullOrEmpty(session != null ? session.AutoTitle : _defaultAutoTitle)
+                            || (session != null ? session.AutoTitleRequest : _defaultAutoTitleRequest) != null;
+            if (hasTitle)
+            {
+                return;
+            }
+
+            string fromPrompt = ChatTabCaption.TitleFromPrompt(prompt);
+            if (fromPrompt.Length == 0)
+            {
+                return;
+            }
+
+            SetAutoChatTitle(session, fromPrompt);
+
+            if (!_settings.AutoTitleChatTabsWithAi || !IsClaudeProvider(provider))
+            {
+                return;
+            }
+
+            var request = new object();
+            if (session != null)
+            {
+                session.AutoTitleRequest = request;
+            }
+            else
+            {
+                _defaultAutoTitleRequest = request;
+            }
+
+#pragma warning disable VSSDK007, VSTHRD110
+            _ = ThreadHelper.JoinableTaskFactory.RunAsync(() => GenerateAiChatTitleAsync(session, provider.Value, prompt, request));
+#pragma warning restore VSSDK007, VSTHRD110
+        }
+
+        private void SetAutoChatTitle(NativeChatSessionState session, string title)
+        {
+            ThreadHelper.ThrowIfNotOnUIThread();
+
+            if (session != null)
+            {
+                session.AutoTitle = title;
+                UpdateSessionTabCaption(session);
+            }
+            else
+            {
+                _defaultAutoTitle = title;
+                UpdateChatTabCaption();
+            }
+        }
+
+        /// <summary>
+        /// Asks the low-cost model for a title and puts it on the tab, unless the tab moved on to another
+        /// conversation (<paramref name="request"/> no longer current) or was closed meanwhile. Any failure
+        /// (not logged in, quota, timeout) just keeps the prompt-based title.
+        /// </summary>
+        private async Task GenerateAiChatTitleAsync(NativeChatSessionState session, AiProvider provider, string prompt, object request)
+        {
+            string title = string.Empty;
+
+            try
+            {
+                (string output, string error) = await RunClaudeOneShotAsync(
+                    provider,
+                    ClaudeCommandBuilder.GetSessionTitleArguments,
+                    SessionTitleGenerator.BuildRequest(prompt),
+                    SessionTitleTimeoutMs,
+                    CancellationToken.None);
+
+                title = SessionTitleGenerator.ParseOutput(output);
+                if (title.Length == 0)
+                {
+                    Debug.WriteLine($"AI chat title: no title ({error}).");
+                }
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"AI chat title failed: {ex.Message}");
+            }
+
+            await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
+
+            object current = session != null ? session.AutoTitleRequest : _defaultAutoTitleRequest;
+            if (!ReferenceEquals(current, request))
+            {
+                return;
+            }
+
+            if (session != null)
+            {
+                session.AutoTitleRequest = null;
+            }
+            else
+            {
+                _defaultAutoTitleRequest = null;
+            }
+
+            bool sessionClosed;
+            lock (_sessionLock)
+            {
+                sessionClosed = session != null && !_nativeSessions.ContainsKey(session.SessionId);
+            }
+
+            if (title.Length > 0 && !sessionClosed)
+            {
+                SetAutoChatTitle(session, title);
+            }
+        }
+
+        /// <summary>Re-applies the captions of every chat tab, after a tab status or title setting changed.</summary>
+        private void RefreshAllChatTabCaptions()
+        {
+            ThreadHelper.ThrowIfNotOnUIThread();
+
+            UpdateChatTabCaption();
+            RefreshNativeSessionColors();
+        }
+
+        #endregion
+    }
+}
