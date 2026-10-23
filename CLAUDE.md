@@ -6,7 +6,7 @@ Visual Studio Extension (VSIX) for VS 2022/2026 — integrates AI code assistant
 
 - Author: Daniel Carvalho Liedke (dliedke@gmail.com) | License: MIT
 - Repository: https://github.com/dliedke/ClaudeCodeExtension
-- Current Version: 256.0 | Target Framework: .NET Framework 4.7.2
+- Current Version: 258.0 | Target Framework: .NET Framework 4.7.2
 
 Step-by-step procedures for recurring tasks (release, Exp-hive debugging, publish, adding a
 provider/setting/UI file) live in `docs/SKILLS.md`. Short build/style brief for non-Claude agents: `docs/AGENTS.md`.
@@ -50,6 +50,7 @@ The VSSDK targets default `DeployExtension` to false, so the csproj sets `VSSDKT
 ./deploy-exp.cmd            # build Debug + deploy to the Exp hive
 ./deploy-exp.cmd -release   # build Release instead of Debug
 ./deploy-exp.cmd -run       # the above, then start devenv /rootsuffix Exp with the solution
+./deploy-exp.cmd -run -open <path.sln>   # start Exp with another solution (e.g. a demo app, so F5 debugs it)
 ```
 
 - Close the Exp instance before deploying — otherwise it keeps running the previous build.

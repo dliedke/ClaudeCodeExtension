@@ -88,6 +88,9 @@ namespace ClaudeCodeVS
         /// </summary>
         public bool HasInitialized => claudeCodeControl?.HasInitialized == true;
 
+        /// <summary>True while native mode's chat is in its own tab rather than in this panel.</summary>
+        public bool IsChatDetachedToOwnTab => claudeCodeControl?.IsChatDetachedToOwnTab == true;
+
         /// <summary>True while the native chat's own tab is open (issue #209).</summary>
         public bool IsChatTabOpen
         {

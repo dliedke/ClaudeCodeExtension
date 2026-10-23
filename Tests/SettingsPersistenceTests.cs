@@ -174,6 +174,27 @@ namespace ClaudeCodeExtension.Tests
         }
 
         /// <summary>
+        /// Hiding the panel once native mode's chat is in its own tab is on for everyone, including
+        /// users whose settings file predates the option.
+        /// </summary>
+        [TestMethod]
+        public void AutoHidePanelInNativeMode_DefaultsToOnAndRoundTrips()
+        {
+            Assert.IsTrue(new ClaudeCodeSettings().AutoHidePanelInNativeMode);
+
+            var deserializedFromOlderFile =
+                Newtonsoft.Json.JsonConvert.DeserializeObject<ClaudeCodeSettings>("{ \"SelectedProvider\": 0 }");
+            Assert.IsTrue(deserializedFromOlderFile.AutoHidePanelInNativeMode,
+                "A settings file predating this setting must still behave as if it were turned on.");
+
+            var settings = new ClaudeCodeSettings { AutoHidePanelInNativeMode = false };
+
+            string json = ClaudeCodeControl.SerializeJsonIndented(settings);
+
+            Assert.IsFalse((bool)JObject.Parse(json)["AutoHidePanelInNativeMode"]);
+        }
+
+        /// <summary>
         /// The toolbar strip stays left-aligned by default - that is the v177 layout the XAML and
         /// RightButtonsScroller_IsLeftAligned_... pin down. Turning it on is opt-in for users who
         /// want the pre-v177 look back, and an older settings file must not silently move their

@@ -49,7 +49,7 @@ namespace ClaudeCodeVS
         /// Deliberately not just <see cref="IsNativeModeActive"/>: while the chat is still docked
         /// (ComposerMode.ActionsOnly) the panel is the only surface open, so its own toolbar must stay.
         /// </summary>
-        private bool IsChatDetachedToOwnTab => IsNativeModeActive && _chatIsInTab;
+        internal bool IsChatDetachedToOwnTab => IsNativeModeActive && _chatIsInTab;
 
         /// <summary>Composer events are wired once for the lifetime of the control.</summary>
         private bool _composerWired;
@@ -266,6 +266,9 @@ namespace ClaudeCodeVS
                 // Mirror image of the ShowNativeChatTabAsync call: now that the chat is back in the
                 // panel, its own toolbar controls need to reappear.
                 RefreshToolbarLayout();
+
+                // The chat lives in the panel again, so a panel hidden on its behalf has to come back.
+                RestoreAutoHiddenPanel();
             }
             catch (Exception ex)
             {
@@ -307,6 +310,7 @@ namespace ClaudeCodeVS
                 SetPanelTerminalAreaVisible(true);
                 ApplyPromptPanelHiddenState();
                 RefreshToolbarLayout();
+                RestoreAutoHiddenPanel();
             }
             catch (Exception ex)
             {
@@ -797,6 +801,7 @@ namespace ClaudeCodeVS
             }
 
             await ShowNativeChatTabAsync(focusComposer: true);
+            HidePanelIfChatInOwnTab();
         }
 
         /// <summary>
@@ -853,7 +858,10 @@ namespace ClaudeCodeVS
                     EnsureNativeChatVisibleInPanel();
                     UpdateDetachButtonIcon(false);
                     ShowPanelFrame();
+                    return;
                 }
+
+                HidePanelIfChatInOwnTab();
             }
             catch (Exception ex)
             {
@@ -934,6 +942,57 @@ namespace ClaudeCodeVS
             {
                 frame.Show();
             }
+        }
+
+        /// <summary>
+        /// Hides the panel once the chat is on screen in its own tab (<see cref="ClaudeCodeSettings.AutoHidePanelInNativeMode"/>):
+        /// from then on the panel only holds the usage bars and a Show Chat button. Hide, never close —
+        /// the control, the agent session and the chat tab keep running, exactly as when the user
+        /// closes the panel with its X.
+        /// </summary>
+        private void HidePanelIfChatInOwnTab()
+        {
+            ThreadHelper.ThrowIfNotOnUIThread();
+
+            if (_isShuttingDown || _settings?.AutoHidePanelInNativeMode != true || !IsNativeModeActive || !IsNativeChatTabOnScreen())
+            {
+                return;
+            }
+
+            try
+            {
+                if (_toolWindow?.Frame is IVsWindowFrame frame
+                    && frame.IsVisible() == VSConstants.S_OK
+                    && ErrorHandler.Succeeded(frame.Hide()))
+                {
+                    _panelAutoHidden = true;
+                }
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"Error hiding the panel: {ex.Message}");
+            }
+        }
+
+        /// <summary>
+        /// Shows the panel again if <see cref="HidePanelIfChatInOwnTab"/> hid it: the chat is coming
+        /// back into the panel, or native mode ended and the panel hosts the terminal again.
+        /// </summary>
+        private void RestoreAutoHiddenPanel()
+        {
+            ThreadHelper.ThrowIfNotOnUIThread();
+
+            if (!_panelAutoHidden || _isShuttingDown)
+            {
+                return;
+            }
+
+            _panelAutoHidden = false;
+
+            // The hide armed the "panel reopened" reconcile, which would pull the chat straight back
+            // out into a tab — the opposite of why the panel is being shown.
+            _panelHiddenSinceShow = false;
+            ShowPanelFrame();
         }
 
         private void ShowChatTabButton_Click(object sender, RoutedEventArgs e)

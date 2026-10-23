@@ -92,6 +92,7 @@ namespace ClaudeCodeVS
             LayoutOrientation origOrientation = _settings.SelectedLayoutOrientation;
             bool origHidePromptPanel          = _settings.HidePromptPanel;
             bool origAutoHidePromptInNative   = _settings.AutoHidePromptInNativeMode;
+            bool origAutoHidePanelInNative    = _settings.AutoHidePanelInNativeMode;
             TerminalType origTerminalType     = _settings.SelectedTerminalType;
             string origConsoleFont            = string.IsNullOrWhiteSpace(_settings.ConsoleFontFaceName)
                                                 ? "Cascadia Mono" : _settings.ConsoleFontFaceName;
@@ -464,6 +465,14 @@ namespace ClaudeCodeVS
                 "It comes back automatically whenever the chat is docked back in the panel.",
                 origAutoHidePromptInNative, themeFg);
             layoutStack.Children.Add(autoHidePromptInNativeCheck);
+
+            var autoHidePanelInNativeCheck = MakeCheckBox(
+                "Hide this panel while the native chat is in its own tab",
+                "Once the chat opens in its own tab the panel only holds the usage bars, so it is hidden. " +
+                "It comes back when the chat is docked back or native mode is turned off, and " +
+                "View > Other Windows > Claude Code Extension shows it at any time.",
+                origAutoHidePanelInNative, themeFg);
+            layoutStack.Children.Add(autoHidePanelInNativeCheck);
 
             // Usage bars live in the prompt panel, so their two toggles sit on this tab instead of a
             // tab of their own (the former Usage tab, folded in in v223.0).
@@ -1339,6 +1348,7 @@ namespace ClaudeCodeVS
                 : LayoutOrientation.Horizontal;
             bool newHidePromptPanel = hidePromptPanelCheck.IsChecked == true;
             bool newAutoHidePromptInNative = autoHidePromptInNativeCheck.IsChecked == true;
+            bool newAutoHidePanelInNative = autoHidePanelInNativeCheck.IsChecked == true;
             bool newUseNativeMode = nativeModeCheck.IsChecked == true;
             bool newToolbarRightAligned = toolbarRightAlignCheck.IsChecked == true;
             bool newKeepTerminalCodePage = keepCodePageCheck.IsChecked == true;
@@ -1442,6 +1452,7 @@ namespace ClaudeCodeVS
             _settings.SelectedLayoutOrientation = newOrientation;
             _settings.HidePromptPanel         = newHidePromptPanel;
             _settings.AutoHidePromptInNativeMode = newAutoHidePromptInNative;
+            _settings.AutoHidePanelInNativeMode = newAutoHidePanelInNative;
             _settings.SelectedTerminalType    = newTerminalType;
             _settings.UseNativeMode           = newUseNativeMode;
             _settings.ToolbarButtonsRightAligned = newToolbarRightAligned;
@@ -1538,6 +1549,18 @@ namespace ClaudeCodeVS
             if (newHidePromptPanel != origHidePromptPanel || newAutoHidePromptInNative != origAutoHidePromptInNative)
             {
                 ApplyPromptPanelHiddenState();
+            }
+
+            if (newAutoHidePanelInNative != origAutoHidePanelInNative)
+            {
+                if (newAutoHidePanelInNative)
+                {
+                    HidePanelIfChatInOwnTab();
+                }
+                else
+                {
+                    RestoreAutoHiddenPanel();
+                }
             }
 
             // Theme change: re-paint panel and inline bars immediately.

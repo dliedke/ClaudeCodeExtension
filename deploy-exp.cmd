@@ -6,6 +6,9 @@ REM    deploy-exp.cmd            Build Debug and deploy to the Exp hive.
 REM    deploy-exp.cmd -release   Build Release instead of Debug.
 REM    deploy-exp.cmd -run       The above, then start devenv /rootsuffix Exp
 REM                              with this solution loaded.
+REM    deploy-exp.cmd -run -open <path>
+REM                              Start Exp with another solution or folder
+REM                              instead (e.g. a demo app, so F5 debugs it).
 REM
 REM  F5 and Ctrl+F5 from Visual Studio already deploy on their own, for
 REM  Debug and Release alike (the csproj sets DeployExtension for builds
@@ -24,14 +27,22 @@ REM =====================================================================
 
 setlocal EnableDelayedExpansion
 
+REM  Before parsing: shift also moves %0, so %~dp0 would point elsewhere.
+set "ROOT=%~dp0"
+
 REM --- Arguments (order-independent) -----------------------------------
 set "CONFIG=Debug"
 set "RUNAFTER="
+set "OPENPATH="
 :parseargs
 if "%~1"=="" goto parsed
 if /i "%~1"=="-release" set "CONFIG=Release"
 if /i "%~1"=="-debug"   set "CONFIG=Debug"
 if /i "%~1"=="-run"     set "RUNAFTER=1"
+if /i "%~1"=="-open" (
+    set "OPENPATH=%~2"
+    shift
+)
 shift
 goto parseargs
 :parsed
@@ -46,8 +57,16 @@ for %%V in (18 2022) do for %%E in (Enterprise Professional Community) do (
 
 set "MSBUILD=%VSROOT%\MSBuild\Current\Bin\MSBuild.exe"
 set "DEVENV=%VSROOT%\Common7\IDE\devenv.exe"
-set "PROJ=%~dp0ClaudeCodeExtension.csproj"
-set "SLN=%~dp0ClaudeCodeExtension.sln"
+set "PROJ=%ROOT%ClaudeCodeExtension.csproj"
+set "SLN=%ROOT%ClaudeCodeExtension.sln"
+if defined OPENPATH set "SLN=%OPENPATH%"
+if defined RUNAFTER if not exist "%SLN%" (
+    echo [ERROR] Not found: %SLN%
+    exit /b 1
+)
+
+REM  Full path: launched from Git Bash, a bare "find" resolves to GNU find.
+set "FINDEXE=%SystemRoot%\System32\find.exe"
 
 if not exist "%MSBUILD%" (
     echo [ERROR] MSBuild.exe not found.
@@ -60,7 +79,7 @@ if not exist "%DEVENV%" (
 
 REM  Deploying over a running experimental instance leaves it on the old
 REM  binaries and can fail the copy outright.
-tasklist /fi "imagename eq devenv.exe" | find /i "devenv.exe" >nul
+tasklist /fi "imagename eq devenv.exe" | "%FINDEXE%" /i "devenv.exe" >nul
 if not errorlevel 1 (
     echo [WARN] Visual Studio is running. Close any /rootsuffix Exp instance
     echo        before deploying, or it will keep the previous build loaded.

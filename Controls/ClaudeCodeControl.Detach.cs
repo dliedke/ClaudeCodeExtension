@@ -59,6 +59,13 @@ namespace ClaudeCodeVS
         /// </summary>
         private bool _panelHiddenSinceShow;
 
+        /// <summary>
+        /// True while the panel is hidden by <see cref="HidePanelIfChatInOwnTab"/> rather than by the
+        /// user or Visual Studio; cleared as soon as anyone shows the panel again. Keeps the
+        /// debug-visibility restore from bringing it back on every F5.
+        /// </summary>
+        private bool _panelAutoHidden;
+
         #endregion
 
         #region Active Panel Property
@@ -370,6 +377,11 @@ namespace ClaudeCodeVS
                              frameShow == __FRAMESHOW.FRAMESHOW_WinRestored ||
                              frameShow == __FRAMESHOW.FRAMESHOW_WinMaximized ||
                              frameShow == __FRAMESHOW.FRAMESHOW_TabActivated;
+
+            if (activated)
+            {
+                _panelAutoHidden = false;
+            }
 
             if (activated && _isTerminalDetached)
             {

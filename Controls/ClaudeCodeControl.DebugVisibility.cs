@@ -200,8 +200,12 @@ namespace ClaudeCodeVS
 
                 // Don't create the window: if the user never opened the panel, or closed it before
                 // starting the debug session, debugging is no reason to conjure it back up.
+                // A panel hidden because the chat moved to its own tab was not hidden by VS.
                 var mainWindow = package.FindToolWindow(typeof(ClaudeCodeToolWindow), 0, false);
-                RestoreFrameIfHiddenByVS(mainWindow?.Frame as IVsWindowFrame);
+                if (!_panelAutoHidden)
+                {
+                    RestoreFrameIfHiddenByVS(mainWindow?.Frame as IVsWindowFrame);
+                }
 
                 if (_isTerminalDetached)
                 {
