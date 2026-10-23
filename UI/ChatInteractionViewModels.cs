@@ -81,7 +81,10 @@ namespace ClaudeCodeVS.UI
 
         public ObservableCollection<ChatOptionViewModel> Options { get; }
 
-        /// <summary>Free-text answer, which wins over any selected option when it has content.</summary>
+        /// <summary>
+        /// Free-text answer. Alone it is the answer; with options selected it is sent after them as
+        /// additional info.
+        /// </summary>
         public string OtherAnswer
         {
             get { return _otherAnswer; }
@@ -101,6 +104,35 @@ namespace ClaudeCodeVS.UI
             {
                 return !string.IsNullOrWhiteSpace(_otherAnswer) || Options.Any(o => o.IsSelected);
             }
+        }
+
+        /// <summary>
+        /// Placeholder of the free-text box: an "Other" answer while nothing is selected, additional
+        /// info to the selected options once something is.
+        /// </summary>
+        public string OtherPlaceholder
+        {
+            get
+            {
+                string[] selected = SelectedLabels();
+                return selected.Length == 0
+                    ? "Other — type your own answer…"
+                    : "Type additional info to " + JoinWithAnd(selected) + "…";
+            }
+        }
+
+        /// <summary>Joins labels as "A", "A and B" or "A, B and C".</summary>
+        internal static string JoinWithAnd(IList<string> items)
+        {
+            if (items == null || items.Count == 0) return string.Empty;
+            if (items.Count == 1) return items[0];
+
+            return string.Join(", ", items.Take(items.Count - 1)) + " and " + items[items.Count - 1];
+        }
+
+        private string[] SelectedLabels()
+        {
+            return Options.Where(o => o.IsSelected).Select(o => o.Label).ToArray();
         }
 
         /// <summary>
@@ -126,23 +158,25 @@ namespace ClaudeCodeVS.UI
             }
 
             Raise(nameof(IsAnswered));
+            Raise(nameof(OtherPlaceholder));
         }
 
-        /// <summary>The answer to send, or null when the question was left blank.</summary>
+        /// <summary>
+        /// The answer to send, or null when the question was left blank. Selected options and the
+        /// free text are sent together when both are filled in.
+        /// </summary>
         public string BuildAnswer()
         {
-            if (!string.IsNullOrWhiteSpace(_otherAnswer))
-            {
-                return _otherAnswer.Trim();
-            }
+            string other = string.IsNullOrWhiteSpace(_otherAnswer) ? null : _otherAnswer.Trim();
+            string[] selected = SelectedLabels();
 
-            string[] selected = Options.Where(o => o.IsSelected).Select(o => o.Label).ToArray();
             if (selected.Length == 0)
             {
-                return null;
+                return other;
             }
 
-            return string.Join(", ", selected);
+            string chosen = string.Join(", ", selected);
+            return other == null ? chosen : chosen + " — additional info: " + other;
         }
 
         public event PropertyChangedEventHandler PropertyChanged;

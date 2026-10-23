@@ -565,9 +565,10 @@
 					         SelectionBrush="{DynamicResource {x:Static vsshell:VsBrushes.HighlightKey}}"
 					         BorderBrush="{DynamicResource {x:Static vsshell:VsBrushes.ToolWindowBorderKey}}"
 					         BorderThickness="1"/>
-					<TextBlock Text="Other — type your own answer…"
+					<TextBlock Text="{Binding OtherPlaceholder}"
+					           TextTrimming="CharacterEllipsis"
 					           IsHitTestVisible="False"
-					           Margin="8,5,0,0" Opacity="0.5" FontSize="{DynamicResource ChatSmallFontSize}"
+					           Margin="8,5,8,0" Opacity="0.5" FontSize="{DynamicResource ChatSmallFontSize}"
 					           VerticalAlignment="Top"
 					           Foreground="{DynamicResource {x:Static vsshell:VsBrushes.WindowTextKey}}"
 					           Visibility="{Binding OtherAnswer, Converter={StaticResource EmptyToVis}, ConverterParameter=invert}"/>

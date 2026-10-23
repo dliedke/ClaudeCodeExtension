@@ -173,6 +173,9 @@ Pull requests for new features are welcome. Bug fixes too — if you find an iss
 
 ## Version History
 
+### Version 258.0
+- When the agent asks a question, you can pick an answer and also type extra details in the free-text box. Both are sent together, and the box shows which answers the details apply to.
+
 ### Version 257.0
 - "Approve and skip permissions" on a plan now skips permission prompts for that plan only: once the agent finishes it, the chat returns to the mode it was in before, such as Plan mode (issue #210).
 
