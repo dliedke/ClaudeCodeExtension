@@ -6,7 +6,7 @@ Visual Studio Extension (VSIX) for VS 2022/2026 — integrates AI code assistant
 
 - Author: Daniel Carvalho Liedke (dliedke@gmail.com) | License: MIT
 - Repository: https://github.com/dliedke/ClaudeCodeExtension
-- Current Version: 258.0 | Target Framework: .NET Framework 4.7.2
+- Current Version: 259.0 | Target Framework: .NET Framework 4.7.2
 
 Step-by-step procedures for recurring tasks (release, Exp-hive debugging, publish, adding a
 provider/setting/UI file) live in `docs/SKILLS.md`. Short build/style brief for non-Claude agents: `docs/AGENTS.md`.
@@ -124,12 +124,14 @@ ClaudeCodeExtension/
 │   ├── ClaudeCodeControl.SessionHistoryProviders.cs # Per-CLI history adapters (Claude, Codex, Devin) behind ISessionHistoryProvider
 │   ├── ClaudeCodeControl.NativeMode.cs  # "Native mode": chat instead of the embedded terminal, adapter selection, event bridge
 │   ├── ClaudeCodeControl.NativeChat.cs  # Native mode chat tab: document-tab hosting, composer, agent/model/effort/permission selectors, live switching
-│   └── ClaudeCodeControl.ChatUsageIndicator.cs # Native mode composer usage button: context ring + plan-limit popup, background usage refresh
+│   ├── ClaudeCodeControl.ChatUsageIndicator.cs # Native mode composer usage button: context ring + plan-limit popup, background usage refresh
+│   └── ClaudeCodeControl.ChatTabStatus.cs  # Native chat tab status glyph (working/waiting/done/error) + automatic tab title (first prompt or low-cost AI)
 ├── Agents/                              # Headless agent protocols (no WPF, no VS SDK — unit-testable)
 │   ├── IAgentSession.cs                 # Session contract shared by every adapter
 │   ├── ModelCatalog.cs                  # Model option DTO + pure parsers for each CLI's model-listing output
 │   ├── SlashCommandCatalog.cs           # "/" picker: command/skill discovery, front-matter parsing, ranking (pure)
 │   ├── ModelRecommender.cs              # "Recommend AI Model": rubric, JSON schema, stdin request, result parser
+│   ├── SessionTitleGenerator.cs         # Automatic chat tab title: low-cost model request + answer parser (pure)
 │   ├── SubagentActivity.cs              # "Show active subagent count": transcript lines → running subagents (pure)
 │   ├── OpenPetsRelease.cs               # "Install latest OpenPets": release JSON → Windows installer asset, SHA256SUMS lookup (pure)
 │   ├── GitHubIssues.cs                  # "GitHub Issues": remote parsing, gh/REST issue JSON, worktree list, branch naming, prompts (pure)
@@ -158,6 +160,7 @@ ClaudeCodeExtension/
 │   ├── ChatUsageIndicator.cs            # Native composer usage button: token formatting, context/plan percentages, ring geometry (pure, unit-tested)
 │   ├── GlyphIcon.cs                     # Ink-centering of icon-only buttons (attached property, pure math unit-tested)
 │   ├── ComposerLabels.cs                # Short composer selector captions for narrow chat tabs (pure)
+│   ├── ChatTabStatus.cs                 # Chat tab status glyph + title from the first prompt (pure, unit-tested)
 │   ├── WelcomeCardLayout.cs             # Welcome card layout rule: tips stack once taller than 120 % of the left column width, account email line break (pure, unit-tested)
 │   ├── HostedWindowBounds.cs            # Detects a native child window (Usage WebView2) drifted from its WPF slot (pure)
 │   ├── MarkdownFlowRenderer.cs          # Markdown → FlowDocument + the MarkdownBlock control
@@ -270,7 +273,7 @@ Three cross-cutting rules (full text in `docs/ARCHITECTURE.md` → *Cross-Cuttin
 | `Controls/ClaudeCodeControl.PendingReview.cs`, `Diff/PendingReviewTracker.cs` | Pending Review — turn keys, reference snapshot, accumulation, overlapping turns, Keep/Undo, Changes view scope |
 | `Controls/ClaudeCodeControl.TfvcCheckout.cs`, `Agents/ClaudeEditHook.cs` | TFVC Checkout — PreToolUse hook over the control channel, QueryEdit checkout, deny-with-reason |
 | `Controls/ClaudeCodeControl.NativeMode.cs`, `Agents/*`, `UI/ChatTranscriptView.xaml` | Native Mode — Agent Sessions: `IAgentSession` contract, the six adapters, event map, streaming-duplication traps, `SendTextToAgentAsync` bifurcation |
-| `Controls/ClaudeCodeControl.NativeChat.cs`, `ToolWindows/NativeChatToolWindow.cs` | Native Mode — Chat tab and composer: MDI document-tab hosting, transcript re-parenting, composer reuse of the panel send path, live model/effort/permission switching via resume |
+| `Controls/ClaudeCodeControl.NativeChat.cs`, `Controls/ClaudeCodeControl.ChatTabStatus.cs`, `ToolWindows/NativeChatToolWindow.cs` | Native Mode — Chat tab and composer (incl. tab status glyph + auto title): MDI document-tab hosting, transcript re-parenting, composer reuse of the panel send path, live model/effort/permission switching via resume |
 
 When you add or materially change behavior in one of these files, update its section in
 `docs/ARCHITECTURE.md` (not this table) — the same way you'd update the Architecture section before.

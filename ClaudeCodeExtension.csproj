@@ -55,6 +55,7 @@
     <Compile Include="Agents\AcpCommandBuilder.cs" />
     <Compile Include="Agents\ModelCatalog.cs" />
     <Compile Include="Agents\ModelRecommender.cs" />
+    <Compile Include="Agents\SessionTitleGenerator.cs" />
     <Compile Include="Agents\OpenPetsRelease.cs" />
     <Compile Include="Agents\SubagentActivity.cs" />
     <Compile Include="Agents\GitHubIssues.cs" />
@@ -121,6 +122,7 @@
     <Compile Include="Controls\ClaudeCodeControl.NativeMode.cs" />
     <Compile Include="Controls\ClaudeCodeControl.NativeChat.cs" />
     <Compile Include="Controls\ClaudeCodeControl.ChatUsageIndicator.cs" />
+    <Compile Include="Controls\ClaudeCodeControl.ChatTabStatus.cs" />
     <Compile Include="Models\ClaudeCodeModels.cs" />
     <Compile Include="Models\NativeChatSessionState.cs" />
     <Compile Include="UI\ChatMessages.cs" />
@@ -130,6 +132,7 @@
     <Compile Include="UI\GlyphIcon.cs" />
     <Compile Include="UI\HostedWindowBounds.cs" />
     <Compile Include="UI\ComposerLabels.cs" />
+    <Compile Include="UI\ChatTabStatus.cs" />
     <Compile Include="UI\WelcomeCardLayout.cs" />
     <Compile Include="UI\MarkdownFlowRenderer.cs" />
     <Compile Include="UI\ChatTranscriptView.xaml.cs">

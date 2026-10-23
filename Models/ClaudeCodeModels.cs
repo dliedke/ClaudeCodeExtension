@@ -548,6 +548,26 @@ namespace ClaudeCodeVS
         public bool AutoHidePanelInNativeMode { get; set; } = true;
 
         /// <summary>
+        /// If true, each native chat tab shows what its session is doing in front of its caption:
+        /// working, waiting for the user's answer, done or error. On by default.
+        /// </summary>
+        public bool ShowChatTabStatus { get; set; } = true;
+
+        /// <summary>
+        /// If true, a chat tab without a user-assigned name is named after its topic: the first prompt,
+        /// or an AI-generated title when <see cref="AutoTitleChatTabsWithAi"/> is on. A rename always
+        /// wins. On by default.
+        /// </summary>
+        public bool AutoTitleChatTabs { get; set; } = true;
+
+        /// <summary>
+        /// If true (and <see cref="AutoTitleChatTabs"/> is on), Claude Code chats get their title from a
+        /// one-shot call to a low-cost model instead of the first words of the prompt. Other agents keep
+        /// the prompt-based title. On by default.
+        /// </summary>
+        public bool AutoTitleChatTabsWithAi { get; set; } = true;
+
+        /// <summary>
         /// Zoom factor of the native-mode chat tab, set with Ctrl+Scroll. 1.0 is 100%.
         /// </summary>
         public double NativeChatZoom { get; set; } = 1.0;

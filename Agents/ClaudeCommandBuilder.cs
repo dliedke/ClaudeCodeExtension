@@ -356,6 +356,35 @@ namespace ClaudeCodeVS.Agents
             return "bash -lic " + QuoteForWindowsArgument(inner.ToString());
         }
 
+        /// <summary>
+        /// One-shot <c>--print</c> that names a chat tab (<see cref="SessionTitleGenerator"/>): the
+        /// low-cost model, no tools, no MCP servers, nothing saved to the session history. The request
+        /// comes over stdin.
+        /// </summary>
+        public static string GetSessionTitleArguments(ClaudeSessionOptions options)
+        {
+            if (options == null) throw new ArgumentNullException(nameof(options));
+
+            bool isWsl = options.UseWsl;
+
+            var flags = new StringBuilder("--print");
+            flags.Append(" --model ").Append(QuoteArgument(SessionTitleGenerator.TitleModel, isWsl));
+            flags.Append(" --output-format json");
+            flags.Append(" --system-prompt ").Append(QuoteArgument(SessionTitleGenerator.SystemPrompt, isWsl));
+            flags.Append(" --tools ").Append(QuoteArgument(string.Empty, isWsl));
+            flags.Append(" --strict-mcp-config --no-session-persistence --disable-slash-commands");
+
+            if (!isWsl)
+            {
+                return flags.ToString();
+            }
+
+            var inner = new StringBuilder();
+            inner.Append("cd ").Append(QuoteForBash(options.WslWorkingDirectory)).Append(" && claude ").Append(flags);
+
+            return "bash -lic " + QuoteForWindowsArgument(inner.ToString());
+        }
+
         private static string BuildFlags(ClaudeSessionOptions options, bool isWsl)
         {
             var sb = new StringBuilder();
