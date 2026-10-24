@@ -6,6 +6,8 @@
              xmlns:sys="clr-namespace:System;assembly=mscorlib"
              xmlns:local="clr-namespace:ClaudeCodeVS.UI"
              xmlns:vsshell="clr-namespace:Microsoft.VisualStudio.Shell;assembly=Microsoft.VisualStudio.Shell.15.0"
+             xmlns:imaging="clr-namespace:Microsoft.VisualStudio.Imaging;assembly=Microsoft.VisualStudio.Imaging"
+             xmlns:catalog="clr-namespace:Microsoft.VisualStudio.Imaging;assembly=Microsoft.VisualStudio.ImageCatalog"
              mc:Ignorable="d"
              d:DesignHeight="400" d:DesignWidth="400"
              Background="{DynamicResource {x:Static vsshell:VsBrushes.ToolWindowBackgroundKey}}"
@@ -443,11 +445,32 @@
 			<Border Margin="2,5,24,5" Padding="9,5,9,5" CornerRadius="4"
 			        HorizontalAlignment="Left"
 			        Background="{DynamicResource {x:Static vsshell:VsBrushes.WindowKey}}">
-				<!-- Selectable, with URLs clickable (e.g. the changelog link in the "Claude Code updated" notice) -->
-				<local:MarkdownBlock Style="{StaticResource MarkdownBodyStyle}" IsPlainText="True"
-				                     Markdown="{Binding Text, Mode=OneWay}"
-				                     FontSize="{DynamicResource ChatSmallFontSize}" Opacity="0.75"
-				                     LinkClicked="MarkdownBlock_LinkClicked"/>
+				<DockPanel LastChildFill="True">
+					<!-- Modern icon style's turn footer: a VS status icon instead of the "✳" glyph. -->
+					<imaging:CrispImage DockPanel.Dock="Left" Width="14" Height="14" Margin="0,1,6,0"
+					                    VerticalAlignment="Top">
+						<imaging:CrispImage.Style>
+							<Style TargetType="imaging:CrispImage">
+								<Setter Property="Visibility" Value="Collapsed"/>
+								<Style.Triggers>
+									<DataTrigger Binding="{Binding NoticeIcon}" Value="{x:Static local:ChatNoticeIcon.Done}">
+										<Setter Property="Visibility" Value="Visible"/>
+										<Setter Property="Moniker" Value="{x:Static catalog:KnownMonikers.StatusOK}"/>
+									</DataTrigger>
+									<DataTrigger Binding="{Binding NoticeIcon}" Value="{x:Static local:ChatNoticeIcon.Stopped}">
+										<Setter Property="Visibility" Value="Visible"/>
+										<Setter Property="Moniker" Value="{x:Static catalog:KnownMonikers.StatusStopped}"/>
+									</DataTrigger>
+								</Style.Triggers>
+							</Style>
+						</imaging:CrispImage.Style>
+					</imaging:CrispImage>
+					<!-- Selectable, with URLs clickable (e.g. the changelog link in the "Claude Code updated" notice) -->
+					<local:MarkdownBlock Style="{StaticResource MarkdownBodyStyle}" IsPlainText="True"
+					                     Markdown="{Binding Text, Mode=OneWay}"
+					                     FontSize="{DynamicResource ChatSmallFontSize}" Opacity="0.75"
+					                     LinkClicked="MarkdownBlock_LinkClicked"/>
+				</DockPanel>
 			</Border>
 		</DataTemplate>
 
@@ -742,6 +765,44 @@
 			</Setter>
 		</Style>
 
+		<!-- Modern icon style's Stop button: flat like the composer toolbar, VS Stop icon + caption. -->
+		<Style x:Key="ModernStopButtonStyle" TargetType="Button" BasedOn="{StaticResource ComposerSelectorStyle}">
+			<Setter Property="local:GlyphIcon.Center" Value="False"/>
+			<Setter Property="Padding" Value="6,0,8,0"/>
+			<!-- A thin outline at rest, so it reads as a button and not as a label; the hover
+			     trigger of the base template still swaps in the highlight border. -->
+			<Setter Property="BorderBrush" Value="{DynamicResource {x:Static vsshell:VsBrushes.ToolWindowBorderKey}}"/>
+		</Style>
+
+		<!-- Modern icon style's "jump to the latest message": a round floating button with a soft
+		     shadow, like the chat panels of other AI assistants. -->
+		<Style x:Key="ModernScrollToEndButtonStyle" TargetType="Button">
+			<Setter Property="Cursor" Value="Hand"/>
+			<Setter Property="Focusable" Value="False"/>
+			<Setter Property="Background" Value="{DynamicResource {x:Static vsshell:VsBrushes.ToolWindowBackgroundKey}}"/>
+			<Setter Property="BorderBrush" Value="{DynamicResource {x:Static vsshell:VsBrushes.ToolWindowBorderKey}}"/>
+			<Setter Property="Template">
+				<Setter.Value>
+					<ControlTemplate TargetType="Button">
+						<Border x:Name="Shell" CornerRadius="20" BorderThickness="1"
+						        Background="{TemplateBinding Background}"
+						        BorderBrush="{TemplateBinding BorderBrush}">
+							<Border.Effect>
+								<DropShadowEffect BlurRadius="8" ShadowDepth="1" Opacity="0.35" Color="Black"/>
+							</Border.Effect>
+							<ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+						</Border>
+						<ControlTemplate.Triggers>
+							<Trigger Property="IsMouseOver" Value="True">
+								<Setter TargetName="Shell" Property="Background" Value="{DynamicResource {x:Static vsshell:VsBrushes.CommandBarHoverOverSelectedKey}}"/>
+								<Setter TargetName="Shell" Property="BorderBrush" Value="{DynamicResource {x:Static vsshell:VsBrushes.CommandBarSelectedBorderKey}}"/>
+							</Trigger>
+						</ControlTemplate.Triggers>
+					</ControlTemplate>
+				</Setter.Value>
+			</Setter>
+		</Style>
+
 		</ResourceDictionary>
 	</UserControl.Resources>
 
@@ -963,6 +1024,21 @@
 				           Visibility="Collapsed"
 				           VerticalAlignment="Center"
 				           Foreground="{StaticResource ChatAccentBrush}"/>
+				<!-- Modern icon style: a continuously rotating arc, like Visual Studio's own progress
+				     ring, in place of the four-frame glyph. Rotated by a storyboard started in code. -->
+				<Grid x:Name="StatusRingSpinner" DockPanel.Dock="Left"
+				      Width="14" Height="14" Margin="0,0,7,0"
+				      VerticalAlignment="Center" Visibility="Collapsed"
+				      RenderTransformOrigin="0.5,0.5">
+					<Grid.RenderTransform>
+						<RotateTransform x:Name="StatusRingRotation" Angle="0"/>
+					</Grid.RenderTransform>
+					<Ellipse StrokeThickness="2" Opacity="0.2"
+					         Stroke="{StaticResource ChatAccentBrush}"/>
+					<Path StrokeThickness="2" StrokeStartLineCap="Round" StrokeEndLineCap="Round"
+					      Stroke="{StaticResource ChatAccentBrush}"
+					      Data="M 7,1 A 6,6 0 0 1 13,7"/>
+				</Grid>
 				<TextBlock x:Name="StatusText" FontSize="{DynamicResource ChatSmallFontSize}" Opacity="0.75"
 				           VerticalAlignment="Center" TextTrimming="CharacterEllipsis"/>
 			</DockPanel>

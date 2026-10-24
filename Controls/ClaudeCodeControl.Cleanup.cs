@@ -192,6 +192,9 @@ namespace ClaudeCodeVS
                 // Unsubscribe from VS debugger events (debug-visibility feature)
                 DisposeDebugVisibility();
 
+                // Animated "working" chat tab icon
+                _workingTabTimer?.Stop();
+
                 // Cleanup detached terminal window
                 if (_isTerminalDetached && _detachedTerminalWindow != null)
                 {

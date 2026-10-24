@@ -21,6 +21,8 @@ using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
 using System.Windows.Data;
 using System.Windows.Media;
+using Microsoft.VisualStudio.Imaging;
+using Microsoft.VisualStudio.Imaging.Interop;
 using Microsoft.VisualStudio.PlatformUI;
 using Microsoft.VisualStudio.Shell;
 
@@ -69,7 +71,7 @@ namespace ClaudeCodeVS.UI
             Messages.CollectionChanged += OnMessagesChanged;
             MessagesList.ItemsSource = Messages;
 
-            Loaded += delegate { ApplyLinkAccentForTheme(); };
+            Loaded += delegate { ApplyLinkAccentForTheme(); ApplyImageThemeBackground(); };
             Unloaded += delegate { VSColorTheme.ThemeChanged -= OnVSColorThemeChanged; };
             VSColorTheme.ThemeChanged += OnVSColorThemeChanged;
         }
@@ -105,6 +107,7 @@ namespace ClaudeCodeVS.UI
         private void OnVSColorThemeChanged(ThemeChangedEventArgs e)
         {
             ApplyLinkAccentForTheme();
+            ApplyImageThemeBackground();
         }
 
         /// <summary>Transcript rows, oldest first.</summary>
@@ -722,6 +725,11 @@ namespace ClaudeCodeVS.UI
         /// </summary>
         public void SetPromotedButtons(IEnumerable<(string Id, object Content, object ToolTip)> buttons)
         {
+            foreach (Button old in ComposerPromotedButtons.Children)
+            {
+                _classicIconContent.Remove(old);
+            }
+
             ComposerPromotedButtons.Children.Clear();
 
             if (buttons == null)
@@ -741,8 +749,206 @@ namespace ClaudeCodeVS.UI
                 };
                 button.Click += (s, e) => PromotedButtonClicked?.Invoke(this, ((Button)s).Tag as string);
                 ComposerPromotedButtons.Children.Add(button);
+
+                if (_modernIcons && TryGetPromotedMoniker(entry.Id, out ImageMoniker moniker))
+                {
+                    SetButtonIcon(button, moniker);
+                }
             }
         }
+
+        #region Icon style
+
+        private bool _modernIcons;
+
+        /// <summary>The glyph each button had before the Modern style replaced it, to put it back.</summary>
+        private readonly Dictionary<Button, object> _classicIconContent = new Dictionary<Button, object>();
+
+        /// <summary>
+        /// Modern icon style: Visual Studio's own icons on the composer toolbar and a rotating ring as
+        /// the live spinner, instead of the Unicode/emoji glyphs. The XAML keeps the glyphs, so Classic
+        /// is simply the state the view is built in.
+        /// </summary>
+        public bool UseModernIcons
+        {
+            get { return _modernIcons; }
+            set
+            {
+                if (_modernIcons == value)
+                {
+                    return;
+                }
+
+                _modernIcons = value;
+
+                foreach (var (button, moniker) in ModernToolbarIcons())
+                {
+                    SetButtonIcon(button, moniker);
+                }
+
+                foreach (Button button in ComposerPromotedButtons.Children)
+                {
+                    if (TryGetPromotedMoniker(button.Tag as string, out ImageMoniker moniker))
+                    {
+                        SetButtonIcon(button, moniker);
+                    }
+                }
+
+                ApplyFloatingButtonsStyle();
+
+                if (_activityTimer != null && _activityTimer.IsEnabled)
+                {
+                    ShowActivitySpinner();
+                }
+            }
+        }
+
+        private object _classicStopContent;
+        private object _classicScrollToEndContent;
+
+        /// <summary>
+        /// Stop and "jump to the latest message": flat Stop with the VS icon and a round floating
+        /// jump button in Modern; the plain buttons the XAML declares in Classic.
+        /// </summary>
+        private void ApplyFloatingButtonsStyle()
+        {
+            if (_modernIcons)
+            {
+                _classicStopContent = StopButton.Content;
+                _classicScrollToEndContent = ScrollToEndButton.Content;
+
+                var stopContent = new StackPanel { Orientation = Orientation.Horizontal };
+                stopContent.Children.Add(new CrispImage
+                {
+                    Moniker = KnownMonikers.Stop,
+                    Width = 14,
+                    Height = 14,
+                    Margin = new Thickness(0, 0, 5, 0),
+                    VerticalAlignment = VerticalAlignment.Center
+                });
+                stopContent.Children.Add(new TextBlock { Text = "Stop", VerticalAlignment = VerticalAlignment.Center });
+
+                StopButton.Style = (Style)FindResource("ModernStopButtonStyle");
+                StopButton.Content = stopContent;
+
+                // The XAML sizes it for the Classic glyph (26); the round button wants more room.
+                ScrollToEndButton.Style = (Style)FindResource("ModernScrollToEndButtonStyle");
+                ScrollToEndButton.Width = 34;
+                ScrollToEndButton.Height = 34;
+                ScrollToEndButton.Content = new CrispImage { Moniker = KnownMonikers.GoToBottom, Width = 18, Height = 18 };
+            }
+            else if (_classicStopContent != null)
+            {
+                StopButton.Style = null;
+                StopButton.Content = _classicStopContent;
+                ScrollToEndButton.Style = null;
+                ScrollToEndButton.Width = 26;
+                ScrollToEndButton.Height = 26;
+                ScrollToEndButton.Content = _classicScrollToEndContent;
+                _classicStopContent = null;
+                _classicScrollToEndContent = null;
+            }
+        }
+
+        private IEnumerable<(Button Button, ImageMoniker Moniker)> ModernToolbarIcons()
+        {
+            yield return (ComposerOverflowButton, KnownMonikers.Ellipsis);
+            yield return (ComposerClearButton, KnownMonikers.Restart);
+            yield return (ComposerNewChatButton, KnownMonikers.Add);
+            yield return (ComposerRenameSessionButton, KnownMonikers.Rename);
+            yield return (ComposerColorButton, KnownMonikers.ColorPalette);
+            yield return (ComposerAttachButton, KnownMonikers.Attach);
+            yield return (ComposerCustomCommandsButton, KnownMonikers.Event);
+            yield return (ComposerToolsButton, KnownMonikers.BulletList);
+            yield return (ComposerSettingsButton, KnownMonikers.Settings);
+            yield return (ComposerSendButton, KnownMonikers.Send);
+        }
+
+        /// <summary>The Modern icon of a promoted toolbar button, by its <c>ToolbarButton</c> id.</summary>
+        private static bool TryGetPromotedMoniker(string id, out ImageMoniker moniker)
+        {
+            switch (id)
+            {
+                case "UpdateAgent": moniker = KnownMonikers.Download; return true;
+                case "DetachTerminal": moniker = KnownMonikers.Undock; return true;
+                case "ViewChanges": moniker = KnownMonikers.Diff; return true;
+                case "SessionHistory": moniker = KnownMonikers.History; return true;
+                case "ShowUsage": moniker = KnownMonikers.BarChart; return true;
+                case "SetWorkingDirectory": moniker = KnownMonikers.FolderOpened; return true;
+                case "SendBuildErrors": moniker = KnownMonikers.BuildErrorList; return true;
+                case "GenerateCommitMessage": moniker = KnownMonikers.Commit; return true;
+                case "GenerateCommitMessageAndPush": moniker = KnownMonikers.Push; return true;
+                case "RecommendModel": moniker = KnownMonikers.IntellisenseLightBulb; return true;
+                case "GitHubIssues": moniker = KnownMonikers.Bug; return true;
+                default: moniker = default(ImageMoniker); return false;
+            }
+        }
+
+        private void SetButtonIcon(Button button, ImageMoniker moniker)
+        {
+            if (_modernIcons)
+            {
+                if (!_classicIconContent.ContainsKey(button))
+                {
+                    _classicIconContent[button] = button.Content;
+                }
+
+                button.Content = new CrispImage { Moniker = moniker, Width = 16, Height = 16 };
+            }
+            else if (_classicIconContent.TryGetValue(button, out object classic))
+            {
+                button.Content = classic;
+                _classicIconContent.Remove(button);
+            }
+        }
+
+        /// <summary>
+        /// Tells the VS image service what the icons sit on, so they are inverted for a dark theme
+        /// the way VS's own toolbars are. Inherited by every CrispImage in the view.
+        /// </summary>
+        private void ApplyImageThemeBackground()
+        {
+            try
+            {
+                if (TryFindResource(VsBrushes.ToolWindowBackgroundKey) is SolidColorBrush background)
+                {
+                    ImageThemingUtilities.SetImageBackgroundColor(this, background.Color);
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Chat icon theme background failed: {ex.Message}");
+            }
+        }
+
+        /// <summary>Shows the spinner of the current icon style next to the live status text.</summary>
+        private void ShowActivitySpinner()
+        {
+            StatusSpinner.Visibility = _modernIcons ? Visibility.Collapsed : Visibility.Visible;
+            StatusRingSpinner.Visibility = _modernIcons ? Visibility.Visible : Visibility.Collapsed;
+
+            if (_modernIcons)
+            {
+                var spin = new System.Windows.Media.Animation.DoubleAnimation(0, 360, TimeSpan.FromSeconds(1))
+                {
+                    RepeatBehavior = System.Windows.Media.Animation.RepeatBehavior.Forever
+                };
+                StatusRingRotation.BeginAnimation(RotateTransform.AngleProperty, spin);
+            }
+            else
+            {
+                StatusRingRotation.BeginAnimation(RotateTransform.AngleProperty, null);
+            }
+        }
+
+        private void HideActivitySpinner()
+        {
+            StatusSpinner.Visibility = Visibility.Collapsed;
+            StatusRingSpinner.Visibility = Visibility.Collapsed;
+            StatusRingRotation.BeginAnimation(RotateTransform.AngleProperty, null);
+        }
+
+        #endregion
 
         public void FocusComposer()
         {
@@ -840,7 +1046,7 @@ namespace ClaudeCodeVS.UI
 
             _activityTimer.Start();
             StatusBar.Visibility = Visibility.Visible;
-            StatusSpinner.Visibility = Visibility.Visible;
+            ShowActivitySpinner();
             RenderActivity();
         }
 
@@ -957,7 +1163,7 @@ namespace ClaudeCodeVS.UI
                 _activityTimer.Stop();
             }
 
-            StatusSpinner.Visibility = Visibility.Collapsed;
+            HideActivitySpinner();
         }
 
         #endregion

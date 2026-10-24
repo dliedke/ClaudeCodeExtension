@@ -50,7 +50,8 @@ namespace ClaudeCodeExtension
     // MDI style docks the chat in the central document area, next to the open files, instead of the
     // narrow tool-window strip the other panes use.
     [ProvideToolWindow(typeof(ClaudeCodeVS.NativeChatToolWindow), Style = VsDockStyle.MDI, Transient = true)]
-    [ProvideMenuResource("Menus.ctmenu", 1)]
+    // Bumped whenever the .vsct gains menus/toolbars, so VS re-merges its command table (v261.0: toolbar).
+    [ProvideMenuResource("Menus.ctmenu", 2)]
     [Guid(ClaudeCodeExtensionPackage.PackageGuidString)]
     public sealed class ClaudeCodeExtensionPackage : AsyncPackage
     {

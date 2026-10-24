@@ -278,13 +278,13 @@ namespace ClaudeCodeExtension.Tests
         [TestMethod]
         public void DurationsReadAsTheCliPrintsThem()
         {
-            Assert.AreEqual("0.0s", ChatFormatting.Duration(System.TimeSpan.Zero));
-            Assert.AreEqual("12.3s", ChatFormatting.Duration(System.TimeSpan.FromSeconds(12.34)));
+            Assert.AreEqual("0s", ChatFormatting.Duration(System.TimeSpan.Zero));
+            Assert.AreEqual("12s", ChatFormatting.Duration(System.TimeSpan.FromSeconds(12.94)));
             Assert.AreEqual("19m 15s", ChatFormatting.Duration(System.TimeSpan.FromSeconds(19 * 60 + 15)));
             Assert.AreEqual("1h 05m 03s", ChatFormatting.Duration(System.TimeSpan.FromSeconds(3903)));
 
-            // A clock that ran backwards (a machine time change mid-turn) must not print "-3.0s".
-            Assert.AreEqual("0.0s", ChatFormatting.Duration(System.TimeSpan.FromSeconds(-3)));
+            // A clock that ran backwards (a machine time change mid-turn) must not print "-3s".
+            Assert.AreEqual("0s", ChatFormatting.Duration(System.TimeSpan.FromSeconds(-3)));
         }
 
         /// <summary>
