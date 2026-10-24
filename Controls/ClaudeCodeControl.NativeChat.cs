@@ -2149,7 +2149,7 @@ namespace ClaudeCodeVS
                             message.Text.TrimEnd());
                     }
 
-                    chat.ScrollToEndIfFollowing();
+                    chat.ScrollToLatest();
                     return true;
                 }
 
@@ -2219,7 +2219,7 @@ namespace ClaudeCodeVS
                     }
                 }
 
-                chat.ScrollToEndIfFollowing();
+                chat.ScrollToLatest();
                 LogTerminalLaunch($"Native mode: replayed session={sessionId}, " +
                     $"messages={replay.ShownMessages}/{replay.TotalMessages}, rows={replay.Rows.Count}");
                 return true;

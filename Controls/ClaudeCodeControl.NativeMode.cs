@@ -572,6 +572,15 @@ namespace ClaudeCodeVS
                 // reading a transcript by another route here would duplicate what is already showing.
                 bool alreadyReplayedLive = (session as AcpSession)?.WasResumedFromLoad == true;
 
+                // Native mode always lives in its own document tab: the conversation gets the full
+                // editor width and its own composer, instead of the narrow panel strip. Show the tab
+                // before the replay: the transcript list virtualizes, but only when it is laid out
+                // in a visible scroll viewer. Replaying into the panel first meant the tab's first
+                // layout realized every row of a long resumed session at once (measured: 76 seconds
+                // for 72 messages); an empty visible list realizes only the rows in view.
+                await ShowNativeChatTabAsync(focusComposer: false);
+                HidePanelIfChatInOwnTab();
+
                 // A resumed conversation is replayed from its transcript, because the CLI restores the
                 // agent's memory without re-emitting a single message of it. Otherwise: an empty
                 // transcript says nothing about what is running — the CLI's own startup banner never
@@ -581,11 +590,6 @@ namespace ClaudeCodeVS
                     await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
                     ShowChatWelcome(workspace);
                 }
-
-                // Native mode always lives in its own document tab: the conversation gets the full
-                // editor width and its own composer, instead of the narrow panel strip.
-                await ShowNativeChatTabAsync(focusComposer: false);
-                HidePanelIfChatInOwnTab();
 
                 LogTerminalLaunch($"Native mode: started successfully for provider={provider}");
                 return NativeStartOutcome.Started;
@@ -1864,6 +1868,10 @@ namespace ClaudeCodeVS
             userMessage.Complete();
             sessionState.ChatTranscript.Messages.Add(userMessage);
 
+            // Sending is an explicit "show me the answer" request: re-arm following even when the
+            // reader had scrolled up, or the new prompt and its reply stream below the viewport.
+            sessionState.ChatTranscript.ScrollToLatest();
+
             sessionState.StreamingAssistantMessage = null;
             sessionState.StreamingThinkingMessage = null;
 
@@ -1987,6 +1995,10 @@ namespace ClaudeCodeVS
             userMessage.Complete();
             ChatTranscript.Messages.Add(userMessage);
 
+            // Sending is an explicit "show me the answer" request: re-arm following even when the
+            // reader had scrolled up, or the new prompt and its reply stream below the viewport.
+            ChatTranscript.ScrollToLatest();
+
             _streamingAssistantMessage = null;
             _streamingThinkingMessage = null;
 
@@ -2054,6 +2066,10 @@ namespace ClaudeCodeVS
             userMessage.Complete();
             ChatTranscript.Messages.Add(userMessage);
 
+            // Sending is an explicit "show me the answer" request: re-arm following even when the
+            // reader had scrolled up, or the new prompt and its reply stream below the viewport.
+            ChatTranscript.ScrollToLatest();
+
             // Closes the bubbles the agent was streaming into, so whatever it says after being steered
             // starts a new row *below* the message that steered it instead of being appended above it.
             _streamingAssistantMessage = null;
@@ -2085,6 +2101,10 @@ namespace ClaudeCodeVS
             var userMessage = new ChatMessageViewModel(ChatMessageKind.User) { Text = text.TrimEnd() };
             userMessage.Complete();
             sessionState.ChatTranscript.Messages.Add(userMessage);
+
+            // Sending is an explicit "show me the answer" request: re-arm following even when the
+            // reader had scrolled up, or the new prompt and its reply stream below the viewport.
+            sessionState.ChatTranscript.ScrollToLatest();
 
             sessionState.StreamingAssistantMessage = null;
             sessionState.StreamingThinkingMessage = null;

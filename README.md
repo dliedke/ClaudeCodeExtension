@@ -173,6 +173,11 @@ Pull requests for new features are welcome. Bug fixes too — if you find an iss
 
 ## Version History
 
+### Version 264.0
+- Native chat now virtualizes the transcript, so long resumed conversations open quickly instead of laying out every row at once.
+- Chat rows render their Markdown when they become visible, keeping long conversations responsive while scrolling.
+- Follow-scrolling now stays on the newest line through long streamed replies and fast wheel scrolling; a queued scroll-to-end pass backs off when you take over, and sending a prompt snaps to the new message.
+
 ### Version 263.0
 - Native chat now shows the correct context usage and sets a matching auto-compact point for DeepSeek and other custom 1M-context models, instead of the CLI's 200k fallback. Thanks to [@MartinWooChina](https://github.com/MartinWooChina) (#216).
 
