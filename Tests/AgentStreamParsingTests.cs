@@ -379,6 +379,24 @@ namespace ClaudeCodeExtension.Tests
         }
 
         [TestMethod]
+        public void ClaudeParser_ContextWindowOverrideWinsOverTheCliReport()
+        {
+            // DeepSeek is not a model the CLI recognizes; without an override it reports its 200k
+            // fallback and the usage ring is wrong even though the session's real window is 1M.
+            var parser = new ClaudeStreamParser(expectDeltas: true, contextWindowOverride: 1000000);
+
+            List<AgentEvent> events = ParseAll(parser,
+                "{\"type\":\"system\",\"subtype\":\"init\",\"session_id\":\"s1\",\"model\":\"deepseek-flash\",\"claude_code_version\":\"2.1.294\"}",
+                "{\"type\":\"assistant\",\"parent_tool_use_id\":null,\"message\":{\"id\":\"m1\",\"model\":\"deepseek-flash\",\"content\":[]}}",
+                "{\"type\":\"result\",\"subtype\":\"success\",\"usage\":{\"input_tokens\":10,\"output_tokens\":5,\"cache_read_input_tokens\":0,\"cache_creation_input_tokens\":0,\"iterations\":[{\"input_tokens\":10,\"output_tokens\":5,\"cache_read_input_tokens\":0,\"cache_creation_input_tokens\":0}]},\"modelUsage\":{\"deepseek-flash\":{\"contextWindow\":200000}}}");
+
+            ClaudeStatusLineInput input = events[events.Count - 1].StatusLine;
+            JObject json = JObject.Parse(input.Build(string.Empty, null));
+
+            Assert.AreEqual(1000000, (int)json["context_window"]["context_window_size"]);
+        }
+
+        [TestMethod]
         public void ClaudeParser_AnAbortedTurnIsInterruptedRatherThanFailed()
         {
             // Clicking stop must not paint a red error banner in the transcript.
