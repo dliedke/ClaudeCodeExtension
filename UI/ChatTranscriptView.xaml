@@ -361,15 +361,21 @@
 									           VerticalAlignment="Center" Opacity="0.6"
 									           Visibility="{DynamicResource ClassicSpinnerVisibility}"/>
 									<!-- Modern icon style: the status line's rotating ring. The storyboard runs
-									     only while the tool runs, so finished cards cost nothing. -->
+									     only while the tool runs, so finished cards cost nothing. The RotateTransform
+									     must come from the style, not a Grid.RenderTransform element: the style (and
+									     its trigger) is applied first while the row's template loads, so a row that
+									     appears for an already running tool would start the animation on the default
+									     transform, and the unresolved path crashes Visual Studio. -->
 									<Grid Width="12" Height="12" VerticalAlignment="Center"
 									      RenderTransformOrigin="0.5,0.5"
 									      Visibility="{DynamicResource ModernSpinnerVisibility}">
-										<Grid.RenderTransform>
-											<RotateTransform Angle="0"/>
-										</Grid.RenderTransform>
 										<Grid.Style>
 											<Style TargetType="Grid">
+												<Setter Property="RenderTransform">
+													<Setter.Value>
+														<RotateTransform Angle="0"/>
+													</Setter.Value>
+												</Setter>
 												<Style.Triggers>
 													<DataTrigger Binding="{Binding IsRunning}" Value="True">
 														<DataTrigger.EnterActions>

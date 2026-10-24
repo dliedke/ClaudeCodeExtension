@@ -173,6 +173,9 @@ Pull requests for new features are welcome. Bug fixes too — if you find an iss
 
 ## Version History
 
+### Version 265.0
+- Fixed a crash that could close Visual Studio while the agent was running a tool with the Modern icon style turned on.
+
 ### Version 264.0
 - The context-usage ring now fills on Anthropic-compatible gateways that omit per-iteration usage (for example DeepSeek), instead of staying empty at "No turn yet". Thanks to [@MartinWooChina](https://github.com/MartinWooChina) (#218).
 - The agent selector in the chat toolbar now hides itself when only one agent is enabled, and comes back as soon as you enable a second one.
