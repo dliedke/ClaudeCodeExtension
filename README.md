@@ -174,7 +174,7 @@ Pull requests for new features are welcome. Bug fixes too — if you find an iss
 ## Version History
 
 ### Version 266.0
-- Fixed chat replies showing raw markdown (asterisks, dashes, backticks) instead of formatted text when they quoted a file reference or a link in code formatting.
+- Fixed chat replies showing raw markdown (asterisks, dashes, backticks) instead of formatted text when they quoted a file reference or a link in code formatting. Thanks to [@ClaudioCas](https://github.com/ClaudioCas) (#220).
 
 ### Version 265.0
 - Long resumed conversations in the native chat now open quickly at the newest message, and rows render as they scroll into view. Thanks to [@MartinWooChina](https://github.com/MartinWooChina) (#219).
