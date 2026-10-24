@@ -174,6 +174,8 @@ Pull requests for new features are welcome. Bug fixes too — if you find an iss
 ## Version History
 
 ### Version 261.0
+- Opening or switching a folder or solution no longer freezes Visual Studio while the chat agent restarts; the restart now waits until the IDE has finished loading.
+- Changing the model, effort, or permission mode no longer blocks the IDE while the previous agent shuts down.
 - New *Modern* chat icon style: the chat toolbar, Stop and jump-to-latest buttons use Visual Studio's own icons, the live status shows a rotating ring, and chat tabs show colored status (✅ done, ❌ error, ❓ waiting). Opt-in from *Settings → Layout → Chat icons*.
 - In the Modern style you can pick the working icon on the tab: blue arrows, an animated clock or an animated moon.
 - New option to hide token counts in the chat, both while the agent works and after each turn (*Settings → Layout → Chat tabs*).

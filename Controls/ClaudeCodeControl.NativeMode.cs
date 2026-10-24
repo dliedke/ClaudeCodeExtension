@@ -1286,7 +1286,7 @@ namespace ClaudeCodeVS
         /// </summary>
         private async Task ShutdownNativeModeAsync()
         {
-            DisposeNativeSession();
+            await DisposeNativeSessionAsync();
 
             await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
 
@@ -1314,8 +1314,68 @@ namespace ClaudeCodeVS
 
         /// <summary>
         /// Kills the agent process without touching the UI, so control teardown can call it directly.
+        /// <para>
+        /// Blocks until the process has exited — the CLI shutdown can take up to 1.5 s. Only control
+        /// teardown uses this, and it runs while Visual Studio is closing, where blocking is harmless.
+        /// Every path that runs while the IDE is in use must call
+        /// <see cref="DisposeNativeSessionAsync"/> instead: doing that wait on the UI thread is what
+        /// froze the whole IDE while a folder, solution or provider was being switched.
+        /// </para>
         /// </summary>
         private void DisposeNativeSession()
+        {
+            IAgentSession session = DetachNativeSession();
+            if (session != null)
+            {
+                try
+                {
+                    session.Dispose();
+                }
+                catch (Exception ex)
+                {
+                    Debug.WriteLine($"Native mode: session dispose failed: {ex.Message}");
+                }
+            }
+
+            DisposeNativeSessionCancellation();
+        }
+
+        /// <summary>
+        /// Ends the session without blocking the UI thread.
+        /// <para>
+        /// The process is shut down on the thread pool and the caller awaits that before continuing,
+        /// so ordering is unchanged — a replacement process still starts only after the old one is
+        /// gone (the CLI self-update path depends on that) — while the IDE stays responsive during
+        /// the wait.
+        /// </para>
+        /// </summary>
+        private async Task DisposeNativeSessionAsync()
+        {
+            IAgentSession session = DetachNativeSession();
+            if (session != null)
+            {
+                await Task.Run(() =>
+                {
+                    try
+                    {
+                        session.Dispose();
+                    }
+                    catch (Exception ex)
+                    {
+                        Debug.WriteLine($"Native mode: session dispose failed: {ex.Message}");
+                    }
+                });
+            }
+
+            DisposeNativeSessionCancellation();
+        }
+
+        /// <summary>
+        /// Detaches the active session and clears the host-side state it owned. Must run on the UI
+        /// thread: the Codex prompt queue is a plain, non-thread-safe queue that the composer also
+        /// touches.
+        /// </summary>
+        private IAgentSession DetachNativeSession()
         {
             IAgentSession session = _agentSession;
             _agentSession = null;
@@ -1329,17 +1389,13 @@ namespace ClaudeCodeVS
             if (session != null)
             {
                 session.Received -= OnAgentEventReceived;
-
-                try
-                {
-                    session.Dispose();
-                }
-                catch (Exception ex)
-                {
-                    Debug.WriteLine($"Native mode: session dispose failed: {ex.Message}");
-                }
             }
 
+            return session;
+        }
+
+        private void DisposeNativeSessionCancellation()
+        {
             try
             {
                 if (_nativeSessionCts != null)
