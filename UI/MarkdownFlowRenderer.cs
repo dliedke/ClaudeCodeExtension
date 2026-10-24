@@ -863,7 +863,7 @@ namespace ClaudeCodeVS.UI
                     {
                         string url = TrimTrailingPunctuation(urlMatch.Value);
                         flush();
-                        var link = (Run)BuildLink(url, url, options);
+                        Inline link = BuildLink(url, url, options);
                         link.FontFamily = options.CodeFontFamily;
                         target.Add(link);
                         i += url.Length;
@@ -877,7 +877,7 @@ namespace ClaudeCodeVS.UI
                     if (refMatch.Success && refMatch.Index == i)
                     {
                         flush();
-                        var link = (Run)BuildLink(refMatch.Value, refMatch.Value, options);
+                        Inline link = BuildLink(refMatch.Value, refMatch.Value, options);
                         link.FontFamily = options.CodeFontFamily;
                         target.Add(link);
                         i += refMatch.Value.Length;

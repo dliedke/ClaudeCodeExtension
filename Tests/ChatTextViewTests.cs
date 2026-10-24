@@ -55,6 +55,27 @@ namespace ClaudeCodeExtension.Tests
             });
         }
 
+        /// <summary>
+        /// A file reference or URL inside a code span becomes a link. Casting that link to Run threw,
+        /// and the catch-all fallback then showed the whole reply as one paragraph of raw markdown.
+        /// </summary>
+        [TestMethod]
+        public void LinksInsideCodeSpansKeepTheReplyRendered()
+        {
+            RunOnSta(() =>
+            {
+                List<Block> blocks = MarkdownFlowRenderer.BuildBlockList(
+                    "**Note** see `Foo.cpp:28` and `https://example.com`", null);
+                Paragraph paragraph = blocks.OfType<Paragraph>().Single();
+
+                Assert.IsTrue(paragraph.Inlines.OfType<Bold>().Any(),
+                    "The bold text should be rendered, not left as raw markdown by the fallback.");
+                CollectionAssert.AreEqual(
+                    new[] { "Foo.cpp:28", "https://example.com" },
+                    paragraph.Inlines.OfType<Hyperlink>().Select(link => (string)link.Tag).ToArray());
+            });
+        }
+
         [TestMethod]
         public void MarkdownBlockRendersPlainTextInADocumentViewer()
         {
