@@ -5891,7 +5891,9 @@ namespace ClaudeCodeVS
                 ChatTranscript.SetQueuedMessageCount(0);
                 ChatTranscript.SetStatus("Restarting the agent...");
 
-                DisposeNativeSession();
+                // Await it: the replacement session below must not start while the old process is
+                // still alive, but the wait no longer blocks the UI thread.
+                await DisposeNativeSessionAsync();
 
                 // Lets a caller run something that needs the agent process gone first (e.g. a CLI
                 // self-update, whose installer overwrites the executable and fails while it is still

@@ -14,6 +14,7 @@ using System;
 using System.Diagnostics;
 using System.Threading;
 using System.Threading.Tasks;
+using System.Windows.Threading;
 using Microsoft.VisualStudio;
 using Microsoft.VisualStudio.Shell;
 using Microsoft.VisualStudio.Shell.Interop;
@@ -71,6 +72,19 @@ namespace ClaudeCodeVS
             _ = ThreadHelper.JoinableTaskFactory.RunAsync(async delegate
             {
                 await Task.Delay(900);
+                if (requestId != Volatile.Read(ref _workspaceRefreshRequestId))
+                {
+                    return;
+                }
+
+                // These events fire while Visual Studio is still loading the new folder or solution.
+                // Restarting the agent right there put its process teardown and chat-tab work in
+                // front of that load on the same UI thread, so the IDE looked frozen until the agent
+                // was back. Let the dispatcher drain the load burst first; a newer folder event, if
+                // one arrives meanwhile, supersedes this request.
+                await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
+                await Dispatcher.Yield(DispatcherPriority.ApplicationIdle);
+
                 if (requestId != Volatile.Read(ref _workspaceRefreshRequestId))
                 {
                     return;
