@@ -360,6 +360,7 @@ namespace ClaudeCodeVS
             {
                 chip.Height = AttachmentThumbnailSize + 8;
                 sp.Children.Add(thumbnail);
+                UI.ImagePreview.AttachPreviewToolTip(chip, path);
             }
 
             // Filename text - truncate if too long
@@ -372,7 +373,7 @@ namespace ClaudeCodeVS
                 VerticalAlignment = VerticalAlignment.Center,
                 MaxWidth = 120,
                 TextTrimming = TextTrimming.CharacterEllipsis,
-                ToolTip = fileName,
+                ToolTip = thumbnail != null ? null : fileName, // an image chip shows the preview instead
                 FontSize = 11
             };
             nameBlock.SetResourceReference(TextBlock.ForegroundProperty, Microsoft.VisualStudio.Shell.VsBrushes.ToolWindowTextKey);
@@ -397,9 +398,9 @@ namespace ClaudeCodeVS
         }
 
         /// <summary>
-        /// Builds the small square thumbnail shown at the left of an image chip, with a larger
-        /// preview as its tooltip. Returns null for non-image files or anything that fails to
-        /// decode (a broken file must never stop the chip itself from appearing).
+        /// Builds the small square thumbnail shown at the left of an image chip; the chip itself
+        /// carries the larger hover preview. Returns null for non-image files or anything that fails
+        /// to decode (a broken file must never stop the chip itself from appearing).
         /// </summary>
         private FrameworkElement CreateAttachmentThumbnail(string path)
         {
@@ -411,7 +412,7 @@ namespace ClaudeCodeVS
                 }
 
                 // Decoded at 2x the display size so the chip stays crisp on a 200% DPI monitor.
-                var bitmap = LoadThumbnailBitmap(path, AttachmentThumbnailSize * 2);
+                var bitmap = UI.ImagePreview.LoadBitmap(path, AttachmentThumbnailSize * 2);
                 if (bitmap == null) return null;
 
                 // UniformToFill inside a fixed square crops instead of letterboxing, so wide
@@ -432,7 +433,6 @@ namespace ClaudeCodeVS
                 System.Windows.Media.RenderOptions.SetBitmapScalingMode(
                     thumb, System.Windows.Media.BitmapScalingMode.HighQuality);
 
-                AttachImagePreviewToolTip(thumb, path);
                 return thumb;
             }
             catch (Exception ex)
@@ -443,45 +443,16 @@ namespace ClaudeCodeVS
         }
 
         /// <summary>
-        /// Gives <paramref name="target"/> a large preview of the image as its tooltip. The preview is
-        /// decoded on first hover, at its own resolution: reusing the small chip bitmap is what made it
-        /// blurry, since WPF then upscaled it to preview size.
+        /// Width and height of a Modern image attachment card. The picture fills the whole card:
+        /// the file name it used to show under it (image_1.png…) told the user nothing.
         /// </summary>
-        private void AttachImagePreviewToolTip(FrameworkElement target, string path)
-        {
-            var preview = new Image
-            {
-                MaxWidth = 520,
-                MaxHeight = 400,
-                Stretch = System.Windows.Media.Stretch.Uniform,
-                StretchDirection = StretchDirection.DownOnly
-            };
-            System.Windows.Media.RenderOptions.SetBitmapScalingMode(
-                preview, System.Windows.Media.BitmapScalingMode.HighQuality);
-
-            target.ToolTip = preview;
-            target.ToolTipOpening += (s, e) =>
-            {
-                if (preview.Source != null) return;
-
-                var full = LoadThumbnailBitmap(path, 1200);
-                if (full == null)
-                {
-                    e.Handled = true; // nothing to show; don't pop an empty tooltip
-                    return;
-                }
-                preview.Source = full;
-            };
-        }
-
-        /// <summary>Width and image height of a Modern image attachment card.</summary>
         private const int AttachmentCardWidth = 120;
-        private const int AttachmentCardImageHeight = 72;
+        private const int AttachmentCardImageHeight = 88;
 
         /// <summary>
         /// Modern icon style's attachment for an image: a card showing the whole picture scaled down
-        /// (no crop, so a screenshot stays recognizable), the file name under it and the ✕ in its
-        /// corner. Same behavior as the chip: click opens the file, hover shows the large preview.
+        /// (no crop, so a screenshot stays recognizable) and the ✕ in its corner. Same behavior as
+        /// the chip: click opens the file, hover anywhere on the card shows the large preview.
         /// Null when the image can't be decoded, so the caller falls back to the plain chip.
         /// </summary>
         private Border CreateAttachmentCard(string path, Action<string> onRemove)
@@ -489,7 +460,7 @@ namespace ClaudeCodeVS
             try
             {
                 // Decoded at 2x the display width so the card stays crisp on a 200% DPI monitor.
-                var bitmap = LoadThumbnailBitmap(path, AttachmentCardWidth * 2);
+                var bitmap = UI.ImagePreview.LoadBitmap(path, AttachmentCardWidth * 2);
                 if (bitmap == null) return null;
 
                 var card = new Border
@@ -508,20 +479,10 @@ namespace ClaudeCodeVS
                 card.MouseLeftButtonUp += (s, e) =>
                 {
                     if (e.OriginalSource is Button) return;
-
-                    try
-                    {
-                        Process.Start(new ProcessStartInfo(path) { UseShellExecute = true });
-                    }
-                    catch (Exception ex)
-                    {
-                        MessageBox.Show($"Error opening image: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
-                    }
+                    UI.ImagePreview.OpenFile(path);
                 };
 
-                var grid = new Grid();
-                grid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(AttachmentCardImageHeight) });
-                grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+                var grid = new Grid { Height = AttachmentCardImageHeight };
 
                 var image = new Image
                 {
@@ -533,23 +494,7 @@ namespace ClaudeCodeVS
                 };
                 System.Windows.Media.RenderOptions.SetBitmapScalingMode(
                     image, System.Windows.Media.BitmapScalingMode.HighQuality);
-                AttachImagePreviewToolTip(image, path);
                 grid.Children.Add(image);
-
-                string fileName = Path.GetFileName(path);
-                var nameBlock = new TextBlock
-                {
-                    Text = fileName,
-                    FontSize = 10,
-                    Margin = new Thickness(0, 3, 0, 0),
-                    Opacity = 0.8,
-                    TextTrimming = TextTrimming.CharacterEllipsis,
-                    HorizontalAlignment = HorizontalAlignment.Center,
-                    ToolTip = fileName
-                };
-                nameBlock.SetResourceReference(TextBlock.ForegroundProperty, Microsoft.VisualStudio.Shell.VsBrushes.ToolWindowTextKey);
-                Grid.SetRow(nameBlock, 1);
-                grid.Children.Add(nameBlock);
 
                 // Over the picture's top-right corner, on its own background so it stays visible on
                 // any image.
@@ -568,69 +513,13 @@ namespace ClaudeCodeVS
                 grid.Children.Add(removeBtn);
 
                 card.Child = grid;
+                UI.ImagePreview.AttachPreviewToolTip(card, path);
                 return card;
             }
             catch (Exception ex)
             {
                 Debug.WriteLine($"CreateAttachmentCard error for '{path}': {ex.Message}");
                 return null;
-            }
-        }
-
-        /// <summary>
-        /// Decodes an image file for preview use, downscaling to <paramref name="maxWidth"/> only
-        /// when it is actually wider than that — DecodePixelWidth also upscales, which produces a
-        /// soft, interpolated bitmap for anything smaller. OnLoad caching is required so the file is
-        /// not left locked: attachments live in the session temp folder that cleanup deletes later.
-        /// </summary>
-        private BitmapImage LoadThumbnailBitmap(string path, int maxWidth)
-        {
-            try
-            {
-                int naturalWidth = GetImagePixelWidth(path);
-
-                var bitmap = new BitmapImage();
-                bitmap.BeginInit();
-                bitmap.UriSource = new Uri(path, UriKind.Absolute);
-                bitmap.CacheOption = BitmapCacheOption.OnLoad;
-                bitmap.CreateOptions = BitmapCreateOptions.IgnoreColorProfile;
-                if (maxWidth > 0 && naturalWidth > maxWidth)
-                {
-                    bitmap.DecodePixelWidth = maxWidth;
-                }
-                bitmap.EndInit();
-                bitmap.Freeze();
-                return bitmap;
-            }
-            catch (Exception ex)
-            {
-                Debug.WriteLine($"LoadThumbnailBitmap error for '{path}': {ex.Message}");
-                return null;
-            }
-        }
-
-        /// <summary>
-        /// Reads an image's pixel width from its header without decoding the pixels. Returns 0 when
-        /// the format can't be read, which callers treat as "decode at natural size".
-        /// </summary>
-        private int GetImagePixelWidth(string path)
-        {
-            try
-            {
-                using (var stream = File.OpenRead(path))
-                {
-                    var decoder = BitmapDecoder.Create(
-                        stream,
-                        BitmapCreateOptions.DelayCreation | BitmapCreateOptions.IgnoreColorProfile,
-                        BitmapCacheOption.None);
-
-                    return decoder.Frames.Count > 0 ? decoder.Frames[0].PixelWidth : 0;
-                }
-            }
-            catch (Exception ex)
-            {
-                Debug.WriteLine($"GetImagePixelWidth error for '{path}': {ex.Message}");
-                return 0;
             }
         }
 
@@ -672,9 +561,7 @@ namespace ClaudeCodeVS
         /// <returns>True if the file is an image, false otherwise</returns>
         private bool IsImageFile(string filePath)
         {
-            string[] imageExtensions = { ".png", ".jpg", ".jpeg", ".gif", ".bmp", ".tiff", ".webp" };
-            string extension = Path.GetExtension(filePath).ToLower();
-            return imageExtensions.Contains(extension);
+            return UI.ImagePreview.IsImageFile(filePath);
         }
 
         #endregion

@@ -155,7 +155,9 @@ namespace ClaudeCodeVS
             }
 
             string time = stamp.ToLocalTime().ToString("t", CultureInfo.CurrentCulture);
-            return (IsUsageSnapshotStale(lastUsageTimestamp, DateTime.UtcNow) ? "Not updated since " : "Updated ") + time;
+            return IsUsageSnapshotStale(lastUsageTimestamp, DateTime.UtcNow)
+                ? Loc.L("Not updated since {0}", time)
+                : Loc.L("Updated {0}", time);
         }
 
         /// <summary>

@@ -211,6 +211,34 @@ namespace ClaudeCodeVS
     }
 
     /// <summary>
+    /// One native chat tab remembered for <see cref="ClaudeCodeSettings.ReopenChatTabsOnSolutionOpen"/>:
+    /// which agent conversation it showed and the tab's own model/effort/permission choices. The
+    /// title and color need no copy — they are stored by conversation id already.
+    /// </summary>
+    public class SavedChatTab
+    {
+        public AiProvider Provider { get; set; }
+
+        /// <summary>The CLI's conversation id, resumed when the tab is reopened.</summary>
+        public string SessionId { get; set; } = string.Empty;
+
+        /// <summary>The main chat tab, which follows the global settings; the rest are parallel tabs.</summary>
+        public bool IsDefault { get; set; }
+
+        /// <summary>Automatic tab title (first prompt or AI topic), so the caption is right before the first turn.</summary>
+        public string Title { get; set; } = string.Empty;
+
+        public string SelectedModel { get; set; } = string.Empty;
+        public ClaudeModel SelectedClaudeModel { get; set; } = ClaudeModel.Sonnet;
+        public EffortLevel SelectedEffortLevel { get; set; } = EffortLevel.High;
+        public CodexReasoningLevel SelectedCodexReasoningLevel { get; set; } = CodexReasoningLevel.Default;
+        public bool SkipPermissions { get; set; }
+        public bool PlanMode { get; set; }
+        public bool AutoPermissions { get; set; }
+        public bool ManualMode { get; set; }
+    }
+
+    /// <summary>
     /// User-defined shortcut for a frequently sent prompt or slash command.
     /// Surfaced in a dropdown next to the toolbar so the user can dispatch
     /// canned prompts (e.g. "/codex-review", "explain this file") to the
@@ -595,6 +623,39 @@ namespace ClaudeCodeVS
         /// footer. The composer's usage ring is not affected. On by default.
         /// </summary>
         public bool ShowChatTokenCounts { get; set; } = true;
+
+        /// <summary>
+        /// If true, the native chat's live status line always says "Thinking…" instead of rotating
+        /// through playful verbs ("Pondering…", "Noodling…"). Off by default.
+        /// </summary>
+        public bool PlainChatWorkingStatus { get; set; }
+
+        /// <summary>
+        /// If true, the native chat's toolbar sits inside the message box, under the text: the session
+        /// actions fold into the ⋯ menu, the selectors follow, and ⚡ ☰ ⚙ sit at the right end. Off by default.
+        /// </summary>
+        public bool CompactChatToolbar { get; set; }
+
+        /// <summary>
+        /// If true, the native chat tabs open when a solution (or folder) was last closed come back the
+        /// next time it opens, each resuming its conversation. Claude Code, Codex and Devin only — the
+        /// agents that can resume. On by default.
+        /// </summary>
+        public bool ReopenChatTabsOnSolutionOpen { get; set; } = true;
+
+        /// <summary>
+        /// The chat tabs to reopen, keyed by workspace directory (lowercase), in tab order with the main
+        /// chat first. Rewritten whenever a tab's conversation id becomes known or a tab is closed.
+        /// </summary>
+        public System.Collections.Generic.Dictionary<string, System.Collections.Generic.List<SavedChatTab>> WorkspaceChatTabs { get; set; } =
+            new System.Collections.Generic.Dictionary<string, System.Collections.Generic.List<SavedChatTab>>();
+
+        /// <summary>
+        /// Language of the native chat's UI: "auto" (the Visual Studio UI language), "en", or a culture
+        /// code with a translation file (embedded lang/&lt;code&gt;.json or one in
+        /// %LocalAppData%\ClaudeCodeExtension\lang). Applies to chats opened afterwards. Default "auto".
+        /// </summary>
+        public string ChatLanguage { get; set; } = "auto";
 
         /// <summary>
         /// If true, a chat tab without a user-assigned name is named after its topic: the first prompt,

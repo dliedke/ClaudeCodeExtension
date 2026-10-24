@@ -100,7 +100,7 @@ namespace ClaudeCodeVS.UI
         /// <summary>"41% used · Resets in 2 h"; blank details are skipped, so a missing reset leaves just the percentage.</summary>
         public static string PlanRowText(int percent, params string[] details)
         {
-            string text = ClampPercent(percent).ToString(CultureInfo.InvariantCulture) + "% used";
+            string text = Loc.L("{0}% used", ClampPercent(percent));
             if (details == null)
             {
                 return text;

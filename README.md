@@ -173,6 +173,25 @@ Pull requests for new features are welcome. Bug fixes too — if you find an iss
 
 ## Version History
 
+### Version 264.0
+- The agent selector in the chat toolbar now hides itself when only one agent is enabled, and comes back as soon as you enable a second one.
+- New *Compact chat toolbar* option puts the chat toolbar inside the message box, with ✚ new chat first and the less used actions grouped in the ⋯ menu (*Settings → Layout*, off by default).
+- In the Modern icon style, running tool steps show the same rotating ring as the status line.
+
+### Version 263.0
+- Chat tabs now come back when you reopen a solution, each continuing its conversation with the earlier messages shown. On by default (*Settings → Terminal → Reopen chat tabs when the solution opens*); Claude Code, Codex and Devin.
+- A reopened tab starts its agent only when you send it a message, so opening a solution with several chats stays fast.
+- A resumed conversation shows its saved title and color right away instead of after the first message.
+
+### Version 262.0
+- The native chat tab can now be shown in your language: Italian is included, and by default the chat follows the Visual Studio language (*Settings → Layout → Chat language*).
+- Other languages can be added without updating the extension, by dropping a translation file in the extension's `lang` folder under Local AppData.
+- The *Claude Code* toolbar now shows up on its own after installation; hide it from View → Toolbars if you don't want it.
+- Images you attach now appear as thumbnails in your chat message instead of a list of file paths; click one to open it.
+- New option for a plain working status that always reads "Thinking…" instead of the rotating playful words (*Settings → Layout*).
+- Once a chat has started, the message box hint shrinks to a simple "Reply…".
+- Attachment cards in the prompt show only the picture, and the large preview on hover now opens quickly and reliably.
+
 ### Version 261.0
 - Opening or switching a folder or solution no longer freezes Visual Studio while the chat agent restarts; the restart now waits until the IDE has finished loading. Thanks to [@MartinWooChina](https://github.com/MartinWooChina) (#215).
 - Changing the model, effort, or permission mode no longer blocks the IDE while the previous agent shuts down.

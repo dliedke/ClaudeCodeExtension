@@ -30,6 +30,7 @@ using ClaudeCodeVS.UI;
 using Microsoft.VisualStudio;
 using Microsoft.VisualStudio.Shell;
 using Microsoft.VisualStudio.Shell.Interop;
+using static ClaudeCodeVS.UI.Loc;
 
 namespace ClaudeCodeVS
 {
@@ -401,6 +402,7 @@ namespace ClaudeCodeVS
             // The transcript is only taken out of the dying pane — the session keeps running and
             // streaming into it — and _chatIsInTab stays set, so the panel keeps its "chat in its own
             // tab" layout with 💬 Show Chat as the way to reopen it (IsChatTabClosed).
+            bool closedByUser = _chatIsInTab;
             if (_chatIsInTab && _nativeChatWindow != null && _nativeChatWindow.HasChatContent)
             {
                 _nativeChatWindow.SetChatContent(null);
@@ -412,6 +414,12 @@ namespace ClaudeCodeVS
                 _nativeChatWindow.Closed -= OnNativeChatWindowClosed;
                 _nativeChatWindow.Activated -= OnDefaultNativeChatWindowActivated;
                 _nativeChatWindow = null;
+            }
+
+            // The main chat's tab closed by hand is not reopened with the solution either.
+            if (closedByUser)
+            {
+                RecordOpenChatTabs();
             }
         }
 
@@ -774,6 +782,10 @@ namespace ClaudeCodeVS
                     }
 
                     RemoveSession(sessionId);
+
+                    // A tab the user closes is not reopened with the solution (a no-op while the
+                    // solution or Visual Studio is closing — see RecordChatTabsBeforeClose).
+                    RecordOpenChatTabs();
                 }
             }
             catch (Exception ex)
@@ -916,6 +928,9 @@ namespace ClaudeCodeVS
                 return;
             }
 
+            // The chat tabs to reopen next time, while every tab is still up.
+            RecordChatTabsBeforeClose();
+
             bool panelOpen = _toolWindow?.Frame is IVsWindowFrame panelFrame && panelFrame.IsVisible() == VSConstants.S_OK;
             bool restore = ShouldRestoreChatWithoutPanel(IsNativeChatTabOnScreen(), panelOpen);
             if (_settings.RestoreChatWithoutPanel == restore)
@@ -1034,7 +1049,7 @@ namespace ClaudeCodeVS
             }
 
             string name = GetProviderDisplayName(provider);
-            return string.IsNullOrEmpty(name) ? "Chat" : name + " Chat";
+            return string.IsNullOrEmpty(name) ? L("Chat") : L("{0} Chat", name);
         }
 
         /// <summary>Refreshes the caption and header of one session's tab, leaving the others alone.</summary>
@@ -1052,7 +1067,7 @@ namespace ClaudeCodeVS
             if (string.IsNullOrWhiteSpace(title) && session.IssueNumber > 0)
             {
                 // A GitHub issue fix tab is named after its issue until the user renames it.
-                title = "Issue #" + session.IssueNumber + (string.IsNullOrWhiteSpace(session.IssueTitle) ? string.Empty : ": " + session.IssueTitle.Trim());
+                title = L("Issue #{0}", session.IssueNumber) + (string.IsNullOrWhiteSpace(session.IssueTitle) ? string.Empty : ": " + session.IssueTitle.Trim());
             }
 
             string captionTitle = string.IsNullOrWhiteSpace(title) ? GetAutoChatTitle(session) : title;
@@ -1385,8 +1400,8 @@ namespace ClaudeCodeVS
                 }
 
                 if (MessageBox.Show(
-                        "Clear this conversation and start fresh?",
-                        "Clear Chat",
+                        L("Clear this conversation and start fresh?"),
+                        L("Clear Chat"),
                         MessageBoxButton.OKCancel,
                         MessageBoxImage.Question) != MessageBoxResult.OK)
                 {
@@ -1409,11 +1424,11 @@ namespace ClaudeCodeVS
                 // No resume id is staged, so the relaunch below starts a brand new session.
                 if (owner != null)
                 {
-                    await RelaunchSessionAsync(owner, "🤖 New chat", forceNewSession: true);
+                    await RelaunchSessionAsync(owner, L("🤖 New chat"), forceNewSession: true);
                 }
                 else
                 {
-                    await RelaunchNativeSessionAsync("🤖 New chat", forceNewSession: true);
+                    await RelaunchNativeSessionAsync(L("🤖 New chat"), forceNewSession: true);
                 }
             }
             catch (Exception ex)
@@ -1444,7 +1459,7 @@ namespace ClaudeCodeVS
                 IAgentSession referenceSession = owner?.AgentSession ?? _agentSession;
                 if (referenceSession == null)
                 {
-                    MessageBox.Show("No active session. Start native mode first.", "New Session", MessageBoxButton.OK, MessageBoxImage.Information);
+                    MessageBox.Show(L("No active session. Start native mode first."), L("New Session"), MessageBoxButton.OK, MessageBoxImage.Information);
                     return;
                 }
 
@@ -1452,7 +1467,7 @@ namespace ClaudeCodeVS
                 string workspace = await GetWorkspaceDirectoryAsync();
                 if (string.IsNullOrWhiteSpace(workspace) || !System.IO.Directory.Exists(workspace))
                 {
-                    MessageBox.Show("Cannot create new session: no workspace available.", "New Session", MessageBoxButton.OK, MessageBoxImage.Error);
+                    MessageBox.Show(L("Cannot create new session: no workspace available."), L("New Session"), MessageBoxButton.OK, MessageBoxImage.Error);
                     return;
                 }
 
@@ -1466,13 +1481,13 @@ namespace ClaudeCodeVS
                 var newSession = await StartParallelSessionAsync(provider, workspace, owner);
                 if (newSession == null)
                 {
-                    MessageBox.Show("Failed to create new session.", "New Session", MessageBoxButton.OK, MessageBoxImage.Error);
+                    MessageBox.Show(L("Failed to create new session."), L("New Session"), MessageBoxButton.OK, MessageBoxImage.Error);
                 }
             }
             catch (Exception ex)
             {
                 Debug.WriteLine($"Chat new-session failed: {ex.Message}");
-                MessageBox.Show($"Failed to create new session: {ex.Message}", "New Session", MessageBoxButton.OK, MessageBoxImage.Error);
+                MessageBox.Show(L("Failed to create new session: {0}", ex.Message), L("New Session"), MessageBoxButton.OK, MessageBoxImage.Error);
             }
         }
 
@@ -1498,7 +1513,7 @@ namespace ClaudeCodeVS
 
             // Clear and start
             newSession.ChatTranscript.Clear();
-            newSession.ChatTranscript.SetStatus("Starting new session...");
+            newSession.ChatTranscript.SetStatus(L("Starting new session..."));
 
             // Show new session in its own tab. Marked focused right away rather than waiting for
             // the tab's own activation event, so a build/runtime error landing before the user
@@ -1522,7 +1537,7 @@ namespace ClaudeCodeVS
             newSession.SessionCts = new CancellationTokenSource();
             await newSession.AgentSession.StartAsync(workspace, newSession.SessionCts.Token);
 
-            newSession.ChatTranscript.SetStatus("Ready.");
+            newSession.ChatTranscript.SetStatus(L("Ready."));
             // Show welcome card in the new session, not the global one
             ShowChatWelcome(newSession.ChatTranscript, workspace);
             return newSession;
@@ -1551,9 +1566,9 @@ namespace ClaudeCodeVS
             if (string.IsNullOrEmpty(sessionId))
             {
                 MessageBox.Show(
-                    "This session doesn't have an id to rename yet. Send at least one message first — " +
-                    "some agents (e.g. Codex, Antigravity) don't expose a renamable session id at all.",
-                    "Rename Session", MessageBoxButton.OK, MessageBoxImage.Information);
+                    L("This session doesn't have an id to rename yet. Send at least one message first — " +
+                      "some agents (e.g. Codex, Antigravity) don't expose a renamable session id at all."),
+                    L("Rename Session"), MessageBoxButton.OK, MessageBoxImage.Information);
                 return;
             }
 
@@ -1618,9 +1633,9 @@ namespace ClaudeCodeVS
             if (string.IsNullOrEmpty(sessionId))
             {
                 MessageBox.Show(
-                    "This session doesn't have an id to color yet. Send at least one message first — " +
-                    "some agents (e.g. Codex, Antigravity) don't expose a renamable session id at all.",
-                    "Session Color", MessageBoxButton.OK, MessageBoxImage.Information);
+                    L("This session doesn't have an id to color yet. Send at least one message first — " +
+                      "some agents (e.g. Codex, Antigravity) don't expose a renamable session id at all."),
+                    L("Session Color"), MessageBoxButton.OK, MessageBoxImage.Information);
                 return;
             }
 
@@ -1739,6 +1754,7 @@ namespace ClaudeCodeVS
                 GetChatPermissionLabel(provider));
 
             transcript.SetSelectorAvailability(
+                provider: ShouldShowChatProviderSelector(_settings?.VisibleProviders, provider),
                 model: isClaude || ProviderHasModelCatalog(provider),
                 effort: isClaude || isCodex,
                 permission: GetChatPermissionLabel(provider) != null);
@@ -1752,7 +1768,7 @@ namespace ClaudeCodeVS
                             ? _settings.SelectedCodexReasoningLevel
                             : CodexReasoningLevel.Default),
                     reasoningLabel,
-                    "Reasoning");
+                    L("Reasoning"));
             }
             else
             {
@@ -1761,7 +1777,7 @@ namespace ClaudeCodeVS
                     EffortToSliderIndex(
                         _settings != null ? _settings.SelectedEffortLevel : EffortLevel.High),
                     reasoningLabel,
-                    "Effort");
+                    L("Effort"));
             }
 
             ApplyChatAppearance();
@@ -1806,6 +1822,7 @@ namespace ClaudeCodeVS
                 permissionLabel);
 
             transcript.SetSelectorAvailability(
+                provider: ShouldShowChatProviderSelector(_settings?.VisibleProviders, provider),
                 model: isClaude || ProviderHasModelCatalog(provider),
                 effort: isClaude || isCodex,
                 permission: permissionLabel != null);
@@ -1816,7 +1833,7 @@ namespace ClaudeCodeVS
                 transcript.SetEffortSlider(
                     CodexReasoningToSliderIndex(session.SelectedCodexReasoningLevel),
                     reasoningLabel,
-                    "Reasoning");
+                    L("Reasoning"));
             }
             else
             {
@@ -1824,7 +1841,7 @@ namespace ClaudeCodeVS
                 transcript.SetEffortSlider(
                     EffortToSliderIndex(session.SelectedEffortLevel),
                     reasoningLabel,
-                    "Effort");
+                    L("Effort"));
             }
         }
 
@@ -1883,7 +1900,7 @@ namespace ClaudeCodeVS
                 {
                     var notice = new ChatMessageViewModel(ChatMessageKind.Notice)
                     {
-                        Text = "Could not find \"" + filePath + "\" to open it."
+                        Text = L("Could not find \"{0}\" to open it.", filePath)
                     };
                     notice.Complete();
                     transcript.Messages.Add(notice);
@@ -2139,8 +2156,8 @@ namespace ClaudeCodeVS
                     int start = Math.Max(0, messages.Count - ResumedTranscriptMaxMessages);
                     await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
                     AddNativeMessage(chat, ChatMessageKind.Notice, start > 0
-                        ? $"🕘 Resumed this Codex conversation — showing the last {messages.Count - start} of {messages.Count} messages."
-                        : $"🕘 Resumed this Codex conversation — {messages.Count} earlier messages restored.");
+                        ? L("🕘 Resumed this Codex conversation — showing the last {0} of {1} messages.", messages.Count - start, messages.Count)
+                        : L("🕘 Resumed this Codex conversation — {0} earlier messages restored.", messages.Count));
 
                     for (int index = start; index < messages.Count; index++)
                     {
@@ -2178,8 +2195,8 @@ namespace ClaudeCodeVS
                 await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
 
                 AddNativeMessage(chat, ChatMessageKind.Notice, replay.TotalMessages > replay.ShownMessages
-                    ? $"🕘 Resumed this conversation — showing the last {replay.ShownMessages} of {replay.TotalMessages} messages."
-                    : $"🕘 Resumed this conversation — {replay.ShownMessages} earlier messages restored.");
+                    ? L("🕘 Resumed this conversation — showing the last {0} of {1} messages.", replay.ShownMessages, replay.TotalMessages)
+                    : L("🕘 Resumed this conversation — {0} earlier messages restored.", replay.ShownMessages));
 
                 // A replayed transcript skips ShowChatWelcome entirely (see its caller), which is the
                 // only other place this label is shown — so a resumed conversation never said who is
@@ -2203,7 +2220,7 @@ namespace ClaudeCodeVS
 
                     if (!string.IsNullOrEmpty(account))
                     {
-                        AddNativeMessage(chat, ChatMessageKind.Notice, "Signed in as " + account);
+                        AddNativeMessage(chat, ChatMessageKind.Notice, L("Signed in as {0}", account));
                     }
                 }
 
@@ -2527,14 +2544,14 @@ namespace ClaudeCodeVS
 
                 int shown = Math.Min(run.Count, Math.Max(1, maxSummaryLines));
                 var text = new StringBuilder();
-                text.Append(run.Count == 1 ? "1 earlier tool call:" : run.Count + " earlier tool calls:");
+                text.Append(run.Count == 1 ? L("1 earlier tool call:") : L("{0} earlier tool calls:", run.Count));
                 for (int index = 0; index < shown; index++)
                 {
                     text.Append('\n').Append(run[index]);
                 }
                 if (run.Count > shown)
                 {
-                    text.Append('\n').Append("… and ").Append(run.Count - shown).Append(" more");
+                    text.Append('\n').Append(L("… and {0} more", run.Count - shown));
                 }
 
                 result.Rows.Add(new ResumedTranscriptRow { Kind = ChatMessageKind.Notice, Text = text.ToString() });
@@ -2625,10 +2642,10 @@ namespace ClaudeCodeVS
                 return null;
             }
 
-            string name = string.IsNullOrWhiteSpace(providerName) ? "The agent CLI" : providerName.Trim();
+            string name = string.IsNullOrWhiteSpace(providerName) ? L("The agent CLI") : providerName.Trim();
 
-            return $"🆕 {name} updated to v{currentVersion} since you were last here (was v{previousVersion}) — " +
-                   "what's new: https://code.claude.com/docs/en/changelog";
+            return L("🆕 {0} updated to v{1} since you were last here (was v{2}) — " +
+                     "what's new: https://code.claude.com/docs/en/changelog", name, currentVersion, previousVersion);
         }
 
         /// <summary>
@@ -2989,7 +3006,7 @@ namespace ClaudeCodeVS
 
             if (isClaude)
             {
-                facts.Add(GetChatModelLabel(provider) + " with " + GetChatEffortLabel().ToLowerInvariant() + " effort");
+                facts.Add(L("{0} with {1} effort", GetChatModelLabel(provider), GetChatEffortLabel().ToLowerInvariant()));
 
                 bool isWsl = provider == AiProvider.ClaudeCodeWSL;
                 string account = isWsl
@@ -2998,23 +3015,23 @@ namespace ClaudeCodeVS
 
                 if (!string.IsNullOrEmpty(account))
                 {
-                    facts.Add(WelcomeCardLayout.BreakBeforeEmail("Signed in as " + account));
+                    facts.Add(WelcomeCardLayout.BreakBeforeEmail(L("Signed in as {0}", account)));
                 }
             }
             else if (isCodex)
             {
                 string model = GetChatModelLabel(provider);
-                string modelLabel = string.Equals(model, "Model", StringComparison.Ordinal)
-                    ? "Agent default model"
+                string modelLabel = string.Equals(model, L("Model"), StringComparison.Ordinal)
+                    ? L("Agent default model")
                     : model;
-                facts.Add(modelLabel + " with " +
-                    GetChatCodexReasoningLabel().ToLowerInvariant() + " reasoning");
+                facts.Add(L("{0} with {1} reasoning", modelLabel,
+                    GetChatCodexReasoningLabel().ToLowerInvariant()));
 
                 if (provider.HasValue &&
                     _codexAccountLabels.TryGetValue(provider.Value, out string account) &&
                     !string.IsNullOrWhiteSpace(account))
                 {
-                    facts.Add(WelcomeCardLayout.BreakBeforeEmail("Signed in as " + account));
+                    facts.Add(WelcomeCardLayout.BreakBeforeEmail(L("Signed in as {0}", account)));
                 }
             }
             else if (isDevin)
@@ -3045,20 +3062,20 @@ namespace ClaudeCodeVS
         {
             var tips = new List<string>
             {
-                "Press Ctrl+Up/Down in the prompt box for prompt history.",
-                "Ctrl+V pastes an image from the clipboard, or drag & drop files onto the chat.",
-                "Ctrl+Scroll zooms the conversation (Ctrl+0 resets it), and the top edge of the prompt box can be dragged.",
-                "The buttons below switch agent, model, effort and permissions mid-conversation."
+                L("Press Ctrl+Up/Down in the prompt box for prompt history."),
+                L("Ctrl+V pastes an image from the clipboard, or drag & drop files onto the chat."),
+                L("Ctrl+Scroll zooms the conversation (Ctrl+0 resets it), and the top edge of the prompt box can be dragged."),
+                L("The buttons below switch agent, model, effort and permissions mid-conversation.")
             };
 
             if (IsClaudeProvider(provider))
             {
-                tips.Add("Type /plan, /model or /effort to switch without leaving the prompt box.");
-                tips.Add("This chat runs locally in Visual Studio and isn't published to claude.ai. " +
-                         "Start \"claude\" in a terminal for a session you can follow from the Claude mobile and desktop apps.");
+                tips.Add(L("Type /plan, /model or /effort to switch without leaving the prompt box."));
+                tips.Add(L("This chat runs locally in Visual Studio and isn't published to claude.ai. " +
+                           "Start \"claude\" in a terminal for a session you can follow from the Claude mobile and desktop apps."));
             }
 
-            tips.Add("✚ starts a new chat.");
+            tips.Add(L("✚ starts a new chat."));
 
             return tips;
         }
@@ -3401,7 +3418,7 @@ namespace ClaudeCodeVS
 
                 if (string.Equals(type, "apiKey", StringComparison.OrdinalIgnoreCase))
                 {
-                    return "OpenAI API key";
+                    return L("OpenAI API key");
                 }
 
                 if (string.Equals(type, "chatgpt", StringComparison.OrdinalIgnoreCase))
@@ -3643,7 +3660,7 @@ namespace ClaudeCodeVS
                 string label = GetSelectedProviderModelLabel(provider);
 
                 // Nothing chosen: the agent runs on its own default, which the extension cannot name.
-                return string.IsNullOrWhiteSpace(label) ? "Model" : label;
+                return string.IsNullOrWhiteSpace(label) ? L("Model") : label;
             }
 
             switch (_settings?.SelectedClaudeModel)
@@ -3664,7 +3681,7 @@ namespace ClaudeCodeVS
             if (!IsClaudeProvider(provider) && ProviderHasModelCatalog(provider))
             {
                 string label = GetSelectedProviderModelLabel(provider, session.SelectedModel);
-                return string.IsNullOrWhiteSpace(label) ? "Model" : label;
+                return string.IsNullOrWhiteSpace(label) ? L("Model") : label;
             }
 
             switch (session.SelectedClaudeModel)
@@ -3731,7 +3748,7 @@ namespace ClaudeCodeVS
                 return GetClaudePermissionLabel(GetNativeClaudePermissionChoice(skipping.Value));
             }
 
-            return skipping.Value ? "Skip permissions" : "Ask permission";
+            return skipping.Value ? L("Skip permissions") : L("Ask permission");
         }
 
         /// <summary>
@@ -3763,11 +3780,11 @@ namespace ClaudeCodeVS
         {
             switch (choice)
             {
-                case ClaudePermissionChoice.PlanMode: return "Plan mode";
-                case ClaudePermissionChoice.SkipPermissions: return "Skip permissions";
-                case ClaudePermissionChoice.Auto: return "Auto mode";
-                case ClaudePermissionChoice.ManualMode: return "Manual mode";
-                default: return "Accept edits";
+                case ClaudePermissionChoice.PlanMode: return L("Plan mode");
+                case ClaudePermissionChoice.SkipPermissions: return L("Skip permissions");
+                case ClaudePermissionChoice.Auto: return L("Auto mode");
+                case ClaudePermissionChoice.ManualMode: return L("Manual mode");
+                default: return L("Accept edits");
             }
         }
 
@@ -3789,7 +3806,7 @@ namespace ClaudeCodeVS
                 return GetClaudePermissionLabel(GetNativeClaudePermissionChoice(session));
             }
 
-            return session.SkipPermissions ? "Skip permissions" : "Ask permission";
+            return session.SkipPermissions ? L("Skip permissions") : L("Ask permission");
         }
 
         private bool? GetChatPermissionSkipFlag(AiProvider? provider)
@@ -4301,6 +4318,26 @@ namespace ClaudeCodeVS
             return item;
         }
 
+        /// <summary>
+        /// The agent selector is shown only when its menu offers a choice: two or more enabled agents
+        /// that run in the chat, or a tab running an agent outside that list (resumed from Session
+        /// History, say), which must keep a way back. With the default single agent it is just noise.
+        /// Same list as <see cref="BuildChatProviderMenu()"/>.
+        /// </summary>
+        internal static bool ShouldShowChatProviderSelector(IEnumerable<AiProvider> visibleProviders, AiProvider? running)
+        {
+            List<AiProvider> choices = (visibleProviders ?? Enumerable.Empty<AiProvider>())
+                .Where(SupportsNativeMode)
+                .Distinct()
+                .ToList();
+            if (choices.Count == 0)
+            {
+                choices.Add(AiProvider.ClaudeCode);
+            }
+
+            return choices.Count > 1 || (running.HasValue && !choices.Contains(running.Value));
+        }
+
         private ContextMenu BuildChatProviderMenu()
         {
             ContextMenu menu = CreateComposerMenu();
@@ -4459,12 +4496,12 @@ namespace ClaudeCodeVS
                 }
             }
 
-            AddComposerMenuItem(menu, "Agent default", string.IsNullOrWhiteSpace(selected),
+            AddComposerMenuItem(menu, L("Agent default"), string.IsNullOrWhiteSpace(selected),
                 delegate { ThreadHelper.ThrowIfNotOnUIThread(); OnChatProviderModelSelected(string.Empty); });
 
             if (!ShouldRefreshProviderModels(provider)) return;
 
-            MenuItem loading = AddComposerMenuItem(menu, "Loading models…", false, delegate { });
+            MenuItem loading = AddComposerMenuItem(menu, L("Loading models…"), false, delegate { });
             loading.IsEnabled = false;
 
             _ = RefreshProviderModelsAsync(provider).ContinueWith(
@@ -4517,12 +4554,12 @@ namespace ClaudeCodeVS
                 }
             }
 
-            AddComposerMenuItem(menu, "Agent default", string.IsNullOrWhiteSpace(selected),
+            AddComposerMenuItem(menu, L("Agent default"), string.IsNullOrWhiteSpace(selected),
                 delegate { ThreadHelper.ThrowIfNotOnUIThread(); OnChatProviderModelSelectedForSession(session, string.Empty); });
 
             if (!ShouldRefreshProviderModels(provider)) return;
 
-            MenuItem loading = AddComposerMenuItem(menu, "Loading models…", false, delegate { });
+            MenuItem loading = AddComposerMenuItem(menu, L("Loading models…"), false, delegate { });
             loading.IsEnabled = false;
 
             // No provider-equality re-check here unlike the global overload: a session's provider
@@ -4567,7 +4604,7 @@ namespace ClaudeCodeVS
                 AddChatModelMenuItem(menu, model, selected, onPicked);
             }
 
-            AddComposerMenuItem(menu, "Select Model...", false,
+            AddComposerMenuItem(menu, L("Select Model..."), false,
                 delegate
                 {
                     ThreadHelper.ThrowIfNotOnUIThread();
@@ -4672,23 +4709,23 @@ namespace ClaudeCodeVS
                 // agrees with both the caption and the launch.
                 ClaudePermissionChoice choice = GetNativeClaudePermissionChoice(skipping.Value);
 
-                AddComposerMenuItem(menu, "Plan mode", choice == ClaudePermissionChoice.PlanMode,
+                AddComposerMenuItem(menu, L("Plan mode"), choice == ClaudePermissionChoice.PlanMode,
                     delegate { ThreadHelper.ThrowIfNotOnUIThread(); OnChatPlanModeSelected(true); });
-                AddComposerMenuItem(menu, "Skip permissions", choice == ClaudePermissionChoice.SkipPermissions,
+                AddComposerMenuItem(menu, L("Skip permissions"), choice == ClaudePermissionChoice.SkipPermissions,
                     delegate { ThreadHelper.ThrowIfNotOnUIThread(); OnChatPermissionSelected(true); });
-                AddComposerMenuItem(menu, "Auto mode", choice == ClaudePermissionChoice.Auto,
+                AddComposerMenuItem(menu, L("Auto mode"), choice == ClaudePermissionChoice.Auto,
                     delegate { ThreadHelper.ThrowIfNotOnUIThread(); OnChatAutoPermissionsSelected(); });
-                AddComposerMenuItem(menu, "Accept edits", choice == ClaudePermissionChoice.AcceptEdits,
+                AddComposerMenuItem(menu, L("Accept edits"), choice == ClaudePermissionChoice.AcceptEdits,
                     delegate { ThreadHelper.ThrowIfNotOnUIThread(); OnChatAcceptEditsSelected(); });
-                AddComposerMenuItem(menu, "Manual mode", choice == ClaudePermissionChoice.ManualMode,
+                AddComposerMenuItem(menu, L("Manual mode"), choice == ClaudePermissionChoice.ManualMode,
                     delegate { ThreadHelper.ThrowIfNotOnUIThread(); OnChatManualModeSelected(); });
 
                 return menu;
             }
 
-            AddComposerMenuItem(menu, "Ask permission", !skipping.Value,
+            AddComposerMenuItem(menu, L("Ask permission"), !skipping.Value,
                 delegate { ThreadHelper.ThrowIfNotOnUIThread(); OnChatPermissionSelected(false); });
-            AddComposerMenuItem(menu, "Skip permissions", skipping.Value,
+            AddComposerMenuItem(menu, L("Skip permissions"), skipping.Value,
                 delegate { ThreadHelper.ThrowIfNotOnUIThread(); OnChatPermissionSelected(true); });
 
             return menu;
@@ -4713,23 +4750,23 @@ namespace ClaudeCodeVS
             {
                 ClaudePermissionChoice choice = GetNativeClaudePermissionChoice(session);
 
-                AddComposerMenuItem(menu, "Plan mode", choice == ClaudePermissionChoice.PlanMode,
+                AddComposerMenuItem(menu, L("Plan mode"), choice == ClaudePermissionChoice.PlanMode,
                     delegate { ThreadHelper.ThrowIfNotOnUIThread(); OnChatPlanModeSelectedForSession(session, true); });
-                AddComposerMenuItem(menu, "Skip permissions", choice == ClaudePermissionChoice.SkipPermissions,
+                AddComposerMenuItem(menu, L("Skip permissions"), choice == ClaudePermissionChoice.SkipPermissions,
                     delegate { ThreadHelper.ThrowIfNotOnUIThread(); OnChatPermissionSelectedForSession(session, true); });
-                AddComposerMenuItem(menu, "Auto mode", choice == ClaudePermissionChoice.Auto,
+                AddComposerMenuItem(menu, L("Auto mode"), choice == ClaudePermissionChoice.Auto,
                     delegate { ThreadHelper.ThrowIfNotOnUIThread(); OnChatAutoPermissionsSelectedForSession(session); });
-                AddComposerMenuItem(menu, "Accept edits", choice == ClaudePermissionChoice.AcceptEdits,
+                AddComposerMenuItem(menu, L("Accept edits"), choice == ClaudePermissionChoice.AcceptEdits,
                     delegate { ThreadHelper.ThrowIfNotOnUIThread(); OnChatAcceptEditsSelectedForSession(session); });
-                AddComposerMenuItem(menu, "Manual mode", choice == ClaudePermissionChoice.ManualMode,
+                AddComposerMenuItem(menu, L("Manual mode"), choice == ClaudePermissionChoice.ManualMode,
                     delegate { ThreadHelper.ThrowIfNotOnUIThread(); OnChatManualModeSelectedForSession(session); });
 
                 return menu;
             }
 
-            AddComposerMenuItem(menu, "Ask permission", !skipping,
+            AddComposerMenuItem(menu, L("Ask permission"), !skipping,
                 delegate { ThreadHelper.ThrowIfNotOnUIThread(); OnChatPermissionSelectedForSession(session, false); });
-            AddComposerMenuItem(menu, "Skip permissions", skipping,
+            AddComposerMenuItem(menu, L("Skip permissions"), skipping,
                 delegate { ThreadHelper.ThrowIfNotOnUIThread(); OnChatPermissionSelectedForSession(session, true); });
 
             return menu;
@@ -4802,13 +4839,13 @@ namespace ClaudeCodeVS
                 string question = trimmed.Substring(4).Trim();
                 if (question.Length == 0)
                 {
-                    AddNativeMessage(ChatMessageKind.Notice, "Usage: /btw <your question>");
+                    AddNativeMessage(ChatMessageKind.Notice, L("Usage: /btw <your question>"));
                     return true;
                 }
 
                 AddNativeMessage(ChatMessageKind.User, trimmed);
                 AddNativeMessage(ChatMessageKind.Notice,
-                    "💬 Side question — asked in a forked copy of this conversation, so the work in progress is untouched.");
+                    L("💬 Side question — asked in a forked copy of this conversation, so the work in progress is untouched."));
 
                 _ = AskSideQuestionAsync(question);
                 return true;
@@ -4826,7 +4863,7 @@ namespace ClaudeCodeVS
 
                     if (GetNativeClaudePermissionChoice(_settings?.ClaudeDangerouslySkipPermissions == true) == ClaudePermissionChoice.PlanMode)
                     {
-                        AddNativeMessage(ChatMessageKind.Notice, "🤖 Already in plan mode.");
+                        AddNativeMessage(ChatMessageKind.Notice, L("🤖 Already in plan mode."));
                     }
                     else
                     {
@@ -4910,7 +4947,7 @@ namespace ClaudeCodeVS
                 _settings.SelectedProvider = provider;
                 UpdateProviderSelection();
                 SaveSettings(nameof(ClaudeCodeSettings.SelectedProvider));
-                ChatTranscript?.SetStatus($"Switching to {GetChatProviderDisplayName(provider)}...");
+                ChatTranscript?.SetStatus(L("Switching to {0}...", GetChatProviderDisplayName(provider)));
 
                 if (!await RestartTerminalWithSelectedProviderAsync())
                 {
@@ -4938,20 +4975,21 @@ namespace ClaudeCodeVS
                 if (GetActiveOrSelectedProvider() != provider || ChatTranscript == null || !_chatIsInTab)
                 {
                     AddNativeMessage(ChatMessageKind.Error,
-                        $"Could not switch to {GetChatProviderDisplayName(provider)} — check that it is installed " +
-                        "and reachable, then try again. The embedded terminal may have been used instead.");
+                        L("Could not switch to {0} — check that it is installed " +
+                          "and reachable, then try again. The embedded terminal may have been used instead.",
+                          GetChatProviderDisplayName(provider)));
                     return;
                 }
 
                 AddNativeMessage(ChatMessageKind.Notice,
-                    $"🤖 Switched to {GetChatProviderDisplayName(provider)} — this starts a new conversation.");
+                    L("🤖 Switched to {0} — this starts a new conversation.", GetChatProviderDisplayName(provider)));
             }
             catch (Exception ex)
             {
                 Debug.WriteLine($"Chat provider switch failed: {ex.Message}");
 
                 await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
-                AddNativeMessage(ChatMessageKind.Error, $"Could not switch agent: {ex.Message}");
+                AddNativeMessage(ChatMessageKind.Error, L("Could not switch agent: {0}", ex.Message));
             }
         }
 
@@ -4980,7 +5018,7 @@ namespace ClaudeCodeVS
                 UpdateChatComposerState(session);
 
                 await RelaunchSessionAsync(session,
-                    $"🤖 Switched to {GetChatProviderDisplayName(provider)} — this starts a new conversation.",
+                    L("🤖 Switched to {0} — this starts a new conversation.", GetChatProviderDisplayName(provider)),
                     forceNewSession: true);
             }
             catch (Exception ex)
@@ -4988,7 +5026,7 @@ namespace ClaudeCodeVS
                 Debug.WriteLine($"Chat provider switch failed for session {session?.SessionId}: {ex.Message}");
 
                 await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
-                AddNativeMessageToSession(session, ChatMessageKind.Error, $"Could not switch agent: {ex.Message}");
+                AddNativeMessageToSession(session, ChatMessageKind.Error, L("Could not switch agent: {0}", ex.Message));
             }
         }
 
@@ -5034,11 +5072,11 @@ namespace ClaudeCodeVS
 
                 if (await TrySwitchClaudeModelAsync(MapClaudeModelArgument(model)))
                 {
-                    AddNativeMessage(ChatMessageKind.Notice, $"🤖 Switched to {modelLabel}.");
+                    AddNativeMessage(ChatMessageKind.Notice, L("🤖 Switched to {0}.", modelLabel));
                     return;
                 }
 
-                await RelaunchNativeSessionAsync($"🤖 Switched to {modelLabel}");
+                await RelaunchNativeSessionAsync(L("🤖 Switched to {0}", modelLabel));
             }
             catch (Exception ex)
             {
@@ -5069,7 +5107,7 @@ namespace ClaudeCodeVS
             UpdateChatComposerState();
 
             string label = string.IsNullOrWhiteSpace(model)
-                ? "the agent's default"
+                ? L("the agent's default")
                 : GetSelectedProviderModelLabel(provider);
 
             // Codex and Cursor relaunch a process every turn anyway, so this never needs the restart
@@ -5077,29 +5115,29 @@ namespace ClaudeCodeVS
             // ACP protocol, though, so that case still falls through to the relaunch prompt there.
             if (TrySwitchOneShotModel(_agentSession, provider.Value, model))
             {
-                AddNativeMessage(ChatMessageKind.Notice, $"🤖 Model switched to {label}.");
+                AddNativeMessage(ChatMessageKind.Notice, L("🤖 Model switched to {0}.", label));
                 return;
             }
 
             if (!string.IsNullOrWhiteSpace(model) && await TrySwitchAcpModelAsync(model))
             {
-                AddNativeMessage(ChatMessageKind.Notice, $"🤖 Model switched to {label}.");
+                AddNativeMessage(ChatMessageKind.Notice, L("🤖 Model switched to {0}.", label));
                 return;
             }
 
             MessageBoxResult result = MessageBox.Show(
-                $"Switch the model to {label} and restart the chat so the change takes effect now?",
-                $"Switch {GetChatProviderDisplayName(provider)} model",
+                L("Switch the model to {0} and restart the chat so the change takes effect now?", label),
+                L("Switch {0} model", GetChatProviderDisplayName(provider)),
                 MessageBoxButton.YesNo,
                 MessageBoxImage.Question);
 
             if (result == MessageBoxResult.Yes)
             {
-                await RelaunchNativeSessionAsync($"🤖 Model switched to {label}", forceNewSession: true);
+                await RelaunchNativeSessionAsync(L("🤖 Model switched to {0}", label), forceNewSession: true);
             }
             else
             {
-                AddNativeMessage(ChatMessageKind.Notice, $"🤖 Model set to {label} — it applies the next time the agent starts.");
+                AddNativeMessage(ChatMessageKind.Notice, L("🤖 Model set to {0} — it applies the next time the agent starts.", label));
             }
         }
 
@@ -5238,8 +5276,8 @@ namespace ClaudeCodeVS
         }
 
         /// <summary>Appended to a permission notice whose switch waits for the plan to end.</summary>
-        private const string PlanDeferredNoticeSuffix =
-            " once the plan is approved or this response ends — the agent finishes planning first.";
+        private static string PlanDeferredNoticeSuffix =>
+            L(" once the plan is approved or this response ends — the agent finishes planning first.");
 
         /// <summary>
         /// Applies a permission/plan-mode pick the handlers below have already saved: live on a Claude
@@ -5389,8 +5427,8 @@ namespace ClaudeCodeVS
             _nativeSkipPlanRestoreChoice = null;
             UpdateChatComposerState();
 
-            string notice = "🤖 Plan carried out — back to " + GetClaudePermissionLabel(
-                GetNativeClaudePermissionChoice(_settings?.ClaudeDangerouslySkipPermissions == true));
+            string notice = L("🤖 Plan carried out — back to {0}", GetClaudePermissionLabel(
+                GetNativeClaudePermissionChoice(_settings?.ClaudeDangerouslySkipPermissions == true)));
 
 #pragma warning disable VSSDK007 // Deliberately detached: called from the turn-completed handler, which must not wait on the switch
             ThreadHelper.JoinableTaskFactory.RunAsync(async delegate
@@ -5422,7 +5460,7 @@ namespace ClaudeCodeVS
             session.SkipPlanRestoreChoice = null;
             UpdateChatComposerState(session);
 
-            string notice = "🤖 Plan carried out — back to " + GetClaudePermissionLabel(GetNativeClaudePermissionChoice(session));
+            string notice = L("🤖 Plan carried out — back to {0}", GetClaudePermissionLabel(GetNativeClaudePermissionChoice(session)));
 
 #pragma warning disable VSSDK007 // Deliberately detached: called from the turn-completed handler, which must not wait on the switch
             ThreadHelper.JoinableTaskFactory.RunAsync(async delegate
@@ -5548,11 +5586,11 @@ namespace ClaudeCodeVS
 
                 if (await TrySwitchClaudeEffortAsync(MapEffortArgument(level)))
                 {
-                    AddNativeMessage(ChatMessageKind.Notice, $"🤖 Effort switched to {effortLabel}.");
+                    AddNativeMessage(ChatMessageKind.Notice, L("🤖 Effort switched to {0}.", effortLabel));
                     return;
                 }
 
-                await RelaunchNativeSessionAsync($"🤖 Effort switched to {effortLabel}");
+                await RelaunchNativeSessionAsync(L("🤖 Effort switched to {0}", effortLabel));
             }
             catch (Exception ex)
             {
@@ -5582,7 +5620,7 @@ namespace ClaudeCodeVS
 
             AddNativeMessage(
                 ChatMessageKind.Notice,
-                $"🤖 Reasoning switched to {GetChatCodexReasoningLabel()}.");
+                L("🤖 Reasoning switched to {0}.", GetChatCodexReasoningLabel()));
         }
 
         /// <summary>
@@ -5625,8 +5663,8 @@ namespace ClaudeCodeVS
                 UpdateChatComposerState();
 
                 await ApplyNativePermissionSwitchAsync(skip
-                    ? "🤖 Switched to skipping permission prompts"
-                    : "🤖 Switched to asking for permission");
+                    ? L("🤖 Switched to skipping permission prompts")
+                    : L("🤖 Switched to asking for permission"));
             }
             catch (Exception ex)
             {
@@ -5671,8 +5709,8 @@ namespace ClaudeCodeVS
                 UpdateChatComposerState();
 
                 await ApplyNativePermissionSwitchAsync(planning
-                    ? "🤖 Plan mode on — the agent will propose a plan before making changes"
-                    : "🤖 Plan mode off");
+                    ? L("🤖 Plan mode on — the agent will propose a plan before making changes")
+                    : L("🤖 Plan mode off"));
             }
             catch (Exception ex)
             {
@@ -5727,7 +5765,7 @@ namespace ClaudeCodeVS
                 SaveSettings();
                 UpdateChatComposerState();
 
-                await ApplyNativePermissionSwitchAsync("🤖 Switched to accepting edits");
+                await ApplyNativePermissionSwitchAsync(L("🤖 Switched to accepting edits"));
             }
             catch (Exception ex)
             {
@@ -5779,7 +5817,7 @@ namespace ClaudeCodeVS
                 SaveSettings();
                 UpdateChatComposerState();
 
-                await ApplyNativePermissionSwitchAsync("🤖 Switched to auto permissions");
+                await ApplyNativePermissionSwitchAsync(L("🤖 Switched to auto permissions"));
             }
             catch (Exception ex)
             {
@@ -5830,7 +5868,7 @@ namespace ClaudeCodeVS
                 SaveSettings();
                 UpdateChatComposerState();
 
-                await ApplyNativePermissionSwitchAsync("🤖 Switched to manual permissions");
+                await ApplyNativePermissionSwitchAsync(L("🤖 Switched to manual permissions"));
             }
             catch (Exception ex)
             {
@@ -5912,7 +5950,7 @@ namespace ClaudeCodeVS
 
                 ChatTranscript.SetBusy(false);
                 ChatTranscript.SetQueuedMessageCount(0);
-                ChatTranscript.SetStatus("Restarting the agent...");
+                ChatTranscript.SetStatus(L("Restarting the agent..."));
 
                 // Await it: the replacement session below must not start while the old process is
                 // still alive, but the wait no longer blocks the UI thread.
@@ -5936,7 +5974,7 @@ namespace ClaudeCodeVS
                 IAgentSession session = CreateAgentSession(provider, workspace);
                 if (session == null)
                 {
-                    AddNativeMessage(ChatMessageKind.Error, "The agent could not be restarted.");
+                    AddNativeMessage(ChatMessageKind.Error, L("The agent could not be restarted."));
                     ChatTranscript.SetStatus(string.Empty);
                     return;
                 }
@@ -5975,7 +6013,7 @@ namespace ClaudeCodeVS
                 await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
 
                 _currentRunningProvider = provider;
-                ChatTranscript.SetStatus("Ready.");
+                ChatTranscript.SetStatus(L("Ready."));
 
                 if (appendAccountLabel)
                 {
@@ -5994,7 +6032,7 @@ namespace ClaudeCodeVS
 
                     if (!string.IsNullOrEmpty(account))
                     {
-                        notice += " — now signed in as " + account;
+                        notice += L(" — now signed in as {0}", account);
                     }
                 }
 
@@ -6002,7 +6040,7 @@ namespace ClaudeCodeVS
                 // (no turn has run), because in that case no history is being lost.
                 AddNativeMessage(ChatMessageKind.Notice, canResume || forceNewSession || providerCanResume
                     ? notice
-                    : notice + " — this agent cannot resume, so the conversation starts over.");
+                    : notice + L(" — this agent cannot resume, so the conversation starts over."));
 
                 UpdateChatComposerState();
                 UpdateChatTabCaption();
@@ -6032,7 +6070,7 @@ namespace ClaudeCodeVS
                 Debug.WriteLine($"Native mode: relaunch failed: {ex}");
 
                 await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
-                AddNativeMessage(ChatMessageKind.Error, $"The agent could not be restarted: {ex.Message}");
+                AddNativeMessage(ChatMessageKind.Error, L("The agent could not be restarted: {0}", ex.Message));
                 ChatTranscript.SetStatus(string.Empty);
             }
             finally
@@ -6113,7 +6151,7 @@ namespace ClaudeCodeVS
                 ChatTranscriptView transcript = session.ChatTranscript;
                 transcript.SetBusy(false);
                 transcript.SetQueuedMessageCount(0);
-                transcript.SetStatus("Restarting the agent...");
+                transcript.SetStatus(L("Restarting the agent..."));
 
                 DisposeSessionAgent(session);
 
@@ -6126,7 +6164,7 @@ namespace ClaudeCodeVS
                     provider, workspace, session, canResume ? resumeId : null);
                 if (newAgentSession == null)
                 {
-                    AddNativeMessageToSession(session, ChatMessageKind.Error, "The agent could not be restarted.");
+                    AddNativeMessageToSession(session, ChatMessageKind.Error, L("The agent could not be restarted."));
                     transcript.SetStatus(string.Empty);
                     return;
                 }
@@ -6166,7 +6204,7 @@ namespace ClaudeCodeVS
 
                 await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
 
-                transcript.SetStatus("Ready.");
+                transcript.SetStatus(L("Ready."));
 
                 // Same replay the default session does on a Session History resume (see
                 // StartNativeModeAsync): the CLI restores the agent's memory but none of the messages.
@@ -6180,7 +6218,7 @@ namespace ClaudeCodeVS
                 {
                     AddNativeMessageToSession(session, ChatMessageKind.Notice, canResume || forceNewSession || providerCanResume
                         ? notice
-                        : notice + " — this agent cannot resume, so the conversation starts over.");
+                        : notice + L(" — this agent cannot resume, so the conversation starts over."));
                 }
 
                 UpdateChatComposerState(session);
@@ -6199,7 +6237,7 @@ namespace ClaudeCodeVS
                 Debug.WriteLine($"Native mode: relaunch failed for session {session.SessionId}: {ex}");
 
                 await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
-                AddNativeMessageToSession(session, ChatMessageKind.Error, $"The agent could not be restarted: {ex.Message}");
+                AddNativeMessageToSession(session, ChatMessageKind.Error, L("The agent could not be restarted: {0}", ex.Message));
                 session.ChatTranscript?.SetStatus(string.Empty);
             }
             finally
@@ -6236,11 +6274,11 @@ namespace ClaudeCodeVS
 
                 if (await TrySwitchClaudeModelAsync(session.AgentSession, MapClaudeModelArgument(model)))
                 {
-                    AddNativeMessageToSession(session, ChatMessageKind.Notice, $"🤖 Switched to {modelLabel}.");
+                    AddNativeMessageToSession(session, ChatMessageKind.Notice, L("🤖 Switched to {0}.", modelLabel));
                     return;
                 }
 
-                await RelaunchSessionAsync(session, $"🤖 Switched to {modelLabel}");
+                await RelaunchSessionAsync(session, L("🤖 Switched to {0}", modelLabel));
             }
             catch (Exception ex)
             {
@@ -6264,35 +6302,35 @@ namespace ClaudeCodeVS
             UpdateChatComposerState(session);
 
             string label = string.IsNullOrWhiteSpace(model)
-                ? "the agent's default"
+                ? L("the agent's default")
                 : GetSelectedProviderModelLabel(session.SelectedProvider, model);
 
             if (TrySwitchOneShotModel(session.AgentSession, session.SelectedProvider, model))
             {
-                AddNativeMessageToSession(session, ChatMessageKind.Notice, $"🤖 Model switched to {label}.");
+                AddNativeMessageToSession(session, ChatMessageKind.Notice, L("🤖 Model switched to {0}.", label));
                 return;
             }
 
             if (!string.IsNullOrWhiteSpace(model) && await TrySwitchAcpModelAsync(session.AgentSession, model))
             {
-                AddNativeMessageToSession(session, ChatMessageKind.Notice, $"🤖 Model switched to {label}.");
+                AddNativeMessageToSession(session, ChatMessageKind.Notice, L("🤖 Model switched to {0}.", label));
                 return;
             }
 
             MessageBoxResult result = MessageBox.Show(
-                $"Switch the model to {label} and restart this chat so the change takes effect now?",
-                $"Switch {GetChatProviderDisplayName(session.SelectedProvider)} model",
+                L("Switch the model to {0} and restart this chat so the change takes effect now?", label),
+                L("Switch {0} model", GetChatProviderDisplayName(session.SelectedProvider)),
                 MessageBoxButton.YesNo,
                 MessageBoxImage.Question);
 
             if (result == MessageBoxResult.Yes)
             {
-                await RelaunchSessionAsync(session, $"🤖 Model switched to {label}", forceNewSession: true);
+                await RelaunchSessionAsync(session, L("🤖 Model switched to {0}", label), forceNewSession: true);
             }
             else
             {
                 AddNativeMessageToSession(session, ChatMessageKind.Notice,
-                    $"🤖 Model set to {label} — it applies the next time this chat's agent starts.");
+                    L("🤖 Model set to {0} — it applies the next time this chat's agent starts.", label));
             }
         }
 
@@ -6317,11 +6355,11 @@ namespace ClaudeCodeVS
 
                 if (await TrySwitchClaudeEffortAsync(session.AgentSession, MapEffortArgument(level)))
                 {
-                    AddNativeMessageToSession(session, ChatMessageKind.Notice, $"🤖 Effort switched to {effortLabel}.");
+                    AddNativeMessageToSession(session, ChatMessageKind.Notice, L("🤖 Effort switched to {0}.", effortLabel));
                     return;
                 }
 
-                await RelaunchSessionAsync(session, $"🤖 Effort switched to {effortLabel}");
+                await RelaunchSessionAsync(session, L("🤖 Effort switched to {0}", effortLabel));
             }
             catch (Exception ex)
             {
@@ -6346,7 +6384,7 @@ namespace ClaudeCodeVS
             oneShot?.SetReasoningEffort(MapCodexReasoningArgument(level));
 
             AddNativeMessageToSession(session, ChatMessageKind.Notice,
-                $"🤖 Reasoning switched to {GetCodexReasoningLabel(level)}.");
+                L("🤖 Reasoning switched to {0}.", GetCodexReasoningLabel(level)));
         }
 
         /// <summary>The parallel-tab counterpart of <see cref="OnChatPermissionSelected"/>.</summary>
@@ -6378,8 +6416,8 @@ namespace ClaudeCodeVS
                 UpdateChatComposerState(session);
 
                 await ApplySessionPermissionSwitchAsync(session, skip
-                    ? "🤖 Switched to skipping permission prompts"
-                    : "🤖 Switched to asking for permission");
+                    ? L("🤖 Switched to skipping permission prompts")
+                    : L("🤖 Switched to asking for permission"));
             }
             catch (Exception ex)
             {
@@ -6414,8 +6452,8 @@ namespace ClaudeCodeVS
                 UpdateChatComposerState(session);
 
                 await ApplySessionPermissionSwitchAsync(session, planning
-                    ? "🤖 Plan mode on — the agent will propose a plan before making changes"
-                    : "🤖 Plan mode off");
+                    ? L("🤖 Plan mode on — the agent will propose a plan before making changes")
+                    : L("🤖 Plan mode off"));
             }
             catch (Exception ex)
             {
@@ -6445,7 +6483,7 @@ namespace ClaudeCodeVS
                 session.SkipPermissions = false;
                 UpdateChatComposerState(session);
 
-                await ApplySessionPermissionSwitchAsync(session, "🤖 Switched to accepting edits");
+                await ApplySessionPermissionSwitchAsync(session, L("🤖 Switched to accepting edits"));
             }
             catch (Exception ex)
             {
@@ -6476,7 +6514,7 @@ namespace ClaudeCodeVS
                 session.SkipPermissions = false;
                 UpdateChatComposerState(session);
 
-                await ApplySessionPermissionSwitchAsync(session, "🤖 Switched to auto permissions");
+                await ApplySessionPermissionSwitchAsync(session, L("🤖 Switched to auto permissions"));
             }
             catch (Exception ex)
             {
@@ -6507,7 +6545,7 @@ namespace ClaudeCodeVS
                 session.SkipPermissions = false;
                 UpdateChatComposerState(session);
 
-                await ApplySessionPermissionSwitchAsync(session, "🤖 Switched to manual permissions");
+                await ApplySessionPermissionSwitchAsync(session, L("🤖 Switched to manual permissions"));
             }
             catch (Exception ex)
             {
@@ -6529,7 +6567,7 @@ namespace ClaudeCodeVS
         {
             if (!IsNativeModeActive)
             {
-                MessageBox.Show("The agent is not running.", "Update Agent", MessageBoxButton.OK, MessageBoxImage.Warning);
+                MessageBox.Show(L("The agent is not running."), L("Update Agent"), MessageBoxButton.OK, MessageBoxImage.Warning);
                 return;
             }
 
@@ -6537,11 +6575,11 @@ namespace ClaudeCodeVS
             string updateCommand = GetNativeAgentUpdateCommand(provider);
             if (string.IsNullOrEmpty(updateCommand))
             {
-                MessageBox.Show("No update command is known for this agent.", "Update Agent", MessageBoxButton.OK, MessageBoxImage.Information);
+                MessageBox.Show(L("No update command is known for this agent."), L("Update Agent"), MessageBoxButton.OK, MessageBoxImage.Information);
                 return;
             }
 
-            await RelaunchNativeSessionAsync("🔄️ Agent updated — resuming", midRelaunchAsync: async () =>
+            await RelaunchNativeSessionAsync(L("🔄️ Agent updated — resuming"), midRelaunchAsync: async () =>
             {
                 try
                 {
@@ -6563,7 +6601,7 @@ namespace ClaudeCodeVS
                 catch (Exception ex)
                 {
                     Debug.WriteLine($"UpdateNativeAgentAsync: updater failed: {ex.Message}");
-                    MessageBox.Show($"Failed to run the updater: {ex.Message}", "Update Agent", MessageBoxButton.OK, MessageBoxImage.Error);
+                    MessageBox.Show(L("Failed to run the updater: {0}", ex.Message), L("Update Agent"), MessageBoxButton.OK, MessageBoxImage.Error);
                 }
             });
         }
@@ -6768,8 +6806,8 @@ namespace ClaudeCodeVS
                 }
 
                 MessageBox.Show(
-                    "Please log out and log in to the desired account in the Claude browser tab that just opened, then click OK to continue.",
-                    "Change Account",
+                    L("Please log out and log in to the desired account in the Claude browser tab that just opened, then click OK to continue."),
+                    L("Change Account"),
                     MessageBoxButton.OK,
                     MessageBoxImage.Information);
 
@@ -6801,12 +6839,12 @@ namespace ClaudeCodeVS
                 }
 
                 MessageBox.Show(
-                    "A console window opened to finish signing in to the CLI — complete it there (pasting the code if prompted), then click OK to resume Claude Code.",
-                    "Change Account",
+                    L("A console window opened to finish signing in to the CLI — complete it there (pasting the code if prompted), then click OK to resume Claude Code."),
+                    L("Change Account"),
                     MessageBoxButton.OK,
                     MessageBoxImage.Information);
 
-                await RelaunchNativeSessionAsync("🔑 Switched account — resuming", appendAccountLabel: true);
+                await RelaunchNativeSessionAsync(L("🔑 Switched account — resuming"), appendAccountLabel: true);
             }
             catch (Exception ex)
             {

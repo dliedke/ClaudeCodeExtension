@@ -16,6 +16,7 @@ using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Linq;
 using ClaudeCodeVS.Agents;
+using static ClaudeCodeVS.UI.Loc;
 
 namespace ClaudeCodeVS.UI
 {
@@ -116,8 +117,8 @@ namespace ClaudeCodeVS.UI
             {
                 string[] selected = SelectedLabels();
                 return selected.Length == 0
-                    ? "Other — type your own answer…"
-                    : "Type additional info to " + JoinWithAnd(selected) + "…";
+                    ? L("Other — type your own answer…")
+                    : L("Type additional info to {0}…", JoinWithAnd(selected));
             }
         }
 
@@ -127,7 +128,7 @@ namespace ClaudeCodeVS.UI
             if (items == null || items.Count == 0) return string.Empty;
             if (items.Count == 1) return items[0];
 
-            return string.Join(", ", items.Take(items.Count - 1)) + " and " + items[items.Count - 1];
+            return L("{0} and {1}", string.Join(", ", items.Take(items.Count - 1)), items[items.Count - 1]);
         }
 
         private string[] SelectedLabels()
@@ -287,8 +288,8 @@ namespace ClaudeCodeVS.UI
             get
             {
                 return string.IsNullOrEmpty(ToolName)
-                    ? "Allow for the rest of this session"
-                    : "Allow " + ToolName + " for the rest of this session";
+                    ? L("Allow for the rest of this session")
+                    : L("Allow {0} for the rest of this session", ToolName);
             }
         }
 
@@ -306,14 +307,14 @@ namespace ClaudeCodeVS.UI
             {
                 switch (InteractionKind)
                 {
-                    case AgentInteractionKind.PlanReview: return "Plan ready for review";
-                    case AgentInteractionKind.Question: return "The agent needs your input";
+                    case AgentInteractionKind.PlanReview: return L("Plan ready for review");
+                    case AgentInteractionKind.Question: return L("The agent needs your input");
                     default:
                         string suffix = string.IsNullOrEmpty(ToolDescription) ? string.Empty : " - " + ToolDescription;
 
                         return string.IsNullOrEmpty(ToolName)
-                            ? "The agent needs permission" + suffix
-                            : "Allow " + ToolName + suffix + "?";
+                            ? L("The agent needs permission") + suffix
+                            : L("Allow {0}?", ToolName + suffix);
                 }
             }
         }
@@ -325,9 +326,9 @@ namespace ClaudeCodeVS.UI
             {
                 switch (InteractionKind)
                 {
-                    case AgentInteractionKind.PlanReview: return "Approve plan";
-                    case AgentInteractionKind.Question: return "Submit";
-                    default: return "Allow";
+                    case AgentInteractionKind.PlanReview: return L("Approve plan");
+                    case AgentInteractionKind.Question: return L("Submit");
+                    default: return L("Allow");
                 }
             }
         }
@@ -338,9 +339,9 @@ namespace ClaudeCodeVS.UI
             {
                 switch (InteractionKind)
                 {
-                    case AgentInteractionKind.PlanReview: return "Keep planning";
-                    case AgentInteractionKind.Question: return "Skip";
-                    default: return "Deny";
+                    case AgentInteractionKind.PlanReview: return L("Keep planning");
+                    case AgentInteractionKind.Question: return L("Skip");
+                    default: return L("Deny");
                 }
             }
         }
@@ -408,12 +409,12 @@ namespace ClaudeCodeVS.UI
                 }
 
                 _request.Allow(answers);
-                Outcome = "Answered: " + string.Join(" · ", answers.Values);
+                Outcome = L("Answered: {0}", string.Join(" · ", answers.Values));
             }
             else
             {
                 _request.Allow(null);
-                Outcome = IsPlanReview ? "Plan approved — proceeding." : "Allowed.";
+                Outcome = IsPlanReview ? L("Plan approved — proceeding.") : L("Allowed.");
             }
 
             WasAccepted = true;
@@ -430,8 +431,8 @@ namespace ClaudeCodeVS.UI
 
             _request.AllowForSession();
             Outcome = string.IsNullOrEmpty(ToolName)
-                ? "Allowed — won't ask again this session."
-                : "Allowed — won't ask again for " + ToolName + " this session.";
+                ? L("Allowed — won't ask again this session.")
+                : L("Allowed — won't ask again for {0} this session.", ToolName);
             WasAccepted = true;
             IsPending = false;
         }
@@ -457,12 +458,12 @@ namespace ClaudeCodeVS.UI
             }
 
             var details = new List<string>();
-            if (skipping) details.Add("without permission prompts");
-            if (model.HasValue) details.Add("on " + model.Value);
+            if (skipping) details.Add(L("without permission prompts"));
+            if (model.HasValue) details.Add(L("on {0}", model.Value));
 
             Outcome = details.Count == 0
-                ? "Plan approved — proceeding."
-                : "Plan approved — proceeding " + string.Join(" ", details) + ".";
+                ? L("Plan approved — proceeding.")
+                : L("Plan approved — proceeding {0}.", string.Join(" ", details));
 
             WasAccepted = true;
             WasApprovedAndSkippedPermissions = skipping;
@@ -478,7 +479,7 @@ namespace ClaudeCodeVS.UI
                 ? "The user rejected the plan. Ask what to change before doing any work."
                 : "The user declined this action.");
 
-            Outcome = IsPlanReview ? "Plan rejected." : "Declined.";
+            Outcome = IsPlanReview ? L("Plan rejected.") : L("Declined.");
             IsPending = false;
         }
 
@@ -490,7 +491,7 @@ namespace ClaudeCodeVS.UI
         {
             if (!IsPending) return;
 
-            Outcome = "Not answered — the session ended.";
+            Outcome = L("Not answered — the session ended.");
             IsPending = false;
         }
     }

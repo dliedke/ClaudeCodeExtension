@@ -110,6 +110,18 @@ namespace ClaudeCodeVS
         /// </summary>
         public string WorkspaceOverride { get; set; }
 
+        /// <summary>
+        /// Workspace directory the tab was opened for. Only tabs of the current workspace are
+        /// remembered for reopening — a tab left open across a solution switch belongs to the old one.
+        /// </summary>
+        public string StartedWorkspace { get; set; }
+
+        /// <summary>
+        /// Set while a tab reopened with the solution builds its agent: a Claude agent then waits for
+        /// the first prompt to launch its CLI. Cleared right after, so relaunches start normally.
+        /// </summary>
+        public bool DeferAgentLaunch { get; set; }
+
         /// <summary>GitHub issue this tab is fixing (0 for an ordinary chat); used for the tab caption and to find the tab again.</summary>
         public int IssueNumber { get; set; }
 

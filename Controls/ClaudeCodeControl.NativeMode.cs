@@ -25,6 +25,7 @@ using ClaudeCodeVS.UI;
 using Microsoft.VisualStudio.Shell;
 using Microsoft.VisualStudio.Shell.Interop;
 using Microsoft.VisualStudio.Threading;
+using static ClaudeCodeVS.UI.Loc;
 
 namespace ClaudeCodeVS
 {
@@ -476,8 +477,8 @@ namespace ClaudeCodeVS
                 // Reasonix gets its own wording: it *does* have a working ACP channel, so telling the
                 // user it has none would be untrue — it is kept on the terminal on purpose.
                 await HandOffToEmbeddedTerminalAsync(provider == AiProvider.Reasonix
-                    ? $"{GetProviderDisplayName(provider)} always runs in the embedded terminal."
-                    : $"{GetProviderDisplayName(provider)} has no native chat channel — the embedded terminal was used instead.");
+                    ? L("{0} always runs in the embedded terminal.", GetProviderDisplayName(provider))
+                    : L("{0} has no native chat channel — the embedded terminal was used instead.", GetProviderDisplayName(provider)));
                 return NativeStartOutcome.Declined;
             }
 
@@ -489,7 +490,7 @@ namespace ClaudeCodeVS
                     Debug.WriteLine("Native mode: no usable workspace directory; using the embedded terminal.");
                     LogTerminalLaunch($"Native mode: no usable workspace directory (workspace='{workspace}'); using the embedded terminal.");
                     await HandOffToEmbeddedTerminalAsync(
-                        "Native mode needs an open folder or solution — the embedded terminal was used instead.");
+                        L("Native mode needs an open folder or solution — the embedded terminal was used instead."));
                     return NativeStartOutcome.Declined;
                 }
 
@@ -504,6 +505,12 @@ namespace ClaudeCodeVS
                 // relative-path resolution (ClaudeCodeControl.UserInput.cs) also read this field directly,
                 // so they were quietly diffing/resolving against the old directory too.
                 _lastWorkspaceDirectory = NormalizeWorkspaceDirectory(workspace);
+
+                // First start for this solution: its chat tabs from last time come back. The main chat
+                // resumes its conversation through the same field a Session History resume uses, so it
+                // is also replayed below; the parallel tabs follow once the main tab is up.
+                List<SavedChatTab> tabsToRestore = TakeChatTabsToRestore(workspace);
+                SavedChatTab restoredMainTab = await ArmDefaultChatRestoreAsync(tabsToRestore, provider, workspace);
 
                 // Read before the session consumes it. Only a resume the *user* asked for — from the
                 // Session History window — replays a transcript into the chat; the resumes a relaunch
@@ -559,12 +566,16 @@ namespace ClaudeCodeVS
                 _nativeTurnFinishConfig = null;
                 _nativeTurnInFlight = false;
                 ResetChatTabTopic(null);
-                ChatTranscript.SetStatus("Starting the agent...");
+                if (!string.IsNullOrWhiteSpace(restoredMainTab?.Title))
+                {
+                    _defaultAutoTitle = restoredMainTab.Title;
+                }
+                ChatTranscript.SetStatus(L("Starting the agent..."));
 
                 await session.StartAsync(workspace, _nativeSessionCts.Token);
 
                 _currentRunningProvider = provider;
-                ChatTranscript.SetStatus("Ready.");
+                ChatTranscript.SetStatus(L("Ready."));
 
                 // Devin (and any other ACP agent that resumes via session/load) already streamed its
                 // prior conversation into the chat live, through the same Received handler a running
@@ -587,6 +598,11 @@ namespace ClaudeCodeVS
                 await ShowNativeChatTabAsync(focusComposer: false);
                 HidePanelIfChatInOwnTab();
 
+                if (tabsToRestore != null)
+                {
+                    await RestoreParallelChatTabsAsync(tabsToRestore, workspace);
+                }
+
                 LogTerminalLaunch($"Native mode: started successfully for provider={provider}");
                 return NativeStartOutcome.Started;
             }
@@ -602,9 +618,8 @@ namespace ClaudeCodeVS
                 LogTerminalLaunch($"Native mode: provider={provider} does not offer model '{ex.ModelName}'; using the embedded terminal.");
 
                 await HandOffToEmbeddedTerminalAsync(
-                    $"{ex.AgentDisplayName} does not offer the model \"{ex.ModelName}\", so native mode could not " +
-                    "start — the embedded terminal was used instead. Pick a different model with 🤖 " +
-                    "(\"Configure Models...\" edits the list), then restart the agent.");
+                    L("{0} does not offer the model \"{1}\", so native mode could not start — the embedded terminal was used instead. Pick a different model with 🤖 (\"Configure Models...\" edits the list), then restart the agent.",
+                      ex.AgentDisplayName, ex.ModelName));
 
                 return NativeStartOutcome.Declined;
             }
@@ -616,7 +631,7 @@ namespace ClaudeCodeVS
                 // Never strand the user on a dead panel: tear the half-started session down and let the
                 // caller fall back to the embedded terminal.
                 await HandOffToEmbeddedTerminalAsync(
-                    $"Native mode could not start ({ex.Message}) — the embedded terminal was used instead.");
+                    L("Native mode could not start ({0}) — the embedded terminal was used instead.", ex.Message));
 
                 return NativeStartOutcome.Declined;
             }
@@ -828,7 +843,15 @@ namespace ClaudeCodeVS
             if (!string.IsNullOrEmpty(resumeArg) && resumeArg != "-c")
             {
                 options.ResumeSessionId = resumeArg;
+
+                // --resume keeps the conversation's own id, and --session-id is not passed alongside
+                // it, so the adapter starts out with the real id instead of a throwaway seed: the tab's
+                // saved title and color show before the first turn confirms it.
+                options.SessionId = resumeArg;
             }
+
+            // A chat tab reopened with the solution launches its CLI on the first prompt only.
+            options.DeferLaunch = session?.DeferAgentLaunch == true;
 
             // Remembered so a side question can re-run the same CLI — same executable, distro, folder
             // and model as the conversation it is a side question to. Only for the default session:
@@ -2038,7 +2061,7 @@ namespace ClaudeCodeVS
         {
             return ex is AgentCliNotFoundException
                 ? ex.Message
-                : $"The prompt could not be delivered: {ex.Message}";
+                : L("The prompt could not be delivered: {0}", ex.Message);
         }
 
         /// <summary>Longest a side question is given before its process is killed.</summary>
@@ -2106,7 +2129,7 @@ namespace ClaudeCodeVS
                 if (completed != exited.Task)
                 {
                     await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
-                    AddNativeMessage(ChatMessageKind.Error, "The side question timed out.");
+                    AddNativeMessage(ChatMessageKind.Error, L("The side question timed out."));
                     return;
                 }
 
@@ -2127,8 +2150,8 @@ namespace ClaudeCodeVS
                     lock (stderr) { detail = stderr.ToString().Trim(); }
 
                     AddNativeMessage(ChatMessageKind.Error, string.IsNullOrEmpty(detail)
-                        ? "The side question returned nothing."
-                        : "The side question failed: " + detail);
+                        ? L("The side question returned nothing.")
+                        : L("The side question failed: {0}", detail));
                 }
 
                 ChatTranscript.ScrollToEndIfFollowing();
@@ -2138,7 +2161,7 @@ namespace ClaudeCodeVS
                 Debug.WriteLine($"Side question failed: {ex}");
 
                 await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
-                AddNativeMessage(ChatMessageKind.Error, "The side question failed: " + ex.Message);
+                AddNativeMessage(ChatMessageKind.Error, L("The side question failed: {0}", ex.Message));
             }
             finally
             {
@@ -2207,7 +2230,7 @@ namespace ClaudeCodeVS
                 }
 
                 sessionState.ChatTranscript.SetBusy(false);
-                sessionState.ChatTranscript.SetActivityLabel("Stopping...");
+                sessionState.ChatTranscript.SetActivityLabel(L("Stopping..."));
 
                 await sessionState.AgentSession.InterruptAsync(sessionState.SessionCts?.Token ?? CancellationToken.None);
             }
@@ -2238,7 +2261,7 @@ namespace ClaudeCodeVS
                 }
 
                 ChatTranscript.SetBusy(false);
-                ChatTranscript.SetActivityLabel("Stopping...");
+                ChatTranscript.SetActivityLabel(L("Stopping..."));
 
                 await session.InterruptAsync(_nativeSessionCts != null
                     ? _nativeSessionCts.Token
@@ -2368,6 +2391,7 @@ namespace ClaudeCodeVS
                     UpdateSessionTabCaption(session);
                     SyncClaudeTranscript(session.SelectedProvider, agentEvent.SessionId ?? session.AgentSession?.SessionId,
                         agentEvent.Kind, () => UpdateSessionTabCaption(session));
+                    RecordOpenChatTabs();
                     break;
 
                 case AgentEventKind.AssistantText:
@@ -2382,7 +2406,7 @@ namespace ClaudeCodeVS
                 case AgentEventKind.Thinking:
                     {
                         var msg = session.StreamingThinkingMessage;
-                        AppendStreamingTextForSession(session, ref msg, ChatMessageKind.Thinking, agentEvent.Text, "Thinking");
+                        AppendStreamingTextForSession(session, ref msg, ChatMessageKind.Thinking, agentEvent.Text, L("Thinking"));
                         session.StreamingThinkingMessage = msg;
                     }
                     break;
@@ -2455,6 +2479,7 @@ namespace ClaudeCodeVS
                     UpdateChatTabCaption();
                     SyncClaudeTranscript(_currentRunningProvider ?? _settings.SelectedProvider,
                         agentEvent.SessionId ?? _agentSession?.SessionId, agentEvent.Kind, UpdateChatTabCaption);
+                    RecordOpenChatTabs();
                     break;
 
                 case AgentEventKind.AssistantText:
@@ -2463,7 +2488,7 @@ namespace ClaudeCodeVS
                     break;
 
                 case AgentEventKind.Thinking:
-                    AppendStreamingText(ref _streamingThinkingMessage, ChatMessageKind.Thinking, agentEvent.Text, "Thinking");
+                    AppendStreamingText(ref _streamingThinkingMessage, ChatMessageKind.Thinking, agentEvent.Text, L("Thinking"));
                     break;
 
                 case AgentEventKind.ToolCallStarted:
@@ -2679,7 +2704,7 @@ namespace ClaudeCodeVS
 
             return result.Substring(0, MaxToolResultLength) +
                    Environment.NewLine + Environment.NewLine +
-                   $"… {result.Length - MaxToolResultLength:N0} more characters not shown.";
+                   L("… {0:N0} more characters not shown.", result.Length - MaxToolResultLength);
         }
 
         /// <summary>
@@ -2756,8 +2781,8 @@ namespace ClaudeCodeVS
             // The label changes but the clock keeps running: the turn is still open, and the time spent
             // waiting for the user is part of how long it took.
             transcript.SetActivityLabel(interaction.IsPlanReview
-                ? "Waiting for you to review the plan..."
-                : "Waiting for your answer...");
+                ? L("Waiting for you to review the plan...")
+                : L("Waiting for your answer..."));
         }
 
         /// <summary>
@@ -2924,8 +2949,8 @@ namespace ClaudeCodeVS
                 bool switched = await TrySwitchClaudeModelAsync(agentSession, MapClaudeModelArgument(model));
 
                 string message = switched
-                    ? $"🤖 Switched to {label}."
-                    : $"🤖 Could not switch to {label} while the agent is working — it will be used the next time the agent restarts.";
+                    ? L("🤖 Switched to {0}.", label)
+                    : L("🤖 Could not switch to {0} while the agent is working — it will be used the next time the agent restarts.", label);
 
                 if (owner != null)
                 {
@@ -2983,15 +3008,15 @@ namespace ClaudeCodeVS
 
             if (agentEvent.WasInterrupted)
             {
-                AddNativeMessage(ChatMessageKind.Notice, "Turn interrupted.");
+                AddNativeMessage(ChatMessageKind.Notice, L("Turn interrupted."));
 
                 if (_cancelledCodexNativePromptCount > 0)
                 {
                     AddNativeMessage(
                         ChatMessageKind.Notice,
                         _cancelledCodexNativePromptCount == 1
-                            ? "1 queued message was cancelled."
-                            : $"{_cancelledCodexNativePromptCount} queued messages were cancelled.");
+                            ? L("1 queued message was cancelled.")
+                            : L("{0} queued messages were cancelled.", _cancelledCodexNativePromptCount));
                     _cancelledCodexNativePromptCount = 0;
                 }
             }
@@ -3003,12 +3028,12 @@ namespace ClaudeCodeVS
                 var names = new List<string>();
                 foreach (AgentPermissionDenial denial in agentEvent.PermissionDenials)
                 {
-                    names.Add(string.IsNullOrEmpty(denial.ToolName) ? "tool" : denial.ToolName);
+                    names.Add(string.IsNullOrEmpty(denial.ToolName) ? L("tool") : denial.ToolName);
                 }
 
                 AddNativeMessage(ChatMessageKind.Notice,
-                    $"Blocked for lack of permission: {string.Join(", ", names)}. " +
-                    "Enable \"Skip permissions\" in the agent menu to allow these tools.");
+                    L("Blocked for lack of permission: {0}. Enable \"Skip permissions\" in the agent menu to allow these tools.",
+                    string.Join(", ", names)));
             }
 
             // The CLI's own duration is the honest one; the wall clock covers the adapters that report
@@ -3264,8 +3289,8 @@ namespace ClaudeCodeVS
             bool withGlyph)
         {
             string footer = (withGlyph ? "✳ " : string.Empty) + (wasInterrupted
-                ? "Stopped after " + ChatFormatting.Duration(elapsed)
-                : "Done in " + ChatFormatting.Duration(elapsed));
+                ? L("Stopped after {0}", ChatFormatting.Duration(elapsed))
+                : L("Done in {0}", ChatFormatting.Duration(elapsed)));
 
             if (showTokens && usage != null && (usage.InputTokens > 0 || usage.OutputTokens > 0))
             {
@@ -3349,7 +3374,7 @@ namespace ClaudeCodeVS
 
             // Keep the originating transcript visibly blocked while the modal is up; the turn clock
             // keeps running, so waiting time still counts toward the turn.
-            transcript?.SetActivityLabel("Waiting for your answer...");
+            transcript?.SetActivityLabel(L("Waiting for your answer..."));
             NativeChatSessionState owner = ResolveSessionFromSender(transcript);
             SetChatTabStatus(owner, ChatTabStatus.WaitingForUser);
 
@@ -3357,7 +3382,7 @@ namespace ClaudeCodeVS
 
             var dialog = new Window
             {
-                Title = "Permission required",
+                Title = L("Permission required"),
                 SizeToContent = SizeToContent.Height,
                 Width = 460,
                 WindowStartupLocation = WindowStartupLocation.CenterOwner,
@@ -3372,7 +3397,7 @@ namespace ClaudeCodeVS
 
             layout.Children.Add(new TextBlock
             {
-                Text = string.IsNullOrEmpty(request.Description) ? "The agent is asking for permission." : request.Description,
+                Text = string.IsNullOrEmpty(request.Description) ? L("The agent is asking for permission.") : request.Description,
                 TextWrapping = TextWrapping.Wrap,
                 Foreground = themeFg,
                 FontWeight = FontWeights.SemiBold,
@@ -3503,13 +3528,13 @@ namespace ClaudeCodeVS
                     return;
                 }
 
-                string window = weekly ? "weekly" : "session";
-                string notice = status.IndexOf("reject", StringComparison.OrdinalIgnoreCase) >= 0
-                    ? $"The {window} usage limit was reached."
-                    : $"Approaching the {window} usage limit.";
+                bool reached = status.IndexOf("reject", StringComparison.OrdinalIgnoreCase) >= 0;
+                string notice = weekly
+                    ? (reached ? L("The weekly usage limit was reached.") : L("Approaching the weekly usage limit."))
+                    : (reached ? L("The session usage limit was reached.") : L("Approaching the session usage limit."));
 
                 if (!string.IsNullOrEmpty(resets)) notice += " " + resets + ".";
-                if (rateLimit.IsUsingOverage) notice += " Extra usage is being billed.";
+                if (rateLimit.IsUsingOverage) notice += " " + L("Extra usage is being billed.");
 
                 // The CLI repeats the event on every turn while the window stays hot; repeating the
                 // notice would bury the conversation under it.
@@ -3539,8 +3564,8 @@ namespace ClaudeCodeVS
             {
                 DateTime local = DateTimeOffset.FromUnixTimeSeconds(resetsAtUnix).ToLocalTime().DateTime;
                 return local.Date == DateTime.Now.Date
-                    ? "Resets " + local.ToString("HH:mm")
-                    : "Resets " + local.ToString("ddd, HH:mm");
+                    ? L("Resets {0}", local.ToString("HH:mm", Loc.Culture))
+                    : L("Resets {0}", local.ToString("ddd, HH:mm", Loc.Culture));
             }
             catch (Exception)
             {
@@ -3630,13 +3655,13 @@ namespace ClaudeCodeVS
                 return;
             }
 
-            string window = weekly ? "weekly" : "session";
-            string message = status.IndexOf("reject", StringComparison.OrdinalIgnoreCase) >= 0
-                ? $"The {window} usage limit was reached."
-                : $"Approaching the {window} usage limit.";
+            bool reached = status.IndexOf("reject", StringComparison.OrdinalIgnoreCase) >= 0;
+            string message = weekly
+                ? (reached ? L("The weekly usage limit was reached.") : L("Approaching the weekly usage limit."))
+                : (reached ? L("The session usage limit was reached.") : L("Approaching the session usage limit."));
 
             if (!string.IsNullOrEmpty(resets)) message += " " + resets + ".";
-            if (rateLimit.IsUsingOverage) message += " Extra usage is being billed.";
+            if (rateLimit.IsUsingOverage) message += " " + L("Extra usage is being billed.");
 
             // Repeated on every turn while the window stays hot; say it once.
             if (string.Equals(session.LastRateLimitNotice, message, StringComparison.Ordinal))
@@ -3670,7 +3695,7 @@ namespace ClaudeCodeVS
 
             if (agentEvent.WasInterrupted)
             {
-                AddNativeMessageToSession(session, ChatMessageKind.Notice, "Turn interrupted.");
+                AddNativeMessageToSession(session, ChatMessageKind.Notice, L("Turn interrupted."));
 
                 if (session.CancelledCodexPromptCount > 0)
                 {
@@ -3678,8 +3703,8 @@ namespace ClaudeCodeVS
                         session,
                         ChatMessageKind.Notice,
                         session.CancelledCodexPromptCount == 1
-                            ? "1 queued message was cancelled."
-                            : $"{session.CancelledCodexPromptCount} queued messages were cancelled.");
+                            ? L("1 queued message was cancelled.")
+                            : L("{0} queued messages were cancelled.", session.CancelledCodexPromptCount));
                     session.CancelledCodexPromptCount = 0;
                 }
             }
@@ -3689,12 +3714,12 @@ namespace ClaudeCodeVS
                 var names = new List<string>();
                 foreach (AgentPermissionDenial denial in agentEvent.PermissionDenials)
                 {
-                    names.Add(string.IsNullOrEmpty(denial.ToolName) ? "tool" : denial.ToolName);
+                    names.Add(string.IsNullOrEmpty(denial.ToolName) ? L("tool") : denial.ToolName);
                 }
 
                 AddNativeMessageToSession(session, ChatMessageKind.Notice,
-                    $"Blocked for lack of permission: {string.Join(", ", names)}. " +
-                    "Enable \"Skip permissions\" in the agent menu to allow these tools.");
+                    L("Blocked for lack of permission: {0}. Enable \"Skip permissions\" in the agent menu to allow these tools.",
+                    string.Join(", ", names)));
             }
 
             if (agentEvent.StatusLine != null)
@@ -3775,7 +3800,7 @@ namespace ClaudeCodeVS
         /// or effort it sets (a GitHub issue's fix chat) is already on the agent's launch flags.
         /// </summary>
         internal NativeChatSessionState CreateAndRegisterSession(AiProvider provider, string workspace, NativeChatSessionState seed = null,
-            Action<NativeChatSessionState> configure = null)
+            Action<NativeChatSessionState> configure = null, string resumeSessionId = null)
         {
             _sessionIdCounter++;
             string sessionId = $"session_{_sessionIdCounter}";
@@ -3784,6 +3809,7 @@ namespace ClaudeCodeVS
             // Create new transcript UI
             var transcript = new ChatTranscriptView();
             transcript.UseModernIcons = _settings?.ChatIconStyle == ChatIconStyle.Modern;
+            transcript.CompactToolbar = _settings?.CompactChatToolbar == true;
 
             // Bundle into session state with window ID. AgentSession is attached below, once this
             // tab's own launch-option snapshot exists for CreateAgentSession to read (v163.0): a
@@ -3800,10 +3826,13 @@ namespace ClaudeCodeVS
             state.AutoPermissions = seed != null ? seed.AutoPermissions : (IsClaudeProvider(provider) && _settings?.ClaudeAutoPermissions == true);
             state.ManualMode = seed != null ? seed.ManualMode : (IsClaudeProvider(provider) && _settings?.ClaudeManualMode == true);
 
+            state.StartedWorkspace = workspace;
+
             configure?.Invoke(state);
 
             // Create agent session from this tab's own snapshot rather than the global settings.
-            var agentSession = CreateAgentSession(provider, workspace, state);
+            var agentSession = CreateAgentSession(provider, workspace, state, resumeSessionId);
+            state.DeferAgentLaunch = false;
             if (agentSession == null)
                 return null;
 

@@ -48,6 +48,10 @@
 		     the accent-blue link text sitting on top of it. -->
 		<SolidColorBrush x:Key="ChatSelectionBrush" Color="#661C8AE0"/>
 
+		<!-- Running-tool spinner of the icon style (glyph or ring); swapped by UseModernIcons. -->
+		<Visibility x:Key="ClassicSpinnerVisibility">Visible</Visibility>
+		<Visibility x:Key="ModernSpinnerVisibility">Collapsed</Visibility>
+
 		<local:InverseBooleanToVisibilityConverter x:Key="InverseBoolToVis"/>
 		<BooleanToVisibilityConverter x:Key="BoolToVis"/>
 		<local:EmptyStringToVisibilityConverter x:Key="EmptyToVis"/>
@@ -143,7 +147,13 @@
 			        Background="{DynamicResource {x:Static vsshell:VsBrushes.CommandBarMenuBackgroundGradientKey}}"
 			        BorderBrush="{StaticResource ChatAccentBrush}"
 			        BorderThickness="1">
-				<TextBox Style="{StaticResource SelectableTextStyle}" Text="{Binding Text, Mode=OneWay}"/>
+				<!-- Attachments as thumbnails above the text; the "Files attached:" list the agent
+				     receives is left out of the bubble (PromptAttachments). -->
+				<StackPanel>
+					<WrapPanel local:ChatAttachmentStrip.Files="{Binding AttachedFiles, Mode=OneWay}"/>
+					<TextBox Style="{StaticResource SelectableTextStyle}" Text="{Binding DisplayText, Mode=OneWay}"
+					         Visibility="{Binding DisplayText, Converter={StaticResource EmptyToVis}}"/>
+				</StackPanel>
 			</Border>
 		</DataTemplate>
 
@@ -357,10 +367,47 @@
 								     looks like a tool that finished and returned nothing. Animated (not a
 								     static glyph) so a long-running tool, most visibly a subagent Task, reads
 								     as busy rather than stuck. -->
-								<TextBlock Grid.Column="3" Text="{Binding SpinnerGlyph}" Margin="0,0,6,0"
-								           FontSize="{DynamicResource ChatFontSize}"
-								           VerticalAlignment="Center" Opacity="0.6"
-								           Visibility="{Binding IsRunning, Converter={StaticResource BoolToVis}}"/>
+								<Grid Grid.Column="3" Margin="0,0,6,0" VerticalAlignment="Center"
+								      Visibility="{Binding IsRunning, Converter={StaticResource BoolToVis}}">
+									<TextBlock Text="{Binding SpinnerGlyph}"
+									           FontSize="{DynamicResource ChatFontSize}"
+									           VerticalAlignment="Center" Opacity="0.6"
+									           Visibility="{DynamicResource ClassicSpinnerVisibility}"/>
+									<!-- Modern icon style: the status line's rotating ring. The storyboard runs
+									     only while the tool runs, so finished cards cost nothing. -->
+									<Grid Width="12" Height="12" VerticalAlignment="Center"
+									      RenderTransformOrigin="0.5,0.5"
+									      Visibility="{DynamicResource ModernSpinnerVisibility}">
+										<Grid.RenderTransform>
+											<RotateTransform Angle="0"/>
+										</Grid.RenderTransform>
+										<Grid.Style>
+											<Style TargetType="Grid">
+												<Style.Triggers>
+													<DataTrigger Binding="{Binding IsRunning}" Value="True">
+														<DataTrigger.EnterActions>
+															<BeginStoryboard x:Name="ToolRingSpin">
+																<Storyboard>
+																	<DoubleAnimation Storyboard.TargetProperty="(UIElement.RenderTransform).(RotateTransform.Angle)"
+																	                 From="0" To="360" Duration="0:0:0.9"
+																	                 RepeatBehavior="Forever"/>
+																</Storyboard>
+															</BeginStoryboard>
+														</DataTrigger.EnterActions>
+														<DataTrigger.ExitActions>
+															<StopStoryboard BeginStoryboardName="ToolRingSpin"/>
+														</DataTrigger.ExitActions>
+													</DataTrigger>
+												</Style.Triggers>
+											</Style>
+										</Grid.Style>
+										<Ellipse StrokeThickness="2" Opacity="0.2"
+										         Stroke="{StaticResource ChatAccentBrush}"/>
+										<Path StrokeThickness="2" StrokeStartLineCap="Round" StrokeEndLineCap="Round"
+										      Stroke="{StaticResource ChatAccentBrush}"
+										      Data="M 6,1 A 5,5 0 0 1 11,6"/>
+									</Grid>
+								</Grid>
 
 								<Border Grid.Column="4" CornerRadius="3" Padding="5,1,5,1"
 								        VerticalAlignment="Center"
@@ -654,7 +701,7 @@
 							        Style="{StaticResource InteractionPrimaryStyle}"
 							        Padding="7,4,7,4"
 							        Content="▾"
-							        ToolTip="More allow options"
+							        ToolTip="{local:Loc 'More allow options'}"
 							        Visibility="{Binding CanAllowForSession, Converter={StaticResource BoolToVis}}"
 							        Click="InteractionAllowMenu_Click">
 								<Button.ContextMenu>
@@ -669,17 +716,17 @@
 							        Style="{StaticResource InteractionPrimaryStyle}"
 							        Padding="7,4,7,4"
 							        Content="▾"
-							        ToolTip="More approve options"
+							        ToolTip="{local:Loc 'More approve options'}"
 							        Visibility="{Binding IsPlanReview, Converter={StaticResource BoolToVis}}"
 							        Click="InteractionAllowMenu_Click">
 								<Button.ContextMenu>
 									<ContextMenu>
-										<MenuItem Header="Approve and switch model">
+										<MenuItem Header="{local:Loc 'Approve and switch model'}">
 											<MenuItem Header="Opus" Tag="Opus" Click="InteractionApprovePlan_Click"/>
 											<MenuItem Header="Sonnet" Tag="Sonnet" Click="InteractionApprovePlan_Click"/>
 											<MenuItem Header="Haiku" Tag="Haiku" Click="InteractionApprovePlan_Click"/>
 										</MenuItem>
-										<MenuItem Header="Approve, skip permissions and switch model"
+										<MenuItem Header="{local:Loc 'Approve, skip permissions and switch model'}"
 										          Visibility="{Binding CanApproveAndSkipPermissions, Converter={StaticResource BoolToVis}}">
 											<MenuItem Header="Opus" Tag="skip:Opus" Click="InteractionApprovePlan_Click"/>
 											<MenuItem Header="Sonnet" Tag="skip:Sonnet" Click="InteractionApprovePlan_Click"/>
@@ -695,9 +742,9 @@
 							<!-- Plan review only, and only when the session can still switch into bypass (issue #163). -->
 							<Button DockPanel.Dock="Right"
 							        Style="{StaticResource InteractionPrimaryStyle}"
-							        Content="Approve and skip permissions"
+							        Content="{local:Loc 'Approve and skip permissions'}"
 							        Tag="skip"
-							        ToolTip="Approve the plan and continue without asking for permission on every tool"
+							        ToolTip="{local:Loc 'Approve the plan and continue without asking for permission on every tool'}"
 							        Visibility="{Binding CanApproveAndSkipPermissions, Converter={StaticResource BoolToVis}}"
 							        Click="InteractionApprovePlan_Click"/>
 							<Button DockPanel.Dock="Right"
@@ -828,7 +875,7 @@
 			        Visibility="Collapsed"
 			        Padding="10,5,10,5"
 			        Cursor="Hand"
-			        ToolTip="Click to rename this session"
+			        ToolTip="{local:Loc 'Click to rename this session'}"
 			        MouseLeftButtonUp="SessionTitleBar_MouseLeftButtonUp"
 			        Background="{DynamicResource {x:Static vsshell:VsBrushes.ToolWindowBackgroundKey}}"
 			        BorderBrush="{DynamicResource {x:Static vsshell:VsBrushes.ToolWindowBorderKey}}"
@@ -840,7 +887,7 @@
 					        Width="12" Height="12" CornerRadius="6"
 					        Margin="8,0,0,0"
 					        Cursor="Hand"
-					        ToolTip="Change session color"
+					        ToolTip="{local:Loc 'Change session color'}"
 					        MouseLeftButtonUp="SessionColorSwatch_MouseLeftButtonUp"
 					        Background="{StaticResource ChatAccentBrush}"
 					        BorderBrush="{DynamicResource {x:Static vsshell:VsBrushes.ToolWindowBorderKey}}"
@@ -888,7 +935,7 @@
 							</Grid.RowDefinitions>
 
 							<StackPanel x:Name="WelcomeLeftPanel" Grid.Column="0" MinWidth="150" Margin="6,0,14,0">
-								<TextBlock Text="Welcome back!"
+								<TextBlock Text="{local:Loc 'Welcome back!'}"
 								           HorizontalAlignment="Center"
 								           FontWeight="SemiBold"
 								           FontSize="{DynamicResource ChatFontSize}"/>
@@ -937,7 +984,7 @@
 							           Fill="{StaticResource ChatAccentBrush}"/>
 
 							<StackPanel x:Name="WelcomeTipsPanel" Grid.Column="2" VerticalAlignment="Center">
-								<TextBlock Text="Tips for getting started"
+								<TextBlock Text="{local:Loc 'Tips for getting started'}"
 								           FontWeight="SemiBold"
 								           Margin="0,0,0,4"
 								           FontSize="{DynamicResource ChatFontSize}"
@@ -997,7 +1044,7 @@
 		        Margin="0,0,20,12"
 		        HorizontalAlignment="Right" VerticalAlignment="Bottom"
 		        Visibility="Collapsed"
-		        ToolTip="Jump to the latest message"
+		        ToolTip="{local:Loc 'Jump to the latest message'}"
 		        Click="ScrollToEndButton_Click"/>
 
 		<Border x:Name="StatusBar" Grid.Row="1"
@@ -1009,12 +1056,12 @@
 			<DockPanel LastChildFill="True">
 				<!-- The only way to abort a turn in native mode: there is no console to press ESC in. -->
 				<Button x:Name="StopButton" DockPanel.Dock="Right"
-				        Content="■ Stop"
+				        Content="{local:Loc '■ Stop'}"
 				        Padding="8,1,8,1"
 				        FontSize="{DynamicResource ChatSmallFontSize}"
 				        Margin="8,0,0,0"
 				        Visibility="Collapsed"
-				        ToolTip="Stop the turn in progress (Esc)"
+				        ToolTip="{local:Loc 'Stop the turn in progress (Esc)'}"
 				        Click="StopButton_Click"/>
 				<!-- Its own element so the spinner can carry the accent colour while the text stays
 				     muted; a single TextBlock would need inline runs rebuilt on every frame. -->
@@ -1058,7 +1105,7 @@
 		        Background="{DynamicResource {x:Static vsshell:VsBrushes.ToolWindowBackgroundKey}}"
 		        BorderBrush="{DynamicResource {x:Static vsshell:VsBrushes.ToolWindowBorderKey}}"
 		        BorderThickness="0,1,0,0">
-			<Grid>
+			<Grid x:Name="ComposerLayout">
 				<Grid.RowDefinitions>
 					<RowDefinition Height="Auto"/>
 					<RowDefinition Height="Auto"/>
@@ -1070,7 +1117,7 @@
 				<Thumb x:Name="ComposerResizeGrip" Grid.Row="0"
 				       Height="6" Margin="0,-4,0,2"
 				       Cursor="SizeNS"
-				       ToolTip="Drag to resize the prompt area"
+				       ToolTip="{local:Loc 'Drag to resize the prompt area'}"
 				       DragDelta="ComposerResizeGrip_DragDelta">
 					<Thumb.Template>
 						<ControlTemplate TargetType="Thumb">
@@ -1092,7 +1139,12 @@
 				        Background="{DynamicResource {x:Static vsshell:VsBrushes.WindowKey}}"
 				        BorderBrush="{DynamicResource {x:Static vsshell:VsBrushes.ToolWindowBorderKey}}"
 				        BorderThickness="1">
-					<Grid>
+					<Grid x:Name="ComposerInputGrid">
+						<!-- Row 1 holds the action row in the compact toolbar layout (CompactToolbar). -->
+						<Grid.RowDefinitions>
+							<RowDefinition Height="Auto"/>
+							<RowDefinition Height="Auto"/>
+						</Grid.RowDefinitions>
 						<!-- CaretBrush is explicit: the default caret is black, which is invisible
 						     against the dark-theme editor background and reads as "no cursor". -->
 						<Grid.ColumnDefinitions>
@@ -1114,7 +1166,7 @@
 						         PreviewKeyDown="ComposerInput_PreviewKeyDown"
 						         TextChanged="ComposerInput_TextChanged"/>
 						<TextBlock x:Name="ComposerPlaceholder"
-						           Text="Ask anything · Enter to send · Ctrl+Up/Down for prompt history · Esc to stop"
+						           Text="{local:Loc 'Ask anything · Enter to send · Ctrl+Up/Down for prompt history · Esc to stop'}"
 						           IsHitTestVisible="False"
 						           Margin="2,1,0,0"
 						           Opacity="0.5"
@@ -1127,7 +1179,7 @@
 						        VerticalAlignment="Bottom"
 						        Margin="4,0,0,0"
 						        Visibility="Collapsed"
-						        ToolTip="Send Prompt to Code Agent"
+						        ToolTip="{local:Loc 'Send Prompt to Code Agent'}"
 						        Click="ComposerSendButton_Click"/>
 					</Grid>
 				</Border>
@@ -1161,7 +1213,7 @@
 					<Button x:Name="ComposerActionsScrollLeftButton" Grid.Column="0"
 					        Style="{StaticResource ComposerSelectorStyle}"
 					        Content="◀" FontSize="9" Padding="4,0,4,0"
-					        ToolTip="Scroll left"
+					        ToolTip="{local:Loc 'Scroll left'}"
 					        Visibility="Collapsed"
 					        Click="ComposerActionsScrollLeftButton_Click"/>
 
@@ -1179,39 +1231,39 @@
 					              HorizontalScrollBarVisibility="Hidden" VerticalScrollBarVisibility="Disabled"
 					              PreviewMouseWheel="ComposerActionsScroller_PreviewMouseWheel"
 					              ScrollChanged="ComposerActionsScroller_ScrollChanged">
-						<StackPanel Orientation="Horizontal">
+						<DockPanel x:Name="ComposerActionsContent" LastChildFill="False">
 							<!-- The controls that actually drive the agent. Measured by
 							     RefreshComposerDensity to choose the caption tier. -->
-							<DockPanel x:Name="ComposerEssentialGroup" LastChildFill="False">
+							<DockPanel x:Name="ComposerEssentialGroup" DockPanel.Dock="Left" LastChildFill="False">
 								<!-- Stands in for ↻/✚/✎/🎨 in the tightest tier only; hidden otherwise. -->
 								<Button x:Name="ComposerOverflowButton" DockPanel.Dock="Left"
 								        Style="{StaticResource ComposerSelectorStyle}"
 								        Content="⋯"
 								        FontSize="13"
-								        ToolTip="Session actions"
+								        ToolTip="{local:Loc 'Session actions'}"
 								        Visibility="Collapsed"
 								        Click="ComposerOverflowButton_Click">
 									<Button.ContextMenu>
 										<ContextMenu Style="{StaticResource ComposerMenuStyle}">
-											<MenuItem Header="Restart agent / clear conversation"
+											<MenuItem Header="{local:Loc 'Restart agent / clear conversation'}"
 											          Style="{StaticResource ComposerMenuItemStyle}"
 											          Click="ComposerClearButton_Click"/>
-											<MenuItem Header="New chat session"
+											<MenuItem Header="{local:Loc 'New chat session'}"
 											          Style="{StaticResource ComposerMenuItemStyle}"
 											          Click="ComposerNewChatButton_Click"/>
-											<MenuItem Header="Rename this session"
+											<MenuItem Header="{local:Loc 'Rename this session'}"
 											          Style="{StaticResource ComposerMenuItemStyle}"
 											          Click="ComposerRenameSessionButton_Click"/>
-											<MenuItem Header="Change this session color"
+											<MenuItem Header="{local:Loc 'Change this session color'}"
 											          Style="{StaticResource ComposerMenuItemStyle}"
 											          Click="ComposerColorButton_Click"/>
-											<MenuItem Header="Attach a file..."
+											<MenuItem Header="{local:Loc 'Attach a file...'}"
 											          Style="{StaticResource ComposerMenuItemStyle}"
 											          Click="ComposerAttachFileMenuItem_Click"/>
-											<MenuItem Header="Insert editor selection"
+											<MenuItem Header="{local:Loc 'Insert editor selection'}"
 											          Style="{StaticResource ComposerMenuItemStyle}"
 											          Click="ComposerInsertSelectionMenuItem_Click"/>
-											<MenuItem Header="Insert active file path"
+											<MenuItem Header="{local:Loc 'Insert active file path'}"
 											          Style="{StaticResource ComposerMenuItemStyle}"
 											          Click="ComposerInsertActiveFilePathMenuItem_Click"/>
 										</ContextMenu>
@@ -1222,21 +1274,21 @@
 								        Style="{StaticResource ComposerSelectorStyle}"
 								        Content="↻"
 								        FontSize="13"
-								        ToolTip="Clear this conversation and start fresh"
+								        ToolTip="{local:Loc 'Clear this conversation and start fresh'}"
 								        Click="ComposerClearButton_Click"/>
 
 								<Button x:Name="ComposerNewChatButton" DockPanel.Dock="Left"
 								        Style="{StaticResource ComposerSelectorStyle}"
 								        Content="✚"
 								        FontSize="13"
-								        ToolTip="Open new chat session in parallel tab"
+								        ToolTip="{local:Loc 'Open new chat session in parallel tab'}"
 								        Click="ComposerNewChatButton_Click"/>
 
 								<Button x:Name="ComposerRenameSessionButton" DockPanel.Dock="Left"
 								        Style="{StaticResource ComposerSelectorStyle}"
 								        Content="✎"
 								        FontSize="13"
-								        ToolTip="Rename this session"
+								        ToolTip="{local:Loc 'Rename this session'}"
 								        Click="ComposerRenameSessionButton_Click"/>
 
 								<!-- Independent from rename — the header's own swatch only exists once a session has a
@@ -1245,26 +1297,26 @@
 								        Style="{StaticResource ComposerSelectorStyle}"
 								        Content="🎨"
 								        FontSize="13"
-								        ToolTip="Change this session's color"
+								        ToolTip="{local:Loc 'Change this session\'s color'}"
 								        Click="ComposerColorButton_Click"/>
 
 								<Button x:Name="ComposerAttachButton" DockPanel.Dock="Left"
 								        Style="{StaticResource ComposerSelectorStyle}"
 								        Content="📎"
 								        FontSize="13"
-								        ToolTip="Attach / Insert Content (Ctrl+V pastes an image)"
+								        ToolTip="{local:Loc 'Attach / Insert Content (Ctrl+V pastes an image)'}"
 								        Click="ComposerAttachButton_Click">
 									<Button.ContextMenu>
 										<ContextMenu Style="{StaticResource ComposerMenuStyle}">
-											<MenuItem Header="Attach a file..."
+											<MenuItem Header="{local:Loc 'Attach a file...'}"
 											          Style="{StaticResource ComposerMenuItemStyle}"
 											          Click="ComposerAttachFileMenuItem_Click"/>
-											<MenuItem Header="Insert editor selection"
+											<MenuItem Header="{local:Loc 'Insert editor selection'}"
 											          Style="{StaticResource ComposerMenuItemStyle}"
 											          Click="ComposerInsertSelectionMenuItem_Click"/>
-											<MenuItem Header="Insert active file path"
+											<MenuItem Header="{local:Loc 'Insert active file path'}"
 											          Style="{StaticResource ComposerMenuItemStyle}"
-											          ToolTip="Inserts an @-reference to the file open in the active editor tab"
+											          ToolTip="{local:Loc 'Inserts an @-reference to the file open in the active editor tab'}"
 											          Click="ComposerInsertActiveFilePathMenuItem_Click"/>
 										</ContextMenu>
 									</Button.ContextMenu>
@@ -1276,26 +1328,26 @@
 
 								<Button x:Name="ComposerProviderButton" DockPanel.Dock="Left"
 								        Style="{StaticResource ComposerSelectorStyle}"
-								        Content="Agent ▾"
-								        ToolTip="Change the AI agent"
+								        Content="{local:Loc 'Agent ▾'}"
+								        ToolTip="{local:Loc 'Change the AI agent'}"
 								        Click="ComposerProviderButton_Click"/>
 
 								<Button x:Name="ComposerModelButton" DockPanel.Dock="Left"
 								        Style="{StaticResource ComposerSelectorStyle}"
-								        Content="Model ▾"
-								        ToolTip="Change the model"
+								        Content="{local:Loc 'Model ▾'}"
+								        ToolTip="{local:Loc 'Change the model'}"
 								        Click="ComposerModelButton_Click"/>
 
 								<Button x:Name="ComposerEffortButton" DockPanel.Dock="Left"
 								        Style="{StaticResource ComposerSelectorStyle}"
-								        Content="Effort ▾"
-								        ToolTip="Change the effort level"
+								        Content="{local:Loc 'Effort ▾'}"
+								        ToolTip="{local:Loc 'Change the effort level'}"
 								        Click="ComposerEffortButton_Click"/>
 
 								<Button x:Name="ComposerPermissionButton" DockPanel.Dock="Left"
 								        Style="{StaticResource ComposerSelectorStyle}"
-								        Content="Permissions ▾"
-								        ToolTip="Change how tool permissions are handled"
+								        Content="{local:Loc 'Permissions ▾'}"
+								        ToolTip="{local:Loc 'Change how tool permissions are handled'}"
 								        Click="ComposerPermissionButton_Click"/>
 
 								<!-- Ring icon, not text: the fill is the context window in use (or the session limit before
@@ -1303,7 +1355,7 @@
 								<Button x:Name="ComposerUsageButton" DockPanel.Dock="Left"
 								        Style="{StaticResource ComposerSelectorStyle}"
 								        Visibility="Collapsed"
-								        ToolTip="Usage: context window and plan limits"
+								        ToolTip="{local:Loc 'Usage: context window and plan limits'}"
 								        Click="ComposerUsageButton_Click">
 									<Grid Width="14" Height="14">
 										<Ellipse Margin="1" StrokeThickness="2" Opacity="0.25"
@@ -1330,7 +1382,7 @@
 								           Fill="{DynamicResource {x:Static vsshell:VsBrushes.WindowTextKey}}"/>
 							</DockPanel>
 
-							<DockPanel x:Name="ComposerMirrorGroup" LastChildFill="False">
+							<DockPanel x:Name="ComposerMirrorGroup" DockPanel.Dock="Left" LastChildFill="False">
 								<!-- Mirrors of the panel's own config surfaces (⚙/☰/⚡ and whatever the user promoted
 								     to the toolbar): native mode hides most of the panel's toolbar in favor of these,
 								     since the panel's prompt box is auto-collapsed once the chat is in this tab. Every
@@ -1343,30 +1395,30 @@
 								        Style="{StaticResource ComposerSelectorStyle}"
 								        Content="⚡"
 								        FontSize="13"
-								        ToolTip="Custom commands"
+								        ToolTip="{local:Loc 'Custom commands'}"
 								        Click="ComposerCustomCommandsButton_Click"/>
 
 								<Button x:Name="ComposerToolsButton" DockPanel.Dock="Left"
 								        Style="{StaticResource ComposerSelectorStyle}"
 								        Content="☰"
 								        FontSize="13"
-								        ToolTip="Tools"
+								        ToolTip="{local:Loc 'Tools'}"
 								        Click="ComposerToolsButton_Click"/>
 
 								<Button x:Name="ComposerSettingsButton" DockPanel.Dock="Left"
 								        Style="{StaticResource ComposerSelectorStyle}"
 								        Content="⚙"
 								        FontSize="13"
-								        ToolTip="Settings"
+								        ToolTip="{local:Loc 'Settings'}"
 								        Click="ComposerSettingsButton_Click"/>
 							</DockPanel>
-						</StackPanel>
+						</DockPanel>
 					</ScrollViewer>
 
 					<Button x:Name="ComposerActionsScrollRightButton" Grid.Column="2"
 					        Style="{StaticResource ComposerSelectorStyle}"
 					        Content="▶" FontSize="9" Padding="4,0,4,0"
-					        ToolTip="Scroll right"
+					        ToolTip="{local:Loc 'Scroll right'}"
 					        Visibility="Collapsed"
 					        Click="ComposerActionsScrollRightButton_Click"/>
 				</Grid>
@@ -1390,7 +1442,7 @@
 					<DropShadowEffect BlurRadius="10" ShadowDepth="2" Opacity="0.35"/>
 				</Border.Effect>
 				<StackPanel>
-					<TextBlock x:Name="EffortPopupLabel" Text="Effort" Margin="1,0,0,6"
+					<TextBlock x:Name="EffortPopupLabel" Text="{local:Loc 'Effort'}" Margin="1,0,0,6"
 					           FontSize="{DynamicResource ChatSmallFontSize}"
 					           Foreground="{DynamicResource {x:Static vsshell:VsBrushes.CommandBarTextActiveKey}}"/>
 					<Slider x:Name="EffortPopupSlider"
@@ -1422,11 +1474,11 @@
 							<ColumnDefinition Width="Auto"/>
 							<ColumnDefinition Width="*"/>
 						</Grid.ColumnDefinitions>
-						<TextBlock Text="Context window" FontSize="{DynamicResource ChatSmallFontSize}"
+						<TextBlock Text="{local:Loc 'Context window'}" FontSize="{DynamicResource ChatSmallFontSize}"
 						           Foreground="{DynamicResource {x:Static vsshell:VsBrushes.CommandBarTextActiveKey}}"/>
 						<TextBlock x:Name="UsageContextText" Grid.Column="1" Margin="16,0,0,0"
 						           HorizontalAlignment="Right" TextAlignment="Right" TextTrimming="CharacterEllipsis" FontSize="{DynamicResource ChatSmallFontSize}"
-						           Opacity="0.75" Text="No turn yet"/>
+						           Opacity="0.75" Text="{local:Loc 'No turn yet'}"/>
 					</Grid>
 					<ProgressBar x:Name="UsageContextBar" Height="4" Margin="0,5,0,0" Maximum="100"
 					             Foreground="{StaticResource ChatAccentBrush}" Background="#33808080" BorderThickness="0"/>
@@ -1434,11 +1486,11 @@
 					<Rectangle Height="1" Margin="0,10,0,10" Opacity="0.25"
 					           Fill="{DynamicResource {x:Static vsshell:VsBrushes.WindowTextKey}}"/>
 
-					<TextBlock x:Name="UsagePlanHeader" Text="Plan usage limits" Margin="0,0,0,6"
+					<TextBlock x:Name="UsagePlanHeader" Text="{local:Loc 'Plan usage limits'}" Margin="0,0,0,6"
 					           FontSize="{DynamicResource ChatSmallFontSize}" Opacity="0.75"/>
 					<TextBlock x:Name="UsageNoPlanText" Visibility="Collapsed" TextWrapping="Wrap" MaxWidth="256" HorizontalAlignment="Left"
 					           FontSize="{DynamicResource ChatSmallFontSize}" Opacity="0.75"
-					           Text="Plan limits appear once the Claude Usage tab has read your account."/>
+					           Text="{local:Loc 'Plan limits appear once the Claude Usage tab has read your account.'}"/>
 
 					<StackPanel x:Name="UsagePlanRows" Visibility="Collapsed">
 						<Grid>
@@ -1446,7 +1498,7 @@
 								<ColumnDefinition Width="Auto"/>
 								<ColumnDefinition Width="*"/>
 							</Grid.ColumnDefinitions>
-							<TextBlock x:Name="UsageSessionLabel" Text="Session limit" FontSize="{DynamicResource ChatSmallFontSize}"
+							<TextBlock x:Name="UsageSessionLabel" Text="{local:Loc 'Session limit'}" FontSize="{DynamicResource ChatSmallFontSize}"
 							           Foreground="{DynamicResource {x:Static vsshell:VsBrushes.CommandBarTextActiveKey}}"/>
 							<TextBlock x:Name="UsageSessionText" Grid.Column="1" Margin="16,0,0,0"
 							           HorizontalAlignment="Right" TextAlignment="Right" TextTrimming="CharacterEllipsis" FontSize="{DynamicResource ChatSmallFontSize}" Opacity="0.75"/>
@@ -1459,7 +1511,7 @@
 								<ColumnDefinition Width="Auto"/>
 								<ColumnDefinition Width="*"/>
 							</Grid.ColumnDefinitions>
-							<TextBlock Text="Weekly limit" FontSize="{DynamicResource ChatSmallFontSize}"
+							<TextBlock Text="{local:Loc 'Weekly limit'}" FontSize="{DynamicResource ChatSmallFontSize}"
 							           Foreground="{DynamicResource {x:Static vsshell:VsBrushes.CommandBarTextActiveKey}}"/>
 							<TextBlock x:Name="UsageWeeklyText" Grid.Column="1" Margin="16,0,0,0"
 							           HorizontalAlignment="Right" TextAlignment="Right" TextTrimming="CharacterEllipsis" FontSize="{DynamicResource ChatSmallFontSize}" Opacity="0.75"/>
@@ -1472,7 +1524,7 @@
 								<ColumnDefinition Width="Auto"/>
 								<ColumnDefinition Width="*"/>
 							</Grid.ColumnDefinitions>
-							<TextBlock Text="Extra usage" FontSize="{DynamicResource ChatSmallFontSize}"
+							<TextBlock Text="{local:Loc 'Extra usage'}" FontSize="{DynamicResource ChatSmallFontSize}"
 							           Foreground="{DynamicResource {x:Static vsshell:VsBrushes.CommandBarTextActiveKey}}"/>
 							<TextBlock x:Name="UsageExtraText" Grid.Column="1" Margin="16,0,0,0"
 							           HorizontalAlignment="Right" TextAlignment="Right" TextTrimming="CharacterEllipsis" FontSize="{DynamicResource ChatSmallFontSize}" Opacity="0.75"/>
@@ -1490,8 +1542,8 @@
 					<Button x:Name="UsageDetailsButton" HorizontalAlignment="Left"
 					        Style="{StaticResource ComposerSelectorStyle}"
 					        Padding="8,2,8,2"
-					        Content="See detailed breakdown"
-					        ToolTip="Open the Claude Usage tab"
+					        Content="{local:Loc 'See detailed breakdown'}"
+					        ToolTip="{local:Loc 'Open the Claude Usage tab'}"
 					        Click="UsageDetailsButton_Click"/>
 				</StackPanel>
 			</Border>

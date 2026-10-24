@@ -46,12 +46,13 @@ namespace ClaudeCodeVS.UI
             { "Antigravity", "Antigrav" },
 
             // Permissions
-            { "Skip permissions", "Skip" },
-            { "Ask permission", "Ask" },
-            { "Plan mode", "Plan" },
-            { "Auto mode", "Auto" },
-            { "Accept edits", "Accept" },
-            { "Manual mode", "Manual" },
+            // (N marks the short forms for translation; TryGetShortName translates them when shown.)
+            { "Skip permissions", Loc.N("Skip") },
+            { "Ask permission", Loc.N("Ask") },
+            { "Plan mode", Loc.N("Plan") },
+            { "Auto mode", Loc.N("Auto") },
+            { "Accept edits", Loc.N("Accept") },
+            { "Manual mode", Loc.N("Manual") },
 
             // Effort / reasoning
             { "Extra High", "XHigh" },
@@ -81,6 +82,7 @@ namespace ClaudeCodeVS.UI
             // "(native)" only exists to separate an agent from its own WSL twin, so it carries no
             // information once the WSL one is spelled out — dropping it is free. "(WSL)" does carry
             // information, so it is kept, just without the parentheses.
+            string nativeSuffix = Loc.L(" (native)");
             if (text.EndsWith(" (WSL)", StringComparison.Ordinal))
             {
                 text = text.Substring(0, text.Length - " (WSL)".Length);
@@ -90,9 +92,13 @@ namespace ClaudeCodeVS.UI
             {
                 text = text.Substring(0, text.Length - " (native)".Length);
             }
+            else if (text.EndsWith(nativeSuffix, StringComparison.Ordinal))
+            {
+                text = text.Substring(0, text.Length - nativeSuffix.Length);
+            }
 
             string mapped;
-            if (ShortNames.TryGetValue(text, out mapped))
+            if (TryGetShortName(text, out mapped))
             {
                 text = mapped;
             }
@@ -105,6 +111,31 @@ namespace ClaudeCodeVS.UI
             }
 
             return text;
+        }
+
+        /// <summary>
+        /// The short form of a caption, matched against the English name or its translation (the
+        /// composer shows translated captions), and returned translated as well.
+        /// </summary>
+        private static bool TryGetShortName(string text, out string shortName)
+        {
+            if (ShortNames.TryGetValue(text, out shortName))
+            {
+                shortName = Loc.L(shortName);
+                return true;
+            }
+
+            foreach (KeyValuePair<string, string> entry in ShortNames)
+            {
+                if (string.Equals(Loc.L(entry.Key), text, StringComparison.Ordinal))
+                {
+                    shortName = Loc.L(entry.Value);
+                    return true;
+                }
+            }
+
+            shortName = null;
+            return false;
         }
     }
 }

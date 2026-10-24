@@ -361,6 +361,8 @@ namespace ClaudeCodeVS
                     // falls through to the restart path.
                     if (IsNativeModeActive && WorkspaceDirectoriesEqual(_lastWorkspaceDirectory, newWorkspaceDir))
                     {
+                        ResumeChatTabRecording(newWorkspaceDir);
+
                         if (resetDiff)
                         {
                             bool refreshViewNative = _diffViewerWindow != null;

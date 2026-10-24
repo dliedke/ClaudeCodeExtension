@@ -16,6 +16,7 @@ using System.Collections.ObjectModel;
 using System.Collections.Specialized;
 using System.ComponentModel;
 using System.Globalization;
+using System.Linq;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
@@ -25,6 +26,7 @@ using Microsoft.VisualStudio.Imaging;
 using Microsoft.VisualStudio.Imaging.Interop;
 using Microsoft.VisualStudio.PlatformUI;
 using Microsoft.VisualStudio.Shell;
+using static ClaudeCodeVS.UI.Loc;
 
 namespace ClaudeCodeVS.UI
 {
@@ -51,7 +53,7 @@ namespace ClaudeCodeVS.UI
         private int _effortIndexOnOpen;
         private int _effortIndex;
         private string[] _effortStopLabels;
-        private string _effortTitle = "Effort";
+        private string _effortTitle = L("Effort");
 
         private System.Windows.Threading.DispatcherTimer _activityTimer;
         private DateTime _activityStartedUtc;
@@ -298,6 +300,9 @@ namespace ClaudeCodeVS.UI
 
         private bool _sendWithEnter = true;
 
+        /// <summary>The transcript holds at least one prompt of the user's: the placeholder shrinks to "Reply…".</summary>
+        private bool _hasUserMessage;
+
         /// <summary>
         /// The ▶ Send button shows only in "Button only" mode (issue #186), matching the panel's own
         /// button. Only the full composer (chat in its own tab) has an input box.
@@ -308,11 +313,15 @@ namespace ClaudeCodeVS.UI
                 ? Visibility.Visible
                 : Visibility.Collapsed;
 
-            ComposerPlaceholder.Text = _sendWithEnter
-                ? "Ask anything · Enter to send · Ctrl+Up/Down for prompt history · Esc to stop"
+            // The full hint is for an empty chat; once the conversation has started a soft "Reply…"
+            // is enough, and repeating the key hints under every answer is just noise.
+            ComposerPlaceholder.Text = _hasUserMessage
+                ? L("Reply…")
+                : _sendWithEnter
+                ? L("Ask anything · Enter to send · Ctrl+Up/Down for prompt history · Esc to stop")
                 : _sendWithCtrlEnter
-                    ? "Ask anything · Ctrl+Enter to send · Ctrl+Up/Down for prompt history · Esc to stop"
-                    : "Ask anything · Ctrl+Up/Down for prompt history · Esc to stop";
+                    ? L("Ask anything · Ctrl+Enter to send · Ctrl+Up/Down for prompt history · Esc to stop")
+                    : L("Ask anything · Ctrl+Up/Down for prompt history · Esc to stop");
         }
 
         private void ComposerSendButton_Click(object sender, RoutedEventArgs e)
@@ -380,8 +389,8 @@ namespace ClaudeCodeVS.UI
             // also the one place that needs to know: "Clear this conversation" doubles as "restart the
             // agent" here, and the default tooltip doesn't say that.
             ComposerClearButton.ToolTip = mode == ComposerMode.Hidden
-                ? "Clear this conversation and start fresh"
-                : "Restart the agent and start a fresh conversation";
+                ? L("Clear this conversation and start fresh")
+                : L("Restart the agent and start a fresh conversation");
 
             // ComposerBar's own Padding reserves room for the resize grip above and the input box
             // below the action row — but in ActionsOnly those rows are collapsed (only the action
@@ -391,10 +400,72 @@ namespace ClaudeCodeVS.UI
                 ? new Thickness(8, 6, 8, 8)
                 : new Thickness(8, 6, 8, 2);
 
+            // The compact layout puts the row inside the input box, which ActionsOnly collapses.
+            ApplyToolbarLayout();
+
             // Docked in the panel the row has far less width than it does in a tab, and the switch
             // between the two does not always change the row's own width — so the tier is re-picked
             // here rather than waiting for a resize that may never come.
             QueueComposerDensityRefresh();
+        }
+
+        private bool _compactToolbar;
+
+        /// <summary>
+        /// "Compact chat toolbar" (Settings → Layout): the action row moves inside the input box, under
+        /// the text, the way most chat apps lay it out. The session actions (↻ ✚ ✎ 🎨 📎) stay folded
+        /// into the ⋯ menu at its left, and ⚡ ☰ ⚙ move to its right end. Only while the composer is
+        /// <see cref="ComposerMode.Full"/>: docked in the panel there is no input box to host the row.
+        /// </summary>
+        public bool CompactToolbar
+        {
+            get { return _compactToolbar; }
+            set
+            {
+                if (_compactToolbar == value)
+                {
+                    return;
+                }
+
+                _compactToolbar = value;
+                ApplyToolbarLayout();
+                ApplyComposerDensity(_composerDensity);
+                QueueComposerDensityRefresh();
+            }
+        }
+
+        private bool IsCompactToolbarActive => _compactToolbar && _composerMode == ComposerMode.Full;
+
+        /// <summary>Moves the action row between its own row above the input box and the box's bottom row.</summary>
+        private void ApplyToolbarLayout()
+        {
+            bool compact = IsCompactToolbarActive;
+            Panel target = compact ? (Panel)ComposerInputGrid : ComposerLayout;
+
+            if (ComposerActionRow.Parent is Panel current && !ReferenceEquals(current, target))
+            {
+                current.Children.Remove(ComposerActionRow);
+                target.Children.Add(ComposerActionRow);
+            }
+
+            Grid.SetRow(ComposerActionRow, 1);
+            Grid.SetColumnSpan(ComposerActionRow, compact ? 2 : 1);
+            ComposerActionRow.Margin = compact ? new Thickness(-4, 4, -4, 0) : new Thickness(0, 0, 0, 4);
+
+            // Stretched, so the mirrors docked right land at the box's right edge; the classic row
+            // keeps its left alignment (see the note on ComposerActionsScroller in the XAML).
+            ComposerActionsScroller.HorizontalAlignment = compact ? HorizontalAlignment.Stretch : HorizontalAlignment.Left;
+            DockPanel.SetDock(ComposerMirrorGroup, compact ? Dock.Right : Dock.Left);
+
+            // ✚ leads the compact row; the classic row keeps it after ↻, where it has always been.
+            int newChatIndex = compact ? 0 : ComposerEssentialGroup.Children.IndexOf(ComposerClearButton) + 1;
+            if (ComposerEssentialGroup.Children.IndexOf(ComposerNewChatButton) != newChatIndex)
+            {
+                ComposerEssentialGroup.Children.Remove(ComposerNewChatButton);
+                newChatIndex = compact ? 0 : ComposerEssentialGroup.Children.IndexOf(ComposerClearButton) + 1;
+                ComposerEssentialGroup.Children.Insert(newChatIndex, ComposerNewChatButton);
+            }
+            ComposerMirrorSeparator.Visibility = compact ? Visibility.Collapsed : Visibility.Visible;
         }
 
         /// <summary>
@@ -422,10 +493,10 @@ namespace ClaudeCodeVS.UI
         /// <summary>Captions of the agent / model / effort / permission selectors.</summary>
         public void SetSelectorLabels(string provider, string model, string effort, string permission)
         {
-            _providerLabel = provider ?? "Agent";
-            _modelLabel = model ?? "Model";
-            _effortLabel = effort ?? "Effort";
-            _permissionLabel = permission ?? "Permissions";
+            _providerLabel = provider ?? L("Agent");
+            _modelLabel = model ?? L("Model");
+            _effortLabel = effort ?? L("Effort");
+            _permissionLabel = permission ?? L("Permissions");
 
             // A longer caption can be what pushes the row past the edge, so the tier is re-picked here
             // rather than only on resize — switching from "Ask" to "Skip permissions" is a resize as far
@@ -460,9 +531,13 @@ namespace ClaudeCodeVS.UI
             return button != null && button.Visibility == Visibility.Visible ? button : null;
         }
 
-        /// <summary>Enables or hides the selectors that do not apply to the running agent.</summary>
-        public void SetSelectorAvailability(bool model, bool effort, bool permission)
+        /// <summary>
+        /// Enables or hides the selectors that do not apply to the running agent. The agent selector
+        /// is hidden when its menu would offer no choice (a single agent enabled).
+        /// </summary>
+        public void SetSelectorAvailability(bool provider, bool model, bool effort, bool permission)
         {
+            ComposerProviderButton.Visibility = provider ? Visibility.Visible : Visibility.Collapsed;
             ComposerModelButton.Visibility = model ? Visibility.Visible : Visibility.Collapsed;
             ComposerEffortButton.Visibility = effort ? Visibility.Visible : Visibility.Collapsed;
             ComposerPermissionButton.Visibility = permission ? Visibility.Visible : Visibility.Collapsed;
@@ -501,10 +576,10 @@ namespace ClaudeCodeVS.UI
         private ComposerDensity _composerDensity = ComposerDensity.Full;
         private bool _composerDensityRefreshQueued;
 
-        private string _providerLabel = "Agent";
-        private string _modelLabel = "Model";
-        private string _effortLabel = "Effort";
-        private string _permissionLabel = "Permissions";
+        private string _providerLabel = L("Agent");
+        private string _modelLabel = L("Model");
+        private string _effortLabel = L("Effort");
+        private string _permissionLabel = L("Permissions");
 
         // No vertical padding, matching ComposerSelectorStyle: the buttons are a fixed 22 tall, and
         // padding there only shrinks the content slot below the glyph's own line height — which WPF
@@ -599,10 +674,10 @@ namespace ClaudeCodeVS.UI
                 ? ComposerLabels.CompactMaxChars
                 : ComposerLabels.TightMaxChars;
 
-            ApplySelectorCaption(ComposerProviderButton, _providerLabel, "Change the AI agent", full, maxChars);
-            ApplySelectorCaption(ComposerModelButton, _modelLabel, "Change the model", full, maxChars);
-            ApplySelectorCaption(ComposerEffortButton, _effortLabel, "Change the effort level", full, maxChars);
-            ApplySelectorCaption(ComposerPermissionButton, _permissionLabel, "Change how tool permissions are handled", full, maxChars);
+            ApplySelectorCaption(ComposerProviderButton, _providerLabel, L("Change the AI agent"), full, maxChars);
+            ApplySelectorCaption(ComposerModelButton, _modelLabel, L("Change the model"), full, maxChars);
+            ApplySelectorCaption(ComposerEffortButton, _effortLabel, L("Change the effort level"), full, maxChars);
+            ApplySelectorCaption(ComposerPermissionButton, _permissionLabel, L("Change how tool permissions are handled"), full, maxChars);
 
             Thickness padding = full ? _composerFullPadding : _composerTightPadding;
             ComposerOverflowButton.Padding = padding;
@@ -619,12 +694,16 @@ namespace ClaudeCodeVS.UI
             // The five session actions are the only controls here with an equivalent elsewhere in the
             // UI (the ⋯ menu, the tab's own context menu), which is why they are what gives way before
             // the selectors do.
-            bool folded = density == ComposerDensity.Tight;
+            bool folded = density == ComposerDensity.Tight || IsCompactToolbarActive;
             Visibility unfolded = folded ? Visibility.Collapsed : Visibility.Visible;
 
             ComposerOverflowButton.Visibility = folded ? Visibility.Visible : Visibility.Collapsed;
             ComposerClearButton.Visibility = unfolded;
-            ComposerNewChatButton.Visibility = unfolded;
+            // The compact toolbar keeps ✚ out of the ⋯ menu: a new chat is the one session action used
+            // often. Only the tightest tier folds it as well.
+            ComposerNewChatButton.Visibility = !folded || (IsCompactToolbarActive && density != ComposerDensity.Tight)
+                ? Visibility.Visible
+                : Visibility.Collapsed;
             ComposerRenameSessionButton.Visibility = unfolded;
             ComposerColorButton.Visibility = unfolded;
             ComposerAttachButton.Visibility = unfolded;
@@ -781,6 +860,10 @@ namespace ClaudeCodeVS.UI
 
                 _modernIcons = value;
 
+                // A running tool card shows the ring instead of the ◐◓◑◒ glyph, like the status line.
+                Resources["ClassicSpinnerVisibility"] = value ? Visibility.Collapsed : Visibility.Visible;
+                Resources["ModernSpinnerVisibility"] = value ? Visibility.Visible : Visibility.Collapsed;
+
                 foreach (var (button, moniker) in ModernToolbarIcons())
                 {
                     SetButtonIcon(button, moniker);
@@ -826,7 +909,7 @@ namespace ClaudeCodeVS.UI
                     Margin = new Thickness(0, 0, 5, 0),
                     VerticalAlignment = VerticalAlignment.Center
                 });
-                stopContent.Children.Add(new TextBlock { Text = "Stop", VerticalAlignment = VerticalAlignment.Center });
+                stopContent.Children.Add(new TextBlock { Text = L("Stop"), VerticalAlignment = VerticalAlignment.Center });
 
                 StopButton.Style = (Style)FindResource("ModernStopButtonStyle");
                 StopButton.Content = stopContent;
@@ -1002,13 +1085,24 @@ namespace ClaudeCodeVS.UI
         /// <summary>
         /// What the agent is said to be doing while it works. Rotating wording is the point: an
         /// unchanging line reads as frozen, and the clock alone does not say the agent is still alive.
+        /// English keys, translated at render time (<see cref="RenderActivity"/>), so a language change
+        /// needs no rebuild of the list.
         /// </summary>
         private static readonly string[] WorkingVerbs =
         {
-            "Working", "Thinking", "Pondering", "Perusing", "Noodling", "Percolating",
-            "Crunching", "Mulling", "Tinkering", "Digging", "Puzzling", "Simmering",
-            "Cogitating", "Whirring", "Churning", "Deliberating"
+            N("Working…"), N("Thinking…"), N("Pondering…"), N("Perusing…"), N("Noodling…"), N("Percolating…"),
+            N("Crunching…"), N("Mulling…"), N("Tinkering…"), N("Digging…"), N("Puzzling…"), N("Simmering…"),
+            N("Cogitating…"), N("Whirring…"), N("Churning…"), N("Deliberating…")
         };
+
+        /// <summary>The one caption shown while the agent works when <see cref="PlainWorkingStatus"/> is on.</summary>
+        private static readonly string PlainWorkingVerb = N("Thinking…");
+
+        /// <summary>
+        /// "Plain working status" setting: a fixed "Thinking…" instead of the rotating verbs. Shared by
+        /// every chat, like the language; the spinner and the clock still show the agent is alive.
+        /// </summary>
+        public static bool PlainWorkingStatus { get; set; }
 
         private static readonly Random VerbPicker = new Random();
 
@@ -1139,7 +1233,9 @@ namespace ClaudeCodeVS.UI
         {
             StatusSpinner.Text = SpinnerFrames[_spinnerFrame];
 
-            string label = _activityLabel.Length > 0 ? _activityLabel : WorkingVerbs[_verbIndex] + "…";
+            string label = _activityLabel.Length > 0
+                ? _activityLabel
+                : L(PlainWorkingStatus ? PlainWorkingVerb : WorkingVerbs[_verbIndex]);
             string text = label + "  " + ChatFormatting.Duration(DateTime.UtcNow - _activityStartedUtc);
 
             if (!string.IsNullOrEmpty(_activityDetail))
@@ -1149,8 +1245,9 @@ namespace ClaudeCodeVS.UI
 
             if (_queuedMessageCount > 0)
             {
-                text += "  ·  " + _queuedMessageCount +
-                    (_queuedMessageCount == 1 ? " message queued" : " messages queued");
+                text += "  ·  " + (_queuedMessageCount == 1
+                    ? L("1 message queued")
+                    : L("{0} messages queued", _queuedMessageCount));
             }
 
             StatusText.Text = text;
@@ -1195,7 +1292,7 @@ namespace ClaudeCodeVS.UI
         /// <param name="tips">Right-hand column, one line each.</param>
         public void ShowWelcome(string title, IEnumerable<string> facts, IEnumerable<string> tips)
         {
-            WelcomeTitle.Text = string.IsNullOrWhiteSpace(title) ? "Chat" : title;
+            WelcomeTitle.Text = string.IsNullOrWhiteSpace(title) ? L("Chat") : title;
             WelcomeFacts.ItemsSource = ToLines(facts);
             WelcomeTips.ItemsSource = ToLines(tips);
             WelcomeBanner.Visibility = Visibility.Visible;
@@ -1420,9 +1517,9 @@ namespace ClaudeCodeVS.UI
         /// Positions the reasoning slider and captions it. <paramref name="index"/> is the slider stop
         /// the parent maps to and from the active provider's reasoning enum.
         /// </summary>
-        public void SetEffortSlider(int index, string label, string title = "Effort")
+        public void SetEffortSlider(int index, string label, string title = null)
         {
-            _effortTitle = string.IsNullOrWhiteSpace(title) ? "Effort" : title;
+            _effortTitle = string.IsNullOrWhiteSpace(title) ? L("Effort") : title;
             _suppressEffortEvent = true;
             try
             {
@@ -1446,7 +1543,7 @@ namespace ClaudeCodeVS.UI
             EffortPopupLabel.Text = string.IsNullOrEmpty(label)
                 ? _effortTitle
                 : _effortTitle + " (" + label + ")";
-            ComposerEffortButton.ToolTip = "Change the " + _effortTitle.ToLowerInvariant() + " level";
+            ComposerEffortButton.ToolTip = L("Change the {0} level", _effortTitle.ToLowerInvariant());
         }
 
         /// <summary>
@@ -1530,7 +1627,7 @@ namespace ClaudeCodeVS.UI
         // "Refreshing…" while a ring click's refresh is running, else the last snapshot's "Updated" line.
         private void ShowUsageUpdatedText()
         {
-            string text = _usageRefreshing ? "Refreshing…" : _usageUpdatedText;
+            string text = _usageRefreshing ? L("Refreshing…") : _usageUpdatedText;
             UsageUpdatedText.Text = text;
             UsageUpdatedText.Visibility = string.IsNullOrEmpty(text) ? Visibility.Collapsed : Visibility.Visible;
         }
@@ -1588,19 +1685,19 @@ namespace ClaudeCodeVS.UI
                 ? null
                 : ChatUsageIndicator.RingArc(ringPercent / 100.0, 7, 6);
             ComposerUsageButton.ToolTip = ringPercent < 0
-                ? "Usage: context window and plan limits"
-                : "Usage: " + ringPercent + "% used";
+                ? L("Usage: context window and plan limits")
+                : L("Usage: {0}% used", ringPercent);
 
             UsageContextText.Text = data.HasContext
                 ? ChatUsageIndicator.ContextLine(data.ContextTokens, data.ContextWindow)
-                : "No turn yet";
+                : L("No turn yet");
             UsageContextBar.Value = data.HasContext ? ChatUsageIndicator.ClampPercent(data.ContextPercent) : 0;
 
             UsageNoPlanText.Visibility = data.HasPlanUsage ? Visibility.Collapsed : Visibility.Visible;
             UsagePlanRows.Visibility = data.HasPlanUsage ? Visibility.Visible : Visibility.Collapsed;
             if (data.HasPlanUsage)
             {
-                UsageSessionLabel.Text = string.IsNullOrEmpty(data.SessionLabel) ? "Session limit" : data.SessionLabel;
+                UsageSessionLabel.Text = string.IsNullOrEmpty(data.SessionLabel) ? L("Session limit") : data.SessionLabel;
                 SetPlanRow(UsageSessionText, UsageSessionBar, data.SessionPercent, true, data.SessionReset);
 
                 SetPlanRow(UsageWeeklyText, UsageWeeklyBar, data.WeeklyPercent, data.ShowWeekly, data.WeeklyReset);
@@ -2240,6 +2337,15 @@ namespace ClaudeCodeVS.UI
 
         private void OnMessagesChanged(object sender, NotifyCollectionChangedEventArgs e)
         {
+            bool hasUserMessage = e.Action == NotifyCollectionChangedAction.Add
+                ? _hasUserMessage || (e.NewItems != null && e.NewItems.OfType<ChatMessageViewModel>().Any(m => m.IsUser))
+                : Messages.Any(m => m.IsUser);
+            if (hasUserMessage != _hasUserMessage)
+            {
+                _hasUserMessage = hasUserMessage;
+                UpdateSendButtonVisibility();
+            }
+
             // Only the newest row grows, so one subscription is enough to follow streaming output.
             if (e.Action == NotifyCollectionChangedAction.Add && e.NewItems != null && e.NewItems.Count > 0)
             {

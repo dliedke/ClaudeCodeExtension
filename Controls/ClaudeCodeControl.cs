@@ -67,6 +67,10 @@ namespace ClaudeCodeVS
         /// </summary>
         public ClaudeCodeControl()
         {
+            // The chat transcript inside this control reads its text while InitializeComponent builds
+            // it, before LoadSettings runs, so its language is read from the settings file first.
+            ApplyChatLanguageFromSettingsFile();
+
             // Initialize XAML components
             InitializeComponent();
 

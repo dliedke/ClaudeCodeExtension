@@ -373,15 +373,44 @@ namespace ClaudeCodeVS
         /// Applies the Classic/Modern icon style to every chat transcript (the default one and each
         /// parallel tab's) and their tab captions. Idempotent, so it is safe from every appearance pass.
         /// </summary>
+        /// <summary>
+        /// Re-applies the composer state of the main chat and every parallel tab — e.g. after the
+        /// enabled agents changed, which decides whether the agent selector shows at all.
+        /// </summary>
+        private void RefreshAllChatComposers()
+        {
+            ThreadHelper.ThrowIfNotOnUIThread();
+
+            if (!IsNativeModeActive)
+            {
+                return;
+            }
+
+            UpdateChatComposerState();
+
+            List<NativeChatSessionState> sessions;
+            lock (_sessionLock)
+            {
+                sessions = new List<NativeChatSessionState>(_nativeSessions.Values);
+            }
+
+            foreach (NativeChatSessionState session in sessions)
+            {
+                UpdateChatComposerState(session);
+            }
+        }
+
         private void ApplyChatIconStyle()
         {
             ThreadHelper.ThrowIfNotOnUIThread();
 
             bool modern = _settings?.ChatIconStyle == ChatIconStyle.Modern;
+            bool compactToolbar = _settings?.CompactChatToolbar == true;
 
             if (ChatTranscript != null)
             {
                 ChatTranscript.UseModernIcons = modern;
+                ChatTranscript.CompactToolbar = compactToolbar;
             }
 
             List<NativeChatSessionState> sessions;
@@ -395,6 +424,7 @@ namespace ClaudeCodeVS
                 if (session.ChatTranscript != null)
                 {
                     session.ChatTranscript.UseModernIcons = modern;
+                    session.ChatTranscript.CompactToolbar = compactToolbar;
                 }
             }
         }
