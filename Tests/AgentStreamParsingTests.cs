@@ -356,6 +356,54 @@ namespace ClaudeCodeExtension.Tests
         }
 
         [TestMethod]
+        public void ClaudeParser_StatusLineUsesTheLastMainAssistantUsageWhenIterationsAreEmpty()
+        {
+            // Anthropic-compatible gateways can leave usage.iterations empty (measured against a
+            // DeepSeek endpoint on CLI 2.1.302). The last main assistant message still carries the
+            // request that produced the current context; the subagent's usage must not replace it.
+            var parser = new ClaudeStreamParser(expectDeltas: true);
+
+            List<AgentEvent> events = ParseAll(parser,
+                "{\"type\":\"system\",\"subtype\":\"init\",\"session_id\":\"s1\",\"model\":\"deepseek-flash\"}",
+                "{\"type\":\"assistant\",\"parent_tool_use_id\":null,\"message\":{\"id\":\"m1\",\"model\":\"deepseek-flash\",\"content\":[]," +
+                "\"usage\":{\"input_tokens\":211,\"output_tokens\":1093,\"cache_read_input_tokens\":198144,\"cache_creation_input_tokens\":0}}}",
+                "{\"type\":\"assistant\",\"parent_tool_use_id\":\"toolu_1\",\"message\":{\"id\":\"m2\",\"model\":\"deepseek-flash\",\"content\":[]," +
+                "\"usage\":{\"input_tokens\":1,\"output_tokens\":2,\"cache_read_input_tokens\":3,\"cache_creation_input_tokens\":4}}}",
+                "{\"type\":\"result\",\"subtype\":\"success\"," +
+                "\"usage\":{\"input_tokens\":211,\"output_tokens\":1093,\"cache_read_input_tokens\":198144,\"cache_creation_input_tokens\":0,\"iterations\":[]}," +
+                "\"modelUsage\":{\"deepseek-flash\":{\"contextWindow\":1000000}}}");
+
+            ClaudeStatusLineInput input = events[events.Count - 1].StatusLine;
+            Assert.IsTrue(input.HasCurrentUsage);
+            Assert.AreEqual(211, input.InputTokens);
+            Assert.AreEqual(1093, input.OutputTokens);
+            Assert.AreEqual(198144, input.CacheReadTokens);
+            Assert.AreEqual(0, input.CacheCreationTokens);
+            Assert.AreEqual(1000000, input.ContextWindowSize);
+
+            JObject json = JObject.Parse(input.Build(string.Empty, null));
+            Assert.AreEqual(198355, (int)json["context_window"]["total_input_tokens"]);
+            Assert.AreEqual(20, (int)json["context_window"]["used_percentage"]);
+        }
+
+        [TestMethod]
+        public void ClaudeParser_StatusLineForgetsTheAssistantUsageAtACompactBoundary()
+        {
+            // A compacted conversation's last pre-compact request no longer describes its context.
+            var parser = new ClaudeStreamParser(expectDeltas: true);
+
+            List<AgentEvent> events = ParseAll(parser,
+                "{\"type\":\"assistant\",\"parent_tool_use_id\":null,\"message\":{\"id\":\"m1\",\"model\":\"deepseek-flash\",\"content\":[]," +
+                "\"usage\":{\"input_tokens\":211,\"output_tokens\":1093,\"cache_read_input_tokens\":198144,\"cache_creation_input_tokens\":0}}}",
+                "{\"type\":\"system\",\"subtype\":\"compact_boundary\",\"compact_metadata\":{\"trigger\":\"auto\"}}",
+                "{\"type\":\"result\",\"subtype\":\"success\",\"usage\":{\"iterations\":[]}," +
+                "\"modelUsage\":{\"deepseek-flash\":{\"contextWindow\":1000000}}}");
+
+            ClaudeStatusLineInput input = events[events.Count - 1].StatusLine;
+            Assert.IsFalse(input.HasCurrentUsage);
+        }
+
+        [TestMethod]
         public void ClaudeParser_StatusLineInputLeavesOutWhatTheStreamHasNotReported()
         {
             // Before any rate_limit_event (API-key users never get one) and after /compact, the CLI
@@ -376,6 +424,24 @@ namespace ClaudeCodeExtension.Tests
             Assert.AreEqual(1000000, ClaudeStreamParser.ReadContextWindow(
                 JObject.Parse("{\"a\":{\"contextWindow\":200000},\"b\":{\"contextWindow\":1000000}}"), "unknown"));
             Assert.AreEqual(0, ClaudeStreamParser.ReadContextWindow(null, "claude-opus-5-5"));
+        }
+
+        [TestMethod]
+        public void ClaudeParser_ContextWindowOverrideWinsOverTheCliReport()
+        {
+            // DeepSeek is not a model the CLI recognizes; without an override it reports its 200k
+            // fallback and the usage ring is wrong even though the session's real window is 1M.
+            var parser = new ClaudeStreamParser(expectDeltas: true, contextWindowOverride: 1000000);
+
+            List<AgentEvent> events = ParseAll(parser,
+                "{\"type\":\"system\",\"subtype\":\"init\",\"session_id\":\"s1\",\"model\":\"deepseek-flash\",\"claude_code_version\":\"2.1.294\"}",
+                "{\"type\":\"assistant\",\"parent_tool_use_id\":null,\"message\":{\"id\":\"m1\",\"model\":\"deepseek-flash\",\"content\":[]}}",
+                "{\"type\":\"result\",\"subtype\":\"success\",\"usage\":{\"input_tokens\":10,\"output_tokens\":5,\"cache_read_input_tokens\":0,\"cache_creation_input_tokens\":0,\"iterations\":[{\"input_tokens\":10,\"output_tokens\":5,\"cache_read_input_tokens\":0,\"cache_creation_input_tokens\":0}]},\"modelUsage\":{\"deepseek-flash\":{\"contextWindow\":200000}}}");
+
+            ClaudeStatusLineInput input = events[events.Count - 1].StatusLine;
+            JObject json = JObject.Parse(input.Build(string.Empty, null));
+
+            Assert.AreEqual(1000000, (int)json["context_window"]["context_window_size"]);
         }
 
         [TestMethod]

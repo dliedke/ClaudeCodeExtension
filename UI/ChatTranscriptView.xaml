@@ -56,31 +56,6 @@
 		<BooleanToVisibilityConverter x:Key="BoolToVis"/>
 		<local:EmptyStringToVisibilityConverter x:Key="EmptyToVis"/>
 
-		<!-- Read-only text that can still be selected and copied: a TextBlock cannot be,
-		     and copying an answer is the single most common thing users do with a chat. -->
-		<Style x:Key="SelectableTextStyle" TargetType="TextBox">
-			<Setter Property="IsReadOnly" Value="True"/>
-			<Setter Property="IsReadOnlyCaretVisible" Value="False"/>
-			<Setter Property="BorderThickness" Value="0"/>
-			<Setter Property="Background" Value="Transparent"/>
-			<Setter Property="Padding" Value="0"/>
-			<Setter Property="TextWrapping" Value="Wrap"/>
-			<Setter Property="HorizontalScrollBarVisibility" Value="Disabled"/>
-			<Setter Property="VerticalScrollBarVisibility" Value="Disabled"/>
-			<Setter Property="FontFamily" Value="{DynamicResource ChatFontFamily}"/>
-			<Setter Property="FontSize" Value="{DynamicResource ChatFontSize}"/>
-			<Setter Property="Foreground" Value="{DynamicResource {x:Static vsshell:VsBrushes.WindowTextKey}}"/>
-			<Setter Property="SelectionBrush" Value="{StaticResource ChatSelectionBrush}"/>
-			<Setter Property="SelectionOpacity" Value="1"/>
-		</Style>
-
-		<Style x:Key="CodeTextStyle" TargetType="TextBox" BasedOn="{StaticResource SelectableTextStyle}">
-			<Setter Property="FontFamily" Value="{DynamicResource ChatCodeFontFamily}"/>
-			<Setter Property="FontSize" Value="{DynamicResource ChatSmallFontSize}"/>
-			<Setter Property="TextWrapping" Value="NoWrap"/>
-			<Setter Property="HorizontalScrollBarVisibility" Value="Auto"/>
-		</Style>
-
 		<!-- Copy icon for a fenced code block. Always visible: it sits in the block's header row, above the
 		     code box, so it never covers the code. Applied to every markdown body via MarkdownBodyStyle. -->
 		<Style x:Key="CodeCopyButtonStyle" TargetType="Button">
@@ -130,6 +105,14 @@
 			<Setter Property="CodeCopyButtonStyle" Value="{StaticResource CodeCopyButtonStyle}"/>
 		</Style>
 
+		<!-- Raw tool input/result: the same document viewer as the messages, in the code font. It must
+		     not go back to a TextBox: TextBoxView's soft-wrap metrics are what crash VS on .NET Framework
+		     (dotnet/wpf#11481, #2314). -->
+		<Style x:Key="ChatToolTextStyle" TargetType="local:MarkdownBlock" BasedOn="{StaticResource MarkdownBodyStyle}">
+			<Setter Property="FontFamily" Value="{DynamicResource ChatCodeFontFamily}"/>
+			<Setter Property="FontSize" Value="{DynamicResource ChatSmallFontSize}"/>
+		</Style>
+
 		<!-- Message body: rendered markdown, also while the reply is still streaming. IsIncremental
 		     makes each (throttled) Text change append the finished blocks once and re-render only the
 		     unfinished tail; when streaming ends the document is rebuilt whole, once. -->
@@ -148,11 +131,15 @@
 			        BorderBrush="{StaticResource ChatAccentBrush}"
 			        BorderThickness="1">
 				<!-- Attachments as thumbnails above the text; the "Files attached:" list the agent
-				     receives is left out of the bubble (PromptAttachments). -->
+				     receives is left out of the bubble (PromptAttachments). The text uses the document
+				     viewer, not a TextBox (TextBoxView crash, dotnet/wpf#11481). -->
 				<StackPanel>
 					<WrapPanel local:ChatAttachmentStrip.Files="{Binding AttachedFiles, Mode=OneWay}"/>
-					<TextBox Style="{StaticResource SelectableTextStyle}" Text="{Binding DisplayText, Mode=OneWay}"
-					         Visibility="{Binding DisplayText, Converter={StaticResource EmptyToVis}}"/>
+					<local:MarkdownBlock Style="{StaticResource MarkdownBodyStyle}"
+					                     IsPlainText="True"
+					                     Markdown="{Binding DisplayText, Mode=OneWay}"
+					                     LinkClicked="MarkdownBlock_LinkClicked"
+					                     Visibility="{Binding DisplayText, Converter={StaticResource EmptyToVis}}"/>
 				</StackPanel>
 			</Border>
 		</DataTemplate>
@@ -456,15 +443,19 @@
 								</ScrollViewer>
 							</Border>
 
-							<TextBox Style="{StaticResource CodeTextStyle}"
-							         Text="{Binding ToolInputJson, Mode=OneWay}"
-							         Visibility="{Binding ShowRawInput, Converter={StaticResource BoolToVis}}"/>
+							<local:MarkdownBlock Style="{StaticResource ChatToolTextStyle}"
+							                     IsPlainText="True"
+							                     Markdown="{Binding ToolInputJson, Mode=OneWay}"
+							                     LinkClicked="MarkdownBlock_LinkClicked"
+							                     Visibility="{Binding ShowRawInput, Converter={StaticResource BoolToVis}}"/>
 
 							<Separator Margin="0,6,0,6" Opacity="0.3"
 							           Visibility="{Binding ToolResult, Converter={StaticResource EmptyToVis}}"/>
-							<TextBox Style="{StaticResource CodeTextStyle}"
-							         Text="{Binding ToolResult, Mode=OneWay}"
-							         Visibility="{Binding ToolResult, Converter={StaticResource EmptyToVis}}"/>
+							<local:MarkdownBlock Style="{StaticResource ChatToolTextStyle}"
+							                     IsPlainText="True"
+							                     Markdown="{Binding ToolResult, Mode=OneWay}"
+							                     LinkClicked="MarkdownBlock_LinkClicked"
+							                     Visibility="{Binding ToolResult, Converter={StaticResource EmptyToVis}}"/>
 						</StackPanel>
 					</Expander>
 				</Grid>
@@ -689,9 +680,11 @@
 								</ScrollViewer>
 							</Border>
 
-							<TextBox Style="{StaticResource CodeTextStyle}"
-							         Text="{Binding ToolInputJson, Mode=OneWay}"
-							         Visibility="{Binding ShowRawInput, Converter={StaticResource BoolToVis}}"/>
+							<local:MarkdownBlock Style="{StaticResource ChatToolTextStyle}"
+							                     IsPlainText="True"
+							                     Markdown="{Binding ToolInputJson, Mode=OneWay}"
+							                     LinkClicked="MarkdownBlock_LinkClicked"
+							                     Visibility="{Binding ShowRawInput, Converter={StaticResource BoolToVis}}"/>
 						</StackPanel>
 
 						<DockPanel Margin="0,8,0,0" LastChildFill="False">

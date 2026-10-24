@@ -64,6 +64,8 @@
     <Compile Include="Agents\AgentCliNotFoundException.cs" />
     <Compile Include="Agents\AgentModelUnavailableException.cs" />
     <Compile Include="Agents\ClaudeCommandBuilder.cs" />
+    <Compile Include="Agents\ClaudeCliEnvironment.cs" />
+    <Compile Include="Agents\ClaudeContextLimits.cs" />
     <Compile Include="Agents\ClaudeEditHook.cs" />
     <Compile Include="Agents\ClaudeStreamJsonSession.cs" />
     <Compile Include="Agents\ClaudeStatusLine.cs" />

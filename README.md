@@ -174,16 +174,19 @@ Pull requests for new features are welcome. Bug fixes too — if you find an iss
 ## Version History
 
 ### Version 264.0
+- The context-usage ring now fills on Anthropic-compatible gateways that omit per-iteration usage (for example DeepSeek), instead of staying empty at "No turn yet". Thanks to [@MartinWooChina](https://github.com/MartinWooChina) (#218).
 - The agent selector in the chat toolbar now hides itself when only one agent is enabled, and comes back as soon as you enable a second one.
 - New *Compact chat toolbar* option puts the chat toolbar inside the message box, with ✚ new chat first and the less used actions grouped in the ⋯ menu (*Settings → Layout*, off by default).
 - In the Modern icon style, running tool steps show the same rotating ring as the status line.
 
 ### Version 263.0
+- Native chat now shows the correct context usage and sets a matching auto-compact point for DeepSeek and other custom 1M-context models, instead of the CLI's 200k fallback. Thanks to [@MartinWooChina](https://github.com/MartinWooChina) (#216).
 - Chat tabs now come back when you reopen a solution, each continuing its conversation with the earlier messages shown. On by default (*Settings → Terminal → Reopen chat tabs when the solution opens*); Claude Code, Codex and Devin.
 - A reopened tab starts its agent only when you send it a message, so opening a solution with several chats stays fast.
 - A resumed conversation shows its saved title and color right away instead of after the first message.
 
 ### Version 262.0
+- Fixed a crash that could close Visual Studio while hovering over or resizing the native chat. Thanks to [@MartinWooChina](https://github.com/MartinWooChina) (#217).
 - The native chat tab can now be shown in your language: Italian is included, and by default the chat follows the Visual Studio language (*Settings → Layout → Chat language*).
 - Other languages can be added without updating the extension, by dropping a translation file in the extension's `lang` folder under Local AppData.
 - The *Claude Code* toolbar now shows up on its own after installation; hide it from View → Toolbars if you don't want it.

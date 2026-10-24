@@ -545,8 +545,9 @@ namespace ClaudeCodeVS.UI
             string body = code.TrimEnd('\n');
 
             // One bordered box: the top row holds the language label (left) and the copy button (top-right
-            // corner); the code below is a read-only TextBox so it stays selectable. The button lives in a
-            // BlockUIContainer, which only receives mouse input because MarkdownBlock keeps IsDocumentEnabled on.
+            // corner); the code below is a TextBlock, not a TextBox: TextBoxView's soft-wrap metrics are
+            // what crash the process on .NET Framework (dotnet/wpf#11481), and the copy button already
+            // gives users the whole block.
             var header = new DockPanel { LastChildFill = false, Margin = new Thickness(9, 4, 4, 0) };
 
             if (!string.IsNullOrEmpty(language))
@@ -573,16 +574,10 @@ namespace ClaudeCodeVS.UI
                 header.Children.Add(copyButton);
             }
 
-            var text = new TextBox
+            var text = new TextBlock
             {
                 Text = body,
-                IsReadOnly = true,
-                AcceptsReturn = true,
                 TextWrapping = TextWrapping.Wrap,
-                VerticalScrollBarVisibility = ScrollBarVisibility.Disabled,
-                HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
-                BorderThickness = new Thickness(0),
-                Background = Brushes.Transparent,
                 Foreground = options.TextBrush,
                 FontFamily = options.CodeFontFamily,
                 FontSize = Math.Max(9, options.BaseFontSize - 1),
@@ -910,15 +905,14 @@ namespace ClaudeCodeVS.UI
         }
 
         /// <summary>
-        /// A link is a coloured, underlined run rather than a WPF <see cref="Hyperlink"/>: the document
-        /// lives in a read-only rich text box whose whole job is selecting and copying, and a live
-        /// hyperlink swallows the click that starts a selection. <see cref="MarkdownBlock"/> instead
-        /// hit-tests a plain click (down and up in the same spot) against <see cref="Run.Tag"/>, which
-        /// carries the URL, so dragging across the link to select text still works.
+        /// A link is a real <see cref="Hyperlink"/>: the document lives in a read-only
+        /// <see cref="FlowDocumentScrollViewer"/>, which has no public text hit-test API, so the old
+        /// Run.Tag plus mouse-position hit-testing is gone. <see cref="MarkdownBlock"/> handles
+        /// <see cref="Hyperlink.Click"/> and raises its own <see cref="MarkdownBlock.LinkClicked"/> event.
         /// </summary>
         private static Inline BuildLink(string label, string url, MarkdownStyleOptions options)
         {
-            var run = new Run(string.IsNullOrEmpty(label) ? url : label)
+            var link = new Hyperlink
             {
                 Foreground = options.AccentBrush,
                 TextDecorations = TextDecorations.Underline,
@@ -926,19 +920,24 @@ namespace ClaudeCodeVS.UI
                 Tag = url,
                 Cursor = Cursors.Hand
             };
-
-            return run;
+            link.Inlines.Add(new Run(string.IsNullOrEmpty(label) ? url : label));
+            return link;
         }
 
         #endregion
     }
 
     /// <summary>
-    /// Read-only rich text box that renders its <see cref="Markdown"/> property. Read-only rather than a
-    /// <c>TextBlock</c> because copying an answer is the single most common thing a user does with a
-    /// chat, and a <c>TextBlock</c> cannot be selected on .NET Framework.
+    /// Read-only document viewer that renders its <see cref="Markdown"/> property.
+    /// <para>
+    /// A <see cref="FlowDocumentScrollViewer"/> rather than a <c>RichTextBox</c> or a read-only
+    /// <c>TextBox</c>: those host a WPF <c>TextBoxView</c>, whose soft-wrap line metrics can fail an
+    /// internal invariant and terminate the whole process on .NET Framework 4.8.1
+    /// (dotnet/wpf#11481, #2314). A document viewer keeps the text selectable and copyable without
+    /// that code path.
+    /// </para>
     /// </summary>
-    public class MarkdownBlock : RichTextBox
+    public class MarkdownBlock : FlowDocumentScrollViewer
     {
         public static readonly DependencyProperty MarkdownProperty = DependencyProperty.Register(
             "Markdown", typeof(string), typeof(MarkdownBlock),
@@ -978,114 +977,107 @@ namespace ClaudeCodeVS.UI
             "CodeFontFamily", typeof(FontFamily), typeof(MarkdownBlock),
             new PropertyMetadata(new FontFamily("Cascadia Mono, Consolas"), OnVisualInputChanged));
 
-        /// <summary>Largest mouse-down-to-up distance, in DIPs, still treated as a click rather than a drag-select.</summary>
-        private const double ClickDragTolerance = 3.0;
-
-        private Point _mouseDownPosition;
-        private bool _trackingClick;
-
         public MarkdownBlock()
         {
-            IsReadOnly = true;
-            IsReadOnlyCaretVisible = false;
-            // Must stay true: with it false the RichTextBox does not hit-test UIElements inside
-            // BlockUIContainer, so the code block copy buttons never receive mouse clicks or tooltips.
-            IsDocumentEnabled = true;
+            IsSelectionEnabled = true;
+            IsToolBarVisible = false;
             BorderThickness = new Thickness(0);
             Background = Brushes.Transparent;
             Padding = new Thickness(0);
             MinHeight = 0;
             VerticalScrollBarVisibility = ScrollBarVisibility.Disabled;
             HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled;
+
+            // BuildLink emits Hyperlinks; clicking one must stay inside the chat instead of letting
+            // WPF navigate the host process. handledEventsToo because the Hyperlink may mark it handled.
+            AddHandler(Hyperlink.ClickEvent, new RoutedEventHandler(OnHyperlinkClick), true);
+
+            // The document viewer has no built-in context menu; keep the select-and-copy affordance
+            // the old TextBox/RichTextBox supplied.
+            var copy = new MenuItem { Header = "Copy" };
+            copy.Click += CopySelection_Click;
+            ContextMenu = new ContextMenu();
+            ContextMenu.Items.Add(copy);
         }
 
         /// <summary>Raised when a rendered link is clicked, carrying its URL (or bare file reference).</summary>
         public event EventHandler<string> LinkClicked;
 
-        /// <summary>
-        /// Records where the click started. Selection still begins normally underneath this — nothing
-        /// here is marked <c>Handled</c> — so a drag over link text keeps working.
-        /// </summary>
-        protected override void OnPreviewMouseLeftButtonDown(MouseButtonEventArgs e)
+        private void OnHyperlinkClick(object sender, RoutedEventArgs e)
         {
-            _mouseDownPosition = e.GetPosition(this);
-            _trackingClick = true;
-            base.OnPreviewMouseLeftButtonDown(e);
-        }
-
-        /// <summary>
-        /// A plain click (up lands within <see cref="ClickDragTolerance"/> of where it went down) that
-        /// lands on a link run fires <see cref="LinkClicked"/>; anything that moved is a selection drag
-        /// and is left alone.
-        /// </summary>
-        protected override void OnPreviewMouseLeftButtonUp(MouseButtonEventArgs e)
-        {
-            base.OnPreviewMouseLeftButtonUp(e);
-
-            if (!_trackingClick)
+            Hyperlink link = e.Source as Hyperlink ?? e.OriginalSource as Hyperlink;
+            if (link?.Tag is string url && !string.IsNullOrEmpty(url))
             {
-                return;
-            }
-
-            _trackingClick = false;
-            Point upPosition = e.GetPosition(this);
-
-            if (Math.Abs(upPosition.X - _mouseDownPosition.X) > ClickDragTolerance ||
-                Math.Abs(upPosition.Y - _mouseDownPosition.Y) > ClickDragTolerance)
-            {
-                return;
-            }
-
-            // A code block's copy button is not a link, even when the nearest text position it snaps to is one.
-            if (IsInsideButton(e.OriginalSource as DependencyObject))
-            {
-                return;
-            }
-
-            string url = HitTestLink(upPosition);
-            if (!string.IsNullOrEmpty(url))
-            {
+                e.Handled = true;
                 LinkClicked?.Invoke(this, url);
             }
         }
 
-        private static bool IsInsideButton(DependencyObject element)
+        private void CopySelection_Click(object sender, RoutedEventArgs e)
         {
-            while (element != null)
-            {
-                if (element is System.Windows.Controls.Primitives.ButtonBase)
-                {
-                    return true;
-                }
-
-                element = VisualTreeHelper.GetParent(element);
-            }
-
-            return false;
-        }
-
-        /// <summary>Walks up from the clicked point to the nearest text element carrying a link's URL in its Tag.</summary>
-        private string HitTestLink(Point position)
-        {
-            TextPointer pointer;
             try
             {
-                pointer = GetPositionFromPoint(position, true);
-            }
-            catch (Exception)
-            {
-                return null;
-            }
-
-            DependencyObject element = pointer?.Parent;
-            while (element is TextElement current)
-            {
-                if (current.Tag is string url && !string.IsNullOrEmpty(url))
+                TextSelection selection = Selection;
+                if (selection != null && !selection.IsEmpty)
                 {
-                    return url;
+                    Clipboard.SetText(selection.Text);
+                }
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"Copy selection failed: {ex.Message}");
+            }
+        }
+
+        /// <summary>
+        /// Vertical offset of the document's scroll viewer. <see cref="FlowDocumentScrollViewer"/> does
+        /// not expose the scroll API itself; callers that preserve the reader's place (the GitHub issue
+        /// detail) keep using the same members they used on the old RichTextBox.
+        /// </summary>
+        public double VerticalOffset
+        {
+            get
+            {
+                ScrollViewer viewer = FindScrollViewer();
+                return viewer?.VerticalOffset ?? 0.0;
+            }
+        }
+
+        public void ScrollToVerticalOffset(double offset)
+        {
+            // A document assignment is laid out on the next pass; scrolling now would clamp the
+            // offset against the previous document's extent. Apply it after the layout pass.
+            Dispatcher.BeginInvoke(
+                new Action(() => FindScrollViewer()?.ScrollToVerticalOffset(offset)),
+                System.Windows.Threading.DispatcherPriority.Loaded);
+        }
+
+        public void ScrollToHome()
+        {
+            FindScrollViewer()?.ScrollToTop();
+        }
+
+        private ScrollViewer FindScrollViewer()
+        {
+            return FindVisualChild<ScrollViewer>(this);
+        }
+
+        private static T FindVisualChild<T>(DependencyObject parent) where T : DependencyObject
+        {
+            int count = VisualTreeHelper.GetChildrenCount(parent);
+            for (int i = 0; i < count; i++)
+            {
+                DependencyObject child = VisualTreeHelper.GetChild(parent, i);
+                if (child is T match)
+                {
+                    return match;
                 }
 
-                element = current.Parent;
+                T nested = FindVisualChild<T>(child);
+                if (nested != null)
+                {
+                    return nested;
+                }
             }
 
             return null;

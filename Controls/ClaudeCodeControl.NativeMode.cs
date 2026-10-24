@@ -853,6 +853,12 @@ namespace ClaudeCodeVS
             // A chat tab reopened with the solution launches its CLI on the first prompt only.
             options.DeferLaunch = session?.DeferAgentLaunch == true;
 
+            // A custom Anthropic-compatible endpoint (DeepSeek) is not a model the CLI recognizes, so
+            // it assumes 200k unless its settings/env say otherwise. Resolve the real window here;
+            // the parser gets it for the usage ring, and the child gets the settings/env values when
+            // the CLI settings do not already carry them.
+            ApplyClaudeContextLimits(options, workspace, isWsl);
+
             // Remembered so a side question can re-run the same CLI — same executable, distro, folder
             // and model as the conversation it is a side question to. Only for the default session:
             // a side question is asked from the panel's own composer, never from a parallel tab.
@@ -862,6 +868,71 @@ namespace ClaudeCodeVS
             }
 
             return new ClaudeStreamJsonSession(options);
+        }
+
+        /// <summary>
+        /// Applies <see cref="ClaudeContextLimits"/> to a Claude launch. Native Windows only: a WSL
+        /// session reads its settings inside the distro, and the CLI's reported window is still the
+        /// only value this process can verify there.
+        /// </summary>
+        private static void ApplyClaudeContextLimits(ClaudeSessionOptions options, string workspace, bool isWsl)
+        {
+            if (isWsl || options == null)
+            {
+                return;
+            }
+
+            try
+            {
+                IDictionary<string, string> cliEnvironment = ClaudeCliEnvironment.Read(workspace);
+
+                var models = new List<string>();
+                if (!string.IsNullOrWhiteSpace(options.Model))
+                {
+                    models.Add(options.Model);
+                }
+
+                // The selected model is usually an alias (haiku/sonnet/opus); the settings map it to
+                // the real model. Include every model-valued variable so the detection does not
+                // depend on which alias is selected.
+                foreach (KeyValuePair<string, string> pair in cliEnvironment)
+                {
+                    if (pair.Key.IndexOf("MODEL", StringComparison.OrdinalIgnoreCase) >= 0 &&
+                        !string.IsNullOrWhiteSpace(pair.Value))
+                    {
+                        models.Add(pair.Value);
+                    }
+                }
+
+                string baseUrl = cliEnvironment.TryGetValue("ANTHROPIC_BASE_URL", out string configuredBaseUrl)
+                    ? configuredBaseUrl
+                    : string.Empty;
+
+                ClaudeContextLimits.Resolution limits = ClaudeContextLimits.Resolve(baseUrl, models, cliEnvironment);
+                if (limits.ContextWindow <= 0)
+                {
+                    return;
+                }
+
+                options.ContextWindowOverride = limits.ContextWindow;
+
+                // The CLI settings win when they set these; only fill the gap for a provider default.
+                if (!limits.ContextWindowFromSettings)
+                {
+                    options.EnvironmentOverrides[ClaudeContextLimits.MaxContextTokensVariable] =
+                        limits.ContextWindow.ToString(System.Globalization.CultureInfo.InvariantCulture);
+                }
+
+                if (limits.AutoCompactWindow > 0 && !limits.AutoCompactWindowFromSettings)
+                {
+                    options.EnvironmentOverrides[ClaudeContextLimits.AutoCompactWindowVariable] =
+                        limits.AutoCompactWindow.ToString(System.Globalization.CultureInfo.InvariantCulture);
+                }
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"Claude context limits: {ex.Message}");
+            }
         }
 
         /// <summary>

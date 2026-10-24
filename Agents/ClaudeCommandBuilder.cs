@@ -59,6 +59,14 @@ namespace ClaudeCodeVS.Agents
         public string Model { get; set; } = string.Empty;
 
         /// <summary>
+        /// Context window to use for the chat's usage display, or 0 to trust the CLI's reported
+        /// <c>modelUsage.contextWindow</c>. Set by the Controls layer for a custom endpoint whose real
+        /// window is known (DeepSeek's 1M, for example), so the ring does not inherit the CLI's 200k
+        /// fallback for a model it does not recognize.
+        /// </summary>
+        public int ContextWindowOverride { get; set; }
+
+        /// <summary>
         /// Effort level (<c>low</c>, <c>medium</c>, <c>high</c>, <c>xhigh</c>, <c>max</c>,
         /// <c>ultracode</c>). Empty means the CLI default.
         /// <para>
