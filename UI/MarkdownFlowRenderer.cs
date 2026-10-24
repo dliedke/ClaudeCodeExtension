@@ -944,6 +944,26 @@ namespace ClaudeCodeVS.UI
             new PropertyMetadata(string.Empty, OnMarkdownChanged));
 
         /// <summary>
+        /// When true, the document is not built until the block is actually visible. Tool cards keep
+        /// their raw input/result documents behind a collapsed Expander; building those documents
+        /// while the card is closed made scrolling through a large resumed transcript stall.
+        /// </summary>
+        public static readonly DependencyProperty DeferRenderingWhenCollapsedProperty =
+            DependencyProperty.Register("DeferRenderingWhenCollapsed", typeof(bool), typeof(MarkdownBlock),
+                new PropertyMetadata(false, OnVisualInputChanged));
+
+        /// <summary>
+        /// When true, the document is built after the element is loaded, not when Markdown is first
+        /// bound. A DataTemplate sets Markdown and IsPlainText in an order WPF does not guarantee;
+        /// building on the first change meant a notice or tool result was parsed as markdown once
+        /// (measured 500-700 ms for a 2 KB tool summary) before IsPlainText turned that work into a
+        /// throwaway document. Waiting for Loaded sees all the inputs at their final values.
+        /// </summary>
+        public static readonly DependencyProperty DeferRenderingUntilLoadedProperty =
+            DependencyProperty.Register("DeferRenderingUntilLoaded", typeof(bool), typeof(MarkdownBlock),
+                new PropertyMetadata(true, OnVisualInputChanged));
+
+        /// <summary>
         /// True while <see cref="Markdown"/> is a reply still being streamed (it only grows). Each change
         /// then appends the newly finished blocks once and re-renders only the unfinished tail, instead
         /// of rebuilding the whole document. Turning it off rebuilds the document whole, once.
@@ -991,6 +1011,12 @@ namespace ClaudeCodeVS.UI
             // BuildLink emits Hyperlinks; clicking one must stay inside the chat instead of letting
             // WPF navigate the host process. handledEventsToo because the Hyperlink may mark it handled.
             AddHandler(Hyperlink.ClickEvent, new RoutedEventHandler(OnHyperlinkClick), true);
+
+            // A deferred document is built when the Expander that hides it opens (or when a
+            // virtualized row scrolls into view), not when the Markdown property is first bound.
+            IsVisibleChanged += OnIsVisibleChanged;
+            Loaded += OnLoadedForRendering;
+            Unloaded += delegate { _isLoaded = false; };
 
             // The document viewer has no built-in context menu; keep the select-and-copy affordance
             // the old TextBox/RichTextBox supplied.
@@ -1089,6 +1115,42 @@ namespace ClaudeCodeVS.UI
             set { SetValue(MarkdownProperty, value); }
         }
 
+        public bool DeferRenderingWhenCollapsed
+        {
+            get { return (bool)GetValue(DeferRenderingWhenCollapsedProperty); }
+            set { SetValue(DeferRenderingWhenCollapsedProperty, value); }
+        }
+
+        public bool DeferRenderingUntilLoaded
+        {
+            get { return (bool)GetValue(DeferRenderingUntilLoadedProperty); }
+            set { SetValue(DeferRenderingUntilLoadedProperty, value); }
+        }
+
+        private bool _documentPending;
+        private bool _isLoaded;
+        private bool _settingDocument;
+
+        private void OnLoadedForRendering(object sender, RoutedEventArgs e)
+        {
+            _isLoaded = true;
+            if (_documentPending)
+            {
+                Rebuild();
+            }
+        }
+
+        private void OnIsVisibleChanged(object sender, DependencyPropertyChangedEventArgs e)
+        {
+            // Only the real Loaded event guarantees that the template's local values (IsPlainText
+            // above all) have been applied. Becoming visible earlier must not build the document:
+            // that was what parsed notices and tool output as markdown before IsPlainText arrived.
+            if ((bool)e.NewValue && _isLoaded && _documentPending)
+            {
+                Rebuild();
+            }
+        }
+
         public bool IsPlainText
         {
             get { return (bool)GetValue(IsPlainTextProperty); }
@@ -1132,6 +1194,14 @@ namespace ClaudeCodeVS.UI
         protected override void OnPropertyChanged(DependencyPropertyChangedEventArgs e)
         {
             base.OnPropertyChanged(e);
+
+            if (e.Property == DocumentProperty && !_settingDocument)
+            {
+                // A caller can hand the viewer a document it built itself (the GitHub issue detail
+                // view does). That document wins: do not replace it with the empty Markdown on Loaded.
+                _documentPending = false;
+                return;
+            }
 
             if (e.Property == FontSizeProperty || e.Property == ForegroundProperty)
             {
@@ -1202,7 +1272,15 @@ namespace ClaudeCodeVS.UI
             _incrementalText = string.Empty;
             _frozenLength = 0;
             _tailBlocks.Clear();
-            Document = MarkdownFlowRenderer.CreateDocument(options);
+            _settingDocument = true;
+            try
+            {
+                Document = MarkdownFlowRenderer.CreateDocument(options);
+            }
+            finally
+            {
+                _settingDocument = false;
+            }
 
             UpdateIncremental();
         }
@@ -1254,6 +1332,14 @@ namespace ClaudeCodeVS.UI
 
         private void Rebuild()
         {
+            if ((DeferRenderingUntilLoaded && !_isLoaded) ||
+                (DeferRenderingWhenCollapsed && !IsVisible))
+            {
+                _documentPending = true;
+                return;
+            }
+
+            _documentPending = false;
             MarkdownStyleOptions options = CreateOptions();
 
             if (IsIncremental && !IsPlainText)
@@ -1265,9 +1351,17 @@ namespace ClaudeCodeVS.UI
             _incrementalOptions = null;
             _tailBlocks.Clear();
 
-            Document = IsPlainText
-                ? MarkdownFlowRenderer.BuildPlain(Markdown, options)
-                : MarkdownFlowRenderer.Build(Markdown, options);
+            _settingDocument = true;
+            try
+            {
+                Document = IsPlainText
+                    ? MarkdownFlowRenderer.BuildPlain(Markdown, options)
+                    : MarkdownFlowRenderer.Build(Markdown, options);
+            }
+            finally
+            {
+                _settingDocument = false;
+            }
         }
     }
 }

@@ -21,6 +21,7 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
 using System.Windows.Data;
+using System.Windows.Input;
 using System.Windows.Media;
 using Microsoft.VisualStudio.Imaging;
 using Microsoft.VisualStudio.Imaging.Interop;
@@ -40,6 +41,14 @@ namespace ClaudeCodeVS.UI
         // and requiring equality would leave auto-scroll permanently off.
         private const double BottomTolerance = 2.0;
 
+        // A scroll offset that moved by less than this is layout jitter, not a reader scrolling.
+        private const double ScrollDeltaTolerance = 0.5;
+
+        // After the last wheel/scrollbar input, give the virtualized list this long to settle before
+        // following may resume. Fast wheel runs otherwise clear the reader flag at a momentary bottom
+        // and a layout change immediately queues a pass that fights the next wheel turn.
+        private static readonly TimeSpan ReaderSettleDelay = TimeSpan.FromMilliseconds(350);
+
         private const double MinZoom = 0.6;
         private const double MaxZoom = 2.5;
         private const double ZoomStep = 0.1;
@@ -48,7 +57,17 @@ namespace ClaudeCodeVS.UI
         private const double MaxComposerHeight = 400;
 
         private ChatMessageViewModel _trackedMessage;
+        private ScrollViewer _transcriptScroll;
         private bool _autoScroll = true;
+
+        // Set only by the reader's own input (wheel or the transcript's scrollbar). Layout and
+        // virtualization also change the offset while a long reply grows, and those must not read
+        // as "the reader scrolled away".
+        private bool _readerTookOver;
+        private bool _scrollToEndQueued;
+        private bool _scrollToEndActive;
+        private bool _forceScrollToEnd;
+        private int _scrollToEndAttempts;
         private bool _suppressEffortEvent;
         private int _effortIndexOnOpen;
         private int _effortIndex;
@@ -56,6 +75,7 @@ namespace ClaudeCodeVS.UI
         private string _effortTitle = L("Effort");
 
         private System.Windows.Threading.DispatcherTimer _activityTimer;
+        private System.Windows.Threading.DispatcherTimer _readerSettleTimer;
         private DateTime _activityStartedUtc;
         private DateTime _lastVerbChangeUtc;
         private int _spinnerFrame;
@@ -73,7 +93,34 @@ namespace ClaudeCodeVS.UI
             Messages.CollectionChanged += OnMessagesChanged;
             MessagesList.ItemsSource = Messages;
 
-            Loaded += delegate { ApplyLinkAccentForTheme(); ApplyImageThemeBackground(); };
+            // The list's ScrollViewer is part of its control template, so there is no generated
+            // field to wire the event to; the routed event bubbles up from it to the list.
+            MessagesList.AddHandler(ScrollViewer.ScrollChangedEvent,
+                new ScrollChangedEventHandler(TranscriptScroll_ScrollChanged));
+
+            // Every message is a FlowDocumentScrollViewer, whose own ScrollViewer consumes the
+            // wheel even when its scrollbars are disabled. Without this the transcript cannot be
+            // scrolled at all while the pointer is over a message. Tunnelling lets the transcript
+            // scroll first; a deliberately scrollable nested card (the diff pane) still keeps the
+            // wheel while it has somewhere to go.
+            MessagesList.AddHandler(PreviewMouseWheelEvent,
+                new MouseWheelEventHandler(Transcript_PreviewMouseWheel), true);
+
+            // Dragging the transcript's own scrollbar is also the reader taking over. Layout
+            // corrections and virtualization never press it, so this is what tells a real scroll
+            // apart from a long reply growing its own height.
+            MessagesList.AddHandler(PreviewMouseDownEvent,
+                new MouseButtonEventHandler(Transcript_PreviewMouseDown), true);
+
+            Loaded += delegate
+            {
+                // Resolve the template's ScrollViewer once it exists, so the scroll helpers do not
+                // have to search the visual tree on every streamed line.
+                MessagesList.ApplyTemplate();
+                _ = TranscriptScroll;
+                ApplyLinkAccentForTheme();
+                ApplyImageThemeBackground();
+            };
             Unloaded += delegate { VSColorTheme.ThemeChanged -= OnVSColorThemeChanged; };
             VSColorTheme.ThemeChanged += OnVSColorThemeChanged;
         }
@@ -1271,6 +1318,8 @@ namespace ClaudeCodeVS.UI
             StopActivityTimer();
             Messages.Clear();
             _autoScroll = true;
+            _readerTookOver = false;
+            _readerSettleTimer?.Stop();
             _queuedMessageCount = 0;
             ScrollToEndButton.Visibility = Visibility.Collapsed;
             StopButton.Visibility = Visibility.Collapsed;
@@ -2213,6 +2262,8 @@ namespace ClaudeCodeVS.UI
 
             Messages.Add(interaction);
             _autoScroll = true;
+            _readerTookOver = false;
+            _readerSettleTimer?.Stop();
             ScrollToEndIfFollowing();
         }
 
@@ -2324,15 +2375,348 @@ namespace ClaudeCodeVS.UI
         #endregion
 
         /// <summary>
+        /// The ScrollViewer from <see cref="MessagesList"/>'s control template. It cannot be an
+        /// <c>x:Name</c> field any more: the list has to own its scroll viewer for virtualization
+        /// to work, and that viewer lives in the template. Resolved lazily because the template is
+        /// applied after the constructor.
+        /// </summary>
+        private ScrollViewer TranscriptScroll
+        {
+            get
+            {
+                if (_transcriptScroll == null)
+                {
+                    _transcriptScroll = MessagesList.Template.FindName("TranscriptScroll", MessagesList) as ScrollViewer
+                        ?? FindVisualChild<ScrollViewer>(MessagesList);
+                }
+
+                return _transcriptScroll;
+            }
+        }
+
+        private static T FindVisualChild<T>(DependencyObject parent) where T : DependencyObject
+        {
+            int count = VisualTreeHelper.GetChildrenCount(parent);
+            for (int i = 0; i < count; i++)
+            {
+                DependencyObject child = VisualTreeHelper.GetChild(parent, i);
+                if (child is T match)
+                {
+                    return match;
+                }
+
+                T nested = FindVisualChild<T>(child);
+                if (nested != null)
+                {
+                    return nested;
+                }
+            }
+
+            return null;
+        }
+
+        private void ScrollTranscriptToEnd()
+        {
+            QueueScrollToEnd();
+        }
+
+        /// <summary>
+        /// Coalesces scroll-to-end requests onto the dispatcher. A virtualized panel reports an
+        /// estimated extent until the last rows are measured, so a single immediate
+        /// <see cref="ScrollViewer.ScrollToEnd"/> can stop short; the pass repeats after layout
+        /// until it reaches the true bottom (or gives up after a few attempts).
+        /// </summary>
+        private void QueueScrollToEnd()
+        {
+            if (!_autoScroll)
+            {
+                return;
+            }
+
+            // Set this before the dispatcher pass, not inside it: adding or growing a row raises
+            // ScrollChanged immediately with the old offset and the new (estimated) extent. Without
+            // the flag already set, that change cleared following before the first pass ever ran.
+            _scrollToEndActive = true;
+
+            if (_scrollToEndQueued)
+            {
+                return;
+            }
+
+            _scrollToEndQueued = true;
+#pragma warning disable VSTHRD001, VSTHRD110
+            Dispatcher.BeginInvoke(new Action(ScrollToEndPass),
+                System.Windows.Threading.DispatcherPriority.Loaded);
+#pragma warning restore VSTHRD001, VSTHRD110
+        }
+
+        private void ScrollToEndPass()
+        {
+            _scrollToEndQueued = false;
+
+            if (!_autoScroll)
+            {
+                _scrollToEndActive = false;
+                _forceScrollToEnd = false;
+                _scrollToEndAttempts = 0;
+                return;
+            }
+
+            // The reader took over after this pass was queued (wheel or scrollbar). Do not yank the
+            // view back to the bottom; the next layout/text change follows again once they are back
+            // at the newest line.
+            if (_readerTookOver)
+            {
+                _scrollToEndActive = false;
+                _forceScrollToEnd = false;
+                _scrollToEndAttempts = 0;
+                return;
+            }
+
+            ScrollViewer viewer = TranscriptScroll;
+            if (viewer == null)
+            {
+                _scrollToEndActive = false;
+                _forceScrollToEnd = false;
+                return;
+            }
+
+            // Keep following on while this pass and its retries run. A virtualized panel's first
+            // ScrollToEnd uses an estimated extent and often lands short; without this flag its own
+            // ScrollChanged would turn following off before the next pass reaches the real bottom,
+            // which is why live replies stopped following the newest row.
+            _scrollToEndActive = true;
+            viewer.ScrollToEnd();
+
+            bool atBottom = viewer.VerticalOffset >= viewer.ScrollableHeight - BottomTolerance;
+
+            // Bounded retries, as in the web clients' stick-to-bottom implementations: one pass plus
+            // one follow-up covers an extent that was still being estimated; the next streamed line
+            // requests another pass. Forced scrolls (replay, send, the jump button) keep more room to
+            // land on the true bottom.
+            int minimumPasses = _forceScrollToEnd ? 3 : 0;
+            int maximumPasses = _forceScrollToEnd ? 6 : 2;
+            if ((_scrollToEndAttempts < minimumPasses || !atBottom) && _scrollToEndAttempts < maximumPasses)
+            {
+                _scrollToEndAttempts++;
+                QueueScrollToEnd();
+                return;
+            }
+
+            _scrollToEndAttempts = 0;
+            _scrollToEndActive = false;
+            _forceScrollToEnd = false;
+            if (atBottom)
+            {
+                _autoScroll = true;
+            }
+        }
+
+        /// <summary>
+        /// Who moved the viewport decides whether following continues. Only the reader's own input
+        /// (wheel or the transcript's scrollbar) may turn following off, and only when it lands away
+        /// from the bottom; any other change is layout growth — virtualized height estimates, a
+        /// markdown block realizing its rows — and keeps the reader's current choice. An offset-based
+        /// test could not tell those apart: a layout correction that nudged <c>VerticalOffset</c>
+        /// looked like a scroll and halted a long stream halfway.
+        /// </summary>
+        internal static bool ResolveFollowingAfterScroll(bool following, bool readerTookOver, bool atBottom)
+        {
+            return readerTookOver ? atBottom : following || atBottom;
+        }
+
+        /// <summary>
+        /// Scrolls the transcript from the wheel event before a message's own
+        /// <see cref="FlowDocumentScrollViewer"/> can consume it. The document viewers have their
+        /// scrollbars disabled and are sized to their content, but their internal ScrollViewer still
+        /// handles the wheel, which left the chat unscrollable while the pointer was over a message.
+        /// </summary>
+        private void Transcript_PreviewMouseWheel(object sender, MouseWheelEventArgs e)
+        {
+            if (e.Handled || e.Delta == 0)
+            {
+                return;
+            }
+
+            // A wheel turn means the reader is taking over. Stop any scroll-to-end pass that is
+            // still chasing a layout; otherwise it would yank the view back to the bottom.
+            _scrollToEndActive = false;
+            _forceScrollToEnd = false;
+            _scrollToEndAttempts = 0;
+
+            ScrollViewer transcript = TranscriptScroll;
+            if (transcript == null)
+            {
+                return;
+            }
+
+            // A tool card's diff pane is a real, deliberately scrollable control. Keep the wheel
+            // there while it can still move; at its edge, fall through to the conversation.
+            ScrollViewer nested = FindAncestorScrollViewer(e.OriginalSource as DependencyObject);
+            if (nested != null && !ReferenceEquals(nested, transcript) &&
+                nested.VerticalScrollBarVisibility != ScrollBarVisibility.Disabled)
+            {
+                bool canScroll = e.Delta < 0
+                    ? nested.VerticalOffset < nested.ScrollableHeight - 0.5
+                    : nested.VerticalOffset > 0.5;
+                if (canScroll)
+                {
+                    return;
+                }
+            }
+
+            // From here on the wheel moves the transcript itself, not a card's own pane.
+            NoteReaderScrolled();
+
+            double lines = SystemParameters.WheelScrollLines;
+            double amount = lines < 0
+                ? transcript.ViewportHeight
+                : Math.Max(1, lines) * 16.0 * (e.Delta / 120.0);
+            double target = Math.Max(0.0,
+                Math.Min(transcript.ScrollableHeight, transcript.VerticalOffset - amount));
+
+            transcript.ScrollToVerticalOffset(target);
+            e.Handled = true;
+        }
+
+        private void Transcript_PreviewMouseDown(object sender, MouseButtonEventArgs e)
+        {
+            if (TranscriptScroll == null)
+            {
+                return;
+            }
+
+            ScrollBar bar = FindAncestorScrollBar(e.OriginalSource as DependencyObject);
+            if (bar != null && ReferenceEquals(bar.TemplatedParent, TranscriptScroll))
+            {
+                // Stop a pass that is already queued or running; it would fight the drag.
+                _scrollToEndActive = false;
+                _forceScrollToEnd = false;
+                _scrollToEndAttempts = 0;
+                NoteReaderScrolled();
+            }
+        }
+
+        /// <summary>
+        /// Records that the reader moved the transcript themselves and restarts the settle window
+        /// during which no scroll-to-end pass may run. When it expires at the bottom, following
+        /// resumes; away from the bottom the flag stays set until they come back.
+        /// </summary>
+        private void NoteReaderScrolled()
+        {
+            _readerTookOver = true;
+            if (_readerSettleTimer == null)
+            {
+                _readerSettleTimer = new System.Windows.Threading.DispatcherTimer
+                {
+                    Interval = ReaderSettleDelay
+                };
+                _readerSettleTimer.Tick += ReaderSettleTimer_Tick;
+            }
+
+            _readerSettleTimer.Stop();
+            _readerSettleTimer.Start();
+        }
+
+        private void ReaderSettleTimer_Tick(object sender, EventArgs e)
+        {
+            if (_readerSettleTimer != null)
+            {
+                _readerSettleTimer.Stop();
+            }
+
+            ScrollViewer viewer = TranscriptScroll;
+            if (viewer == null)
+            {
+                return;
+            }
+
+            bool atBottom = viewer.VerticalOffset >= viewer.ScrollableHeight - BottomTolerance;
+            if (atBottom)
+            {
+                // Settled at the newest line: following may resume.
+                _readerTookOver = false;
+                _autoScroll = true;
+            }
+
+            // Away from the bottom the flag stays set, so layout growth cannot pull the reader down.
+        }
+
+        private static ScrollBar FindAncestorScrollBar(DependencyObject source)
+        {
+            while (source != null)
+            {
+                if (source is ScrollBar bar)
+                {
+                    return bar;
+                }
+
+                source = GetParent(source);
+            }
+
+            return null;
+        }
+
+        private static ScrollViewer FindAncestorScrollViewer(DependencyObject source)
+        {
+            while (source != null)
+            {
+                if (source is ScrollViewer viewer)
+                {
+                    return viewer;
+                }
+
+                source = GetParent(source);
+            }
+
+            return null;
+        }
+
+        private static DependencyObject GetParent(DependencyObject source)
+        {
+            if (source is ContentElement content)
+            {
+                DependencyObject parent = ContentOperations.GetParent(content);
+                if (parent != null)
+                {
+                    return parent;
+                }
+
+                var frameworkContent = content as FrameworkContentElement;
+                return frameworkContent?.Parent;
+            }
+
+            return source is Visual ? VisualTreeHelper.GetParent(source) : LogicalTreeHelper.GetParent(source);
+        }
+
+        /// <summary>
         /// Scrolls to the newest content unless the user has deliberately scrolled up — yanking the
         /// view back down while they are reading an earlier answer is the classic chat-UI annoyance.
         /// </summary>
         public void ScrollToEndIfFollowing()
         {
-            if (_autoScroll)
+            // No pass while the reader is in charge of the viewport: it would be cancelled at the
+            // next ScrollChanged anyway, and queueing one per streamed line only adds churn.
+            if (_autoScroll && !_readerTookOver)
             {
-                TranscriptScroll.ScrollToEnd();
+                ScrollTranscriptToEnd();
             }
+        }
+
+        /// <summary>
+        /// Forces the view to the newest row and keeps it there until the virtualized list has
+        /// measured its real extent. Used after a resumed transcript is replayed; unlike
+        /// <see cref="ScrollToEndIfFollowing"/> this deliberately overrides a following flag that a
+        /// short, estimated scroll may have cleared.
+        /// </summary>
+        public void ScrollToLatest()
+        {
+            _autoScroll = true;
+            _readerTookOver = false;
+            _readerSettleTimer?.Stop();
+            _forceScrollToEnd = true;
+            _scrollToEndAttempts = 0;
+            QueueScrollToEnd();
         }
 
         private void OnMessagesChanged(object sender, NotifyCollectionChangedEventArgs e)
@@ -2415,16 +2799,32 @@ namespace ClaudeCodeVS.UI
             // Following is re-armed automatically once the user scrolls back to the bottom.
             bool atBottom = e.VerticalOffset >= e.ExtentHeight - e.ViewportHeight - BottomTolerance;
 
-            _autoScroll = atBottom;
-            ScrollToEndButton.Visibility = atBottom || Messages.Count == 0
+            // While a scroll-to-end pass and its retries are running, the extent is still being
+            // estimated; a pass that lands a little short must not turn following off, or the retry
+            // loop stops before the true bottom is reached.
+            if (!_scrollToEndActive && !_forceScrollToEnd)
+            {
+                bool readerInput = _readerTookOver;
+                _autoScroll = ResolveFollowingAfterScroll(_autoScroll, readerInput, atBottom);
+                // The reader flag is cleared by the settle timer, not here: a fast wheel run can
+                // pass through the bottom for a frame, and clearing it here re-armed a pass that
+                // then fought the next wheel turn.
+
+                // Deliberately no scroll pass from here. Following is re-requested by the text change
+                // that produced the growth; queuing from ScrollChanged as well made the pass's own
+                // extent change queue another pass, which is the up/down loop seen while scrolling
+                // fast: a virtualized list never reports a stable extent while it realizes rows, so
+                // the feedback fed itself until the user stopped touching the wheel.
+            }
+
+            ScrollToEndButton.Visibility = atBottom || _scrollToEndActive || _forceScrollToEnd || Messages.Count == 0
                 ? Visibility.Collapsed
                 : Visibility.Visible;
         }
 
         private void ScrollToEndButton_Click(object sender, RoutedEventArgs e)
         {
-            _autoScroll = true;
-            TranscriptScroll.ScrollToEnd();
+            ScrollToLatest();
         }
     }
 
