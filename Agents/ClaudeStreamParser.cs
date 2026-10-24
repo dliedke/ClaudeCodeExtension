@@ -67,6 +67,11 @@ namespace ClaudeCodeVS.Agents
         // to pick the main conversation's entry out of the result's modelUsage.
         private string _lastMainModel = string.Empty;
 
+        // Usage of the latest top-level assistant message. Anthropic-compatible gateways can leave
+        // result.usage.iterations empty, so this is the only per-request figure the stream carries;
+        // the turn's top-level usage is a sum over its requests and would overstate the context.
+        private AgentUsage _lastMainUsage;
+
         // What a status line command would receive, kept up to date from init, rate-limit and result
         // events; a copy rides on every TurnCompleted (issue #188).
         private readonly ClaudeStatusLineInput _statusLine = new ClaudeStatusLineInput();
@@ -208,6 +213,9 @@ namespace ClaudeCodeVS.Agents
                 return Empty;
             }
 
+            // A new turn starts: the previous turn's last-assistant usage is no longer current.
+            _lastMainUsage = null;
+
             SessionId = (string)root["session_id"] ?? string.Empty;
             Model = (string)root["model"] ?? string.Empty;
 
@@ -295,6 +303,7 @@ namespace ClaudeCodeVS.Agents
 
             // As in the CLI: no current usage after a compaction until the next request reports one.
             _statusLine.HasCurrentUsage = false;
+            _lastMainUsage = null;
 
             string text = before.HasValue && after.HasValue
                 ? string.Format(CultureInfo.InvariantCulture,
@@ -318,7 +327,8 @@ namespace ClaudeCodeVS.Agents
             }
 
             string messageModel = (string)root["message"]?["model"];
-            if (!string.IsNullOrEmpty(messageModel) && root["parent_tool_use_id"]?.Type != JTokenType.String)
+            bool isMain = root["parent_tool_use_id"]?.Type != JTokenType.String;
+            if (!string.IsNullOrEmpty(messageModel) && isMain)
             {
                 _lastMainModel = messageModel;
             }
@@ -396,6 +406,11 @@ namespace ClaudeCodeVS.Agents
             AgentUsage usage = ReadUsage(root["message"]?["usage"] as JObject);
             if (usage != null)
             {
+                if (isMain)
+                {
+                    _lastMainUsage = usage;
+                }
+
                 events.Add(AgentEvent.UsageUpdated(usage));
             }
 
@@ -582,6 +597,17 @@ namespace ClaudeCodeVS.Agents
                 _statusLine.OutputTokens = (int?)last["output_tokens"] ?? 0;
                 _statusLine.CacheCreationTokens = (int?)last["cache_creation_input_tokens"] ?? 0;
                 _statusLine.CacheReadTokens = (int?)last["cache_read_input_tokens"] ?? 0;
+                _statusLine.HasCurrentUsage = true;
+            }
+            else if (_lastMainUsage != null)
+            {
+                // Anthropic-compatible gateways can leave usage.iterations empty. The last main
+                // assistant message still reports the request that produced the current context;
+                // the turn's top-level usage is a sum over its requests and would overstate it.
+                _statusLine.InputTokens = _lastMainUsage.InputTokens;
+                _statusLine.OutputTokens = _lastMainUsage.OutputTokens;
+                _statusLine.CacheCreationTokens = _lastMainUsage.CacheCreationTokens;
+                _statusLine.CacheReadTokens = _lastMainUsage.CacheReadTokens;
                 _statusLine.HasCurrentUsage = true;
             }
 

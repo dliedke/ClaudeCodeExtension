@@ -173,6 +173,9 @@ Pull requests for new features are welcome. Bug fixes too — if you find an iss
 
 ## Version History
 
+### Version 264.0
+- The context-usage ring now fills on Anthropic-compatible gateways that omit per-iteration usage (for example DeepSeek), instead of staying empty at "No turn yet".
+
 ### Version 263.0
 - Native chat now shows the correct context usage and sets a matching auto-compact point for DeepSeek and other custom 1M-context models, instead of the CLI's 200k fallback. Thanks to [@MartinWooChina](https://github.com/MartinWooChina) (#216).
 
