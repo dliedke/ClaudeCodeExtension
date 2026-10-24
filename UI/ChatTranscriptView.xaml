@@ -221,6 +221,7 @@
 					<local:MarkdownBlock Style="{StaticResource MarkdownBodyStyle}"
 					                     FontStyle="Italic"
 					                     CodeCopyButtonStyle="{x:Null}"
+					                     DeferRenderingWhenCollapsed="True"
 					                     Markdown="{Binding RenderedText, Mode=OneWay}"
 					                     LinkClicked="MarkdownBlock_LinkClicked"/>
 				</Border>
@@ -397,6 +398,7 @@
 
 							<local:MarkdownBlock Style="{StaticResource ChatToolTextStyle}"
 							                     IsPlainText="True"
+							                     DeferRenderingWhenCollapsed="True"
 							                     Markdown="{Binding ToolInputJson, Mode=OneWay}"
 							                     LinkClicked="MarkdownBlock_LinkClicked"
 							                     Visibility="{Binding ShowRawInput, Converter={StaticResource BoolToVis}}"/>
@@ -405,6 +407,7 @@
 							           Visibility="{Binding ToolResult, Converter={StaticResource EmptyToVis}}"/>
 							<local:MarkdownBlock Style="{StaticResource ChatToolTextStyle}"
 							                     IsPlainText="True"
+							                     DeferRenderingWhenCollapsed="True"
 							                     Markdown="{Binding ToolResult, Mode=OneWay}"
 							                     LinkClicked="MarkdownBlock_LinkClicked"
 							                     Visibility="{Binding ToolResult, Converter={StaticResource EmptyToVis}}"/>
@@ -634,6 +637,7 @@
 
 							<local:MarkdownBlock Style="{StaticResource ChatToolTextStyle}"
 							                     IsPlainText="True"
+							                     DeferRenderingWhenCollapsed="True"
 							                     Markdown="{Binding ToolInputJson, Mode=OneWay}"
 							                     LinkClicked="MarkdownBlock_LinkClicked"
 							                     Visibility="{Binding ShowRawInput, Converter={StaticResource BoolToVis}}"/>
@@ -850,17 +854,20 @@
 				</DockPanel>
 			</Border>
 
-			<ScrollViewer x:Name="TranscriptScroll"
-			              VerticalScrollBarVisibility="Auto"
-			              HorizontalScrollBarVisibility="Disabled"
-			              Padding="8,4,8,4"
-			              ScrollChanged="TranscriptScroll_ScrollChanged">
-			<!-- Above the rows rather than layered over them: the card is part of the conversation's
-			     content, so it scrolls with it and can never cover the first answer. -->
-			<StackPanel>
+			<!-- The list owns the scroll viewer (not an outer ScrollViewer + StackPanel): a
+			     VirtualizingStackPanel only virtualizes when the ScrollViewer that owns it is its
+			     ItemsPresenter's scroll owner. Without this, opening a resumed transcript realizes
+			     every row at once, which is what made a long session take most of a minute to appear.
+			     The welcome card sits above the list instead of inside its scroll content so the list
+			     can keep that scroll owner; it is only shown while the list is empty. -->
+			<Grid>
+				<Grid.RowDefinitions>
+					<RowDefinition Height="Auto"/>
+					<RowDefinition Height="*"/>
+				</Grid.RowDefinitions>
 				<!-- Empty state of a fresh conversation: what is running, where, and what the chat can
 				     do. Filled by ShowWelcome and dropped as soon as the user sends the first prompt. -->
-				<Grid x:Name="WelcomeBanner" Visibility="Collapsed" Margin="2,6,2,12">
+				<Grid x:Name="WelcomeBanner" Grid.Row="0" Visibility="Collapsed" Margin="10,10,10,12">
 					<Border BorderBrush="{StaticResource ChatAccentBrush}"
 					        BorderThickness="1" CornerRadius="4"
 					        Margin="0,8,0,0" Padding="14,14,14,12">
@@ -961,7 +968,24 @@
 					</Border>
 				</Grid>
 
-				<ItemsControl x:Name="MessagesList">
+				<ItemsControl x:Name="MessagesList" Grid.Row="1"
+				              VirtualizingPanel.IsVirtualizing="True"
+				              VirtualizingPanel.VirtualizationMode="Standard"
+				              VirtualizingPanel.ScrollUnit="Pixel"
+				              VirtualizingPanel.CacheLength="2,2"
+				              VirtualizingPanel.CacheLengthUnit="Page">
+					<ItemsControl.Template>
+						<ControlTemplate TargetType="ItemsControl">
+							<ScrollViewer x:Name="TranscriptScroll"
+							              CanContentScroll="True"
+							              Focusable="False"
+							              VerticalScrollBarVisibility="Auto"
+							              HorizontalScrollBarVisibility="Disabled"
+							              Padding="8,4,8,4">
+								<ItemsPresenter/>
+							</ScrollViewer>
+						</ControlTemplate>
+					</ItemsControl.Template>
 					<ItemsControl.ItemsPanel>
 						<ItemsPanelTemplate>
 							<VirtualizingStackPanel/>
@@ -978,8 +1002,7 @@
 							InteractionTemplate="{StaticResource InteractionTemplate}"/>
 					</ItemsControl.ItemTemplateSelector>
 				</ItemsControl>
-			</StackPanel>
-		</ScrollViewer>
+			</Grid>
 		</DockPanel>
 
 		<!-- Appears only while the user has scrolled away from the newest message -->

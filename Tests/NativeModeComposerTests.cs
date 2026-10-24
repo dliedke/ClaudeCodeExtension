@@ -302,9 +302,157 @@ namespace ClaudeCodeExtension.Tests
                 "private void TranscriptScroll_ScrollChanged(object sender, ScrollChangedEventArgs e)");
 
             int guard = body.IndexOf("if (!ReferenceEquals(e.OriginalSource, TranscriptScroll))", System.StringComparison.Ordinal);
-            int rearm = body.IndexOf("_autoScroll = atBottom;", System.StringComparison.Ordinal);
+            int rearm = body.IndexOf("_autoScroll = ResolveFollowingAfterScroll(", System.StringComparison.Ordinal);
             Assert.IsTrue(guard >= 0, "The handler must ignore ScrollChanged bubbling up from nested scroll viewers.");
             Assert.IsTrue(rearm > guard, "The nested-viewer guard must run before following is re-armed.");
+        }
+
+        /// <summary>
+        /// Sending is an explicit request for the answer, so it must snap to the new user row and
+        /// re-arm following even when the reader had scrolled up; otherwise the prompt and its whole
+        /// reply stream below the viewport and the chat looks frozen.
+        /// </summary>
+        [TestMethod]
+        public void SendingAPromptReArmsFollowing()
+        {
+            string cs = RepositoryLayout.ReadText("Controls", "ClaudeCodeControl.NativeMode.cs");
+            const string add = "Messages.Add(userMessage);";
+            int at = 0;
+            int adds = 0;
+            int followed = 0;
+
+            while ((at = cs.IndexOf(add, at, System.StringComparison.Ordinal)) >= 0)
+            {
+                adds++;
+                int end = System.Math.Min(cs.Length, at + 400);
+                if (cs.IndexOf("ScrollToLatest();", at, end - at, System.StringComparison.Ordinal) >= 0)
+                {
+                    followed++;
+                }
+
+                at += add.Length;
+            }
+
+            Assert.AreEqual(4, adds, "Expected the panel, the session tab and both steering paths.");
+            Assert.AreEqual(adds, followed,
+                "Every prompt added to a transcript must snap to it and re-arm following.");
+        }
+
+        /// <summary>
+        /// A pass queued before the reader scrolled must back off instead of pulling the view back
+        /// down; otherwise a wheel turn at the bottom queues a pass whose own layout change queues
+        /// another, which is the loop users saw while scrolling up and down.
+        /// </summary>
+        [TestMethod]
+        public void ReaderScrollCancelsAQueuedScrollToEndPass()
+        {
+            string cs = RepositoryLayout.ReadText("UI", "ChatTranscriptView.xaml.cs");
+            string pass = ExtractMethodBody(cs, "private void ScrollToEndPass()");
+            int readerGuard = pass.IndexOf("if (_readerTookOver)", System.StringComparison.Ordinal);
+            int scrollToEnd = pass.IndexOf("viewer.ScrollToEnd();", System.StringComparison.Ordinal);
+            Assert.IsTrue(readerGuard >= 0, "A queued pass must bail out when the reader took over.");
+            Assert.IsTrue(scrollToEnd > readerGuard, "The reader guard must run before ScrollToEnd.");
+
+            string changed = ExtractMethodBody(cs,
+                "private void TranscriptScroll_ScrollChanged(object sender, ScrollChangedEventArgs e)");
+            StringAssert.Contains(changed, "bool readerInput = _readerTookOver;");
+            Assert.IsFalse(changed.Contains("QueueScrollToEnd();"),
+                "ScrollChanged must not queue a pass: the pass's own extent changes would feed another " +
+                "pass, which is the scrolling loop users hit with a fast wheel.");
+        }
+
+        /// <summary>
+        /// Fast wheel scrolling can touch the bottom between two notches; following must wait for
+        /// the reader to settle instead of re-arming on that one frame and fighting the next wheel.
+        /// </summary>
+        [TestMethod]
+        public void ReaderScrollingGetsASettleWindowBeforeFollowingResumes()
+        {
+            string cs = RepositoryLayout.ReadText("UI", "ChatTranscriptView.xaml.cs");
+            StringAssert.Contains(cs, "ReaderSettleDelay");
+            StringAssert.Contains(cs, "private void NoteReaderScrolled()");
+            StringAssert.Contains(cs, "private void ReaderSettleTimer_Tick(");
+            StringAssert.Contains(cs, "NoteReaderScrolled();");
+        }
+
+        /// <summary>
+        /// A resumed transcript can hold hundreds of rows. They only stay cheap while the list owns
+        /// the ScrollViewer its ItemsPresenter scrolls: an outer ScrollViewer + StackPanel measures
+        /// every row at once and realizes all of them, which is what made a long session's tab take
+        /// most of a minute to appear.
+        /// </summary>
+        [TestMethod]
+        public void TranscriptListVirtualizesMessages()
+        {
+            string xaml = ChatTranscriptXaml;
+            StringAssert.Contains(xaml, "VirtualizingPanel.IsVirtualizing=\"True\"");
+            StringAssert.Contains(xaml, "VirtualizingPanel.VirtualizationMode=\"Standard\"",
+                "Standard mode keeps a fast scroll from flashing a recycled row's previous content/height.");
+            StringAssert.Contains(xaml, "VirtualizingPanel.ScrollUnit=\"Pixel\"");
+            StringAssert.Contains(xaml, "VirtualizingPanel.CacheLength=\"2,2\"",
+                "Realizing two pages outside the viewport measures deferred markdown before it scrolls in.");
+            StringAssert.Contains(xaml, "VirtualizingPanel.CacheLengthUnit=\"Page\"");
+            StringAssert.Contains(xaml, "<ItemsControl.Template>");
+            StringAssert.Contains(xaml, "CanContentScroll=\"True\"");
+            StringAssert.Contains(xaml, "<VirtualizingStackPanel/>");
+
+            string cs = ChatTranscriptCode;
+            StringAssert.Contains(cs, "MessagesList.AddHandler(ScrollViewer.ScrollChangedEvent",
+                "The template's ScrollViewer must still feed the transcript's follow-scroll state.");
+        }
+
+        /// <summary>
+        /// Every message is a FlowDocumentScrollViewer. Its internal ScrollViewer consumes the
+        /// mouse wheel even with disabled scrollbars, so the transcript must claim the tunnelling
+        /// event before the document viewer sees it. A deliberately scrollable nested card (the
+        /// diff pane) must keep the wheel while it can still move.
+        /// </summary>
+        [TestMethod]
+        public void TranscriptWheelHandlerScrollsBeforeDocumentViewers()
+        {
+            string cs = ChatTranscriptCode;
+            StringAssert.Contains(cs, "MessagesList.AddHandler(PreviewMouseWheelEvent");
+            StringAssert.Contains(cs, "private void Transcript_PreviewMouseWheel(");
+            StringAssert.Contains(cs, "nested.VerticalScrollBarVisibility != ScrollBarVisibility.Disabled");
+            StringAssert.Contains(cs, "transcript.ScrollToVerticalOffset(target);");
+        }
+
+        /// <summary>
+        /// A resumed transcript must open at the newest message. A virtualized list reports an
+        /// estimated extent until the last rows are measured, so a single ScrollToEnd can stop
+        /// short; the view needs the forced, repeated scroll, and both replay paths must use it.
+        /// </summary>
+        [TestMethod]
+        public void ResumedTranscriptScrollsToTheNewestMessage()
+        {
+            string nativeChat = RepositoryLayout.ReadText("Controls", "ClaudeCodeControl.NativeChat.cs");
+            int calls = 0;
+            int at = 0;
+            while ((at = nativeChat.IndexOf("chat.ScrollToLatest();", at, System.StringComparison.Ordinal)) >= 0)
+            {
+                calls++;
+                at += "chat.ScrollToLatest();".Length;
+            }
+
+            Assert.AreEqual(2, calls, "Both the Codex and Claude replay paths must scroll to the newest row.");
+
+            string view = ChatTranscriptCode;
+            StringAssert.Contains(view, "public void ScrollToLatest()");
+            StringAssert.Contains(view, "_forceScrollToEnd = true;");
+        }
+
+        /// <summary>
+        /// A live reply must keep following while the virtualized list settles its estimated
+        /// extent. If ScrollChanged turns following off after the first short scroll, the retry
+        /// pass exits and the chat stops moving.
+        /// </summary>
+        [TestMethod]
+        public void FollowScrollSurvivesTheVirtualizedExtentEstimate()
+        {
+            string cs = ChatTranscriptCode;
+            StringAssert.Contains(cs, "_scrollToEndActive = true;");
+            StringAssert.Contains(cs, "if (!_scrollToEndActive && !_forceScrollToEnd)");
+            StringAssert.Contains(cs, "_scrollToEndActive || _forceScrollToEnd");
         }
 
         /// <summary>

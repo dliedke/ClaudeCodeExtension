@@ -60,7 +60,12 @@ namespace ClaudeCodeExtension.Tests
         {
             RunOnSta(() =>
             {
-                var block = new MarkdownBlock { IsPlainText = true, Markdown = "hello\nworld" };
+                var block = new MarkdownBlock
+                {
+                    DeferRenderingUntilLoaded = false,
+                    IsPlainText = true,
+                    Markdown = "hello\nworld"
+                };
 
                 Assert.IsNotNull(block.Document);
                 string text = new TextRange(block.Document.ContentStart, block.Document.ContentEnd).Text;
@@ -72,6 +77,71 @@ namespace ClaudeCodeExtension.Tests
                 block.ScrollToHome();
                 block.ScrollToVerticalOffset(0.0);
             });
+        }
+
+        [TestMethod]
+        public void MarkdownBlockWaitsForLoadBeforeBuildingItsDocument()
+        {
+            RunOnSta(() =>
+            {
+                var block = new MarkdownBlock { Markdown = "hello" };
+
+                Assert.IsNull(block.Document,
+                    "A block that has not been loaded yet must not build its document; a DataTemplate " +
+                    "may still be about to set IsPlainText, and parsing it first wastes 500-700 ms.");
+
+                block.DeferRenderingUntilLoaded = false;
+                Assert.IsNotNull(block.Document);
+            });
+        }
+
+        [TestMethod]
+        public void ToolAndThinkingCardsDeferTheirCollapsedBodies()
+        {
+            string xaml = RepositoryLayout.ReadText("UI", "ChatTranscriptView.xaml");
+            const string marker = "DeferRenderingWhenCollapsed=\"True\"";
+
+            int count = xaml.Split(new[] { marker }, StringSplitOptions.None).Length - 1;
+            Assert.AreEqual(4, count,
+                "Both tool-input blocks, the tool-result block, and the thinking block must defer rendering " +
+                "while their Expander body is collapsed.");
+        }
+
+        /// <summary>
+        /// The virtualized list grows its extent long before it realizes every row, and a layout
+        /// correction can even nudge the offset. Neither is the reader scrolling, so following must
+        /// survive both — an offset-based test is what left the view stuck halfway through an answer.
+        /// </summary>
+        [TestMethod]
+        public void LayoutGrowthAloneKeepsFollowing()
+        {
+            Assert.IsTrue(ChatTranscriptView.ResolveFollowingAfterScroll(
+                following: true, readerTookOver: false, atBottom: false));
+        }
+
+        [TestMethod]
+        public void ViewportResizeKeepsTheReadersChoice()
+        {
+            Assert.IsTrue(ChatTranscriptView.ResolveFollowingAfterScroll(
+                following: true, readerTookOver: false, atBottom: false));
+            Assert.IsFalse(ChatTranscriptView.ResolveFollowingAfterScroll(
+                following: false, readerTookOver: false, atBottom: false));
+        }
+
+        [TestMethod]
+        public void ScrollingAwayStopsFollowingAndScrollingBackReArmsIt()
+        {
+            Assert.IsFalse(ChatTranscriptView.ResolveFollowingAfterScroll(
+                following: true, readerTookOver: true, atBottom: false));
+            Assert.IsTrue(ChatTranscriptView.ResolveFollowingAfterScroll(
+                following: false, readerTookOver: true, atBottom: true));
+        }
+
+        [TestMethod]
+        public void ContentGrowthDoesNotReArmAReaderWhoScrolledAway()
+        {
+            Assert.IsFalse(ChatTranscriptView.ResolveFollowingAfterScroll(
+                following: false, readerTookOver: true, atBottom: false));
         }
 
         private static void RunOnSta(Action action)

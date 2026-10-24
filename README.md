@@ -173,6 +173,10 @@ Pull requests for new features are welcome. Bug fixes too — if you find an iss
 
 ## Version History
 
+### Version 265.0
+- Long resumed conversations in the native chat now open quickly at the newest message, and rows render as they scroll into view. Thanks to [@MartinWooChina](https://github.com/MartinWooChina) (#219).
+- The chat now keeps following long streamed replies to the last line, and fast mouse-wheel scrolling no longer jumps or loops; sending a prompt snaps to the new message.
+
 ### Version 264.0
 - The context-usage ring now fills on Anthropic-compatible gateways that omit per-iteration usage (for example DeepSeek), instead of staying empty at "No turn yet". Thanks to [@MartinWooChina](https://github.com/MartinWooChina) (#218).
 
