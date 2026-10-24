@@ -173,6 +173,9 @@ Pull requests for new features are welcome. Bug fixes too — if you find an iss
 
 ## Version History
 
+### Version 263.0
+- Native chat now shows the correct context usage and sets a matching auto-compact point for DeepSeek and other custom 1M-context models, instead of the CLI's 200k fallback.
+
 ### Version 261.0
 - Opening or switching a folder or solution no longer freezes Visual Studio while the chat agent restarts; the restart now waits until the IDE has finished loading. Thanks to [@MartinWooChina](https://github.com/MartinWooChina) (#215).
 - Changing the model, effort, or permission mode no longer blocks the IDE while the previous agent shuts down.

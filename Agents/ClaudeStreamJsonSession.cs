@@ -490,7 +490,7 @@ namespace ClaudeCodeVS.Agents
                 hostOptions.EnvironmentOverrides[pair.Key] = pair.Value;
             }
 
-            _parser = new ClaudeStreamParser(_options.IncludePartialMessages)
+            _parser = new ClaudeStreamParser(_options.IncludePartialMessages, _options.ContextWindowOverride)
             {
                 ControlResponder = WriteControlResponse,
                 ControlResponseReceived = OnControlResponseReceived,
