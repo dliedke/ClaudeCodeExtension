@@ -519,6 +519,50 @@ namespace ClaudeCodeVS
             autoTitleCheck.Unchecked += (s, e) => autoTitleAiCheck.IsEnabled = false;
             layoutStack.Children.Add(autoTitleAiCheck);
 
+            var showTokenCountsCheck = MakeCheckBox(
+                "Show token counts in the chat",
+                "Shows how many tokens each turn used, live while the agent works and in the line left after the turn. The usage ring on the chat toolbar is not affected.",
+                _settings.ShowChatTokenCounts, themeFg);
+            layoutStack.Children.Add(showTokenCountsCheck);
+
+            layoutStack.Children.Add(MakeSectionHeader("Chat icons (native mode)", themeFg));
+            var classicIconsRadio = MakeRadioButton("Classic — text symbols and emoji",
+                _settings.ChatIconStyle != ChatIconStyle.Modern, themeFg, "chatIconStyle");
+            var modernIconsRadio = MakeRadioButton("Modern — Visual Studio icons and colored status on the tabs",
+                _settings.ChatIconStyle == ChatIconStyle.Modern, themeFg, "chatIconStyle");
+            modernIconsRadio.ToolTip = MakeToolTip(
+                "The chat toolbar uses Visual Studio's own icons, the live status shows a rotating ring, and each chat tab shows ✅ done, ❌ error, ❓ waiting for your answer and the working icon chosen below.");
+            layoutStack.Children.Add(classicIconsRadio);
+            layoutStack.Children.Add(modernIconsRadio);
+
+            var workingIconRow = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(24, 2, 0, 4) };
+            workingIconRow.Children.Add(new TextBlock
+            {
+                Text = "Working icon on the tab:",
+                Foreground = themeFg,
+                VerticalAlignment = VerticalAlignment.Center,
+                Margin = new Thickness(0, 0, 8, 0)
+            });
+            var workingIconCombo = MakeThemedComboBox(comboRes, themeFg);
+            workingIconCombo.Width = 220;
+            foreach (var (icon, label) in new[]
+            {
+                (ChatWorkingTabIcon.Arrows, "🔄  Arrows (blue, still)"),
+                (ChatWorkingTabIcon.Clock, "🕐  Clock (animated)"),
+                (ChatWorkingTabIcon.Moon, "🌓  Moon (animated)")
+            })
+            {
+                var item = new ComboBoxItem { Content = label, Tag = icon };
+                if (comboRes["cbi"] is Style cbiStyle) item.Style = cbiStyle;
+                if (icon == _settings.ChatWorkingTabIcon) item.IsSelected = true;
+                workingIconCombo.Items.Add(item);
+            }
+            workingIconRow.Children.Add(workingIconCombo);
+            workingIconRow.IsEnabled = modernIconsRadio.IsChecked == true;
+            modernIconsRadio.Checked += (s, e) => workingIconRow.IsEnabled = true;
+            modernIconsRadio.Unchecked += (s, e) => workingIconRow.IsEnabled = false;
+            layoutStack.Children.Add(workingIconRow);
+
             // ========================= Terminal tab =========================
             var terminalStack = AddTab("Terminal");
 
@@ -1514,11 +1558,26 @@ namespace ClaudeCodeVS
             _settings.ShowSubagentCount      = newShowSubagentCount;
 
             // Chat tab captions only need a refresh; a new AI/title choice applies from the next chat.
+            ChatIconStyle newChatIconStyle = modernIconsRadio.IsChecked == true ? ChatIconStyle.Modern : ChatIconStyle.Classic;
+            ChatWorkingTabIcon newWorkingTabIcon = (workingIconCombo.SelectedItem as ComboBoxItem)?.Tag is ChatWorkingTabIcon pickedIcon
+                ? pickedIcon
+                : _settings.ChatWorkingTabIcon;
+            bool chatIconStyleChanged = newChatIconStyle != _settings.ChatIconStyle;
             bool chatTabCaptionsChanged = (showChatTabStatusCheck.IsChecked == true) != _settings.ShowChatTabStatus
-                                          || (autoTitleCheck.IsChecked == true) != _settings.AutoTitleChatTabs;
+                                          || (autoTitleCheck.IsChecked == true) != _settings.AutoTitleChatTabs
+                                          || chatIconStyleChanged
+                                          || newWorkingTabIcon != _settings.ChatWorkingTabIcon;
             _settings.ShowChatTabStatus       = showChatTabStatusCheck.IsChecked == true;
             _settings.AutoTitleChatTabs       = autoTitleCheck.IsChecked == true;
             _settings.AutoTitleChatTabsWithAi = autoTitleAiCheck.IsChecked == true;
+            _settings.ShowChatTokenCounts     = showTokenCountsCheck.IsChecked == true;
+            _settings.ChatIconStyle           = newChatIconStyle;
+            _settings.ChatWorkingTabIcon      = newWorkingTabIcon;
+            if (chatIconStyleChanged)
+            {
+                ApplyChatIconStyle();
+                RefreshAllAttachmentChips();
+            }
             _settings.UsageAutoRefreshSeconds = newAutoRefresh;
             _settings.PromptFontSize          = newFontSize;
             _settings.VisibleToolbarButtons   = newVisibleToolbarButtons;

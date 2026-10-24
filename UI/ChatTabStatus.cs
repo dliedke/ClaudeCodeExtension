@@ -55,11 +55,55 @@ namespace ClaudeCodeVS.UI
             }
         }
 
+        /// <summary>Animation frames of each Modern "working" icon. One frame is a static icon.</summary>
+        public static string[] WorkingFrames(ChatWorkingTabIcon icon)
+        {
+            switch (icon)
+            {
+                case ChatWorkingTabIcon.Clock: return ClockFrames;
+                case ChatWorkingTabIcon.Moon: return MoonFrames;
+                default: return ArrowsFrames;
+            }
+        }
+
+        private static readonly string[] ArrowsFrames = { "🔄" };
+        private static readonly string[] ClockFrames = { "🕐", "🕑", "🕒", "🕓", "🕔", "🕕", "🕖", "🕗", "🕘", "🕙", "🕚", "🕛" };
+        private static readonly string[] MoonFrames = { "🌑", "🌒", "🌓", "🌔", "🌕", "🌖", "🌗", "🌘" };
+
+        /// <summary>
+        /// The glyph for <paramref name="status"/> in the given icon style. Modern uses colored emoji —
+        /// the tab caption is plain text, so emoji are the only way to get color into it — and, while
+        /// working, frame <paramref name="frame"/> of the chosen <paramref name="workingIcon"/>.
+        /// </summary>
+        public static string Glyph(ChatTabStatus status, ChatIconStyle style, ChatWorkingTabIcon workingIcon, int frame)
+        {
+            if (style != ChatIconStyle.Modern)
+            {
+                return Glyph(status);
+            }
+
+            switch (status)
+            {
+                case ChatTabStatus.Working:
+                    string[] frames = WorkingFrames(workingIcon);
+                    return frames[((frame % frames.Length) + frames.Length) % frames.Length];
+                case ChatTabStatus.WaitingForUser: return "❓";
+                case ChatTabStatus.Done: return "✅";
+                case ChatTabStatus.Error: return "❌";
+                default: return string.Empty;
+            }
+        }
+
         /// <summary>The caption with its status glyph in front, or unchanged when the glyph is off or empty.</summary>
         public static string WithStatus(string caption, ChatTabStatus status, bool showStatus)
         {
-            string glyph = showStatus ? Glyph(status) : string.Empty;
-            return glyph.Length == 0 ? caption : glyph + " " + caption;
+            return WithGlyph(caption, showStatus ? Glyph(status) : string.Empty);
+        }
+
+        /// <summary>The caption with <paramref name="glyph"/> in front, or unchanged when it is empty.</summary>
+        public static string WithGlyph(string caption, string glyph)
+        {
+            return string.IsNullOrEmpty(glyph) ? caption : glyph + " " + caption;
         }
 
         /// <summary>

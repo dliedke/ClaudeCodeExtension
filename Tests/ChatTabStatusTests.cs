@@ -40,6 +40,41 @@ namespace ClaudeCodeExtension.Tests
         }
 
         [TestMethod]
+        public void ModernStyle_UsesColoredEmojiAndClassicStaysUnchanged()
+        {
+            Assert.AreEqual("✅", ChatTabCaption.Glyph(ChatTabStatus.Done, ChatIconStyle.Modern, ChatWorkingTabIcon.Clock, 0));
+            Assert.AreEqual("❌", ChatTabCaption.Glyph(ChatTabStatus.Error, ChatIconStyle.Modern, ChatWorkingTabIcon.Clock, 0));
+            Assert.AreEqual("❓", ChatTabCaption.Glyph(ChatTabStatus.WaitingForUser, ChatIconStyle.Modern, ChatWorkingTabIcon.Clock, 0));
+            Assert.AreEqual(string.Empty, ChatTabCaption.Glyph(ChatTabStatus.None, ChatIconStyle.Modern, ChatWorkingTabIcon.Clock, 0));
+
+            Assert.AreEqual("⏳", ChatTabCaption.Glyph(ChatTabStatus.Working, ChatIconStyle.Classic, ChatWorkingTabIcon.Moon, 5));
+            Assert.AreEqual("✳", ChatTabCaption.Glyph(ChatTabStatus.Done, ChatIconStyle.Classic, ChatWorkingTabIcon.Moon, 5));
+        }
+
+        [TestMethod]
+        public void ModernWorkingIcon_CyclesThroughItsFrames()
+        {
+            Assert.AreEqual(12, ChatTabCaption.WorkingFrames(ChatWorkingTabIcon.Clock).Length);
+            Assert.AreEqual(8, ChatTabCaption.WorkingFrames(ChatWorkingTabIcon.Moon).Length);
+            Assert.AreEqual(1, ChatTabCaption.WorkingFrames(ChatWorkingTabIcon.Arrows).Length);
+
+            Assert.AreEqual("🕐", ChatTabCaption.Glyph(ChatTabStatus.Working, ChatIconStyle.Modern, ChatWorkingTabIcon.Clock, 0));
+            Assert.AreEqual("🕑", ChatTabCaption.Glyph(ChatTabStatus.Working, ChatIconStyle.Modern, ChatWorkingTabIcon.Clock, 1));
+            Assert.AreEqual("🕐", ChatTabCaption.Glyph(ChatTabStatus.Working, ChatIconStyle.Modern, ChatWorkingTabIcon.Clock, 12));
+            Assert.AreEqual("🌒", ChatTabCaption.Glyph(ChatTabStatus.Working, ChatIconStyle.Modern, ChatWorkingTabIcon.Moon, 9));
+            Assert.AreEqual("🔄", ChatTabCaption.Glyph(ChatTabStatus.Working, ChatIconStyle.Modern, ChatWorkingTabIcon.Arrows, 7));
+        }
+
+        [TestMethod]
+        public void IconStyleAndTokenSettings_DefaultToTheClassicLook()
+        {
+            var fresh = new ClaudeCodeSettings();
+            Assert.AreEqual(ChatIconStyle.Classic, fresh.ChatIconStyle);
+            Assert.AreEqual(ChatWorkingTabIcon.Clock, fresh.ChatWorkingTabIcon);
+            Assert.IsTrue(fresh.ShowChatTokenCounts);
+        }
+
+        [TestMethod]
         public void TitleFromPrompt_UsesTheFirstNonEmptyLineCollapsedAndTrimmed()
         {
             Assert.AreEqual("Fix the login bug", ChatTabCaption.TitleFromPrompt("\n\n  ## Fix   the login bug\nDetails follow"));

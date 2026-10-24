@@ -21,6 +21,14 @@ using System.Windows.Threading;
 
 namespace ClaudeCodeVS.UI
 {
+    /// <summary>Status icon in front of a notice row. None keeps the row text-only.</summary>
+    public enum ChatNoticeIcon
+    {
+        None,
+        Done,
+        Stopped
+    }
+
     /// <summary>What a transcript row represents. Drives which template the list picks.</summary>
     public enum ChatMessageKind
     {
@@ -47,8 +55,8 @@ namespace ClaudeCodeVS.UI
     public static class ChatFormatting
     {
         /// <summary>
-        /// Human-readable elapsed time. Seconds keep a decimal because most turns are short; minutes
-        /// and hours drop it, since "19m 15.4s" is false precision on a twenty-minute turn.
+        /// Human-readable elapsed time in whole seconds. A tenth of a second only made the live clock
+        /// flicker ("2.1s 2.2s 2.3s…") without telling the user anything.
         /// </summary>
         public static string Duration(TimeSpan elapsed)
         {
@@ -68,7 +76,7 @@ namespace ClaudeCodeVS.UI
                 return string.Format("{0}m {1:00}s", (int)elapsed.TotalMinutes, elapsed.Seconds);
             }
 
-            return string.Format(System.Globalization.CultureInfo.CurrentCulture, "{0:0.0}s", elapsed.TotalSeconds);
+            return string.Format("{0}s", (int)elapsed.TotalSeconds);
         }
 
         /// <summary>
@@ -248,6 +256,15 @@ namespace ClaudeCodeVS.UI
         {
             get { return _isError; }
             set { Set(ref _isError, value, nameof(IsError)); }
+        }
+
+        private ChatNoticeIcon _noticeIcon;
+
+        /// <summary>Visual Studio status icon drawn in front of a notice row (Modern icon style's turn footer).</summary>
+        public ChatNoticeIcon NoticeIcon
+        {
+            get { return _noticeIcon; }
+            set { Set(ref _noticeIcon, value, nameof(NoticeIcon)); }
         }
 
         /// <summary>True while the tool is still running, so the row can show that it has not answered.</summary>

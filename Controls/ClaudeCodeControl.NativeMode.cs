@@ -2960,8 +2960,11 @@ namespace ClaudeCodeVS
             // context size, and summing them would report a number several times too large.
             if (usage.InputTokens > 0) _nativeTurnInputTokens = usage.InputTokens;
 
-            ChatTranscript.SetActivityDetail(
-                ChatFormatting.Tokens(_nativeTurnInputTokens, _nativeTurnOutputTokens));
+            if (_settings?.ShowChatTokenCounts != false)
+            {
+                ChatTranscript.SetActivityDetail(
+                    ChatFormatting.Tokens(_nativeTurnInputTokens, _nativeTurnOutputTokens));
+            }
         }
 
         private void CompleteNativeTurn(AgentEvent agentEvent)
@@ -3030,12 +3033,8 @@ namespace ClaudeCodeVS
             // after scrolling back, and the status line is transient.
             if (wasInFlight)
             {
-                ChatMessageViewModel footer = AddNativeMessage(ChatMessageKind.Notice,
-                    FormatTurnFooter(
-                        agentEvent.Usage,
-                        elapsed,
-                        agentEvent.WasInterrupted,
-                        SupportsQueuedCodexNativeChat(_currentRunningProvider)));
+                ChatMessageViewModel footer = AddTurnFooter(ChatTranscript, agentEvent, elapsed,
+                    SupportsQueuedCodexNativeChat(_currentRunningProvider));
 
                 AppendClaudeStatusLine(footer, agentEvent, _currentRunningProvider,
                     _settings != null ? _settings.SelectedEffortLevel : EffortLevel.Auto,
@@ -3230,17 +3229,45 @@ namespace ClaudeCodeVS
         /// cached context; collapsing that to one unlabeled number makes short replies look implausibly
         /// expensive. Other providers retain the compact total.
         /// </summary>
+        /// <summary>
+        /// Adds the turn's footer to <paramref name="transcript"/>. The Modern icon style draws a
+        /// Visual Studio status icon in front of it instead of the "✳" glyph; "Show token counts"
+        /// off leaves the token figures out.
+        /// </summary>
+        private ChatMessageViewModel AddTurnFooter(ChatTranscriptView transcript, AgentEvent agentEvent, TimeSpan elapsed, bool showCodexBreakdown)
+        {
+            bool modern = _settings?.ChatIconStyle == ChatIconStyle.Modern;
+
+            ChatMessageViewModel footer = AddNativeMessage(transcript, ChatMessageKind.Notice,
+                FormatTurnFooter(
+                    agentEvent.Usage,
+                    elapsed,
+                    agentEvent.WasInterrupted,
+                    showCodexBreakdown,
+                    _settings?.ShowChatTokenCounts != false,
+                    withGlyph: !modern));
+
+            if (footer != null && modern)
+            {
+                footer.NoticeIcon = agentEvent.WasInterrupted ? ChatNoticeIcon.Stopped : ChatNoticeIcon.Done;
+            }
+
+            return footer;
+        }
+
         private static string FormatTurnFooter(
             AgentUsage usage,
             TimeSpan elapsed,
             bool wasInterrupted,
-            bool showCodexBreakdown)
+            bool showCodexBreakdown,
+            bool showTokens,
+            bool withGlyph)
         {
-            string footer = wasInterrupted
-                ? "✳ Stopped after " + ChatFormatting.Duration(elapsed)
-                : "✳ Done in " + ChatFormatting.Duration(elapsed);
+            string footer = (withGlyph ? "✳ " : string.Empty) + (wasInterrupted
+                ? "Stopped after " + ChatFormatting.Duration(elapsed)
+                : "Done in " + ChatFormatting.Duration(elapsed));
 
-            if (usage != null && (usage.InputTokens > 0 || usage.OutputTokens > 0))
+            if (showTokens && usage != null && (usage.InputTokens > 0 || usage.OutputTokens > 0))
             {
                 footer += " · " + (showCodexBreakdown
                     ? ChatFormatting.CodexTokens(
@@ -3688,12 +3715,8 @@ namespace ClaudeCodeVS
 
             if (wasInFlight)
             {
-                ChatMessageViewModel footer = AddNativeMessageToSession(session, ChatMessageKind.Notice,
-                    FormatTurnFooter(
-                        agentEvent.Usage,
-                        elapsed,
-                        agentEvent.WasInterrupted,
-                        SupportsQueuedCodexNativeChat(session.SelectedProvider)));
+                ChatMessageViewModel footer = AddTurnFooter(session.ChatTranscript, agentEvent, elapsed,
+                    SupportsQueuedCodexNativeChat(session.SelectedProvider));
 
                 AppendClaudeStatusLine(footer, agentEvent, session.SelectedProvider,
                     session.SelectedEffortLevel, session.ChatTranscript.ActualWidth);
@@ -3760,6 +3783,7 @@ namespace ClaudeCodeVS
 
             // Create new transcript UI
             var transcript = new ChatTranscriptView();
+            transcript.UseModernIcons = _settings?.ChatIconStyle == ChatIconStyle.Modern;
 
             // Bundle into session state with window ID. AgentSession is attached below, once this
             // tab's own launch-option snapshot exists for CreateAgentSession to read (v163.0): a
