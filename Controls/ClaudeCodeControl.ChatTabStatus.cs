@@ -12,6 +12,7 @@
  * *******************************************************************************************************************/
 
 using System;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.Threading;
 using System.Threading.Tasks;
@@ -142,7 +143,98 @@ namespace ClaudeCodeVS
         /// <summary>The caption text for a tab: the status glyph (when on) in front of the base caption.</summary>
         private string DecorateChatTabCaption(NativeChatSessionState session, string caption)
         {
-            return ChatTabCaption.WithStatus(caption, GetChatTabStatus(session), _settings?.ShowChatTabStatus != false);
+            if (_settings?.ShowChatTabStatus == false)
+            {
+                return caption;
+            }
+
+            ChatTabStatus status = GetChatTabStatus(session);
+            if (status == ChatTabStatus.Working)
+            {
+                EnsureWorkingTabAnimation();
+            }
+
+            string glyph = ChatTabCaption.Glyph(
+                status,
+                _settings?.ChatIconStyle ?? ChatIconStyle.Classic,
+                _settings?.ChatWorkingTabIcon ?? ChatWorkingTabIcon.Clock,
+                _workingTabFrame);
+            return ChatTabCaption.WithGlyph(caption, glyph);
+        }
+
+        /// <summary>Time each frame of an animated "working" tab icon stays up.</summary>
+        private static readonly TimeSpan WorkingTabFrameInterval = TimeSpan.FromMilliseconds(250);
+
+        private System.Windows.Threading.DispatcherTimer _workingTabTimer;
+        private int _workingTabFrame;
+
+        private bool IsWorkingTabIconAnimated
+        {
+            get
+            {
+                return _settings?.ShowChatTabStatus != false
+                       && _settings?.ChatIconStyle == ChatIconStyle.Modern
+                       && ChatTabCaption.WorkingFrames(_settings.ChatWorkingTabIcon).Length > 1;
+            }
+        }
+
+        /// <summary>
+        /// Starts the shared frame clock of the animated "working" tab icon. One timer for every tab:
+        /// each tick re-applies the caption of the tabs still working, and the timer stops itself once
+        /// none is.
+        /// </summary>
+        private void EnsureWorkingTabAnimation()
+        {
+            if (!IsWorkingTabIconAnimated)
+            {
+                return;
+            }
+
+            if (_workingTabTimer == null)
+            {
+                _workingTabTimer = new System.Windows.Threading.DispatcherTimer { Interval = WorkingTabFrameInterval };
+                _workingTabTimer.Tick += delegate { AdvanceWorkingTabAnimation(); };
+            }
+
+            if (!_workingTabTimer.IsEnabled)
+            {
+                _workingTabTimer.Start();
+            }
+        }
+
+        private void AdvanceWorkingTabAnimation()
+        {
+            ThreadHelper.ThrowIfNotOnUIThread();
+
+            _workingTabFrame = (_workingTabFrame + 1) % 10080; // a multiple of every frame count
+
+            bool anyWorking = false;
+
+            if (_defaultTabStatus == ChatTabStatus.Working)
+            {
+                anyWorking = true;
+                UpdateChatTabCaption();
+            }
+
+            List<NativeChatSessionState> sessions;
+            lock (_sessionLock)
+            {
+                sessions = new List<NativeChatSessionState>(_nativeSessions.Values);
+            }
+
+            foreach (NativeChatSessionState session in sessions)
+            {
+                if (session.TabStatus == ChatTabStatus.Working)
+                {
+                    anyWorking = true;
+                    UpdateSessionTabCaption(session);
+                }
+            }
+
+            if (!anyWorking || !IsWorkingTabIconAnimated)
+            {
+                _workingTabTimer.Stop();
+            }
         }
 
         /// <summary>
@@ -274,6 +366,36 @@ namespace ClaudeCodeVS
             if (title.Length > 0 && !sessionClosed)
             {
                 SetAutoChatTitle(session, title);
+            }
+        }
+
+        /// <summary>
+        /// Applies the Classic/Modern icon style to every chat transcript (the default one and each
+        /// parallel tab's) and their tab captions. Idempotent, so it is safe from every appearance pass.
+        /// </summary>
+        private void ApplyChatIconStyle()
+        {
+            ThreadHelper.ThrowIfNotOnUIThread();
+
+            bool modern = _settings?.ChatIconStyle == ChatIconStyle.Modern;
+
+            if (ChatTranscript != null)
+            {
+                ChatTranscript.UseModernIcons = modern;
+            }
+
+            List<NativeChatSessionState> sessions;
+            lock (_sessionLock)
+            {
+                sessions = new List<NativeChatSessionState>(_nativeSessions.Values);
+            }
+
+            foreach (NativeChatSessionState session in sessions)
+            {
+                if (session.ChatTranscript != null)
+                {
+                    session.ChatTranscript.UseModernIcons = modern;
+                }
             }
         }
 

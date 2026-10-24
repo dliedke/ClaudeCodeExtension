@@ -6,7 +6,26 @@
   <Include href="KnownImageIds.vsct"/>
 
   <Commands package="guidClaudeCodeExtensionPackage">
+    <!-- "Claude Code" toolbar (View > Toolbars): one click to the chat or the panel instead of
+         View > Other Windows. DefaultDocked shows it the first time the extension loads. -->
+    <Menus>
+      <Menu guid="guidClaudeCodeExtensionPackageCmdSet" id="ClaudeCodeToolbar" priority="0x0000" type="Toolbar">
+        <CommandFlag>DefaultDocked</CommandFlag>
+        <Strings>
+          <ButtonText>Claude Code</ButtonText>
+          <CommandName>Claude Code</CommandName>
+        </Strings>
+      </Menu>
+    </Menus>
+
     <Groups>
+      <Group guid="guidClaudeCodeExtensionPackageCmdSet" id="ClaudeCodeToolbarGroup" priority="0x0000">
+        <Parent guid="guidClaudeCodeExtensionPackageCmdSet" id="ClaudeCodeToolbar"/>
+      </Group>
+      <!-- The same two commands straight in the View menu, next to the other tool windows. -->
+      <Group guid="guidClaudeCodeExtensionPackageCmdSet" id="ViewMenuGroup" priority="0x0600">
+        <Parent guid="guidSHLMainMenu" id="IDM_VS_MENU_VIEW"/>
+      </Group>
       <!-- Standard code editor context menu (C#, VB, C++, F#, JSON, CSS, JS standalone, XML, etc.).
            The modern HTML / Razor / WebForms editors in VS 17+/18 build their context menu via
            the Editor Commanding framework and do NOT expose a VSCT-targetable group, so the
@@ -30,6 +49,7 @@
       <Button guid="guidClaudeCodeExtensionPackageCmdSet" id="ClaudeCodeToolWindowCommandId" priority="0x0100" type="Button">
         <Parent guid="guidSHLMainMenu" id="IDG_VS_WNDO_OTRWNDWS1"/>
         <Icon guid="guidImages" id="bmpIcon" />
+        <CommandFlag>IconAndText</CommandFlag>
         <Strings>
           <ButtonText>Claude Code Extension</ButtonText>
         </Strings>
@@ -40,6 +60,7 @@
         <Parent guid="guidSHLMainMenu" id="IDG_VS_WNDO_OTRWNDWS1"/>
         <Icon guid="ImageCatalogGuid" id="Comment" />
         <CommandFlag>IconIsMoniker</CommandFlag>
+        <CommandFlag>IconAndText</CommandFlag>
         <Strings>
           <ButtonText>Claude Code Chat</ButtonText>
         </Strings>
@@ -63,6 +84,19 @@
        Commands is VSCT1102 (this is what actually broke the HTML editor attempt in v10.65/10.66,
        not the guidSHLMainMenu symbol noted above; both mistakes are worth avoiding here). -->
   <CommandPlacements>
+    <!-- Chat first: it is where the user talks to the agent; the panel holds toolbar and settings. -->
+    <CommandPlacement guid="guidClaudeCodeExtensionPackageCmdSet" id="ShowNativeChatCommandId" priority="0x0100">
+      <Parent guid="guidClaudeCodeExtensionPackageCmdSet" id="ClaudeCodeToolbarGroup"/>
+    </CommandPlacement>
+    <CommandPlacement guid="guidClaudeCodeExtensionPackageCmdSet" id="ClaudeCodeToolWindowCommandId" priority="0x0200">
+      <Parent guid="guidClaudeCodeExtensionPackageCmdSet" id="ClaudeCodeToolbarGroup"/>
+    </CommandPlacement>
+    <CommandPlacement guid="guidClaudeCodeExtensionPackageCmdSet" id="ShowNativeChatCommandId" priority="0x0100">
+      <Parent guid="guidClaudeCodeExtensionPackageCmdSet" id="ViewMenuGroup"/>
+    </CommandPlacement>
+    <CommandPlacement guid="guidClaudeCodeExtensionPackageCmdSet" id="ClaudeCodeToolWindowCommandId" priority="0x0200">
+      <Parent guid="guidClaudeCodeExtensionPackageCmdSet" id="ViewMenuGroup"/>
+    </CommandPlacement>
     <CommandPlacement guid="guidClaudeCodeExtensionPackageCmdSet" id="EditorSendSelectionCommandId" priority="0x0100">
       <Parent guid="guidVSXamlWindowContextMenu" id="XamlContextMenuGroup"/>
     </CommandPlacement>
@@ -76,6 +110,9 @@
       <IDSymbol name="ShowNativeChatCommandId" value="0x0101" />
       <IDSymbol name="EditorContextMenuGroup" value="0x1020" />
       <IDSymbol name="EditorSendSelectionCommandId" value="0x0201" />
+      <IDSymbol name="ClaudeCodeToolbar" value="0x1040" />
+      <IDSymbol name="ClaudeCodeToolbarGroup" value="0x1041" />
+      <IDSymbol name="ViewMenuGroup" value="0x1042" />
     </GuidSymbol>
 
     <!-- The XAML editor's own context menu, owned by Microsoft's XAML editor package (not part of

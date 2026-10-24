@@ -183,6 +183,34 @@ namespace ClaudeCodeVS
     }
 
     /// <summary>
+    /// Look of the native chat's icons: the chat tab status glyphs, the composer toolbar, the live
+    /// spinner and the turn footer. Classic keeps the original Unicode/emoji glyphs; Modern uses
+    /// Visual Studio's own icon set and colored status emoji.
+    /// </summary>
+    public enum ChatIconStyle
+    {
+        Classic,
+        Modern
+    }
+
+    /// <summary>
+    /// What a chat tab shows in front of its caption while its session works, in the Modern icon
+    /// style. The caption is plain text, so only emoji can carry color, and none comes as a blue
+    /// animation: the choice is a blue static icon or an animated one in its own colors.
+    /// </summary>
+    public enum ChatWorkingTabIcon
+    {
+        /// <summary>🔄, static, blue.</summary>
+        Arrows,
+
+        /// <summary>🕐 → 🕛, twelve frames.</summary>
+        Clock,
+
+        /// <summary>🌑 → 🌘, eight frames.</summary>
+        Moon
+    }
+
+    /// <summary>
     /// User-defined shortcut for a frequently sent prompt or slash command.
     /// Surfaced in a dropdown next to the toolbar so the user can dispatch
     /// canned prompts (e.g. "/codex-review", "explain this file") to the
@@ -552,6 +580,21 @@ namespace ClaudeCodeVS
         /// working, waiting for the user's answer, done or error. On by default.
         /// </summary>
         public bool ShowChatTabStatus { get; set; } = true;
+
+        /// <summary>
+        /// Icon set of the native chat: tab status glyphs, composer toolbar, live spinner and turn
+        /// footer. Classic by default, so an update changes nothing until the user opts in.
+        /// </summary>
+        public ChatIconStyle ChatIconStyle { get; set; } = ChatIconStyle.Classic;
+
+        /// <summary>Chat tab icon while the session works, in the Modern icon style. Clock by default.</summary>
+        public ChatWorkingTabIcon ChatWorkingTabIcon { get; set; } = ChatWorkingTabIcon.Clock;
+
+        /// <summary>
+        /// If true, the native chat shows token counts in the live status line and in each turn's
+        /// footer. The composer's usage ring is not affected. On by default.
+        /// </summary>
+        public bool ShowChatTokenCounts { get; set; } = true;
 
         /// <summary>
         /// If true, a chat tab without a user-assigned name is named after its topic: the first prompt,

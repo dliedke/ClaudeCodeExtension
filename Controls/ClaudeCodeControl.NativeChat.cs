@@ -1298,6 +1298,7 @@ namespace ClaudeCodeVS
             ChatTranscript.SetChatFont(_settings.NativeChatFontFaceName, _settings.NativeChatFontSizePt);
             ChatTranscript.Zoom = _settings.NativeChatZoom;
             ChatTranscript.ComposerHeight = _settings.NativeChatComposerHeight;
+            ApplyChatIconStyle();
         }
 
         /// <summary>
@@ -4005,6 +4006,28 @@ namespace ClaudeCodeVS
             }
 
             if (any)
+            {
+                UpdateSessionAttachmentChips(session);
+            }
+        }
+
+        /// <summary>
+        /// Redraws every attachment strip — the panel's, the default chat's and each parallel tab's —
+        /// after the icon style changed, since Modern draws images as cards instead of chips.
+        /// </summary>
+        private void RefreshAllAttachmentChips()
+        {
+            ThreadHelper.ThrowIfNotOnUIThread();
+
+            UpdateImageDropDisplay();
+
+            List<NativeChatSessionState> sessions;
+            lock (_sessionLock)
+            {
+                sessions = new List<NativeChatSessionState>(_nativeSessions.Values);
+            }
+
+            foreach (NativeChatSessionState session in sessions)
             {
                 UpdateSessionAttachmentChips(session);
             }

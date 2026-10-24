@@ -313,6 +313,17 @@ namespace ClaudeCodeVS
         /// </summary>
         private Border CreateAttachmentChip(string path, Action<string> onRemove)
         {
+            // Modern icon style: images get a card with the whole picture instead of the chip.
+            if (_settings?.ChatIconStyle == ChatIconStyle.Modern
+                && !string.IsNullOrEmpty(path) && IsImageFile(path) && File.Exists(path))
+            {
+                Border card = CreateAttachmentCard(path, onRemove);
+                if (card != null)
+                {
+                    return card;
+                }
+            }
+
             // Create chip border
             var chip = new Border
             {
@@ -421,37 +432,147 @@ namespace ClaudeCodeVS
                 System.Windows.Media.RenderOptions.SetBitmapScalingMode(
                     thumb, System.Windows.Media.BitmapScalingMode.HighQuality);
 
-                // The preview is decoded on first hover, at its own resolution: reusing the 256 px
-                // chip bitmap is what made it blurry, since WPF then upscaled it to preview size.
-                var preview = new Image
-                {
-                    MaxWidth = 520,
-                    MaxHeight = 400,
-                    Stretch = System.Windows.Media.Stretch.Uniform,
-                    StretchDirection = StretchDirection.DownOnly
-                };
-                System.Windows.Media.RenderOptions.SetBitmapScalingMode(
-                    preview, System.Windows.Media.BitmapScalingMode.HighQuality);
-
-                thumb.ToolTip = preview;
-                thumb.ToolTipOpening += (s, e) =>
-                {
-                    if (preview.Source != null) return;
-
-                    var full = LoadThumbnailBitmap(path, 1200);
-                    if (full == null)
-                    {
-                        e.Handled = true; // nothing to show; don't pop an empty tooltip
-                        return;
-                    }
-                    preview.Source = full;
-                };
-
+                AttachImagePreviewToolTip(thumb, path);
                 return thumb;
             }
             catch (Exception ex)
             {
                 Debug.WriteLine($"CreateAttachmentThumbnail error for '{path}': {ex.Message}");
+                return null;
+            }
+        }
+
+        /// <summary>
+        /// Gives <paramref name="target"/> a large preview of the image as its tooltip. The preview is
+        /// decoded on first hover, at its own resolution: reusing the small chip bitmap is what made it
+        /// blurry, since WPF then upscaled it to preview size.
+        /// </summary>
+        private void AttachImagePreviewToolTip(FrameworkElement target, string path)
+        {
+            var preview = new Image
+            {
+                MaxWidth = 520,
+                MaxHeight = 400,
+                Stretch = System.Windows.Media.Stretch.Uniform,
+                StretchDirection = StretchDirection.DownOnly
+            };
+            System.Windows.Media.RenderOptions.SetBitmapScalingMode(
+                preview, System.Windows.Media.BitmapScalingMode.HighQuality);
+
+            target.ToolTip = preview;
+            target.ToolTipOpening += (s, e) =>
+            {
+                if (preview.Source != null) return;
+
+                var full = LoadThumbnailBitmap(path, 1200);
+                if (full == null)
+                {
+                    e.Handled = true; // nothing to show; don't pop an empty tooltip
+                    return;
+                }
+                preview.Source = full;
+            };
+        }
+
+        /// <summary>Width and image height of a Modern image attachment card.</summary>
+        private const int AttachmentCardWidth = 120;
+        private const int AttachmentCardImageHeight = 72;
+
+        /// <summary>
+        /// Modern icon style's attachment for an image: a card showing the whole picture scaled down
+        /// (no crop, so a screenshot stays recognizable), the file name under it and the ✕ in its
+        /// corner. Same behavior as the chip: click opens the file, hover shows the large preview.
+        /// Null when the image can't be decoded, so the caller falls back to the plain chip.
+        /// </summary>
+        private Border CreateAttachmentCard(string path, Action<string> onRemove)
+        {
+            try
+            {
+                // Decoded at 2x the display width so the card stays crisp on a 200% DPI monitor.
+                var bitmap = LoadThumbnailBitmap(path, AttachmentCardWidth * 2);
+                if (bitmap == null) return null;
+
+                var card = new Border
+                {
+                    Width = AttachmentCardWidth,
+                    CornerRadius = new CornerRadius(6),
+                    BorderThickness = new Thickness(1),
+                    Padding = new Thickness(4),
+                    Margin = new Thickness(0, 2, 6, 2),
+                    Cursor = Cursors.Hand,
+                    Tag = path
+                };
+                card.SetResourceReference(Border.BackgroundProperty, Microsoft.VisualStudio.Shell.VsBrushes.ToolWindowBackgroundKey);
+                card.SetResourceReference(Border.BorderBrushProperty, Microsoft.VisualStudio.Shell.VsBrushes.ToolWindowBorderKey);
+
+                card.MouseLeftButtonUp += (s, e) =>
+                {
+                    if (e.OriginalSource is Button) return;
+
+                    try
+                    {
+                        Process.Start(new ProcessStartInfo(path) { UseShellExecute = true });
+                    }
+                    catch (Exception ex)
+                    {
+                        MessageBox.Show($"Error opening image: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                    }
+                };
+
+                var grid = new Grid();
+                grid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(AttachmentCardImageHeight) });
+                grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+
+                var image = new Image
+                {
+                    Source = bitmap,
+                    Stretch = System.Windows.Media.Stretch.Uniform,
+                    StretchDirection = StretchDirection.DownOnly,
+                    HorizontalAlignment = HorizontalAlignment.Center,
+                    VerticalAlignment = VerticalAlignment.Center
+                };
+                System.Windows.Media.RenderOptions.SetBitmapScalingMode(
+                    image, System.Windows.Media.BitmapScalingMode.HighQuality);
+                AttachImagePreviewToolTip(image, path);
+                grid.Children.Add(image);
+
+                string fileName = Path.GetFileName(path);
+                var nameBlock = new TextBlock
+                {
+                    Text = fileName,
+                    FontSize = 10,
+                    Margin = new Thickness(0, 3, 0, 0),
+                    Opacity = 0.8,
+                    TextTrimming = TextTrimming.CharacterEllipsis,
+                    HorizontalAlignment = HorizontalAlignment.Center,
+                    ToolTip = fileName
+                };
+                nameBlock.SetResourceReference(TextBlock.ForegroundProperty, Microsoft.VisualStudio.Shell.VsBrushes.ToolWindowTextKey);
+                Grid.SetRow(nameBlock, 1);
+                grid.Children.Add(nameBlock);
+
+                // Over the picture's top-right corner, on its own background so it stays visible on
+                // any image.
+                var removeBtn = new Button
+                {
+                    Style = (Style)FindResource("ChipRemoveButton"),
+                    Width = 18,
+                    Height = 18,
+                    Margin = new Thickness(0),
+                    HorizontalAlignment = HorizontalAlignment.Right,
+                    VerticalAlignment = VerticalAlignment.Top,
+                    ToolTip = "Remove",
+                    Tag = path
+                };
+                removeBtn.Click += (s, e) => onRemove?.Invoke((string)((Button)s).Tag);
+                grid.Children.Add(removeBtn);
+
+                card.Child = grid;
+                return card;
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"CreateAttachmentCard error for '{path}': {ex.Message}");
                 return null;
             }
         }
