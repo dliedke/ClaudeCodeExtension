@@ -40,6 +40,11 @@ namespace ClaudeCodeVS.Agents
         private static readonly AgentEvent[] Empty = new AgentEvent[0];
 
         private readonly bool _expectDeltas;
+
+        // When the host knows the real window of a custom model (DeepSeek's 1M, for example), show
+        // that instead of the CLI's 200k fallback for a model it does not recognize.
+        private readonly int _contextWindowOverride;
+
         private bool _sawDeltas;
 
         // Ids of the API messages whose content arrived as deltas (from message_start). The complete
@@ -70,13 +75,18 @@ namespace ClaudeCodeVS.Agents
         /// True when the CLI was launched with <c>--include-partial-messages</c>. When false, text and
         /// thinking come from the complete assistant messages instead.
         /// </param>
+        /// <param name="contextWindowOverride">
+        /// A known context window for the session's model, or 0 to use the CLI's
+        /// <c>modelUsage.contextWindow</c>. See <see cref="ClaudeContextLimits"/>.
+        /// </param>
         /// <summary>Appended to a sign-in failure: native mode has no console to type /login into.</summary>
         internal const string AuthenticationHint =
             " — sign in with ⚙ → Change Account, or run \"claude auth login\" in a terminal, then send your message again.";
 
-        public ClaudeStreamParser(bool expectDeltas)
+        public ClaudeStreamParser(bool expectDeltas, int contextWindowOverride = 0)
         {
             _expectDeltas = expectDeltas;
+            _contextWindowOverride = contextWindowOverride > 0 ? contextWindowOverride : 0;
         }
 
         /// <summary>Session id seen on the last <c>system/init</c>, if any.</summary>
@@ -575,7 +585,9 @@ namespace ClaudeCodeVS.Agents
                 _statusLine.HasCurrentUsage = true;
             }
 
-            int window = ReadContextWindow(root["modelUsage"] as JObject, _lastMainModel);
+            int window = _contextWindowOverride > 0
+                ? _contextWindowOverride
+                : ReadContextWindow(root["modelUsage"] as JObject, _lastMainModel);
             if (window > 0) _statusLine.ContextWindowSize = window;
         }
 
