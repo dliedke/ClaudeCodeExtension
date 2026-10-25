@@ -150,6 +150,7 @@ Code (Opus, high effort) running unattended. Scripts live in `tools/repo-watcher
 .\tools\repo-watcher\Install-RepoWatcher.ps1              # install / update both tasks
 .\tools\repo-watcher\Install-RepoWatcher.ps1 -Minutes 15  # other interval
 .\tools\repo-watcher\Install-RepoWatcher.ps1 -Uninstall   # remove the tasks
+.\tools\repo-watcher\Install-RepoWatcher.ps1 -SetupEmail you@gmail.com   # email merged PRs / fixed issues
 ```
 
 Prerequisites: `claude` and `gh` on PATH, `gh auth login` done, and this machine able to run
@@ -171,6 +172,12 @@ Prerequisites: `claude` and `gh` on PATH, `gh auth login` done, and this machine
 - **Installed copy.** The installer copies the scripts to `%USERPROFILE%\.claude\repo-watcher`
   and the tasks run that copy, so a merged PR can't change what the agent runs. Re-run the
   installer after editing anything in `tools/repo-watcher/`.
+- **Email.** Claude writes a `run-<kind>-<time>.results.json` with each item's outcome; merged
+  PRs and fixed issues are mailed through Gmail SMTP (`Notify.ps1`). `-SetupEmail` asks for a
+  Gmail app password (needs 2-step verification), saves it DPAPI-encrypted as
+  `email-credential.xml` next to `email.json` in the install folder, and sends a test email. Run it
+  in a normal PowerShell window, since it reads the password from the keyboard. Delete
+  `email.json` to turn emails off.
 
 Check activity in `%USERPROFILE%\.claude\repo-watcher\logs\watcher.log` (one line per run that
 found work) and the `run-<kind>-<time>.log` files (Claude's summary for each run).

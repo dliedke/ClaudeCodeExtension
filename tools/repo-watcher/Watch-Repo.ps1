@@ -26,6 +26,38 @@ function Write-Log([string]$msg) {
     Add-Content -Path $MainLog -Value ("{0:yyyy-MM-dd HH:mm:ss}  [{1}] {2}" -f (Get-Date), $Kind, $msg)
 }
 
+. (Join-Path $Root 'Notify.ps1')
+
+# Emails the merged PRs / fixed issues from Claude's results file, if email is set up.
+function Send-Results([string]$resultFile) {
+    try {
+        $config = Get-WatcherMailConfig $Root
+        if (-not $config) { return }
+        if (-not (Test-Path $resultFile)) { Write-Log 'No results file; no email sent.'; return }
+        $done = @((Get-Content $resultFile -Raw | ConvertFrom-Json) |
+            Where-Object { $_.number -and $_.outcome -in 'merged', 'fixed' })
+        if ($done.Count -eq 0) { return }
+
+        $noun  = if ($Kind -eq 'pr') { 'PR' } else { 'Issue' }
+        $path  = if ($Kind -eq 'pr') { 'pull' } else { 'issues' }
+        $lines = foreach ($r in $done) {
+            $version = if ($r.version) { "published v$($r.version)" } else { 'not published' }
+            "$noun #$($r.number) $($r.outcome), $version`n$($r.summary)`nhttps://github.com/$Repo/$path/$($r.number)`n"
+        }
+        $first   = $done[0]
+        $subject = if ($done.Count -eq 1) {
+            "[ClaudeCodeExtension] $noun #$($first.number) $($first.outcome)" + $(if ($first.version) { ", v$($first.version) published" })
+        } else {
+            "[ClaudeCodeExtension] $($done.Count) ${noun}s handled"
+        }
+        Send-WatcherMail $config $subject (($lines -join "`n") + "`nRun log: $runLog")
+        Write-Log "Emailed $($config.To): $subject"
+    }
+    catch {
+        Write-Log "Email failed: $($_.Exception.Message)"
+    }
+}
+
 # One run at a time across PRs and issues: both edit the repo and publish, and a publish can
 # outlast the polling interval. A busy lock just means this tick is skipped.
 $mutex = New-Object System.Threading.Mutex($false, 'Global\ClaudeCodeExtensionRepoWatcher')
@@ -75,7 +107,18 @@ try {
     $runLog = Join-Path $LogDir ("run-{0}-{1:yyyyMMdd-HHmmss}.log" -f $Kind, (Get-Date))
     Write-Log "Starting Claude for: $list (log: $(Split-Path $runLog -Leaf))"
 
-    $text = (Get-Content $Prompt -Raw) + "`n`nItems to handle in this run: $numbers`n"
+    # Claude reports each item's outcome here; merged PRs and fixed issues are emailed.
+    $resultFile = [IO.Path]::ChangeExtension($runLog, '.results.json')
+    $text = (Get-Content $Prompt -Raw) + @"
+
+
+Items to handle in this run: $numbers
+
+When you are done, write a JSON array with one entry per item to $resultFile, for example:
+[{"number": 220, "outcome": "merged", "version": "266.0", "summary": "One user-facing sentence."}]
+outcome is one of: merged, fixed, answered, asked-for-details, deferred, skipped-unsafe, failed.
+version is the published version, or null when nothing was published.
+"@
     Push-Location $RepoDir
     try {
         $text | & $Claude -p --model opus --effort high --permission-mode bypassPermissions *>&1 |
@@ -97,9 +140,13 @@ try {
     $state | ConvertTo-Json -Depth 4 | Set-Content $StateFile -Encoding utf8
     Write-Log "Claude finished with exit code $exit."
 
-    # Keep the last 30 run logs per kind.
+    Send-Results $resultFile
+
+    # Keep the last 30 runs per kind.
     Get-ChildItem $LogDir -Filter "run-$Kind-*.log" | Sort-Object Name -Descending |
-        Select-Object -Skip 30 | Remove-Item -Force
+        Select-Object -Skip 30 | ForEach-Object {
+            Remove-Item $_.FullName, ([IO.Path]::ChangeExtension($_.FullName, '.results.json')) -Force -ErrorAction SilentlyContinue
+        }
 }
 catch {
     Write-Log "Error: $($_.Exception.Message)"
