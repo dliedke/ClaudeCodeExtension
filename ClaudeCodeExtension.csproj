@@ -179,6 +179,12 @@
       <SubType>Designer</SubType>
     </None>
     <None Include="test.cmd" />
+    <None Include="tools\repo-watcher\Install-RepoWatcher.ps1" />
+    <None Include="tools\repo-watcher\Notify.ps1" />
+    <None Include="tools\repo-watcher\prompt-issue.md" />
+    <None Include="tools\repo-watcher\prompt-pr.md" />
+    <None Include="tools\repo-watcher\Run-Claude.ps1" />
+    <None Include="tools\repo-watcher\Watch-Repo.ps1" />
   </ItemGroup>
   <ItemGroup>
     <Reference Include="PresentationCore" />

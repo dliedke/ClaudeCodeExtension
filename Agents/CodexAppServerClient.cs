@@ -158,19 +158,29 @@ namespace ClaudeCodeVS.Agents
 
             var threads = new List<CodexThreadSummary>();
             string cursor = null;
+            bool includeSourceKinds = true;
 
             for (int page = 0; page < MaximumThreadPages; page++)
             {
-                var parameters = new JObject
+                JObject result;
+                try
                 {
-                    ["limit"] = ThreadPageSize,
-                    ["archived"] = false
-                };
-                if (!string.IsNullOrWhiteSpace(cwd)) parameters["cwd"] = cwd;
-                if (!string.IsNullOrWhiteSpace(cursor)) parameters["cursor"] = cursor;
+                    result = await SendRequestAsync(
+                        "thread/list",
+                        BuildThreadListParams(cwd, cursor, includeSourceKinds),
+                        cancellationToken).ConfigureAwait(false);
+                }
+                catch (InvalidOperationException ex) when (includeSourceKinds && page == 0)
+                {
+                    // A Codex build that predates the source filter rejects it; list with its defaults.
+                    Debug.WriteLine($"Codex App Server: thread/list rejected sourceKinds, retrying without: {ex.Message}");
+                    includeSourceKinds = false;
+                    result = await SendRequestAsync(
+                        "thread/list",
+                        BuildThreadListParams(cwd, cursor, includeSourceKinds),
+                        cancellationToken).ConfigureAwait(false);
+                }
 
-                JObject result = await SendRequestAsync("thread/list", parameters, cancellationToken)
-                    .ConfigureAwait(false);
                 threads.AddRange(ParseThreadListResult(result));
 
                 string nextCursor = result["nextCursor"]?.ToString();
@@ -185,6 +195,27 @@ namespace ClaudeCodeVS.Agents
 
             return threads;
         }
+
+        /// <summary>
+        /// Builds one <c>thread/list</c> page request. Without <c>sourceKinds</c> the App Server returns only
+        /// interactive sources (cli, vscode), which hides every native-mode chat because those run through
+        /// <c>codex exec</c> (issue #222). Spawned sub-agent threads stay out of the list as before.
+        /// </summary>
+        internal static JObject BuildThreadListParams(string cwd, string cursor, bool includeSourceKinds)
+        {
+            var parameters = new JObject
+            {
+                ["limit"] = ThreadPageSize,
+                ["archived"] = false
+            };
+            if (includeSourceKinds) parameters["sourceKinds"] = new JArray(HistorySourceKinds);
+            if (!string.IsNullOrWhiteSpace(cwd)) parameters["cwd"] = cwd;
+            if (!string.IsNullOrWhiteSpace(cursor)) parameters["cursor"] = cursor;
+            return parameters;
+        }
+
+        /// <summary>Thread sources shown in Session History: interactive CLI/IDE sessions plus exec and App Server ones.</summary>
+        internal static readonly string[] HistorySourceKinds = { "cli", "vscode", "exec", "appServer" };
 
         /// <summary>Reads a stored thread and includes its complete turn history.</summary>
         public async Task<CodexThreadTranscript> ReadThreadAsync(

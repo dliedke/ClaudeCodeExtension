@@ -201,6 +201,7 @@ namespace ClaudeCodeVS.UI
         private readonly AgentInteractionRequest _request;
         private bool _isPending = true;
         private string _outcome = string.Empty;
+        private string _planFeedback = string.Empty;
 
         public ChatInteractionViewModel(AgentInteractionRequest request)
             : base(ChatMessageKind.Interaction)
@@ -333,13 +334,30 @@ namespace ClaudeCodeVS.UI
             }
         }
 
+        /// <summary>
+        /// What the user wants changed in the plan, typed in the plan card (issue #221). Sent with
+        /// "Keep planning" so the agent revises the plan instead of asking what to change.
+        /// </summary>
+        public string PlanFeedback
+        {
+            get { return _planFeedback; }
+            set
+            {
+                if (_planFeedback == value) return;
+                _planFeedback = value ?? string.Empty;
+                RaisePropertyChanged(nameof(PlanFeedback));
+                RaisePropertyChanged(nameof(RejectCaption));
+            }
+        }
+
         public string RejectCaption
         {
             get
             {
                 switch (InteractionKind)
                 {
-                    case AgentInteractionKind.PlanReview: return L("Keep planning");
+                    case AgentInteractionKind.PlanReview:
+                        return string.IsNullOrWhiteSpace(_planFeedback) ? L("Keep planning") : L("Send feedback");
                     case AgentInteractionKind.Question: return L("Skip");
                     default: return L("Deny");
                 }
@@ -475,12 +493,28 @@ namespace ClaudeCodeVS.UI
         {
             if (!IsPending) return;
 
+            string feedback = IsPlanReview ? (_planFeedback ?? string.Empty).Trim() : string.Empty;
+
             _request.Deny(IsPlanReview
-                ? "The user rejected the plan. Ask what to change before doing any work."
+                ? BuildPlanRejectionMessage(feedback)
                 : "The user declined this action.");
 
-            Outcome = IsPlanReview ? L("Plan rejected.") : L("Declined.");
+            Outcome = !IsPlanReview ? L("Declined.")
+                : feedback.Length == 0 ? L("Plan rejected.")
+                : L("Plan rejected — asked to change: ") + feedback;
             IsPending = false;
+        }
+
+        /// <summary>
+        /// The reason sent back to the agent when the plan is rejected: with the user's feedback it asks
+        /// for a revised plan, without it the agent asks what to change before doing any work.
+        /// </summary>
+        internal static string BuildPlanRejectionMessage(string feedback)
+        {
+            return string.IsNullOrWhiteSpace(feedback)
+                ? "The user rejected the plan. Ask what to change before doing any work."
+                : "The user rejected the plan and wants these changes:\n" + feedback.Trim() +
+                  "\n\nRevise the plan accordingly and present it again for approval before doing any work.";
         }
 
         /// <summary>
