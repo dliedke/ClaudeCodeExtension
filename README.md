@@ -58,7 +58,10 @@ Enjoying the extension? [Buy me a coffee](https://www.buymeacoffee.com/dliedke) 
 
 - **Theme aware** — Follows VS dark/light theme automatically, or force dark, light, or a custom background color via *⚙ → Settings → Theme*. Prompt zoom is persisted across sessions, and native chat zoom (Ctrl+Scroll, Ctrl+0 resets it) is too; set the terminal's console font and size via *⚙ → Settings → Terminal* (Ctrl+Scroll zoom applies for the current session).
 
+- **20 languages support**: English, Simplified Chinese, Japanese, Portuguese (Brazil), Spanish, Korean, German, French, Russian, Traditional Chinese, Indonesian, Turkish, Vietnamese, Polish, Italian, Ukrainian, Arabic, Hindi, Thai and Dutch. Pick one under *⚙ → Settings → Layout → Chat language*, or leave it on Automatic to follow the Visual Studio language.
+
 - **Persistent settings** — Layout, provider choice, model, flags, and font sizes all saved to `%LocalAppData%\ClaudeCodeExtension\claudecode-settings.json`.
+
 
 ## Native Mode
 
