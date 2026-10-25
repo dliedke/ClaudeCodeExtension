@@ -173,6 +173,11 @@ Pull requests for new features are welcome. Bug fixes too — if you find an iss
 
 ## Version History
 
+### Version 268.0
+- Fixed an empty box shown after the weekly limit in the usage bars and in the native chat's usage popup.
+- The usage popup no longer stays on "Refreshing…" for a long time while the usage page is reloaded in the background.
+- The new plan feedback box and its captions are translated in the chat UI.
+
 ### Version 267.0
 - Session History now lists Codex chats started in the native chat, so they can be viewed and resumed again. Thanks to [@nanitaro](https://github.com/nanitaro) for reporting (#222).
 - The plan approval card in the native chat now has a text box for telling the agent what to change; "Send feedback" returns it to planning with your notes. Thanks to [@lpowca](https://github.com/lpowca) for reporting (#221).

@@ -35,6 +35,9 @@ namespace ClaudeCodeVS
         // The refresh a ring click started; a second click while it runs waits on it instead of starting another.
         private JoinableTask _indicatorRefresh;
 
+        // Longest the popup reads "Refreshing…"; the refresh itself keeps running past it.
+        private const int UsageRefreshTextCapMs = 20000;
+
         // Completed by HandleScrapedSnapshot, so a ring click's refresh knows when the new figures are in.
         private TaskCompletionSource<bool> _indicatorScrapeTcs;
 
@@ -183,7 +186,9 @@ namespace ClaudeCodeVS
             {
                 try
                 {
-                    await refresh.JoinAsync();
+                    // Capped: a slow rebuild of the off-screen page can take over a minute, and the popup
+                    // should not sit on "Refreshing…" that long. Figures that land later still update it.
+                    await Task.WhenAny(refresh.JoinAsync(), Task.Delay(UsageRefreshTextCapMs));
                 }
                 finally
                 {

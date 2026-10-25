@@ -241,7 +241,7 @@ namespace ClaudeCodeVS
             try
             {
                 if (!string.IsNullOrEmpty(snap.SessionLabel)) InlineSessionLabel.Text = snap.SessionLabel;
-                if (snap.SessionReset != null) InlineSessionReset.Text = snap.SessionReset;
+                if (snap.SessionReset != null) InlineSessionReset.Text = ChatUsageIndicator.StripIconGlyphs(snap.SessionReset);
                 InlineSessionBar.Value = ClampPercent(snap.SessionPercent);
                 InlineSessionPct.Text = ClampPercent(snap.SessionPercent) + "%";
 
@@ -252,7 +252,7 @@ namespace ClaudeCodeVS
                 InlineWeeklyBar.Visibility = weeklyVis;
                 InlineWeeklyPct.Visibility = weeklyVis;
                 InlineWeeklyLabel.Text = "Weekly limit";
-                if (snap.WeeklyReset != null) InlineWeeklyReset.Text = snap.WeeklyReset;
+                if (snap.WeeklyReset != null) InlineWeeklyReset.Text = ChatUsageIndicator.StripIconGlyphs(snap.WeeklyReset);
                 InlineWeeklyBar.Value = ClampPercent(snap.WeeklyPercent);
                 InlineWeeklyPct.Text = ClampPercent(snap.WeeklyPercent) + "%";
 

@@ -685,7 +685,7 @@
 							         SelectionBrush="{DynamicResource {x:Static vsshell:VsBrushes.HighlightKey}}"
 							         BorderBrush="{DynamicResource {x:Static vsshell:VsBrushes.ToolWindowBorderKey}}"
 							         BorderThickness="1"/>
-							<TextBlock Text="Tell the agent what to change in the plan (optional)"
+							<TextBlock Text="{local:Loc 'Tell the agent what to change in the plan (optional)'}"
 							           TextTrimming="CharacterEllipsis"
 							           IsHitTestVisible="False"
 							           Margin="8,5,8,0" Opacity="0.5" FontSize="{DynamicResource ChatSmallFontSize}"
