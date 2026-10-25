@@ -174,9 +174,18 @@ Pull requests for new features are welcome. Bug fixes too — if you find an iss
 ## Version History
 
 ### Version 268.0
+- The native chat tab can now be shown in your language: Italian is included, and by default the chat follows the Visual Studio language (*Settings → Layout → Chat language*). Other languages can be added by dropping a translation file in the extension's `lang` folder under Local AppData. Thanks to [@ClaudioCas](https://github.com/ClaudioCas) (#223).
+- Chat tabs now come back when you reopen a solution, each continuing its conversation with the earlier messages shown; a reopened tab starts its agent only when you send it a message. On by default (*Settings → Terminal → Reopen chat tabs when the solution opens*); Claude Code, Codex and Devin.
+- A resumed conversation shows its saved title and color right away instead of after the first message.
+- Images you attach now appear as thumbnails in your chat message instead of a list of file paths; click one to open it.
+- Attachment cards in the prompt show only the picture, and the large preview on hover now opens quickly and reliably.
+- New *Compact chat toolbar* option puts the chat toolbar inside the message box, with the less used actions grouped in the ⋯ menu (*Settings → Layout*, off by default).
+- The agent selector in the chat toolbar now hides itself when only one agent is enabled.
+- New option for a plain working status that always reads "Thinking…" instead of the rotating playful words (*Settings → Layout*); once a chat has started, the message box hint shrinks to "Reply…".
+- In the Modern icon style, running tool steps show the same rotating ring as the status line.
+- The *Claude Code* toolbar now shows up on its own after installation; hide it from View → Toolbars if you don't want it.
 - Fixed an empty box shown after the weekly limit in the usage bars and in the native chat's usage popup.
 - The usage popup no longer stays on "Refreshing…" for a long time while the usage page is reloaded in the background.
-- The new plan feedback box and its captions are translated in the chat UI.
 
 ### Version 267.0
 - Session History now lists Codex chats started in the native chat, so they can be viewed and resumed again. Thanks to [@nanitaro](https://github.com/nanitaro) for reporting (#222).
@@ -188,29 +197,15 @@ Pull requests for new features are welcome. Bug fixes too — if you find an iss
 ### Version 265.0
 - Long resumed conversations in the native chat now open quickly at the newest message, and rows render as they scroll into view. Thanks to [@MartinWooChina](https://github.com/MartinWooChina) (#219).
 - The chat now keeps following long streamed replies to the last line, and fast mouse-wheel scrolling no longer jumps or loops; sending a prompt snaps to the new message.
-- Fixed a crash that could close Visual Studio while the agent was running a tool with the Modern icon style turned on.
 
 ### Version 264.0
 - The context-usage ring now fills on Anthropic-compatible gateways that omit per-iteration usage (for example DeepSeek), instead of staying empty at "No turn yet". Thanks to [@MartinWooChina](https://github.com/MartinWooChina) (#218).
-- The agent selector in the chat toolbar now hides itself when only one agent is enabled, and comes back as soon as you enable a second one.
-- New *Compact chat toolbar* option puts the chat toolbar inside the message box, with ✚ new chat first and the less used actions grouped in the ⋯ menu (*Settings → Layout*, off by default).
-- In the Modern icon style, running tool steps show the same rotating ring as the status line.
 
 ### Version 263.0
 - Native chat now shows the correct context usage and sets a matching auto-compact point for DeepSeek and other custom 1M-context models, instead of the CLI's 200k fallback. Thanks to [@MartinWooChina](https://github.com/MartinWooChina) (#216).
-- Chat tabs now come back when you reopen a solution, each continuing its conversation with the earlier messages shown. On by default (*Settings → Terminal → Reopen chat tabs when the solution opens*); Claude Code, Codex and Devin.
-- A reopened tab starts its agent only when you send it a message, so opening a solution with several chats stays fast.
-- A resumed conversation shows its saved title and color right away instead of after the first message.
 
 ### Version 262.0
 - Fixed a crash that could close Visual Studio while hovering over or resizing the native chat. Thanks to [@MartinWooChina](https://github.com/MartinWooChina) (#217).
-- The native chat tab can now be shown in your language: Italian is included, and by default the chat follows the Visual Studio language (*Settings → Layout → Chat language*).
-- Other languages can be added without updating the extension, by dropping a translation file in the extension's `lang` folder under Local AppData.
-- The *Claude Code* toolbar now shows up on its own after installation; hide it from View → Toolbars if you don't want it.
-- Images you attach now appear as thumbnails in your chat message instead of a list of file paths; click one to open it.
-- New option for a plain working status that always reads "Thinking…" instead of the rotating playful words (*Settings → Layout*).
-- Once a chat has started, the message box hint shrinks to a simple "Reply…".
-- Attachment cards in the prompt show only the picture, and the large preview on hover now opens quickly and reliably.
 
 ### Version 261.0
 - Opening or switching a folder or solution no longer freezes Visual Studio while the chat agent restarts; the restart now waits until the IDE has finished loading. Thanks to [@MartinWooChina](https://github.com/MartinWooChina) (#215).
