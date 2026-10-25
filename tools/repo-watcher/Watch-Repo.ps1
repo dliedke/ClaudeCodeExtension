@@ -77,7 +77,8 @@ function Send-Results([string]$resultFile, [int]$exitCode) {
 # One run at a time across PRs and issues: both edit the repo and publish, and a publish can
 # outlast the polling interval. A busy lock just means this tick is skipped.
 $mutex = New-Object System.Threading.Mutex($false, 'Global\ClaudeCodeExtensionRepoWatcher')
-if (-not $mutex.WaitOne(0)) { exit 0 }
+# Abandoned = a previous run was killed while holding it; the lock is ours now.
+try { if (-not $mutex.WaitOne(0)) { exit 0 } } catch [System.Threading.AbandonedMutexException] { }
 
 try {
     # --- Free check -----------------------------------------------------------------------
@@ -141,11 +142,16 @@ not verified by hand, or the specific reasons for rejecting, deferring or skippi
     Set-Content $promptFile $text -Encoding utf8
 
     # This script runs hidden; the Claude run gets its own visible console window so you can see
-    # it working (and don't shut down mid-publish). -Wait keeps the lock until the window closes.
+    # it working (and don't shut down mid-publish). The lock is held until the window closes.
+    # Not Start-Process -Wait: Windows PowerShell then waits for every descendant, and the build
+    # servers test.cmd/publish.cmd leave behind (VBCSCompiler, MSBuild reuse nodes) kept it blocked
+    # until the task's time limit killed it, with no state saved and no email sent.
     $title = "$(if ($Kind -eq 'pr') { 'PR' } else { 'issue' }) $numbers"
     $runArgs = "-NoProfile -ExecutionPolicy Bypass -File `"$(Join-Path $Root 'Run-Claude.ps1')`" " +
                "-Claude `"$Claude`" -PromptFile `"$promptFile`" -RunLog `"$runLog`" -Title `"$title`""
-    $proc = Start-Process powershell.exe -ArgumentList $runArgs -WorkingDirectory $RepoDir -Wait -PassThru
+    $proc = Start-Process powershell.exe -ArgumentList $runArgs -WorkingDirectory $RepoDir -PassThru
+    $null = $proc.Handle   # cache the handle, or ExitCode reads back empty after exit
+    $proc.WaitForExit()
     $exit = $proc.ExitCode
     Remove-Item $promptFile -Force -ErrorAction SilentlyContinue
 

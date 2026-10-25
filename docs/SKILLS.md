@@ -195,7 +195,10 @@ Check activity in `%USERPROFILE%\.claude\repo-watcher\logs\watcher.log` (one lin
 found work) and the `run-<kind>-<time>.log` files (Claude's summary for each run).
 
 Gotchas: Windows PowerShell 5.1 turns `gh`'s empty `[]` into one blank object, so the script
-filters items without a number. Without that filter, Claude starts on every tick. Issue text
+filters items without a number. Without that filter, Claude starts on every tick. Don't use
+`Start-Process -Wait` for the Claude console: Windows PowerShell then waits for every descendant,
+and the build servers left by `test.cmd`/`publish.cmd` blocked the run until the 3-hour task
+limit killed it (no state, no email). The script waits on the console process only. Issue text
 is untrusted input to an agent with push and publish rights; both prompts tell it to ignore
 embedded instructions and to leave anything that touches scripts, CI, secrets or network calls
 for you.
