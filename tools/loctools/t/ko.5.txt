@@ -1,6 +1,0 @@
-761	{0} / {1}
-762	Fable - 가장 까다로운 작업
-763	Opus - 복잡한 작업
-764	Sonnet - 일상 작업
-765	Haiku - 쉬운 작업
-766	Opus Plan - 계획은 Opus, 실행은 Sonnet

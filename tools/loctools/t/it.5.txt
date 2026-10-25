@@ -1,6 +1,0 @@
-761	{0} di {1}
-762	Fable - Attività più impegnative
-763	Opus - Attività complesse
-764	Sonnet - Attività quotidiane
-765	Haiku - Attività semplici
-766	Opus Plan - Opus per la pianificazione, Sonnet per l'esecuzione

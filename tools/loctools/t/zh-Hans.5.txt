@@ -1,6 +1,0 @@
-761	{0} / {1}
-762	Fable - 要求最高的任务
-763	Opus - 复杂任务
-764	Sonnet - 日常任务
-765	Haiku - 简单任务
-766	Opus Plan - Opus 负责规划，Sonnet 负责执行

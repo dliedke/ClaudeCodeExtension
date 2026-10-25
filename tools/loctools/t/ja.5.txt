@@ -1,6 +1,0 @@
-761	{0} / {1}
-762	Fable - 最も高度なタスク
-763	Opus - 複雑なタスク
-764	Sonnet - 日常的なタスク
-765	Haiku - 簡単なタスク
-766	Opus Plan - 計画は Opus、実行は Sonnet

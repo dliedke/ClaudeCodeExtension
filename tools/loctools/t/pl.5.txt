@@ -1,6 +1,0 @@
-761	{0} z {1}
-762	Fable - Najbardziej wymagające zadania
-763	Opus - Złożone zadania
-764	Sonnet - Codzienne zadania
-765	Haiku - Proste zadania
-766	Opus Plan - Opus do planowania, Sonnet do wykonania
