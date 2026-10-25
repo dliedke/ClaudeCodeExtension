@@ -307,7 +307,23 @@ namespace ClaudeCodeVS.UI
                 _culture = CultureInfo.InvariantCulture;
             }
 
-            LanguageChanged?.Invoke(null, EventArgs.Empty);
+            // Each listener on its own: one that throws (a closed window, a busy view) must not keep the
+            // rest of the extension in the old language.
+            EventHandler handlers = LanguageChanged;
+            if (handlers != null)
+            {
+                foreach (EventHandler handler in handlers.GetInvocationList())
+                {
+                    try
+                    {
+                        handler(null, EventArgs.Empty);
+                    }
+                    catch (Exception ex)
+                    {
+                        System.Diagnostics.Debug.WriteLine($"Language change listener failed: {ex.Message}");
+                    }
+                }
+            }
         }
 
         private static bool IsEnglish(string code)

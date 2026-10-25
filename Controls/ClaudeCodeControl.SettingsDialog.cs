@@ -63,6 +63,37 @@ namespace ClaudeCodeVS
         #region Settings Dialog UI
 
         /// <summary>
+        /// Shows the extension in <paramref name="setting"/> while the Settings dialog is still open: the
+        /// panel, the open chats and tool windows follow as on OK, and the dialog's own captions are
+        /// retranslated in place. Nothing is saved — OK stores the choice, Cancel restores the saved one.
+        /// </summary>
+        private void PreviewChatLanguage(string setting, Window settingsDialog)
+        {
+            ThreadHelper.ThrowIfNotOnUIThread();
+
+            try
+            {
+                UI.Loc.SetLanguage(setting);
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"Language preview failed: {ex.Message}");
+                return;
+            }
+
+            RefreshChatLanguage();
+
+            try
+            {
+                UI.LocTree.Retranslate(settingsDialog);
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"Settings dialog language refresh failed: {ex.Message}");
+            }
+        }
+
+        /// <summary>
         /// Builds and shows the consolidated settings dialog, then applies the
         /// chosen values. The dialog is organized into tabs (On Agent Finish, Prompt, Automation, Layout,
         /// Terminal, Theme, Toolbar, CLI Paths, Backup). Restart-requiring changes (terminal type,
@@ -573,6 +604,17 @@ namespace ClaudeCodeVS
                 if (string.Equals(code, origChatLanguage, StringComparison.OrdinalIgnoreCase)) item.IsSelected = true;
                 chatLanguageCombo.Items.Add(item);
             }
+            // The language takes effect the moment it is picked: the panel, the open chats and tool
+            // windows and this dialog switch at once. OK keeps it; Cancel puts the saved one back.
+            bool languagePreviewed = false;
+            chatLanguageCombo.SelectionChanged += (s, ea) =>
+            {
+                if (chatLanguageCombo.SelectedItem is ComboBoxItem picked && picked.Tag is string pickedCode)
+                {
+                    languagePreviewed = true;
+                    PreviewChatLanguage(pickedCode, dialog);
+                }
+            };
             chatLanguageRow.Children.Add(chatLanguageCombo);
             layoutStack.Children.Add(chatLanguageRow);
 
@@ -1424,6 +1466,13 @@ namespace ClaudeCodeVS
             if (dialog.ShowDialog() != true)
             {
                 // Cancel - no changes applied (a confirmed "Load All Settings" also lands here)
+                if (languagePreviewed)
+                {
+                    // Back to the saved language, everywhere the preview reached.
+                    ApplyChatLanguage();
+                    RefreshChatLanguage();
+                }
+
                 if (pendingImport != null)
                 {
                     await ApplyImportedConfigurationAsync(pendingImport);

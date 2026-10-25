@@ -312,7 +312,8 @@ names stay as the CLIs spell them.
 5. Text set from code after the XAML is built does not follow a language switch on its own: make
    sure `RefreshChatLanguage()` (or the view's `RefreshLanguage()`) redoes it. A tool window that
    lives outside the panel subscribes to `Loc.LanguageChanged` itself (Code Changes, Claude Usage).
-   Dialogs and menus built when opened need nothing.
+   A modeless window built in code is retranslated in place with `UI.LocTree.Retranslate(window)`
+   from `RefreshChatLanguage()` (GitHub Issues). Modal dialogs and menus built when opened need nothing.
 
 ---
 

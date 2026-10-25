@@ -205,6 +205,77 @@ namespace ClaudeCodeExtension.Tests
         }
 
         [TestMethod]
+        public void SetLanguage_AFailingListenerDoesNotStopTheOthers()
+        {
+            int reached = 0;
+            EventHandler failing = (s, e) => throw new InvalidOperationException("closed window");
+            EventHandler counting = (s, e) => reached++;
+
+            Loc.LanguageChanged += failing;
+            Loc.LanguageChanged += counting;
+            try
+            {
+                Loc.SetLanguageFromJson("it", "{ \"Stop\": \"Interrompi\" }");
+                Assert.AreEqual(1, reached);
+                Assert.AreEqual("it", LocSource.Instance.Language);
+            }
+            finally
+            {
+                Loc.LanguageChanged -= failing;
+                Loc.LanguageChanged -= counting;
+            }
+        }
+
+        [TestMethod]
+        public void LocTree_RetranslatesAnOpenWindowButLeavesInputAndBindingsAlone()
+        {
+            Exception failure = null;
+            var thread = new System.Threading.Thread(() =>
+            {
+                try
+                {
+                    const string italian = "{ \"Cancel\": \"Annulla\", \"Stop\": \"Interrompi\", \"Close\": \"Chiudi\" }";
+                    const string portuguese = "{ \"Cancel\": \"Cancelar\", \"Stop\": \"Parar\", \"Close\": \"Fechar\" }";
+                    Loc.SetLanguageFromJson("it", italian);
+
+                    var label = new System.Windows.Controls.TextBlock { Text = Loc.L("Stop") };
+                    var button = new System.Windows.Controls.Button { Content = Loc.L("Cancel"), ToolTip = Loc.L("Close") };
+                    var input = new System.Windows.Controls.TextBox { Text = "Annulla" };
+                    var tab = new System.Windows.Controls.TabItem { Header = Loc.L("Close"), Content = new System.Windows.Controls.TextBlock { Text = Loc.L("Cancel") } };
+                    var tabs = new System.Windows.Controls.TabControl();
+                    tabs.Items.Add(tab);
+                    var root = new System.Windows.Controls.StackPanel();
+                    root.Children.Add(label);
+                    root.Children.Add(button);
+                    root.Children.Add(input);
+                    root.Children.Add(tabs);
+
+                    Loc.SetLanguageFromJson("pt-BR", portuguese);
+                    LocTree.Retranslate(root);
+
+                    Assert.AreEqual("Parar", label.Text);
+                    Assert.AreEqual("Cancelar", button.Content);
+                    Assert.AreEqual("Fechar", button.ToolTip);
+                    Assert.AreEqual("Annulla", input.Text, "User input is never touched.");
+                    Assert.AreEqual("Fechar", tab.Header);
+                    Assert.AreEqual("Cancelar", ((System.Windows.Controls.TextBlock)tab.Content).Text, "Content of a tab that was never shown.");
+                }
+                catch (Exception ex)
+                {
+                    failure = ex;
+                }
+            });
+            thread.SetApartmentState(System.Threading.ApartmentState.STA);
+            thread.Start();
+            thread.Join();
+
+            if (failure != null)
+            {
+                throw failure;
+            }
+        }
+
+        [TestMethod]
         public void Retranslate_CarriesShownTextIntoTheNewLanguage()
         {
             Loc.SetLanguageFromJson(Loc.EnglishLanguage, null);

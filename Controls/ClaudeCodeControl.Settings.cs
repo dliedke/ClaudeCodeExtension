@@ -144,10 +144,11 @@ namespace ClaudeCodeVS
         /// Puts the panel and the open chats into the language just applied, without reopening them. The
         /// XAML captions already followed through their bindings; this redoes the text built in code —
         /// panel captions set at run time, the toolbar tooltips mirrored into the chat composers, the
-        /// usage bar notice, the last-prompt hint, selector captions, tab captions, status line, pending
-        /// cards and, while it is still up, the welcome card. The Code Changes and Claude Usage windows follow
-        /// <see cref="UI.Loc.LanguageChanged"/> themselves. Menus and dialogs are built when opened, so
-        /// they pick up the language on their own.
+        /// usage bar notice, the last-prompt hint, attachment chips, selector captions, tab captions,
+        /// status line, pending cards and, while it is still up, the welcome card; an open GitHub Issues
+        /// window is retranslated in place. The Code Changes and Claude Usage windows follow
+        /// <see cref="UI.Loc.LanguageChanged"/> themselves, and the Settings dialog retranslates itself
+        /// while a language is previewed. Other menus and dialogs are built when opened.
         /// </summary>
         private void RefreshChatLanguage()
         {
@@ -163,6 +164,8 @@ namespace ClaudeCodeVS
                 if (InlineWeeklyLabel != null) InlineWeeklyLabel.Text = UI.Loc.Retranslate(InlineWeeklyLabel.Text);
                 UpdateInlineUsageStaleNotice();
                 UpdateLastPromptHint();
+                RefreshAllAttachmentChips();
+                if (_gitHubIssuesWindow != null) UI.LocTree.Retranslate(_gitHubIssuesWindow);
             }
             catch (Exception ex)
             {

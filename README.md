@@ -175,7 +175,7 @@ Pull requests for new features are welcome. Bug fixes too — if you find an iss
 
 ### Version 270.0
 - The language setting now translates the whole extension, not just the chat: panel, menus, toolbar, Settings and other dialogs, messages, and the Code Changes and Claude Usage windows (*Settings → Layout → Language*).
-- Switching the language updates everything already open at once, including the toolbar buttons inside chat tabs, the usage bars and the Code Changes window.
+- The language switches in real time: picking one in Settings changes the whole extension immediately, the Settings window included, and everything already open follows; Cancel puts the previous language back.
 - All 20 languages now cover the full extension.
 
 ### Version 269.0
