@@ -123,6 +123,43 @@ namespace ClaudeCodeExtension.Tests
         }
 
         [TestMethod]
+        public void KeepPlanning_SendsTheTypedFeedbackToTheAgent()
+        {
+            // Issue #221: the plan card's textbox tells the agent what to change.
+            List<KeyValuePair<string, object>> sent;
+            ClaudeStreamParser parser = NewParser(out sent);
+
+            var card = new ClaudeCodeVS.UI.ChatInteractionViewModel(ParsePlanReview(parser));
+            Assert.AreEqual("Keep planning", card.RejectCaption);
+
+            card.PlanFeedback = "  Use a background task instead of a timer.  ";
+            Assert.AreEqual("Send feedback", card.RejectCaption);
+            card.Reject();
+
+            string payload = JsonConvert.SerializeObject(sent[0].Value);
+            StringAssert.Contains(payload, "\"behavior\":\"deny\"");
+            StringAssert.Contains(payload, "Use a background task instead of a timer.");
+            StringAssert.Contains(payload, "Revise the plan");
+            Assert.IsFalse(card.IsPending);
+            Assert.IsFalse(card.WasAccepted);
+            Assert.AreEqual("Plan rejected — asked to change: Use a background task instead of a timer.", card.Outcome);
+        }
+
+        [TestMethod]
+        public void KeepPlanning_WithoutFeedbackAsksWhatToChange()
+        {
+            List<KeyValuePair<string, object>> sent;
+            ClaudeStreamParser parser = NewParser(out sent);
+
+            var card = new ClaudeCodeVS.UI.ChatInteractionViewModel(ParsePlanReview(parser));
+            card.PlanFeedback = "   ";
+            card.Reject();
+
+            StringAssert.Contains(JsonConvert.SerializeObject(sent[0].Value), "Ask what to change before doing any work.");
+            Assert.AreEqual("Plan rejected.", card.Outcome);
+        }
+
+        [TestMethod]
         public void PlainPlanApproval_DoesNotChangeThePermissionMode()
         {
             List<KeyValuePair<string, object>> sent;

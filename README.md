@@ -173,6 +173,10 @@ Pull requests for new features are welcome. Bug fixes too — if you find an iss
 
 ## Version History
 
+### Version 267.0
+- Session History now lists Codex chats started in the native chat, so they can be viewed and resumed again. Thanks to [@nanitaro](https://github.com/nanitaro) for reporting (#222).
+- The plan approval card in the native chat now has a text box for telling the agent what to change; "Send feedback" returns it to planning with your notes. Thanks to [@lpowca](https://github.com/lpowca) for reporting (#221).
+
 ### Version 266.0
 - Fixed chat replies showing raw markdown (asterisks, dashes, backticks) instead of formatted text when they quoted a file reference or a link in code formatting. Thanks to [@ClaudioCas](https://github.com/ClaudioCas) (#220).
 

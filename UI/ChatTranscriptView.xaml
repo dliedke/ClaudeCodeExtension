@@ -618,6 +618,28 @@
 							</ScrollViewer>
 						</Border>
 
+						<!-- Plan feedback (issue #221): sent with "Keep planning" so the agent revises the plan. -->
+						<Grid Margin="0,4,0,0"
+						      Visibility="{Binding IsPlanReview, Converter={StaticResource BoolToVis}}">
+							<TextBox Text="{Binding PlanFeedback, UpdateSourceTrigger=PropertyChanged}"
+							         Padding="6,4,6,4" MaxHeight="160"
+							         TextWrapping="Wrap" AcceptsReturn="True"
+							         VerticalScrollBarVisibility="Auto"
+							         Background="{DynamicResource {x:Static vsshell:VsBrushes.WindowKey}}"
+							         Foreground="{DynamicResource {x:Static vsshell:VsBrushes.WindowTextKey}}"
+							         CaretBrush="{DynamicResource {x:Static vsshell:VsBrushes.WindowTextKey}}"
+							         SelectionBrush="{DynamicResource {x:Static vsshell:VsBrushes.HighlightKey}}"
+							         BorderBrush="{DynamicResource {x:Static vsshell:VsBrushes.ToolWindowBorderKey}}"
+							         BorderThickness="1"/>
+							<TextBlock Text="Tell the agent what to change in the plan (optional)"
+							           TextTrimming="CharacterEllipsis"
+							           IsHitTestVisible="False"
+							           Margin="8,5,8,0" Opacity="0.5" FontSize="{DynamicResource ChatSmallFontSize}"
+							           VerticalAlignment="Top"
+							           Foreground="{DynamicResource {x:Static vsshell:VsBrushes.WindowTextKey}}"
+							           Visibility="{Binding PlanFeedback, Converter={StaticResource EmptyToVis}, ConverterParameter=invert}"/>
+						</Grid>
+
 						<StackPanel Visibility="{Binding IsToolApproval, Converter={StaticResource BoolToVis}}">
 							<!-- Diff for the editing tools, same as the post-approval tool-call row, so the
 							     approval prompt itself shows what will change (issue #160). -->

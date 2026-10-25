@@ -21,6 +21,30 @@ namespace ClaudeCodeExtension.Tests
     public class CodexSessionHistoryTests
     {
         [TestMethod]
+        public void ThreadListParams_IncludeExecSessions()
+        {
+            // Issue #222: native mode runs `codex exec`; the App Server default lists only cli/vscode threads.
+            JObject parameters = CodexAppServerClient.BuildThreadListParams(@"C:\repo", "next-page", true);
+
+            CollectionAssert.AreEquivalent(
+                new[] { "cli", "vscode", "exec", "appServer" },
+                parameters["sourceKinds"].Values<string>().ToArray());
+            Assert.AreEqual(@"C:\repo", (string)parameters["cwd"]);
+            Assert.AreEqual("next-page", (string)parameters["cursor"]);
+            Assert.AreEqual(false, (bool)parameters["archived"]);
+        }
+
+        [TestMethod]
+        public void ThreadListParams_FallbackOmitsSourceKinds()
+        {
+            JObject parameters = CodexAppServerClient.BuildThreadListParams(null, null, false);
+
+            Assert.IsNull(parameters["sourceKinds"]);
+            Assert.IsNull(parameters["cwd"]);
+            Assert.IsNull(parameters["cursor"]);
+        }
+
+        [TestMethod]
         public void ThreadListParser_ReadsSummaryAndFlattensPreview()
         {
             JObject result = JObject.Parse(@"{
