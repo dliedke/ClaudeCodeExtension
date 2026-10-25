@@ -151,7 +151,7 @@ Code (Opus, high effort) running unattended. Scripts live in `tools/repo-watcher
 .\tools\repo-watcher\Install-RepoWatcher.ps1              # install / update both tasks
 .\tools\repo-watcher\Install-RepoWatcher.ps1 -Minutes 15  # other interval
 .\tools\repo-watcher\Install-RepoWatcher.ps1 -Uninstall   # remove the tasks
-.\tools\repo-watcher\Install-RepoWatcher.ps1 -SetupEmail you@gmail.com   # email merged PRs / fixed issues
+.\tools\repo-watcher\Install-RepoWatcher.ps1 -SetupEmail you@gmail.com   # email every PR / issue outcome
 ```
 
 Prerequisites: `claude` and `gh` on PATH, `gh auth login` done, and this machine able to run
@@ -164,11 +164,16 @@ Prerequisites: `claude` and `gh` on PATH, `gh auth login` done, and this machine
   titled "Claude repo watcher - PR #N - do not shut down". It streams Claude's steps live and
   keeps the PC from sleeping. It ends with a green "safe to shut down" or a red failure banner
   and closes 5 minutes later (or on a key press). The lock is held until the window closes.
-- **PRs**: review the diff (unsafe ones are skipped and left open) → merge → version bump +
-  README credit → `test.cmd` → `publish.cmd` → push → thank and close.
+- **PRs**: review the diff (unsafe ones are skipped and left open) → quality gate (PRs that remove
+  features, change defaults, break saved settings or CLAUDE.md rules, weaken tests, or are too
+  large/mixed to review are rejected with a comment and closed; unsure ones are deferred) → merge
+  → version bump + README credit → build + `test.cmd` (failure reverts the merge) →
+  `publish.cmd` → push → thank and close.
 - **Issues**: questions are answered, unclear bugs get a request for details, large features are
-  deferred with a comment; clear bugs and small features are fixed on master, released,
-  published, and the issue is replied to and closed.
+  deferred with a comment, and requests that would remove features, change defaults or weaken
+  security/tests are rejected and closed as not planned. Clear bugs and small features get the
+  smallest fix on master, a self-review of the diff for regressions, then release, publish, reply
+  and close.
 - **Handled once.** `state-pr.json` (keyed by PR number + head commit, so new pushes are
   re-reviewed) and `state-issue.json` (keyed by issue number). A run that fails is retried up
   to 3 times. To re-run an item, delete its key from the state file.
@@ -177,8 +182,10 @@ Prerequisites: `claude` and `gh` on PATH, `gh auth login` done, and this machine
 - **Installed copy.** The installer copies the scripts to `%USERPROFILE%\.claude\repo-watcher`
   and the tasks run that copy, so a merged PR can't change what the agent runs. Re-run the
   installer after editing anything in `tools/repo-watcher/`.
-- **Email.** Claude writes a `run-<kind>-<time>.results.json` with each item's outcome; merged
-  PRs and fixed issues are mailed through Gmail SMTP (`Notify.ps1`). `-SetupEmail` asks for a
+- **Email.** Claude writes a `run-<kind>-<time>.results.json` with each item's outcome and
+  details; every outcome (merged, fixed, rejected, deferred, skipped, failed, ...) is mailed with
+  Claude's summary through Gmail SMTP (`Notify.ps1`). A run with no results file is mailed as a
+  failure. `-SetupEmail` asks for a
   Gmail app password (needs 2-step verification), saves it DPAPI-encrypted as
   `email-credential.xml` next to `email.json` in the install folder, and sends a test email. Run it
   in a normal PowerShell window, since it reads the password from the keyboard. Delete

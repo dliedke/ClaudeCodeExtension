@@ -4,7 +4,7 @@
 #   .\Install-RepoWatcher.ps1              # install / update, poll every 10 minutes
 #   .\Install-RepoWatcher.ps1 -Minutes 15  # different interval
 #   .\Install-RepoWatcher.ps1 -Uninstall   # remove both tasks (keeps logs and state)
-#   .\Install-RepoWatcher.ps1 -SetupEmail you@gmail.com   # email merged PRs / fixed issues
+#   .\Install-RepoWatcher.ps1 -SetupEmail you@gmail.com   # email every PR / issue outcome
 #
 # -SetupEmail asks for a Gmail app password (https://myaccount.google.com/apppasswords, needs
 # 2-step verification), stores it DPAPI-encrypted in the install folder and sends a test email.
@@ -44,7 +44,7 @@ if ($SetupEmail) {
         Export-Clixml (Join-Path $InstallDir 'email-credential.xml')
     @{ To = $SetupEmail; From = $SetupEmail } | ConvertTo-Json | Set-Content (Join-Path $InstallDir 'email.json') -Encoding utf8
     Send-WatcherMail (Get-WatcherMailConfig $InstallDir) '[ClaudeCodeExtension] Repo watcher email test' `
-        'Email notifications are set up. You will get one email per watcher run that merges a PR or fixes an issue.'
+        'Email notifications are set up. You will get one email per watcher run with the outcome of each PR or issue (merged, fixed, rejected, deferred, failed, ...).'
     Write-Host "Test email sent to $SetupEmail. To turn emails off, delete email.json in $InstallDir."
     return
 }

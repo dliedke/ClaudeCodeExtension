@@ -28,29 +28,45 @@ function Write-Log([string]$msg) {
 
 . (Join-Path $Root 'Notify.ps1')
 
-# Emails the merged PRs / fixed issues from Claude's results file, if email is set up.
-function Send-Results([string]$resultFile) {
+# Emails every item's outcome (merged, fixed, rejected, deferred, ...) from Claude's results file,
+# if email is set up. A run that left no results (crash, killed, bad JSON) is emailed as a failure.
+function Send-Results([string]$resultFile, [int]$exitCode) {
     try {
         $config = Get-WatcherMailConfig $Root
         if (-not $config) { return }
-        if (-not (Test-Path $resultFile)) { Write-Log 'No results file; no email sent.'; return }
-        $done = @((Get-Content $resultFile -Raw | ConvertFrom-Json) |
-            Where-Object { $_.number -and $_.outcome -in 'merged', 'fixed' })
-        if ($done.Count -eq 0) { return }
 
-        $noun  = if ($Kind -eq 'pr') { 'PR' } else { 'Issue' }
-        $path  = if ($Kind -eq 'pr') { 'pull' } else { 'issues' }
-        $lines = foreach ($r in $done) {
-            $version = if ($r.version) { "published v$($r.version)" } else { 'not published' }
-            "$noun #$($r.number) $($r.outcome), $version`n$($r.summary)`nhttps://github.com/$Repo/$path/$($r.number)`n"
+        $noun = if ($Kind -eq 'pr') { 'PR' } else { 'Issue' }
+        $path = if ($Kind -eq 'pr') { 'pull' } else { 'issues' }
+        $results = @()
+        if (Test-Path $resultFile) {
+            try { $results = @((Get-Content $resultFile -Raw | ConvertFrom-Json) | Where-Object { $_.number }) }
+            catch { Write-Log "Results file is not valid JSON: $($_.Exception.Message)" }
         }
-        $first   = $done[0]
-        $subject = if ($done.Count -eq 1) {
+
+        if ($results.Count -eq 0) {
+            $subject = "[ClaudeCodeExtension] $noun watcher run failed for $numbers"
+            $body = "Claude exited with code $exitCode and reported no results for $list.`n" +
+                    "It may have stopped partway through; check GitHub and the repo for half-done work.`n`n" +
+                    "Run log: $runLog`nSummary:`n" + $(if (Test-Path $runLog) { Get-Content $runLog -Raw } else { '(none)' })
+            Send-WatcherMail $config $subject $body
+            Write-Log "Emailed $($config.To): $subject"
+            return
+        }
+
+        $lines = foreach ($r in $results) {
+            $version = if ($r.version) { "published v$($r.version)" } else { 'nothing published' }
+            "$noun #$($r.number): $($r.outcome), $version`n$($r.summary)`n" +
+                $(if ($r.details) { "`n$($r.details)`n" }) +
+                "https://github.com/$Repo/$path/$($r.number)`n"
+        }
+        $first   = $results[0]
+        $subject = if ($results.Count -eq 1) {
             "[ClaudeCodeExtension] $noun #$($first.number) $($first.outcome)" + $(if ($first.version) { ", v$($first.version) published" })
         } else {
-            "[ClaudeCodeExtension] $($done.Count) ${noun}s handled"
+            "[ClaudeCodeExtension] $($results.Count) ${noun}s: " + (($results | ForEach-Object { "#$($_.number) $($_.outcome)" }) -join ', ')
         }
-        Send-WatcherMail $config $subject (($lines -join "`n") + "`nRun log: $runLog")
+        $summary = if (Test-Path $runLog) { "`n----- Claude's summary -----`n" + (Get-Content $runLog -Raw) } else { '' }
+        Send-WatcherMail $config $subject (($lines -join "`n") + "`nRun log: $runLog`n" + $summary)
         Write-Log "Emailed $($config.To): $subject"
     }
     catch {
@@ -107,7 +123,7 @@ try {
     $runLog = Join-Path $LogDir ("run-{0}-{1:yyyyMMdd-HHmmss}.log" -f $Kind, (Get-Date))
     Write-Log "Starting Claude for: $list (log: $(Split-Path $runLog -Leaf))"
 
-    # Claude reports each item's outcome here; merged PRs and fixed issues are emailed.
+    # Claude reports each item's outcome here; every outcome is emailed.
     $resultFile = [IO.Path]::ChangeExtension($runLog, '.results.json')
     $text = (Get-Content $Prompt -Raw) + @"
 
@@ -115,9 +131,11 @@ try {
 Items to handle in this run: $numbers
 
 When you are done, write a JSON array with one entry per item to $resultFile, for example:
-[{"number": 220, "outcome": "merged", "version": "266.0", "summary": "One user-facing sentence."}]
-outcome is one of: merged, fixed, answered, asked-for-details, deferred, skipped-unsafe, failed.
+[{"number": 220, "outcome": "merged", "version": "266.0", "summary": "One user-facing sentence.", "details": "What you changed or checked, or why you rejected it."}]
+outcome is one of: merged, fixed, answered, asked-for-details, deferred, rejected, skipped-unsafe, failed.
 version is the published version, or null when nothing was published.
+details is a few plain sentences for the maintainer: what was changed, tested and published, what was
+not verified by hand, or the specific reasons for rejecting, deferring or skipping. This is emailed.
 "@
     $promptFile = [IO.Path]::ChangeExtension($runLog, '.prompt.md')
     Set-Content $promptFile $text -Encoding utf8
@@ -145,7 +163,7 @@ version is the published version, or null when nothing was published.
     $state | ConvertTo-Json -Depth 4 | Set-Content $StateFile -Encoding utf8
     Write-Log "Claude finished with exit code $exit."
 
-    Send-Results $resultFile
+    Send-Results $resultFile $exit
 
     # Keep the last 30 runs per kind.
     Get-ChildItem $LogDir -Filter "run-$Kind-*.log" | Sort-Object Name -Descending |
