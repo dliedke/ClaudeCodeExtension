@@ -193,6 +193,7 @@ ClaudeCodeExtension/
 │   ├── SKILLS.md                        # Step-by-step task recipes (release, Exp debugging, publish, add provider/setting/UI file)
 │   ├── AGENTS.md                        # Short instructions file for non-Claude agents
 │   └── images/                          # README screenshots (linked by raw GitHub URL so the Marketplace page resolves them)
+├── tools/repo-watcher/                  # Scheduled PR/issue watcher (gh check, then unattended Claude Code); see docs/SKILLS.md
 ├── Properties/AssemblyInfo.cs           # AssemblyVersion/FileVersion (bumped every release) + InternalsVisibleTo for Tests
 ├── Root (project metadata only):
 │   ├── ClaudeCodeExtensionPackage.vsct  # Command table

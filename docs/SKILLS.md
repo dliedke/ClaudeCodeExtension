@@ -22,6 +22,7 @@ Where things live:
 | Build and run the fast checks | [Build & test](#build--test) |
 | See a change running in real VS | [Debug in the Exp hive](#debug-in-the-exp-hive) |
 | Push to the marketplace | [Publish](#publish) |
+| Auto-handle new PRs and issues | [Watch PRs and issues](#watch-prs-and-issues) |
 | Wire up another AI CLI | [Add a new AI provider](#add-a-new-ai-provider) |
 | Add a persisted option | [Add a new setting](#add-a-new-setting) |
 | Add a XAML control or partial class | [Add a new UI file](#add-a-new-ui-file) |
@@ -137,6 +138,48 @@ free, Q&A enabled, README.md as the overview.
 
 Publishing is outward-facing and hard to reverse — confirm with the user before running it
 unless they just asked for it.
+
+---
+
+## Watch PRs and issues
+
+Two Windows scheduled tasks poll the GitHub repo every 10 minutes and hand new work to Claude
+Code (Opus, high effort) running unattended. Scripts live in `tools/repo-watcher/`.
+
+```powershell
+.\tools\repo-watcher\Install-RepoWatcher.ps1              # install / update both tasks
+.\tools\repo-watcher\Install-RepoWatcher.ps1 -Minutes 15  # other interval
+.\tools\repo-watcher\Install-RepoWatcher.ps1 -Uninstall   # remove the tasks
+```
+
+Prerequisites: `claude` and `gh` on PATH, `gh auth login` done, and this machine able to run
+`publish.cmd` (VS + Marketplace credentials). The tasks run only while you're signed in.
+
+- **No tokens when idle.** `Watch-Repo.ps1` lists open PRs/issues with `gh` and only starts
+  `claude -p --model opus --effort high --permission-mode bypassPermissions` when something is
+  unhandled. The agent follows `prompt-pr.md` or `prompt-issue.md`.
+- **PRs**: review the diff (unsafe ones are skipped and left open) → merge → version bump +
+  README credit → `test.cmd` → `publish.cmd` → push → thank and close.
+- **Issues**: questions are answered, unclear bugs get a request for details, large features are
+  deferred with a comment; clear bugs and small features are fixed on master, released,
+  published, and the issue is replied to and closed.
+- **Handled once.** `state-pr.json` (keyed by PR number + head commit, so new pushes are
+  re-reviewed) and `state-issue.json` (keyed by issue number). A run that fails is retried up
+  to 3 times. To re-run an item, delete its key from the state file.
+- **Repo busy = wait.** A run is skipped while the clone is off `master` or has uncommitted
+  changes, so the watcher never commits your work in progress. PR and issue runs share one lock.
+- **Installed copy.** The installer copies the scripts to `%USERPROFILE%\.claude\repo-watcher`
+  and the tasks run that copy, so a merged PR can't change what the agent runs. Re-run the
+  installer after editing anything in `tools/repo-watcher/`.
+
+Check activity in `%USERPROFILE%\.claude\repo-watcher\logs\watcher.log` (one line per run that
+found work) and the `run-<kind>-<time>.log` files (Claude's summary for each run).
+
+Gotchas: Windows PowerShell 5.1 turns `gh`'s empty `[]` into one blank object, so the script
+filters items without a number. Without that filter, Claude starts on every tick. Issue text
+is untrusted input to an agent with push and publish rights; both prompts tell it to ignore
+embedded instructions and to leave anything that touches scripts, CI, secrets or network calls
+for you.
 
 ---
 
