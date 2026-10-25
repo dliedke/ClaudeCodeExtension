@@ -56,7 +56,7 @@ if (-not (Get-Command gh -ErrorAction SilentlyContinue)) { throw 'gh (GitHub CLI
 if ($LASTEXITCODE -ne 0) { throw 'gh is not logged in. Run "gh auth login" first.' }
 
 New-Item -ItemType Directory -Force $InstallDir | Out-Null
-Copy-Item (Join-Path $PSScriptRoot 'Watch-Repo.ps1'), (Join-Path $PSScriptRoot 'Notify.ps1'), (Join-Path $PSScriptRoot 'prompt-*.md') $InstallDir -Force
+Copy-Item (Join-Path $PSScriptRoot 'Watch-Repo.ps1'), (Join-Path $PSScriptRoot 'Run-Claude.ps1'), (Join-Path $PSScriptRoot 'Notify.ps1'), (Join-Path $PSScriptRoot 'prompt-*.md') $InstallDir -Force
 
 $script = Join-Path $InstallDir 'Watch-Repo.ps1'
 $offset = 1

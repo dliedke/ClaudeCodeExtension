@@ -156,9 +156,13 @@ Code (Opus, high effort) running unattended. Scripts live in `tools/repo-watcher
 Prerequisites: `claude` and `gh` on PATH, `gh auth login` done, and this machine able to run
 `publish.cmd` (VS + Marketplace credentials). The tasks run only while you're signed in.
 
-- **No tokens when idle.** `Watch-Repo.ps1` lists open PRs/issues with `gh` and only starts
-  `claude -p --model opus --effort high --permission-mode bypassPermissions` when something is
-  unhandled. The agent follows `prompt-pr.md` or `prompt-issue.md`.
+- **No tokens when idle.** `Watch-Repo.ps1` (hidden) lists open PRs/issues with `gh` and only
+  starts `claude -p --model opus --effort high --permission-mode bypassPermissions` when
+  something is unhandled. The agent follows `prompt-pr.md` or `prompt-issue.md`.
+- **Visible while working.** The Claude run gets its own console window (`Run-Claude.ps1`),
+  titled "Claude repo watcher - PR #N - do not shut down". It streams Claude's steps live and
+  keeps the PC from sleeping. It ends with a green "safe to shut down" or a red failure banner
+  and closes 5 minutes later (or on a key press). The lock is held until the window closes.
 - **PRs**: review the diff (unsafe ones are skipped and left open) → merge → version bump +
   README credit → `test.cmd` → `publish.cmd` → push → thank and close.
 - **Issues**: questions are answered, unclear bugs get a request for details, large features are

@@ -119,12 +119,17 @@ When you are done, write a JSON array with one entry per item to $resultFile, fo
 outcome is one of: merged, fixed, answered, asked-for-details, deferred, skipped-unsafe, failed.
 version is the published version, or null when nothing was published.
 "@
-    Push-Location $RepoDir
-    try {
-        $text | & $Claude -p --model opus --effort high --permission-mode bypassPermissions *>&1 |
-            Out-File -FilePath $runLog -Encoding utf8
-        $exit = $LASTEXITCODE
-    } finally { Pop-Location }
+    $promptFile = [IO.Path]::ChangeExtension($runLog, '.prompt.md')
+    Set-Content $promptFile $text -Encoding utf8
+
+    # This script runs hidden; the Claude run gets its own visible console window so you can see
+    # it working (and don't shut down mid-publish). -Wait keeps the lock until the window closes.
+    $title = "$(if ($Kind -eq 'pr') { 'PR' } else { 'issue' }) $numbers"
+    $runArgs = "-NoProfile -ExecutionPolicy Bypass -File `"$(Join-Path $Root 'Run-Claude.ps1')`" " +
+               "-Claude `"$Claude`" -PromptFile `"$promptFile`" -RunLog `"$runLog`" -Title `"$title`""
+    $proc = Start-Process powershell.exe -ArgumentList $runArgs -WorkingDirectory $RepoDir -Wait -PassThru
+    $exit = $proc.ExitCode
+    Remove-Item $promptFile -Force -ErrorAction SilentlyContinue
 
     foreach ($item in $pending) {
         $key = Get-Key $item
