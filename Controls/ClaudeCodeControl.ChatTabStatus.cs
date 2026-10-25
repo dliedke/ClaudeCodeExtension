@@ -143,6 +143,8 @@ namespace ClaudeCodeVS
         /// <summary>The caption text for a tab: the status glyph (when on) in front of the base caption.</summary>
         private string DecorateChatTabCaption(NativeChatSessionState session, string caption)
         {
+            ThreadHelper.ThrowIfNotOnUIThread();
+
             if (_settings?.ShowChatTabStatus == false)
             {
                 return caption;
@@ -185,6 +187,8 @@ namespace ClaudeCodeVS
         /// </summary>
         private void EnsureWorkingTabAnimation()
         {
+            ThreadHelper.ThrowIfNotOnUIThread();
+
             if (!IsWorkingTabIconAnimated)
             {
                 return;
@@ -193,7 +197,12 @@ namespace ClaudeCodeVS
             if (_workingTabTimer == null)
             {
                 _workingTabTimer = new System.Windows.Threading.DispatcherTimer { Interval = WorkingTabFrameInterval };
-                _workingTabTimer.Tick += delegate { AdvanceWorkingTabAnimation(); };
+                // DispatcherTimer ticks on the thread that created it: the UI thread.
+                _workingTabTimer.Tick += delegate
+                {
+                    ThreadHelper.ThrowIfNotOnUIThread();
+                    AdvanceWorkingTabAnimation();
+                };
             }
 
             if (!_workingTabTimer.IsEnabled)

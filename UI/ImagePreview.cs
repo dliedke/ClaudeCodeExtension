@@ -136,6 +136,7 @@ namespace ClaudeCodeVS.UI
                 if (loadStarted) return;
                 loadStarted = true;
 
+#pragma warning disable VSSDK007, VSTHRD110 // Fire and forget: FileAndForget is the handler
                 ThreadHelper.JoinableTaskFactory.RunAsync(async () =>
                 {
                     BitmapImage full = await Task.Run(() => LoadBitmap(path, PreviewDecodeWidth));
@@ -150,6 +151,7 @@ namespace ClaudeCodeVS.UI
 
                     preview.Source = full;
                 }).FileAndForget("claudecode/imagepreview/load");
+#pragma warning restore VSSDK007, VSTHRD110
             }
 
             target.ToolTip = new ToolTip { Content = preview };

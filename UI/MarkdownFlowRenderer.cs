@@ -1074,9 +1074,13 @@ namespace ClaudeCodeVS.UI
         {
             // A document assignment is laid out on the next pass; scrolling now would clamp the
             // offset against the previous document's extent. Apply it after the layout pass.
-            Dispatcher.BeginInvoke(
+            // The VS threading helpers cannot express a dispatcher priority, and the caller is already on
+            // the UI thread, so the WPF dispatcher is the right tool here.
+#pragma warning disable VSTHRD001, VSTHRD110
+            _ = Dispatcher.BeginInvoke(
                 new Action(() => FindScrollViewer()?.ScrollToVerticalOffset(offset)),
                 System.Windows.Threading.DispatcherPriority.Loaded);
+#pragma warning restore VSTHRD001, VSTHRD110
         }
 
         public void ScrollToHome()
