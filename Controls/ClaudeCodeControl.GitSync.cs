@@ -212,7 +212,7 @@ namespace ClaudeCodeVS
                     return null;
 
                 transcript.BeginActivity();
-                transcript.SetActivityLabel("Pulling latest changes from git…");
+                transcript.SetActivityLabel(Loc.L("Pulling latest changes from git…"));
                 return transcript;
             }
             catch (Exception ex)
@@ -617,18 +617,19 @@ namespace ClaudeCodeVS
                 {
                     Kind = GitPullOutcomeKind.Failed,
                     PullExecuted = true,
-                    Notice = "Auto-pull skipped: " + SummarizeGitFailure(stdErr, stdOut)
+                    Notice = Loc.L("Auto-pull skipped: {0}", SummarizeGitFailure(stdErr, stdOut))
                 };
             }
 
             if (headMoved)
             {
-                string target = string.IsNullOrWhiteSpace(upstreamName) ? "the remote" : upstreamName;
                 return new GitPullOutcome
                 {
                     Kind = GitPullOutcomeKind.Updated,
                     PullExecuted = true,
-                    Notice = $"Pulled the latest changes from {target} before sending."
+                    Notice = string.IsNullOrWhiteSpace(upstreamName)
+                        ? Loc.L("Pulled the latest changes from the remote before sending.")
+                        : Loc.L("Pulled the latest changes from {0} before sending.", upstreamName)
                 };
             }
 
@@ -640,7 +641,7 @@ namespace ClaudeCodeVS
         {
             string text = !string.IsNullOrWhiteSpace(stdErr) ? stdErr : stdOut;
             if (string.IsNullOrWhiteSpace(text))
-                return "git pull did not complete.";
+                return Loc.L("git pull did not complete.");
 
             // git's own first error line is the useful one; the rest is usually advice.
             string line = text
@@ -649,7 +650,7 @@ namespace ClaudeCodeVS
                 .FirstOrDefault(l => l.Length > 0 && !l.StartsWith("hint:", StringComparison.OrdinalIgnoreCase));
 
             if (string.IsNullOrWhiteSpace(line))
-                return "git pull did not complete.";
+                return Loc.L("git pull did not complete.");
 
             // Strip git's "error: " / "fatal: " prefix so the notice reads as a sentence.
             foreach (string prefix in new[] { "error: ", "fatal: ", "warning: " })
@@ -669,14 +670,14 @@ namespace ClaudeCodeVS
         private static string BuildConflictNotice(List<string> conflictedFiles, bool mergeInProgress, bool pulled)
         {
             int count = conflictedFiles?.Count ?? 0;
-            string files = count == 1 ? "1 file" : $"{count} files";
+            string files = count == 1 ? Loc.L("1 file") : Loc.L("{0} files", count);
 
             if (!pulled)
-                return $"An unresolved conflict is still open in {files} — asking the agent to finish it first.";
+                return Loc.L("An unresolved conflict is still open in {0} — asking the agent to finish it first.", files);
 
             return mergeInProgress
-                ? $"Auto-pull hit merge conflicts in {files} — asking the agent to resolve them first."
-                : $"Auto-pull succeeded, but restoring your uncommitted changes conflicted in {files} — asking the agent to resolve them first.";
+                ? Loc.L("Auto-pull hit merge conflicts in {0} — asking the agent to resolve them first.", files)
+                : Loc.L("Auto-pull succeeded, but restoring your uncommitted changes conflicted in {0} — asking the agent to resolve them first.", files);
         }
 
         /// <summary>True when `git stash list` output contains an autostash entry.</summary>

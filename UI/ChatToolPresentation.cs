@@ -18,6 +18,7 @@ using DiffPlex;
 using DiffPlex.DiffBuilder;
 using DiffPlex.DiffBuilder.Model;
 using Newtonsoft.Json.Linq;
+using static ClaudeCodeVS.UI.Loc;
 
 namespace ClaudeCodeVS.UI
 {
@@ -281,12 +282,12 @@ namespace ClaudeCodeVS.UI
 
                 case "exitplanmode":
                     result.Category = ChatToolCategory.Agent;
-                    result.Subtitle = "Plan ready for review";
+                    result.Subtitle = L("Plan ready for review");
                     return;
 
                 case "askuserquestion":
                     result.Category = ChatToolCategory.Agent;
-                    result.Subtitle = "Waiting for your answer";
+                    result.Subtitle = L("Waiting for your answer");
                     return;
 
                 default:
@@ -405,7 +406,7 @@ namespace ClaudeCodeVS.UI
                 {
                     Kind = ChatDiffKind.Separator,
                     Marker = string.Empty,
-                    Text = "Edit " + index + " of " + edits.Count
+                    Text = L("Edit {0} of {1}", index, edits.Count)
                 });
 
                 int added, removed;
@@ -480,7 +481,7 @@ namespace ClaudeCodeVS.UI
                     {
                         Kind = ChatDiffKind.Separator,
                         Marker = string.Empty,
-                        Text = "⋯ diff truncated"
+                        Text = L("⋯ diff truncated")
                     });
                     break;
                 }
@@ -537,7 +538,7 @@ namespace ClaudeCodeVS.UI
             JArray todos = input?["todos"] as JArray;
             if (todos == null || todos.Count == 0)
             {
-                result.Subtitle = "Task list updated";
+                result.Subtitle = L("Task list updated");
                 return;
             }
 
@@ -561,7 +562,7 @@ namespace ClaudeCodeVS.UI
                 }
             }
 
-            result.Subtitle = string.IsNullOrEmpty(active) ? "Task list updated" : Flatten(active);
+            result.Subtitle = string.IsNullOrEmpty(active) ? L("Task list updated") : Flatten(active);
             result.Badge = done + "/" + todos.Count;
         }
 
@@ -579,9 +580,9 @@ namespace ClaudeCodeVS.UI
             int start;
             int count;
             if (!int.TryParse(offset, out start)) start = 1;
-            if (!int.TryParse(limit, out count) || count <= 0) return "from " + start;
+            if (!int.TryParse(limit, out count) || count <= 0) return L("from {0}", start);
 
-            return "lines " + start + "-" + (start + count - 1);
+            return L("lines {0}-{1}", start, start + count - 1);
         }
 
         private static JObject TryParse(string json)

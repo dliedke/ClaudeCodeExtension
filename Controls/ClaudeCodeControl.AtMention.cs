@@ -265,7 +265,7 @@ namespace ClaudeCodeVS
         {
             EnsureAtPopup(target);
             target.SlashMode = false;
-            target.ListBox.ItemsSource = new List<string> { "Indexing workspace…" };
+            target.ListBox.ItemsSource = new List<string> { UI.Loc.L("Indexing workspace…") };
             target.ListBox.SelectedIndex = -1;
             if (!target.Popup.IsOpen)
             {

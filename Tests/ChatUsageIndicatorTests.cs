@@ -74,6 +74,15 @@ namespace ClaudeCodeExtension.Tests
         }
 
         [TestMethod]
+        public void PlanRowTextDropsIconFontGlyphs()
+        {
+            // A reset column that held only a claude.ai icon (Private Use Area) was shown as a box.
+            Assert.AreEqual("19% used", ChatUsageIndicator.PlanRowText(19, ""));
+            Assert.AreEqual("19% used · Resets Fri", ChatUsageIndicator.PlanRowText(19, " Resets Fri"));
+            Assert.AreEqual(string.Empty, ChatUsageIndicator.StripIconGlyphs(null));
+        }
+
+        [TestMethod]
         public void ArcPointStartsAtTwelveAndRunsClockwise()
         {
             Point quarter = ChatUsageIndicator.ArcPoint(0.25, 7, 6);

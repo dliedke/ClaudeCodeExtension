@@ -162,6 +162,13 @@ namespace ClaudeCodeVS.Agents
 
             _workingDirectory = workingDirectory ?? string.Empty;
 
+            // A reopened chat tab: the first SendAsync launches the CLI (EnsureRunningAsync, with
+            // --resume), so nothing runs until the user actually talks to this conversation.
+            if (_options.DeferLaunch)
+            {
+                return;
+            }
+
             await _launchLock.WaitAsync(cancellationToken).ConfigureAwait(false);
             try
             {

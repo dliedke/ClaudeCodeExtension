@@ -18,6 +18,7 @@ using System.Diagnostics;
 using System.Text;
 using System.Windows.Media;
 using System.Windows.Threading;
+using static ClaudeCodeVS.UI.Loc;
 
 namespace ClaudeCodeVS.UI
 {
@@ -89,7 +90,7 @@ namespace ClaudeCodeVS.UI
         /// </summary>
         public static string Tokens(int inputTokens, int outputTokens)
         {
-            return string.Format("{0:N0} tokens", Math.Max(0, inputTokens) + Math.Max(0, outputTokens));
+            return L("{0:N0} tokens", Math.Max(0, inputTokens) + Math.Max(0, outputTokens));
         }
 
         /// <summary>
@@ -103,7 +104,7 @@ namespace ClaudeCodeVS.UI
             int safeOutput = Math.Max(0, outputTokens);
             int safeCached = Math.Min(safeInput, Math.Max(0, cachedInputTokens));
 
-            return string.Format(
+            return L(
                 "{0:N0} processed · {1:N0} cached input · {2:N0} output",
                 safeInput + safeOutput,
                 safeCached,
@@ -186,7 +187,47 @@ namespace ClaudeCodeVS.UI
                 _bufferAhead = false;
                 CancelTextNotification();
                 Set(ref _text, value ?? string.Empty, nameof(Text));
+
+                if (IsUser)
+                {
+                    RaisePropertyChanged(nameof(DisplayText));
+                    RaisePropertyChanged(nameof(AttachedFiles));
+                }
             }
+        }
+
+        private string _splitSource;
+        private PromptAttachments _split;
+
+        /// <summary>
+        /// A prompt's text and its attachments, split once per text. A user row shows the files as
+        /// thumbnails, so its bubble leaves the "Files attached:" list out; other rows are never split.
+        /// </summary>
+        private PromptAttachments SplitPrompt
+        {
+            get
+            {
+                string text = Text;
+                if (_split == null || !ReferenceEquals(_splitSource, text))
+                {
+                    _split = PromptAttachments.Split(text);
+                    _splitSource = text;
+                }
+
+                return _split;
+            }
+        }
+
+        /// <summary>The bubble text of a user row: the prompt without its attachment list.</summary>
+        public string DisplayText
+        {
+            get { return IsUser ? SplitPrompt.Body : Text; }
+        }
+
+        /// <summary>Files sent with a user prompt, shown as thumbnails above its text. Empty otherwise.</summary>
+        public IReadOnlyList<string> AttachedFiles
+        {
+            get { return IsUser ? SplitPrompt.Files : (IReadOnlyList<string>)new string[0]; }
         }
 
         /// <summary>

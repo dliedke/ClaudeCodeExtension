@@ -525,6 +525,55 @@ namespace ClaudeCodeVS
                 _settings.ShowChatTokenCounts, themeFg);
             layoutStack.Children.Add(showTokenCountsCheck);
 
+            var plainWorkingStatusCheck = MakeCheckBox(
+                "Plain working status (always \"Thinking…\")",
+                "While the agent works, the status line always says \"Thinking…\" instead of rotating through playful words like \"Pondering…\" or \"Noodling…\". The spinner and the clock still show it is working.",
+                _settings.PlainChatWorkingStatus, themeFg);
+            layoutStack.Children.Add(plainWorkingStatusCheck);
+
+            var compactToolbarCheck = MakeCheckBox(
+                "Compact chat toolbar (inside the message box)",
+                "The chat toolbar moves inside the message box, under the text, as in most chat apps: restart, rename, color and attach are grouped in the ⋯ menu after ✚ new chat, the model, effort and permission selectors follow, and custom commands, tools and settings sit at the right end.",
+                _settings.CompactChatToolbar, themeFg);
+            layoutStack.Children.Add(compactToolbarCheck);
+
+            var chatLanguageRow = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(4, 4, 0, 4) };
+            chatLanguageRow.Children.Add(new TextBlock
+            {
+                Text = "Chat language:",
+                Foreground = themeFg,
+                VerticalAlignment = VerticalAlignment.Center,
+                Margin = new Thickness(0, 0, 8, 0)
+            });
+            var chatLanguageCombo = MakeThemedComboBox(comboRes, themeFg);
+            chatLanguageCombo.Width = 220;
+            chatLanguageCombo.ToolTip = MakeToolTip(
+                "Language of the chat tab (toolbar, menus, status, cards). Automatic follows the Visual Studio language. " +
+                "Add or correct a language by putting a <code>.json file in " + UI.Loc.UserLanguageFolder + ". " +
+                "Applies to chats opened afterwards; the Settings windows stay in English.");
+            var languageChoices = new List<(string Code, string Label)>
+            {
+                (UI.Loc.AutomaticLanguage, "Automatic (Visual Studio language)"),
+                (UI.Loc.EnglishLanguage, "English")
+            };
+            foreach (string code in UI.Loc.AvailableLanguages())
+            {
+                if (!string.Equals(code, UI.Loc.EnglishLanguage, StringComparison.OrdinalIgnoreCase))
+                {
+                    languageChoices.Add((code, UI.Loc.DisplayName(code)));
+                }
+            }
+            string origChatLanguage = string.IsNullOrWhiteSpace(_settings.ChatLanguage) ? UI.Loc.AutomaticLanguage : _settings.ChatLanguage;
+            foreach (var (code, label) in languageChoices)
+            {
+                var item = new ComboBoxItem { Content = label, Tag = code };
+                if (comboRes["cbi"] is Style cbiStyle) item.Style = cbiStyle;
+                if (string.Equals(code, origChatLanguage, StringComparison.OrdinalIgnoreCase)) item.IsSelected = true;
+                chatLanguageCombo.Items.Add(item);
+            }
+            chatLanguageRow.Children.Add(chatLanguageCombo);
+            layoutStack.Children.Add(chatLanguageRow);
+
             layoutStack.Children.Add(MakeSectionHeader("Chat icons (native mode)", themeFg));
             var classicIconsRadio = MakeRadioButton("Classic — text symbols and emoji",
                 _settings.ChatIconStyle != ChatIconStyle.Modern, themeFg, "chatIconStyle");
@@ -573,6 +622,16 @@ namespace ClaudeCodeVS
                 "When enabled, the panel shows the conversation with the agent as a chat, driven by the agent's own structured protocol instead of a console window. Answers stream in, tool calls and their results are shown as collapsible cards, and token usage and cost are reported for each turn.\n\nAgents without a structured channel keep using the embedded terminal automatically. The terminal settings below apply only when the terminal is in use.",
                 _settings.UseNativeMode, themeFg);
             terminalStack.Children.Add(nativeModeCheck);
+
+            var reopenChatTabsCheck = MakeCheckBox(
+                "Reopen chat tabs when the solution opens",
+                "The chat tabs open when you closed the solution or Visual Studio come back the next time you open it, each continuing its conversation with the earlier messages shown. A reopened tab starts its agent only when you send it a message. Claude Code, Codex and Devin only. A tab you close yourself is not reopened; Session History still has it.",
+                _settings.ReopenChatTabsOnSolutionOpen, themeFg);
+            reopenChatTabsCheck.Margin = new Thickness(20, reopenChatTabsCheck.Margin.Top, reopenChatTabsCheck.Margin.Right, reopenChatTabsCheck.Margin.Bottom);
+            reopenChatTabsCheck.IsEnabled = nativeModeCheck.IsChecked == true;
+            nativeModeCheck.Checked += (s, e) => reopenChatTabsCheck.IsEnabled = true;
+            nativeModeCheck.Unchecked += (s, e) => reopenChatTabsCheck.IsEnabled = false;
+            terminalStack.Children.Add(reopenChatTabsCheck);
 
             terminalStack.Children.Add(MakeSectionHeader("Terminal type", themeFg));
             var cmdRadio = MakeRadioButton("Command Prompt (default)",
@@ -1522,6 +1581,13 @@ namespace ClaudeCodeVS
             _settings.AutoHidePanelInNativeMode = newAutoHidePanelInNative;
             _settings.SelectedTerminalType    = newTerminalType;
             _settings.UseNativeMode           = newUseNativeMode;
+
+            // Turned off: forget the remembered tabs, so turning it back on never reopens a stale list.
+            _settings.ReopenChatTabsOnSolutionOpen = reopenChatTabsCheck.IsChecked == true;
+            if (!_settings.ReopenChatTabsOnSolutionOpen)
+            {
+                _settings.WorkspaceChatTabs?.Clear();
+            }
             _settings.ToolbarButtonsRightAligned = newToolbarRightAligned;
             _settings.ConsoleFontFaceName     = newConsoleFont;
             _settings.ConsoleFontSizePt       = newConsoleFontSize;
@@ -1571,11 +1637,26 @@ namespace ClaudeCodeVS
             _settings.AutoTitleChatTabs       = autoTitleCheck.IsChecked == true;
             _settings.AutoTitleChatTabsWithAi = autoTitleAiCheck.IsChecked == true;
             _settings.ShowChatTokenCounts     = showTokenCountsCheck.IsChecked == true;
+            _settings.PlainChatWorkingStatus  = plainWorkingStatusCheck.IsChecked == true;
+            UI.ChatTranscriptView.PlainWorkingStatus = _settings.PlainChatWorkingStatus;
+
+            // The language reaches chats opened from now on; the XAML of open ones is already built.
+            string newChatLanguage = (chatLanguageCombo.SelectedItem as ComboBoxItem)?.Tag as string ?? origChatLanguage;
+            if (!string.Equals(newChatLanguage, origChatLanguage, StringComparison.OrdinalIgnoreCase))
+            {
+                _settings.ChatLanguage = newChatLanguage;
+                ApplyChatLanguage();
+            }
             _settings.ChatIconStyle           = newChatIconStyle;
             _settings.ChatWorkingTabIcon      = newWorkingTabIcon;
-            if (chatIconStyleChanged)
+            bool compactToolbarChanged = (compactToolbarCheck.IsChecked == true) != _settings.CompactChatToolbar;
+            _settings.CompactChatToolbar = compactToolbarCheck.IsChecked == true;
+            if (chatIconStyleChanged || compactToolbarChanged)
             {
                 ApplyChatIconStyle();
+            }
+            if (chatIconStyleChanged)
+            {
                 RefreshAllAttachmentChips();
             }
             _settings.UsageAutoRefreshSeconds = newAutoRefresh;

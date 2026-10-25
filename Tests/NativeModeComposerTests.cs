@@ -29,6 +29,41 @@ namespace ClaudeCodeExtension.Tests
     public class NativeModeComposerTests
     {
         [TestMethod]
+        public void CompactChatToolbar_IsOffByDefault()
+        {
+            Assert.IsFalse(new ClaudeCodeSettings().CompactChatToolbar);
+        }
+
+        [TestMethod]
+        public void AgentSelector_SingleAgent_IsHidden()
+        {
+            Assert.IsFalse(ClaudeCodeControl.ShouldShowChatProviderSelector(new[] { AiProvider.ClaudeCode }, AiProvider.ClaudeCode));
+            Assert.IsFalse(ClaudeCodeControl.ShouldShowChatProviderSelector(null, AiProvider.ClaudeCode));
+            Assert.IsFalse(ClaudeCodeControl.ShouldShowChatProviderSelector(new AiProvider[0], null));
+        }
+
+        [TestMethod]
+        public void AgentSelector_TwoChatAgents_IsShown()
+        {
+            Assert.IsTrue(ClaudeCodeControl.ShouldShowChatProviderSelector(
+                new[] { AiProvider.ClaudeCode, AiProvider.CodexNative }, AiProvider.ClaudeCode));
+        }
+
+        [TestMethod]
+        public void AgentSelector_SecondAgentWithoutChat_DoesNotCount()
+        {
+            // Reasonix always runs in the terminal, so the chat's menu would still list one agent.
+            Assert.IsFalse(ClaudeCodeControl.ShouldShowChatProviderSelector(
+                new[] { AiProvider.ClaudeCode, AiProvider.Reasonix }, AiProvider.ClaudeCode));
+        }
+
+        [TestMethod]
+        public void AgentSelector_RunningAgentOutsideTheList_StaysShownForTheWayBack()
+        {
+            Assert.IsTrue(ClaudeCodeControl.ShouldShowChatProviderSelector(new[] { AiProvider.ClaudeCode }, AiProvider.CodexNative));
+        }
+
+        [TestMethod]
         public void ResolveComposerMode_OutsideNativeMode_IsHiddenRegardlessOfTabState()
         {
             Assert.AreEqual(ChatTranscriptView.ComposerMode.Hidden, ClaudeCodeControl.ResolveComposerMode(false, false));

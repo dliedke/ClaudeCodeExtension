@@ -146,6 +146,7 @@ namespace ClaudeCodeVS
                 Interlocked.Increment(ref _workspaceRefreshRequestId);
                 ThreadHelper.ThrowIfNotOnUIThread();
                 _control?.ResetAgentCompletionWatcher();
+                _control?.RecordChatTabsBeforeClose();
             }
             catch (Exception ex)
             {
@@ -205,6 +206,7 @@ namespace ClaudeCodeVS
                 Interlocked.Increment(ref _workspaceRefreshRequestId);
                 ThreadHelper.ThrowIfNotOnUIThread();
                 _control?.ResetAgentCompletionWatcher();
+                _control?.RecordChatTabsBeforeClose();
             }
             catch (Exception ex)
             {

@@ -124,6 +124,42 @@ namespace ClaudeCodeVS
         /// <summary>
         /// Loads settings from the configuration file
         /// </summary>
+        /// <summary>Loads the native chat's UI language (<see cref="ClaudeCodeSettings.ChatLanguage"/>).</summary>
+        private void ApplyChatLanguage()
+        {
+            try
+            {
+                UI.Loc.SetLanguage(_settings?.ChatLanguage);
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"Chat language load failed, staying in English: {ex.Message}");
+                UI.Loc.SetLanguage(UI.Loc.EnglishLanguage);
+            }
+        }
+
+        /// <summary>
+        /// Reads only <see cref="ClaudeCodeSettings.ChatLanguage"/> straight from the settings file, for
+        /// the constructor: the full <see cref="LoadSettings"/> runs after the XAML is already built.
+        /// </summary>
+        private static void ApplyChatLanguageFromSettingsFile()
+        {
+            try
+            {
+                string language = null;
+                if (File.Exists(ConfigurationPath))
+                {
+                    language = (string)Newtonsoft.Json.Linq.JObject.Parse(File.ReadAllText(ConfigurationPath))["ChatLanguage"];
+                }
+
+                UI.Loc.SetLanguage(language);
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"Early chat language load failed: {ex.Message}");
+            }
+        }
+
         private void LoadSettings()
         {
             try
@@ -209,6 +245,10 @@ namespace ClaudeCodeVS
                     // Save the default settings to create the file
                     SaveDefaultSettings();
                 }
+
+                // Before any chat UI is built: the transcript's XAML reads its text on construction.
+                ApplyChatLanguage();
+                UI.ChatTranscriptView.PlainWorkingStatus = _settings.PlainChatWorkingStatus;
 
                 double restoredPosition = ResolveRestoredSplitterPosition(_settings.SplitterPosition);
                 if (restoredPosition > 0)

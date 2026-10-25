@@ -457,12 +457,12 @@ namespace ClaudeCodeVS
 
         private static string BuildSubagentTooltip(IReadOnlyList<RunningSubagent> running)
         {
-            var tip = new StringBuilder(running.Count == 1 ? "1 active subagent" : running.Count + " active subagents");
+            var tip = new StringBuilder(running.Count == 1 ? Loc.L("1 active subagent") : Loc.L("{0} active subagents", running.Count));
             foreach (RunningSubagent agent in running)
             {
-                string label = string.IsNullOrWhiteSpace(agent.AgentType) ? "Agent" : agent.AgentType;
+                string label = string.IsNullOrWhiteSpace(agent.AgentType) ? Loc.L("Agent") : agent.AgentType;
                 if (!string.IsNullOrWhiteSpace(agent.Description)) label += " — " + agent.Description;
-                if (agent.IsBackground) label += " (background)";
+                if (agent.IsBackground) label += Loc.L(" (background)");
                 tip.Append("\n• ").Append(label);
             }
             return tip.ToString();

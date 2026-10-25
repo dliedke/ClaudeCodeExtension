@@ -822,7 +822,8 @@ namespace ClaudeCodeVS
     let reset = '';
     const secondaries = labelColumn.querySelectorAll('.text-secondary, .text-footnote, .text-neutral-500');
     for (const s of secondaries) {
-      const t = (s.textContent || '').trim();
+      // Icon-font glyphs (Private Use Area) are not text: alone they render as a box in VS.
+      const t = (s.textContent || '').replace(/[-]/g, '').trim();
       if (t && t !== label) { reset = t; break; }
     }
     return { label: label, reset: reset };

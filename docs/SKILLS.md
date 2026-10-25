@@ -26,6 +26,7 @@ Where things live:
 | Wire up another AI CLI | [Add a new AI provider](#add-a-new-ai-provider) |
 | Add a persisted option | [Add a new setting](#add-a-new-setting) |
 | Add a XAML control or partial class | [Add a new UI file](#add-a-new-ui-file) |
+| Add chat UI text or a new language | [Localize chat text](#localize-chat-text) |
 | Send text to the agent / touch provider UI / focus the terminal | [Pre-flight gates](#pre-flight-gates) |
 | Know which doc to update | [Keep docs in sync](#keep-docs-in-sync) |
 
@@ -274,6 +275,24 @@ Every `.cs` file needs the copyright header:
 ```
 
 Namespaces: `ClaudeCodeVS` for controls/models, `ClaudeCodeExtension` for the package.
+
+---
+
+## Localize chat text
+
+Scope: the native chat tab only (transcript, composer, status line, cards, usage popup). Settings
+dialogs and the panel stay English.
+
+1. Write the English text wrapped: `L("Turn interrupted.")`, `L("Done in {0}", d)` (formats with
+   the chat language's culture), XAML `{local:Loc 'Jump to the latest message'}` (escape `'` as `\'`).
+   Static lists translated when shown: mark entries `N("...")`, call `L(entry)` at display time.
+   Needs `using static ClaudeCodeVS.UI.Loc;`.
+2. Never wrap text sent to the agent/CLI, slash commands, tool/provider/model names, log text or
+   strings the code compares.
+3. Add the translation to `lang/it.json` (missing ones just show English). `test.cmd` reports
+   untranslated/orphaned keys as Inconclusive and fails only on mismatched `{n}` placeholders.
+4. New language: add `lang/<culture>.json` + an `<EmbeddedResource>` line in the csproj, or drop the
+   file in `%LocalAppData%\ClaudeCodeExtension\lang` (no rebuild; also overrides embedded entries).
 
 ---
 

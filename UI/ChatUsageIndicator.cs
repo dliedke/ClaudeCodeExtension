@@ -12,6 +12,7 @@
 
 using System;
 using System.Globalization;
+using System.Text;
 using System.Windows;
 using System.Windows.Media;
 
@@ -100,7 +101,7 @@ namespace ClaudeCodeVS.UI
         /// <summary>"41% used · Resets in 2 h"; blank details are skipped, so a missing reset leaves just the percentage.</summary>
         public static string PlanRowText(int percent, params string[] details)
         {
-            string text = ClampPercent(percent).ToString(CultureInfo.InvariantCulture) + "% used";
+            string text = Loc.L("{0}% used", ClampPercent(percent));
             if (details == null)
             {
                 return text;
@@ -108,13 +109,37 @@ namespace ClaudeCodeVS.UI
 
             foreach (string detail in details)
             {
-                if (!string.IsNullOrWhiteSpace(detail))
+                string clean = StripIconGlyphs(detail).Trim();
+                if (clean.Length > 0)
                 {
-                    text += " · " + detail.Trim();
+                    text += " · " + clean;
                 }
             }
 
             return text;
+        }
+
+        /// <summary>
+        /// Drops Private Use Area characters: claude.ai draws some icons with an icon font, and a snapshot
+        /// scraped before the page filter existed can hold one where the reset text belongs (a box in VS).
+        /// </summary>
+        public static string StripIconGlyphs(string text)
+        {
+            if (string.IsNullOrEmpty(text))
+            {
+                return string.Empty;
+            }
+
+            var sb = new StringBuilder(text.Length);
+            foreach (char c in text)
+            {
+                if (c < '' || c > '')
+                {
+                    sb.Append(c);
+                }
+            }
+
+            return sb.ToString();
         }
 
         /// <summary>

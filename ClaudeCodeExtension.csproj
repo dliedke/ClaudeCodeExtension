@@ -125,6 +125,7 @@
     <Compile Include="Controls\ClaudeCodeControl.NativeChat.cs" />
     <Compile Include="Controls\ClaudeCodeControl.ChatUsageIndicator.cs" />
     <Compile Include="Controls\ClaudeCodeControl.ChatTabStatus.cs" />
+    <Compile Include="Controls\ClaudeCodeControl.ChatTabRestore.cs" />
     <Compile Include="Models\ClaudeCodeModels.cs" />
     <Compile Include="Models\NativeChatSessionState.cs" />
     <Compile Include="UI\ChatMessages.cs" />
@@ -135,6 +136,10 @@
     <Compile Include="UI\HostedWindowBounds.cs" />
     <Compile Include="UI\ComposerLabels.cs" />
     <Compile Include="UI\ChatTabStatus.cs" />
+    <Compile Include="UI\PromptAttachments.cs" />
+    <Compile Include="UI\ImagePreview.cs" />
+    <Compile Include="UI\Loc.cs" />
+    <Compile Include="UI\LocExtension.cs" />
     <Compile Include="UI\WelcomeCardLayout.cs" />
     <Compile Include="UI\MarkdownFlowRenderer.cs" />
     <Compile Include="UI\ChatTranscriptView.xaml.cs">
@@ -243,6 +248,8 @@
       <IncludeInVSIX>true</IncludeInVSIX>
     </Content>
     <Content Include="app.png" />
+    <!-- Chat UI translations (UI/Loc.cs). Resource name: ClaudeCodeExtension.lang.<culture>.json -->
+    <EmbeddedResource Include="lang\it.json" />
     <Content Include="docs\images\native-mode-diff.png" />
     <Content Include="docs\images\native-mode-plan.png" />
     <Content Include="docs\images\native-mode-question.png" />

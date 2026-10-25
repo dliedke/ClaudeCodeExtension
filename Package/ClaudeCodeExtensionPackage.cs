@@ -113,6 +113,70 @@ namespace ClaudeCodeExtension
 
             ScheduleUsageWindowRestore(cancellationToken);
             SchedulePanelBackgroundLoad(cancellationToken);
+            ScheduleToolbarFirstShow(cancellationToken);
+        }
+
+        private const string ToolbarSettingsCollection = "ClaudeCodeExtension";
+        private const string ToolbarShownProperty = "ClaudeCodeToolbarShown";
+
+        /// <summary>The "Claude Code" toolbar's name, as its CommandName in the .vsct.</summary>
+        private const string ClaudeCodeToolbarName = "Claude Code";
+
+        /// <summary>
+        /// Shows the "Claude Code" toolbar once, on the first load after install. DefaultDocked in the
+        /// .vsct only works for a profile without a saved toolbar layout, so on an existing install the
+        /// toolbar stayed hidden under View > Toolbars. A flag in the VS settings store makes it a
+        /// one-time thing: hiding the toolbar afterwards is the user's choice and is never undone.
+        /// </summary>
+        private void ScheduleToolbarFirstShow(CancellationToken cancellationToken)
+        {
+#pragma warning disable VSSDK007 // Fire-and-forget is intentional; a toolbar nicety must not block package load
+            _ = JoinableTaskFactory.RunAsync(async () =>
+            {
+                try
+                {
+                    // Let VS finish restoring its own toolbar layout first, or it would hide it again.
+                    await Task.Delay(2000, cancellationToken);
+                    await JoinableTaskFactory.SwitchToMainThreadAsync(cancellationToken);
+
+                    var settingsManager = new Microsoft.VisualStudio.Shell.Settings.ShellSettingsManager(this);
+                    var store = settingsManager.GetWritableSettingsStore(Microsoft.VisualStudio.Settings.SettingsScope.UserSettings);
+                    if (store.CollectionExists(ToolbarSettingsCollection) &&
+                        store.GetBoolean(ToolbarSettingsCollection, ToolbarShownProperty, false))
+                    {
+                        return;
+                    }
+
+                    var dte = await GetServiceAsync(typeof(EnvDTE.DTE)) as EnvDTE.DTE;
+                    if (dte == null)
+                    {
+                        return;
+                    }
+
+                    // Late-bound: the CommandBars object model is COM and not referenced by this project.
+                    object commandBars = dte.CommandBars;
+                    object toolbar = commandBars.GetType().InvokeMember(
+                        "Item", System.Reflection.BindingFlags.GetProperty, null, commandBars, new object[] { ClaudeCodeToolbarName });
+                    toolbar.GetType().InvokeMember(
+                        "Visible", System.Reflection.BindingFlags.SetProperty, null, toolbar, new object[] { true });
+
+                    if (!store.CollectionExists(ToolbarSettingsCollection))
+                    {
+                        store.CreateCollection(ToolbarSettingsCollection);
+                    }
+
+                    store.SetBoolean(ToolbarSettingsCollection, ToolbarShownProperty, true);
+                }
+                catch (OperationCanceledException)
+                {
+                }
+                catch (Exception ex)
+                {
+                    // Not found or not settable: the toolbar stays available under View > Toolbars.
+                    Debug.WriteLine($"Claude Code toolbar first show failed: {ex.Message}");
+                }
+            });
+#pragma warning restore VSSDK007
         }
 
         /// <summary>

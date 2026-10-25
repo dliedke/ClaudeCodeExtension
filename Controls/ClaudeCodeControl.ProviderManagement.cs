@@ -5271,6 +5271,7 @@ For more details, visit: https://pi.dev";
                 {
                     SaveSettings();
                     ApplyProviderMenuVisibility();
+                    RefreshAllChatComposers();
                 }
             }
             catch (Exception ex)

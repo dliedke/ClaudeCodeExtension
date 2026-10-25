@@ -48,6 +48,13 @@ namespace ClaudeCodeVS.Agents
         /// <summary>When set, resumes that session instead of starting a new one.</summary>
         public string ResumeSessionId { get; set; } = string.Empty;
 
+        /// <summary>
+        /// When true, <c>StartAsync</c> only records the working directory and the CLI is launched by
+        /// the first prompt. Used for chat tabs reopened with the solution, so several restored tabs
+        /// don't start several Claude processes at once.
+        /// </summary>
+        public bool DeferLaunch { get; set; }
+
         /// <summary>Model alias (<c>sonnet</c>, <c>opus</c>, <c>haiku</c>). Empty means the CLI default.</summary>
         public string Model { get; set; } = string.Empty;
 
