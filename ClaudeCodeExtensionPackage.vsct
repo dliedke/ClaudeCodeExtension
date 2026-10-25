@@ -69,6 +69,7 @@
       <Button guid="guidClaudeCodeExtensionPackageCmdSet" id="EditorSendSelectionCommandId" priority="0x0100" type="Button">
         <Parent guid="guidClaudeCodeExtensionPackageCmdSet" id="EditorContextMenuGroup"/>
         <CommandFlag>DynamicVisibility</CommandFlag>
+        <CommandFlag>TextChanges</CommandFlag>
         <Strings>
           <ButtonText>Send Selection to Claude Code</ButtonText>
         </Strings>

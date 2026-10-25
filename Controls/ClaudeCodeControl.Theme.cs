@@ -17,6 +17,7 @@ using System.Windows.Media;
 using Microsoft.VisualStudio.PlatformUI;
 using Microsoft.VisualStudio.Shell;
 using Microsoft.VisualStudio.Shell.Interop;
+using static ClaudeCodeVS.UI.Loc;
 
 namespace ClaudeCodeVS
 {
@@ -161,8 +162,8 @@ namespace ClaudeCodeVS
             try
             {
                 var result = MessageBox.Show(
-                    "Theme changed. Restart the AI code agent to apply the new terminal colors?",
-                    "Theme Changed",
+                    L("Theme changed. Restart the AI code agent to apply the new terminal colors?"),
+                    L("Theme Changed"),
                     MessageBoxButton.YesNo,
                     MessageBoxImage.Question);
 

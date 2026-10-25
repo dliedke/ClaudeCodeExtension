@@ -1,4 +1,4 @@
-﻿/* *******************************************************************************************************************
+/* *******************************************************************************************************************
  * Application: ClaudeCodeExtension
  *
  * Autor:  Daniel Carvalho Liedke / Claude Code
@@ -25,6 +25,7 @@ using System.Windows;
 using ClaudeCodeVS.Agents;
 using ClaudeCodeVS.UI;
 using Microsoft.VisualStudio.Shell;
+using static ClaudeCodeVS.UI.Loc;
 
 namespace ClaudeCodeVS
 {
@@ -109,8 +110,8 @@ namespace ClaudeCodeVS
                 {
                     await ClipboardRetryAsync(() => Clipboard.SetText(generated.Value.Message));
                     MessageBox.Show(
-                        "Could not find the Git Changes commit message box. The generated message was copied to the clipboard — paste it with Ctrl+V.",
-                        "Generate Commit Message",
+                        L("Could not find the Git Changes commit message box. The generated message was copied to the clipboard — paste it with Ctrl+V."),
+                        L("Generate Commit Message"),
                         MessageBoxButton.OK,
                         MessageBoxImage.Information);
                 }
@@ -146,8 +147,8 @@ namespace ClaudeCodeVS
                 if (addResult == null || addResult.ExitCode != 0)
                 {
                     MessageBox.Show(
-                        $"Failed to stage changes for commit.\n\n{addResult?.StdErr}",
-                        "Generate Commit Message, Commit and Push",
+                        L("Failed to stage changes for commit.\n\n{0}", addResult?.StdErr),
+                        L("Generate Commit Message, Commit and Push"),
                         MessageBoxButton.OK,
                         MessageBoxImage.Error);
                     return;
@@ -157,8 +158,8 @@ namespace ClaudeCodeVS
                 if (messageFile == null)
                 {
                     MessageBox.Show(
-                        "Failed to write the commit message to a temp file.",
-                        "Generate Commit Message, Commit and Push",
+                        L("Failed to write the commit message to a temp file."),
+                        L("Generate Commit Message, Commit and Push"),
                         MessageBoxButton.OK,
                         MessageBoxImage.Error);
                     return;
@@ -169,8 +170,8 @@ namespace ClaudeCodeVS
                 if (commitResult == null || commitResult.ExitCode != 0)
                 {
                     MessageBox.Show(
-                        $"Commit failed.\n\n{commitResult?.StdErr}",
-                        "Generate Commit Message, Commit and Push",
+                        L("Commit failed.\n\n{0}", commitResult?.StdErr),
+                        L("Generate Commit Message, Commit and Push"),
                         MessageBoxButton.OK,
                         MessageBoxImage.Error);
                     return;
@@ -180,8 +181,8 @@ namespace ClaudeCodeVS
                 if (pushResult == null || pushResult.ExitCode != 0)
                 {
                     MessageBox.Show(
-                        $"Commit created locally, but push failed.\n\n{pushResult?.StdErr}",
-                        "Generate Commit Message, Commit and Push",
+                        L("Commit created locally, but push failed.\n\n{0}", pushResult?.StdErr),
+                        L("Generate Commit Message, Commit and Push"),
                         MessageBoxButton.OK,
                         MessageBoxImage.Warning);
                     return;
@@ -206,8 +207,8 @@ namespace ClaudeCodeVS
             if (!IsNativeModeActive)
             {
                 MessageBox.Show(
-                    "Generate Commit Message requires Native Mode. Enable it in ⚙ Settings... → Terminal → Use native mode, then start a session.",
-                    "Generate Commit Message",
+                    L("Generate Commit Message requires Native Mode. Enable it in ⚙ Settings... → Terminal → Use native mode, then start a session."),
+                    L("Generate Commit Message"),
                     MessageBoxButton.OK,
                     MessageBoxImage.Information);
                 return null;
@@ -216,8 +217,8 @@ namespace ClaudeCodeVS
             if (!IsAgentAvailable)
             {
                 MessageBox.Show(
-                    "No agent is running. Start an agent session before generating a commit message.",
-                    "Generate Commit Message",
+                    L("No agent is running. Start an agent session before generating a commit message."),
+                    L("Generate Commit Message"),
                     MessageBoxButton.OK,
                     MessageBoxImage.Warning);
                 return null;
@@ -231,8 +232,8 @@ namespace ClaudeCodeVS
             if (string.IsNullOrEmpty(repoRoot))
             {
                 MessageBox.Show(
-                    "No git repository was found for the current workspace.",
-                    "Generate Commit Message",
+                    L("No git repository was found for the current workspace."),
+                    L("Generate Commit Message"),
                     MessageBoxButton.OK,
                     MessageBoxImage.Information);
                 return null;
@@ -242,8 +243,8 @@ namespace ClaudeCodeVS
             if (string.IsNullOrWhiteSpace(diff))
             {
                 MessageBox.Show(
-                    "There are no changes to describe.",
-                    "Generate Commit Message",
+                    L("There are no changes to describe."),
+                    L("Generate Commit Message"),
                     MessageBoxButton.OK,
                     MessageBoxImage.Information);
                 return null;
@@ -260,8 +261,8 @@ namespace ClaudeCodeVS
             if (session == null)
             {
                 MessageBox.Show(
-                    "No native agent session is available.",
-                    "Generate Commit Message",
+                    L("No native agent session is available."),
+                    L("Generate Commit Message"),
                     MessageBoxButton.OK,
                     MessageBoxImage.Warning);
                 return null;
@@ -270,8 +271,8 @@ namespace ClaudeCodeVS
             if (turnInFlight)
             {
                 MessageBox.Show(
-                    "The agent is busy with another turn. Wait for it to finish before generating a commit message.",
-                    "Generate Commit Message",
+                    L("The agent is busy with another turn. Wait for it to finish before generating a commit message."),
+                    L("Generate Commit Message"),
                     MessageBoxButton.OK,
                     MessageBoxImage.Information);
                 return null;
@@ -304,8 +305,8 @@ namespace ClaudeCodeVS
             if (string.IsNullOrWhiteSpace(message))
             {
                 MessageBox.Show(
-                    "The agent did not return a commit message.",
-                    "Generate Commit Message",
+                    L("The agent did not return a commit message."),
+                    L("Generate Commit Message"),
                     MessageBoxButton.OK,
                     MessageBoxImage.Warning);
                 return null;

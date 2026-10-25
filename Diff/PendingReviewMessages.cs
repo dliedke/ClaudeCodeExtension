@@ -12,6 +12,7 @@
 
 using System.Collections.Generic;
 using System.Linq;
+using static ClaudeCodeVS.UI.Loc;
 
 namespace ClaudeCodeVS.Diff
 {
@@ -34,13 +35,13 @@ namespace ClaudeCodeVS.Diff
             switch (type)
             {
                 case ChangeType.Created:
-                    question = $"Delete {fileName}?\n\nThe agent created this file. Undo removes it from disk.";
+                    question = L("Delete {0}?\n\nThe agent created this file. Undo removes it from disk.", fileName);
                     break;
                 case ChangeType.Deleted:
-                    question = $"Restore {fileName}?\n\nThe agent deleted this file. Undo puts it back as it was.";
+                    question = L("Restore {0}?\n\nThe agent deleted this file. Undo puts it back as it was.", fileName);
                     break;
                 default:
-                    question = $"Undo the agent's changes to {fileName}?\n\nThe file goes back to how it was before the agent changed it.";
+                    question = L("Undo the agent's changes to {0}?\n\nThe file goes back to how it was before the agent changed it.", fileName);
                     break;
             }
 
@@ -58,8 +59,10 @@ namespace ClaudeCodeVS.Diff
         internal static string BuildUndoAllQuestion(int fileCount, IReadOnlyCollection<string> unsavedFileNames)
         {
             string question =
-                $"Undo the agent's changes to all {fileCount} pending file{(fileCount != 1 ? "s" : "")}?\n\n" +
-                "Each file goes back to how it was before the agent changed it. Files the agent created are deleted.";
+                (fileCount != 1
+                    ? L("Undo the agent's changes to all {0} pending files?", fileCount)
+                    : L("Undo the agent's changes to all {0} pending file?", fileCount)) + "\n\n" +
+                L("Each file goes back to how it was before the agent changed it. Files the agent created are deleted.");
 
             if (unsavedFileNames != null && unsavedFileNames.Count > 0)
             {
@@ -73,10 +76,12 @@ namespace ClaudeCodeVS.Diff
         internal static string BuildTurnOffQuestion(int pendingCount)
         {
             return
-                $"{pendingCount} file{(pendingCount != 1 ? "s are" : " is")} still pending review.\n\n" +
-                "Turning \"Track agent changes for review\" off discards the review list. The files keep their " +
-                "current content, but you will no longer be able to Keep or Undo the agent's changes to them.\n\n" +
-                "Turn it off anyway?";
+                (pendingCount != 1
+                    ? L("{0} files are still pending review.", pendingCount)
+                    : L("{0} file is still pending review.", pendingCount)) + "\n\n" +
+                L("Turning \"Track agent changes for review\" off discards the review list. The files keep their " +
+                  "current content, but you will no longer be able to Keep or Undo the agent's changes to them.\n\n" +
+                  "Turn it off anyway?");
         }
 
         /// <summary>
@@ -120,14 +125,14 @@ namespace ClaudeCodeVS.Diff
             string list = string.Join(", ", names.Take(MaxListedFiles));
             if (names.Count > MaxListedFiles)
             {
-                list += $" and {names.Count - MaxListedFiles} more";
+                list = L("{0} and {1} more", list, names.Count - MaxListedFiles);
             }
 
-            bool one = names.Count == 1;
-            return
-                $"Warning: {list} {(one ? "has" : "have")} unsaved changes in the editor. Undo also discards " +
-                $"{(one ? "those edits" : "the unsaved edits in these files")}, including any you made yourself. " +
-                "Choose No to save or review them first.";
+            return names.Count == 1
+                ? L("Warning: {0} has unsaved changes in the editor. Undo also discards those edits, including any you made yourself. " +
+                    "Choose No to save or review them first.", list)
+                : L("Warning: {0} have unsaved changes in the editor. Undo also discards the unsaved edits in these files, including any you made yourself. " +
+                    "Choose No to save or review them first.", list);
         }
     }
 }

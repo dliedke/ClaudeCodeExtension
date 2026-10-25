@@ -1,0 +1,7 @@
+<<<<
+                ? $"{_changedFiles.Count} file{(_changedFiles.Count != 1 ? "s" : "")} pending review"
+                : $"{_changedFiles.Count} file{(_changedFiles.Count != 1 ? "s" : "")} changed";
+====
+                ? (_changedFiles.Count != 1 ? L("{0} files pending review", _changedFiles.Count) : L("{0} file pending review", _changedFiles.Count))
+                : (_changedFiles.Count != 1 ? L("{0} files changed", _changedFiles.Count) : L("{0} file changed", _changedFiles.Count));
+>>>>

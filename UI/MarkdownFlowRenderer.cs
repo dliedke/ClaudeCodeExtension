@@ -20,6 +20,7 @@ using System.Windows.Controls;
 using System.Windows.Documents;
 using System.Windows.Input;
 using System.Windows.Media;
+using static ClaudeCodeVS.UI.Loc;
 
 namespace ClaudeCodeVS.UI
 {
@@ -1020,7 +1021,7 @@ namespace ClaudeCodeVS.UI
 
             // The document viewer has no built-in context menu; keep the select-and-copy affordance
             // the old TextBox/RichTextBox supplied.
-            var copy = new MenuItem { Header = "Copy" };
+            var copy = new MenuItem { Header = L("Copy") };
             copy.Click += CopySelection_Click;
             ContextMenu = new ContextMenu();
             ContextMenu.Items.Add(copy);

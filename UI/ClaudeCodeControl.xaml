@@ -1,6 +1,7 @@
 <UserControl x:Class="ClaudeCodeVS.ClaudeCodeControl"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:local="clr-namespace:ClaudeCodeVS.UI"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:wf="clr-namespace:System.Windows.Forms.Integration;assembly=WindowsFormsIntegration"
@@ -166,7 +167,7 @@
                       Margin="0,0,0,2"
                       Style="{StaticResource SingleBorderGroupBoxStyle}">
 				<GroupBox.Header>
-					<TextBlock Text="Prompt / Paste Image" Opacity="0.93"/>
+					<TextBlock Text="{local:Loc 'Prompt / Paste Image'}" Opacity="0.93"/>
 				</GroupBox.Header>
 				<Grid Background="{DynamicResource {x:Static vsshell:VsBrushes.WindowKey}}">
 					<Grid.ColumnDefinitions>
@@ -192,17 +193,17 @@
                          PreviewMouseWheel="PromptTextBox_PreviewMouseWheel">
 					<TextBox.ContextMenu>
 						<ContextMenu>
-							<MenuItem Header="Cut" Command="ApplicationCommands.Cut" InputGestureText="Ctrl+X"
+							<MenuItem Header="{local:Loc 'Cut'}" Command="ApplicationCommands.Cut" InputGestureText="Ctrl+X"
 							          CommandTarget="{Binding PlacementTarget, RelativeSource={RelativeSource AncestorType=ContextMenu}}"/>
-							<MenuItem Header="Copy" Command="ApplicationCommands.Copy" InputGestureText="Ctrl+C"
+							<MenuItem Header="{local:Loc 'Copy'}" Command="ApplicationCommands.Copy" InputGestureText="Ctrl+C"
 							          CommandTarget="{Binding PlacementTarget, RelativeSource={RelativeSource AncestorType=ContextMenu}}"/>
-							<MenuItem Header="Paste" Command="ApplicationCommands.Paste" InputGestureText="Ctrl+V"
-							          CommandTarget="{Binding PlacementTarget, RelativeSource={RelativeSource AncestorType=ContextMenu}}"/>
-							<Separator/>
-							<MenuItem Header="Select All" Command="ApplicationCommands.SelectAll" InputGestureText="Ctrl+A"
+							<MenuItem Header="{local:Loc 'Paste'}" Command="ApplicationCommands.Paste" InputGestureText="Ctrl+V"
 							          CommandTarget="{Binding PlacementTarget, RelativeSource={RelativeSource AncestorType=ContextMenu}}"/>
 							<Separator/>
-							<MenuItem Header="Clear Prompt History" Click="ClearPromptHistoryMenuItem_Click"/>
+							<MenuItem Header="{local:Loc 'Select All'}" Command="ApplicationCommands.SelectAll" InputGestureText="Ctrl+A"
+							          CommandTarget="{Binding PlacementTarget, RelativeSource={RelativeSource AncestorType=ContextMenu}}"/>
+							<Separator/>
+							<MenuItem Header="{local:Loc 'Clear Prompt History'}" Click="ClearPromptHistoryMenuItem_Click"/>
 						</ContextMenu>
 					</TextBox.ContextMenu>
 				</TextBox>
@@ -229,7 +230,7 @@
 					        Click="SendButton_Click"
 					        Visibility="Collapsed"
 					        VerticalAlignment="Bottom"
-					        ToolTip="Send Prompt to Code Agent"
+					        ToolTip="{local:Loc 'Send Prompt to Code Agent'}"
 					        Margin="4,0,0,0"/>
 				</Grid>
 			</GroupBox>
@@ -243,7 +244,7 @@
 			       Height="6" Margin="0,0,0,2"
 			       Cursor="SizeNS"
 			       Visibility="Collapsed"
-			       ToolTip="Drag to resize the prompt area"
+			       ToolTip="{local:Loc 'Drag to resize the prompt area'}"
 			       DragDelta="PromptResizeGrip_DragDelta"
 			       DragCompleted="PromptResizeGrip_DragCompleted">
 				<Thumb.Template>
@@ -301,7 +302,7 @@
 					<Button x:Name="RightButtonsScrollLeftButton" DockPanel.Dock="Left"
 					        Style="{StaticResource IconButtonStyle}"
 					        Content="◀" Width="16" MinWidth="16" FontSize="9" Padding="0"
-					        ToolTip="Scroll left"
+					        ToolTip="{local:Loc 'Scroll left'}"
 					        Visibility="Hidden"
 					        Click="RightButtonsScrollLeftButton_Click"
 					        Margin="0,0,4,0"/>
@@ -309,7 +310,7 @@
 					<Button x:Name="RightButtonsScrollRightButton" DockPanel.Dock="Right"
 					        Style="{StaticResource IconButtonStyle}"
 					        Content="▶" Width="16" MinWidth="16" FontSize="9" Padding="0"
-					        ToolTip="Scroll right"
+					        ToolTip="{local:Loc 'Scroll right'}"
 					        Visibility="Hidden"
 					        Click="RightButtonsScrollRightButton_Click"
 					        Margin="4,0,6,0"/>
@@ -337,7 +338,7 @@
                             FontSize="14"
                             Style="{StaticResource IconButtonStyle}"
                             Click="UpdateAgentButton_Click"
-                            ToolTip="Update Code Agent"
+                            ToolTip="{local:Loc 'Update Code Agent'}"
                             Visibility="Collapsed"
                             Margin="0,0,6,0"/>
 
@@ -348,7 +349,7 @@
                             Height="30"
                             Style="{StaticResource IconButtonStyle}"
                             Click="DetachTerminalButton_Click"
-                            ToolTip="Detach Terminal to Separate Tab"
+                            ToolTip="{local:Loc 'Detach Terminal to Separate Tab'}"
                             Visibility="Collapsed"
                             Margin="0,0,6,0">
 							<Viewbox x:Name="DetachButtonIcon" Width="16" Height="14" Stretch="Uniform"/>
@@ -361,7 +362,7 @@
                             FontSize="14"
                             Style="{StaticResource IconButtonStyle}"
                             Click="RestartTerminalButton_Click"
-                            ToolTip="Restart Code Agent"
+                            ToolTip="{local:Loc 'Restart Code Agent'}"
                             Visibility="Collapsed"
                             Margin="0,0,6,0"/>
 
@@ -372,7 +373,7 @@
                             FontSize="14"
                             Style="{StaticResource IconButtonStyle}"
                             Click="ViewChangesButton_Click"
-                            ToolTip="View Code Changes"
+                            ToolTip="{local:Loc 'View Code Changes'}"
                             Visibility="Collapsed"
                             Margin="0,0,6,0"/>
 
@@ -383,7 +384,7 @@
                             FontSize="14"
                             Style="{StaticResource IconButtonStyle}"
                             Click="SessionHistoryButton_Click"
-                            ToolTip="Session History"
+                            ToolTip="{local:Loc 'Session History'}"
                             Visibility="Collapsed"
                             Margin="0,0,6,0"/>
 
@@ -394,7 +395,7 @@
                             FontSize="14"
                             Style="{StaticResource IconButtonStyle}"
                             Click="ShowUsageViewMenuItem_Click"
-                            ToolTip="Show Usage"
+                            ToolTip="{local:Loc 'Show Usage'}"
                             Visibility="Collapsed"
                             Margin="0,0,6,0"/>
 
@@ -405,7 +406,7 @@
                             FontSize="14"
                             Style="{StaticResource IconButtonStyle}"
                             Click="SetWorkingDirectoryMenuItem_Click"
-                            ToolTip="Set Working Directory"
+                            ToolTip="{local:Loc 'Set Working Directory'}"
                             Visibility="Collapsed"
                             Margin="0,0,6,0"/>
 
@@ -416,7 +417,7 @@
                             FontSize="14"
                             Style="{StaticResource IconButtonStyle}"
                             Click="SendBuildErrorsButton_Click"
-                            ToolTip="Send Build Errors to Agent"
+                            ToolTip="{local:Loc 'Send Build Errors to Agent'}"
                             Visibility="Collapsed"
                             Margin="0,0,6,0"/>
 
@@ -427,7 +428,7 @@
                             FontSize="14"
                             Style="{StaticResource IconButtonStyle}"
                             Click="GenerateCommitMessageButton_Click"
-                            ToolTip="Generate Commit Message"
+                            ToolTip="{local:Loc 'Generate Commit Message'}"
                             Visibility="Collapsed"
                             Margin="0,0,6,0"/>
 
@@ -438,7 +439,7 @@
                             FontSize="14"
                             Style="{StaticResource IconButtonStyle}"
                             Click="GenerateCommitMessageAndPushButton_Click"
-                            ToolTip="Generate Commit Message, Commit and Push"
+                            ToolTip="{local:Loc 'Generate Commit Message, Commit and Push'}"
                             Visibility="Collapsed"
                             Margin="0,0,6,0"/>
 
@@ -449,7 +450,7 @@
                             FontSize="14"
                             Style="{StaticResource IconButtonStyle}"
                             Click="RecommendModelButton_Click"
-                            ToolTip="Recommend AI Model"
+                            ToolTip="{local:Loc 'Recommend AI Model'}"
                             Visibility="Collapsed"
                             Margin="0,0,6,0"/>
 
@@ -460,7 +461,7 @@
                             FontSize="14"
                             Style="{StaticResource IconButtonStyle}"
                             Click="GitHubIssuesButton_Click"
-                            ToolTip="GitHub Issues"
+                            ToolTip="{local:Loc 'GitHub Issues'}"
                             Visibility="Collapsed"
                             Margin="0,0,6,0"/>
 
@@ -477,20 +478,20 @@
                             Width="30"
                             MinWidth="30"
                             FontSize="14"
-                            ToolTip="Attach / Insert Content"
+                            ToolTip="{local:Loc 'Attach / Insert Content'}"
                             Click="AttachDropdownButton_Click"
                             Margin="0,0,6,0">
 								<Button.ContextMenu>
 									<ContextMenu x:Name="AttachContextMenu">
-										<MenuItem Header="📎  Attach File..." x:Name="AttachFileMenuItem" Click="AttachFileMenuItem_Click"/>
-										<MenuItem Header="📋  Insert Editor Selection" x:Name="InsertSelectionMenuItem" Click="GrabSelectionButton_Click"/>
-										<MenuItem Header="📄  Insert Active File Path" x:Name="InsertActiveFilePathMenuItem" Click="InsertActiveFilePathMenuItem_Click" ToolTip="Inserts an @-reference to the file open in the active editor tab, like GitHub Copilot's &quot;Active Document&quot; context."/>
+										<MenuItem Header="{local:Loc '📎  Attach File...'}" x:Name="AttachFileMenuItem" Click="AttachFileMenuItem_Click"/>
+										<MenuItem Header="{local:Loc '📋  Insert Editor Selection'}" x:Name="InsertSelectionMenuItem" Click="GrabSelectionButton_Click"/>
+										<MenuItem Header="{local:Loc '📄  Insert Active File Path'}" x:Name="InsertActiveFilePathMenuItem" Click="InsertActiveFilePathMenuItem_Click" ToolTip="{local:Loc 'Inserts an @-reference to the file open in the active editor tab, like GitHub Copilot\'s &quot;Active Document&quot; context.'}"/>
 										<!--
 											Optional menu entry. Hidden by default. Set
 											EnablePasteFromClipboardMenu = true in ClaudeCodeControl.UserInput.cs
 											to expose it.
 										-->
-										<MenuItem Header="📥  Paste from Clipboard" x:Name="PasteFromClipboardMenuItem" Click="PasteFromClipboardMenuItem_Click" Visibility="Collapsed" ToolTip="When clipboard text is short it is inserted into the prompt directly. When it exceeds the truncation threshold it is saved to a temp file and attached, avoiding paste truncation."/>
+										<MenuItem Header="{local:Loc '📥  Paste from Clipboard'}" x:Name="PasteFromClipboardMenuItem" Click="PasteFromClipboardMenuItem_Click" Visibility="Collapsed" ToolTip="{local:Loc 'When clipboard text is short it is inserted into the prompt directly. When it exceeds the truncation threshold it is saved to a temp file and attached, avoiding paste truncation.'}"/>
 									</ContextMenu>
 								</Button.ContextMenu>
 							</Button>
@@ -504,24 +505,24 @@
                             MinWidth="30"
                             FontSize="14"
                             Style="{StaticResource IconButtonStyle}"
-                            ToolTip="Tools"
+                            ToolTip="{local:Loc 'Tools'}"
                             Visibility="Collapsed"
                             Click="ToolsDropdownButton_Click"
                             Margin="0,0,6,0">
 							<Button.ContextMenu>
 								<ContextMenu x:Name="ToolsContextMenu" Opened="ToolsContextMenu_Opened">
-									<MenuItem Header="🔄️  Update Code Agent" x:Name="UpdateAgentMenuItem" Click="UpdateAgentButton_Click"/>
-									<MenuItem Header="♻️  Restart Code Agent" x:Name="RestartTerminalMenuItem" Click="RestartTerminalButton_Click"/>
-									<MenuItem Header="⧉  Detach Terminal to Separate Tab" x:Name="DetachTerminalMenuItem" Click="DetachTerminalButton_Click"/>
-									<MenuItem Header="📄  View Code Changes" x:Name="ViewChangesMenuItem" Click="ViewChangesButton_Click"/>
-									<MenuItem Header="📜  Session History" x:Name="SessionHistoryViewMenuItem" Click="SessionHistoryButton_Click" Visibility="Collapsed"/>
-									<MenuItem Header="📊  Show Usage" x:Name="ShowUsageViewMenuItem" Click="ShowUsageViewMenuItem_Click" IsCheckable="True" Visibility="Collapsed"/>
-									<MenuItem Header="📁  Set Working Directory..." x:Name="SetWorkingDirectoryMenuItem" Click="SetWorkingDirectoryMenuItem_Click" ToolTip="Set a custom working directory (absolute or relative to solution). Leave empty for default behavior."/>
-									<MenuItem Header="🛠️  Send Build Errors to Agent" x:Name="SendBuildErrorsMenuItem" Click="SendBuildErrorsButton_Click" ToolTip="Collect the current build errors and send them to the agent to fix, regardless of the auto-send setting."/>
-									<MenuItem Header="📝  Generate Commit Message" x:Name="GenerateCommitMessageMenuItem" Click="GenerateCommitMessageButton_Click" ToolTip="Ask the agent to write a commit message from the current git diff and fill it into the Git Changes window."/>
-									<MenuItem Header="🚀  Generate Commit Message, Commit and Push" x:Name="GenerateCommitMessageAndPushMenuItem" Click="GenerateCommitMessageAndPushButton_Click" ToolTip="Ask the agent to write a commit message from the current git diff, fill it into the Git Changes window, then stage, commit and push all changes immediately."/>
-									<MenuItem Header="💡  Recommend AI Model" x:Name="RecommendModelMenuItem" Click="RecommendModelButton_Click" ToolTip="Ask Opus (Extra High) which Claude model and effort suit the prompt you typed, then confirm or adjust before it is applied. Claude Code only."/>
-									<MenuItem Header="🐞  GitHub Issues" x:Name="GitHubIssuesMenuItem" Click="GitHubIssuesButton_Click" ToolTip="List the repository's GitHub issues and fix one in its own branch, worktree and chat tab, then commit, merge and reply on the issue. Requires Native Mode."/>
+									<MenuItem Header="{local:Loc '🔄️  Update Code Agent'}" x:Name="UpdateAgentMenuItem" Click="UpdateAgentButton_Click"/>
+									<MenuItem Header="{local:Loc '♻️  Restart Code Agent'}" x:Name="RestartTerminalMenuItem" Click="RestartTerminalButton_Click"/>
+									<MenuItem Header="{local:Loc '⧉  Detach Terminal to Separate Tab'}" x:Name="DetachTerminalMenuItem" Click="DetachTerminalButton_Click"/>
+									<MenuItem Header="{local:Loc '📄  View Code Changes'}" x:Name="ViewChangesMenuItem" Click="ViewChangesButton_Click"/>
+									<MenuItem Header="{local:Loc '📜  Session History'}" x:Name="SessionHistoryViewMenuItem" Click="SessionHistoryButton_Click" Visibility="Collapsed"/>
+									<MenuItem Header="{local:Loc '📊  Show Usage'}" x:Name="ShowUsageViewMenuItem" Click="ShowUsageViewMenuItem_Click" IsCheckable="True" Visibility="Collapsed"/>
+									<MenuItem Header="{local:Loc '📁  Set Working Directory...'}" x:Name="SetWorkingDirectoryMenuItem" Click="SetWorkingDirectoryMenuItem_Click" ToolTip="{local:Loc 'Set a custom working directory (absolute or relative to solution). Leave empty for default behavior.'}"/>
+									<MenuItem Header="{local:Loc '🛠️  Send Build Errors to Agent'}" x:Name="SendBuildErrorsMenuItem" Click="SendBuildErrorsButton_Click" ToolTip="{local:Loc 'Collect the current build errors and send them to the agent to fix, regardless of the auto-send setting.'}"/>
+									<MenuItem Header="{local:Loc '📝  Generate Commit Message'}" x:Name="GenerateCommitMessageMenuItem" Click="GenerateCommitMessageButton_Click" ToolTip="{local:Loc 'Ask the agent to write a commit message from the current git diff and fill it into the Git Changes window.'}"/>
+									<MenuItem Header="{local:Loc '🚀  Generate Commit Message, Commit and Push'}" x:Name="GenerateCommitMessageAndPushMenuItem" Click="GenerateCommitMessageAndPushButton_Click" ToolTip="{local:Loc 'Ask the agent to write a commit message from the current git diff, fill it into the Git Changes window, then stage, commit and push all changes immediately.'}"/>
+									<MenuItem Header="{local:Loc '💡  Recommend AI Model'}" x:Name="RecommendModelMenuItem" Click="RecommendModelButton_Click" ToolTip="{local:Loc 'Ask Opus (Extra High) which Claude model and effort suit the prompt you typed, then confirm or adjust before it is applied. Claude Code only.'}"/>
+									<MenuItem Header="{local:Loc '🐞  GitHub Issues'}" x:Name="GitHubIssuesMenuItem" Click="GitHubIssuesButton_Click" ToolTip="{local:Loc 'List the repository\'s GitHub issues and fix one in its own branch, worktree and chat tab, then commit, merge and reply on the issue. Requires Native Mode.'}"/>
 								</ContextMenu>
 							</Button.ContextMenu>
 						</Button>
@@ -533,7 +534,7 @@
                             FontSize="14"
                             Style="{StaticResource IconButtonStyle}"
                             FontFamily="Consolas"
-                            ToolTip="Custom Commands"
+                            ToolTip="{local:Loc 'Custom Commands'}"
                             Visibility="Collapsed"
                             Click="CustomCommandsButton_Click"
                             Margin="0,0,6,0">
@@ -549,7 +550,7 @@
                             FontSize="14"
                             Style="{StaticResource IconButtonStyle}"
                             FontFamily="Consolas"
-                            ToolTip="Model Selection"
+                            ToolTip="{local:Loc 'Model Selection'}"
                             Click="ModelDropdownButton_Click"
                             Margin="0,0,6,0">
 							<Button.ContextMenu>
@@ -566,7 +567,7 @@
 									<MenuItem x:Name="EffortSliderMenuItem" StaysOpenOnClick="True">
 										<MenuItem.Header>
 												<StackPanel Margin="2,3" MinWidth="190">
-													<TextBlock x:Name="EffortSliderLabel" Text="Effort (Auto)" Margin="0,0,0,5" FontWeight="SemiBold"/>
+													<TextBlock x:Name="EffortSliderLabel" Text="{local:Loc 'Effort (Auto)'}" Margin="0,0,0,5" FontWeight="SemiBold"/>
 													<Slider x:Name="EffortSlider" Style="{StaticResource EffortSliderStyle}"
 													        HorizontalAlignment="Left"
 													        ValueChanged="EffortSlider_ValueChanged"
@@ -576,8 +577,8 @@
 										</MenuItem.Header>
 									</MenuItem>
 									<Separator x:Name="ClaudeAccountSeparator"/>
-									<MenuItem Header="Change Account" x:Name="ChangeAccountMenuItem" Click="ChangeAccountMenuItem_Click"/>
-									<MenuItem Header="Set Language" x:Name="SetLanguageMenuItem" Click="SetLanguageMenuItem_Click"/>
+									<MenuItem Header="{local:Loc 'Change Account'}" x:Name="ChangeAccountMenuItem" Click="ChangeAccountMenuItem_Click"/>
+									<MenuItem Header="{local:Loc 'Set Language'}" x:Name="SetLanguageMenuItem" Click="SetLanguageMenuItem_Click"/>
 									<!-- The per-provider model entries are built dynamically in
 									     ModelContextMenu_Opened and inserted above this separator. -->
 									<Separator x:Name="DevinModelsSeparator"/>
@@ -591,7 +592,7 @@
                             FontSize="14"
                             Style="{StaticResource IconButtonStyle}"
                             FontFamily="Consolas"
-                            ToolTip="Code Agent Selection"
+                            ToolTip="{local:Loc 'Code Agent Selection'}"
                             Click="MenuDropdownButton_Click"
                             Margin="0,0,6,0">
 							<Button.ContextMenu>
@@ -611,24 +612,24 @@
 									<MenuItem Header="Qwen Code" x:Name="QwenCodeMenuItem" Click="QwenCodeMenuItem_Click" IsCheckable="True"/>
 									<MenuItem Header="Grok" x:Name="GrokMenuItem" Click="GrokMenuItem_Click" IsCheckable="True"/>
 									<Separator x:Name="ProviderListSeparator"/>
-									<MenuItem Header="Configure Visible Code Agents..." x:Name="ConfigureVisibleAgentsMenuItem" Click="ConfigureVisibleAgentsMenuItem_Click" ToolTip="Choose which code agents appear in this menu. The active agent always remains visible."/>
+									<MenuItem Header="{local:Loc 'Configure Visible Code Agents...'}" x:Name="ConfigureVisibleAgentsMenuItem" Click="ConfigureVisibleAgentsMenuItem_Click" ToolTip="{local:Loc 'Choose which code agents appear in this menu. The active agent always remains visible.'}"/>
 									<Separator x:Name="AutoOpenChangesSeparator"/>
-									<MenuItem Header="Claude Code: Skip Permissions" x:Name="ClaudeDangerouslySkipPermissionsMenuItem" Click="ClaudeDangerouslySkipPermissionsMenuItem_Click" IsCheckable="True" ToolTip="When enabled, Claude Code starts with --dangerously-skip-permissions"/>
-									<MenuItem Header="Claude Code: Start in Plan Mode" x:Name="ClaudePlanModeMenuItem" Click="ClaudePlanModeMenuItem_Click" IsCheckable="True" ToolTip="When enabled, Claude Code starts every session in plan mode, Restart included. Takes effect on the next start."/>
-									<MenuItem Header="Codex: Approval Never" x:Name="CodexFullAutoMenuItem" Click="CodexFullAutoMenuItem_Click" IsCheckable="True" ToolTip="When enabled, Codex starts with --ask-for-approval never"/>
-									<MenuItem Header="Cursor Agent: Yolo Mode" x:Name="CursorAgentAutoRunMenuItem" Click="CursorAgentAutoRunMenuItem_Click" IsCheckable="True" ToolTip="When enabled, Cursor Agent starts with --yolo to skip all approvals"/>
-									<MenuItem Header="Devin: Dangerous Mode" x:Name="DevinDangerousModeMenuItem" Click="DevinDangerousModeMenuItem_Click" IsCheckable="True" ToolTip="When enabled, Devin starts with --permission-mode dangerous"/>
-									<MenuItem Header="Antigravity: Skip Permissions" x:Name="AntigravityDangerouslySkipPermissionsMenuItem" Click="AntigravityDangerouslySkipPermissionsMenuItem_Click" IsCheckable="True" ToolTip="When enabled, Antigravity starts with --dangerously-skip-permissions"/>
-									<MenuItem Header="Qwen Code: Yolo Mode" x:Name="QwenCodeYoloModeMenuItem" Click="QwenCodeYoloModeMenuItem_Click" IsCheckable="True" ToolTip="When enabled, Qwen Code starts with --yolo to approve every action automatically"/>
-									<MenuItem Header="Grok: Always Approve" x:Name="GrokAlwaysApproveMenuItem" Click="GrokAlwaysApproveMenuItem_Click" IsCheckable="True" ToolTip="When enabled, Grok starts with --always-approve to approve every action automatically"/>
+									<MenuItem Header="{local:Loc 'Claude Code: Skip Permissions'}" x:Name="ClaudeDangerouslySkipPermissionsMenuItem" Click="ClaudeDangerouslySkipPermissionsMenuItem_Click" IsCheckable="True" ToolTip="{local:Loc 'When enabled, Claude Code starts with --dangerously-skip-permissions'}"/>
+									<MenuItem Header="{local:Loc 'Claude Code: Start in Plan Mode'}" x:Name="ClaudePlanModeMenuItem" Click="ClaudePlanModeMenuItem_Click" IsCheckable="True" ToolTip="{local:Loc 'When enabled, Claude Code starts every session in plan mode, Restart included. Takes effect on the next start.'}"/>
+									<MenuItem Header="{local:Loc 'Codex: Approval Never'}" x:Name="CodexFullAutoMenuItem" Click="CodexFullAutoMenuItem_Click" IsCheckable="True" ToolTip="{local:Loc 'When enabled, Codex starts with --ask-for-approval never'}"/>
+									<MenuItem Header="{local:Loc 'Cursor Agent: Yolo Mode'}" x:Name="CursorAgentAutoRunMenuItem" Click="CursorAgentAutoRunMenuItem_Click" IsCheckable="True" ToolTip="{local:Loc 'When enabled, Cursor Agent starts with --yolo to skip all approvals'}"/>
+									<MenuItem Header="{local:Loc 'Devin: Dangerous Mode'}" x:Name="DevinDangerousModeMenuItem" Click="DevinDangerousModeMenuItem_Click" IsCheckable="True" ToolTip="{local:Loc 'When enabled, Devin starts with --permission-mode dangerous'}"/>
+									<MenuItem Header="{local:Loc 'Antigravity: Skip Permissions'}" x:Name="AntigravityDangerouslySkipPermissionsMenuItem" Click="AntigravityDangerouslySkipPermissionsMenuItem_Click" IsCheckable="True" ToolTip="{local:Loc 'When enabled, Antigravity starts with --dangerously-skip-permissions'}"/>
+									<MenuItem Header="{local:Loc 'Qwen Code: Yolo Mode'}" x:Name="QwenCodeYoloModeMenuItem" Click="QwenCodeYoloModeMenuItem_Click" IsCheckable="True" ToolTip="{local:Loc 'When enabled, Qwen Code starts with --yolo to approve every action automatically'}"/>
+									<MenuItem Header="{local:Loc 'Grok: Always Approve'}" x:Name="GrokAlwaysApproveMenuItem" Click="GrokAlwaysApproveMenuItem_Click" IsCheckable="True" ToolTip="{local:Loc 'When enabled, Grok starts with --always-approve to approve every action automatically'}"/>
 									<Separator x:Name="ChangeAccountNativeSeparator"/>
-									<MenuItem Header="Change Account" x:Name="ChangeAccountNativeMenuItem" Click="ChangeAccountNativeMenuItem_Click" ToolTip="Sign out and switch which Claude account this conversation uses."/>
+									<MenuItem Header="{local:Loc 'Change Account'}" x:Name="ChangeAccountNativeMenuItem" Click="ChangeAccountNativeMenuItem_Click" ToolTip="{local:Loc 'Sign out and switch which Claude account this conversation uses.'}"/>
 									<Separator/>
-									<MenuItem Header="Configure Custom Commands..." x:Name="ConfigureCustomCommandsMenuItem" Click="ConfigureCustomCommandsMenuItem_Click" ToolTip="Add, edit, or remove custom commands surfaced in the toolbar dropdown next to the agent menu."/>
-									<MenuItem Header="Hide Prompt Input Box" x:Name="HidePromptPanelMenuItem" Click="HidePromptPanelMenuItem_Click" IsCheckable="True" ToolTip="Collapse the multi-line prompt box to give the terminal more vertical space. This menu, the model and provider buttons, and file chips stay reachable so you can turn it back on."/>
-									<MenuItem Header="Settings..." x:Name="SettingsMenuItem" Click="SettingsMenuItem_Click" ToolTip="Open the consolidated settings dialog (layout, terminal type, theme, send behavior, auto-zoom, auto-open changes)."/>
+									<MenuItem Header="{local:Loc 'Configure Custom Commands...'}" x:Name="ConfigureCustomCommandsMenuItem" Click="ConfigureCustomCommandsMenuItem_Click" ToolTip="{local:Loc 'Add, edit, or remove custom commands surfaced in the toolbar dropdown next to the agent menu.'}"/>
+									<MenuItem Header="{local:Loc 'Hide Prompt Input Box'}" x:Name="HidePromptPanelMenuItem" Click="HidePromptPanelMenuItem_Click" IsCheckable="True" ToolTip="{local:Loc 'Collapse the multi-line prompt box to give the terminal more vertical space. This menu, the model and provider buttons, and file chips stay reachable so you can turn it back on.'}"/>
+									<MenuItem Header="{local:Loc 'Settings...'}" x:Name="SettingsMenuItem" Click="SettingsMenuItem_Click" ToolTip="{local:Loc 'Open the consolidated settings dialog (layout, terminal type, theme, send behavior, auto-zoom, auto-open changes).'}"/>
 									<Separator/>
-									<MenuItem Header="About" x:Name="AboutMenuItem" Click="AboutMenuItem_Click"/>
+									<MenuItem Header="{local:Loc 'About'}" x:Name="AboutMenuItem" Click="AboutMenuItem_Click"/>
 								</ContextMenu>
 							</Button.ContextMenu>
 						</Button>
@@ -645,10 +646,10 @@
 			        Height="28" HorizontalAlignment="Stretch"
 			        Visibility="Collapsed"
 			        Click="ShowChatTabButton_Click"
-			        ToolTip="Show the chat tab (reopens it if it was closed or hidden)">
+			        ToolTip="{local:Loc 'Show the chat tab (reopens it if it was closed or hidden)'}">
 				<StackPanel Orientation="Horizontal">
 					<TextBlock Text="💬" Margin="0,0,6,0"/>
-					<TextBlock Text="Show Chat"/>
+					<TextBlock Text="{local:Loc 'Show Chat'}"/>
 				</StackPanel>
 			</Button>
 
@@ -671,7 +672,7 @@
 			        Background="{DynamicResource {x:Static vsshell:VsBrushes.ToolWindowBackgroundKey}}"
 			        Cursor="Hand"
 			        Visibility="Collapsed"
-			        ToolTip="Click to open the full Claude usage view"
+			        ToolTip="{local:Loc 'Click to open the full Claude usage view'}"
 			        MouseLeftButtonUp="InlineUsagePanel_Click">
 				<Grid>
 					<Grid.RowDefinitions>
@@ -688,7 +689,7 @@
 
 					<!-- Session row -->
 					<StackPanel Grid.Row="0" Grid.Column="0" Margin="0,0,8,0">
-						<TextBlock x:Name="InlineSessionLabel" Text="Sessão atual"
+						<TextBlock x:Name="InlineSessionLabel" Text="{local:Loc 'Current session'}"
 						           FontSize="11" Opacity="0.95"
 						           Foreground="{DynamicResource {x:Static vsshell:VsBrushes.ToolWindowTextKey}}"/>
 						<TextBlock x:Name="InlineSessionReset" Text=""
@@ -706,7 +707,7 @@
 
 					<!-- Weekly limit row (hidden for spend-limit-only accounts, issue #182) -->
 					<StackPanel x:Name="InlineWeeklyStack" Grid.Row="1" Grid.Column="0" Margin="0,4,8,0">
-						<TextBlock x:Name="InlineWeeklyLabel" Text="Weekly limit"
+						<TextBlock x:Name="InlineWeeklyLabel" Text="{local:Loc 'Weekly limit'}"
 						           FontSize="11" Opacity="0.95"
 						           Foreground="{DynamicResource {x:Static vsshell:VsBrushes.ToolWindowTextKey}}"/>
 						<TextBlock x:Name="InlineWeeklyReset" Text=""
@@ -723,7 +724,7 @@
 					           Foreground="{DynamicResource {x:Static vsshell:VsBrushes.ToolWindowTextKey}}"/>
 					<!-- Extra usage row (hidden until extra-usage is active) -->
 					<StackPanel x:Name="InlineExtraUsageStack" Grid.Row="2" Grid.Column="0" Margin="0,4,8,0" Visibility="Collapsed">
-						<TextBlock x:Name="InlineExtraUsageSpent" Text="Extra usage"
+						<TextBlock x:Name="InlineExtraUsageSpent" Text="{local:Loc 'Extra usage'}"
 						           FontSize="11" Opacity="0.95"
 						           Foreground="{DynamicResource {x:Static vsshell:VsBrushes.ToolWindowTextKey}}"/>
 						<TextBlock x:Name="InlineExtraUsageReset" Text=""

@@ -22,6 +22,7 @@ using ClaudeCodeVS.Diff;
 using Microsoft.VisualStudio.Shell;
 using Microsoft.VisualStudio.Shell.Interop;
 using Microsoft.VisualStudio.Threading;
+using static ClaudeCodeVS.UI.Loc;
 
 namespace ClaudeCodeVS
 {
@@ -452,11 +453,11 @@ namespace ClaudeCodeVS
                     {
                         await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
                         MessageBox.Show(
-                            "View Code Changes requires a Git repository.\n\n" +
+                            L("View Code Changes requires a Git repository.\n\n" +
                             "The current working directory is not inside a Git repository, so there are " +
                             "no tracked changes to display. Open a solution or folder that is under Git " +
-                            "version control to use this feature.",
-                            "View Code Changes",
+                            "version control to use this feature."),
+                            L("View Code Changes"),
                             MessageBoxButton.OK,
                             MessageBoxImage.Information);
                         return;
@@ -507,7 +508,7 @@ namespace ClaudeCodeVS
                 catch (Exception ex)
                 {
                     Debug.WriteLine($"Error in OnDiffViewerResetRequested: {ex.Message}");
-                    MessageBox.Show("Failed to reset code changes baseline.", "Claude Code", MessageBoxButton.OK, MessageBoxImage.Error);
+                    MessageBox.Show(L("Failed to reset code changes baseline."), "Claude Code", MessageBoxButton.OK, MessageBoxImage.Error);
                 }
             });
         }
@@ -555,7 +556,7 @@ namespace ClaudeCodeVS
                 {
                     if (showErrors)
                     {
-                        MessageBox.Show("Could not determine workspace directory to reset changes.", "Claude Code", MessageBoxButton.OK, MessageBoxImage.Warning);
+                        MessageBox.Show(L("Could not determine workspace directory to reset changes."), "Claude Code", MessageBoxButton.OK, MessageBoxImage.Warning);
                     }
                     return;
                 }
@@ -607,7 +608,7 @@ namespace ClaudeCodeVS
                 if (showErrors)
                 {
                     await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
-                    MessageBox.Show("Failed to reset code changes baseline.", "Claude Code", MessageBoxButton.OK, MessageBoxImage.Error);
+                    MessageBox.Show(L("Failed to reset code changes baseline."), "Claude Code", MessageBoxButton.OK, MessageBoxImage.Error);
                 }
             }
             finally

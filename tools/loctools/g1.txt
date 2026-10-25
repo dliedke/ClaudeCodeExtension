@@ -1,0 +1,164 @@
+<<<<
+                    ? "Merge into " + info.BaseBranch + "…"
+====
+                    ? L("Merge into {0}…", info.BaseBranch)
+>>>>
+<<<<
+                    label = label.Length > 0 ? label + "  ·  💬 chat open" : "💬 chat open";
+====
+                    label = label.Length > 0 ? label + "  ·  " + L("💬 chat open") : L("💬 chat open");
+>>>>
+<<<<
+                    statusText.Text = "No fix yet. Fix with Agent starts one from " + (selectedBase() ?? "the base branch") + ".";
+====
+                    statusText.Text = L("No fix yet. Fix with Agent starts one from {0}.", selectedBase() ?? L("the base branch"));
+>>>>
+<<<<
+                var parts = new List<string> { "Branch " + info.Branch + (string.IsNullOrEmpty(info.BaseBranch) ? string.Empty : " (from " + info.BaseBranch + ")") };
+                parts.Add(info.WorktreeExists ? "worktree " + info.WorktreePath : "no worktree");
+                if (info.WorktreeExists) parts.Add(info.Dirty ? "uncommitted changes" : "clean");
+                parts.Add(info.Ahead + " commit" + (info.Ahead == 1 ? string.Empty : "s") + " ahead");
+                parts.Add(info.Pushed ? "pushed" : info.RemoteBranchExists ? "push pending" : "not pushed");
+====
+                var parts = new List<string> { string.IsNullOrEmpty(info.BaseBranch) ? L("Branch {0}", info.Branch) : L("Branch {0} (from {1})", info.Branch, info.BaseBranch) };
+                parts.Add(info.WorktreeExists ? L("worktree {0}", info.WorktreePath) : L("no worktree"));
+                if (info.WorktreeExists) parts.Add(info.Dirty ? L("uncommitted changes") : L("clean"));
+                parts.Add(info.Ahead == 1 ? L("1 commit ahead") : L("{0} commits ahead", info.Ahead));
+                parts.Add(info.Pushed ? L("pushed") : info.RemoteBranchExists ? L("push pending") : L("not pushed"));
+>>>>
+<<<<
+                            loading.Text = "No " + (state == "all" ? string.Empty : state + " ") + "issues.";
+====
+                            loading.Text = state == "open" ? L("No open issues.") : state == "closed" ? L("No closed issues.") : L("No issues.");
+>>>>
+<<<<
+                    loading.Text = "Could not load issues: " + ex.Message;
+====
+                    loading.Text = L("Could not load issues: {0}", ex.Message);
+>>>>
+<<<<
+                return (null, null, false, "Could not create the worktree.\n\n" + (add?.StdErr ?? "git did not respond."));
+====
+                return (null, null, false, L("Could not create the worktree.\n\n{0}", add?.StdErr ?? L("git did not respond.")));
+>>>>
+<<<<
+                    return (Error: "Could not stage the changes.\n\n" + add?.StdErr, Diff: (string)null);
+====
+                    return (Error: L("Could not stage the changes.\n\n{0}", add?.StdErr), Diff: (string)null);
+>>>>
+<<<<
+                    MessageBox.Show(owner, "Commit failed.\n\n" + (commit?.StdErr ?? string.Empty) + commit?.StdOut, "Commit & Push", MessageBoxButton.OK, MessageBoxImage.Error);
+====
+                    MessageBox.Show(owner, L("Commit failed.\n\n{0}", (commit?.StdErr ?? string.Empty) + commit?.StdOut), L("Commit & Push"), MessageBoxButton.OK, MessageBoxImage.Error);
+>>>>
+<<<<
+                MessageBox.Show(owner, "The commit was created, but the push failed.\n\n" + (push?.StdErr ?? "git did not respond."),
+====
+                MessageBox.Show(owner, L("The commit was created, but the push failed.\n\n{0}", push?.StdErr ?? L("git did not respond.")),
+>>>>
+<<<<
+                    return (Kind: "error", Detail: "Could not check out " + baseRef + ".\n\n" + detach?.StdErr, Conflicts: (List<string>)null);
+====
+                    return (Kind: "error", Detail: L("Could not check out {0}.\n\n{1}", baseRef, detach?.StdErr), Conflicts: (List<string>)null);
+>>>>
+<<<<
+                    return (Kind: "error", Detail: "The merge failed.\n\n" + merge?.StdErr + reverse?.StdErr, Conflicts: (List<string>)null);
+====
+                    return (Kind: "error", Detail: L("The merge failed.\n\n{0}", merge?.StdErr + reverse?.StdErr), Conflicts: (List<string>)null);
+>>>>
+<<<<
+                    L("Pushing {0} failed, so nothing was merged.\n\n", baseBranch) + (pushed.Push?.StdErr ?? "git did not respond."),
+                    "Merge", MessageBoxButton.OK, MessageBoxImage.Error);
+====
+                    L("Pushing {0} failed, so nothing was merged.\n\n{1}", baseBranch, pushed.Push?.StdErr ?? L("git did not respond.")),
+                    L("Merge"), MessageBoxButton.OK, MessageBoxImage.Error);
+>>>>
+<<<<
+                        : "Could not post the reply: " + (comment?.StdErr.Trim() ?? "gh did not respond."));
+====
+                        : L("Could not post the reply: {0}", comment?.StdErr.Trim() ?? L("gh did not respond.")));
+>>>>
+<<<<
+                    : "Could not close the issue: " + (close?.StdErr.Trim() ?? "gh did not respond."));
+====
+                    : L("Could not close the issue: {0}", close?.StdErr.Trim() ?? L("gh did not respond.")));
+>>>>
+<<<<
+                    $"Merging the latest {baseBranch} produced conflicts in:\n\n{string.Join("\n", conflicts)}\n\nThe merge is in progress in the issue's worktree — resolve it there, then run Merge again.",
+                    "Merge", MessageBoxButton.OK, MessageBoxImage.Warning);
+====
+                    L("Merging the latest {0} produced conflicts in:\n\n{1}\n\nThe merge is in progress in the issue's worktree — resolve it there, then run Merge again.", baseBranch, string.Join("\n", conflicts)),
+                    L("Merge"), MessageBoxButton.OK, MessageBoxImage.Warning);
+>>>>
+<<<<
+            string text = L("Discard the fix for issue #{0}?\n\n", issue.Number) +
+                          L("This closes its chat tab and deletes the worktree and the local branch {0}", info.Branch) +
+                          (info.Dirty ? ", including uncommitted changes" : string.Empty) + ".";
+====
+            string text = L("Discard the fix for issue #{0}?\n\n", issue.Number) +
+                          (info.Dirty
+                              ? L("This closes its chat tab and deletes the worktree and the local branch {0}, including uncommitted changes.", info.Branch)
+                              : L("This closes its chat tab and deletes the worktree and the local branch {0}.", info.Branch));
+>>>>
+<<<<
+            progress(notes.Count == 0 ? "Fix discarded." : string.Join("  ·  ", notes));
+====
+            progress(notes.Count == 0 ? L("Fix discarded.") : string.Join("  ·  ", notes));
+>>>>
+<<<<
+                        notes.Add("Could not remove the worktree (a file may still be open): " + worktree);
+====
+                        notes.Add(L("Could not remove the worktree (a file may still be open): {0}", worktree));
+>>>>
+<<<<
+                        notes.Add("Could not delete the local branch " + branch + ".");
+====
+                        notes.Add(L("Could not delete the local branch {0}.", branch));
+>>>>
+<<<<
+                            ? $"Deleted {branch} on {context.RemoteName}."
+====
+                            ? L("Deleted {0} on {1}.", branch, context.RemoteName)
+>>>>
+<<<<
+                        ghError = "Could not read gh's output: " + ex.Message;
+====
+                        ghError = L("Could not read gh's output: {0}", ex.Message);
+>>>>
+<<<<
+                    ? "Could not list issues with the GitHub CLI: " + ghError + (ghError.IndexOf("auth", StringComparison.OrdinalIgnoreCase) >= 0 ? " (run \"gh auth login\")" : string.Empty)
+                    : "Could not list issues: " + ex.Message + " — install the GitHub CLI (gh) and run \"gh auth login\" for private repositories.";
+====
+                    ? L("Could not list issues with the GitHub CLI: {0}", ghError) + (ghError.IndexOf("auth", StringComparison.OrdinalIgnoreCase) >= 0 ? " " + L("(run \"gh auth login\")") : string.Empty)
+                    : L("Could not list issues: {0} — install the GitHub CLI (gh) and run \"gh auth login\" for private repositories.", ex.Message);
+>>>>
+<<<<
+                MessageBox.Show(owner, "Could not start Visual Studio: " + ex.Message, "GitHub Issues", MessageBoxButton.OK, MessageBoxImage.Error);
+====
+                MessageBox.Show(owner, L("Could not start Visual Studio: {0}", ex.Message), "GitHub Issues", MessageBoxButton.OK, MessageBoxImage.Error);
+>>>>
+<<<<
+                ? "image" : "\"" + segment.AltText.Trim() + "\"";
+====
+                ? L("image") : "\"" + segment.AltText.Trim() + "\"";
+>>>>
+<<<<
+                Child = new TextBlock { Text = "🖼 Loading " + label + "…", Foreground = mutedBrush, FontStyle = FontStyles.Italic }
+====
+                Child = new TextBlock { Text = L("🖼 Loading {0}…", label), Foreground = mutedBrush, FontStyle = FontStyles.Italic }
+>>>>
+<<<<
+                        Text = "🖼 " + char.ToUpperInvariant(label[0]) + label.Substring(1) + " could not be loaded — open it in the browser",
+====
+                        Text = L("🖼 {0} could not be loaded — open it in the browser", char.ToUpperInvariant(label[0]) + label.Substring(1)),
+>>>>
+<<<<
+                            reasonText = (reasonText + " Fable was recommended, but it needs usage credits and the balance is zero.").Trim();
+====
+                            reasonText = (reasonText + " " + L("Fable was recommended, but it needs usage credits and the balance is zero.")).Trim();
+>>>>
+<<<<
+                        status.Text = "No recommendation: " + (error ?? "the answer could not be read.") + " You can still pick a model and effort yourself.";
+====
+                        status.Text = L("No recommendation: {0} You can still pick a model and effort yourself.", error ?? L("the answer could not be read."));
+>>>>

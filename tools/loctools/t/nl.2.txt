@@ -1,0 +1,190 @@
+190	Cursor Agent-installatie
+191	Cursor Agent is niet geïnstalleerd. Er wordt een gewone CMD-terminal gebruikt.\r\n\r\n(je kunt op CTRL+C drukken om de volledige instructies te kopiëren)\r\n\r\nINSTALLATIE: native installatie (Windows)\r\n\r\nOpen PowerShell en voer uit:\r\n\r\nirm 'https://cursor.com/install?win32=true' | iex\r\n\r\nVoeg daarna agent.cmd toe aan de omgevingsvariabele PATH:\r\nC:\\Users\\%username%\\AppData\\Local\\cursor-agent\r\n\r\nInstalleer ook ripgrep (verplichte afhankelijkheid):\r\n\r\nwinget install -e --id BurntSushi.ripgrep.MSVC\r\n\r\nGa voor meer informatie naar: https://cursor.com
+192	Cursor Agent: Yolo-modus
+193	Aangepaste paden van CLI-uitvoerbare bestanden
+194	Aangepaste opdrachten
+195	Aangepaste achtergrondkleur
+196	Aangepaste opdrachten verschijnen in de vervolgkeuzelijst op de werkbalk naast het agentmenu. Als je erop klikt, wordt de ingestelde tekst rechtstreeks naar de actieve codeeragent gestuurd — handig voor slash-opdrachten (bijv. /codex-review) of vooraf ingestelde prompts.
+197	Aangepaste titel (laat leeg om terug te gaan naar het automatisch gegenereerde voorbeeld):
+198	Knippen
+199	Donker
+200	Standaard
+201	Standaardkleur voor sessies in native modus. Een kleur die voor één sessie is gekozen (paletknop in de chat) gaat nog steeds voor.
+202	Verwijderen
+203	Sessie verwijderen
+204	Dit door de agent gemaakte bestand verwijderen
+205	Het transcript van deze sessie verwijderen?\n\n{0}{1}\n\nDit kan niet ongedaan worden gemaakt.
+206	{0}, de worktree en het chattabblad verwijderen
+207	{0} verwijderen?\n\nDe agent heeft dit bestand gemaakt. Ongedaan maken verwijdert het van de schijf.
+208	{0} verwijderd op {1}.
+209	Chat losmaken naar een apart tabblad
+210	Terminal losmaken naar een apart tabblad
+211	Gedetecteerd door te kijken wanneer de terminal inactief wordt, dus het werkt met elke agent.
+212	Devin-installatie
+213	Devin is niet geïnstalleerd. Er wordt een gewone CMD-terminal gebruikt.\r\n\r\n(je kunt op CTRL+C drukken om de volledige instructies te kopiëren)\r\n\r\nINSTALLATIE\r\n\r\nOpen Windows Terminal en voer uit:\r\n\r\nirm https://static.devin.ai/cli/setup.ps1 | iex\r\n\r\n(De installatie moet vanuit Windows Terminal worden uitgevoerd. Open daarna een nieuwe terminal\r\nzodat het bijgewerkte PATH actief wordt.)\r\n\r\nNa de installatie werkt de opdracht 'devin' zowel in Windows Terminal als in de\r\ngewone Opdrachtprompt. De agent start met de opdracht 'devin'.\r\n\r\nGa voor meer informatie naar: https://devin.ai
+214	Kan het Devin-gebruik niet lezen.
+215	Devin: gevaarlijke modus
+216	Klembord uitschakelen (prompts typen in plaats van plakken)
+217	Correctie verwerpen
+218	De correctie voor issue #{0} verwerpen?\n\n
+219	Niet vragen om de AI-agent opnieuw te starten als het thema verandert
+220	WebView2 Runtime downloaden
+221	OpenPets {0} downloaden…
+222	OpenPets {0} downloaden… {1}
+223	OpenPets {0} downloaden… {1} van {2} ({3}%)
+224	Downloadt de nieuwste release van het bureaubladhuisdier OpenPets voor Windows van GitHub, toont de downloadvoortgang, controleert het met de checksum die bij de release is gepubliceerd en start daarna het installatieprogramma. Sluit eerst dit venster, waarbij niet-opgeslagen wijzigingen verloren gaan.
+225	Slepen en neerzetten
+226	Slepen om te herschikken
+227	Elk bestand gaat terug naar hoe het was voordat de agent het bewerkte. Door de agent gemaakte bestanden worden verwijderd.
+228	Aangepaste opdracht bewerken
+229	Bewerken...
+230	Inspanning (automatisch)
+231	Inspanning ({0})
+232	Inspanning:
+233	Codering
+234	Voer een aangepaste werkmap voor de terminal in:\n  - Absoluut pad (bijv. C:\\Projects\\MyRepo)\n  - Pad relatief aan de oplossingsmap (bijv. ..\\OtherRepo)\n  - Laat leeg om de standaardoplossingsmap te gebruiken
+235	Enter — prompt verzenden (Shift+Enter voegt een nieuwe regel in)
+236	Fout
+237	Fout bij het bijvoegen van neergezette bestanden: {0}
+238	Fout bij het configureren van aangepaste opdrachten: {0}
+239	Fout bij het configureren van zichtbare agents: {0}
+240	Fout bij het openen van het venster Instellingen: {0}
+241	Fout bij het openen van het bestand: {0}
+242	Fout bij het openen van de afbeelding: {0}
+243	Fout bij het openen van de sessiegeschiedenis: {0}
+244	Fout bij het plakken van de afbeelding: {0}
+245	Fout bij het selecteren van bestanden: {0}
+246	Fout bij het verzenden van de prompt: {0}
+247	Fout bij het verzenden van tekst naar de terminal: {0}
+248	Elke niet-gecommitte wijziging in de repository, vergeleken met de laatste commit
+249	Uitvoerbare bestanden
+250	Extra startargumenten
+251	Fable werd aanbevolen, maar vereist gebruikstegoed en het saldo is nul.
+252	Verwijderen mislukt: {0}
+253	Initialiseren van de terminal mislukt: {0}
+254	Installeren van Caveman mislukt: {0}
+255	Installeren van OpenPets mislukt: {0}
+256	Laden van instellingen mislukt: {0}
+257	Lezen van het instellingenbestand mislukt: {0}
+258	Opnieuw laden van Antigravity mislukt: {0}
+259	Opnieuw laden van Claude Code mislukt: {0}
+260	Opnieuw laden van Codex mislukt: {0}
+261	Opnieuw laden van Cursor Agent mislukt: {0}
+262	Opnieuw laden van Devin mislukt: {0}
+263	Opnieuw laden van Grok mislukt: {0}
+264	Opnieuw laden van Qwen Code mislukt: {0}
+265	Resetten van de basislijn voor codewijzigingen mislukt.
+266	Opnieuw starten van de terminal mislukt: {0}
+267	Uitvoeren van het script Agent klaar mislukt:\n\n{0}\n\n{1}
+268	Opslaan van instellingen mislukt: {0}
+269	Verzenden van de aangepaste opdracht mislukt: {0}
+270	Stagen van wijzigingen voor commit mislukt.\n\n{0}
+271	Starten van de ingebedde terminal mislukt: {0}
+272	Bijwerken van de agent mislukt: {0}
+273	Schrijven van het commitbericht naar een tijdelijk bestand mislukt.
+274	Bestandsextensies die de \"@\"-kiezer toont, bijv. \".cs, .lua\". Laat leeg om alle bestanden te tonen. Mappen verschijnen alleen als ze een overeenkomend bestand bevatten.
+275	Filteren op nummer, titel, label of auteur.
+276	Filter:
+277	Zoeken
+278	Issue #{0} oplossen
+279	Correctie verworpen.
+280	Oplossen met agent
+281	Het oplossen van een issue opent een eigen chattabblad, waarvoor de native modus nodig is. Schakel die in via ⚙ Instellingen... → Terminal → Native modus gebruiken.
+282	Mappen die de \"@\"-kiezer overslaat, bijv. \"Plugins, Assets/ThirdParty\". Een losse naam wordt overal overgeslagen waar hij voorkomt; een pad alleen op die plek. bin, obj, node_modules en vergelijkbare buildmappen worden altijd overgeslagen.
+283	Lettertype voor de ingebedde terminal (Opdrachtprompt en Windows Terminal). Standaard is Cascadia Mono. Alleen lettertypen met vaste breedte worden getoond — consoles tekenen tekst in een vast celraster, dus een proportioneel lettertype ziet er vervormd uit. Op systemen waarvan het schrift Cascadia Mono niet kan weergeven (Chinees, Japans, Koreaans, enz.), kies je een lettertype met vaste breedte dat jouw schrift dekt — bijvoorbeeld MS Gothic of NSimSun. Zoek op naam; de lijst en het voorbeeld worden in elk lettertype getoond.
+284	Lettertype van de chat in native modus. Alle geïnstalleerde lettertypen worden getoond, ook proportionele: de chat wordt door Windows opgemaakt, niet door het vaste tekenraster van een console, dus niets ziet er vervormd uit. Codeblokken en diffs houden een lettertype met vaste breedte zodat kolommen uitgelijnd blijven. Ctrl+Muiswiel op de chat zoomt verder dan deze grootte en wordt apart opgeslagen.
+285	Lettergrootte (in punten) van de ingebedde terminal. \"Standaard\" houdt de eigen grootte van de terminal. In de Opdrachtprompt werkt Ctrl+Muiswiel op de terminal deze grootte automatisch bij, zodat de gekozen zoom blijft voor de volgende sessie. In Windows Terminal geldt Ctrl+Muiswiel alleen voor de huidige sessie — stel de grootte hier in.
+286	Lettergrootte van het promptvak (ook aan te passen met Ctrl+Muiswiel).
+287	Commitbericht genereren
+288	Commitbericht genereren vereist de native modus. Schakel die in via ⚙ Instellingen... → Terminal → Native modus gebruiken en start dan een sessie.
+289	Commitbericht genereren, committen en pushen
+290	Git
+291	GitHub CLI (gh) niet gevonden — issues worden alleen-lezen getoond via de openbare API; antwoorden en sluiten vereisen gh.
+292	GitHub Issues
+293	GitHub Issues — {0}
+294	Grok-installatie
+295	Grok is niet geïnstalleerd. Er wordt een gewone CMD-terminal gebruikt.\r\n\r\n(je kunt op CTRL+C drukken om de volledige instructies te kopiëren)\r\n\r\nINSTALLATIE\r\n\r\nOpen PowerShell en voer uit:\r\n\r\nirm https://x.ai/cli/install.ps1 | iex\r\n\r\n(Alternatief: winget install xAI.GrokBuild. Open daarna een nieuwe terminal\r\nzodat het bijgewerkte PATH actief wordt.)\r\n\r\nCONFIGURATIE\r\n\r\nVoer eenmaal 'grok login' uit in een terminal om je aan te melden met je grok.com-account.\r\n\r\nDe agent start met de opdracht 'grok'.\r\n\r\nGa voor meer informatie naar: https://grok.com/build
+296	Grok: altijd goedkeuren
+297	Promptvak verbergen
+298	Promptvak verbergen terwijl de native chat in een eigen tabblad staat
+299	Promptvak verbergen (alleen terminal)
+300	Dit paneel verbergen terwijl de native chat in een eigen tabblad staat
+301	Geschiedenis gewist
+302	Seconden inactiviteit voordat \"klaar\" wordt gedetecteerd:
+303	In een oplossing die aan Team Foundation Version Control (Azure DevOps / TFS) is gekoppeld, checkt Claude Code in native modus elk alleen-lezenbestand via Visual Studio uit voordat het erin schrijft, zodat het nooit zelf het alleen-lezenkenmerk hoeft te verwijderen. Als uitchecken mislukt, bijvoorbeeld omdat iemand anders het bestand heeft vergrendeld, wordt de bewerking geblokkeerd en krijgt Claude te horen dat het jou moet vragen. Heeft geen invloed op andere repository's of agents. Geldt vanaf de volgende chatsessie.
+304	In native modus heeft de composer van het chattabblad eigen kiezers voor agent/model/inspanning/machtigingen, dus het promptvak van dit paneel klapt alleen in wanneer de chat naar zijn eigen tabblad gaat. Het komt automatisch terug zodra de chat weer aan het paneel wordt gekoppeld.
+305	Voegt een @-verwijzing in naar het bestand dat in het actieve editortabblad geopend is, zoals de \"Active Document\"-context van GitHub Copilot.
+306	Caveman installeren
+307	Caveman installeren (WSL)...
+308	Caveman installeren (Windows)...
+309	OpenPets installeren
+310	Nieuwste OpenPets installeren (Windows)...
+311	Installeert de skill Caveman (ultragecomprimeerde antwoorden) met \"npx skills add JuliusBrussee/caveman -g\" in een opdrachtprompt en laadt de codeeragent opnieuw als je die sluit. Sluit eerst dit venster, waarbij niet-opgeslagen wijzigingen verloren gaan. Alleen Claude Code.\nLet op: Windows en WSL bewaren skills apart, dus installeer hem in elk dat je gebruikt (WSL vereist Node.js/npx in de distro).
+312	Ongeldige kleur
+313	JSON-bestanden (*.json)|*.json|Alle bestanden (*.*)|*.*
+314	Houdt elk bestand dat de agent wijzigt bij in een controlelijst in de weergave Wijzigingen, met knoppen Behouden en Ongedaan maken per bestand. Ongedaan maken zet het bestand terug naar hoe het was vóór de eerste bewerking van de agent. Momentopnamen staan alleen in het geheugen. Geldt alleen als het project in een git-repository staat.
+315	Laatste prompt zichtbaar houden
+316	Terminal op zijn oorspronkelijke codepagina houden (UTF-8)
+317	Taal
+318	Taal van de hele extensie: paneel, menu's, dialoogvensters, berichten en chattabbladen. Automatisch volgt de taal van Visual Studio. Voeg een taal toe of verbeter er een door een bestand <code>.json in {0} te plaatsen. Wordt meteen toegepast, ook op geopende vensters en chats.
+319	Taal:
+320	Laatst gecontroleerd: {0}
+321	Laatst gewijzigd
+322	Laatst verzonden prompt (Ctrl+Omhoog om te bewerken en opnieuw te verzenden):
+323	Indeling
+324	Links — prompt links, terminal rechts
+325	De verouderde consolemodus is ingeschakeld op deze computer (HKCU\\Console\\ForceV2 = 0).\n\nWindows heeft de moderne console nodig om de terminal in het paneel in te bedden, dus de terminal blijft leeg totdat dit wordt gewijzigd.\n\nDe moderne console nu weer inschakelen? Dit wijzigt alleen je gebruikersinstelling en vereist geen beheerdersrechten.
+326	Laat Devin starten met het standaardmodel van het eigen account.
+327	Licht
+328	Toont de GitHub-issues van de repository en lost er een op in een eigen branch, worktree en chattabblad; daarna committen, samenvoegen en op het issue antwoorden. Vereist de native modus.
+329	Alle instellingen laden
+330	Alle instellingen laden uit bestand...
+331	Instellingen laden
+332	claude.ai laden...
+333	Opmerkingen laden…
+334	Issues laden…
+335	Sessies laden…
+336	Issue-opmerkingen laden…
+337	Zoeken naar de nieuwste OpenPets-release…
+338	Samenvoegen
+339	Samenvoegen geannuleerd.
+340	Samenvoegen in {0}…
+341	Voegt de correctie samen in zijn basisbranch, pusht, antwoordt op het issue, sluit het en ruimt alles op.
+342	{0} samenvoegen in {1} en {2} pushen naar {3}. Antwoord op issue #{4}:
+343	Samengevoegd in {0}.
+344	{0} samengevoegd in {1} en gepusht.
+345	Samenvoegen…
+346	Het samenvoegen van de nieuwste {0} gaf conflicten in:\n\n{1}\n\nDe samenvoeging loopt in de worktree van het issue — los het daar op en voer Samenvoegen opnieuw uit.
+347	Het samenvoegen van de nieuwste {0} gaf conflicten. Ze zijn naar de issuechat gestuurd om op te lossen — voer Samenvoegen opnieuw uit als de agent klaar is.
+348	Model gewijzigd
+349	Modelselectie
+350	Model:
+351	Modern — Visual Studio-pictogrammen en gekleurde status op tabbladen
+352	Meeste berichten
+353	Meeste tokens
+354	Omlaag
+355	Omhoog
+356	Verplaatst de terminal naar een apart tabblad en terug.
+357	Naam (getoond in de vervolgkeuzelijst):
+358	Beperkt de bestanden die getoond worden als je \"@\" in de prompt typt. Bestanden die door .gitignore worden genegeerd, blijven altijd uitgesloten. Scheid items met komma's.
+359	Native kleurenschema
+360	Native modus
+361	De native modus opent geen terminal, dus het terminaltype blijft Opdrachtprompt zolang die actief is.
+362	De native modus is actief: de agent meldt zelf wanneer een beurt klaar is, dus er wordt niet gewacht tot de console inactief wordt.
+363	Nieuw
+364	Volgende overeenkomst (Enter)
+365	Geen Codex-sessies gevonden voor deze werkruimte.
+366	Geen Devin-sessies gevonden voor deze werkruimte.
+367	Geen document
+368	Geen GitHub-repository gevonden voor de geopende oplossing. GitHub Issues vereist een git-repository met een github.com-remote.
+369	Geen prompt
+370	Geen selectie
+371	Er is geen actief document geopend in de editor.
+372	Geen wijzigingen van de agent die op controle wachten
+373	Er draait geen agent. Start een agentsessie voordat je een commitbericht genereert.
+374	Er draait geen agent. Start een agentsessie voordat je buildfouten verstuurt.
+375	Geen wijzigingen gedetecteerd
+376	Geen gesloten issues.
+377	Nog geen correctie. Oplossen met agent start er een vanaf {0}.
+378	Geen git-repository gevonden voor de huidige werkruimte.
+379	Geen issues komen overeen met het filter.

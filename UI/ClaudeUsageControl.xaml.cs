@@ -29,6 +29,7 @@ using System.Windows.Interop;
 using System.Windows.Media;
 using System.Windows.Threading;
 using ClaudeCodeVS.UI;
+using static ClaudeCodeVS.UI.Loc;
 
 namespace ClaudeCodeVS
 {
@@ -336,9 +337,9 @@ namespace ClaudeCodeVS
             catch (Exception ex)
             {
                 Debug.WriteLine("ClaudeUsageControl: WebView2 init failed: " + ex);
-                ShowError("WebView2 runtime is required to display the Claude usage page. " +
-                          "Click below to install it, then reopen this window.\n\n" +
-                          "Details: " + ex.GetType().Name + ": " + ex.Message);
+                ShowError(L("WebView2 runtime is required to display the Claude usage page. " +
+                            "Click below to install it, then reopen this window.\n\n" +
+                            "Details: {0}", ex.GetType().Name + ": " + ex.Message));
             }
         }
 
@@ -1373,7 +1374,7 @@ namespace ClaudeCodeVS
         private void UpdateStatus()
         {
             if (StatusText == null) return;
-            StatusText.Text = "Last checked: " + DateTime.Now.ToString("HH:mm:ss");
+            StatusText.Text = L("Last checked: {0}", DateTime.Now.ToString("HH:mm:ss"));
         }
 
         public void ApplyAutoRefreshSeconds(int seconds)

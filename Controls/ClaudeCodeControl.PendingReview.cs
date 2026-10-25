@@ -23,6 +23,7 @@ using Microsoft.VisualStudio;
 using Microsoft.VisualStudio.Shell;
 using Microsoft.VisualStudio.Shell.Interop;
 using Microsoft.VisualStudio.Threading;
+using static ClaudeCodeVS.UI.Loc;
 
 namespace ClaudeCodeVS
 {
@@ -454,7 +455,7 @@ namespace ClaudeCodeVS
             string question = PendingReviewMessages.BuildUndoQuestion(file.FileName, file.Type, hasUnsavedEdits);
 
             // With unsaved edits at stake, No is the default so a reflexive Enter discards nothing.
-            if (!ConfirmPendingReviewAction(question, "Undo Agent Changes", defaultNo: hasUnsavedEdits))
+            if (!ConfirmPendingReviewAction(question, L("Undo Agent Changes"), defaultNo: hasUnsavedEdits))
                 return;
 
 #pragma warning disable VSSDK007
@@ -486,7 +487,7 @@ namespace ClaudeCodeVS
                 string question = PendingReviewMessages.BuildUndoAllQuestion(
                     paths.Count, unsaved.Select(Path.GetFileName).ToList());
 
-                if (!ConfirmPendingReviewAction(question, "Undo All Agent Changes", defaultNo: unsaved.Count > 0))
+                if (!ConfirmPendingReviewAction(question, L("Undo All Agent Changes"), defaultNo: unsaved.Count > 0))
                     return;
 
                 await UndoPendingFilesAsync(tracker, paths);
@@ -526,8 +527,8 @@ namespace ClaudeCodeVS
                 {
                     Debug.WriteLine($"PendingReview: compare of {path} failed: {ex}");
                     ShowPendingReviewWarning(
-                        $"Could not open {Path.GetFileName(path)} in the diff window:\n\n{ex.Message}",
-                        "Compare Agent Changes");
+                        L("Could not open {0} in the diff window:\n\n{1}", Path.GetFileName(path), ex.Message),
+                        L("Compare Agent Changes"));
                 }
             }).FileAndForget("claudecode/pendingreview/compare");
 #pragma warning restore VSSDK007
@@ -585,9 +586,9 @@ namespace ClaudeCodeVS
                 if (failures.Count > 0)
                 {
                     ShowPendingReviewWarning(
-                        "Some files could not be restored:\n\n" + string.Join("\n", failures.Take(10)) +
-                        (failures.Count > 10 ? $"\n... and {failures.Count - 10} more" : string.Empty),
-                        "Undo Agent Changes");
+                        L("Some files could not be restored:\n\n{0}", string.Join("\n", failures.Take(10))) +
+                        (failures.Count > 10 ? "\n" + L("... and {0} more", failures.Count - 10) : string.Empty),
+                        L("Undo Agent Changes"));
                 }
             }
             finally
@@ -850,10 +851,10 @@ namespace ClaudeCodeVS
             diffService.OpenComparisonWindow2(
                 left,
                 right,
-                $"{fileName} (pending review)",
+                L("{0} (pending review)", fileName),
                 path,
-                "Before the agent",
-                "Now",
+                L("Before the agent"),
+                L("Now"),
                 null,
                 null,
                 (uint)options);

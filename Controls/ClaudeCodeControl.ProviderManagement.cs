@@ -22,6 +22,7 @@ using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
 using ClaudeCodeVS.UI;
 using Microsoft.VisualStudio.Shell;
+using static ClaudeCodeVS.UI.Loc;
 
 namespace ClaudeCodeVS
 {
@@ -1605,28 +1606,19 @@ namespace ClaudeCodeVS
         /// </summary>
         private void ShowClaudeInstallationInstructions()
         {
-            const string instructions = @"Claude Code is not installed. A regular CMD terminal will be used instead.
+            string instructions = L("Claude Code is not installed. A regular CMD terminal will be used instead.\r\n\r\n" +
+                  "(you may click CTRL+C to copy full instructions)\r\n\r\n" +
+                  "RECOMMENDED: Native Installation (Windows)\r\n\r\n" +
+                  "Open cmd as administrator and run:\r\n\r\n" +
+                  "curl -fsSL https://claude.ai/install.cmd -o install.cmd && install.cmd && del install.cmd\r\n\r\n" +
+                  "Then add claude.exe to the PATH environment variable:\r\n" +
+                  "C:\\Users\\%username%\\.local\\bin\r\n\r\n" +
+                  "ALTERNATIVE: NPM Installation\r\n\r\n" +
+                  "If you prefer using NPM, you can install it with:\r\n\r\n" +
+                  "npm install -g @anthropic-ai/claude-code\r\n\r\n" +
+                  "For more details, visit: https://docs.claude.com/en/docs/claude-code/setup");
 
-(you may click CTRL+C to copy full instructions)
-
-RECOMMENDED: Native Installation (Windows)
-
-Open cmd as administrator and run:
-
-curl -fsSL https://claude.ai/install.cmd -o install.cmd && install.cmd && del install.cmd
-
-Then add claude.exe to the PATH environment variable:
-C:\Users\%username%\.local\bin
-
-ALTERNATIVE: NPM Installation
-
-If you prefer using NPM, you can install it with:
-
-npm install -g @anthropic-ai/claude-code
-
-For more details, visit: https://docs.claude.com/en/docs/claude-code/setup";
-
-            MessageBox.Show(instructions, "Claude Code Installation",
+            MessageBox.Show(instructions, L("Claude Code Installation"),
                           MessageBoxButton.OK, MessageBoxImage.Information);
         }
 
@@ -1635,35 +1627,25 @@ For more details, visit: https://docs.claude.com/en/docs/claude-code/setup";
         /// </summary>
         private void ShowClaudeCodeWSLInstallationInstructions()
         {
-            const string instructions = @"To use Claude Code (WSL), you need to install WSL and Claude Code inside WSL.
+            string instructions = L("To use Claude Code (WSL), you need to install WSL and Claude Code inside WSL.\r\n\r\n" +
+                  "(you may click CTRL+C to copy full instructions)\r\n\r\n" +
+                  "Make sure virtualization is enabled in BIOS.\r\n\r\n" +
+                  "Open PowerShell as Administrator and run:\r\n\r\n" +
+                  "dism.exe /online /enable-feature /featurename:Microsoft-Windows-Subsystem-Linux /all /norestart\r\n\r\n" +
+                  "dism.exe /online /enable-feature /featurename:VirtualMachinePlatform /all /norestart\r\n\r\n" +
+                  "wsl --install\r\n\r\n" +
+                  "# Start a shell inside of Windows Subsystem for Linux\r\n" +
+                  "wsl\r\n\r\n" +
+                  "# https://learn.microsoft.com/en-us/windows/dev-environment/javascript/nodejs-on-wsl\r\n" +
+                  "# Install Node.js in WSL\r\n" +
+                  "curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/master/install.sh | bash\r\n\r\n" +
+                  "# In a new tab or after exiting and running `wsl` again to install Node.js\r\n" +
+                  "nvm install 22\r\n\r\n" +
+                  "# Install and run Claude Code in WSL\r\n" +
+                  "npm i -g @anthropic-ai/claude-code\r\n" +
+                  "claude");
 
-(you may click CTRL+C to copy full instructions)
-
-Make sure virtualization is enabled in BIOS.
-
-Open PowerShell as Administrator and run:
-
-dism.exe /online /enable-feature /featurename:Microsoft-Windows-Subsystem-Linux /all /norestart
-
-dism.exe /online /enable-feature /featurename:VirtualMachinePlatform /all /norestart
-
-wsl --install
-
-# Start a shell inside of Windows Subsystem for Linux
-wsl
-
-# https://learn.microsoft.com/en-us/windows/dev-environment/javascript/nodejs-on-wsl
-# Install Node.js in WSL
-curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/master/install.sh | bash
-
-# In a new tab or after exiting and running `wsl` again to install Node.js
-nvm install 22
-
-# Install and run Claude Code in WSL
-npm i -g @anthropic-ai/claude-code
-claude";
-
-            MessageBox.Show(instructions, "Claude Code (WSL) Installation",
+            MessageBox.Show(instructions, L("Claude Code (WSL) Installation"),
                           MessageBoxButton.OK, MessageBoxImage.Information);
         }
 
@@ -1672,35 +1654,25 @@ claude";
         /// </summary>
         private void ShowCodexInstallationInstructions()
         {
-            const string instructions = @"To use Codex, you need to install WSL and Codex inside WSL.
+            string instructions = L("To use Codex, you need to install WSL and Codex inside WSL.\r\n\r\n" +
+                  "(you may click CTRL+C to copy full instructions)\r\n\r\n" +
+                  "Make sure virtualization is enabled in BIOS.\r\n\r\n" +
+                  "Open PowerShell as Administrator and run:\r\n\r\n" +
+                  "dism.exe /online /enable-feature /featurename:Microsoft-Windows-Subsystem-Linux /all /norestart\r\n\r\n" +
+                  "dism.exe /online /enable-feature /featurename:VirtualMachinePlatform /all /norestart\r\n\r\n" +
+                  "wsl --install\r\n\r\n" +
+                  "# Start a shell inside of Windows Subsystem for Linux\r\n" +
+                  "wsl\r\n\r\n" +
+                  "# https://learn.microsoft.com/en-us/windows/dev-environment/javascript/nodejs-on-wsl\r\n" +
+                  "# Install Node.js in WSL\r\n" +
+                  "curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/master/install.sh | bash\r\n\r\n" +
+                  "# In a new tab or after exiting and running `wsl` again to install Node.js\r\n" +
+                  "nvm install 22\r\n\r\n" +
+                  "# Install and run Codex in WSL\r\n" +
+                  "npm i -g @openai/codex\r\n" +
+                  "codex");
 
-(you may click CTRL+C to copy full instructions)
-
-Make sure virtualization is enabled in BIOS.
-
-Open PowerShell as Administrator and run:
-
-dism.exe /online /enable-feature /featurename:Microsoft-Windows-Subsystem-Linux /all /norestart
-
-dism.exe /online /enable-feature /featurename:VirtualMachinePlatform /all /norestart
-
-wsl --install
-
-# Start a shell inside of Windows Subsystem for Linux
-wsl
-
-# https://learn.microsoft.com/en-us/windows/dev-environment/javascript/nodejs-on-wsl
-# Install Node.js in WSL
-curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/master/install.sh | bash
-
-# In a new tab or after exiting and running `wsl` again to install Node.js
-nvm install 22
-
-# Install and run Codex in WSL
-npm i -g @openai/codex
-codex";
-
-            MessageBox.Show(instructions, "Codex (WSL) Installation",
+            MessageBox.Show(instructions, L("Codex (WSL) Installation"),
                           MessageBoxButton.OK, MessageBoxImage.Information);
         }
 
@@ -1709,23 +1681,17 @@ codex";
         /// </summary>
         private void ShowCodexNativeInstallationInstructions()
         {
-            const string instructions = @"Codex is not installed. A regular CMD terminal will be used instead.
+            string instructions = L("Codex is not installed. A regular CMD terminal will be used instead.\r\n\r\n" +
+                  "(you may click CTRL+C to copy full instructions)\r\n\r\n" +
+                  "INSTALLATION: NPM Installation\r\n\r\n" +
+                  "Open cmd and run:\r\n\r\n" +
+                  "npm install -g @openai/codex\r\n\r\n" +
+                  "Requirements:\r\n" +
+                  "- Node.js installed\r\n" +
+                  "- Chat GPT Plus or better paid subscription\r\n\r\n" +
+                  "For more details, visit: https://github.com/openai/codex");
 
-(you may click CTRL+C to copy full instructions)
-
-INSTALLATION: NPM Installation
-
-Open cmd and run:
-
-npm install -g @openai/codex
-
-Requirements:
-- Node.js installed
-- Chat GPT Plus or better paid subscription
-
-For more details, visit: https://github.com/openai/codex";
-
-            MessageBox.Show(instructions, "Codex Installation",
+            MessageBox.Show(instructions, L("Codex Installation"),
                           MessageBoxButton.OK, MessageBoxImage.Information);
         }
 
@@ -1734,36 +1700,23 @@ For more details, visit: https://github.com/openai/codex";
         /// </summary>
         private void ShowCursorAgentInstallationInstructions()
         {
-            const string instructions = @"To use Cursor Agent, you need to install WSL and cursor-agent.
+            string instructions = L("To use Cursor Agent, you need to install WSL and cursor-agent.\r\n\r\n" +
+                  "(you may click CTRL+C to copy full instructions)\r\n\r\n" +
+                  "Make sure virtualization is enabled in BIOS.\r\n\r\n" +
+                  "Open PowerShell as Administrator and run:\r\n\r\n" +
+                  "dism.exe /online /enable-feature /featurename:Microsoft-Windows-Subsystem-Linux /all /norestart\r\n\r\n" +
+                  "dism.exe /online /enable-feature /featurename:VirtualMachinePlatform /all /norestart\r\n\r\n" +
+                  "wsl --install\r\n\r\n" +
+                  "Install cursor agent inside WSL:\r\n\r\n" +
+                  "wsl \r\n\r\n" +
+                  "curl https://cursor.com/install -fsS | bash\r\n\r\n" +
+                  "Copy and paste the 2 suggested commands to add cursor to path:\r\n\r\n" +
+                  "echo 'export PATH=\"$HOME/.local/bin:$PATH\"' >> ~/.bashrc\r\n" +
+                  "source ~/.bashrc\r\n\r\n" +
+                  "Start cursor-agent to login:\r\n\r\n" +
+                  "cursor-agent");
 
-(you may click CTRL+C to copy full instructions)
-
-Make sure virtualization is enabled in BIOS.
-
-Open PowerShell as Administrator and run:
-
-dism.exe /online /enable-feature /featurename:Microsoft-Windows-Subsystem-Linux /all /norestart
-
-dism.exe /online /enable-feature /featurename:VirtualMachinePlatform /all /norestart
-
-wsl --install
-
-Install cursor agent inside WSL:
-
-wsl 
-
-curl https://cursor.com/install -fsS | bash
-
-Copy and paste the 2 suggested commands to add cursor to path:
-
-echo 'export PATH=""$HOME/.local/bin:$PATH""' >> ~/.bashrc
-source ~/.bashrc
-
-Start cursor-agent to login:
-
-cursor-agent";
-
-            MessageBox.Show(instructions, "Cursor Agent Installation",
+            MessageBox.Show(instructions, L("Cursor Agent Installation"),
                           MessageBoxButton.OK, MessageBoxImage.Information);
         }
 
@@ -1772,26 +1725,18 @@ cursor-agent";
         /// </summary>
         private void ShowCursorAgentNativeInstallationInstructions()
         {
-            const string instructions = @"Cursor Agent is not installed. A regular CMD terminal will be used instead.
+            string instructions = L("Cursor Agent is not installed. A regular CMD terminal will be used instead.\r\n\r\n" +
+                  "(you may click CTRL+C to copy full instructions)\r\n\r\n" +
+                  "INSTALLATION: Native Installation (Windows)\r\n\r\n" +
+                  "Open PowerShell and run:\r\n\r\n" +
+                  "irm 'https://cursor.com/install?win32=true' | iex\r\n\r\n" +
+                  "Then add agent.cmd to the PATH environment variable:\r\n" +
+                  "C:\\Users\\%username%\\AppData\\Local\\cursor-agent\r\n\r\n" +
+                  "Also install ripgrep (required dependency):\r\n\r\n" +
+                  "winget install -e --id BurntSushi.ripgrep.MSVC\r\n\r\n" +
+                  "For more details, visit: https://cursor.com");
 
-(you may click CTRL+C to copy full instructions)
-
-INSTALLATION: Native Installation (Windows)
-
-Open PowerShell and run:
-
-irm 'https://cursor.com/install?win32=true' | iex
-
-Then add agent.cmd to the PATH environment variable:
-C:\Users\%username%\AppData\Local\cursor-agent
-
-Also install ripgrep (required dependency):
-
-winget install -e --id BurntSushi.ripgrep.MSVC
-
-For more details, visit: https://cursor.com";
-
-            MessageBox.Show(instructions, "Cursor Agent Installation",
+            MessageBox.Show(instructions, L("Cursor Agent Installation"),
                           MessageBoxButton.OK, MessageBoxImage.Information);
         }
 
@@ -1800,22 +1745,16 @@ For more details, visit: https://cursor.com";
         /// </summary>
         private void ShowOpenCodeInstallationInstructions()
         {
-            const string instructions = @"Open Code is not installed. A regular CMD terminal will be used instead.
+            string instructions = L("Open Code is not installed. A regular CMD terminal will be used instead.\r\n\r\n" +
+                  "(you may click CTRL+C to copy full instructions)\r\n\r\n" +
+                  "INSTALLATION: NPM Installation\r\n\r\n" +
+                  "Open cmd and run:\r\n\r\n" +
+                  "npm i -g opencode-ai\r\n\r\n" +
+                  "Requirements:\r\n" +
+                  "- Node.js installed\r\n\r\n" +
+                  "For more details, visit: https://opencode.ai");
 
-(you may click CTRL+C to copy full instructions)
-
-INSTALLATION: NPM Installation
-
-Open cmd and run:
-
-npm i -g opencode-ai
-
-Requirements:
-- Node.js installed
-
-For more details, visit: https://opencode.ai";
-
-            MessageBox.Show(instructions, "Open Code Installation",
+            MessageBox.Show(instructions, L("Open Code Installation"),
                           MessageBoxButton.OK, MessageBoxImage.Information);
         }
 
@@ -1824,31 +1763,20 @@ For more details, visit: https://opencode.ai";
         /// </summary>
         private void ShowDevinInstallationInstructions()
         {
-            const string instructions = @"To use Devin, you need to install WSL and Devin inside WSL.
+            string instructions = L("To use Devin, you need to install WSL and Devin inside WSL.\r\n\r\n" +
+                  "(you may click CTRL+C to copy full instructions)\r\n\r\n" +
+                  "Make sure virtualization is enabled in BIOS.\r\n\r\n" +
+                  "Open PowerShell as Administrator and run:\r\n\r\n" +
+                  "dism.exe /online /enable-feature /featurename:Microsoft-Windows-Subsystem-Linux /all /norestart\r\n\r\n" +
+                  "dism.exe /online /enable-feature /featurename:VirtualMachinePlatform /all /norestart\r\n\r\n" +
+                  "wsl --install\r\n\r\n" +
+                  "Install Devin inside WSL:\r\n\r\n" +
+                  "wsl\r\n\r\n" +
+                  "curl -fsSL https://cli.devin.ai/install.sh | bash\r\n\r\n" +
+                  "Start devin to login:\r\n\r\n" +
+                  "devin");
 
-(you may click CTRL+C to copy full instructions)
-
-Make sure virtualization is enabled in BIOS.
-
-Open PowerShell as Administrator and run:
-
-dism.exe /online /enable-feature /featurename:Microsoft-Windows-Subsystem-Linux /all /norestart
-
-dism.exe /online /enable-feature /featurename:VirtualMachinePlatform /all /norestart
-
-wsl --install
-
-Install Devin inside WSL:
-
-wsl
-
-curl -fsSL https://cli.devin.ai/install.sh | bash
-
-Start devin to login:
-
-devin";
-
-            MessageBox.Show(instructions, "Devin Installation",
+            MessageBox.Show(instructions, L("Devin Installation"),
                           MessageBoxButton.OK, MessageBoxImage.Information);
         }
 
@@ -1857,23 +1785,17 @@ devin";
         /// </summary>
         private void ShowPiInstallationInstructions()
         {
-            const string instructions = @"PI is not installed. A regular CMD terminal will be used instead.
+            string instructions = L("PI is not installed. A regular CMD terminal will be used instead.\r\n\r\n" +
+                  "(you may click CTRL+C to copy full instructions)\r\n\r\n" +
+                  "INSTALLATION: NPM Installation\r\n\r\n" +
+                  "Open cmd and run:\r\n\r\n" +
+                  "npm install -g @earendil-works/pi-coding-agent\r\n\r\n" +
+                  "Requirements:\r\n" +
+                  "- Node.js installed\r\n" +
+                  "- Git for Windows (Git Bash) installed for bash support\r\n\r\n" +
+                  "For more details, visit: https://pi.dev");
 
-(you may click CTRL+C to copy full instructions)
-
-INSTALLATION: NPM Installation
-
-Open cmd and run:
-
-npm install -g @earendil-works/pi-coding-agent
-
-Requirements:
-- Node.js installed
-- Git for Windows (Git Bash) installed for bash support
-
-For more details, visit: https://pi.dev";
-
-            MessageBox.Show(instructions, "PI Installation",
+            MessageBox.Show(instructions, L("PI Installation"),
                           MessageBoxButton.OK, MessageBoxImage.Information);
         }
 
@@ -1886,18 +1808,19 @@ For more details, visit: https://pi.dev";
                 "agy");
 
             string instructions =
-                "Antigravity is not installed. A regular CMD terminal will be used instead.\r\n\r\n" +
-                "(you may click CTRL+C to copy full instructions)\r\n\r\n" +
-                "INSTALLATION\r\n\r\n" +
-                "Open PowerShell and run:\r\n\r\n" +
-                "irm https://antigravity.google/cli/install.ps1 | iex\r\n\r\n" +
-                "Then add the install folder to your PATH:\r\n\r\n" +
-                agyPath + "\r\n\r\n" +
-                "(Open a new terminal afterwards so the updated PATH takes effect.)\r\n\r\n" +
-                "The agent is launched with the 'agy' command.\r\n\r\n" +
-                "For more details, visit: https://antigravity.google/download";
+                L("Antigravity is not installed. A regular CMD terminal will be used instead.\r\n\r\n" +
+                  "(you may click CTRL+C to copy full instructions)\r\n\r\n" +
+                  "INSTALLATION\r\n\r\n" +
+                  "Open PowerShell and run:\r\n\r\n" +
+                  "irm https://antigravity.google/cli/install.ps1 | iex\r\n\r\n" +
+                  "Then add the install folder to your PATH:\r\n\r\n" +
+                  "{0}\r\n\r\n" +
+                  "(Open a new terminal afterwards so the updated PATH takes effect.)\r\n\r\n" +
+                  "The agent is launched with the 'agy' command.\r\n\r\n" +
+                  "For more details, visit: https://antigravity.google/download",
+                  agyPath);
 
-            MessageBox.Show(instructions, "Antigravity Installation",
+            MessageBox.Show(instructions, L("Antigravity Installation"),
                           MessageBoxButton.OK, MessageBoxImage.Information);
         }
 
@@ -1908,7 +1831,7 @@ For more details, visit: https://pi.dev";
         private void ShowReasonixInstallationInstructions()
         {
             string instructions =
-                "Reasonix is not installed. A regular CMD terminal will be used instead.\r\n\r\n" +
+                L("Reasonix is not installed. A regular CMD terminal will be used instead.\r\n\r\n" +
                 "(you may click CTRL+C to copy full instructions)\r\n\r\n" +
                 "INSTALLATION\r\n\r\n" +
                 "Open a terminal and run:\r\n\r\n" +
@@ -1919,9 +1842,9 @@ For more details, visit: https://pi.dev";
                 "setx DEEPSEEK_API_KEY sk-...\r\n\r\n" +
                 "(or let the Reasonix setup wizard save it.)\r\n\r\n" +
                 "The agent is launched with the 'reasonix' command.\r\n\r\n" +
-                "For more details, visit: https://github.com/esengine/DeepSeek-Reasonix/releases";
+                "For more details, visit: https://github.com/esengine/DeepSeek-Reasonix/releases");
 
-            MessageBox.Show(instructions, "Reasonix Installation",
+            MessageBox.Show(instructions, L("Reasonix Installation"),
                           MessageBoxButton.OK, MessageBoxImage.Information);
         }
 
@@ -1933,7 +1856,7 @@ For more details, visit: https://pi.dev";
         private void ShowQwenCodeInstallationInstructions()
         {
             string instructions =
-                "Qwen Code is not installed. A regular CMD terminal will be used instead.\r\n\r\n" +
+                L("Qwen Code is not installed. A regular CMD terminal will be used instead.\r\n\r\n" +
                 "(you may click CTRL+C to copy full instructions)\r\n\r\n" +
                 "INSTALLATION\r\n\r\n" +
                 "Requires Node.js 22 or later. Open a terminal and run:\r\n\r\n" +
@@ -1943,9 +1866,9 @@ For more details, visit: https://pi.dev";
                 "Run 'qwen' once in a terminal and type /auth to set up a Coding Plan or an API key.\r\n" +
                 "(The free Qwen OAuth sign-in is discontinued.)\r\n\r\n" +
                 "The agent is launched with the 'qwen' command.\r\n\r\n" +
-                "For more details, visit: https://github.com/QwenLM/qwen-code";
+                "For more details, visit: https://github.com/QwenLM/qwen-code");
 
-            MessageBox.Show(instructions, "Qwen Code Installation",
+            MessageBox.Show(instructions, L("Qwen Code Installation"),
                           MessageBoxButton.OK, MessageBoxImage.Information);
         }
 
@@ -1957,7 +1880,7 @@ For more details, visit: https://pi.dev";
         private void ShowGrokInstallationInstructions()
         {
             string instructions =
-                "Grok is not installed. A regular CMD terminal will be used instead.\r\n\r\n" +
+                L("Grok is not installed. A regular CMD terminal will be used instead.\r\n\r\n" +
                 "(you may click CTRL+C to copy full instructions)\r\n\r\n" +
                 "INSTALLATION\r\n\r\n" +
                 "Open PowerShell and run:\r\n\r\n" +
@@ -1967,9 +1890,9 @@ For more details, visit: https://pi.dev";
                 "CONFIGURATION\r\n\r\n" +
                 "Run 'grok login' once in a terminal to sign in with your grok.com account.\r\n\r\n" +
                 "The agent is launched with the 'grok' command.\r\n\r\n" +
-                "For more details, visit: https://grok.com/build";
+                "For more details, visit: https://grok.com/build");
 
-            MessageBox.Show(instructions, "Grok Installation",
+            MessageBox.Show(instructions, L("Grok Installation"),
                           MessageBoxButton.OK, MessageBoxImage.Information);
         }
 
@@ -1981,7 +1904,7 @@ For more details, visit: https://pi.dev";
         private void ShowDevinNativeInstallationInstructions()
         {
             string instructions =
-                "Devin is not installed. A regular CMD terminal will be used instead.\r\n\r\n" +
+                L("Devin is not installed. A regular CMD terminal will be used instead.\r\n\r\n" +
                 "(you may click CTRL+C to copy full instructions)\r\n\r\n" +
                 "INSTALLATION\r\n\r\n" +
                 "Open Windows Terminal and run:\r\n\r\n" +
@@ -1990,9 +1913,9 @@ For more details, visit: https://pi.dev";
                 "afterwards so the updated PATH takes effect.)\r\n\r\n" +
                 "Once installed, the 'devin' command works in both Windows Terminal and the\r\n" +
                 "regular Command Prompt. The agent is launched with the 'devin' command.\r\n\r\n" +
-                "For more details, visit: https://devin.ai";
+                "For more details, visit: https://devin.ai");
 
-            MessageBox.Show(instructions, "Devin Installation",
+            MessageBox.Show(instructions, L("Devin Installation"),
                           MessageBoxButton.OK, MessageBoxImage.Information);
         }
 
@@ -3072,7 +2995,7 @@ For more details, visit: https://pi.dev";
             // Show a simple dialog with radio button options
             var window = new System.Windows.Window
             {
-                Title = "Select Terminal Type",
+                Title = L("Select Terminal Type"),
                 Width = 400,
                 Height = 240,
                 WindowStartupLocation = System.Windows.WindowStartupLocation.CenterScreen,
@@ -3105,7 +3028,7 @@ For more details, visit: https://pi.dev";
             // Command Prompt option
             var cmdRadio = new System.Windows.Controls.RadioButton
             {
-                Content = "Command Prompt (default)",
+                Content = L("Command Prompt (default)"),
                 Margin = new System.Windows.Thickness(0, 10, 0, 15),
                 IsChecked = currentType == TerminalType.CommandPrompt,
                 Foreground = themeFg
@@ -3115,7 +3038,7 @@ For more details, visit: https://pi.dev";
             // Windows Terminal option
             var wtRadio = new System.Windows.Controls.RadioButton
             {
-                Content = "Windows Terminal (better emoji/unicode support)",
+                Content = L("Windows Terminal (better emoji/unicode support)"),
                 Margin = new System.Windows.Thickness(0, 0, 0, 15),
                 IsChecked = currentType == TerminalType.WindowsTerminal,
                 Foreground = themeFg
@@ -3125,7 +3048,7 @@ For more details, visit: https://pi.dev";
             // Note label
             var noteLabel = new System.Windows.Controls.TextBlock
             {
-                Text = "Note: Windows Terminal requires installation. If not found, it will show installation instructions.",
+                Text = L("Note: Windows Terminal requires installation. If not found, it will show installation instructions."),
                 FontSize = 11,
                 Foreground = themeFg,
                 TextWrapping = System.Windows.TextWrapping.Wrap,
@@ -3160,7 +3083,7 @@ For more details, visit: https://pi.dev";
 
             var cancelButton = new System.Windows.Controls.Button
             {
-                Content = "Cancel",
+                Content = L("Cancel"),
                 Width = 75,
                 Height = 25,
                 IsCancel = true,
@@ -3184,15 +3107,15 @@ For more details, visit: https://pi.dev";
                     if (!wtAvailable)
                     {
                         MessageBox.Show(
-                            "Windows Terminal (wt.exe) was not found in PATH.\n\n" +
+                            L("Windows Terminal (wt.exe) was not found in PATH.\n\n" +
                             "To install, open Command Prompt as Administrator and run:\n\n" +
                             "    winget install --id Microsoft.WindowsTerminal -e\n\n" +
                             "Or install from:\n" +
                             "• Microsoft Store: https://aka.ms/terminal\n" +
                             "• GitHub: https://github.com/microsoft/terminal/releases\n\n" +
                             "After installing, restart Visual Studio and try again.\n\n" +
-                            "(Press Ctrl+C to copy this message)",
-                            "Windows Terminal Not Found",
+                            "(Press Ctrl+C to copy this message)"),
+                            L("Windows Terminal Not Found"),
                             MessageBoxButton.OK,
                             MessageBoxImage.Information);
                         return;
@@ -3213,7 +3136,7 @@ For more details, visit: https://pi.dev";
                     {
                         Debug.WriteLine($"Error restarting terminal after terminal type change: {ex.Message}");
                         await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
-                        MessageBox.Show($"Failed to restart terminal: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                        MessageBox.Show(L("Failed to restart terminal: {0}", ex.Message), L("Error"), MessageBoxButton.OK, MessageBoxImage.Error);
                     }
                 }
             }
@@ -3249,7 +3172,7 @@ For more details, visit: https://pi.dev";
             // Show a simple dialog with radio button options
             var window = new System.Windows.Window
             {
-                Title = "Select Theme",
+                Title = L("Select Theme"),
                 Width = 400,
                 Height = 240,
                 WindowStartupLocation = System.Windows.WindowStartupLocation.CenterScreen,
@@ -3282,7 +3205,7 @@ For more details, visit: https://pi.dev";
             // Automatic option
             var autoRadio = new System.Windows.Controls.RadioButton
             {
-                Content = "Automatic (follow Visual Studio theme)",
+                Content = L("Automatic (follow Visual Studio theme)"),
                 Margin = new System.Windows.Thickness(0, 10, 0, 15),
                 IsChecked = currentPref == ThemePreference.Automatic,
                 Foreground = themeFg
@@ -3292,7 +3215,7 @@ For more details, visit: https://pi.dev";
             // Dark option
             var darkRadio = new System.Windows.Controls.RadioButton
             {
-                Content = "Dark",
+                Content = L("Dark"),
                 Margin = new System.Windows.Thickness(0, 0, 0, 15),
                 IsChecked = currentPref == ThemePreference.Dark,
                 Foreground = themeFg
@@ -3302,7 +3225,7 @@ For more details, visit: https://pi.dev";
             // Light option
             var lightRadio = new System.Windows.Controls.RadioButton
             {
-                Content = "Light",
+                Content = L("Light"),
                 Margin = new System.Windows.Thickness(0, 0, 0, 15),
                 IsChecked = currentPref == ThemePreference.Light,
                 Foreground = themeFg
@@ -3335,7 +3258,7 @@ For more details, visit: https://pi.dev";
 
             var cancelButton = new System.Windows.Controls.Button
             {
-                Content = "Cancel",
+                Content = L("Cancel"),
                 Width = 75,
                 Height = 25,
                 IsCancel = true,
@@ -3379,8 +3302,8 @@ For more details, visit: https://pi.dev";
 
                     // Restart terminal to apply new theme colors
                     var result = MessageBox.Show(
-                        "Theme preference changed. Restart the AI code agent to apply the new terminal colors?",
-                        "Theme Changed",
+                        L("Theme preference changed. Restart the AI code agent to apply the new terminal colors?"),
+                        L("Theme Changed"),
                         MessageBoxButton.YesNo,
                         MessageBoxImage.Question);
 
@@ -3394,7 +3317,7 @@ For more details, visit: https://pi.dev";
                         {
                             Debug.WriteLine($"Error restarting terminal after theme change: {ex.Message}");
                             await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
-                            MessageBox.Show($"Failed to restart terminal: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                            MessageBox.Show(L("Failed to restart terminal: {0}", ex.Message), L("Error"), MessageBoxButton.OK, MessageBoxImage.Error);
                         }
                     }
                 }
@@ -3408,13 +3331,14 @@ For more details, visit: https://pi.dev";
         {
             var assemblyVersion = System.Reflection.Assembly.GetExecutingAssembly().GetName().Version;
             string version = $"{assemblyVersion.Major}.{assemblyVersion.Minor}";
-            string aboutMessage = $"Claude Code Extension for Visual Studio\n\n" +
-                                $"Version: {version}\n" +
-                                $"Author: Daniel Carvalho Liedke\n" +
-                                $"Copyright © Daniel Carvalho Liedke 2026\n\n" +
-                                $"Provides seamless integration with Claude Code, Codex, Cursor Agent, Open Code, Devin, PI, Antigravity, Reasonix, Qwen Code and Grok AI assistants directly within Visual Studio 2022/2026 IDE.";
+            string aboutMessage = L("Claude Code Extension for Visual Studio\n\n" +
+                                    "Version: {0}\n" +
+                                    "Author: Daniel Carvalho Liedke\n" +
+                                    "Copyright © Daniel Carvalho Liedke 2026\n\n" +
+                                    "Provides seamless integration with Claude Code, Codex, Cursor Agent, Open Code, Devin, PI, Antigravity, Reasonix, Qwen Code and Grok AI assistants directly within Visual Studio 2022/2026 IDE.",
+                                    version);
 
-            MessageBox.Show(aboutMessage, "About Claude Code Extension",
+            MessageBox.Show(aboutMessage, L("About Claude Code Extension"),
                           MessageBoxButton.OK, MessageBoxImage.Information);
         }
 
@@ -3594,8 +3518,8 @@ For more details, visit: https://pi.dev";
                 var empty = new System.Windows.Controls.MenuItem
                 {
                     Header = ShouldRefreshProviderModels(provider.Value)
-                        ? "Loading models…"
-                        : "No models reported by the agent",
+                        ? L("Loading models…")
+                        : L("No models reported by the agent"),
                     IsEnabled = false
                 };
                 InsertDynamicModelItem(empty, ref insertIndex);
@@ -3614,7 +3538,7 @@ For more details, visit: https://pi.dev";
 
             if (ModelCatalogSources.ContainsKey(provider))
             {
-                var refresh = new System.Windows.Controls.MenuItem { Header = "Refresh Models" };
+                var refresh = new System.Windows.Controls.MenuItem { Header = L("Refresh Models") };
                 refresh.Click += RefreshProviderModelsMenuItem_Click;
                 InsertDynamicModelItem(refresh, ref insertIndex);
             }
@@ -3623,7 +3547,7 @@ For more details, visit: https://pi.dev";
             {
                 var picker = new System.Windows.Controls.MenuItem
                 {
-                    Header = "Choose in the Agent...",
+                    Header = L("Choose in the Agent..."),
                     IsEnabled = _currentRunningProvider == provider
                 };
                 picker.Click += OpenAgentModelPickerMenuItem_Click;
@@ -3658,7 +3582,7 @@ For more details, visit: https://pi.dev";
                 InsertDynamicModelItem(CreateProviderModelItem(model, selected, provider), ref insertIndex);
             }
 
-            var browse = new System.Windows.Controls.MenuItem { Header = "Select Model..." };
+            var browse = new System.Windows.Controls.MenuItem { Header = L("Select Model...") };
             browse.Click += OpenModelPickerMenuItem_Click;
             InsertDynamicModelItem(browse, ref insertIndex);
 
@@ -3666,7 +3590,7 @@ For more details, visit: https://pi.dev";
 
             var empty = new System.Windows.Controls.MenuItem
             {
-                Header = ShouldRefreshProviderModels(provider) ? "Loading models…" : "No models reported by the agent",
+                Header = ShouldRefreshProviderModels(provider) ? L("Loading models…") : L("No models reported by the agent"),
                 IsEnabled = false
             };
             InsertDynamicModelItem(empty, ref insertIndex);
@@ -3924,9 +3848,10 @@ For more details, visit: https://pi.dev";
             }
 
             var answer = MessageBox.Show(
-                $"{GetProviderDisplayName(provider)} takes its model when it starts.\n\n" +
-                $"Restart it now to run on \"{GetSelectedProviderModelLabel(provider)}\"?",
-                "Model Changed", MessageBoxButton.YesNo, MessageBoxImage.Question);
+                L("{0} takes its model when it starts.\n\n" +
+                  "Restart it now to run on \"{1}\"?",
+                  GetProviderDisplayName(provider), GetSelectedProviderModelLabel(provider)),
+                L("Model Changed"), MessageBoxButton.YesNo, MessageBoxImage.Question);
 
             if (answer == MessageBoxResult.Yes)
             {
@@ -3950,7 +3875,7 @@ For more details, visit: https://pi.dev";
             var item = sender as System.Windows.Controls.MenuItem;
             if (item != null)
             {
-                item.Header = "Refreshing…";
+                item.Header = L("Refreshing…");
                 item.IsEnabled = false;
             }
 
@@ -4047,9 +3972,10 @@ For more details, visit: https://pi.dev";
             }
 
             MessageBoxResult answer = MessageBox.Show(
-                "Codex reads its reasoning level when the terminal starts.\n\n" +
-                $"Restart it now with \"{GetCodexReasoningLabel(level)}\" reasoning?",
-                "Reasoning Level Changed",
+                L("Codex reads its reasoning level when the terminal starts.\n\n" +
+                  "Restart it now with \"{0}\" reasoning?",
+                  GetCodexReasoningLabel(level)),
+                L("Reasoning Level Changed"),
                 MessageBoxButton.YesNo,
                 MessageBoxImage.Question);
 
@@ -4269,14 +4195,14 @@ For more details, visit: https://pi.dev";
                 case EffortLevel.Ultracode: name = "Ultracode - xhigh + workflows"; break;
                 default: name = level.ToString(); break;
             }
-            EffortSliderLabel.Text = $"Effort ({name})";
+            EffortSliderLabel.Text = L("Effort ({0})", name);
         }
 
         private void UpdateCodexReasoningLabel(CodexReasoningLevel level)
         {
             if (EffortSliderLabel == null) return;
 
-            EffortSliderLabel.Text = $"Reasoning ({GetCodexReasoningLabel(level)})";
+            EffortSliderLabel.Text = L("Reasoning ({0})", GetCodexReasoningLabel(level));
         }
 
         #endregion
@@ -4322,8 +4248,8 @@ For more details, visit: https://pi.dev";
 
                 // Prompt user to switch accounts in the browser
                 MessageBox.Show(
-                    "Please switch to the desired account in your browser, then click OK to resume Claude Code.",
-                    "Change Account",
+                    L("Please switch to the desired account in your browser, then click OK to resume Claude Code."),
+                    L("Change Account"),
                     MessageBoxButton.OK,
                     MessageBoxImage.Information);
 
@@ -4438,12 +4364,13 @@ For more details, visit: https://pi.dev";
                 string environment = isWsl ? "WSL" : "Windows";
 
                 var confirm = MessageBox.Show(
-                    $"This will open a command prompt and install Caveman for {environment}:\n\n" +
-                    "  npx skills add JuliusBrussee/caveman -g\n\n" +
-                    "Follow the prompts there. When you close the command prompt, the code agent will be reloaded so the Caveman skill is picked up" +
-                    $" (only if Claude Code ({environment}) is the active agent).\n\n" +
-                    "Continue?",
-                    "Install Caveman",
+                    L("This will open a command prompt and install Caveman for {0}:\n\n" +
+                      "  npx skills add JuliusBrussee/caveman -g\n\n" +
+                      "Follow the prompts there. When you close the command prompt, the code agent will be reloaded so the Caveman skill is picked up" +
+                      " (only if Claude Code ({0}) is the active agent).\n\n" +
+                      "Continue?",
+                      environment),
+                    L("Install Caveman"),
                     MessageBoxButton.OKCancel,
                     MessageBoxImage.Question);
 
@@ -4493,7 +4420,7 @@ For more details, visit: https://pi.dev";
 
                 if (IsNativeModeActive)
                 {
-                    await RelaunchNativeSessionAsync("Caveman installed — reloading");
+                    await RelaunchNativeSessionAsync(L("Caveman installed — reloading"));
                 }
                 else
                 {
@@ -4503,7 +4430,7 @@ For more details, visit: https://pi.dev";
             catch (Exception ex)
             {
                 Debug.WriteLine($"InstallCavemanAsync failed: {ex.Message}");
-                MessageBox.Show($"Failed to install Caveman: {ex.Message}", "Install Caveman", MessageBoxButton.OK, MessageBoxImage.Error);
+                MessageBox.Show(L("Failed to install Caveman: {0}", ex.Message), L("Install Caveman"), MessageBoxButton.OK, MessageBoxImage.Error);
             }
         }
 
@@ -4626,7 +4553,7 @@ For more details, visit: https://pi.dev";
                 }
 
                 var headerBlock = new System.Windows.Controls.TextBlock();
-                headerBlock.Inlines.Add("📁  Set Working Directory (");
+                headerBlock.Inlines.Add(L("📁  Set Working Directory") + " (");
                 var pathRun = new System.Windows.Documents.Run(customDir);
                 if (!directoryExists)
                 {
@@ -4638,7 +4565,7 @@ For more details, visit: https://pi.dev";
             }
             else
             {
-                SetWorkingDirectoryMenuItem.Header = "📁  Set Working Directory...";
+                SetWorkingDirectoryMenuItem.Header = L("📁  Set Working Directory...");
             }
         }
 
@@ -4688,7 +4615,7 @@ For more details, visit: https://pi.dev";
                 {
                     Debug.WriteLine($"Error reloading Claude Code after skip permissions change: {ex.Message}");
                     await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
-                    MessageBox.Show($"Failed to reload Claude Code: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                    MessageBox.Show(L("Failed to reload Claude Code: {0}", ex.Message), L("Error"), MessageBoxButton.OK, MessageBoxImage.Error);
                 }
             }
         }
@@ -4748,7 +4675,7 @@ For more details, visit: https://pi.dev";
                 {
                     Debug.WriteLine($"Error reloading Codex after full auto change: {ex.Message}");
                     await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
-                    MessageBox.Show($"Failed to reload Codex: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                    MessageBox.Show(L("Failed to reload Codex: {0}", ex.Message), L("Error"), MessageBoxButton.OK, MessageBoxImage.Error);
                 }
             }
         }
@@ -4779,7 +4706,7 @@ For more details, visit: https://pi.dev";
                 {
                     Debug.WriteLine($"Error reloading Cursor Agent after auto-run change: {ex.Message}");
                     await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
-                    MessageBox.Show($"Failed to reload Cursor Agent: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                    MessageBox.Show(L("Failed to reload Cursor Agent: {0}", ex.Message), L("Error"), MessageBoxButton.OK, MessageBoxImage.Error);
                 }
             }
         }
@@ -4809,7 +4736,7 @@ For more details, visit: https://pi.dev";
                 {
                     Debug.WriteLine($"Error reloading Devin after dangerous mode change: {ex.Message}");
                     await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
-                    MessageBox.Show($"Failed to reload Devin: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                    MessageBox.Show(L("Failed to reload Devin: {0}", ex.Message), L("Error"), MessageBoxButton.OK, MessageBoxImage.Error);
                 }
             }
         }
@@ -4839,7 +4766,7 @@ For more details, visit: https://pi.dev";
                 {
                     Debug.WriteLine($"Error reloading Antigravity after skip permissions change: {ex.Message}");
                     await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
-                    MessageBox.Show($"Failed to reload Antigravity: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                    MessageBox.Show(L("Failed to reload Antigravity: {0}", ex.Message), L("Error"), MessageBoxButton.OK, MessageBoxImage.Error);
                 }
             }
         }
@@ -4869,7 +4796,7 @@ For more details, visit: https://pi.dev";
                 {
                     Debug.WriteLine($"Error reloading Qwen Code after yolo mode change: {ex.Message}");
                     await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
-                    MessageBox.Show($"Failed to reload Qwen Code: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                    MessageBox.Show(L("Failed to reload Qwen Code: {0}", ex.Message), L("Error"), MessageBoxButton.OK, MessageBoxImage.Error);
                 }
             }
         }
@@ -4899,7 +4826,7 @@ For more details, visit: https://pi.dev";
                 {
                     Debug.WriteLine($"Error reloading Grok after always-approve change: {ex.Message}");
                     await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
-                    MessageBox.Show($"Failed to reload Grok: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                    MessageBox.Show(L("Failed to reload Grok: {0}", ex.Message), L("Error"), MessageBoxButton.OK, MessageBoxImage.Error);
                 }
             }
         }
@@ -4983,7 +4910,7 @@ For more details, visit: https://pi.dev";
                 {
                     Debug.WriteLine($"Error restarting terminal after working directory change: {ex.Message}");
                     await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
-                    MessageBox.Show($"Failed to restart terminal: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                    MessageBox.Show(L("Failed to restart terminal: {0}", ex.Message), L("Error"), MessageBoxButton.OK, MessageBoxImage.Error);
                 }
             }
         }
@@ -5014,7 +4941,7 @@ For more details, visit: https://pi.dev";
             // Build dialog window programmatically
             var dialog = new Window
             {
-                Title = "Set Working Directory",
+                Title = L("Set Working Directory"),
                 Width = 500,
                 Height = 200,
                 WindowStartupLocation = WindowStartupLocation.CenterOwner,
@@ -5044,10 +4971,10 @@ For more details, visit: https://pi.dev";
             // Label
             var label = new System.Windows.Controls.TextBlock
             {
-                Text = "Enter a custom working directory for the terminal:\n" +
+                Text = L("Enter a custom working directory for the terminal:\n" +
                        "  - Absolute path (e.g. C:\\Projects\\MyRepo)\n" +
                        "  - Relative path to solution directory (e.g. ..\\OtherRepo)\n" +
-                       "  - Leave empty to use the default solution directory",
+                       "  - Leave empty to use the default solution directory"),
                 TextWrapping = TextWrapping.Wrap,
                 Margin = new Thickness(0, 0, 0, 8)
             };
@@ -5128,7 +5055,7 @@ For more details, visit: https://pi.dev";
 
             var cancelButton = new System.Windows.Controls.Button
             {
-                Content = "Cancel",
+                Content = L("Cancel"),
                 Width = 75,
                 Height = 25,
                 IsCancel = true,
@@ -5277,8 +5204,8 @@ For more details, visit: https://pi.dev";
             catch (Exception ex)
             {
                 Debug.WriteLine($"Error configuring visible agents: {ex.Message}");
-                MessageBox.Show($"Error configuring visible agents: {ex.Message}",
-                    "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                MessageBox.Show(L("Error configuring visible agents: {0}", ex.Message),
+                    L("Error"), MessageBoxButton.OK, MessageBoxImage.Error);
             }
         }
 
@@ -5295,7 +5222,7 @@ For more details, visit: https://pi.dev";
 
             var dialog = new System.Windows.Window
             {
-                Title = "Configure Visible Code Agents",
+                Title = L("Configure Visible Code Agents"),
                 Width = 420,
                 Height = 460,
                 WindowStartupLocation = System.Windows.WindowStartupLocation.CenterOwner,
@@ -5314,8 +5241,8 @@ For more details, visit: https://pi.dev";
 
             var label = new System.Windows.Controls.TextBlock
             {
-                Text = "Select which code agents appear in the agent menu. " +
-                       "The currently active agent is always shown.",
+                Text = L("Select which code agents appear in the agent menu. " +
+                       "The currently active agent is always shown."),
                 TextWrapping = System.Windows.TextWrapping.Wrap,
                 Foreground = themeFg,
                 Margin = new System.Windows.Thickness(0, 0, 0, 10)
@@ -5392,7 +5319,7 @@ For more details, visit: https://pi.dev";
             };
             var cancelButton = new System.Windows.Controls.Button
             {
-                Content = "Cancel",
+                Content = L("Cancel"),
                 Width = 80,
                 Height = 26,
                 IsCancel = true

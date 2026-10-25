@@ -16,6 +16,7 @@ using Microsoft.VisualStudio.Shell;
 using Microsoft.VisualStudio.Shell.Interop;
 using System;
 using System.Runtime.InteropServices;
+using static ClaudeCodeVS.UI.Loc;
 
 namespace ClaudeCodeVS
 {
@@ -53,10 +54,19 @@ namespace ClaudeCodeVS
 
         public ClaudeUsageToolWindow() : base(null)
         {
-            this.Caption = "Claude Usage";
+            this.Caption = L("Claude Usage");
+            ClaudeCodeVS.UI.Loc.LanguageChanged += OnLanguageChanged;
             this.BitmapImageMoniker = KnownMonikers.BarChart;
             _control = new ClaudeUsageControl();
             this.Content = _control;
+        }
+
+        /// <summary>
+        /// Follows a live language switch; the event is raised on the UI thread by the Settings dialog.
+        /// </summary>
+        private void OnLanguageChanged(object sender, EventArgs e)
+        {
+            this.Caption = L("Claude Usage");
         }
 
         public override void OnToolWindowCreated()
@@ -140,6 +150,7 @@ namespace ClaudeCodeVS
                 _notifyCookie = 0;
             }
 
+            ClaudeCodeVS.UI.Loc.LanguageChanged -= OnLanguageChanged;
             try { _control?.Cleanup(); } catch { }
 
             if (_isVisible)

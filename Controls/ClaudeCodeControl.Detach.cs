@@ -19,6 +19,7 @@ using System.Windows.Media;
 using System.Windows.Shapes;
 using Microsoft.VisualStudio.Shell;
 using Microsoft.VisualStudio.Shell.Interop;
+using static ClaudeCodeVS.UI.Loc;
 
 namespace ClaudeCodeVS
 {
@@ -509,21 +510,20 @@ namespace ClaudeCodeVS
             try
             {
                 // Native mode moves the chat view, not a console window, so the wording follows suit.
-                string subject = IsNativeModeActive ? "Chat" : "Terminal";
+                bool chat = IsNativeModeActive;
+                string tip = isDetached
+                    ? (chat ? L("Attach Chat Back to Main Panel") : L("Attach Terminal Back to Main Panel"))
+                    : (chat ? L("Detach Chat to Separate Tab") : L("Detach Terminal to Separate Tab"));
 
                 if (DetachTerminalMenuItem != null)
-                    DetachTerminalMenuItem.Header = isDetached
-                        ? $"⧉  Attach {subject} Back to Main Panel"
-                        : $"⧉  Detach {subject} to Separate Tab";
+                    DetachTerminalMenuItem.Header = "⧉  " + tip;
 
                 // Keep the optional one-click toolbar button in sync: tooltip flips, and the
                 // original vector icon (a box with an arrow) flips direction with the state —
                 // arrow out of the box = detach, arrow into the box = attach.
                 if (DetachToolbarButton != null)
                 {
-                    DetachToolbarButton.ToolTip = isDetached
-                        ? $"Attach {subject} Back to Main Panel"
-                        : $"Detach {subject} to Separate Tab";
+                    DetachToolbarButton.ToolTip = tip;
                 }
 
                 if (DetachButtonIcon != null)

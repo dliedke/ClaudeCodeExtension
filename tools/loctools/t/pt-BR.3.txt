@@ -1,0 +1,190 @@
+380	Nenhuma issue.
+381	Nenhum modelo corresponde à pesquisa.
+382	Nenhum modelo informado pelo agente
+383	Nenhum modelo informado pelo agente.
+384	Nenhuma sessão de agente nativo disponível.
+385	Nenhuma issue aberta.
+386	Sem recomendação: {0} Você ainda pode escolher um modelo e um esforço por conta própria.
+387	Nenhum resultado
+388	Nenhuma sessão encontrada em:\n{0}
+389	Nenhuma sessão corresponde ao filtro atual.
+390	Nenhuma sessão foi encontrada para esta área de trabalho.
+391	Nenhum texto selecionado no editor ativo.\nSelecione algum código primeiro.
+392	Nenhuma sessão do {0} foi encontrada para esta área de trabalho.
+393	Nenhuma (só notificar)
+394	Não disponível com o Windows Terminal (funciona só com o Prompt de Comando).
+395	Não é monoespaçada — o terminal vai exibir esta fonte embaralhada.
+396	Na dúvida? Recomendar pergunta ao Claude qual modelo e esforço combinam com esta issue.
+397	Não atualizado desde {0} — clique para abrir a página de uso
+398	Observação: o Windows Terminal precisa estar instalado (winget install Microsoft.WindowsTerminal).
+399	Observação: o Windows Terminal precisa ser instalado. Se não for encontrado, serão exibidas instruções de instalação.
+400	Nada pendente de revisão
+401	Nada para colar
+402	Notificar / executar uma ação quando o agente terminar
+403	Agora
+404	Mais antigas primeiro
+405	Fim do agente
+406	O Fim do agente é configurado separadamente para cada solução. Abra uma solução ou pasta para configurá-lo.
+407	Fim do agente — {0}
+408	Quando o chat abre em sua própria aba, o painel só mostra as barras de uso, então ele é ocultado. Ele volta quando o chat é reencaixado ou o modo nativo é desativado, e Exibir > Outras Janelas > Claude Code Extension o mostra a qualquer momento.
+409	Botões de um clique na barra de ferramentas
+410	Executar a ação só se arquivos mudaram
+411	Somente estes tipos de arquivo:
+412	Abertas
+413	Abrir uso do Claude
+414	Instalação do Open Code
+415	O Open Code não está instalado. Um terminal CMD comum será usado no lugar.\r\n\r\n(você pode pressionar CTRL+C para copiar as instruções completas)\r\n\r\nINSTALAÇÃO: via NPM\r\n\r\nAbra o cmd e execute:\r\n\r\nnpm i -g opencode-ai\r\n\r\nRequisitos:\r\n- Node.js instalado\r\n\r\nPara mais detalhes, visite: https://opencode.ai
+416	Abrir chat da correção
+417	Abrir pasta de configurações
+418	Abrir claude.ai/settings/usage no navegador padrão
+419	Abrir no VS
+420	Abrir no GitHub
+421	Abre a visão de Alterações (diff). Exibido só dentro de um repositório git.
+422	Abre a janela de configurações consolidada (layout, tipo de terminal, tema, envio, zoom automático, abertura automática das alterações).
+423	Abre o worktree da correção em uma nova janela do Visual Studio para compilar e testar.
+424	Abrir este arquivo na janela de diff do Visual Studio: antes do agente à esquerda, agora à direita
+425	Abrindo a página de uso no lugar.
+426	Instalação do PI
+427	O PI não está instalado. Um terminal CMD comum será usado no lugar.\r\n\r\n(você pode pressionar CTRL+C para copiar as instruções completas)\r\n\r\nINSTALAÇÃO: via NPM\r\n\r\nAbra o cmd e execute:\r\n\r\nnpm install -g @earendil-works/pi-coding-agent\r\n\r\nRequisitos:\r\n- Node.js instalado\r\n- Git for Windows (Git Bash) instalado para suporte a bash\r\n\r\nPara mais detalhes, visite: https://pi.dev
+428	Colar
+429	Erro ao colar
+430	Falha ao colar
+431	Caminhos deixados vazios usam a detecção padrão (PATH / local de instalação padrão).\nDefina um caminho só para apontar um provedor para um executável específico.\nProvedores nativos esperam um caminho completo do Windows (ex.: C:\\Tools\\claude.exe). Provedores WSL esperam um caminho ou comando Linux (ex.: /home/me/.local/bin/claude).
+432	Pendente de revisão
+433	Escolher...
+434	Status de trabalho simples (sempre \"Pensando…\")
+435	Tocar um som diferente quando o agente faz uma pergunta
+436	Toca um som distinto quando o agente para e espera a sua resposta (uma confirmação sim/não ou um menu de seleção) em vez de terminar. Usa um tom diferente do som de conclusão para você distingui-los.
+437	Tocar um som
+438	Toca um som do sistema quando o agente termina.
+439	Digite um prompt.
+440	Troque para a conta desejada no navegador e clique em OK para retomar o Claude Code.
+441	Publicar esta resposta na issue
+442	Resposta publicada na issue.
+443	Publicando a resposta…
+444	Preparando o worktree…
+445	Predefinição ▾
+446	Pressione Enter para pesquisar
+447	Ocorrência anterior (Shift+Enter)
+448	Prompt
+449	Prompt / colar imagem
+450	Tamanho da fonte do prompt
+451	Histórico de prompts limpo.
+452	Caixa de prompt
+453	Posição do painel de prompt
+454	Envio do prompt
+455	As fontes proporcionais ficam ocultas por padrão porque o terminal as exibe embaralhadas. Marque isto só se precisar de uma fonte que o filtro de monoespaçadas deixa de fora.
+456	Fazer pull do git antes do primeiro prompt
+457	O push de {0} falhou, então nada foi integrado.\n\n{1}
+458	Coloca um símbolo antes do nome de cada aba de chat, para você saber pela faixa de abas o que cada sessão está fazendo: ⏳ trabalhando, ❓ esperando sua resposta, ✳ concluída, ❌ erro.
+459	Instalação do Qwen Code
+460	O Qwen Code não está instalado. Um terminal CMD comum será usado no lugar.\r\n\r\n(você pode pressionar CTRL+C para copiar as instruções completas)\r\n\r\nINSTALAÇÃO\r\n\r\nRequer Node.js 22 ou mais recente. Abra um terminal e execute:\r\n\r\nnpm install -g @qwen-code/qwen-code@latest\r\n\r\n(Abra um novo terminal em seguida para que o PATH atualizado tenha efeito.)\r\n\r\nCONFIGURAÇÃO\r\n\r\nExecute 'qwen' uma vez em um terminal e digite /auth para configurar um Coding Plan ou uma chave de API.\r\n(O login gratuito via Qwen OAuth foi descontinuado.)\r\n\r\nO agente é iniciado com o comando 'qwen'.\r\n\r\nPara mais detalhes, visite: https://github.com/QwenLM/qwen-code
+461	Qwen Code: modo Yolo
+462	Lê de novo a lista de modelos da CLI do Devin.
+463	Raciocínio ({0})
+464	Nível de raciocínio alterado
+465	Raciocínio:
+466	Instalação do Reasonix
+467	O Reasonix não está instalado. Um terminal CMD comum será usado no lugar.\r\n\r\n(você pode pressionar CTRL+C para copiar as instruções completas)\r\n\r\nINSTALAÇÃO\r\n\r\nAbra um terminal e execute:\r\n\r\nnpm i -g reasonix\r\n\r\n(Abra um novo terminal em seguida para que o PATH atualizado tenha efeito.)\r\n\r\nCONFIGURAÇÃO\r\n\r\nDefina sua chave de API do DeepSeek antes de iniciar, por exemplo:\r\n\r\nsetx DEEPSEEK_API_KEY sk-...\r\n\r\n(ou deixe o assistente de configuração do Reasonix salvá-la.)\r\n\r\nO agente é iniciado com o comando 'reasonix'.\r\n\r\nPara mais detalhes, visite: https://github.com/esengine/DeepSeek-Reasonix/releases
+468	Recompilar a solução
+469	Recompilar a solução antes de executar
+470	Recompilar e então {0}
+471	Recomendar modelo de IA
+472	Recomendar modelo de IA funciona só com o Claude Code.\n\nTroque o agente para Claude Code ou Claude Code (WSL) para usá-lo.
+473	Atualizar
+474	Atualizar modelos
+475	Atualizar agora
+476	Atualiza os dados de uso a cada 1 minuto em segundo plano, mesmo com a aba de uso do Claude fechada ou sem foco. Desativado, só atualiza quando a janela de uso está aberta ou é atualizada manualmente.
+477	Atualizar os dados de uso a cada 2 minutos
+478	Atualizando a lista de modelos…
+479	Remover
+480	Remover o comando personalizado \"{0}\"?
+481	Remover dos favoritos
+482	Removendo a correção…
+483	Renomear
+484	Só renomeadas
+485	Renomear…
+486	Reabrir as abas de chat quando a solução abrir
+487	Substituir TODAS as configurações atuais da extensão pelas deste arquivo?\n\nAs alterações não salvas na janela de Configurações são descartadas, a configuração atual recebe um backup ao lado do arquivo de configurações e o agente de código reinicia.\n\nFeche antes todas as outras janelas do Visual Studio — elas mantêm suas próprias configurações na memória e sobrescreveriam as carregadas na próxima vez que salvassem.
+488	Substitui toda a configuração da extensão por um arquivo salvo (um claudecode-settings.json copiado de outra máquina também funciona). Antes, a configuração atual recebe um backup ao lado do arquivo de configurações, e o agente de código reinicia para aplicar as configurações carregadas.
+489	Redefinir
+490	Redefinir para o padrão todas as configurações mostradas aqui?
+491	Redefinir a linha de base para o estado atual da área de trabalho
+492	Restaurar padrões
+493	Reiniciar agente de código
+494	Reiniciar terminal
+495	Reinicia o agente de código ativo.
+496	Reiniciar o agente de código? A sessão atual será encerrada.
+497	Restaurar cada arquivo pendente como era antes de o agente alterá-lo
+498	Restaurar este arquivo como era antes de o agente alterá-lo
+499	Restaurar {0}?\n\nO agente excluiu este arquivo. Desfazer o traz de volta como era.
+500	Retomar
+501	Retomar a última sessão
+502	Retoma uma sessão anterior do Claude Code ou do Codex.
+503	Direita — terminal à esquerda, prompt à direita
+504	Executar
+505	Executar (F5)
+506	Executar um script…
+507	Executar todos os testes
+508	Executar script
+509	Executar sem depurar
+510	Executar sem depurar (Ctrl+F5)
+511	Executar {0}
+512	Executa \"git pull\" no repositório da solução antes do primeiro prompt que você envia, para que o agente nunca comece a editar um código que já está desatualizado no remoto. Executa uma vez por solução por sessão do Visual Studio, não a cada prompt. É ignorado quando o projeto não está em um repositório git, o branch não tem remoto de onde puxar ou o agente ainda está trabalhando na mensagem anterior. Se o pull terminar em conflitos, os arquivos em conflito são descritos ao agente e ele é orientado a resolvê-los antes de fazer o que você pediu.
+513	O mesmo que Gerar mensagem de commit e, em seguida, faz stage, commit e push de todas as alterações imediatamente. Requer o modo nativo.
+514	Salvar todas as configurações
+515	Salvar todas as configurações em um arquivo...
+516	Salvar configuração
+517	Salva toda a configuração da extensão em um arquivo JSON: todas as configurações desta janela, comandos personalizados, Fim do agente (global e por solução), agentes e modelos visíveis, layout da barra de ferramentas, caminhos da CLI, histórico de prompts e títulos das sessões. Alterações ainda não confirmadas com OK não são incluídas.
+518	Caminho do script (para \"Executar um script\") ou texto do comando (para \"Enviar um comando\"):
+519	Pesquisar todos os modelos
+520	Selecionar
+521	Selecionar tudo
+522	Selecionar modelo — {0}
+523	Selecionar tipo de terminal
+524	Selecionar tema
+525	Selecione uma issue.
+526	Selecione quais agentes de código aparecem no menu de agentes. O agente ativo é sempre exibido.
+527	Selecionar o executável do {0}
+528	Enviar erros de build ao agente
+529	Enviar seleção ao Claude Code
+530	Enviar um comando ao agente
+531	Enviar comando
+532	Enviar prompts grandes como arquivo
+533	Enviar o prompt com
+534	Enviar a seleção só como referência (sem código)
+535	Enviar {0}
+536	Histórico de sessões
+537	O histórico de sessões está disponível para Claude Code, Codex e Devin (nativo ou WSL). Troque antes o agente de código ativo para um desses provedores.
+538	Definir idioma
+539	Definir diretório de trabalho
+540	Defina um diretório de trabalho personalizado (absoluto ou relativo à solução). Deixe vazio para o comportamento padrão.
+541	Define um diretório de trabalho personalizado para o agente.
+542	Pasta de configurações
+543	Configurações salvas em:\n{0}
+544	As configurações foram carregadas, mas o agente de código não conseguiu reiniciar: {0}
+545	Configurações...
+546	Mostrar chat
+547	Mostrar uso
+548	Mostra uma barra de informações do Visual Studio com a duração do turno e a contagem de tokens quando o agente termina.
+549	Mostra na barra de ferramentas do painel, ao lado dos botões, uma contagem ao vivo dos subagentes que o Claude Code está executando. Passe o mouse para ver no que cada um está trabalhando. Fica oculta enquanto nenhum subagente está em execução. Somente Claude Code.
+550	Mostrar uma notificação
+551	Mostrar a contagem de subagentes ativos (Claude Code)
+552	Mostrar todas as fontes (inclusive as proporcionais)
+553	Mostrar barras de uso embutidas
+554	Mostra só as sessões às quais você deu um título personalizado.
+555	Mostrar a aba de chat (reabre se estiver fechada ou oculta)
+556	Mostrar o seletor de contas do claude.ai (ex.: alternar entre contas Team e Personal)
+557	Mostra as mini barras de uso da sessão/semana no painel de prompt. Só se aplica quando um provedor Claude Code está ativo.
+558	Mostrar o status da sessão em cada aba de chat
+559	Mostrar a contagem de tokens no chat
+560	Mostrar:
+561	Mostra quantos tokens cada turno usou, ao vivo enquanto o agente trabalha e na linha que fica depois do turno. O anel de uso na barra de ferramentas do chat não é afetado.
+562	Sair
+563	Sair e trocar a conta do Claude que esta conversa usa.
+564	Skills
+565	Pula a ação quando o agente não modificou nenhum arquivo (árvore de trabalho do git limpa). Não tem efeito fora de um repositório git.
+566	Ignorar estas pastas:
+567	Alguns arquivos não puderam ser restaurados:\n\n{0}
+568	Ordenar:
+569	Fazendo stage das alterações…

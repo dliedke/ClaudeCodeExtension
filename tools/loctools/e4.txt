@@ -1,0 +1,17 @@
+<<<<
+                            Title = $"Select {p.DisplayName} executable",
+                            Filter = "Executables (*.exe;*.cmd;*.bat)|*.exe;*.cmd;*.bat|All files (*.*)|*.*",
+====
+                            Title = L("Select {0} executable", p.DisplayName),
+                            Filter = L("Executables") + " (*.exe;*.cmd;*.bat)|*.exe;*.cmd;*.bat|" + L("All files") + " (*.*)|*.*",
+>>>>
+<<<<
+                "These CLI executable paths don't exist on disk:\n\n" +
+                string.Join("\n", invalid) +
+                "\n\nThe agent will fail to launch if a path is wrong. Save these paths anyway?",
+                "CLI Path Not Found",
+====
+                L("These CLI executable paths don't exist on disk:\n\n{0}\n\nThe agent will fail to launch if a path is wrong. Save these paths anyway?",
+                  string.Join("\n", invalid)),
+                L("CLI Path Not Found"),
+>>>>

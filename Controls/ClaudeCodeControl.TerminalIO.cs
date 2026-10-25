@@ -15,6 +15,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
 using Microsoft.VisualStudio.Shell;
+using static ClaudeCodeVS.UI.Loc;
 
 namespace ClaudeCodeVS
 {
@@ -353,15 +354,15 @@ namespace ClaudeCodeVS
                 else
                 {
                     await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
-                    MessageBox.Show("Terminal is not available. Please restart the terminal.",
-                                  "Terminal Error", MessageBoxButton.OK, MessageBoxImage.Warning);
+                    MessageBox.Show(L("Terminal is not available. Please restart the terminal."),
+                                  L("Terminal Error"), MessageBoxButton.OK, MessageBoxImage.Warning);
                 }
             }
             catch (Exception ex)
             {
                 await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
-                MessageBox.Show($"Error sending text to terminal: {ex.Message}",
-                              "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                MessageBox.Show(L("Error sending text to terminal: {0}", ex.Message),
+                              L("Error"), MessageBoxButton.OK, MessageBoxImage.Error);
             }
             finally
             {
@@ -407,8 +408,8 @@ namespace ClaudeCodeVS
                 if (terminalHandle == IntPtr.Zero || !IsWindow(terminalHandle))
                 {
                     await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
-                    MessageBox.Show("Terminal is not available. Please restart the terminal.",
-                                  "Terminal Error", MessageBoxButton.OK, MessageBoxImage.Warning);
+                    MessageBox.Show(L("Terminal is not available. Please restart the terminal."),
+                                  L("Terminal Error"), MessageBoxButton.OK, MessageBoxImage.Warning);
                     return;
                 }
 
@@ -424,8 +425,8 @@ namespace ClaudeCodeVS
 
                 if (!await FocusTerminalForInputAsync(120))
                 {
-                    MessageBox.Show("Terminal is not available. Please restart the terminal.",
-                                  "Terminal Error", MessageBoxButton.OK, MessageBoxImage.Warning);
+                    MessageBox.Show(L("Terminal is not available. Please restart the terminal."),
+                                  L("Terminal Error"), MessageBoxButton.OK, MessageBoxImage.Warning);
                     return;
                 }
 
@@ -450,8 +451,8 @@ namespace ClaudeCodeVS
             catch (Exception ex)
             {
                 await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
-                MessageBox.Show($"Error sending text to terminal: {ex.Message}",
-                              "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                MessageBox.Show(L("Error sending text to terminal: {0}", ex.Message),
+                              L("Error"), MessageBoxButton.OK, MessageBoxImage.Error);
             }
         }
 

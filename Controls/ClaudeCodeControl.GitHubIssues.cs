@@ -39,6 +39,7 @@ using ClaudeCodeVS.UI;
 using Microsoft.VisualStudio.Shell;
 using Microsoft.VisualStudio.Shell.Interop;
 using Microsoft.VisualStudio.Threading;
+using static ClaudeCodeVS.UI.Loc;
 
 namespace ClaudeCodeVS
 {
@@ -98,7 +99,7 @@ namespace ClaudeCodeVS
             catch (Exception ex)
             {
                 Debug.WriteLine($"GitHubIssuesButton_Click error: {ex.Message}");
-                MessageBox.Show($"Could not open GitHub Issues: {ex.Message}", "GitHub Issues", MessageBoxButton.OK, MessageBoxImage.Error);
+                MessageBox.Show(L("Could not open GitHub Issues: {0}", ex.Message), "GitHub Issues", MessageBoxButton.OK, MessageBoxImage.Error);
             }
         }
 
@@ -119,7 +120,7 @@ namespace ClaudeCodeVS
             if (context == null)
             {
                 MessageBox.Show(
-                    "No GitHub repository was found for the open solution. GitHub Issues needs a git repository with a github.com remote.",
+                    L("No GitHub repository was found for the open solution. GitHub Issues needs a git repository with a github.com remote."),
                     "GitHub Issues", MessageBoxButton.OK, MessageBoxImage.Information);
                 return;
             }
@@ -191,7 +192,7 @@ namespace ClaudeCodeVS
 
             var window = new Window
             {
-                Title = $"GitHub Issues — {context.Slug}",
+                Title = L("GitHub Issues — {0}", context.Slug),
                 Width = 1040,
                 Height = 640,
                 MinWidth = 720,
@@ -236,30 +237,30 @@ namespace ClaudeCodeVS
             var topBar = new DockPanel { Margin = new Thickness(0, 0, 0, 8), LastChildFill = true };
 
             var leftTop = new StackPanel { Orientation = Orientation.Horizontal };
-            var baseLabel = mkLabel("Base branch:");
+            var baseLabel = mkLabel(L("Base branch:"));
             baseLabel.Margin = new Thickness(0, 0, 6, 0);
             leftTop.Children.Add(baseLabel);
             var baseCombo = MakeThemedComboBox(comboRes, themeFg);
             baseCombo.MinWidth = 140;
-            baseCombo.ToolTip = "Branch a new fix starts from, and the branch Merge merges it into. A fix keeps the branch it started from.";
+            baseCombo.ToolTip = L("Branch a new fix starts from, and the branch Merge merges it into. A fix keeps the branch it started from.");
             leftTop.Children.Add(baseCombo);
 
-            leftTop.Children.Add(mkLabel("Show:"));
+            leftTop.Children.Add(mkLabel(L("Show:")));
             var stateCombo = MakeThemedComboBox(comboRes, themeFg);
             stateCombo.MinWidth = 90;
-            foreach (string state in new[] { "Open", "Closed", "All" })
+            foreach (string state in new[] { N("Open"), N("Closed"), N("All") })
             {
-                var item = new ComboBoxItem { Content = state, Tag = state.ToLowerInvariant(), Foreground = themeFg };
+                var item = new ComboBoxItem { Content = L(state), Tag = state.ToLowerInvariant(), Foreground = themeFg };
                 if (comboRes["cbi"] is Style cbi) item.Style = cbi;
                 stateCombo.Items.Add(item);
             }
             stateCombo.SelectedIndex = 0;
             leftTop.Children.Add(stateCombo);
-            leftTop.Children.Add(mkLabel("Filter:"));
+            leftTop.Children.Add(mkLabel(L("Filter:")));
             DockPanel.SetDock(leftTop, Dock.Left);
             topBar.Children.Add(leftTop);
 
-            var refreshButton = mkBtn("Refresh");
+            var refreshButton = mkBtn(L("Refresh"));
             DockPanel.SetDock(refreshButton, Dock.Right);
             topBar.Children.Add(refreshButton);
 
@@ -270,7 +271,7 @@ namespace ClaudeCodeVS
                 BorderBrush = themeFg,
                 Height = 26,
                 VerticalContentAlignment = VerticalAlignment.Center,
-                ToolTip = "Filter by number, title, label or author."
+                ToolTip = L("Filter by number, title, label or author.")
             };
             topBar.Children.Add(searchBox);
 
@@ -333,7 +334,7 @@ namespace ClaudeCodeVS
 
             var loading = new TextBlock
             {
-                Text = "Loading issues…",
+                Text = L("Loading issues…"),
                 Foreground = themeFg,
                 FontStyle = FontStyles.Italic,
                 HorizontalAlignment = HorizontalAlignment.Center,
@@ -358,20 +359,20 @@ namespace ClaudeCodeVS
             root.Children.Add(statusText);
 
             // --- Row 3: actions ---
-            var openOnGitHubButton = mkBtn("Open on GitHub");
-            var fixButton = mkBtn("Fix with Agent");
-            var openInVsButton = mkBtn("Open in VS");
-            var commitButton = mkBtn("Commit & Push");
-            var mergeButton = mkBtn("Merge…");
-            var discardButton = mkBtn("Discard Fix");
-            var closeButton = mkBtn("Close");
+            var openOnGitHubButton = mkBtn(L("Open on GitHub"));
+            var fixButton = mkBtn(L("Fix with Agent"));
+            var openInVsButton = mkBtn(L("Open in VS"));
+            var commitButton = mkBtn(L("Commit & Push"));
+            var mergeButton = mkBtn(L("Merge…"));
+            var discardButton = mkBtn(L("Discard Fix"));
+            var closeButton = mkBtn(L("Close"));
             closeButton.IsCancel = true;
 
-            fixButton.ToolTip = "Create branch fix/issue-N in its own worktree and open a chat tab that works on the issue there.";
-            openInVsButton.ToolTip = "Open the fix's worktree in a new Visual Studio window to build and test it.";
-            commitButton.ToolTip = "Commit the fix (with \"Fixes #N\") and push the fix branch.";
-            mergeButton.ToolTip = "Merge the fix into its base branch, push, reply on the issue, close it and clean up.";
-            discardButton.ToolTip = "Close the issue's chat tab and delete its worktree and fix branch.";
+            fixButton.ToolTip = L("Create branch fix/issue-N in its own worktree and open a chat tab that works on the issue there.");
+            openInVsButton.ToolTip = L("Open the fix's worktree in a new Visual Studio window to build and test it.");
+            commitButton.ToolTip = L("Commit the fix (with \"Fixes #N\") and push the fix branch.");
+            mergeButton.ToolTip = L("Merge the fix into its base branch, push, reply on the issue, close it and clean up.");
+            discardButton.ToolTip = L("Close the issue's chat tab and delete its worktree and fix branch.");
 
             var buttonBar = new DockPanel { LastChildFill = false, Margin = new Thickness(0, 10, 0, 0) };
             openOnGitHubButton.Margin = new Thickness(0);
@@ -424,13 +425,13 @@ namespace ClaudeCodeVS
 
                 openOnGitHubButton.IsEnabled = issue != null && !string.IsNullOrEmpty(issue.Url);
                 fixButton.IsEnabled = has && !string.IsNullOrEmpty(selectedBase());
-                fixButton.Content = hasWorktree ? "Open Fix Chat" : "Fix with Agent";
+                fixButton.Content = hasWorktree ? L("Open Fix Chat") : L("Fix with Agent");
                 openInVsButton.IsEnabled = hasWorktree;
                 commitButton.IsEnabled = hasWorktree && (info.Dirty || (info.Ahead > 0 && !info.Pushed));
                 mergeButton.IsEnabled = hasWorktree && !info.Dirty && info.Ahead > 0;
                 mergeButton.Content = info != null && !string.IsNullOrEmpty(info.BaseBranch)
-                    ? "Merge into " + info.BaseBranch + "…"
-                    : "Merge…";
+                    ? L("Merge into {0}…", info.BaseBranch)
+                    : L("Merge…");
                 discardButton.IsEnabled = hasWorktree || hasBranch;
                 refreshButton.IsEnabled = !busy;
                 baseCombo.IsEnabled = !busy;
@@ -450,7 +451,7 @@ namespace ClaudeCodeVS
                 bool working = session?.TurnInFlight == true;
                 string label = GitHubIssues.DescribeFixStage(computeStage(fixInfos, mergedIssues, issue.Number), working);
                 if (session != null && !working)
-                    label = label.Length > 0 ? label + "  ·  💬 chat open" : "💬 chat open";
+                    label = label.Length > 0 ? label + "  ·  " + L("💬 chat open") : L("💬 chat open");
                 return label;
             };
 
@@ -539,7 +540,7 @@ namespace ClaudeCodeVS
 
                 loading.Visibility = listBox.Items.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
                 if (listBox.Items.Count == 0 && issues.Count > 0)
-                    loading.Text = "No issues match the filter.";
+                    loading.Text = L("No issues match the filter.");
             };
 
             Func<string, Paragraph> mutedParagraph = text => new Paragraph(new Run(text)) { Foreground = mutedBrush, Margin = new Thickness(0, 0, 0, 6) };
@@ -583,7 +584,7 @@ namespace ClaudeCodeVS
                 title.Inlines.Add(new Bold(new Run("#" + issue.Number.ToString(CultureInfo.InvariantCulture) + "  " + issue.Title)));
                 document.Blocks.Add(title);
 
-                var meta = new List<string> { issue.IsOpen ? "Open" : "Closed" };
+                var meta = new List<string> { issue.IsOpen ? L("Open") : L("Closed") };
                 if (!string.IsNullOrEmpty(issue.Author)) meta.Add("@" + issue.Author);
                 if (issue.CreatedAt.HasValue) meta.Add("opened " + issue.CreatedAt.Value.ToLocalTime().ToString("yyyy-MM-dd", CultureInfo.InvariantCulture));
                 if (issue.Labels.Count > 0) meta.Add(string.Join(", ", issue.Labels));
@@ -594,13 +595,13 @@ namespace ClaudeCodeVS
                 document.Blocks.Add(metaParagraph);
 
                 if (string.IsNullOrWhiteSpace(issue.Body))
-                    document.Blocks.Add(mutedParagraph("(no description)"));
+                    document.Blocks.Add(mutedParagraph(L("(no description)")));
                 else
                     appendBody(document, issue.Body);
 
                 if (issue.Comments == null)
                 {
-                    document.Blocks.Add(mutedParagraph("Loading comments…"));
+                    document.Blocks.Add(mutedParagraph(L("Loading comments…")));
                 }
                 else
                 {
@@ -646,15 +647,15 @@ namespace ClaudeCodeVS
 
                 if (!info.BranchExists && !info.WorktreeExists)
                 {
-                    statusText.Text = "No fix yet. Fix with Agent starts one from " + (selectedBase() ?? "the base branch") + ".";
+                    statusText.Text = L("No fix yet. Fix with Agent starts one from {0}.", selectedBase() ?? L("the base branch"));
                     return;
                 }
 
-                var parts = new List<string> { "Branch " + info.Branch + (string.IsNullOrEmpty(info.BaseBranch) ? string.Empty : " (from " + info.BaseBranch + ")") };
-                parts.Add(info.WorktreeExists ? "worktree " + info.WorktreePath : "no worktree");
-                if (info.WorktreeExists) parts.Add(info.Dirty ? "uncommitted changes" : "clean");
-                parts.Add(info.Ahead + " commit" + (info.Ahead == 1 ? string.Empty : "s") + " ahead");
-                parts.Add(info.Pushed ? "pushed" : info.RemoteBranchExists ? "push pending" : "not pushed");
+                var parts = new List<string> { string.IsNullOrEmpty(info.BaseBranch) ? L("Branch {0}", info.Branch) : L("Branch {0} (from {1})", info.Branch, info.BaseBranch) };
+                parts.Add(info.WorktreeExists ? L("worktree {0}", info.WorktreePath) : L("no worktree"));
+                if (info.WorktreeExists) parts.Add(info.Dirty ? L("uncommitted changes") : L("clean"));
+                parts.Add(info.Ahead == 1 ? L("1 commit ahead") : L("{0} commits ahead", info.Ahead));
+                parts.Add(info.Pushed ? L("pushed") : info.RemoteBranchExists ? L("push pending") : L("not pushed"));
                 statusText.Text = string.Join("  ·  ", parts);
             };
 
@@ -667,14 +668,14 @@ namespace ClaudeCodeVS
                 if (issue == null)
                 {
                     var empty = new FlowDocument { PagePadding = new Thickness(0), Foreground = themeFg };
-                    empty.Blocks.Add(mutedParagraph("Select an issue."));
+                    empty.Blocks.Add(mutedParagraph(L("Select an issue.")));
                     showDetail(0, empty);
                     statusText.Text = string.Empty;
                     return;
                 }
 
                 showDetail(issue.Number, renderDetail(issue));
-                statusText.Text = "Checking local state…";
+                statusText.Text = L("Checking local state…");
 
                 string defaultBase = selectedBase();
                 IssueLocalInfo info = await Task.Run(() => LoadIssueLocalInfo(context, issue.Number, defaultBase));
@@ -804,7 +805,7 @@ namespace ClaudeCodeVS
                     {
                         if (!keepSelected || issues.Count == 0)
                         {
-                            loading.Text = "Loading issues…";
+                            loading.Text = L("Loading issues…");
                             loading.Visibility = Visibility.Visible;
                             rebuildingList = true;
                             listBox.Items.Clear();
@@ -846,7 +847,7 @@ namespace ClaudeCodeVS
                         }
                         else if (issues.Count == 0)
                         {
-                            loading.Text = "No " + (state == "all" ? string.Empty : state + " ") + "issues.";
+                            loading.Text = state == "open" ? L("No open issues.") : state == "closed" ? L("No closed issues.") : L("No issues.");
                         }
                     }
 
@@ -863,7 +864,7 @@ namespace ClaudeCodeVS
                 catch (Exception ex)
                 {
                     Debug.WriteLine($"GitHub Issues reload error: {ex.Message}");
-                    loading.Text = "Could not load issues: " + ex.Message;
+                    loading.Text = L("Could not load issues: {0}", ex.Message);
                     loading.Visibility = Visibility.Visible;
                 }
                 finally
@@ -967,7 +968,7 @@ namespace ClaudeCodeVS
                     ? selectedInfo.BaseBranch
                     : selectedBase();
                 if (issue == null || string.IsNullOrEmpty(baseBranch)) return;
-                StartSessionHistoryTask(() => runAction("Fix with Agent", p => FixIssueWithAgentAsync(window, context, ghPath, issue, baseBranch, p)),
+                StartSessionHistoryTask(() => runAction(L("Fix with Agent"), p => FixIssueWithAgentAsync(window, context, ghPath, issue, baseBranch, p)),
                     "claudecode/githubissues/fix");
             };
 
@@ -988,7 +989,7 @@ namespace ClaudeCodeVS
                 GitHubIssue issue = selectedIssue();
                 IssueLocalInfo info = selectedInfo;
                 if (issue == null || info == null) return;
-                StartSessionHistoryTask(() => runAction("Commit & Push", p => CommitAndPushIssueFixAsync(window, context, issue, info, p)),
+                StartSessionHistoryTask(() => runAction(L("Commit & Push"), p => CommitAndPushIssueFixAsync(window, context, issue, info, p)),
                     "claudecode/githubissues/commit");
             };
 
@@ -997,7 +998,7 @@ namespace ClaudeCodeVS
                 GitHubIssue issue = selectedIssue();
                 IssueLocalInfo info = selectedInfo;
                 if (issue == null || info == null) return;
-                StartSessionHistoryTask(() => runAction("Merge", p => MergeIssueFixAsync(window, context, ghPath, issue, info, p)),
+                StartSessionHistoryTask(() => runAction(L("Merge"), p => MergeIssueFixAsync(window, context, ghPath, issue, info, p)),
                     "claudecode/githubissues/merge");
             };
 
@@ -1006,7 +1007,7 @@ namespace ClaudeCodeVS
                 GitHubIssue issue = selectedIssue();
                 IssueLocalInfo info = selectedInfo;
                 if (issue == null || info == null) return;
-                StartSessionHistoryTask(() => runAction("Discard Fix", p => DiscardIssueFixAsync(window, context, issue, info, p)),
+                StartSessionHistoryTask(() => runAction(L("Discard Fix"), p => DiscardIssueFixAsync(window, context, issue, info, p)),
                     "claudecode/githubissues/discard");
             };
 
@@ -1023,7 +1024,7 @@ namespace ClaudeCodeVS
             {
                 if (string.IsNullOrEmpty(ghPath))
                 {
-                    statusText.Text = "GitHub CLI (gh) not found — issues are listed read-only from the public API; replies and closing need gh.";
+                    statusText.Text = L("GitHub CLI (gh) not found — issues are listed read-only from the public API; replies and closing need gh.");
                 }
                 StartSessionHistoryTask(() => reload(true, false), "claudecode/githubissues/load");
                 watchTimer.Start();
@@ -1057,27 +1058,27 @@ namespace ClaudeCodeVS
             if (!IsNativeModeActive)
             {
                 MessageBox.Show(owner,
-                    "Fixing an issue opens a chat tab for it, which needs Native Mode. Enable it in ⚙ Settings... → Terminal → Use native mode.",
+                    L("Fixing an issue opens a chat tab for it, which needs Native Mode. Enable it in ⚙ Settings... → Terminal → Use native mode."),
                     "GitHub Issues", MessageBoxButton.OK, MessageBoxImage.Information);
                 return;
             }
 
             if (issue.Comments == null)
             {
-                progress("Loading the issue's comments…");
+                progress(L("Loading the issue's comments…"));
                 issue.Comments = await FetchIssueCommentsAsync(context, ghPath, issue.Number);
             }
 
             // Asked before the worktree exists, so Cancel leaves nothing behind. The advisor sizes the
             // prompt the agent will actually get.
             AiProvider provider = _currentRunningProvider ?? _settings.SelectedProvider;
-            progress("Choosing the model…");
+            progress(L("Choosing the model…"));
             IssueAgentChoice agentChoice = ShowIssueAgentDialog(owner, provider, issue,
                 GitHubIssues.BuildFixPrompt(issue, GitHubIssues.BuildBranchName(issue.Number), baseBranch, false));
             if (agentChoice == null)
                 return;
 
-            progress("Preparing the worktree…");
+            progress(L("Preparing the worktree…"));
             var prepared = await Task.Run(() => PrepareIssueWorktree(context, issue.Number, baseBranch));
             await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
             if (prepared.Error != null)
@@ -1086,7 +1087,7 @@ namespace ClaudeCodeVS
                 return;
             }
 
-            progress("Starting the agent…");
+            progress(L("Starting the agent…"));
             string worktree = prepared.Path;
             NativeChatSessionState session = await StartParallelSessionAsync(provider, worktree, null, s =>
             {
@@ -1098,7 +1099,7 @@ namespace ClaudeCodeVS
 
             if (session == null)
             {
-                MessageBox.Show(owner, "The agent session could not be created.", "GitHub Issues", MessageBoxButton.OK, MessageBoxImage.Error);
+                MessageBox.Show(owner, L("The agent session could not be created."), "GitHub Issues", MessageBoxButton.OK, MessageBoxImage.Error);
                 return;
             }
 
@@ -1132,7 +1133,7 @@ namespace ClaudeCodeVS
             if (Directory.Exists(path) && Directory.EnumerateFileSystemEntries(path).Any())
             {
                 return (null, null, false,
-                    $"The folder for this issue's worktree already exists and is not a git worktree:\n\n{path}\n\nDelete or rename it, then try again.");
+                    L("The folder for this issue's worktree already exists and is not a git worktree:\n\n{0}\n\nDelete or rename it, then try again.", path));
             }
 
             try { Directory.CreateDirectory(Path.GetDirectoryName(path)); } catch { }
@@ -1158,7 +1159,7 @@ namespace ClaudeCodeVS
             }
 
             if (add == null || add.ExitCode != 0)
-                return (null, null, false, "Could not create the worktree.\n\n" + (add?.StdErr ?? "git did not respond."));
+                return (null, null, false, L("Could not create the worktree.\n\n{0}", add?.StdErr ?? L("git did not respond.")));
 
             return (path, effectiveBase, branchExists, null);
         }
@@ -1173,19 +1174,19 @@ namespace ClaudeCodeVS
             string worktree = info.WorktreePath;
             string branch = info.Branch;
 
-            progress("Staging changes…");
+            progress(L("Staging changes…"));
             var staged = await Task.Run(() =>
             {
                 GitCommandResult add = RunGitDetailed(worktree, "add -A", IssueGitTimeoutMs);
                 if (add == null || add.ExitCode != 0)
-                    return (Error: "Could not stage the changes.\n\n" + add?.StdErr, Diff: (string)null);
+                    return (Error: L("Could not stage the changes.\n\n{0}", add?.StdErr), Diff: (string)null);
                 GitCommandResult diff = RunGitDetailed(worktree, "diff --cached", IssueGitTimeoutMs);
                 return (Error: (string)null, Diff: diff?.StdOut ?? string.Empty);
             });
             await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
             if (staged.Error != null)
             {
-                MessageBox.Show(owner, staged.Error, "Commit & Push", MessageBoxButton.OK, MessageBoxImage.Error);
+                MessageBox.Show(owner, staged.Error, L("Commit & Push"), MessageBoxButton.OK, MessageBoxImage.Error);
                 return;
             }
 
@@ -1195,7 +1196,7 @@ namespace ClaudeCodeVS
                 NativeChatSessionState session = FindIssueSession(issue.Number);
                 if (session != null && !session.TurnInFlight)
                 {
-                    progress("Asking the agent for a commit message…");
+                    progress(L("Asking the agent for a commit message…"));
                     message = CleanCommitMessage(await AskIssueSessionAsync(session, BuildCommitMessagePrompt(staged.Diff)));
                     await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
                 }
@@ -1204,12 +1205,12 @@ namespace ClaudeCodeVS
                     message = GitHubIssues.BuildDefaultCommitMessage(issue);
                 message = GitHubIssues.EnsureIssueReference(message, issue.Number);
 
-                progress("Waiting for confirmation…");
-                if (!ShowIssueTextDialog(owner, "Commit & Push",
-                        $"Commit every change in the worktree to {branch} and push it to {context.RemoteName}.",
+                progress(L("Waiting for confirmation…"));
+                if (!ShowIssueTextDialog(owner, L("Commit & Push"),
+                        L("Commit every change in the worktree to {0} and push it to {1}.", branch, context.RemoteName),
                         ref message))
                 {
-                    progress("Commit cancelled.");
+                    progress(L("Commit cancelled."));
                     return;
                 }
 
@@ -1217,16 +1218,16 @@ namespace ClaudeCodeVS
                 string messageFile = WriteCommitMessageToTempFile(message);
                 if (messageFile == null)
                 {
-                    MessageBox.Show(owner, "Could not write the commit message to a temp file.", "Commit & Push", MessageBoxButton.OK, MessageBoxImage.Error);
+                    MessageBox.Show(owner, L("Could not write the commit message to a temp file."), L("Commit & Push"), MessageBoxButton.OK, MessageBoxImage.Error);
                     return;
                 }
 
-                progress("Committing…");
+                progress(L("Committing…"));
                 GitCommandResult commit = await Task.Run(() => RunGitDetailed(worktree, "commit -F " + QuoteForWindowsCommandArgument(messageFile), IssueGitTimeoutMs));
                 await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
                 if (commit == null || commit.ExitCode != 0)
                 {
-                    MessageBox.Show(owner, "Commit failed.\n\n" + (commit?.StdErr ?? string.Empty) + commit?.StdOut, "Commit & Push", MessageBoxButton.OK, MessageBoxImage.Error);
+                    MessageBox.Show(owner, L("Commit failed.\n\n{0}", (commit?.StdErr ?? string.Empty) + commit?.StdOut), L("Commit & Push"), MessageBoxButton.OK, MessageBoxImage.Error);
                     return;
                 }
             }
@@ -1236,8 +1237,8 @@ namespace ClaudeCodeVS
             await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
             if (push == null || push.ExitCode != 0)
             {
-                MessageBox.Show(owner, "The commit was created, but the push failed.\n\n" + (push?.StdErr ?? "git did not respond."),
-                    "Commit & Push", MessageBoxButton.OK, MessageBoxImage.Warning);
+                MessageBox.Show(owner, L("The commit was created, but the push failed.\n\n{0}", push?.StdErr ?? L("git did not respond.")),
+                    L("Commit & Push"), MessageBoxButton.OK, MessageBoxImage.Warning);
                 return;
             }
 
@@ -1275,7 +1276,7 @@ namespace ClaudeCodeVS
 
                 GitCommandResult detach = RunGitDetailed(worktree, "checkout --detach " + baseRef, IssueGitTimeoutMs);
                 if (detach == null || detach.ExitCode != 0)
-                    return (Kind: "error", Detail: "Could not check out " + baseRef + ".\n\n" + detach?.StdErr, Conflicts: (List<string>)null);
+                    return (Kind: "error", Detail: L("Could not check out {0}.\n\n{1}", baseRef, detach?.StdErr), Conflicts: (List<string>)null);
 
                 string messageFile = WriteCommitMessageToTempFile(GitHubIssues.BuildMergeCommitMessage(issue, branch));
                 GitCommandResult merge = RunGitDetailed(worktree, $"merge --no-ff -F {QuoteForWindowsCommandArgument(messageFile)} {branch}", IssueGitTimeoutMs);
@@ -1295,7 +1296,7 @@ namespace ClaudeCodeVS
                 if (files.Count == 0)
                 {
                     RunGitDetailed(worktree, "merge --abort", IssueGitTimeoutMs);
-                    return (Kind: "error", Detail: "The merge failed.\n\n" + merge?.StdErr + reverse?.StdErr, Conflicts: (List<string>)null);
+                    return (Kind: "error", Detail: L("The merge failed.\n\n{0}", merge?.StdErr + reverse?.StdErr), Conflicts: (List<string>)null);
                 }
 
                 return (Kind: "conflict", Detail: baseRef, Conflicts: files);
@@ -1305,15 +1306,15 @@ namespace ClaudeCodeVS
             switch (merged.Kind)
             {
                 case "dirty":
-                    MessageBox.Show(owner, "The worktree has uncommitted changes. Commit & Push them first.", "Merge", MessageBoxButton.OK, MessageBoxImage.Information);
+                    MessageBox.Show(owner, L("The worktree has uncommitted changes. Commit & Push them first."), L("Merge"), MessageBoxButton.OK, MessageBoxImage.Information);
                     return;
                 case "error":
-                    MessageBox.Show(owner, merged.Detail, "Merge", MessageBoxButton.OK, MessageBoxImage.Error);
+                    MessageBox.Show(owner, merged.Detail, L("Merge"), MessageBoxButton.OK, MessageBoxImage.Error);
                     return;
                 case "retry":
                     MessageBox.Show(owner,
-                        $"The latest {baseBranch} was merged into {branch} first. Run Merge again.",
-                        "Merge", MessageBoxButton.OK, MessageBoxImage.Information);
+                        L("The latest {0} was merged into {1} first. Run Merge again.", baseBranch, branch),
+                        L("Merge"), MessageBoxButton.OK, MessageBoxImage.Information);
                     return;
                 case "conflict":
                     await HandOffMergeConflictsAsync(owner, context, ghPath, issue, baseBranch, merged.Conflicts);
@@ -1325,7 +1326,7 @@ namespace ClaudeCodeVS
             NativeChatSessionState session = FindIssueSession(issue.Number);
             if (session != null && !session.TurnInFlight)
             {
-                progress("Asking the agent to draft the reply…");
+                progress(L("Asking the agent to draft the reply…"));
                 reply = CleanCommitMessage(await AskIssueSessionAsync(session, GitHubIssues.BuildReplyDraftPrompt(issue, baseBranch)));
                 await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
             }
@@ -1333,17 +1334,17 @@ namespace ClaudeCodeVS
                 reply = GitHubIssues.BuildDefaultReply(issue, baseBranch);
 
             bool hasGh = !string.IsNullOrEmpty(ghPath);
-            var postReply = new CheckBox { Content = hasGh ? "Post this reply on the issue" : "Copy this reply and open the issue (GitHub CLI not installed)", IsChecked = true };
-            var closeIssue = new CheckBox { Content = "Close the issue", IsChecked = issue.IsOpen && hasGh, IsEnabled = issue.IsOpen && hasGh };
-            var cleanUp = new CheckBox { Content = $"Delete {branch}, its worktree and chat tab", IsChecked = true };
+            var postReply = new CheckBox { Content = hasGh ? L("Post this reply on the issue") : L("Copy this reply and open the issue (GitHub CLI not installed)"), IsChecked = true };
+            var closeIssue = new CheckBox { Content = L("Close the issue"), IsChecked = issue.IsOpen && hasGh, IsEnabled = issue.IsOpen && hasGh };
+            var cleanUp = new CheckBox { Content = L("Delete {0}, its worktree and chat tab", branch), IsChecked = true };
 
-            progress("Waiting for confirmation…");
-            if (!ShowIssueTextDialog(owner, "Merge",
-                    $"Merge {branch} into {baseBranch} and push {baseBranch} to {remote}. Reply on issue #{issue.Number}:",
+            progress(L("Waiting for confirmation…"));
+            if (!ShowIssueTextDialog(owner, L("Merge"),
+                    L("Merge {0} into {1} and push {2} to {3}. Reply on issue #{4}:", branch, baseBranch, baseBranch, remote, issue.Number),
                     ref reply, postReply, closeIssue, cleanUp))
             {
                 await Task.Run(() => RunGitDetailed(worktree, "checkout " + branch, IssueGitTimeoutMs));
-                progress("Merge cancelled.");
+                progress(L("Merge cancelled."));
                 return;
             }
 
@@ -1360,14 +1361,14 @@ namespace ClaudeCodeVS
             {
                 await Task.Run(() => RunGitDetailed(worktree, "checkout " + branch, IssueGitTimeoutMs));
                 MessageBox.Show(owner,
-                    $"Pushing {baseBranch} failed, so nothing was merged.\n\n" + (pushed.Push?.StdErr ?? "git did not respond."),
-                    "Merge", MessageBoxButton.OK, MessageBoxImage.Error);
+                    L("Pushing {0} failed, so nothing was merged.\n\n{1}", baseBranch, pushed.Push?.StdErr ?? L("git did not respond.")),
+                    L("Merge"), MessageBoxButton.OK, MessageBoxImage.Error);
                 return;
             }
 
-            var notes = new List<string> { $"Merged {branch} into {baseBranch} and pushed it." };
+            var notes = new List<string> { L("Merged {0} into {1} and pushed it.", branch, baseBranch) };
 
-            progress($"Updating local {baseBranch}…");
+            progress(L("Updating local {0}…", baseBranch));
             string localNote = await Task.Run(() => FastForwardLocalBase(context, baseBranch, pushed.Sha, worktree));
             if (!string.IsNullOrEmpty(localNote)) notes.Add(localNote);
             await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
@@ -1377,40 +1378,40 @@ namespace ClaudeCodeVS
                 string bodyText = GitHubIssues.AppendMergeFootnote(reply, baseBranch, pushed.Sha);
                 if (hasGh)
                 {
-                    progress("Posting the reply…");
+                    progress(L("Posting the reply…"));
                     string bodyFile = WriteCommitMessageToTempFile(bodyText);
                     GitCommandResult comment = await Task.Run(() => RunProcessDetailed(ghPath, context.RepoRoot,
                         $"issue comment {issue.Number} -R {context.Slug} --body-file {QuoteForWindowsCommandArgument(bodyFile)}", IssueNetworkTimeoutMs));
                     notes.Add(comment != null && comment.ExitCode == 0
-                        ? "Posted the reply on the issue."
-                        : "Could not post the reply: " + (comment?.StdErr.Trim() ?? "gh did not respond."));
+                        ? L("Posted the reply on the issue.")
+                        : L("Could not post the reply: {0}", comment?.StdErr.Trim() ?? L("gh did not respond.")));
                 }
                 else
                 {
                     await ClipboardRetryAsync(() => Clipboard.SetText(bodyText));
                     OpenUrl(issue.Url);
-                    notes.Add("Copied the reply to the clipboard and opened the issue.");
+                    notes.Add(L("Copied the reply to the clipboard and opened the issue."));
                 }
                 await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
             }
 
             if (closeIssue.IsChecked == true && hasGh)
             {
-                progress("Closing the issue…");
+                progress(L("Closing the issue…"));
                 GitCommandResult close = await Task.Run(() => RunProcessDetailed(ghPath, context.RepoRoot,
                     $"issue close {issue.Number} -R {context.Slug} --reason completed", IssueNetworkTimeoutMs));
                 await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
                 // A "Fixes #N" commit landing on the default branch can close it first — not an error.
                 bool alreadyClosed = close != null && (close.StdErr + close.StdOut).IndexOf("already closed", StringComparison.OrdinalIgnoreCase) >= 0;
                 notes.Add(close != null && (close.ExitCode == 0 || alreadyClosed)
-                    ? "Closed the issue."
-                    : "Could not close the issue: " + (close?.StdErr.Trim() ?? "gh did not respond."));
+                    ? L("Closed the issue.")
+                    : L("Could not close the issue: {0}", close?.StdErr.Trim() ?? L("gh did not respond.")));
                 if (close != null && (close.ExitCode == 0 || alreadyClosed)) issue.State = "closed";
             }
 
             if (cleanUp.IsChecked == true)
             {
-                progress("Cleaning up…");
+                progress(L("Cleaning up…"));
                 notes.AddRange(await RemoveIssueFixAsync(context, issue.Number, worktree, branch, deleteRemoteBranch: true));
             }
             else
@@ -1419,8 +1420,8 @@ namespace ClaudeCodeVS
             }
 
             await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
-            progress($"Merged into {baseBranch}.");
-            MessageBox.Show(owner, string.Join("\n", notes), "Merge", MessageBoxButton.OK, MessageBoxImage.Information);
+            progress(L("Merged into {0}.", baseBranch));
+            MessageBox.Show(owner, string.Join("\n", notes), L("Merge"), MessageBoxButton.OK, MessageBoxImage.Information);
         }
 
         /// <summary>Sends the conflicts to the issue's chat (opening it when needed) for the agent to resolve.</summary>
@@ -1450,16 +1451,16 @@ namespace ClaudeCodeVS
             if (session == null)
             {
                 MessageBox.Show(owner,
-                    $"Merging the latest {baseBranch} produced conflicts in:\n\n{string.Join("\n", conflicts)}\n\nThe merge is in progress in the issue's worktree — resolve it there, then run Merge again.",
-                    "Merge", MessageBoxButton.OK, MessageBoxImage.Warning);
+                    L("Merging the latest {0} produced conflicts in:\n\n{1}\n\nThe merge is in progress in the issue's worktree — resolve it there, then run Merge again.", baseBranch, string.Join("\n", conflicts)),
+                    L("Merge"), MessageBoxButton.OK, MessageBoxImage.Warning);
                 return;
             }
 
             BringSessionTabToFront(session);
             StartIssuePrompt(session, prompt);
             MessageBox.Show(owner,
-                $"Merging the latest {baseBranch} produced conflicts. They were sent to the issue's chat to resolve — run Merge again once the agent has finished.",
-                "Merge", MessageBoxButton.OK, MessageBoxImage.Information);
+                L("Merging the latest {0} produced conflicts. They were sent to the issue's chat to resolve — run Merge again once the agent has finished.", baseBranch),
+                L("Merge"), MessageBoxButton.OK, MessageBoxImage.Information);
         }
 
         /// <summary>
@@ -1480,20 +1481,20 @@ namespace ClaudeCodeVS
             {
                 GitCommandResult status = RunGitDetailed(checkedOut.Path, "status --porcelain --untracked-files=no", IssueGitTimeoutMs);
                 if (status == null || status.ExitCode != 0 || !string.IsNullOrWhiteSpace(status.StdOut))
-                    return $"Your local {baseBranch} has uncommitted changes, so it was not updated — pull it when ready.";
+                    return L("Your local {0} has uncommitted changes, so it was not updated — pull it when ready.", baseBranch);
 
                 GitCommandResult ff = RunGitDetailed(checkedOut.Path, "merge --ff-only " + mergeSha, IssueGitTimeoutMs);
                 return ff != null && ff.ExitCode == 0
-                    ? $"Updated your local {baseBranch}."
-                    : $"Your local {baseBranch} could not be fast-forwarded — pull it when ready.";
+                    ? L("Updated your local {0}.", baseBranch)
+                    : L("Your local {0} could not be fast-forwarded — pull it when ready.", baseBranch);
             }
 
             GitCommandResult ancestor = RunGitDetailed(context.RepoRoot, $"merge-base --is-ancestor {baseBranch} {mergeSha}", IssueGitTimeoutMs);
             if (ancestor == null || ancestor.ExitCode != 0)
-                return $"Your local {baseBranch} has commits that are not on {context.RemoteName}, so it was not updated.";
+                return L("Your local {0} has commits that are not on {1}, so it was not updated.", baseBranch, context.RemoteName);
 
             GitCommandResult move = RunGitDetailed(context.RepoRoot, $"branch -f {baseBranch} {mergeSha}", IssueGitTimeoutMs);
-            return move != null && move.ExitCode == 0 ? $"Updated your local {baseBranch}." : null;
+            return move != null && move.ExitCode == 0 ? L("Updated your local {0}.", baseBranch) : null;
         }
 
         #endregion
@@ -1504,19 +1505,20 @@ namespace ClaudeCodeVS
         {
             await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
 
-            string text = $"Discard the fix for issue #{issue.Number}?\n\n" +
-                          $"This closes its chat tab and deletes the worktree and the local branch {info.Branch}" +
-                          (info.Dirty ? ", including uncommitted changes" : string.Empty) + ".";
-            var deleteRemote = new CheckBox { Content = $"Also delete {info.Branch} on {context.RemoteName}", IsChecked = false, IsEnabled = info.RemoteBranchExists };
+            string text = L("Discard the fix for issue #{0}?\n\n", issue.Number) +
+                          (info.Dirty
+                              ? L("This closes its chat tab and deletes the worktree and the local branch {0}, including uncommitted changes.", info.Branch)
+                              : L("This closes its chat tab and deletes the worktree and the local branch {0}.", info.Branch));
+            var deleteRemote = new CheckBox { Content = L("Also delete {0} on {1}", info.Branch, context.RemoteName), IsChecked = false, IsEnabled = info.RemoteBranchExists };
 
             string unused = null;
-            if (!ShowIssueTextDialog(owner, "Discard Fix", text, ref unused, info.RemoteBranchExists ? new[] { deleteRemote } : new CheckBox[0]))
+            if (!ShowIssueTextDialog(owner, L("Discard Fix"), text, ref unused, info.RemoteBranchExists ? new[] { deleteRemote } : new CheckBox[0]))
                 return;
 
-            progress("Removing the fix…");
+            progress(L("Removing the fix…"));
             List<string> notes = await RemoveIssueFixAsync(context, issue.Number, info.WorktreeExists ? info.WorktreePath : null, info.Branch, deleteRemote.IsChecked == true);
             await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
-            progress(notes.Count == 0 ? "Fix discarded." : string.Join("  ·  ", notes));
+            progress(notes.Count == 0 ? L("Fix discarded.") : string.Join("  ·  ", notes));
         }
 
         /// <summary>
@@ -1545,7 +1547,7 @@ namespace ClaudeCodeVS
                     }
 
                     if (remove == null || remove.ExitCode != 0)
-                        notes.Add("Could not remove the worktree (a file may still be open): " + worktree);
+                        notes.Add(L("Could not remove the worktree (a file may still be open): {0}", worktree));
                     RunGitDetailed(repo, "worktree prune", IssueGitTimeoutMs);
 
                     try
@@ -1564,7 +1566,7 @@ namespace ClaudeCodeVS
                 {
                     GitCommandResult delete = RunGitDetailed(repo, "branch -D " + branch, IssueGitTimeoutMs);
                     if (delete == null || delete.ExitCode != 0)
-                        notes.Add("Could not delete the local branch " + branch + ".");
+                        notes.Add(L("Could not delete the local branch {0}.", branch));
                 }
 
                 if (deleteRemoteBranch)
@@ -1574,8 +1576,8 @@ namespace ClaudeCodeVS
                     {
                         GitCommandResult deleteRemote = RunGitDetailed(repo, $"push {context.RemoteName} --delete {branch}", IssueNetworkTimeoutMs);
                         notes.Add(deleteRemote != null && deleteRemote.ExitCode == 0
-                            ? $"Deleted {branch} on {context.RemoteName}."
-                            : $"Could not delete {branch} on {context.RemoteName}.");
+                            ? L("Deleted {0} on {1}.", branch, context.RemoteName)
+                            : L("Could not delete {0} on {1}.", branch, context.RemoteName));
                     }
                 }
 
@@ -1772,7 +1774,7 @@ namespace ClaudeCodeVS
                     }
                     catch (Exception ex)
                     {
-                        ghError = "Could not read gh's output: " + ex.Message;
+                        ghError = L("Could not read gh's output: {0}", ex.Message);
                     }
                 }
                 else
@@ -1790,8 +1792,8 @@ namespace ClaudeCodeVS
             {
                 Debug.WriteLine($"GitHub Issues REST fallback failed: {ex.Message}");
                 string message = ghError != null
-                    ? "Could not list issues with the GitHub CLI: " + ghError + (ghError.IndexOf("auth", StringComparison.OrdinalIgnoreCase) >= 0 ? " (run \"gh auth login\")" : string.Empty)
-                    : "Could not list issues: " + ex.Message + " — install the GitHub CLI (gh) and run \"gh auth login\" for private repositories.";
+                    ? L("Could not list issues with the GitHub CLI: {0}", ghError) + (ghError.IndexOf("auth", StringComparison.OrdinalIgnoreCase) >= 0 ? " " + L("(run \"gh auth login\")") : string.Empty)
+                    : L("Could not list issues: {0} — install the GitHub CLI (gh) and run \"gh auth login\" for private repositories.", ex.Message);
                 return (null, message);
             }
         }
@@ -1912,7 +1914,7 @@ namespace ClaudeCodeVS
             catch (Exception ex)
             {
                 Debug.WriteLine($"GitHub Issues: could not open the worktree in Visual Studio: {ex.Message}");
-                MessageBox.Show(owner, "Could not start Visual Studio: " + ex.Message, "GitHub Issues", MessageBoxButton.OK, MessageBoxImage.Error);
+                MessageBox.Show(owner, L("Could not start Visual Studio: {0}", ex.Message), "GitHub Issues", MessageBoxButton.OK, MessageBoxImage.Error);
             }
         }
 
@@ -1933,13 +1935,13 @@ namespace ClaudeCodeVS
         {
             string url = segment.ImageUrl;
             string label = string.IsNullOrWhiteSpace(segment.AltText) || string.Equals(segment.AltText, "Image", StringComparison.OrdinalIgnoreCase)
-                ? "image" : "\"" + segment.AltText.Trim() + "\"";
+                ? L("image") : "\"" + segment.AltText.Trim() + "\"";
 
             var host = new Border
             {
                 HorizontalAlignment = HorizontalAlignment.Left,
                 Margin = new Thickness(0, 4, 0, 8),
-                Child = new TextBlock { Text = "🖼 Loading " + label + "…", Foreground = mutedBrush, FontStyle = FontStyles.Italic }
+                Child = new TextBlock { Text = L("🖼 Loading {0}…", label), Foreground = mutedBrush, FontStyle = FontStyles.Italic }
             };
 
             if (!cache.TryGetValue(url, out AsyncLazy<BitmapSource> download))
@@ -1972,7 +1974,7 @@ namespace ClaudeCodeVS
                     cache.Remove(url); // a later render may try again
                     var link = new TextBlock
                     {
-                        Text = "🖼 " + char.ToUpperInvariant(label[0]) + label.Substring(1) + " could not be loaded — open it in the browser",
+                        Text = L("🖼 {0} could not be loaded — open it in the browser", char.ToUpperInvariant(label[0]) + label.Substring(1)),
                         Foreground = accentBrush,
                         TextDecorations = TextDecorations.Underline,
                         Cursor = Cursors.Hand,
@@ -2029,7 +2031,7 @@ namespace ClaudeCodeVS
 
             var content = new StackPanel();
             content.Children.Add(preview);
-            content.Children.Add(new TextBlock { Text = "Click to open in the browser", Margin = new Thickness(0, 4, 0, 0), FontStyle = FontStyles.Italic });
+            content.Children.Add(new TextBlock { Text = L("Click to open in the browser"), Margin = new Thickness(0, 4, 0, 0), FontStyle = FontStyles.Italic });
 
             var tip = new ToolTip { Content = content, Padding = new Thickness(4), Placement = PlacementMode.Center, PlacementTarget = image };
             tip.Opened += (s, e) =>
@@ -2145,7 +2147,7 @@ namespace ClaudeCodeVS
 
             var dialog = new Window
             {
-                Title = $"Fix Issue #{issue.Number}",
+                Title = L("Fix Issue #{0}", issue.Number),
                 Width = 560,
                 SizeToContent = SizeToContent.Height,
                 WindowStartupLocation = WindowStartupLocation.CenterOwner,
@@ -2168,7 +2170,7 @@ namespace ClaudeCodeVS
             });
             root.Children.Add(new TextBlock
             {
-                Text = $"Agent: {GetChatProviderDisplayName(provider)} — the choice applies to this issue's chat only.",
+                Text = L("Agent: {0} — the choice applies to this issue's chat only.", GetChatProviderDisplayName(provider)),
                 Foreground = themeFg,
                 Opacity = 0.7,
                 TextWrapping = TextWrapping.Wrap,
@@ -2210,12 +2212,12 @@ namespace ClaudeCodeVS
                 }
             };
 
-            makeLabel("Model:", 0);
+            makeLabel(L("Model:"), 0);
             var modelCombo = MakeThemedComboBox(comboRes, themeFg);
             Grid.SetColumn(modelCombo, 1);
             pickers.Children.Add(modelCombo);
 
-            TextBlock effortLabel = makeLabel(isCodex ? "Reasoning:" : "Effort:", 2);
+            TextBlock effortLabel = makeLabel(isCodex ? L("Reasoning:") : L("Effort:"), 2);
             var effortCombo = MakeThemedComboBox(comboRes, themeFg);
             Grid.SetColumn(effortCombo, 3);
             pickers.Children.Add(effortCombo);
@@ -2244,7 +2246,7 @@ namespace ClaudeCodeVS
                 Action<List<ModelOption>, string> fillModels = (models, selected) =>
                 {
                     modelCombo.Items.Clear();
-                    addItem(modelCombo, "Agent default", string.Empty);
+                    addItem(modelCombo, L("Agent default"), string.Empty);
                     if (!string.IsNullOrWhiteSpace(selected) && FindProviderModel(models, selected) == null)
                     {
                         ModelOption current = GetSelectedModelOption(provider, models, selected);
@@ -2292,7 +2294,7 @@ namespace ClaudeCodeVS
                 TextWrapping = TextWrapping.Wrap,
                 VerticalAlignment = VerticalAlignment.Center,
                 Margin = new Thickness(10, 0, 0, 0),
-                Text = "Not sure? Recommend asks Claude which model and effort suit this issue."
+                Text = L("Not sure? Recommend asks Claude which model and effort suit this issue.")
             };
             var progress = new ProgressBar { IsIndeterminate = true, Height = 4, Margin = new Thickness(0, 6, 0, 0), Visibility = Visibility.Collapsed };
             var reason = new TextBlock
@@ -2313,9 +2315,9 @@ namespace ClaudeCodeVS
                 return button;
             };
 
-            var recommendButton = makeButton("💡 Recommend");
+            var recommendButton = makeButton(L("💡 Recommend"));
             recommendButton.Margin = new Thickness(0);
-            recommendButton.ToolTip = $"Ask {GetClaudeModelDisplayName(ClaudeModel.Opus)} ({GetChatEffortLabel(EffortLevel.XHigh)}) which model and effort suit this issue. Nothing starts until Start Fix.";
+            recommendButton.ToolTip = L("Ask {0} ({1}) which model and effort suit this issue. Nothing starts until Start Fix.", GetClaudeModelDisplayName(ClaudeModel.Opus), GetChatEffortLabel(EffortLevel.XHigh));
             DockPanel.SetDock(recommendButton, Dock.Left);
             recommendRow.Children.Add(recommendButton);
             recommendRow.Children.Add(status);
@@ -2328,10 +2330,10 @@ namespace ClaudeCodeVS
             }
 
             // ---- Buttons ----
-            var startButton = makeButton("Start Fix");
+            var startButton = makeButton(L("Start Fix"));
             startButton.IsDefault = true;
-            startButton.ToolTip = "Create the fix branch and worktree and open the issue's chat with this model and effort.";
-            var cancelButton = makeButton("Cancel");
+            startButton.ToolTip = L("Create the fix branch and worktree and open the issue's chat with this model and effort.");
+            var cancelButton = makeButton(L("Cancel"));
             cancelButton.IsCancel = true;
 
             var buttons = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right, Margin = new Thickness(0, 16, 0, 0) };
@@ -2348,7 +2350,7 @@ namespace ClaudeCodeVS
                 progress.Visibility = Visibility.Visible;
                 reason.Visibility = Visibility.Collapsed;
                 status.FontWeight = FontWeights.Normal;
-                status.Text = $"Asking {GetClaudeModelDisplayName(ClaudeModel.Opus)} ({GetChatEffortLabel(EffortLevel.XHigh)}) which model and effort suit this issue…";
+                status.Text = L("Asking {0} ({1}) which model and effort suit this issue…", GetClaudeModelDisplayName(ClaudeModel.Opus), GetChatEffortLabel(EffortLevel.XHigh));
 
 #pragma warning disable VSSDK007, VSTHRD110 // Fire and forget: FileAndForget is the handler
                 ThreadHelper.JoinableTaskFactory.RunAsync(async delegate
@@ -2376,7 +2378,7 @@ namespace ClaudeCodeVS
 
                         string reasonText = recommendation.Reason?.Trim() ?? string.Empty;
                         if (fableUnavailable)
-                            reasonText = (reasonText + " Fable was recommended, but it needs usage credits and the balance is zero.").Trim();
+                            reasonText = (reasonText + " " + L("Fable was recommended, but it needs usage credits and the balance is zero.")).Trim();
                         if (reasonText.Length > 0)
                         {
                             reason.Text = reasonText;
@@ -2386,7 +2388,7 @@ namespace ClaudeCodeVS
                     }
                     else
                     {
-                        status.Text = "No recommendation: " + (error ?? "the answer could not be read.") + " You can still pick a model and effort yourself.";
+                        status.Text = L("No recommendation: {0} You can still pick a model and effort yourself.", error ?? L("the answer could not be read."));
                     }
                 }).FileAndForget("claudecode/githubissues/recommend");
 #pragma warning restore VSSDK007, VSTHRD110
@@ -2481,7 +2483,7 @@ namespace ClaudeCodeVS
 
             var buttons = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right, Margin = new Thickness(0, 12, 0, 0) };
             var ok = new Button { Content = "OK", MinWidth = 88, Height = 28, IsDefault = !hasText, Margin = new Thickness(8, 0, 0, 0) };
-            var cancel = new Button { Content = "Cancel", MinWidth = 88, Height = 28, IsCancel = true, Margin = new Thickness(8, 0, 0, 0) };
+            var cancel = new Button { Content = L("Cancel"), MinWidth = 88, Height = 28, IsCancel = true, Margin = new Thickness(8, 0, 0, 0) };
             foreach (Button b in new[] { ok, cancel })
             {
                 if (buttonStyle != null) b.Style = buttonStyle;

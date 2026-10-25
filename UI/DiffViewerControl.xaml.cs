@@ -23,6 +23,7 @@ using ClaudeCodeVS.Diff;
 using Microsoft.VisualStudio.PlatformUI;
 using Microsoft.VisualStudio.Shell;
 using Microsoft.VisualStudio.Threading;
+using static ClaudeCodeVS.UI.Loc;
 
 namespace ClaudeCodeVS
 {
@@ -370,8 +371,8 @@ namespace ClaudeCodeVS
             {
                 EmptyStateText.Visibility = Visibility.Visible;
                 FileListScrollViewer.Visibility = Visibility.Collapsed;
-                SummaryText.Text = IsPendingScopeActive ? "Nothing pending review" : "No changes detected";
-                EmptyStateText.Text = IsPendingScopeActive ? "No agent changes pending review" : "No changes detected";
+                SummaryText.Text = IsPendingScopeActive ? L("Nothing pending review") : L("No changes detected");
+                EmptyStateText.Text = IsPendingScopeActive ? L("No agent changes pending review") : L("No changes detected");
                 AdditionsText.Visibility = Visibility.Collapsed;
                 DeletionsText.Visibility = Visibility.Collapsed;
                 _savedScrollPositions.Clear();
@@ -386,8 +387,8 @@ namespace ClaudeCodeVS
             int totalAdded = _changedFiles.Sum(f => f.LinesAdded);
             int totalRemoved = _changedFiles.Sum(f => f.LinesRemoved);
             SummaryText.Text = IsPendingScopeActive
-                ? $"{_changedFiles.Count} file{(_changedFiles.Count != 1 ? "s" : "")} pending review"
-                : $"{_changedFiles.Count} file{(_changedFiles.Count != 1 ? "s" : "")} changed";
+                ? (_changedFiles.Count != 1 ? L("{0} files pending review", _changedFiles.Count) : L("{0} file pending review", _changedFiles.Count))
+                : (_changedFiles.Count != 1 ? L("{0} files changed", _changedFiles.Count) : L("{0} file changed", _changedFiles.Count));
             AdditionsText.Text = $"+{totalAdded}";
             AdditionsText.Visibility = Visibility.Visible;
             DeletionsText.Text = $"-{totalRemoved}";
@@ -664,16 +665,16 @@ namespace ClaudeCodeVS
             if (IsPendingScopeActive)
             {
                 var reviewPanel = new StackPanel { Orientation = Orientation.Horizontal };
-                reviewPanel.Children.Add(CreateReviewButton("\u21c4 Compare",
-                    "Open this file in Visual Studio's diff window: before the agent on the left, now on the right",
+                reviewPanel.Children.Add(CreateReviewButton(L("\u21c4 Compare"),
+                    L("Open this file in Visual Studio's diff window: before the agent on the left, now on the right"),
                     () => CompareRequested?.Invoke(this, file)));
-                reviewPanel.Children.Add(CreateReviewButton("\u2713 Keep",
-                    "Accept the agent's changes to this file",
+                reviewPanel.Children.Add(CreateReviewButton(L("\u2713 Keep"),
+                    L("Accept the agent's changes to this file"),
                     () => KeepRequested?.Invoke(this, file)));
-                reviewPanel.Children.Add(CreateReviewButton("\u21B6 Undo",
+                reviewPanel.Children.Add(CreateReviewButton(L("\u21B6 Undo"),
                     file.Type == ChangeType.Created
-                        ? "Delete this file the agent created"
-                        : "Restore this file to how it was before the agent changed it",
+                        ? L("Delete this file the agent created")
+                        : L("Restore this file to how it was before the agent changed it"),
                     () => UndoRequested?.Invoke(this, file)));
                 Grid.SetColumn(reviewPanel, 3);
                 headerGrid.Children.Add(reviewPanel);
@@ -1227,8 +1228,8 @@ namespace ClaudeCodeVS
             {
                 AutoScrollButton.IsChecked = _autoScrollEnabled;
                 AutoScrollButton.ToolTip = _autoScrollEnabled
-                    ? "Auto-scroll enabled (click to disable)"
-                    : "Auto-scroll disabled (click to enable)";
+                    ? L("Auto-scroll enabled (click to disable)")
+                    : L("Auto-scroll disabled (click to enable)");
             }
             finally
             {
@@ -1385,7 +1386,7 @@ namespace ClaudeCodeVS
             // Clear results text when text changes to indicate new search needed
             if (_searchMatches.Count > 0 && SearchTextBox.Text != _currentSearchText)
             {
-                SearchResultsText.Text = "Press Enter to search";
+                SearchResultsText.Text = L("Press Enter to search");
             }
         }
 
@@ -1587,7 +1588,7 @@ namespace ClaudeCodeVS
             ThreadHelper.ThrowIfNotOnUIThread();
             if (_searchMatches.Count == 0)
             {
-                SearchResultsText.Text = string.IsNullOrWhiteSpace(_currentSearchText) ? "" : "No results";
+                SearchResultsText.Text = string.IsNullOrWhiteSpace(_currentSearchText) ? "" : L("No results");
             }
             else
             {

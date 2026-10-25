@@ -1,0 +1,9 @@
+<<<<
+                        "Some files could not be restored:\n\n" + string.Join("\n", failures.Take(10)) +
+                        (failures.Count > 10 ? $"\n... and {failures.Count - 10} more" : string.Empty),
+                        "Undo Agent Changes");
+====
+                        L("Some files could not be restored:\n\n{0}", string.Join("\n", failures.Take(10))) +
+                        (failures.Count > 10 ? "\n" + L("... and {0} more", failures.Count - 10) : string.Empty),
+                        L("Undo Agent Changes"));
+>>>>

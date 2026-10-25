@@ -1,0 +1,191 @@
+570	Düzeltmeyi başlat
+571	Ajan başlatılıyor…
+572	Başlatılıyor…
+573	Alt ajanlar
+574	\"Tema değişti. Yapay zekâ kodlama ajanı yeniden başlatılsın mı?\" istemini bastırır. Visual Studio temayı otomatik değiştirdiğinde kullanışlıdır (ör. F5 ile etkinleşen bir hata ayıklama teması).
+575	Yukarıda seçilen model ve çabaya geç. İstem gönderilmez.
+576	Terminal
+577	Terminal Hatası
+578	Terminal kullanılamıyor. Lütfen terminali yeniden başlatın.
+579	Terminal çalışmıyor. Lütfen önce terminali yeniden başlatın.
+580	Terminal Türü
+581	Ajan commit mesajı döndürmedi.
+582	Ajan başka bir turla meşgul. Commit mesajı oluşturmadan önce bitmesini bekleyin.
+583	Ajan oturumu oluşturulamadı.
+584	Ajanın terminali ekran değişikliğinden sonra doğru boyuta dönmedi, bu yüzden panelin bir kısmı boş kalıyor ve ajan göremediğiniz yerlere çiziyor. Terminali yeniden başlatmak bunu düzeltir.
+585	Ajanın terminali büyük bir yanıtı işliyor — tuş vuruşları ve tıklamalar kısa süre içinde yeniden çalışacak. Yeniden başlatma gerekmez.
+586	Derleme zamanında bitmedi.
+587	Derleme başarısız oldu.
+588	Çözüm veya Visual Studio kapandığında açık olan sohbet sekmeleri bir sonraki açılışta geri gelir; her biri önceki mesajları görünür şekilde kendi konuşmasını sürdürür. Yeniden açılan bir sekme ajanını yalnızca ona mesaj gönderdiğinizde başlatır. Yalnızca Claude Code, Codex ve Devin. Kapattığınız bir sekme yeniden açılmaz; oturum geçmişinde kalır.
+589	Sohbet araç çubuğu, çoğu sohbet uygulamasında olduğu gibi mesaj kutusunun içine, metnin altına taşınır: yeniden başlatma, yeniden adlandırma, renk ve ekleme ✚ yeni sohbet'ten sonra bir ⋯ menüsünde toplanır, ardından model, çaba ve izin seçicileri gelir; özel komutlar, araçlar ve ayarlar sağda yer alır.
+590	Sohbet araç çubuğu Visual Studio simgelerini kullanır, canlı durum dönen bir halka gösterir ve her sohbet sekmesi ✅ bitti, ❌ hata, ❓ yanıtınızı bekliyor ile aşağıda seçilen çalışma simgesini gösterir.
+591	Commit oluşturuldu, ancak gönderme başarısız oldu.\n\n{0}
+592	Konsolun kod sayfası, ajanın başlattığı tüm süreçler tarafından paylaşılır. Onu değiştiren bir komut - PowerShell'de [Console]::OutputEncoding, kabuk komutunda chcp, bazı .NET CLI araçları - çıktıktan sonra onu değişmiş bırakır ve o andan itibaren terminal yeniden başlatılana kadar bozuk karakterler gösterir.\n\nBu seçenek açıkken, değişiklik fark edilir edilmez kod sayfası geri yüklenir. Ajanın iş akışı konsolu bilerek başka bir kod sayfasına geçiriyor ve öyle kalması gerekiyorsa kapatın.
+593	Özel arka plan rengi geçerli bir onaltılık değer değil (#RRGGBB kullanın, ör. #F4ECFF).\n\nÖnceki renk korundu.
+594	Dosya Claude Code Extension ayarları içermiyor.
+595	Dosyada ayarlar bölümü yok.
+596	Dosya boş.
+597	Dosya geçerli bir ayarlar dosyası değil: {0}
+598	Bu sorunun worktree klasörü zaten var ve bir git worktree değil:\n\n{0}\n\nSilin veya yeniden adlandırın ve tekrar deneyin.
+599	Önce en son {0}, {1} dalına birleştirildi. Birleştir'i yeniden çalıştırın.
+600	Birleştirme başarısız oldu.\n\n{0}
+601	Modern konsol otomatik olarak yeniden açılamadı.\n\nHata: {0}\n\nBu komutu bir komut isteminde çalıştırın ve Visual Studio'yu yeniden başlatın:\n\n{1}
+602	Modern konsol yeniden açıldı.\n\nTerminalin doğru gömülmesi için Visual Studio'nun yeniden başlatılması gerekiyor. Şimdi yeniden başlatılsın mı?
+603	Yeniden derleme zamanında bitmedi.
+604	Yeniden derleme başarısız oldu.
+605	Ayarlar dosyadan okunamadı.
+606	Ayarlar dosyadan okunamadı: {0}
+607	Çözümü temizleme zamanında bitmedi. Çalıştırma eylemi atlandı.
+608	Çözümü yeniden derleme zamanında bitmedi. Çalıştırma eylemi atlandı.
+609	Çözümü yeniden derleme başarısız oldu. Çalıştırma eylemi atlandı.
+610	Bu bilgisayarda eski konsol modu açık olduğu için (HKCU\\Console\\ForceV2 = 0) terminal panele gömülemiyor.\n\nBu komutu bir komut isteminde çalıştırın ve Visual Studio'yu yeniden başlatın:\n\n{0}
+611	Terminal panele gömülemedi.\n\nKodlama Ajanını Yeniden Başlat'ı tekrar deneyin. Sorun devam ederse, günlük dosyasını ekleyerek bildirin:\n{0}
+612	Terminal başladı, ancak panele gömülemedi.\n\nKodlama Ajanını Yeniden Başlat'ı tekrar deneyin. Sorun devam ederse, günlük dosyasını ekleyerek bildirin:\n{0}
+613	Worktree'de commit edilmemiş değişiklikler var. Önce Commit ve Gönder'i çalıştırın.
+614	Tema
+615	Tema Değişti
+616	Tema değişti. Yeni terminal renklerini uygulamak için yapay zekâ kodlama ajanı yeniden başlatılsın mı?
+617	Tema tercihi değişti. Yeni terminal renklerini uygulamak için yapay zekâ kodlama ajanı yeniden başlatılsın mı?
+618	Hata Listesinde gönderilecek derleme hatası yok.
+619	Açıklanacak değişiklik yok.
+620	Bu CLI yürütülebilir dosya yolları diskte yok:\n\n{0}\n\nYol yanlışsa ajan başlamaz. Bu yollar yine de kaydedilsin mi?
+621	Bu ayarlar yalnızca bu çözüm için geçerlidir. Her çözüm kendi ayarlarını tutar.
+622	Bu, sohbet sekmesini kapatır ve worktree ile yerel {0} dalını, commit edilmemiş değişiklikler dahil siler.
+623	Bu, sohbet sekmesini kapatır ve worktree ile yerel {0} dalını siler.
+624	Bu, en son OpenPets Windows sürümünü GitHub'dan indirir (yaklaşık 180 MB) ve ardından yükleyiciyi başlatır.\n\nDevam edilsin mi?
+625	Bu, bir komut istemi açacak ve Caveman'i {0} için kuracak:\n\n  npx skills add JuliusBrussee/caveman -g\n\nOrada istenenleri izleyin. Komut istemini kapattığınızda, Caveman becerisini yüklemek için kodlama ajanı yeniden yüklenecek (yalnızca etkin ajan Claude Code ({0}) ise).\n\nDevam edilsin mi?
+626	Başlık (A–Z)
+627	Claude Code'u (WSL) kullanmak için WSL'yi ve WSL içinde Claude Code'u kurmanız gerekir.\r\n\r\n(tam talimatları kopyalamak için CTRL+C tuşlarına basabilirsiniz)\r\n\r\nBIOS'ta sanallaştırmanın etkin olduğundan emin olun.\r\n\r\nPowerShell'i yönetici olarak açın ve şunu çalıştırın:\r\n\r\ndism.exe /online /enable-feature /featurename:Microsoft-Windows-Subsystem-Linux /all /norestart\r\n\r\ndism.exe /online /enable-feature /featurename:VirtualMachinePlatform /all /norestart\r\n\r\nwsl --install\r\n\r\n# Linux için Windows Alt Sistemi'nde bir kabuk başlatın\r\nwsl\r\n\r\n# https://learn.microsoft.com/en-us/windows/dev-environment/javascript/nodejs-on-wsl\r\n# WSL'ye Node.js kurun\r\ncurl -o- https://raw.githubusercontent.com/nvm-sh/nvm/master/install.sh | bash\r\n\r\n# Yeni bir sekmede veya `wsl`den çıkıp yeniden başlattıktan sonra Node.js kurun\r\nnvm install 22\r\n\r\n# Claude Code'u WSL'ye kurun ve çalıştırın\r\nnpm i -g @anthropic-ai/claude-code\r\nclaude
+628	Codex'i kullanmak için WSL'yi ve WSL içinde Codex'i kurmanız gerekir.\r\n\r\n(tam talimatları kopyalamak için CTRL+C tuşlarına basabilirsiniz)\r\n\r\nBIOS'ta sanallaştırmanın etkin olduğundan emin olun.\r\n\r\nPowerShell'i yönetici olarak açın ve şunu çalıştırın:\r\n\r\ndism.exe /online /enable-feature /featurename:Microsoft-Windows-Subsystem-Linux /all /norestart\r\n\r\ndism.exe /online /enable-feature /featurename:VirtualMachinePlatform /all /norestart\r\n\r\nwsl --install\r\n\r\n# Linux için Windows Alt Sistemi'nde bir kabuk başlatın\r\nwsl\r\n\r\n# https://learn.microsoft.com/en-us/windows/dev-environment/javascript/nodejs-on-wsl\r\n# WSL'ye Node.js kurun\r\ncurl -o- https://raw.githubusercontent.com/nvm-sh/nvm/master/install.sh | bash\r\n\r\n# Yeni bir sekmede veya `wsl`den çıkıp yeniden başlattıktan sonra Node.js kurun\r\nnvm install 22\r\n\r\n# Codex'i WSL'ye kurun ve çalıştırın\r\nnpm i -g @openai/codex\r\ncodex
+629	Cursor Agent'ı kullanmak için WSL'yi ve cursor-agent'ı kurmanız gerekir.\r\n\r\n(tam talimatları kopyalamak için CTRL+C tuşlarına basabilirsiniz)\r\n\r\nBIOS'ta sanallaştırmanın etkin olduğundan emin olun.\r\n\r\nPowerShell'i yönetici olarak açın ve şunu çalıştırın:\r\n\r\ndism.exe /online /enable-feature /featurename:Microsoft-Windows-Subsystem-Linux /all /norestart\r\n\r\ndism.exe /online /enable-feature /featurename:VirtualMachinePlatform /all /norestart\r\n\r\nwsl --install\r\n\r\ncursor agent'ı WSL'ye kurun:\r\n\r\nwsl \r\n\r\ncurl https://cursor.com/install -fsS | bash\r\n\r\ncursor'ı PATH'e eklemek için önerilen 2 komutu kopyalayıp yapıştırın:\r\n\r\necho 'export PATH=\"$HOME/.local/bin:$PATH\"' >> ~/.bashrc\r\nsource ~/.bashrc\r\n\r\nOturum açmak için cursor-agent'ı başlatın:\r\n\r\ncursor-agent
+630	Devin'i kullanmak için WSL'yi ve WSL içinde Devin'i kurmanız gerekir.\r\n\r\n(tam talimatları kopyalamak için CTRL+C tuşlarına basabilirsiniz)\r\n\r\nBIOS'ta sanallaştırmanın etkin olduğundan emin olun.\r\n\r\nPowerShell'i yönetici olarak açın ve şunu çalıştırın:\r\n\r\ndism.exe /online /enable-feature /featurename:Microsoft-Windows-Subsystem-Linux /all /norestart\r\n\r\ndism.exe /online /enable-feature /featurename:VirtualMachinePlatform /all /norestart\r\n\r\nwsl --install\r\n\r\nDevin'i WSL'ye kurun:\r\n\r\nwsl\r\n\r\ncurl -fsSL https://cli.devin.ai/install.sh | bash\r\n\r\nOturum açmak için devin'i başlatın:\r\n\r\ndevin
+631	Kullanım penceresini açar veya gizler. Yalnızca Claude / Devin sağlayıcıları.
+632	Araç çubuğu
+633	Üst (varsayılan) — istem üstte, terminal altta
+634	Ajan değişikliklerini inceleme için izle
+635	Ajan değişikliklerini inceleme için izle (Tut/Geri Al)
+636	\"Ajan değişikliklerini inceleme için izle\"yi kapatmak inceleme listesini atar. Dosyalar mevcut içeriklerini korur, ancak artık içlerindeki ajan değişikliklerini tutamaz veya geri alamazsınız.\n\nYine de kapatılsın mı?
+637	Başlık, önizleme metni veya tarihe göre filtrelemek için yazın. Sürdürmek için bir oturuma çift tıklayın; yeniden adlandırmak için sağ tıklayın veya F2'ye basın.
+638	Tüm modellerde ad, aile veya kimliğe göre aramak için yazın. Kelimeler herhangi bir sırada olabilir.
+639	Önce bir istem yazın, ardından uygun model ve çabayı almak için Yapay Zekâ Modeli Öner'e tıklayın.
+640	Ajan değişikliklerini geri al
+641	Tüm ajan değişikliklerini geri al
+642	{0} bekleyen dosyadaki ajan değişiklikleri geri alınsın mı?
+643	{0} bekleyen dosyadaki ajan değişiklikleri geri alınsın mı?
+644	{0} içindeki ajan değişiklikleri geri alınsın mı?\n\nDosya, ajan düzenlemeden önceki haline döner.
+645	Kodlama Ajanını Güncelle
+646	Etkin kodlama ajanının CLI'sini en son sürüme günceller.
+647	Yerel {0} dalınız güncellendi.
+648	Yerel {0} güncelleniyor…
+649	Kullanım çubukları
+650	Kullanım bilgileri yalnızca Claude Code ve Devin için kullanılabilir.\n\nKullanımı görmek için etkin kodlama ajanını Claude Code veya Devin olarak değiştirin.
+651	Konuyu oluşturmak için düşük maliyetli yapay zekâ modeli kullan
+652	Yerel modu kullan (gömülü terminal yerine sohbet)
+653	Doğrula
+654	Görünüm
+655	Kod Değişikliklerini Görüntüle
+656	Kod Değişikliklerini Görüntüle bir Git deposu gerektirir.\n\nGeçerli çalışma dizini bir Git deposunda değil, bu nedenle gösterilecek izlenen değişiklik yok. Bu özelliği kullanmak için Git kontrolündeki bir çözüm veya klasör açın.
+657	Oturumu görüntüle
+658	Görüntüleniyor…
+659	Visual Studio otomatik olarak yeniden başlatılamadı. Terminalin gömülebilmesi için kapatıp yeniden açın.
+660	WSL kullanılamıyor veya Claude Code projeler klasörüne erişilemiyor.
+661	Onay bekleniyor…
+662	Uyarı: {0} dosyasında düzenleyicide kaydedilmemiş değişiklikler var. Geri almak, sizinkiler dahil bu değişiklikleri de atar. Önce kaydetmek veya incelemek için Hayır'ı seçin.
+663	Uyarı: {0} düzenleyicide kaydedilmemiş değişikliklere sahip. Geri almak, sizinkiler dahil bu dosyaların kaydedilmemiş değişikliklerini de atar. Önce kaydetmek veya incelemek için Hayır'ı seçin.
+664	Claude kullanım sayfasını göstermek için WebView2 Runtime gerekir. Kurmak için aşağıya tıklayın, ardından bu pencereyi yeniden açın.\n\nAyrıntılar: {0}
+665	Bir Visual Studio derlemesi hatalarla bittiğinde, hataları (ve bağlam olarak uyarıları) düzeltmesi için etkin kodlama ajanına otomatik gönderir. Yalnızca bir ajan terminali çalışıyorsa ve derlemede gerçekten hata varsa gönderir.
+666	Kısa pano metni doğrudan isteme yapıştırılır. Kesme eşiğini aşarsa, yapıştırmanın kesilmemesi için geçici bir dosyaya kaydedilip eklenir.
+667	Etkinleştirildiğinde, Seçimi Gönder seçili kod olmadan yalnızca dosya yolunu ve satır numaralarını ekler (ör. \"File: foo.cs (lines 10-15)\"). Dosyayı yapay zekâ ajanı kendisi okur.
+668	Etkinleştirildiğinde Antigravity --dangerously-skip-permissions ile başlar
+669	Etkinleştirildiğinde Claude Code, Yeniden Başlat dahil her oturumu plan modunda başlatır. Sonraki başlatmadan itibaren geçerlidir.
+670	Etkinleştirildiğinde Claude Code --dangerously-skip-permissions ile başlar
+671	Etkinleştirildiğinde Codex --ask-for-approval never ile başlar
+672	Etkinleştirildiğinde Cursor Agent tüm onayları atlamak için --yolo ile başlar
+673	Etkinleştirildiğinde Devin --permission-mode dangerous ile başlar
+674	Etkinleştirildiğinde Grok her eylemi otomatik onaylamak için --always-approve ile başlar
+675	Etkinleştirildiğinde Qwen Code her eylemi otomatik onaylamak için --yolo ile başlar
+676	Etkinleştirildiğinde Çalıştır ve Hata ayıklamadan çalıştır, başlatmadan önce çözümü temizler.
+677	Etkinleştirildiğinde Çalıştır ve Hata ayıklamadan çalıştır, başlatmadan önce çözümü yeniden derler. Yeniden derleme başarısız olursa çalıştırma atlanır.
+678	Etkinleştirildiğinde ~1 KB'tan büyük istemler geçici bir dosyaya kaydedilir ve yalnızca dosya yolu gönderilir. Büyük içerik yapıştırılırken kesilmeyi önler.
+679	Etkinleştirildiğinde betik pencereleri betik bittiğinde otomatik kapanır. Kapalıyken çıktıyı okuyabilmeniz için açık kalırlar.
+680	Etkinleştirildiğinde eylem bildirimde bir düğme olarak görünür ve yalnızca tıkladığınızda çalışır. Kapalıyken eylem otomatik çalışır. Betikler, çalıştırma ve yeniden derleme için önerilir.
+681	Etkinleştirildiğinde istemi göndermek için pano asla kullanılmaz. İstem geçici bir dosyaya kaydedilir ve terminale benzetilmiş tuş vuruşlarıyla yalnızca dosyaya kısa bir başvuru yazılır. Başka bir uygulama (pano yöneticisi, uzak masaüstü, güvenlik aracı) panoyu ele geçirip normal yapıştırarak göndermeyi bozuyorsa kullanın.\n\nYalnızca Komut İstemi terminal türüyle kullanılabilir — Windows Terminal burada kullanılan benzetilmiş tuş vuruşlarını kabul etmez.
+682	Etkinleştirildiğinde panel, ajanla konuşmayı bir konsol penceresi yerine ajanın yapılandırılmış protokolü üzerinden çalışan bir sohbet olarak gösterir. Yanıtlar akış halinde gelir, araç çağrıları ve sonuçları daraltılabilir kartlar olarak görünür, token kullanımı ve maliyet her turda bildirilir.\n\nYapılandırılmış kanalı olmayan ajanlar otomatik olarak gömülü terminali kullanmaya devam eder. Aşağıdaki terminal ayarları yalnızca bir terminal kullanılırken geçerlidir.
+683	Etkinleştirildiğinde istem kutusu, siz yazmaya başlayana kadar son gönderilen istemi soluk gösterir; böylece çıktısı kayarken ajanın ne üzerinde çalıştığını görebilirsiniz. Yalnızca bir hatırlatıcıdır ve asla yeniden gönderilmez; düzenleyip yeniden göndermek için Ctrl+Yukarı'ya basın.
+684	Ajan çalışmayı bıraktığında (terminal boşta kalır), isteğe bağlı olarak bir ses çalar, bir Visual Studio bildirimi gösterir (Claude Code'da süre ve token sayısıyla) ve bir eylem çalıştırır.
+685	İstem panelinin (giriş kutusu ve kullanım çubukları) terminale göre nereye sabitlendiği.
+686	Hata ayıklama sırasında uygulamanız işlenmeyen bir özel durumla karşılaştığında, özel durumu (tür, mesaj ve yığın izi) düzeltmesi için etkin kodlama ajanına otomatik gönderir. Yalnızca bir ajan terminali çalışıyorsa gönderir.
+687	Ajan çalışırken durum satırı, \"Kafa yoruyor…\" veya \"Tefekkür ediyor…\" gibi esprili kelimeler arasında dönmek yerine her zaman \"Düşünüyor…\" gösterir. Dönen gösterge ve saat yine çalıştığını gösterir.
+688	Windows Terminal (daha iyi emoji/unicode desteği)
+689	Windows Terminal (wt.exe) PATH içinde bulunamadı.\n\nKurmak için yönetici olarak bir komut istemi açın ve şunu çalıştırın:\n\n    winget install --id Microsoft.WindowsTerminal -e\n\nKurulumdan sonra Visual Studio'yu yeniden başlatın ve tekrar deneyin.\n\nTerminal türü Komut İstemi'ne geri dönüyor.
+690	Windows Terminal (wt.exe) PATH içinde bulunamadı.\n\nKurmak için yönetici olarak bir komut istemi açın ve şunu çalıştırın:\n\n    winget install --id Microsoft.WindowsTerminal -e\n\nVeya şuradan kurun:\n• Microsoft Store: https://aka.ms/terminal\n• GitHub: https://github.com/microsoft/terminal/releases\n\nKurulumdan sonra Visual Studio'yu yeniden başlatın ve tekrar deneyin.\n\n(Bu mesajı kopyalamak için Ctrl+C'ye basın)
+691	Windows Terminal Bulunamadı
+692	Windows Terminal desteklenir — algılama terminalin konsol arabelleğini okur (yedek olarak UI Automation ile) ve Komut İstemi'ne göre biraz daha az güvenilir olabilir.
+693	Sekmedeki çalışma simgesi:
+694	Yerel {0} ileri sarılamadı — uygun olduğunda pull yapın.
+695	Yerel {0}, {1} içinde olmayan commit'lere sahip, bu nedenle güncellenmedi.
+696	Yerel {0}, commit edilmemiş değişikliklere sahip, bu nedenle güncellenmedi — uygun olduğunda pull yapın.
+697	temiz
+698	ör. \"Değişiklikleri commit et ve gönder\" veya \"Commit Mesajı Oluştur\" gibi bir hazır ayar seçin. Eylem başarısız olursa (derleme/yeniden derleme hataları) veya atlanırsa atlanır. Zaten metin gönderen \"Ajana komut gönder\" için kullanılamaz.
+699	gh yanıt vermedi.
+700	git yanıt vermedi.
+701	görüntü
+702	worktree yok
+703	gönderilmedi
+704	gönderilmeyi bekliyor
+705	gönderildi
+706	çalıştır
+707	hata ayıklamadan çalıştır
+708	yanıt okunamadı.
+709	temel dal
+710	commit edilmemiş değişiklikler
+711	worktree {0}
+712	{0} (inceleme bekliyor)
+713	{0} Oturum Geçmişi — {1}
+714	{0} ve {1} tane daha
+715	{0} commit önde
+716	{0}, oturumların buradan silinmesine izin vermiyor.
+717	{0} dosya değişti
+718	{0} dosya hâlâ inceleme bekliyor.
+719	{0} dosya inceleme bekliyor
+720	{0} dosya hâlâ inceleme bekliyor.
+721	{0} dosya değişti
+722	{0} dosya inceleme bekliyor
+723	{0} modeli başlangıçta okur.\n\n\"{1}\" kullanmak için şimdi yeniden başlatılsın mı?
+724	↶ Geri al
+725	↶ Tümünü geri al
+726	↻ Yenile
+727	⇄ Karşılaştır
+728	♻️  Kodlama Ajanını Yeniden Başlat
+729	⚠ Bu yazı tipi eş aralıklı değil. Terminal metni bozuk gösterir: dar harflerden sonra boşluklar ve geniş harflerde üst üste binme.
+730	✓ Tut
+731	✓ Tümünü tut
+732	⧉  Terminali Ayır / Ekle
+733	⧉  Terminali ayrı sekmeye ayır
+734	🌐 Tarayıcıda aç
+735	🌓  Ay (animasyonlu)
+736	🐞  GitHub Issues
+737	👤 Hesap değiştir
+738	💡  Yapay Zekâ Modeli Öner
+739	💡 Öner
+740	💡 {0} modeline geçildi
+741	💡 {0} modeline geçildi.
+742	💬 sohbet açık
+743	📁  Çalışma Dizinini Ayarla
+744	📁  Çalışma Dizinini Ayarla...
+745	📄  Etkin dosya yolunu ekle
+746	📄  Kod Değişikliklerini Görüntüle
+747	📊  Kullanımı Göster
+748	📋  Düzenleyici seçimini ekle
+749	📎  Dosya ekle...
+750	📜  Oturum Geçmişi
+751	📝  Commit Mesajı Oluştur
+752	📥  Panodan yapıştır
+753	🔄  Oklar (mavi, sabit)
+754	🔄️  Kodlama Ajanını Güncelle
+755	🕐  Saat (animasyonlu)
+756	🕘 {0} oturumu sürdürüldü.
+757	🖼 {0} yükleniyor…
+758	🖼 {0} yüklenemedi — tarayıcıda açın
+759	🚀  Commit Mesajı Oluştur, Commit Et ve Gönder
+760	🛠️  Derleme Hatalarını Ajana Gönder

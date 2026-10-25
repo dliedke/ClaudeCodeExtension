@@ -1,0 +1,191 @@
+570	Korrektur starten
+571	Agent wird gestartet…
+572	Wird gestartet…
+573	Subagenten
+574	Unterdrückt die Abfrage \"Design geändert. KI-Coding-Agent neu starten?\". Nützlich, wenn Visual Studio das Design automatisch wechselt (zum Beispiel das durch F5 ausgelöste Debug-Design).
+575	Wechselt zum oben gewählten Modell und Aufwand. Der Prompt wird nicht gesendet.
+576	Terminal
+577	Terminalfehler
+578	Terminal nicht verfügbar. Bitte starte das Terminal neu.
+579	Das Terminal läuft nicht. Bitte starte zuerst das Terminal neu.
+580	Terminaltyp
+581	Der Agent hat keine Commit-Nachricht zurückgegeben.
+582	Der Agent ist mit einem anderen Zug beschäftigt. Warte, bis er fertig ist, bevor du eine Commit-Nachricht erzeugst.
+583	Die Agentensitzung konnte nicht erstellt werden.
+584	Das Terminal des Agenten hat nach der Bildschirmänderung nicht die richtige Größe wiedererlangt, daher bleibt ein Teil des Panels leer und der Agent zeichnet, wo du es nicht siehst. Ein Neustart des Terminals behebt das.
+585	Das Terminal des Agenten verarbeitet gerade eine große Antwort — Tastendrücke und Klicks kommen gleich wieder an. Kein Neustart nötig.
+586	Der Build wurde nicht rechtzeitig fertig.
+587	Der Build ist fehlgeschlagen.
+588	Chat-Tabs, die beim Schließen der Projektmappe oder von Visual Studio offen waren, kehren beim nächsten Öffnen zurück, jeder setzt seine Unterhaltung mit sichtbaren früheren Nachrichten fort. Ein wiedergeöffneter Tab startet seinen Agenten erst, wenn du ihm eine Nachricht sendest. Nur Claude Code, Codex und Devin. Ein Tab, den du selbst schließt, wird nicht wieder geöffnet; der Sitzungsverlauf hat ihn noch.
+589	Die Chat-Symbolleiste wandert in das Nachrichtenfeld unter den Text, wie in den meisten Chat-Apps: Neu starten, Umbenennen, Farbe und Anhängen sind im Menü ⋯ nach ✚ neuer Chat gruppiert, dann folgen die Auswahl für Modell, Aufwand und Berechtigungen, und benutzerdefinierte Befehle, Tools und Einstellungen sitzen ganz rechts.
+590	Die Chat-Symbolleiste verwendet die eigenen Symbole von Visual Studio, der Live-Status zeigt einen sich drehenden Ring, und jeder Chat-Tab zeigt ✅ fertig, ❌ Fehler, ❓ wartet auf deine Antwort und das unten gewählte Arbeitssymbol.
+591	Der Commit wurde erstellt, aber der Push ist fehlgeschlagen.\n\n{0}
+592	Die Codepage der Konsole wird mit jedem Prozess geteilt, den der Agent startet. Ein Befehl, der sie ändert - [Console]::OutputEncoding von PowerShell, ein chcp in einem Shell-Befehl, manche .NET-CLI-Tools - hinterlässt sie beim Beenden geändert, und danach zeigt das Terminal bis zum Neustart verstümmelte Zeichen.\n\nWährend dies aktiviert ist, wird die Codepage wiederhergestellt, sobald die Änderung bemerkt wird. Deaktiviere es, wenn ein Agenten-Workflow die Konsole absichtlich auf eine andere Codepage umstellt und diese bestehen bleiben muss.
+593	Die benutzerdefinierte Hintergrundfarbe ist kein gültiger Hex-Wert (verwende #RRGGBB, z. B. #F4ECFF).\n\nDie vorherige Farbe wird beibehalten.
+594	Die Datei enthält keine Einstellungen von Claude Code Extension.
+595	Die Datei hat keinen Einstellungsabschnitt.
+596	Die Datei ist leer.
+597	Die Datei ist keine gültige Einstellungsdatei: {0}
+598	Der Worktree-Ordner dieses Issues existiert bereits und ist kein Git-Worktree:\n\n{0}\n\nLösche oder benenne ihn um und versuche es erneut.
+599	Zuerst wurde das neueste {0} in {1} gemergt. Führe Merge erneut aus.
+600	Der Merge ist fehlgeschlagen.\n\n{0}
+601	Die moderne Konsole konnte nicht automatisch wieder aktiviert werden.\n\nFehler: {0}\n\nFühre diesen Befehl in einer Eingabeaufforderung aus und starte Visual Studio neu:\n\n{1}
+602	Die moderne Konsole wurde wieder aktiviert.\n\nVisual Studio muss neu gestartet werden, damit das Terminal korrekt eingebettet wird. Jetzt neu starten?
+603	Die Neuerstellung wurde nicht rechtzeitig fertig.
+604	Die Neuerstellung ist fehlgeschlagen.
+605	Die Einstellungen konnten nicht aus der Datei gelesen werden.
+606	Die Einstellungen konnten nicht aus der Datei gelesen werden: {0}
+607	Das Bereinigen der Projektmappe wurde nicht rechtzeitig fertig. Die Ausführen-Aktion wurde übersprungen.
+608	Die Neuerstellung der Projektmappe wurde nicht rechtzeitig fertig. Die Ausführen-Aktion wurde übersprungen.
+609	Die Neuerstellung der Projektmappe ist fehlgeschlagen. Die Ausführen-Aktion wurde übersprungen.
+610	Das Terminal konnte nicht in das Panel eingebettet werden, weil der Legacy-Konsolenmodus auf diesem Rechner aktiviert ist (HKCU\\Console\\ForceV2 = 0).\n\nFühre diesen Befehl in einer Eingabeaufforderung aus und starte Visual Studio neu:\n\n{0}
+611	Das Terminal konnte nicht in das Panel eingebettet werden.\n\nVersuche erneut \"Coding-Agent neu starten\". Besteht das Problem weiter, melde es bitte mit der Protokolldatei:\n{0}
+612	Das Terminal wurde gestartet, konnte aber nicht in das Panel eingebettet werden.\n\nVersuche erneut \"Coding-Agent neu starten\". Besteht das Problem weiter, melde es bitte mit der Protokolldatei:\n{0}
+613	Der Worktree hat nicht committete Änderungen. Führe zuerst Commit und Push aus.
+614	Design
+615	Design geändert
+616	Design geändert. KI-Coding-Agent neu starten, um die neuen Terminalfarben anzuwenden?
+617	Designeinstellung geändert. KI-Coding-Agent neu starten, um die neuen Terminalfarben anzuwenden?
+618	In der Fehlerliste gibt es keine Build-Fehler zum Senden.
+619	Es gibt keine Änderungen zu beschreiben.
+620	Diese Pfade der CLI-Programme existieren nicht auf der Festplatte:\n\n{0}\n\nDer Agent startet nicht, wenn ein Pfad falsch ist. Diese Pfade trotzdem speichern?
+621	Diese Einstellungen gelten nur für diese Projektmappe. Jede Projektmappe speichert ihre eigenen.
+622	Dies schließt den Chat-Tab und löscht den Worktree und den lokalen Branch {0}, einschließlich nicht committeter Änderungen.
+623	Dies schließt den Chat-Tab und löscht den Worktree und den lokalen Branch {0}.
+624	Die neueste OpenPets-Version für Windows (ca. 180 MB) wird von GitHub heruntergeladen und anschließend das Installationsprogramm gestartet.\n\nFortfahren?
+625	Es wird eine Eingabeaufforderung geöffnet und Caveman für {0} installiert:\n\n  npx skills add JuliusBrussee/caveman -g\n\nFolge dort den Anweisungen. Wenn du die Eingabeaufforderung schließt, wird der Coding-Agent neu geladen, damit er den Skill Caveman übernimmt (nur wenn Claude Code ({0}) der aktive Agent ist).\n\nFortfahren?
+626	Titel (A–Z)
+627	Um Claude Code (WSL) zu verwenden, musst du WSL und Claude Code in WSL installieren.\r\n\r\n(mit STRG+C kannst du die vollständige Anleitung kopieren)\r\n\r\nStelle sicher, dass die Virtualisierung im BIOS aktiviert ist.\r\n\r\nÖffne PowerShell als Administrator und führe aus:\r\n\r\ndism.exe /online /enable-feature /featurename:Microsoft-Windows-Subsystem-Linux /all /norestart\r\n\r\ndism.exe /online /enable-feature /featurename:VirtualMachinePlatform /all /norestart\r\n\r\nwsl --install\r\n\r\n# Eine Shell im Windows-Subsystem für Linux starten\r\nwsl\r\n\r\n# https://learn.microsoft.com/en-us/windows/dev-environment/javascript/nodejs-on-wsl\r\n# Node.js in WSL installieren\r\ncurl -o- https://raw.githubusercontent.com/nvm-sh/nvm/master/install.sh | bash\r\n\r\n# In einem neuen Tab oder nach Beenden und erneutem Ausführen von `wsl` Node.js installieren\r\nnvm install 22\r\n\r\n# Claude Code in WSL installieren und ausführen\r\nnpm i -g @anthropic-ai/claude-code\r\nclaude
+628	Um Codex zu verwenden, musst du WSL und Codex in WSL installieren.\r\n\r\n(mit STRG+C kannst du die vollständige Anleitung kopieren)\r\n\r\nStelle sicher, dass die Virtualisierung im BIOS aktiviert ist.\r\n\r\nÖffne PowerShell als Administrator und führe aus:\r\n\r\ndism.exe /online /enable-feature /featurename:Microsoft-Windows-Subsystem-Linux /all /norestart\r\n\r\ndism.exe /online /enable-feature /featurename:VirtualMachinePlatform /all /norestart\r\n\r\nwsl --install\r\n\r\n# Eine Shell im Windows-Subsystem für Linux starten\r\nwsl\r\n\r\n# https://learn.microsoft.com/en-us/windows/dev-environment/javascript/nodejs-on-wsl\r\n# Node.js in WSL installieren\r\ncurl -o- https://raw.githubusercontent.com/nvm-sh/nvm/master/install.sh | bash\r\n\r\n# In einem neuen Tab oder nach Beenden und erneutem Ausführen von `wsl` Node.js installieren\r\nnvm install 22\r\n\r\n# Codex in WSL installieren und ausführen\r\nnpm i -g @openai/codex\r\ncodex
+629	Um Cursor Agent zu verwenden, musst du WSL und cursor-agent installieren.\r\n\r\n(mit STRG+C kannst du die vollständige Anleitung kopieren)\r\n\r\nStelle sicher, dass die Virtualisierung im BIOS aktiviert ist.\r\n\r\nÖffne PowerShell als Administrator und führe aus:\r\n\r\ndism.exe /online /enable-feature /featurename:Microsoft-Windows-Subsystem-Linux /all /norestart\r\n\r\ndism.exe /online /enable-feature /featurename:VirtualMachinePlatform /all /norestart\r\n\r\nwsl --install\r\n\r\nCursor Agent in WSL installieren:\r\n\r\nwsl \r\n\r\ncurl https://cursor.com/install -fsS | bash\r\n\r\nKopiere die 2 vorgeschlagenen Befehle, um cursor zum PATH hinzuzufügen:\r\n\r\necho 'export PATH=\"$HOME/.local/bin:$PATH\"' >> ~/.bashrc\r\nsource ~/.bashrc\r\n\r\nStarte cursor-agent, um dich anzumelden:\r\n\r\ncursor-agent
+630	Um Devin zu verwenden, musst du WSL und Devin in WSL installieren.\r\n\r\n(mit STRG+C kannst du die vollständige Anleitung kopieren)\r\n\r\nStelle sicher, dass die Virtualisierung im BIOS aktiviert ist.\r\n\r\nÖffne PowerShell als Administrator und führe aus:\r\n\r\ndism.exe /online /enable-feature /featurename:Microsoft-Windows-Subsystem-Linux /all /norestart\r\n\r\ndism.exe /online /enable-feature /featurename:VirtualMachinePlatform /all /norestart\r\n\r\nwsl --install\r\n\r\nDevin in WSL installieren:\r\n\r\nwsl\r\n\r\ncurl -fsSL https://cli.devin.ai/install.sh | bash\r\n\r\nStarte devin, um dich anzumelden:\r\n\r\ndevin
+631	Blendet das Nutzungsfenster ein oder aus. Nur Claude-/Devin-Anbieter.
+632	Symbolleiste
+633	Oben (Standard) — Prompt oben, Terminal unten
+634	Änderungen des Agenten zur Prüfung verfolgen
+635	Änderungen des Agenten zur Prüfung verfolgen (Übernehmen/Rückgängig)
+636	Das Deaktivieren von \"Änderungen des Agenten zur Prüfung verfolgen\" verwirft die Prüfliste. Die Dateien behalten ihren aktuellen Inhalt, aber du kannst die Änderungen des Agenten daran nicht mehr übernehmen oder rückgängig machen.\n\nTrotzdem deaktivieren?
+637	Tippe, um nach Titel, Vorschautext oder Datum zu filtern. Doppelklick auf eine Sitzung setzt sie fort; Rechtsklick oder F2 benennt sie um.
+638	Tippe, um alle Modelle nach Name, Familie oder ID zu durchsuchen. Wörter können in beliebiger Reihenfolge eingegeben werden.
+639	Gib zuerst deinen Prompt ein und klicke dann auf KI-Modell empfehlen, um das passende Modell und den passenden Aufwand zu erhalten.
+640	Änderungen des Agenten rückgängig machen
+641	Alle Änderungen des Agenten rückgängig machen
+642	Die Änderungen des Agenten an {0} ausstehenden Datei rückgängig machen?
+643	Die Änderungen des Agenten an {0} ausstehenden Dateien rückgängig machen?
+644	Die Änderungen des Agenten an {0} rückgängig machen?\n\nDie Datei kehrt zu ihrem Zustand vor der Änderung durch den Agenten zurück.
+645	Coding-Agent aktualisieren
+646	Aktualisiert die CLI des aktiven Coding-Agenten auf die neueste Version.
+647	Dein lokales {0} wurde aktualisiert.
+648	Lokales {0} wird aktualisiert…
+649	Nutzungsleisten
+650	Nutzungsinformationen sind nur für Claude Code und Devin verfügbar.\n\nWechsle den aktiven Coding-Agenten zu Claude Code oder Devin, um die Nutzung zu sehen.
+651	Kostengünstiges KI-Modell zum Erzeugen des Themas verwenden
+652	Nativen Modus verwenden (Chat statt eingebettetem Terminal)
+653	Validierung
+654	Anzeigen
+655	Code-Änderungen anzeigen
+656	Code-Änderungen anzeigen erfordert ein Git-Repository.\n\nDas aktuelle Arbeitsverzeichnis liegt nicht in einem Git-Repository, daher gibt es keine verfolgten Änderungen anzuzeigen. Öffne eine Projektmappe oder einen Ordner unter Git-Versionskontrolle, um diese Funktion zu nutzen.
+657	Sitzung anzeigen
+658	Anzeigen…
+659	Visual Studio konnte nicht automatisch neu gestartet werden. Schließe es und öffne es erneut, damit das Terminal eingebettet werden kann.
+660	WSL nicht verfügbar oder Projektordner von Claude Code nicht erreichbar.
+661	Warte auf Bestätigung…
+662	Warnung: {0} hat nicht gespeicherte Änderungen im Editor. Rückgängig verwirft auch diese Bearbeitungen, einschließlich deiner eigenen. Wähle Nein, um sie zuerst zu speichern oder zu prüfen.
+663	Warnung: {0} haben nicht gespeicherte Änderungen im Editor. Rückgängig verwirft auch die nicht gespeicherten Bearbeitungen dieser Dateien, einschließlich deiner eigenen. Wähle Nein, um sie zuerst zu speichern oder zu prüfen.
+664	WebView2 Runtime wird benötigt, um die Claude-Nutzungsseite anzuzeigen. Klicke unten, um es zu installieren, und öffne dieses Fenster dann erneut.\n\nDetails: {0}
+665	Wenn ein Visual Studio-Build mit Fehlern endet, werden die Fehler (und Warnungen als Kontext) automatisch zur Korrektur an den aktiven Coding-Agenten gesendet. Sendet nur, wenn ein Agenten-Terminal läuft und der Build tatsächlich Fehler hat.
+666	Kurzer Text aus der Zwischenablage wird direkt in den Prompt eingefügt. Überschreitet er die Kürzungsschwelle, wird er in einer temporären Datei gespeichert und angehängt, damit das Einfügen nicht gekürzt wird.
+667	Wenn aktiviert, fügt \"Auswahl senden\" nur Dateipfad und Zeilennummern ein (z. B. \"File: foo.cs (lines 10-15)\"), ohne den markierten Code. Der KI-Agent liest die Datei direkt.
+668	Wenn aktiviert, wird Antigravity mit --dangerously-skip-permissions gestartet
+669	Wenn aktiviert, startet Claude Code jede Sitzung im Planmodus, auch beim Neustart. Wirkt ab dem nächsten Start.
+670	Wenn aktiviert, wird Claude Code mit --dangerously-skip-permissions gestartet
+671	Wenn aktiviert, wird Codex mit --ask-for-approval never gestartet
+672	Wenn aktiviert, wird Cursor Agent mit --yolo gestartet, um alle Genehmigungen zu überspringen
+673	Wenn aktiviert, wird Devin mit --permission-mode dangerous gestartet
+674	Wenn aktiviert, wird Grok mit --always-approve gestartet, um jede Aktion automatisch zu genehmigen
+675	Wenn aktiviert, wird Qwen Code mit --yolo gestartet, um jede Aktion automatisch zu genehmigen
+676	Wenn aktiviert, bereinigen Ausführen und Ohne Debuggen ausführen die Projektmappe vor dem Start.
+677	Wenn aktiviert, erstellen Ausführen und Ohne Debuggen ausführen die Projektmappe vor dem Start neu. Schlägt die Neuerstellung fehl, wird der Start übersprungen.
+678	Wenn aktiviert, werden Prompts über ~1 KB in einer temporären Datei gespeichert und nur der Dateipfad gesendet. Verhindert, dass das Einfügen großer Inhalte gekürzt wird.
+679	Wenn aktiviert, schließen sich Skriptfenster automatisch nach Abschluss des Skripts. Wenn deaktiviert, bleiben sie offen, damit du die Ausgabe lesen kannst.
+680	Wenn aktiviert, erscheint die Aktion als Schaltfläche in der Benachrichtigung und läuft erst beim Klick darauf. Wenn deaktiviert, läuft die Aktion automatisch. Empfohlen für Skripte, Ausführen und Neuerstellen.
+681	Wenn aktiviert, wird die Zwischenablage nie zum Senden eines Prompts verwendet. Der Prompt wird in einer temporären Datei gespeichert, und nur ein kurzer Verweis darauf wird per simulierter Tastatureingabe ins Terminal getippt. Verwende dies, wenn eine andere App (Zwischenablage-Manager, Remotedesktop, Sicherheitstool) die Zwischenablage belegt und das normale Senden per Einfügen stört.\n\nNur mit dem Terminaltyp Eingabeaufforderung verfügbar — Windows Terminal akzeptiert die hier verwendeten simulierten Tastatureingaben nicht.
+682	Wenn aktiviert, zeigt das Panel die Unterhaltung mit dem Agenten als Chat an, gesteuert über das strukturierte Protokoll des Agenten statt eines Konsolenfensters. Antworten werden gestreamt, Tool-Aufrufe und ihre Ergebnisse erscheinen als einklappbare Karten, und Token-Nutzung und Kosten werden bei jedem Zug gemeldet.\n\nAgenten ohne strukturierten Kanal verwenden automatisch weiterhin das eingebettete Terminal. Die Terminaleinstellungen unten gelten nur, wenn das Terminal verwendet wird.
+683	Wenn aktiviert, zeigt das Prompt-Feld den zuletzt gesendeten Prompt abgedunkelt an, bis du zu tippen beginnst — so siehst du, woran der Agent arbeitet, während seine Ausgabe durchläuft. Es ist nur eine Erinnerung und wird nie erneut gesendet; drücke Strg+Nach-oben, um ihn zu bearbeiten und erneut zu senden.
+684	Wenn der Agent aufhört zu arbeiten (das Terminal wird untätig), wird optional ein Ton abgespielt, eine Visual Studio-Benachrichtigung angezeigt (mit der Dauer, plus Token-Anzahl bei Claude Code) und eine Aktion ausgeführt.
+685	Wo das Prompt-Panel (Eingabefeld und Nutzungsleisten) relativ zum Terminal angedockt ist.
+686	Beim Debuggen wird bei einer unbehandelten Ausnahme in der Anwendung die Ausnahme (Typ, Meldung und Stacktrace) automatisch zur Korrektur an den aktiven Coding-Agenten gesendet. Sendet nur, wenn ein Agenten-Terminal läuft.
+687	Während der Agent arbeitet, lautet die Statuszeile immer \"Denkt nach…\" statt zwischen verspielten Wörtern wie \"Grübelt…\" oder \"Sinniert…\" zu wechseln. Spinner und Uhr zeigen weiterhin, dass er arbeitet.
+688	Windows Terminal (bessere Emoji-/Unicode-Unterstützung)
+689	Windows Terminal (wt.exe) wurde im PATH nicht gefunden.\n\nZum Installieren öffne die Eingabeaufforderung als Administrator und führe aus:\n\n    winget install --id Microsoft.WindowsTerminal -e\n\nStarte nach der Installation Visual Studio neu und versuche es erneut.\n\nDer Terminaltyp wird auf Eingabeaufforderung zurückgesetzt.
+690	Windows Terminal (wt.exe) wurde im PATH nicht gefunden.\n\nZum Installieren öffne die Eingabeaufforderung als Administrator und führe aus:\n\n    winget install --id Microsoft.WindowsTerminal -e\n\nOder installiere es von:\n• Microsoft Store: https://aka.ms/terminal\n• GitHub: https://github.com/microsoft/terminal/releases\n\nStarte nach der Installation Visual Studio neu und versuche es erneut.\n\n(Strg+C drücken, um diese Meldung zu kopieren)
+691	Windows Terminal nicht gefunden
+692	Windows Terminal wird unterstützt — die Erkennung liest den Konsolenpuffer des Terminals (mit UI Automation als Ausweichlösung) und kann etwas weniger zuverlässig sein als die Eingabeaufforderung.
+693	Arbeitssymbol im Tab:
+694	Dein lokales {0} konnte nicht per Fast-Forward aktualisiert werden — pulle bei Gelegenheit.
+695	Dein lokales {0} hat Commits, die nicht in {1} sind, daher wurde es nicht aktualisiert.
+696	Dein lokales {0} hat nicht committete Änderungen, daher wurde es nicht aktualisiert — pulle bei Gelegenheit.
+697	sauber
+698	z. B. \"Committe und pushe die Änderungen\", oder wähle eine Vorlage wie Commit-Nachricht erzeugen. Wird übersprungen, wenn die Aktion fehlschlägt (Build-/Neuerstellungsfehler) oder übersprungen wird. Nicht verfügbar für \"Befehl an den Agenten senden\", das bereits Text sendet.
+699	gh hat nicht geantwortet.
+700	git hat nicht geantwortet.
+701	Bild
+702	kein Worktree
+703	nicht gepusht
+704	Push ausstehend
+705	gepusht
+706	ausführen
+707	ohne Debuggen ausführen
+708	Antwort konnte nicht gelesen werden.
+709	der Basis-Branch
+710	nicht committete Änderungen
+711	Worktree {0}
+712	{0} (zur Prüfung ausstehend)
+713	Sitzungsverlauf von {0} — {1}
+714	{0} und {1} weitere
+715	{0} Commits voraus
+716	{0} erlaubt hier kein Löschen von Sitzungen.
+717	{0} Datei geändert
+718	{0} Datei ist noch zur Prüfung ausstehend.
+719	{0} Datei zur Prüfung ausstehend
+720	{0} Dateien sind noch zur Prüfung ausstehend.
+721	{0} Dateien geändert
+722	{0} Dateien zur Prüfung ausstehend
+723	{0} übernimmt sein Modell beim Start.\n\nJetzt neu starten, um \"{1}\" zu verwenden?
+724	↶ Rückgängig
+725	↶ Alles rückgängig
+726	↻ Aktualisieren
+727	⇄ Vergleichen
+728	♻️  Coding-Agent neu starten
+729	⚠ Diese Schrift ist keine Festbreitenschrift. Das Terminal stellt ihren Text verzerrt dar, mit Lücken nach schmalen Buchstaben und überlappenden breiten Buchstaben.
+730	✓ Übernehmen
+731	✓ Alles übernehmen
+732	⧉  Terminal lösen / andocken
+733	⧉  Terminal in einen eigenen Tab lösen
+734	🌐 Im Browser öffnen
+735	🌓  Mond (animiert)
+736	🐞  GitHub Issues
+737	👤 Konto wechseln
+738	💡  KI-Modell empfehlen
+739	💡 Empfehlen
+740	💡 Gewechselt zu {0}
+741	💡 Gewechselt zu {0}.
+742	💬 Chat offen
+743	📁  Arbeitsverzeichnis festlegen
+744	📁  Arbeitsverzeichnis festlegen...
+745	📄  Pfad der aktiven Datei einfügen
+746	📄  Code-Änderungen anzeigen
+747	📊  Nutzung anzeigen
+748	📋  Editor-Auswahl einfügen
+749	📎  Datei anhängen...
+750	📜  Sitzungsverlauf
+751	📝  Commit-Nachricht erzeugen
+752	📥  Aus Zwischenablage einfügen
+753	🔄  Pfeile (blau, statisch)
+754	🔄️  Coding-Agent aktualisieren
+755	🕐  Uhr (animiert)
+756	🕘 Sitzung von {0} fortgesetzt.
+757	🖼 {0} wird geladen…
+758	🖼 {0} konnte nicht geladen werden — im Browser öffnen
+759	🚀  Commit-Nachricht erzeugen, committen und pushen
+760	🛠️  Build-Fehler an den Agenten senden

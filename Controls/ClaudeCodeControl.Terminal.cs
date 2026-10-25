@@ -24,6 +24,7 @@ using System.Windows.Input;
 using Microsoft.VisualStudio.Shell;
 using Microsoft.VisualStudio.Shell.Interop;
 using Newtonsoft.Json.Linq;
+using static ClaudeCodeVS.UI.Loc;
 
 namespace ClaudeCodeVS
 {
@@ -664,7 +665,7 @@ namespace ClaudeCodeVS
                 await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
                 Debug.WriteLine($"Error in InitializeTerminalAsync: {ex.Message}");
                 Debug.WriteLine($"Stack trace: {ex.StackTrace}");
-                MessageBox.Show($"Failed to initialize terminal: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                MessageBox.Show(L("Failed to initialize terminal: {0}", ex.Message), L("Error"), MessageBoxButton.OK, MessageBoxImage.Error);
             }
         }
 
@@ -1444,9 +1445,8 @@ namespace ClaudeCodeVS
                                 // the orphan via terminalHandle.
                                 LogTerminalLaunch("FAILED: SetParent never succeeded for WT — panel left blank");
                                 MessageBox.Show(
-                                    "The terminal started but could not be attached to the panel.\n\n" +
-                                    "Please try \"Restart code agent\" again. If the problem persists, report it with the log file:\n" +
-                                    TerminalLaunchLogPath,
+                                    L("The terminal started but could not be attached to the panel.\n\n" +
+                                      "Please try \"Restart code agent\" again. If the problem persists, report it with the log file:\n{0}", TerminalLaunchLogPath),
                                     "Claude Code Extension", MessageBoxButton.OK, MessageBoxImage.Warning);
                                 return;
                             }
@@ -1907,17 +1907,15 @@ namespace ClaudeCodeVS
                             // point straight at the known cause instead of the generic message.
                             LogTerminalLaunch("failure cause: legacy console mode is still enabled (issue #104)");
                             MessageBox.Show(
-                                "The terminal could not be attached to the panel because legacy console mode is enabled on this machine (HKCU\\Console\\ForceV2 = 0).\n\n" +
-                                "Run this command in a Command Prompt and restart Visual Studio:\n\n" +
-                                LegacyConsoleFixCommand,
+                                L("The terminal could not be attached to the panel because legacy console mode is enabled on this machine (HKCU\\Console\\ForceV2 = 0).\n\n" +
+                                  "Run this command in a Command Prompt and restart Visual Studio:\n\n{0}", LegacyConsoleFixCommand),
                                 "Claude Code Extension", MessageBoxButton.OK, MessageBoxImage.Warning);
                         }
                         else
                         {
                             MessageBox.Show(
-                                "The terminal could not be attached to the panel.\n\n" +
-                                "Please try \"Restart code agent\" again. If the problem persists, report it with the log file:\n" +
-                                TerminalLaunchLogPath,
+                                L("The terminal could not be attached to the panel.\n\n" +
+                                  "Please try \"Restart code agent\" again. If the problem persists, report it with the log file:\n{0}", TerminalLaunchLogPath),
                                 "Claude Code Extension", MessageBoxButton.OK, MessageBoxImage.Warning);
                         }
                     }
@@ -1927,8 +1925,8 @@ namespace ClaudeCodeVS
             {
                 LogTerminalLaunch($"FAILED with exception: {ex.Message}");
                 await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
-                MessageBox.Show($"Failed to start embedded terminal: {ex.Message}",
-                                "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                MessageBox.Show(L("Failed to start embedded terminal: {0}", ex.Message),
+                                L("Error"), MessageBoxButton.OK, MessageBoxImage.Error);
             }
             finally
             {
@@ -2005,7 +2003,7 @@ namespace ClaudeCodeVS
                 {
                     if (key == null)
                     {
-                        error = "Could not open HKCU\\Console for writing.";
+                        error = L("Could not open HKCU\\Console for writing.");
                         return false;
                     }
 
@@ -2034,9 +2032,9 @@ namespace ClaudeCodeVS
             await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
 
             var choice = MessageBox.Show(
-                "Legacy console mode is enabled on this machine (HKCU\\Console\\ForceV2 = 0).\n\n" +
+                L("Legacy console mode is enabled on this machine (HKCU\\Console\\ForceV2 = 0).\n\n" +
                 "Windows needs the modern console to attach the terminal to the panel, so the terminal will stay blank until this is changed.\n\n" +
-                "Re-enable the modern console now? This only changes your own user settings and does not require administrator rights.",
+                "Re-enable the modern console now? This only changes your own user settings and does not require administrator rights."),
                 "Claude Code Extension", MessageBoxButton.YesNo, MessageBoxImage.Warning);
 
             if (choice != MessageBoxResult.Yes)
@@ -2050,10 +2048,9 @@ namespace ClaudeCodeVS
             {
                 LogTerminalLaunch($"legacy console fix FAILED: {error}");
                 MessageBox.Show(
-                    "The modern console could not be re-enabled automatically.\n\n" +
-                    $"Error: {error}\n\n" +
-                    "Please run this command in a Command Prompt and restart Visual Studio:\n\n" +
-                    LegacyConsoleFixCommand,
+                    L("The modern console could not be re-enabled automatically.\n\n" +
+                      "Error: {0}\n\n" +
+                      "Please run this command in a Command Prompt and restart Visual Studio:\n\n{1}", error, LegacyConsoleFixCommand),
                     "Claude Code Extension", MessageBoxButton.OK, MessageBoxImage.Error);
                 return false;
             }
@@ -2061,8 +2058,8 @@ namespace ClaudeCodeVS
             LogTerminalLaunch("legacy console fix applied (ForceV2 = 1)");
 
             var restart = MessageBox.Show(
-                "The modern console has been re-enabled.\n\n" +
-                "Visual Studio must be restarted for the terminal to attach correctly. Restart now?",
+                L("The modern console has been re-enabled.\n\n" +
+                "Visual Studio must be restarted for the terminal to attach correctly. Restart now?"),
                 "Claude Code Extension", MessageBoxButton.YesNo, MessageBoxImage.Information);
 
             if (restart != MessageBoxResult.Yes)
@@ -2078,7 +2075,7 @@ namespace ClaudeCodeVS
             }
 
             MessageBox.Show(
-                "Visual Studio could not be restarted automatically. Please close and reopen it so the terminal can attach.",
+                L("Visual Studio could not be restarted automatically. Please close and reopen it so the terminal can attach."),
                 "Claude Code Extension", MessageBoxButton.OK, MessageBoxImage.Information);
             return false;
         }
@@ -4320,7 +4317,7 @@ namespace ClaudeCodeVS
             _ = ThreadHelper.JoinableTaskFactory.RunAsync(async () =>
             {
                 await ShowAgentFinishNotificationAsync(
-                    "The agent terminal is busy catching up on a large response — typing and clicks will start landing again in a moment. No restart is needed.",
+                    L("The agent terminal is busy catching up on a large response — typing and clicks will start landing again in a moment. No restart is needed."),
                     null, null);
             });
 #pragma warning restore VSSDK007
@@ -5349,8 +5346,8 @@ namespace ClaudeCodeVS
 
                 if (terminalHandle == IntPtr.Zero || !IsWindow(terminalHandle))
                 {
-                    MessageBox.Show("Terminal is not running. Please restart the terminal first.",
-                                  "Update Agent", MessageBoxButton.OK, MessageBoxImage.Warning);
+                    MessageBox.Show(L("Terminal is not running. Please restart the terminal first."),
+                                  L("Update Agent"), MessageBoxButton.OK, MessageBoxImage.Warning);
                     return;
                 }
 
@@ -5479,7 +5476,7 @@ namespace ClaudeCodeVS
             catch (Exception ex)
             {
                 Debug.WriteLine($"Error in UpdateAgentButton_Click: {ex.Message}");
-                MessageBox.Show($"Failed to update agent: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                MessageBox.Show(L("Failed to update agent: {0}", ex.Message), L("Error"), MessageBoxButton.OK, MessageBoxImage.Error);
             }
         }
 
@@ -5709,8 +5706,8 @@ namespace ClaudeCodeVS
             try
             {
                 var result = MessageBox.Show(
-                    "Restart the code agent? The current session will be terminated.",
-                    "Restart Code Agent",
+                    L("Restart the code agent? The current session will be terminated."),
+                    L("Restart Code Agent"),
                     MessageBoxButton.YesNo,
                     MessageBoxImage.Question,
                     MessageBoxResult.No);
@@ -5721,7 +5718,7 @@ namespace ClaudeCodeVS
             catch (Exception ex)
             {
                 Debug.WriteLine($"Error in RestartTerminalButton_Click: {ex.Message}");
-                MessageBox.Show($"Failed to restart terminal: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                MessageBox.Show(L("Failed to restart terminal: {0}", ex.Message), L("Error"), MessageBoxButton.OK, MessageBoxImage.Error);
             }
         }
 

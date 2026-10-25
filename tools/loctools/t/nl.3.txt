@@ -1,0 +1,190 @@
+380	Geen issues.
+381	Geen modellen komen overeen met de zoekopdracht.
+382	Geen modellen gemeld door de agent
+383	Geen modellen gemeld door de agent.
+384	Geen native agentsessie beschikbaar.
+385	Geen open issues.
+386	Geen aanbeveling: {0} Je kunt nog steeds zelf een model en inspanning kiezen.
+387	Geen resultaten
+388	Geen sessies gevonden in:\n{0}
+389	Geen sessies komen overeen met het huidige filter.
+390	Geen sessies gevonden voor deze werkruimte.
+391	Geen tekst geselecteerd in de actieve editor.\nSelecteer eerst wat code.
+392	Geen {0}-sessies gevonden voor deze werkruimte.
+393	Geen (alleen melding)
+394	Niet beschikbaar met Windows Terminal (werkt alleen met Opdrachtprompt).
+395	Geen vaste breedte — de terminal toont dit lettertype vervormd.
+396	Niet zeker? Aanbevelen vraagt Claude welk model en welke inspanning bij dit issue passen.
+397	Niet bijgewerkt sinds {0} — klik om de gebruikspagina te openen
+398	Let op: Windows Terminal moet geïnstalleerd zijn (winget install Microsoft.WindowsTerminal).
+399	Let op: Windows Terminal moet geïnstalleerd worden. Als het niet wordt gevonden, worden installatie-instructies getoond.
+400	Niets wacht op controle
+401	Niets om te plakken
+402	Melden / een actie uitvoeren als de agent klaar is
+403	Nu
+404	Oudste eerst
+405	Agent klaar
+406	Agent klaar wordt per oplossing apart ingesteld. Open een oplossing of map om het in te stellen.
+407	Agent klaar — {0}
+408	Als de chat in een eigen tabblad open is, bevat het paneel alleen de gebruiksbalken, dus wordt het verborgen. Het komt terug als de chat weer wordt gekoppeld of de native modus wordt uitgeschakeld, en Beeld > Andere vensters > Claude Code Extension toont het op elk moment.
+409	Werkbalkknoppen met één klik
+410	Actie alleen uitvoeren als er bestanden zijn gewijzigd
+411	Alleen deze bestandstypen:
+412	Open
+413	Claude-gebruik openen
+414	Open Code-installatie
+415	Open Code is niet geïnstalleerd. Er wordt een gewone CMD-terminal gebruikt.\r\n\r\n(je kunt op CTRL+C drukken om de volledige instructies te kopiëren)\r\n\r\nINSTALLATIE: met NPM\r\n\r\nOpen cmd en voer uit:\r\n\r\nnpm i -g opencode-ai\r\n\r\nVereisten:\r\n- Node.js geïnstalleerd\r\n\r\nGa voor meer informatie naar: https://opencode.ai
+416	Correctiechat openen
+417	Instellingenmap openen
+418	claude.ai/settings/usage openen in de standaardbrowser
+419	Openen in VS
+420	Openen op GitHub
+421	Opent de weergave Wijzigingen (diff). Alleen getoond binnen een git-repository.
+422	Opent het samengevoegde instellingendialoogvenster (indeling, terminaltype, thema, verzenden, automatisch zoomen, wijzigingen automatisch openen).
+423	Opent de worktree van de correctie in een nieuw Visual Studio-venster om te bouwen en testen.
+424	Dit bestand openen in het Visual Studio-verschilvenster: vóór de agent links, nu rechts
+425	In plaats daarvan wordt de gebruikspagina geopend.
+426	PI-installatie
+427	PI is niet geïnstalleerd. Er wordt een gewone CMD-terminal gebruikt.\r\n\r\n(je kunt op CTRL+C drukken om de volledige instructies te kopiëren)\r\n\r\nINSTALLATIE: met NPM\r\n\r\nOpen cmd en voer uit:\r\n\r\nnpm install -g @earendil-works/pi-coding-agent\r\n\r\nVereisten:\r\n- Node.js geïnstalleerd\r\n- Git for Windows (Git Bash) geïnstalleerd voor bash-ondersteuning\r\n\r\nGa voor meer informatie naar: https://pi.dev
+428	Plakken
+429	Plakfout
+430	Plakken mislukt
+431	Lege paden gebruiken de standaarddetectie (PATH / ingebouwd installatiepad).\nStel alleen een pad in om een provider naar een specifiek uitvoerbaar bestand te verwijzen.\nNative providers verwachten een volledig Windows-pad (bijv. C:\\Tools\\claude.exe). WSL-providers verwachten een Linux-pad of -opdracht (bijv. /home/me/.local/bin/claude).
+432	Wacht op controle
+433	Kiezen...
+434	Eenvoudige werkstatus (altijd \"Denken…\")
+435	Een ander geluid afspelen als de agent een vraag stelt
+436	Speelt een ander geluid af als de agent pauzeert en op je antwoord wacht (een ja/nee-bevestiging of een keuzemenu) in plaats van klaar te zijn. Gebruikt een andere toon dan het klaar-geluid, zodat je ze kunt onderscheiden.
+437	Een geluid afspelen
+438	Speelt een systeemgeluid af als de agent klaar is.
+439	Voer een prompt in.
+440	Schakel in de browser over naar het gewenste account en klik dan op OK om Claude Code te hervatten.
+441	Dit antwoord op het issue plaatsen
+442	Antwoord op het issue geplaatst.
+443	Antwoord plaatsen…
+444	Worktree voorbereiden…
+445	Voorinstelling ▾
+446	Druk op Enter om te zoeken
+447	Vorige overeenkomst (Shift+Enter)
+448	Prompt
+449	Prompt / afbeelding plakken
+450	Lettergrootte van de prompt
+451	Promptgeschiedenis gewist.
+452	Promptvak
+453	Positie van het promptpaneel
+454	Prompt verzenden
+455	Proportionele lettertypen zijn standaard verborgen omdat de terminal ze vervormd toont. Vink dit alleen aan als je een lettertype nodig hebt dat het filter voor vaste breedte niet bevat.
+456	Git pull vóór de eerste prompt
+457	Het pushen van {0} is mislukt, dus er is niets samengevoegd.\n\n{1}
+458	Zet een symbool voor de naam van elk chattabblad zodat je in de tabbladbalk ziet wat elke sessie doet: ⏳ bezig, ❓ wacht op je antwoord, ✳ klaar, ❌ fout.
+459	Qwen Code-installatie
+460	Qwen Code is niet geïnstalleerd. Er wordt een gewone CMD-terminal gebruikt.\r\n\r\n(je kunt op CTRL+C drukken om de volledige instructies te kopiëren)\r\n\r\nINSTALLATIE\r\n\r\nVereist Node.js 22 of hoger. Open een terminal en voer uit:\r\n\r\nnpm install -g @qwen-code/qwen-code@latest\r\n\r\n(Open daarna een nieuwe terminal zodat het bijgewerkte PATH actief wordt.)\r\n\r\nCONFIGURATIE\r\n\r\nVoer eenmaal 'qwen' uit in een terminal en typ /auth om een Coding Plan of API-sleutel in te stellen.\r\n(De gratis Qwen OAuth-aanmelding is stopgezet.)\r\n\r\nDe agent start met de opdracht 'qwen'.\r\n\r\nGa voor meer informatie naar: https://github.com/QwenLM/qwen-code
+461	Qwen Code: Yolo-modus
+462	Leest de modellijst opnieuw uit de Devin-CLI.
+463	Redeneren ({0})
+464	Redeneerniveau gewijzigd
+465	Redeneren:
+466	Reasonix-installatie
+467	Reasonix is niet geïnstalleerd. Er wordt een gewone CMD-terminal gebruikt.\r\n\r\n(je kunt op CTRL+C drukken om de volledige instructies te kopiëren)\r\n\r\nINSTALLATIE\r\n\r\nOpen een terminal en voer uit:\r\n\r\nnpm i -g reasonix\r\n\r\n(Open daarna een nieuwe terminal zodat het bijgewerkte PATH actief wordt.)\r\n\r\nCONFIGURATIE\r\n\r\nStel vóór het starten je DeepSeek-API-sleutel in, bijv.:\r\n\r\nsetx DEEPSEEK_API_KEY sk-...\r\n\r\n(of laat de Reasonix-wizard hem opslaan.)\r\n\r\nDe agent start met de opdracht 'reasonix'.\r\n\r\nGa voor meer informatie naar: https://github.com/esengine/DeepSeek-Reasonix/releases
+468	Oplossing opnieuw bouwen
+469	Oplossing opnieuw bouwen vóór uitvoeren
+470	Opnieuw bouwen, daarna {0}
+471	AI-model aanbevelen
+472	AI-model aanbevelen werkt alleen met Claude Code.\n\nSchakel de agent over naar Claude Code of Claude Code (WSL) om het te gebruiken.
+473	Vernieuwen
+474	Modellen vernieuwen
+475	Nu vernieuwen
+476	Vernieuwt gebruiksgegevens elke minuut op de achtergrond, ook als het tabblad Claude-gebruik gesloten of niet op de voorgrond is. Uitgeschakeld vernieuwt het alleen als het gebruiksvenster geopend is of handmatig wordt vernieuwd.
+477	Vernieuwt gebruiksgegevens elke 2 minuten
+478	Modellijst vernieuwen…
+479	Verwijderen
+480	De aangepaste opdracht \"{0}\" verwijderen?
+481	Verwijderen uit favorieten
+482	Correctie verwijderen…
+483	Naam wijzigen
+484	Alleen hernoemd
+485	Naam wijzigen…
+486	Chattabbladen opnieuw openen wanneer de oplossing opent
+487	ALLE huidige extensie-instellingen vervangen door die in dit bestand?\n\nNiet-opgeslagen wijzigingen in het venster Instellingen gaan verloren, de huidige instellingen worden als back-up naast het instellingenbestand opgeslagen en de codeeragent wordt opnieuw gestart.\n\nSluit eerst alle andere Visual Studio-vensters — die houden hun eigen instellingen in het geheugen en zouden de geladen instellingen bij de volgende keer opslaan overschrijven.
+488	Vervangt alle extensie-instellingen door een opgeslagen bestand (een claudecode-settings.json die van een andere computer is gekopieerd werkt ook). De huidige instellingen worden eerst als back-up naast het instellingenbestand opgeslagen en de codeeragent wordt opnieuw gestart om de geladen configuratie toe te passen.
+489	Resetten
+490	Alle hier getoonde instellingen terugzetten naar de standaardwaarden?
+491	Basislijn resetten naar de huidige staat van de werkruimte
+492	Standaardwaarden herstellen
+493	Codeeragent opnieuw starten
+494	Terminal opnieuw starten
+495	Start de actieve codeeragent opnieuw.
+496	De codeeragent opnieuw starten? De huidige sessie wordt gesloten.
+497	Elk openstaand bestand terugzetten naar hoe het was voordat de agent het bewerkte
+498	Dit bestand terugzetten naar hoe het was voordat de agent het bewerkte
+499	{0} herstellen?\n\nDe agent heeft dit bestand verwijderd. Ongedaan maken zet het terug zoals het was.
+500	Hervatten
+501	Laatste sessie hervatten
+502	Hervat een eerdere Claude Code- of Codex-sessie.
+503	Rechts — terminal links, prompt rechts
+504	Uitvoeren
+505	Uitvoeren (F5)
+506	Een script uitvoeren…
+507	Alle tests uitvoeren
+508	Script uitvoeren
+509	Starten zonder foutopsporing
+510	Starten zonder foutopsporing (Ctrl+F5)
+511	{0} uitvoeren
+512	Voert \"git pull\" uit in de repository van de oplossing vóór de eerste prompt die je verstuurt, zodat de agent nooit begint met het bewerken van code die op de remote al verouderd is. Wordt eenmaal per oplossing per Visual Studio-sessie uitgevoerd, niet bij elke prompt. Wordt overgeslagen als het project niet in een git-repository staat, de branch geen remote heeft om van te pullen of de agent nog met het vorige bericht bezig is. Als de pull met conflicten eindigt, worden de conflicterende bestanden aan de agent beschreven en wordt gevraagd die eerst op te lossen voordat hij doet wat je vroeg.
+513	Net als Commitbericht genereren, maar voert daarna meteen stage, commit en push van alle wijzigingen uit. Vereist de native modus.
+514	Alle instellingen opslaan
+515	Alle instellingen opslaan naar bestand...
+516	Instellingen opslaan
+517	Slaat de hele configuratie van de extensie op in een JSON-bestand: elke instelling in dit venster, aangepaste opdrachten, Agent klaar (globaal en per oplossing), zichtbare agents en modellen, werkbalkindeling, CLI-paden, promptgeschiedenis en sessietitels. Wijzigingen die nog niet met OK zijn bevestigd, worden niet meegenomen.
+518	Scriptpad (voor \"Een script uitvoeren\") of opdrachttekst (voor \"Een opdracht verzenden\"):
+519	Alle modellen doorzoeken
+520	Selecteren
+521	Alles selecteren
+522	Model selecteren — {0}
+523	Terminaltype selecteren
+524	Thema selecteren
+525	Selecteer een issue.
+526	Selecteer welke codeeragents in het agentmenu verschijnen. De actieve agent wordt altijd getoond.
+527	Het uitvoerbare bestand van {0} selecteren
+528	Buildfouten naar de agent sturen
+529	Selectie naar Claude Code sturen
+530	Een opdracht naar de agent sturen
+531	Opdracht verzenden
+532	Grote prompts als bestand verzenden
+533	Prompt verzenden met
+534	Selectie alleen als verwijzing verzenden (zonder code)
+535	{0} verzenden
+536	Sessiegeschiedenis
+537	De sessiegeschiedenis is beschikbaar voor Claude Code, Codex en Devin (native of WSL). Schakel eerst de actieve codeeragent over naar een van deze providers.
+538	Taal instellen
+539	Werkmap instellen
+540	Stel een aangepaste werkmap in (absoluut of relatief aan de oplossing). Laat leeg voor het standaardgedrag.
+541	Stel een aangepaste werkmap voor de agent in.
+542	Instellingenmap
+543	Instellingen opgeslagen in:\n{0}
+544	De instellingen zijn geladen, maar de codeeragent kon niet opnieuw starten: {0}
+545	Instellingen...
+546	Chat tonen
+547	Gebruik tonen
+548	Toont een Visual Studio-infobalk met de duur van de beurt en het aantal tokens als de agent klaar is.
+549	Toont op de paneelwerkbalk, naast de knoppen, een live telling van de subagents die Claude Code uitvoert. Beweeg erover om te zien waar elk aan werkt. Verborgen zolang er geen subagent draait. Alleen Claude Code.
+550	Een melding tonen
+551	Aantal actieve subagents tonen (Claude Code)
+552	Alle lettertypen tonen (ook proportionele)
+553	Ingebouwde gebruiksbalken tonen
+554	Toon alleen sessies die je een eigen titel hebt gegeven.
+555	Het chattabblad tonen (opent het opnieuw als het gesloten of verborgen was)
+556	De accountkiezer van claude.ai tonen (bijv. wisselen tussen Team- en persoonlijk account)
+557	Toont de mini-gebruiksbalken voor sessie/week in het promptpaneel. Geldt alleen als een Claude Code-provider actief is.
+558	Sessiestatus op elk chattabblad tonen
+559	Aantal tokens in de chat tonen
+560	Tonen:
+561	Toont hoeveel tokens elke beurt gebruikte, live terwijl de agent werkt en in de regel die na de beurt blijft staan. De gebruiksring op de chatwerkbalk wordt niet beïnvloed.
+562	Afmelden
+563	Afmelden en het Claude-account wijzigen dat dit gesprek gebruikt.
+564	Skills
+565	Slaat de actie over als de agent geen bestanden heeft gewijzigd (schone git-werkboom). Heeft geen effect buiten een git-repository.
+566	Deze mappen overslaan:
+567	Sommige bestanden zijn niet hersteld:\n\n{0}
+568	Sorteren:
+569	Wijzigingen stagen…

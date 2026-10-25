@@ -20,6 +20,7 @@ using System.Windows.Input;
 using System.Windows.Controls;
 using System.Windows.Media.Imaging;
 using Microsoft.Win32;
+using static ClaudeCodeVS.UI.Loc;
 
 namespace ClaudeCodeVS
 {
@@ -142,7 +143,7 @@ namespace ClaudeCodeVS
             catch (Exception ex)
             {
                 Debug.WriteLine($"Error pasting image: {ex.Message}");
-                MessageBox.Show($"Error pasting image: {ex.Message}", "Paste Error", MessageBoxButton.OK, MessageBoxImage.Warning);
+                MessageBox.Show(L("Error pasting image: {0}", ex.Message), L("Paste Error"), MessageBoxButton.OK, MessageBoxImage.Warning);
             }
 
             return false;
@@ -190,12 +191,12 @@ namespace ClaudeCodeVS
                 // Open file dialog for file selection with common data formats
                 OpenFileDialog openFileDialog = new OpenFileDialog
                 {
-                    Filter = "All files (*.*)|*.*|" +
+                    Filter = L("All files (*.*)|*.*|" +
                              "Images (*.png;*.jpg;*.jpeg;*.gif;*.bmp;*.webp)|*.png;*.jpg;*.jpeg;*.gif;*.bmp;*.webp|" +
                              "Documents (*.pdf;*.doc;*.docx;*.txt;*.rtf)|*.pdf;*.doc;*.docx;*.txt;*.rtf|" +
                              "Spreadsheets (*.xls;*.xlsx;*.csv)|*.xls;*.xlsx;*.csv|" +
                              "Data (*.json;*.xml;*.yaml;*.yml)|*.json;*.xml;*.yaml;*.yml|" +
-                             "Code (*.cs;*.py;*.js;*.java;*.cpp;*.h)|*.cs;*.py;*.js;*.java;*.cpp;*.h",
+                             "Code (*.cs;*.py;*.js;*.java;*.cpp;*.h)|*.cs;*.py;*.js;*.java;*.cpp;*.h"),
                     Multiselect = true
                 };
 
@@ -203,7 +204,7 @@ namespace ClaudeCodeVS
             }
             catch (Exception ex)
             {
-                MessageBox.Show($"Error selecting files: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                MessageBox.Show(L("Error selecting files: {0}", ex.Message), L("Error"), MessageBoxButton.OK, MessageBoxImage.Error);
                 return null;
             }
         }
@@ -265,8 +266,8 @@ namespace ClaudeCodeVS
             catch (Exception ex)
             {
                 Debug.WriteLine($"PromptTextBox_PreviewDrop error: {ex.Message}");
-                MessageBox.Show($"Error attaching dropped files: {ex.Message}",
-                    "Drag & Drop", MessageBoxButton.OK, MessageBoxImage.Error);
+                MessageBox.Show(L("Error attaching dropped files: {0}", ex.Message),
+                    L("Drag & Drop"), MessageBoxButton.OK, MessageBoxImage.Error);
             }
         }
 
@@ -346,7 +347,7 @@ namespace ClaudeCodeVS
                 }
                 catch (Exception ex)
                 {
-                    MessageBox.Show($"Error opening image: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                    MessageBox.Show(L("Error opening image: {0}", ex.Message), L("Error"), MessageBoxButton.OK, MessageBoxImage.Error);
                 }
             };
 
@@ -506,7 +507,7 @@ namespace ClaudeCodeVS
                     Margin = new Thickness(0),
                     HorizontalAlignment = HorizontalAlignment.Right,
                     VerticalAlignment = VerticalAlignment.Top,
-                    ToolTip = "Remove",
+                    ToolTip = L("Remove"),
                     Tag = path
                 };
                 removeBtn.Click += (s, e) => onRemove?.Invoke((string)((Button)s).Tag);

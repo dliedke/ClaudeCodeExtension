@@ -20,6 +20,7 @@ using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
 using Microsoft.VisualStudio.Shell;
+using static ClaudeCodeVS.UI.Loc;
 
 namespace ClaudeCodeVS
 {
@@ -125,8 +126,8 @@ namespace ClaudeCodeVS
             catch (Exception ex)
             {
                 Debug.WriteLine($"Error sending custom command: {ex.Message}");
-                MessageBox.Show($"Failed to send custom command: {ex.Message}",
-                    "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                MessageBox.Show(L("Failed to send custom command: {0}", ex.Message),
+                    L("Error"), MessageBoxButton.OK, MessageBoxImage.Error);
             }
         }
 
@@ -153,8 +154,8 @@ namespace ClaudeCodeVS
             catch (Exception ex)
             {
                 Debug.WriteLine($"Error configuring custom commands: {ex.Message}");
-                MessageBox.Show($"Error configuring custom commands: {ex.Message}",
-                    "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                MessageBox.Show(L("Error configuring custom commands: {0}", ex.Message),
+                    L("Error"), MessageBoxButton.OK, MessageBoxImage.Error);
             }
         }
 
@@ -207,7 +208,7 @@ namespace ClaudeCodeVS
 
             var dialog = new Window
             {
-                Title = "Configure Custom Commands",
+                Title = L("Configure Custom Commands"),
                 Width = 600,
                 Height = 420,
                 WindowStartupLocation = WindowStartupLocation.CenterOwner,
@@ -228,9 +229,9 @@ namespace ClaudeCodeVS
 
             var label = new TextBlock
             {
-                Text = "Custom commands appear in the toolbar dropdown next to the agent menu. " +
+                Text = L("Custom commands appear in the toolbar dropdown next to the agent menu. " +
                        "Clicking one sends the configured text directly to the active code agent — " +
-                       "useful for slash commands (e.g. /codex-review) or canned prompts.",
+                       "useful for slash commands (e.g. /codex-review) or canned prompts."),
                 TextWrapping = TextWrapping.Wrap,
                 Foreground = themeFg,
                 Margin = new Thickness(0, 0, 0, 10)
@@ -303,12 +304,12 @@ namespace ClaudeCodeVS
                 return b;
             };
 
-            var addButton = makeSideButton("Add...");
-            var editButton = makeSideButton("Edit...");
-            var cloneButton = makeSideButton("Clone...");
-            var removeButton = makeSideButton("Remove");
-            var moveUpButton = makeSideButton("Move Up");
-            var moveDownButton = makeSideButton("Move Down");
+            var addButton = makeSideButton(L("Add..."));
+            var editButton = makeSideButton(L("Edit..."));
+            var cloneButton = makeSideButton(L("Clone..."));
+            var removeButton = makeSideButton(L("Remove"));
+            var moveUpButton = makeSideButton(L("Move Up"));
+            var moveDownButton = makeSideButton(L("Move Down"));
 
             sideStack.Children.Add(addButton);
             sideStack.Children.Add(editButton);
@@ -356,7 +357,7 @@ namespace ClaudeCodeVS
                     Name = BuildCloneName(source.Name, _settings.CustomCommands.Select(c => c.Name)),
                     Command = source.Command
                 };
-                var cloned = ShowCustomCommandEditorDialog(template, dialog, "Clone Custom Command");
+                var cloned = ShowCustomCommandEditorDialog(template, dialog, L("Clone Custom Command"));
                 if (cloned != null)
                 {
                     _settings.CustomCommands.Insert(idx + 1, cloned);
@@ -373,8 +374,8 @@ namespace ClaudeCodeVS
 
                 var cmd = _settings.CustomCommands[idx];
                 string display = string.IsNullOrWhiteSpace(cmd.Name) ? cmd.Command : cmd.Name;
-                var result = MessageBox.Show($"Remove custom command \"{display}\"?",
-                    "Confirm Remove", MessageBoxButton.YesNo, MessageBoxImage.Question);
+                var result = MessageBox.Show(L("Remove custom command \"{0}\"?", display),
+                    L("Confirm Remove"), MessageBoxButton.YesNo, MessageBoxImage.Question);
                 if (result == MessageBoxResult.Yes)
                 {
                     _settings.CustomCommands.RemoveAt(idx);
@@ -422,7 +423,7 @@ namespace ClaudeCodeVS
 
             var closeButton = new Button
             {
-                Content = "Close",
+                Content = L("Close"),
                 Width = 80,
                 Height = 26,
                 IsDefault = true,
@@ -459,7 +460,7 @@ namespace ClaudeCodeVS
 
             var dialog = new Window
             {
-                Title = title ?? (existing == null ? "Add Custom Command" : "Edit Custom Command"),
+                Title = title ?? (existing == null ? L("Add Custom Command") : L("Edit Custom Command")),
                 Width = 600,
                 Height = 420,
                 WindowStartupLocation = WindowStartupLocation.CenterOwner,
@@ -482,7 +483,7 @@ namespace ClaudeCodeVS
 
             var nameLabel = new TextBlock
             {
-                Text = "Name (shown in dropdown):",
+                Text = L("Name (shown in dropdown):"),
                 Foreground = themeFg,
                 Margin = new Thickness(0, 0, 0, 4)
             };
@@ -502,7 +503,7 @@ namespace ClaudeCodeVS
 
             var cmdLabel = new TextBlock
             {
-                Text = "Command (sent to agent verbatim — slash command or prompt):",
+                Text = L("Command (sent to agent verbatim — slash command or prompt):"),
                 Foreground = themeFg,
                 Margin = new Thickness(0, 0, 0, 4)
             };
@@ -544,7 +545,7 @@ namespace ClaudeCodeVS
             };
             var cancelButton = new Button
             {
-                Content = "Cancel",
+                Content = L("Cancel"),
                 Width = 75,
                 Height = 25,
                 IsCancel = true
@@ -574,7 +575,7 @@ namespace ClaudeCodeVS
                 string cm = cmdBox.Text?.Trim() ?? "";
                 if (string.IsNullOrEmpty(cm))
                 {
-                    MessageBox.Show("Command text cannot be empty.", "Validation",
+                    MessageBox.Show(L("Command text cannot be empty."), L("Validation"),
                         MessageBoxButton.OK, MessageBoxImage.Warning);
                     return;
                 }

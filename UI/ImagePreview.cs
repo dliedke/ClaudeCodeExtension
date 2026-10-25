@@ -22,6 +22,7 @@ using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using Microsoft.VisualStudio.Shell;
+using static ClaudeCodeVS.UI.Loc;
 
 namespace ClaudeCodeVS.UI
 {
@@ -177,7 +178,7 @@ namespace ClaudeCodeVS.UI
             }
             catch (Exception ex)
             {
-                MessageBox.Show($"Error opening file: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                MessageBox.Show(L("Error opening file: {0}", ex.Message), L("Error"), MessageBoxButton.OK, MessageBoxImage.Error);
             }
         }
     }

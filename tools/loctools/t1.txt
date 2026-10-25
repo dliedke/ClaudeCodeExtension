@@ -1,0 +1,34 @@
+<<<<
+                                    "The terminal started but could not be attached to the panel.\n\n" +
+                                    "Please try \"Restart code agent\" again. If the problem persists, report it with the log file:\n" +
+                                    TerminalLaunchLogPath,
+====
+                                    L("The terminal started but could not be attached to the panel.\n\n" +
+                                      "Please try \"Restart code agent\" again. If the problem persists, report it with the log file:\n{0}", TerminalLaunchLogPath),
+>>>>
+<<<<
+                                "The terminal could not be attached to the panel because legacy console mode is enabled on this machine (HKCU\\Console\\ForceV2 = 0).\n\n" +
+                                "Run this command in a Command Prompt and restart Visual Studio:\n\n" +
+                                LegacyConsoleFixCommand,
+====
+                                L("The terminal could not be attached to the panel because legacy console mode is enabled on this machine (HKCU\\Console\\ForceV2 = 0).\n\n" +
+                                  "Run this command in a Command Prompt and restart Visual Studio:\n\n{0}", LegacyConsoleFixCommand),
+>>>>
+<<<<
+                                "The terminal could not be attached to the panel.\n\n" +
+                                "Please try \"Restart code agent\" again. If the problem persists, report it with the log file:\n" +
+                                TerminalLaunchLogPath,
+====
+                                L("The terminal could not be attached to the panel.\n\n" +
+                                  "Please try \"Restart code agent\" again. If the problem persists, report it with the log file:\n{0}", TerminalLaunchLogPath),
+>>>>
+<<<<
+                    "The modern console could not be re-enabled automatically.\n\n" +
+                    $"Error: {error}\n\n" +
+                    "Please run this command in a Command Prompt and restart Visual Studio:\n\n" +
+                    LegacyConsoleFixCommand,
+====
+                    L("The modern console could not be re-enabled automatically.\n\n" +
+                      "Error: {0}\n\n" +
+                      "Please run this command in a Command Prompt and restart Visual Studio:\n\n{1}", error, LegacyConsoleFixCommand),
+>>>>

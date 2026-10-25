@@ -25,6 +25,7 @@ using System.Windows.Media;
 using ClaudeCodeVS.Agents;
 
 using Microsoft.VisualStudio.Shell;
+using static ClaudeCodeVS.UI.Loc;
 
 namespace ClaudeCodeVS
 {
@@ -90,7 +91,7 @@ namespace ClaudeCodeVS
 
             var dialog = new Window
             {
-                Title = "Select Model — " + GetProviderDisplayName(provider),
+                Title = L("Select Model — {0}", GetProviderDisplayName(provider)),
                 Width = 860,
                 Height = 620,
                 MinWidth = 680,
@@ -118,7 +119,7 @@ namespace ClaudeCodeVS
                 VerticalContentAlignment = VerticalAlignment.Center,
                 Padding = new Thickness(6, 0, 6, 0),
                 Margin = new Thickness(0, 0, 0, 8),
-                ToolTip = "Type to search every model by name, family or id. Words can be typed in any order."
+                ToolTip = L("Type to search every model by name, family or id. Words can be typed in any order.")
             };
             Grid.SetRow(searchBox, 0);
             rootGrid.Children.Add(searchBox);
@@ -127,7 +128,7 @@ namespace ClaudeCodeVS
             // it simply sits on top of the empty box and hides itself as soon as anything is typed.
             var searchHint = new TextBlock
             {
-                Text = "Search all models",
+                Text = L("Search all models"),
                 Foreground = themeFg,
                 Opacity = 0.5,
                 IsHitTestVisible = false,
@@ -185,17 +186,17 @@ namespace ClaudeCodeVS
                 return button;
             };
 
-            var refreshButton = makeButton("Refresh Models");
+            var refreshButton = makeButton(L("Refresh Models"));
             refreshButton.Margin = new Thickness(0);
-            refreshButton.ToolTip = "Read the model list from the Devin CLI again.";
+            refreshButton.ToolTip = L("Read the model list from the Devin CLI again.");
 
-            var defaultButton = makeButton("Agent Default");
-            defaultButton.ToolTip = "Let Devin start on the model its own account defaults to.";
+            var defaultButton = makeButton(L("Agent Default"));
+            defaultButton.ToolTip = L("Let Devin start on the model its own account defaults to.");
 
-            var selectButton = makeButton("Select");
+            var selectButton = makeButton(L("Select"));
             selectButton.IsDefault = true;
 
-            var cancelButton = makeButton("Cancel");
+            var cancelButton = makeButton(L("Cancel"));
             cancelButton.IsCancel = true;
 
             // Loading / empty-list message, next to the buttons so the details pane can be cleared
@@ -276,8 +277,8 @@ namespace ClaudeCodeVS
                 addLine(model.Description, 0.85);
 
                 var badges = new List<string>();
-                if (model.IsNew) badges.Add("New");
-                if (model.IsBeta) badges.Add("Beta");
+                if (model.IsNew) badges.Add(L("New"));
+                if (model.IsBeta) badges.Add(L("Beta"));
                 addLine(string.Join(" · ", badges), 1.0);
 
                 addLine(model.Id, 0.55);
@@ -369,8 +370,8 @@ namespace ClaudeCodeVS
                 }
 
                 status.Text = models.Count == 0
-                    ? "No models reported by the agent."
-                    : "No model matches the search.";
+                    ? L("No models reported by the agent.")
+                    : L("No model matches the search.");
                 status.Visibility = Visibility.Visible;
             };
 
@@ -416,7 +417,7 @@ namespace ClaudeCodeVS
             {
                 refreshButton.IsEnabled = false;
                 refreshing = true;
-                status.Text = "Refreshing the model list…";
+                status.Text = L("Refreshing the model list…");
                 status.Visibility = Visibility.Visible;
 
                 StartModelPickerRefresh(provider, () =>
@@ -434,7 +435,7 @@ namespace ClaudeCodeVS
                 if (!ShouldRefreshProviderModels(provider)) return;
 
                 refreshing = true;
-                status.Text = "Loading models…";
+                status.Text = L("Loading models…");
                 status.Visibility = Visibility.Visible;
 
                 StartModelPickerRefresh(provider, () =>
@@ -500,7 +501,7 @@ namespace ClaudeCodeVS
                 Focusable = false,
                 VerticalAlignment = VerticalAlignment.Center,
                 HorizontalAlignment = HorizontalAlignment.Center,
-                ToolTip = isFavorite ? "Remove from favorites" : "Add to favorites"
+                ToolTip = isFavorite ? L("Remove from favorites") : L("Add to favorites")
             };
             star.Click += (s, e) =>
             {
@@ -534,8 +535,8 @@ namespace ClaudeCodeVS
             string context = ModelOption.FormatContextWindow(model.ContextTokens);
             if (context.Length > 0) details.Add(context);
             if (!string.IsNullOrWhiteSpace(model.CostTier)) details.Add(model.CostTier.Trim());
-            if (model.IsNew) details.Add("New");
-            if (model.IsBeta) details.Add("Beta");
+            if (model.IsNew) details.Add(L("New"));
+            if (model.IsBeta) details.Add(L("Beta"));
 
             var detailText = new TextBlock
             {
@@ -635,7 +636,7 @@ namespace ClaudeCodeVS
 
             var section = new StackPanel { Margin = new Thickness(0, 10, 0, 0) };
             section.Children.Add(new Border { Height = 1, Background = WithAlpha(fg, 0x26), Margin = new Thickness(0, 0, 0, 8) });
-            section.Children.Add(new TextBlock { Text = "Cost", Foreground = fg, FontSize = 13 });
+            section.Children.Add(new TextBlock { Text = L("Cost"), Foreground = fg, FontSize = 13 });
 
             var bar = new StackPanel { Margin = new Thickness(0, 6, 0, 0) };
             bar.Children.Add(BuildCaptionRow(
@@ -652,7 +653,7 @@ namespace ClaudeCodeVS
 
             if (usedPrice != null)
             {
-                bar.Children.Add(BuildCaptionRow("Current", usedPosition, fg, new Thickness(0, 4, 0, 0)));
+                bar.Children.Add(BuildCaptionRow(L("Current"), usedPosition, fg, new Thickness(0, 4, 0, 0)));
             }
             section.Children.Add(bar);
 

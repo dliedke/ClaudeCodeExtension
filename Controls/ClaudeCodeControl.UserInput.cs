@@ -22,6 +22,7 @@ using System.Windows.Input;
 using Microsoft.VisualStudio.Shell;
 using Microsoft.VisualStudio.Threading;
 using ClaudeCodeVS.UI;
+using static ClaudeCodeVS.UI.Loc;
 
 namespace ClaudeCodeVS
 {
@@ -205,7 +206,7 @@ namespace ClaudeCodeVS
                 // Allow sending if there's text OR attached files
                 if (string.IsNullOrEmpty(prompt) && !hasFiles)
                 {
-                    MessageBox.Show("Please enter a prompt.", "No Prompt", MessageBoxButton.OK, MessageBoxImage.Information);
+                    MessageBox.Show(L("Please enter a prompt."), L("No Prompt"), MessageBoxButton.OK, MessageBoxImage.Information);
                     return;
                 }
 
@@ -404,7 +405,7 @@ namespace ClaudeCodeVS
             }
             catch (Exception ex)
             {
-                MessageBox.Show($"Error sending prompt: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                MessageBox.Show(L("Error sending prompt: {0}", ex.Message), L("Error"), MessageBoxButton.OK, MessageBoxImage.Error);
             }
             finally
             {
@@ -867,7 +868,7 @@ namespace ClaudeCodeVS
 
             SaveSettings();
 
-            MessageBox.Show("Prompt history cleared.", "History Cleared", MessageBoxButton.OK, MessageBoxImage.Information);
+            MessageBox.Show(L("Prompt history cleared."), L("History Cleared"), MessageBoxButton.OK, MessageBoxImage.Information);
         }
 
         /// <summary>
@@ -892,7 +893,7 @@ namespace ClaudeCodeVS
             }
 
             LastPromptHint.Inlines.Clear();
-            LastPromptHint.Inlines.Add(new System.Windows.Documents.Run("Last prompt sent (Ctrl+Up to edit and resend):")
+            LastPromptHint.Inlines.Add(new System.Windows.Documents.Run(L("Last prompt sent (Ctrl+Up to edit and resend):"))
             {
                 FontStyle = FontStyles.Italic
             });
@@ -1018,16 +1019,16 @@ namespace ClaudeCodeVS
             var dte = Package.GetGlobalService(typeof(EnvDTE.DTE)) as EnvDTE.DTE;
             if (dte?.ActiveDocument == null)
             {
-                MessageBox.Show("No active document open in the editor.",
-                    "No Document", MessageBoxButton.OK, MessageBoxImage.Information);
+                MessageBox.Show(L("No active document open in the editor."),
+                    L("No Document"), MessageBoxButton.OK, MessageBoxImage.Information);
                 return false;
             }
 
             var selection = dte.ActiveDocument.Selection as EnvDTE.TextSelection;
             if (selection == null || string.IsNullOrEmpty(selection.Text))
             {
-                MessageBox.Show("No text selected in the active editor.\nPlease select some code first.",
-                    "No Selection", MessageBoxButton.OK, MessageBoxImage.Information);
+                MessageBox.Show(L("No text selected in the active editor.\nPlease select some code first."),
+                    L("No Selection"), MessageBoxButton.OK, MessageBoxImage.Information);
                 return false;
             }
 
@@ -1050,8 +1051,8 @@ namespace ClaudeCodeVS
             var dte = Package.GetGlobalService(typeof(EnvDTE.DTE)) as EnvDTE.DTE;
             if (dte?.ActiveDocument == null)
             {
-                MessageBox.Show("No active document open in the editor.",
-                    "No Document", MessageBoxButton.OK, MessageBoxImage.Information);
+                MessageBox.Show(L("No active document open in the editor."),
+                    L("No Document"), MessageBoxButton.OK, MessageBoxImage.Information);
                 return null;
             }
 
@@ -1276,15 +1277,15 @@ namespace ClaudeCodeVS
                     }
                     catch (Exception ex)
                     {
-                        MessageBox.Show($"Could not read clipboard: {ex.Message}",
-                            "Clipboard Error", MessageBoxButton.OK, MessageBoxImage.Warning);
+                        MessageBox.Show(L("Could not read clipboard: {0}", ex.Message),
+                            L("Clipboard Error"), MessageBoxButton.OK, MessageBoxImage.Warning);
                         return;
                     }
 
                     if (string.IsNullOrEmpty(clipboardText))
                     {
-                        MessageBox.Show("Clipboard text is empty.",
-                            "Nothing to Paste", MessageBoxButton.OK, MessageBoxImage.Information);
+                        MessageBox.Show(L("Clipboard text is empty."),
+                            L("Nothing to Paste"), MessageBoxButton.OK, MessageBoxImage.Information);
                         return;
                     }
 
@@ -1326,15 +1327,15 @@ namespace ClaudeCodeVS
                     }
                     catch (Exception ex)
                     {
-                        MessageBox.Show($"Could not save clipboard to file: {ex.Message}",
-                            "Paste Failed", MessageBoxButton.OK, MessageBoxImage.Error);
+                        MessageBox.Show(L("Could not save clipboard to file: {0}", ex.Message),
+                            L("Paste Failed"), MessageBoxButton.OK, MessageBoxImage.Error);
                     }
                     return;
                 }
 
                 // 4) Nothing usable.
-                MessageBox.Show("Clipboard does not contain text, an image, or a file list.",
-                    "Nothing to Paste", MessageBoxButton.OK, MessageBoxImage.Information);
+                MessageBox.Show(L("Clipboard does not contain text, an image, or a file list."),
+                    L("Nothing to Paste"), MessageBoxButton.OK, MessageBoxImage.Information);
             }
             catch (Exception ex)
             {

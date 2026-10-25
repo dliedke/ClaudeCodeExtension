@@ -1,0 +1,190 @@
+190	Installazione di Cursor Agent
+191	Cursor Agent non è installato. Verrà usato un normale terminale CMD.\r\n\r\n(puoi premere CTRL+C per copiare le istruzioni complete)\r\n\r\nINSTALLAZIONE: installazione nativa (Windows)\r\n\r\nApri PowerShell ed esegui:\r\n\r\nirm 'https://cursor.com/install?win32=true' | iex\r\n\r\nPoi aggiungi agent.cmd alla variabile d'ambiente PATH:\r\nC:\\Users\\%username%\\AppData\\Local\\cursor-agent\r\n\r\nInstalla anche ripgrep (dipendenza obbligatoria):\r\n\r\nwinget install -e --id BurntSushi.ripgrep.MSVC\r\n\r\nPer maggiori dettagli, visita: https://cursor.com
+192	Cursor Agent: modalità Yolo
+193	Percorsi personalizzati degli eseguibili della CLI
+194	Comandi personalizzati
+195	Colore di sfondo personalizzato
+196	I comandi personalizzati compaiono nel menu a discesa della barra degli strumenti accanto al menu dell'agente. Facendo clic su uno, il testo configurato viene inviato direttamente all'agente di codice attivo — utile per comandi slash (es. /codex-review) o prompt predefiniti.
+197	Titolo personalizzato (lascia vuoto per ripristinare l'anteprima generata automaticamente):
+198	Taglia
+199	Scuro
+200	Predefinito
+201	Colore predefinito per le sessioni in modalità nativa. Un colore scelto per una singola sessione (pulsante tavolozza nella chat) ha comunque la precedenza.
+202	Elimina
+203	Elimina sessione
+204	Elimina questo file creato dall'agente
+205	Eliminare la trascrizione di questa sessione?\n\n{0}{1}\n\nL'operazione non può essere annullata.
+206	Elimina {0}, il suo worktree e la sua scheda di chat
+207	Eliminare {0}?\n\nL'agente ha creato questo file. Annulla lo cancella dal disco.
+208	{0} eliminato su {1}.
+209	Sgancia la chat in una scheda separata
+210	Sgancia il terminale in una scheda separata
+211	Rilevato osservando quando il terminale diventa inattivo, quindi funziona con qualsiasi agente.
+212	Installazione di Devin
+213	Devin non è installato. Verrà usato un normale terminale CMD.\r\n\r\n(puoi premere CTRL+C per copiare le istruzioni complete)\r\n\r\nINSTALLAZIONE\r\n\r\nApri Windows Terminal ed esegui:\r\n\r\nirm https://static.devin.ai/cli/setup.ps1 | iex\r\n\r\n(L'installazione deve essere eseguita da Windows Terminal. Apri poi un nuovo terminale\r\nperché il PATH aggiornato abbia effetto.)\r\n\r\nUna volta installato, il comando 'devin' funziona sia in Windows Terminal sia nel\r\nnormale Prompt dei comandi. L'agente si avvia con il comando 'devin'.\r\n\r\nPer maggiori dettagli, visita: https://devin.ai
+214	Impossibile leggere l'utilizzo di Devin.
+215	Devin: modalità pericolosa
+216	Disattiva gli appunti (digita i prompt invece di incollarli)
+217	Scarta correzione
+218	Scartare la correzione della issue #{0}?\n\n
+219	Non chiedere di riavviare l'agente IA quando il tema cambia
+220	Scarica WebView2 Runtime
+221	Download di OpenPets {0}…
+222	Download di OpenPets {0}… {1}
+223	Download di OpenPets {0}… {1} di {2} ({3}%)
+224	Scarica da GitHub l'ultima versione dell'animale da scrivania OpenPets per Windows, mostra l'avanzamento del download, lo verifica con il checksum pubblicato nella release e poi avvia il programma di installazione. Chiude prima questa finestra, scartando le modifiche non salvate.
+225	Trascina e rilascia
+226	Trascina per riordinare
+227	Ogni file torna com'era prima che l'agente lo modificasse. I file creati dall'agente vengono eliminati.
+228	Modifica comando personalizzato
+229	Modifica...
+230	Sforzo (automatico)
+231	Sforzo ({0})
+232	Sforzo:
+233	Codifica
+234	Inserisci una directory di lavoro personalizzata per il terminale:\n  - Percorso assoluto (es. C:\\Projects\\MyRepo)\n  - Percorso relativo alla directory della soluzione (es. ..\\OtherRepo)\n  - Lascia vuoto per usare la directory predefinita della soluzione
+235	Invio — invia il prompt (Maiusc+Invio inserisce una nuova riga)
+236	Errore
+237	Errore durante l'allegato dei file rilasciati: {0}
+238	Errore durante la configurazione dei comandi personalizzati: {0}
+239	Errore durante la configurazione degli agenti visibili: {0}
+240	Errore durante l'apertura della finestra Impostazioni: {0}
+241	Errore durante l'apertura del file: {0}
+242	Errore durante l'apertura dell'immagine: {0}
+243	Errore durante l'apertura della cronologia delle sessioni: {0}
+244	Errore durante l'incollamento dell'immagine: {0}
+245	Errore durante la selezione dei file: {0}
+246	Errore durante l'invio del prompt: {0}
+247	Errore durante l'invio del testo al terminale: {0}
+248	Tutte le modifiche non committate nel repository, confrontate con l'ultimo commit
+249	Eseguibili
+250	Argomenti di avvio aggiuntivi
+251	È stato consigliato Fable, ma richiede crediti di utilizzo e il saldo è zero.
+252	Eliminazione non riuscita: {0}
+253	Inizializzazione del terminale non riuscita: {0}
+254	Installazione di Caveman non riuscita: {0}
+255	Installazione di OpenPets non riuscita: {0}
+256	Caricamento delle impostazioni non riuscito: {0}
+257	Lettura del file delle impostazioni non riuscita: {0}
+258	Ricaricamento di Antigravity non riuscito: {0}
+259	Ricaricamento di Claude Code non riuscito: {0}
+260	Ricaricamento di Codex non riuscito: {0}
+261	Ricaricamento di Cursor Agent non riuscito: {0}
+262	Ricaricamento di Devin non riuscito: {0}
+263	Ricaricamento di Grok non riuscito: {0}
+264	Ricaricamento di Qwen Code non riuscito: {0}
+265	Reimpostazione della linea di base delle modifiche al codice non riuscita.
+266	Riavvio del terminale non riuscito: {0}
+267	Esecuzione dello script di Fine dell'agente non riuscita:\n\n{0}\n\n{1}
+268	Salvataggio delle impostazioni non riuscito: {0}
+269	Invio del comando personalizzato non riuscito: {0}
+270	Stage delle modifiche per il commit non riuscito.\n\n{0}
+271	Avvio del terminale integrato non riuscito: {0}
+272	Aggiornamento dell'agente non riuscito: {0}
+273	Scrittura del messaggio di commit in un file temporaneo non riuscita.
+274	Estensioni dei file elencate dal selettore \"@\", es. \".cs, .lua\". Lascia vuoto per elencare tutti i file. Le cartelle compaiono solo se contengono un file corrispondente.
+275	Filtra per numero, titolo, etichetta o autore.
+276	Filtro:
+277	Trova
+278	Correggi la issue #{0}
+279	Correzione scartata.
+280	Correggi con l'agente
+281	Correggere una issue apre una scheda di chat dedicata, che richiede la modalità nativa. Attivala in ⚙ Impostazioni... → Terminale → Usa la modalità nativa.
+282	Cartelle saltate dal selettore \"@\", es. \"Plugins, Assets/ThirdParty\". Un nome semplice viene saltato ovunque compaia; un percorso, solo in quella posizione. bin, obj, node_modules e cartelle di build simili vengono sempre saltate.
+283	Carattere applicato al terminale integrato (Prompt dei comandi e Windows Terminal). Il predefinito è Cascadia Mono. Sono elencati solo caratteri a spaziatura fissa — le console disegnano il testo in una griglia di celle fissa, quindi un carattere proporzionale appare distorto. Sui sistemi i cui alfabeti Cascadia Mono non sa mostrare (cinese, giapponese, coreano, ecc.), scegli un carattere a spaziatura fissa che copra il tuo alfabeto — ad esempio MS Gothic o NSimSun. Cerca per nome; l'elenco e l'anteprima sono mostrati in ciascun carattere.
+284	Carattere della chat in modalità nativa. Sono elencati tutti i caratteri installati, anche quelli proporzionali: la chat è impaginata da Windows, non dalla griglia di caratteri fissa di una console, quindi nulla appare distorto. Blocchi di codice e diff mantengono un carattere a spaziatura fissa perché le colonne restino allineate. Ctrl+Rotellina sulla chat ingrandisce oltre questa dimensione ed è memorizzato separatamente.
+285	Dimensione del carattere (in punti) del terminale integrato. \"Predefinito\" mantiene la dimensione propria del terminale. Nel Prompt dei comandi, Ctrl+Rotellina sul terminale aggiorna automaticamente questa dimensione, così lo zoom scelto resta per la sessione successiva. In Windows Terminal, Ctrl+Rotellina vale solo per la sessione corrente — imposta qui la dimensione.
+286	Dimensione del carattere della casella di prompt (regolabile anche con Ctrl+Rotellina).
+287	Genera messaggio di commit
+288	Genera messaggio di commit richiede la modalità nativa. Attivala in ⚙ Impostazioni... → Terminale → Usa la modalità nativa, poi avvia una sessione.
+289	Genera messaggio di commit, commit e push
+290	Git
+291	GitHub CLI (gh) non trovata — le issue sono elencate in sola lettura dall'API pubblica; rispondere e chiudere richiedono gh.
+292	GitHub Issues
+293	GitHub Issues — {0}
+294	Installazione di Grok
+295	Grok non è installato. Verrà usato un normale terminale CMD.\r\n\r\n(puoi premere CTRL+C per copiare le istruzioni complete)\r\n\r\nINSTALLAZIONE\r\n\r\nApri PowerShell ed esegui:\r\n\r\nirm https://x.ai/cli/install.ps1 | iex\r\n\r\n(Alternativa: winget install xAI.GrokBuild. Apri poi un nuovo terminale\r\nperché il PATH aggiornato abbia effetto.)\r\n\r\nCONFIGURAZIONE\r\n\r\nEsegui 'grok login' una volta in un terminale per accedere con il tuo account grok.com.\r\n\r\nL'agente si avvia con il comando 'grok'.\r\n\r\nPer maggiori dettagli, visita: https://grok.com/build
+296	Grok: approva sempre
+297	Nascondi la casella di prompt
+298	Nascondi la casella di prompt mentre la chat nativa è in una scheda dedicata
+299	Nascondi la casella di prompt (solo terminale)
+300	Nascondi questo pannello mentre la chat nativa è in una scheda dedicata
+301	Cronologia cancellata
+302	Secondi di inattività prima di rilevare \"finito\":
+303	In una soluzione collegata a Team Foundation Version Control (Azure DevOps / TFS), Claude Code in modalità nativa esegue il check-out di ogni file di sola lettura tramite Visual Studio prima di scriverci, così non deve mai togliere da sé l'attributo di sola lettura. Se un check-out non riesce, ad esempio perché un'altra persona ha bloccato il file, la modifica viene bloccata e a Claude viene detto di chiederti. Non influisce su altri repository o agenti. Si applica dalla prossima sessione di chat.
+304	In modalità nativa il compositore della scheda di chat ha i propri selettori di agente/modello/sforzo/autorizzazioni, quindi la casella di prompt di questo pannello si comprime solo quando la chat passa nella sua scheda. Torna automaticamente ogni volta che la chat viene riagganciata al pannello.
+305	Inserisce un riferimento @ al file aperto nella scheda attiva dell'editor, come il contesto \"Active Document\" di GitHub Copilot.
+306	Installa Caveman
+307	Installa Caveman (WSL)...
+308	Installa Caveman (Windows)...
+309	Installa OpenPets
+310	Installa l'ultima versione di OpenPets (Windows)...
+311	Installa la skill Caveman (risposte ultracompresse) con \"npx skills add JuliusBrussee/caveman -g\" in un prompt dei comandi, poi ricarica l'agente di codice quando lo chiudi. Chiude prima questa finestra, scartando le modifiche non salvate. Solo Claude Code.\nNota: Windows e WSL conservano le skill separatamente, quindi installala in ciascuno che usi (WSL richiede Node.js/npx nella distro).
+312	Colore non valido
+313	File JSON (*.json)|*.json|Tutti i file (*.*)|*.*
+314	Mantiene ogni file modificato dall'agente in un elenco di revisione nella vista Modifiche, con pulsanti Mantieni e Annulla per file. Annulla ripristina il file com'era prima della prima modifica dell'agente. Gli snapshot vivono solo in memoria. Vale solo quando il progetto è in un repository git.
+315	Mantieni visibile l'ultimo prompt
+316	Mantieni il terminale sulla sua code page iniziale (UTF-8)
+317	Lingua
+318	Lingua dell'intera estensione: pannello, menu, finestre di dialogo, messaggi e schede di chat. Automatico segue la lingua di Visual Studio. Aggiungi o correggi una lingua inserendo un file <codice>.json in {0}. Si applica subito, anche a finestre e chat aperte.
+319	Lingua:
+320	Ultimo controllo: {0}
+321	Ultima modifica
+322	Ultimo prompt inviato (Ctrl+Su per modificare e reinviare):
+323	Layout
+324	A sinistra — prompt a sinistra, terminale a destra
+325	La modalità console legacy è attiva su questo computer (HKCU\\Console\\ForceV2 = 0).\n\nWindows ha bisogno della console moderna per incorporare il terminale nel pannello, quindi il terminale resterà vuoto finché non viene cambiata.\n\nRiattivare ora la console moderna? Cambia solo la tua impostazione utente e non richiede diritti di amministratore.
+326	Lascia che Devin parta con il modello predefinito del proprio account.
+327	Chiaro
+328	Elenca le issue GitHub del repository e ne corregge una in un branch, worktree e scheda di chat dedicati; poi commit, merge e risposta sulla issue. Richiede la modalità nativa.
+329	Carica tutte le impostazioni
+330	Carica tutte le impostazioni da file...
+331	Carica impostazioni
+332	Caricamento di claude.ai...
+333	Caricamento dei commenti…
+334	Caricamento delle issue…
+335	Caricamento delle sessioni…
+336	Caricamento dei commenti della issue…
+337	Ricerca dell'ultima versione di OpenPets…
+338	Merge
+339	Merge annullato.
+340	Merge in {0}…
+341	Integra la correzione nel suo branch di base, esegue il push, risponde sulla issue, la chiude e ripulisce tutto.
+342	Merge di {0} in {1} e push di {2} su {3}. Rispondi sulla issue #{4}:
+343	Merge eseguito in {0}.
+344	Merge di {0} in {1} eseguito e push completato.
+345	Merge…
+346	Il merge dell'ultimo {0} ha prodotto conflitti in:\n\n{1}\n\nIl merge è in corso nel worktree della issue — risolvilo lì, poi esegui di nuovo Merge.
+347	Il merge dell'ultimo {0} ha prodotto conflitti. Sono stati inviati alla chat della issue per risolverli — esegui di nuovo Merge quando l'agente ha finito.
+348	Modello cambiato
+349	Selezione del modello
+350	Modello:
+351	Moderno — icone di Visual Studio e stato colorato nelle schede
+352	Più messaggi
+353	Più token
+354	Sposta giù
+355	Sposta su
+356	Sposta il terminale in una scheda separata e viceversa.
+357	Nome (mostrato nel menu a discesa):
+358	Limita i file elencati quando digiti \"@\" nel prompt. I file ignorati da .gitignore restano sempre esclusi. Separa le voci con virgole.
+359	Schema di colori nativo
+360	Modalità nativa
+361	La modalità nativa non apre un terminale, quindi il tipo di terminale resta Prompt dei comandi finché è attiva.
+362	La modalità nativa è attiva: è l'agente stesso a segnalare la fine di un turno, quindi nulla attende che la console diventi inattiva.
+363	Nuovo
+364	Corrispondenza successiva (Invio)
+365	Nessuna sessione Codex trovata per questa area di lavoro.
+366	Nessuna sessione Devin trovata per questa area di lavoro.
+367	Nessun documento
+368	Nessun repository GitHub trovato per la soluzione aperta. GitHub Issues richiede un repository git con un remoto github.com.
+369	Nessun prompt
+370	Nessuna selezione
+371	Nessun documento attivo aperto nell'editor.
+372	Nessuna modifica dell'agente in attesa di revisione
+373	Nessun agente in esecuzione. Avvia una sessione dell'agente prima di generare un messaggio di commit.
+374	Nessun agente in esecuzione. Avvia una sessione dell'agente prima di inviare gli errori di compilazione.
+375	Nessuna modifica rilevata
+376	Nessuna issue chiusa.
+377	Nessuna correzione ancora. Correggi con l'agente ne avvia una da {0}.
+378	Nessun repository git trovato per l'area di lavoro corrente.
+379	Nessuna issue corrisponde al filtro.

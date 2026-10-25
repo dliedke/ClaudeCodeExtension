@@ -1,0 +1,190 @@
+0	\n\nCodex kan ook de threads verwijderen die hiervan zijn afgeleid.
+1	(geen beschrijving)
+2	(geen gebruikersbericht)
+3	(voer \"gh auth login\" uit)
+4	(sessie zonder titel)
+5	+{0:N0} tokens
+6	... en nog {0}
+7	1 commit voor
+8	@ Bestandskiezer
+9	Een chattabblad dat je niet hebt hernoemd, krijgt een naam op basis van je eerste bericht. Het hernoemen van de sessie gaat altijd voor.
+10	Over
+11	Over Claude Code Extension
+12	Alle openstaande wijzigingen accepteren en de controlelijst leegmaken
+13	De wijzigingen van de agent aan dit bestand accepteren
+14	Actie:
+15	Aangepaste opdracht toevoegen
+16	Toevoegen aan favorieten
+17	Aangepaste opdrachten toevoegen, bewerken of verwijderen die in de vervolgkeuzelijst op de werkbalk naast het agentmenu staan.
+18	Toevoegen...
+19	Standaard van de agent
+20	Wijzigingen van de agent die je nog niet hebt behouden of ongedaan gemaakt
+21	Agent klaar · volgende stap
+22	Agent klaar · {0}
+23	Agent: {0} — de keuze geldt alleen voor de chat van dit issue.
+24	Werkbalkknoppen rechts uitlijnen
+25	Uitlijning
+26	Alle
+27	Alle bestanden
+28	Alle bestanden (*.*)|*.*|Afbeeldingen (*.png;*.jpg;*.jpeg;*.gif;*.bmp;*.webp)|*.png;*.jpg;*.jpeg;*.gif;*.bmp;*.webp|Documenten (*.pdf;*.doc;*.docx;*.txt;*.rtf)|*.pdf;*.doc;*.docx;*.txt;*.rtf|Spreadsheets (*.xls;*.xlsx;*.csv)|*.xls;*.xlsx;*.csv|Gegevens (*.json;*.xml;*.yaml;*.yml)|*.json;*.xml;*.yaml;*.yml|Code (*.cs;*.py;*.js;*.java;*.cpp;*.h)|*.cs;*.py;*.js;*.java;*.cpp;*.h
+29	Alles wat niet is gecommit (git)
+30	Ook {0} verwijderen op {1}
+31	Ook naar de agent sturen als de actie slaagt (optioneel):
+32	Antigravity-installatie
+33	Antigravity is niet geïnstalleerd. Er wordt een gewone CMD-terminal gebruikt.\r\n\r\n(je kunt op CTRL+C drukken om de volledige instructies te kopiëren)\r\n\r\nINSTALLATIE\r\n\r\nOpen PowerShell en voer uit:\r\n\r\nirm https://antigravity.google/cli/install.ps1 | iex\r\n\r\nVoeg daarna de installatiemap toe aan je PATH:\r\n\r\n{0}\r\n\r\n(Open daarna een nieuwe terminal zodat het bijgewerkte PATH actief wordt.)\r\n\r\nDe agent start met de opdracht 'agy'.\r\n\r\nGa voor meer informatie naar: https://antigravity.google/download
+34	Antigravity: machtigingen overslaan
+35	Wordt bij het starten letterlijk aan de opdrachtregel van de agent toegevoegd (ingebedde terminal en native modus gelijk) — een plek voor vlaggen die de extensie niet aanbiedt (bijv. --chrome,\n--add-dir \"C:\\repo\", --mcp-config ...). Houd de syntaxis geldig: de tekst wordt zonder aanhalingstekens\ndoorgegeven en een foute vlag voorkomt dat de agent start. Laat leeg om niets toe te voegen.
+36	Toepassen
+37	Vraagt Opus (Extra High) welk Claude-model en welke inspanning bij je getypte prompt passen; daarna bevestig of wijzig je dit voordat het wordt toegepast. Alleen Claude Code.
+38	Vragen voordat de actie wordt uitgevoerd
+39	Vraagt de agent een commitbericht te schrijven op basis van de huidige git-diff en vult het in het venster Git-wijzigingen in.
+40	Vraagt de agent een commitbericht te schrijven op basis van de huidige git-diff en vult het in het venster Git-wijzigingen in. Vereist de native modus.
+41	Vraagt de agent een commitbericht te schrijven op basis van de huidige git-diff, vult het in het venster Git-wijzigingen in en voert dan meteen stage, commit en push van alle wijzigingen uit.
+42	Vraagt {0} ({1}) welk model en welke inspanning bij dit issue passen. Niets start vóór Correctie starten.
+43	De agent om een commitbericht vragen…
+44	De agent schrijft het antwoord…
+45	{0} ({1}) om een passend model en inspanning voor dit issue vragen…
+46	{0} ({1}) om een passend model en inspanning voor deze prompt vragen…
+47	Bijvoegen / inhoud invoegen
+48	Chat weer aan het hoofdpaneel koppelen
+49	Terminal weer aan het hoofdpaneel koppelen
+50	Wijzigingen automatisch openen bij verzenden
+51	Automatisch vernieuwen
+52	Gebruik automatisch op de achtergrond vernieuwen
+53	Automatisch scrollen UIT (klik om in te schakelen)
+54	Automatisch scrollen AAN (klik om uit te schakelen)
+55	Automatisch naar de nieuwste wijzigingen scrollen
+56	Buildfouten automatisch naar de agent sturen
+57	Runtimefouten automatisch naar de agent sturen
+58	Automatisch (taal van Visual Studio)
+59	Automatisch (Visual Studio-thema volgen)
+60	Chattabbladen automatisch naar het onderwerp noemen
+61	Opent automatisch de weergave Wijzigingen, klapt bestanden uit en schakelt automatisch scrollen in bij het verzenden van een prompt. Geldt alleen als het project in een git-repository staat.
+62	Automatisering
+63	Voorkomt dat je per ongeluk een onvolledige prompt verstuurt met een onbedoelde Enter, terwijl er een sneltoets voor verzenden blijft (Ctrl+Enter).
+64	Back-up
+65	Basisbranch:
+66	Vóór de agent
+67	Bèta
+68	Onder — terminal boven, prompt onder
+69	Branch waar een nieuwe correctie van start en waarin Samenvoegen hem integreert. Een correctie houdt de branch waarvan hij startte.
+70	Branch {0}
+71	Branch {0} (van {1})
+72	Bladeren...
+73	Buildfouten
+74	Oplossing bouwen
+75	Alleen de knop — Enter voegt een nieuwe regel in, klik op Verzenden om te verzenden
+76	Standaard begint de knoppenstrook links, naast de scrollpijl. Schakel dit in om hem naar de rechterrand van de rij te duwen, waar de functieknoppen stonden voordat de werkbalk één scrollbare strook werd. Scrollen wanneer de knoppen niet passen verandert in geen van beide gevallen.
+77	CLI-pad niet gevonden
+78	CLI-paden
+79	Annuleren
+80	Caveman geïnstalleerd — opnieuw laden
+81	Wijzigingen
+82	Chatlettertype (native modus)
+83	Chatpictogrammen (native modus)
+84	Chattabbladen (native modus)
+85	TFVC-bestanden uitchecken voordat Claude ze bewerkt (native modus)
+86	Aangevinkte functies verschijnen als knoppen met één klik op de werkbalk; de rest blijft in de vervolgkeuzelijst ☰ Extra (verborgen als alle functies knoppen zijn). Sleep rijen aan de greep ⠿ om ze te herschikken — de volgorde geldt voor zowel de knoppen als de vervolgkeuzelijst. Sommige functies verschijnen alleen als ze van toepassing zijn op de huidige agent of werkruimte.
+87	Lokale status controleren…
+88	Download verifiëren…
+89	Kies hoe sessies worden gesorteerd. De keuze wordt onthouden na herstarten.
+90	Kiezen in de agent...
+91	Kies welke codeeragents in dit menu verschijnen. De actieve agent blijft altijd zichtbaar.
+92	Model kiezen…
+93	Klassiek — tekstsymbolen en emoji
+94	Claude Code (WSL)-installatie
+95	Claude Code Extension - Instellingen
+96	Claude Code Extension voor Visual Studio\n\nVersie: {0}\nAuteur: Daniel Carvalho Liedke\nCopyright © Daniel Carvalho Liedke 2026\n\nIntegreert de AI-assistenten Claude Code, Codex, Cursor Agent, Open Code, Devin, PI, Antigravity, Reasonix, Qwen Code en Grok naadloos in de Visual Studio 2022/2026-IDE.
+97	Claude Code-installatie
+98	Claude Code-chats krijgen een korte titel die een goedkoop model (Claude Haiku) op basis van je eerste bericht schrijft, in plaats van de eerste woorden ervan. Eén kleine extra aanroep per chat. Andere agents houden de titel met de eerste woorden.
+99	Claude Code antwoordde niet op tijd.
+100	Claude Code is niet geïnstalleerd. Er wordt een gewone CMD-terminal gebruikt.\r\n\r\n(je kunt op CTRL+C drukken om de volledige instructies te kopiëren)\r\n\r\nAANBEVOLEN: native installatie (Windows)\r\n\r\nOpen cmd als beheerder en voer uit:\r\n\r\ncurl -fsSL https://claude.ai/install.cmd -o install.cmd && install.cmd && del install.cmd\r\n\r\nVoeg daarna claude.exe toe aan de omgevingsvariabele PATH:\r\nC:\\Users\\%username%\\.local\\bin\r\n\r\nALTERNATIEF: installatie met NPM\r\n\r\nAls je NPM verkiest, kun je het installeren met:\r\n\r\nnpm install -g @anthropic-ai/claude-code\r\n\r\nGa voor meer informatie naar: https://docs.claude.com/en/docs/claude-code/setup
+101	Claude Code: machtigingen overslaan
+102	Claude Code: starten in planmodus
+103	Claude-gebruik
+104	Claude-account gewijzigd: de Claude-gebruikspagina is afgemeld. Meld je daar aan met het nieuwe account om het gebruik weer te zien.
+105	Oplossing opschonen vóór uitvoeren
+106	Opschonen, opnieuw bouwen, daarna {0}
+107	Opschonen, daarna {0}
+108	Opschonen…
+109	Promptgeschiedenis wissen
+110	Cookies van claude.ai wissen (afmelden in ingebedde weergave)
+111	Klik om in de browser te openen
+112	Klik om de volledige weergave van Claude-gebruik te openen
+113	Klembordfout
+114	Het klembord bevat geen tekst, afbeelding of bestandslijst.
+115	De tekst op het klembord is leeg.
+116	Aangepaste opdracht klonen
+117	Klonen...
+118	Sluiten
+119	Sluiten (Esc)
+120	Scriptvenster sluiten wanneer klaar
+121	Issue sluiten
+122	Sluit het chattabblad van het issue en verwijdert de worktree en de correctiebranch.
+123	Gesloten
+124	Issue gesloten.
+125	Issue sluiten…
+126	Codeeragent selecteren
+127	Codewijzigingen
+128	Codex (WSL)-installatie
+129	Codex-installatie
+130	Codex is niet geïnstalleerd. Er wordt een gewone CMD-terminal gebruikt.\r\n\r\n(je kunt op CTRL+C drukken om de volledige instructies te kopiëren)\r\n\r\nINSTALLATIE: met NPM\r\n\r\nOpen cmd en voer uit:\r\n\r\nnpm install -g @openai/codex\r\n\r\nVereisten:\r\n- Node.js geïnstalleerd\r\n- Betaald abonnement op Chat GPT Plus of hoger\r\n\r\nGa voor meer informatie naar: https://github.com/openai/codex
+131	Codex leest het redeneerniveau bij het starten van de terminal.\n\nNu opnieuw starten met redeneren \"{0}\"?
+132	Codex: nooit om goedkeuring vragen
+133	Klapt het meerregelige promptvak in zodat de terminal meer verticale ruimte krijgt. Dit menu, de model- en providerknoppen en de bestandschips blijven bereikbaar om het weer in te schakelen.
+134	Klapt het meerregelige prompttekstvak in zodat de terminal zijn ruimte inneemt. De rij met bedieningselementen (Verzenden/Bijvoegen, Opnieuw starten, Model en dit ⚙-menu), de bestandschips en de gebruiksbalken blijven zichtbaar om het hier of via het ⚙-menu weer in te schakelen.
+135	Verzamelt de huidige buildfouten en stuurt ze naar de agent om te verhelpen, ongeacht de instelling voor automatisch verzenden.
+136	Opdracht (letterlijk naar de agent gestuurd — slash-opdracht of prompt):
+137	Opdrachtprompt (standaard)
+138	De opdrachttekst mag niet leeg zijn.
+139	Commit en push
+140	Commit en push (zonder AI-vermelding)
+141	Commit geannuleerd.
+142	Lokaal gecommit, maar de push is mislukt.\n\n{0}
+143	Alle wijzigingen in de worktree committen op {0} en pushen naar {1}.
+144	Commit mislukt.\n\n{0}
+145	Commit de correctie (met \"Fixes #N\") en pusht de correctiebranch.
+146	Committen…
+147	Compacte chatwerkbalk (in het berichtvak)
+148	Wijzigingen van de agent vergelijken
+149	Aangepaste opdrachten configureren
+150	Aangepaste opdrachten configureren...
+151	Zichtbare codeeragents configureren
+152	Zichtbare codeeragents configureren...
+153	Verwijderen bevestigen
+154	Consolelettertype
+155	Lettergrootte van de console
+156	Antwoord naar het klembord gekopieerd en issue geopend.
+157	Kopiëren
+158	Dit antwoord kopiëren en het issue openen (GitHub CLI niet geïnstalleerd)
+159	Kosten
+160	Kan {0} niet uitchecken.\n\n{1}
+161	Kan het issue niet sluiten: {0}
+162	Kan de worktree niet maken.\n\n{0}
+163	Kan de lokale branch {0} niet verwijderen.
+164	Kan {0} niet verwijderen op {1}.
+165	Kan de huidige werkruimtemap niet bepalen.
+166	Kan de werkruimtemap niet bepalen om wijzigingen te resetten.
+167	Het vak voor het commitbericht in Git-wijzigingen is niet gevonden. Het gegenereerde bericht is naar het klembord gekopieerd — plak het met Ctrl+V.
+168	Kan issues niet weergeven met de GitHub CLI: {0}
+169	Kan issues niet weergeven: {0} — installeer de GitHub CLI (gh) en voer \"gh auth login\" uit voor privé-repository's.
+170	Kan issues niet laden: {0}
+171	Kan de laatste {0}-sessie niet laden:\n{1}
+172	Kan {0}-sessies niet laden:\n{1}
+173	Kan GitHub Issues niet openen: {0}
+174	Kan HKCU\\Console niet openen om te schrijven.
+175	Kan het sessietranscript niet openen:\n{0}
+176	Kan {0} niet openen in het verschilvenster:\n\n{1}
+177	Kan het antwoord niet plaatsen: {0}
+178	Kan het klembord niet lezen: {0}
+179	Kan de uitvoer van gh niet lezen: {0}
+180	Kan de worktree niet verwijderen (misschien is er nog een bestand geopend): {0}
+181	Kan het klembord niet in een bestand opslaan: {0}
+182	Kan de wijzigingen niet stagen.\n\n{0}
+183	Kan Visual Studio niet starten: {0}
+184	Kan het commitbericht niet naar een tijdelijk bestand schrijven.
+185	Maakt de branch fix/issue-N in een eigen worktree en opent een chattabblad dat daar aan het issue werkt.
+186	Maakt de correctiebranch en -worktree en opent de issuechat met dit model en deze inspanning.
+187	Ctrl+Enter — prompt verzenden (Enter voegt een nieuwe regel in)
+188	Huidig
+189	Huidige sessie

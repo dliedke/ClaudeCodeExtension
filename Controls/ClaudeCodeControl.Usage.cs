@@ -34,6 +34,7 @@ using System.Windows;
 using System.Windows.Input;
 using System.Windows.Threading;
 using Task = System.Threading.Tasks.Task;
+using static ClaudeCodeVS.UI.Loc;
 
 namespace ClaudeCodeVS
 {
@@ -251,7 +252,7 @@ namespace ClaudeCodeVS
                 InlineWeeklyStack.Visibility = weeklyVis;
                 InlineWeeklyBar.Visibility = weeklyVis;
                 InlineWeeklyPct.Visibility = weeklyVis;
-                InlineWeeklyLabel.Text = "Weekly limit";
+                InlineWeeklyLabel.Text = L("Weekly limit");
                 if (snap.WeeklyReset != null) InlineWeeklyReset.Text = ChatUsageIndicator.StripIconGlyphs(snap.WeeklyReset);
                 InlineWeeklyBar.Value = ClampPercent(snap.WeeklyPercent);
                 InlineWeeklyPct.Text = ClampPercent(snap.WeeklyPercent) + "%";
@@ -328,8 +329,7 @@ namespace ClaudeCodeVS
                 if (stale && DateTime.TryParse(_settings.LastUsageTimestamp, System.Globalization.CultureInfo.InvariantCulture,
                         System.Globalization.DateTimeStyles.RoundtripKind, out var last))
                 {
-                    InlineUsageStaleNotice.Text = "Not updated since " + last.ToLocalTime().ToString("g") +
-                                                  " — click to open the usage page";
+                    InlineUsageStaleNotice.Text = L("Not updated since {0} — click to open the usage page", last.ToLocalTime().ToString("g"));
                     InlineUsageStaleNotice.Visibility = Visibility.Visible;
                 }
                 else
@@ -690,9 +690,9 @@ namespace ClaudeCodeVS
             {
                 SyncShowUsageMenuCheckState();
                 MessageBox.Show(
-                    "Usage information is only available for Claude Code and Devin.\n\n" +
-                    "Switch the active code agent to Claude Code or Devin to view usage.",
-                    "Show Usage",
+                    L("Usage information is only available for Claude Code and Devin.\n\n" +
+                    "Switch the active code agent to Claude Code or Devin to view usage."),
+                    L("Show Usage"),
                     MessageBoxButton.OK, MessageBoxImage.Information);
                 return;
             }
@@ -752,9 +752,9 @@ namespace ClaudeCodeVS
                 Debug.WriteLine($"Devin usage fetch failed: {ex}");
                 await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
 
-                string reason = ex is InvalidOperationException ? ex.Message : "Devin's usage could not be read.";
+                string reason = ex is InvalidOperationException ? ex.Message : L("Devin's usage could not be read.");
                 AddNativeMessage(ChatMessageKind.Error, openWebPageOnFailure
-                    ? reason + " Opening the usage page instead."
+                    ? reason + " " + L("Opening the usage page instead.")
                     : reason);
 
                 if (openWebPageOnFailure)
@@ -895,8 +895,8 @@ namespace ClaudeCodeVS
                     await control.SignOutAsync();
 
                 await ShowAgentFinishNotificationAsync(
-                    "Claude account changed: the Claude Usage page was signed out. Sign in there with the new account to see its usage again.",
-                    "Open Claude Usage",
+                    L("Claude account changed: the Claude Usage page was signed out. Sign in there with the new account to see its usage again."),
+                    L("Open Claude Usage"),
                     () => EnsureUsageToolWindowAsync(showWindow: true),
                     InfoBarSlot.UsageAccount);
             }

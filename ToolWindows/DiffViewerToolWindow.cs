@@ -19,6 +19,7 @@ using System.Diagnostics;
 using System.IO;
 using System.Runtime.InteropServices;
 using System.Windows.Input;
+using static ClaudeCodeVS.UI.Loc;
 
 namespace ClaudeCodeVS
 {
@@ -50,13 +51,22 @@ namespace ClaudeCodeVS
 
         public DiffViewerToolWindow() : base(null)
         {
-            this.Caption = "Code Changes";
+            this.Caption = L("Code Changes");
+            ClaudeCodeVS.UI.Loc.LanguageChanged += OnLanguageChanged;
             this.BitmapImageMoniker = KnownMonikers.FileGroupDefault;
             _diffViewerControl = new DiffViewerControl();
             this.Content = _diffViewerControl;
 
             // Handle Ctrl+F at the tool window level
             _diffViewerControl.PreviewKeyDown += OnDiffViewerPreviewKeyDown;
+        }
+
+        /// <summary>
+        /// Follows a live language switch; the event is raised on the UI thread by the Settings dialog.
+        /// </summary>
+        private void OnLanguageChanged(object sender, EventArgs e)
+        {
+            this.Caption = L("Code Changes");
         }
 
         private void OnDiffViewerPreviewKeyDown(object sender, KeyEventArgs e)
@@ -100,6 +110,8 @@ namespace ClaudeCodeVS
             ThreadHelper.ThrowIfNotOnUIThread();
 
             // Unsubscribe from notifications
+            ClaudeCodeVS.UI.Loc.LanguageChanged -= OnLanguageChanged;
+
             if (_notifyCookie != 0 && Frame is IVsWindowFrame2 windowFrame2)
             {
                 windowFrame2.Unadvise(_notifyCookie);

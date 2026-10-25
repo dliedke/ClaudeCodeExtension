@@ -19,6 +19,7 @@ using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using ClaudeCodeVS.Agents;
+using static ClaudeCodeVS.UI.Loc;
 
 namespace ClaudeCodeVS
 {
@@ -144,8 +145,8 @@ namespace ClaudeCodeVS
                 {
                     Sessions = sessions,
                     EmptyMessage = string.IsNullOrEmpty(sessionDir)
-                        ? "WSL not available or Claude Code project folder unreachable."
-                        : $"No sessions found in:\n{sessionDir}"
+                        ? L("WSL not available or Claude Code project folder unreachable.")
+                        : L("No sessions found in:\n{0}", sessionDir)
                 };
             }
 
@@ -190,7 +191,7 @@ namespace ClaudeCodeVS
 
             public string DeleteConfirmationSuffix
             {
-                get { return "\n\nCodex may also delete threads branched from this one."; }
+                get { return L("\n\nCodex may also delete threads branched from this one."); }
             }
 
             public async Task<SessionHistoryListResult> ListAsync(AiProvider provider, string workspaceDir)
@@ -200,7 +201,7 @@ namespace ClaudeCodeVS
                 return new SessionHistoryListResult
                 {
                     Sessions = sessions,
-                    EmptyMessage = "No Codex sessions were found for this workspace."
+                    EmptyMessage = L("No Codex sessions were found for this workspace.")
                 };
             }
 
@@ -259,7 +260,7 @@ namespace ClaudeCodeVS
                 return new SessionHistoryListResult
                 {
                     Sessions = sessions,
-                    EmptyMessage = "No Devin sessions were found for this workspace."
+                    EmptyMessage = L("No Devin sessions were found for this workspace.")
                 };
             }
 
@@ -335,7 +336,7 @@ namespace ClaudeCodeVS
                 {
                     SessionId = session.Id,
                     FilePath = string.Empty,
-                    Preview = string.IsNullOrWhiteSpace(session.Title) ? "(untitled session)" : session.Title,
+                    Preview = string.IsNullOrWhiteSpace(session.Title) ? L("(untitled session)") : session.Title,
                     CustomTitle = string.Empty,
                     MessageCount = -1,
                     TokenCount = -1,

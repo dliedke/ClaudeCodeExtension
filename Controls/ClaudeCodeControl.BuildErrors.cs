@@ -22,6 +22,7 @@ using System.Text;
 using System.Threading.Tasks;
 using System.Windows;
 using Microsoft.VisualStudio.Shell;
+using static ClaudeCodeVS.UI.Loc;
 
 namespace ClaudeCodeVS
 {
@@ -222,8 +223,8 @@ namespace ClaudeCodeVS
                 if (errors.Count == 0)
                 {
                     MessageBox.Show(
-                        "There are no build errors in the Error List to send.",
-                        "Send Build Errors to Agent",
+                        L("There are no build errors in the Error List to send."),
+                        L("Send Build Errors to Agent"),
                         MessageBoxButton.OK,
                         MessageBoxImage.Information);
                     return;
@@ -232,8 +233,8 @@ namespace ClaudeCodeVS
                 if (!IsAgentAvailable)
                 {
                     MessageBox.Show(
-                        "No agent is running. Start an agent session before sending build errors.",
-                        "Send Build Errors to Agent",
+                        L("No agent is running. Start an agent session before sending build errors."),
+                        L("Send Build Errors to Agent"),
                         MessageBoxButton.OK,
                         MessageBoxImage.Warning);
                     return;

@@ -15,6 +15,7 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
 using Microsoft.VisualStudio.Shell;
+using static ClaudeCodeVS.UI.Loc;
 
 namespace ClaudeCodeVS
 {
@@ -241,13 +242,13 @@ namespace ClaudeCodeVS
 
             Style buttonStyle = GetDialogButtonStyle();
 
-            stack.Children.Add(MakeSectionHeader("Custom CLI executable paths", themeFg));
+            stack.Children.Add(MakeSectionHeader(L("Custom CLI executable paths"), themeFg));
             stack.Children.Add(new TextBlock
             {
-                Text = "Paths left empty use the default detection (PATH / built-in install location).\n" +
+                Text = L("Paths left empty use the default detection (PATH / built-in install location).\n" +
                        "Set a path only to point a provider at a specific executable instead.\n" +
                        "Native providers expect a full Windows path (e.g. C:\\Tools\\claude.exe). " +
-                       "WSL providers expect a Linux path or command (e.g. /home/me/.local/bin/claude).",
+                       "WSL providers expect a Linux path or command (e.g. /home/me/.local/bin/claude)."),
                 FontSize = 11,
                 Opacity = 0.7,
                 Foreground = themeFg,
@@ -311,7 +312,7 @@ namespace ClaudeCodeVS
                 {
                     var browse = new Button
                     {
-                        Content = "Browse...",
+                        Content = L("Browse..."),
                         Width = 80,
                         Height = 24,
                         HorizontalAlignment = HorizontalAlignment.Right
@@ -324,8 +325,8 @@ namespace ClaudeCodeVS
                     {
                         var ofd = new Microsoft.Win32.OpenFileDialog
                         {
-                            Title = $"Select {p.DisplayName} executable",
-                            Filter = "Executables (*.exe;*.cmd;*.bat)|*.exe;*.cmd;*.bat|All files (*.*)|*.*",
+                            Title = L("Select {0} executable", p.DisplayName),
+                            Filter = L("Executables") + " (*.exe;*.cmd;*.bat)|*.exe;*.cmd;*.bat|" + L("All files") + " (*.*)|*.*",
                             CheckFileExists = true
                         };
                         try
@@ -402,13 +403,13 @@ namespace ClaudeCodeVS
                 _settings.ExtraLaunchArgs = new Dictionary<AiProvider, string>();
             }
 
-            stack.Children.Add(MakeSectionHeader("Extra launch arguments", themeFg));
+            stack.Children.Add(MakeSectionHeader(L("Extra launch arguments"), themeFg));
             stack.Children.Add(new TextBlock
             {
-                Text = "Appended as-is to the agent's command line when it is launched (embedded terminal and native\n" +
+                Text = L("Appended as-is to the agent's command line when it is launched (embedded terminal and native\n" +
                        "mode alike) — one place to pass flags the extension does not expose (e.g. --chrome,\n" +
                        "--add-dir \"C:\\repo\", --mcp-config ...). Keep the syntax valid: the text is passed through\n" +
-                       "unquoted, and a bad flag makes the agent fail to start. Leave empty to add nothing.",
+                       "unquoted, and a bad flag makes the agent fail to start. Leave empty to add nothing."),
                 FontSize = 11,
                 Opacity = 0.7,
                 Foreground = themeFg,
@@ -520,10 +521,9 @@ namespace ClaudeCodeVS
             if (invalid.Count == 0) return true;
 
             var result = MessageBox.Show(
-                "These CLI executable paths don't exist on disk:\n\n" +
-                string.Join("\n", invalid) +
-                "\n\nThe agent will fail to launch if a path is wrong. Save these paths anyway?",
-                "CLI Path Not Found",
+                L("These CLI executable paths don't exist on disk:\n\n{0}\n\nThe agent will fail to launch if a path is wrong. Save these paths anyway?",
+                  string.Join("\n", invalid)),
+                L("CLI Path Not Found"),
                 MessageBoxButton.YesNo,
                 MessageBoxImage.Warning);
 

@@ -41,6 +41,7 @@ using Microsoft.VisualStudio.Imaging;
 using Microsoft.VisualStudio.Shell;
 using Microsoft.VisualStudio.Shell.Interop;
 using Newtonsoft.Json.Linq;
+using static ClaudeCodeVS.UI.Loc;
 
 namespace ClaudeCodeVS
 {
@@ -2415,11 +2416,11 @@ namespace ClaudeCodeVS
                             if (ranOk)
                             {
                                 string followLabel = cfg.FollowUpGenerateCommitMessageAndPush
-                                    ? "Generate Commit Message, Commit and Push"
+                                    ? L("Generate Commit Message, Commit and Push")
                                     : cfg.FollowUpGenerateCommitMessage
-                                        ? "Generate Commit Message"
+                                        ? L("Generate Commit Message")
                                         : DescribeSendCommand(cfg.FollowUpSendToAgent);
-                                await ShowAgentFinishNotificationAsync("Agent finish · next step", followLabel,
+                                await ShowAgentFinishNotificationAsync(L("Agent finish · next step"), followLabel,
                                     () => RunFollowUpAsync(cfg));
                             }
                         });
@@ -2451,7 +2452,7 @@ namespace ClaudeCodeVS
             int tokenDelta,
             string detailedTokenSummary)
         {
-            string summary = "Agent finished · " + FormatDuration(duration);
+            string summary = L("Agent finished · {0}", FormatDuration(duration));
 
             if (!string.IsNullOrWhiteSpace(detailedTokenSummary))
             {
@@ -2459,7 +2460,7 @@ namespace ClaudeCodeVS
             }
 
             return summary + (tokenDelta > 0
-                ? $" · +{tokenDelta:N0} tokens"
+                ? " · " + L("+{0:N0} tokens", tokenDelta)
                 : string.Empty);
         }
 
@@ -2528,10 +2529,10 @@ namespace ClaudeCodeVS
                 {
                     case AgentFinishActionType.BuildSolution:
                         return await BuildAndCheckSuccessAsync("Build.BuildSolution",
-                            "The build did not finish in time.", "The build failed.");
+                            L("The build did not finish in time."), L("The build failed."));
                     case AgentFinishActionType.RebuildSolution:
                         return await BuildAndCheckSuccessAsync("Build.RebuildSolution",
-                            "The rebuild did not finish in time.", "The rebuild failed.");
+                            L("The rebuild did not finish in time."), L("The rebuild failed."));
                     case AgentFinishActionType.Run:
                         return await PrepareAndRunAsync("Debug.Start", cfg.CleanBeforeRun, cfg.RebuildBeforeRun);
                     case AgentFinishActionType.RunWithoutDebugging:
@@ -2571,7 +2572,7 @@ namespace ClaudeCodeVS
                 ExecuteDteCommand("Build.CleanSolution");
                 if (!await WaitForDteBuildToFinishAsync())
                 {
-                    ShowAgentFinishActionWarning("The solution clean did not finish in time. The run action was skipped.");
+                    ShowAgentFinishActionWarning(L("The solution clean did not finish in time. The run action was skipped."));
                     return false;
                 }
             }
@@ -2579,8 +2580,8 @@ namespace ClaudeCodeVS
             if (rebuildBeforeRun)
             {
                 if (!await BuildAndCheckSuccessAsync("Build.RebuildSolution",
-                        "The solution rebuild did not finish in time. The run action was skipped.",
-                        "The solution rebuild failed. The run action was skipped."))
+                        L("The solution rebuild did not finish in time. The run action was skipped."),
+                        L("The solution rebuild failed. The run action was skipped.")))
                 {
                     return false;
                 }
@@ -2667,7 +2668,7 @@ namespace ClaudeCodeVS
         private static void ShowAgentFinishActionWarning(string message)
         {
             ThreadHelper.ThrowIfNotOnUIThread();
-            MessageBox.Show(message, "On Agent Finish", MessageBoxButton.OK, MessageBoxImage.Warning);
+            MessageBox.Show(message, L("On Agent Finish"), MessageBoxButton.OK, MessageBoxImage.Warning);
         }
 
         private static void ExecuteDteCommand(string command)
@@ -2742,8 +2743,8 @@ namespace ClaudeCodeVS
             {
                 Debug.WriteLine($"RunFinishScriptAsync error: {ex.Message}");
                 await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
-                MessageBox.Show($"Failed to run the On-Agent-Finish script:\n\n{script}\n\n{ex.Message}",
-                    "On Agent Finish", MessageBoxButton.OK, MessageBoxImage.Warning);
+                MessageBox.Show(L("Failed to run the On-Agent-Finish script:\n\n{0}\n\n{1}", script, ex.Message),
+                    L("On Agent Finish"), MessageBoxButton.OK, MessageBoxImage.Warning);
             }
         }
 
@@ -2813,14 +2814,14 @@ namespace ClaudeCodeVS
         {
             switch (cfg.Action)
             {
-                case AgentFinishActionType.BuildSolution: return "Build solution";
-                case AgentFinishActionType.RebuildSolution: return "Rebuild solution";
-                case AgentFinishActionType.Run: return DescribeRunAction("run", cfg);
-                case AgentFinishActionType.RunWithoutDebugging: return DescribeRunAction("run without debugging", cfg);
-                case AgentFinishActionType.RunTests: return "Run all tests";
+                case AgentFinishActionType.BuildSolution: return L("Build solution");
+                case AgentFinishActionType.RebuildSolution: return L("Rebuild solution");
+                case AgentFinishActionType.Run: return DescribeRunAction(L("run"), L("Run"), cfg);
+                case AgentFinishActionType.RunWithoutDebugging: return DescribeRunAction(L("run without debugging"), L("Run without debugging"), cfg);
+                case AgentFinishActionType.RunTests: return L("Run all tests");
                 case AgentFinishActionType.RunScript:
                     string s = cfg.ScriptOrCommand?.Trim().Trim('"');
-                    return string.IsNullOrEmpty(s) ? "Run script" : $"Run {Path.GetFileName(s)}";
+                    return string.IsNullOrEmpty(s) ? L("Run script") : L("Run {0}", Path.GetFileName(s));
                 case AgentFinishActionType.SendToAgent:
                     return DescribeSendCommand(cfg.ScriptOrCommand);
                 default: return string.Empty;
@@ -2838,28 +2839,28 @@ namespace ClaudeCodeVS
         {
             string c = text?.Trim();
             return string.IsNullOrEmpty(c)
-                ? "Send command"
-                : $"Send {(c.Length > SendCommandLabelMaxChars ? c.Substring(0, SendCommandLabelMaxChars) + "…" : c)}";
+                ? L("Send command")
+                : L("Send {0}", c.Length > SendCommandLabelMaxChars ? c.Substring(0, SendCommandLabelMaxChars) + "…" : c);
         }
 
-        private static string DescribeRunAction(string runLabel, AgentFinishConfig cfg)
+        private static string DescribeRunAction(string runLabel, string runLabelAlone, AgentFinishConfig cfg)
         {
             if (cfg.CleanBeforeRun && cfg.RebuildBeforeRun)
             {
-                return $"Clean, rebuild, then {runLabel}";
+                return L("Clean, rebuild, then {0}", runLabel);
             }
 
             if (cfg.CleanBeforeRun)
             {
-                return $"Clean, then {runLabel}";
+                return L("Clean, then {0}", runLabel);
             }
 
             if (cfg.RebuildBeforeRun)
             {
-                return $"Rebuild, then {runLabel}";
+                return L("Rebuild, then {0}", runLabel);
             }
 
-            return char.ToUpperInvariant(runLabel[0]) + runLabel.Substring(1);
+            return runLabelAlone;
         }
 
         private static string FormatDuration(TimeSpan d)

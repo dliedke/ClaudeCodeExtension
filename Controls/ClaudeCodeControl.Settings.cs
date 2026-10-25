@@ -141,13 +141,27 @@ namespace ClaudeCodeVS
         }
 
         /// <summary>
-        /// Puts the open chats into the language just applied, without reopening them. The XAML captions
-        /// already followed through their bindings; this redoes the text built in code — selector
-        /// captions, tab captions, status line, pending cards and, while it is still up, the welcome card.
+        /// Puts the panel and the open chats into the language just applied, without reopening them. The
+        /// XAML captions already followed through their bindings; this redoes the text built in code —
+        /// panel captions set at run time, selector captions, tab captions, status line, pending cards
+        /// and, while it is still up, the welcome card. Menus and dialogs are built when opened, so they
+        /// pick up the language on their own.
         /// </summary>
         private void RefreshChatLanguage()
         {
             ThreadHelper.ThrowIfNotOnUIThread();
+
+            try
+            {
+                UpdateDetachButtonIcon(IsNativeModeActive ? IsChatDetachedToOwnTab : _isTerminalDetached);
+                UpdateSetWorkingDirectoryMenuHeader();
+                UpdateEffortSelection();
+                if (InlineWeeklyLabel != null) InlineWeeklyLabel.Text = UI.Loc.Retranslate(InlineWeeklyLabel.Text);
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"Panel language refresh failed: {ex.Message}");
+            }
 
             try
             {
@@ -197,9 +211,10 @@ namespace ClaudeCodeVS
 
         /// <summary>
         /// Reads only <see cref="ClaudeCodeSettings.ChatLanguage"/> straight from the settings file, for
-        /// the constructor: the full <see cref="LoadSettings"/> runs after the XAML is already built.
+        /// the constructor: the full <see cref="LoadSettings"/> runs after the XAML is already built. The
+        /// package also calls it at startup, so command text and restored tool windows come up translated.
         /// </summary>
-        private static void ApplyChatLanguageFromSettingsFile()
+        internal static void ApplyChatLanguageFromSettingsFile()
         {
             try
             {

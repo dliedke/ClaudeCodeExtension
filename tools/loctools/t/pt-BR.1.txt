@@ -1,0 +1,190 @@
+0	\n\nO Codex também pode excluir as threads derivadas desta.
+1	(sem descrição)
+2	(sem mensagens do usuário)
+3	(execute \"gh auth login\")
+4	(sessão sem título)
+5	+{0:N0} tokens
+6	... e mais {0}
+7	1 commit à frente
+8	@ Seletor de arquivos
+9	Uma aba de chat que você não renomeou recebe o nome da sua primeira mensagem nela. Renomear a sessão sempre prevalece.
+10	Sobre
+11	Sobre a Claude Code Extension
+12	Aceitar todas as alterações pendentes e limpar a lista de revisão
+13	Aceitar as alterações do agente neste arquivo
+14	Ação:
+15	Adicionar comando personalizado
+16	Adicionar aos favoritos
+17	Adicione, edite ou remova os comandos personalizados exibidos no menu da barra de ferramentas ao lado do menu do agente.
+18	Adicionar...
+19	Padrão do agente
+20	Alterações do agente que você ainda não manteve nem desfez
+21	Fim do agente · próximo passo
+22	Agente concluiu · {0}
+23	Agente: {0} — a escolha vale só para o chat desta issue.
+24	Alinhar os botões da barra de ferramentas à direita
+25	Alinhamento
+26	Todas
+27	Todos os arquivos
+28	Todos os arquivos (*.*)|*.*|Imagens (*.png;*.jpg;*.jpeg;*.gif;*.bmp;*.webp)|*.png;*.jpg;*.jpeg;*.gif;*.bmp;*.webp|Documentos (*.pdf;*.doc;*.docx;*.txt;*.rtf)|*.pdf;*.doc;*.docx;*.txt;*.rtf|Planilhas (*.xls;*.xlsx;*.csv)|*.xls;*.xlsx;*.csv|Dados (*.json;*.xml;*.yaml;*.yml)|*.json;*.xml;*.yaml;*.yml|Código (*.cs;*.py;*.js;*.java;*.cpp;*.h)|*.cs;*.py;*.js;*.java;*.cpp;*.h
+29	Tudo que não foi commitado (git)
+30	Excluir também {0} em {1}
+31	Também enviar ao agente depois que a ação der certo (opcional):
+32	Instalação do Antigravity
+33	O Antigravity não está instalado. Um terminal CMD comum será usado no lugar.\r\n\r\n(você pode pressionar CTRL+C para copiar as instruções completas)\r\n\r\nINSTALAÇÃO\r\n\r\nAbra o PowerShell e execute:\r\n\r\nirm https://antigravity.google/cli/install.ps1 | iex\r\n\r\nDepois adicione a pasta de instalação ao seu PATH:\r\n\r\n{0}\r\n\r\n(Abra um novo terminal em seguida para que o PATH atualizado tenha efeito.)\r\n\r\nO agente é iniciado com o comando 'agy'.\r\n\r\nPara mais detalhes, visite: https://antigravity.google/download
+34	Antigravity: pular permissões
+35	Acrescentado tal como está à linha de comando do agente quando ele é iniciado (terminal embutido e modo nativo) — um lugar para passar flags que a extensão não expõe (ex.: --chrome,\n--add-dir \"C:\\repo\", --mcp-config ...). Mantenha a sintaxe válida: o texto é passado\nsem aspas, e uma flag inválida impede o agente de iniciar. Deixe vazio para não acrescentar nada.
+36	Aplicar
+37	Pergunte ao Opus (Extra High) qual modelo e esforço do Claude combinam com o prompt digitado, depois confirme ou ajuste antes de aplicar. Somente Claude Code.
+38	Perguntar antes de executar a ação
+39	Peça ao agente para escrever uma mensagem de commit a partir do diff atual do git e preenchê-la na janela Git Changes.
+40	Peça ao agente para escrever uma mensagem de commit a partir do diff atual do git e preenchê-la na janela Git Changes. Requer o modo nativo.
+41	Peça ao agente para escrever uma mensagem de commit a partir do diff atual do git, preenchê-la na janela Git Changes e, em seguida, fazer stage, commit e push de todas as alterações imediatamente.
+42	Pergunte ao {0} ({1}) qual modelo e esforço combinam com esta issue. Nada começa até Iniciar correção.
+43	Pedindo ao agente uma mensagem de commit…
+44	Pedindo ao agente para redigir a resposta…
+45	Perguntando ao {0} ({1}) qual modelo e esforço combinam com esta issue…
+46	Perguntando ao {0} ({1}) qual modelo e esforço combinam com este prompt…
+47	Anexar / inserir conteúdo
+48	Reanexar o chat ao painel principal
+49	Reanexar o terminal ao painel principal
+50	Abrir alterações automaticamente ao enviar
+51	Atualização automática
+52	Atualizar o uso automaticamente em segundo plano
+53	Rolagem automática desativada (clique para ativar)
+54	Rolagem automática ativada (clique para desativar)
+55	Rolar automaticamente até as últimas alterações
+56	Enviar erros de build automaticamente ao agente
+57	Enviar erros de execução automaticamente ao agente
+58	Automático (idioma do Visual Studio)
+59	Automático (seguir o tema do Visual Studio)
+60	Nomear as abas de chat automaticamente pelo assunto
+61	Abre automaticamente a visão de Alterações, expande os arquivos e ativa a rolagem automática quando um prompt é enviado. Só se aplica quando o projeto está em um repositório git.
+62	Automação
+63	Evita enviar sem querer um prompt incompleto com um toque acidental em Enter, mantendo um atalho de teclado para enviar (Ctrl+Enter).
+64	Backup
+65	Branch base:
+66	Antes do agente
+67	Beta
+68	Embaixo — terminal acima, prompt abaixo
+69	Branch de onde uma nova correção parte e onde o Merge a integra. Uma correção mantém o branch de onde partiu.
+70	Branch {0}
+71	Branch {0} (a partir de {1})
+72	Procurar...
+73	Erros de build
+74	Compilar a solução
+75	Só o botão — Enter insere uma nova linha, clique em Enviar para enviar
+76	Por padrão, a faixa de botões começa à esquerda, ao lado da seta de rolagem. Ative para empurrá-la para a borda direita da linha, como os botões de recursos ficavam antes de a barra de ferramentas virar uma única faixa rolável. A rolagem quando os botões não cabem não muda em nenhum dos casos.
+77	Caminho da CLI não encontrado
+78	Caminhos da CLI
+79	Cancelar
+80	Caveman instalado — recarregando
+81	Alterações
+82	Fonte do chat (modo nativo)
+83	Ícones do chat (modo nativo)
+84	Abas de chat (modo nativo)
+85	Fazer check-out dos arquivos do TFVC antes que o Claude os edite (modo nativo)
+86	Os recursos marcados aparecem como botões de um clique na barra de ferramentas; os desmarcados ficam no menu ☰ Ferramentas (que some quando todos os recursos são botões). Arraste as linhas pela alça ⠿ para reordenar — a ordem vale tanto para os botões quanto para o menu. Alguns recursos só aparecem quando se aplicam ao agente ou à área de trabalho atual.
+87	Verificando o estado local…
+88	Verificando o download…
+89	Escolha como as sessões são ordenadas. Sua escolha é lembrada entre reinícios.
+90	Escolher no agente...
+91	Escolha quais agentes de código aparecem neste menu. O agente ativo continua sempre visível.
+92	Escolhendo o modelo…
+93	Clássico — símbolos de texto e emoji
+94	Instalação do Claude Code (WSL)
+95	Claude Code Extension - Configurações
+96	Claude Code Extension para Visual Studio\n\nVersão: {0}\nAutor: Daniel Carvalho Liedke\nCopyright © Daniel Carvalho Liedke 2026\n\nIntegra de forma transparente os assistentes de IA Claude Code, Codex, Cursor Agent, Open Code, Devin, PI, Antigravity, Reasonix, Qwen Code e Grok diretamente no IDE Visual Studio 2022/2026.
+97	Instalação do Claude Code
+98	Os chats do Claude Code recebem um título curto escrito por um modelo de baixo custo (Claude Haiku) a partir da sua primeira mensagem, em vez das primeiras palavras dela. Uma pequena chamada extra por chat. Os outros agentes mantêm o título com as primeiras palavras.
+99	O Claude Code não respondeu a tempo.
+100	O Claude Code não está instalado. Um terminal CMD comum será usado no lugar.\r\n\r\n(você pode pressionar CTRL+C para copiar as instruções completas)\r\n\r\nRECOMENDADO: instalação nativa (Windows)\r\n\r\nAbra o cmd como administrador e execute:\r\n\r\ncurl -fsSL https://claude.ai/install.cmd -o install.cmd && install.cmd && del install.cmd\r\n\r\nDepois adicione o claude.exe à variável de ambiente PATH:\r\nC:\\Users\\%username%\\.local\\bin\r\n\r\nALTERNATIVA: instalação via NPM\r\n\r\nSe preferir usar o NPM, você pode instalá-lo com:\r\n\r\nnpm install -g @anthropic-ai/claude-code\r\n\r\nPara mais detalhes, visite: https://docs.claude.com/en/docs/claude-code/setup
+101	Claude Code: pular permissões
+102	Claude Code: iniciar no modo de planejamento
+103	Uso do Claude
+104	A conta do Claude mudou: a página de uso do Claude foi desconectada. Entre nela com a nova conta para ver o uso novamente.
+105	Limpar a solução antes de executar
+106	Limpar, recompilar e então {0}
+107	Limpar e então {0}
+108	Limpando…
+109	Limpar histórico de prompts
+110	Limpar os cookies de claude.ai (sair da visualização embutida)
+111	Clique para abrir no navegador
+112	Clique para abrir a visualização completa de uso do Claude
+113	Erro na área de transferência
+114	A área de transferência não contém texto, imagem nem lista de arquivos.
+115	O texto da área de transferência está vazio.
+116	Clonar comando personalizado
+117	Clonar...
+118	Fechar
+119	Fechar (Esc)
+120	Fechar a janela do script quando ele terminar
+121	Fechar a issue
+122	Fecha a aba de chat da issue e exclui o worktree e o branch da correção.
+123	Fechadas
+124	Issue fechada.
+125	Fechando a issue…
+126	Seleção do agente de código
+127	Alterações de código
+128	Instalação do Codex (WSL)
+129	Instalação do Codex
+130	O Codex não está instalado. Um terminal CMD comum será usado no lugar.\r\n\r\n(você pode pressionar CTRL+C para copiar as instruções completas)\r\n\r\nINSTALAÇÃO: via NPM\r\n\r\nAbra o cmd e execute:\r\n\r\nnpm install -g @openai/codex\r\n\r\nRequisitos:\r\n- Node.js instalado\r\n- Assinatura paga do Chat GPT Plus ou superior\r\n\r\nPara mais detalhes, visite: https://github.com/openai/codex
+131	O Codex lê o nível de raciocínio quando o terminal inicia.\n\nReiniciá-lo agora com o raciocínio \"{0}\"?
+132	Codex: nunca pedir aprovação
+133	Recolhe a caixa de prompt de várias linhas para dar mais espaço vertical ao terminal. Este menu, os botões de modelo e provedor e os chips de arquivo continuam acessíveis para você poder reativá-la.
+134	Recolhe a caixa de texto de prompt de várias linhas para que o terminal ocupe o espaço dela. A linha de controles (Enviar/Anexar, Reiniciar, Modelo e este menu ⚙), os chips de arquivo e as barras de uso continuam visíveis para você poder reativá-la aqui ou pelo menu ⚙.
+135	Coleta os erros de build atuais e os envia ao agente para corrigir, independentemente da configuração de envio automático.
+136	Comando (enviado ao agente exatamente como está — comando de barra ou prompt):
+137	Prompt de Comando (padrão)
+138	O texto do comando não pode ficar vazio.
+139	Commit e push
+140	Commit e push (sem crédito à IA)
+141	Commit cancelado.
+142	Commit criado localmente, mas o push falhou.\n\n{0}
+143	Fazer commit de todas as alterações do worktree em {0} e push para {1}.
+144	O commit falhou.\n\n{0}
+145	Faz o commit da correção (com \"Fixes #N\") e o push do branch da correção.
+146	Fazendo commit…
+147	Barra de ferramentas compacta do chat (dentro da caixa de mensagem)
+148	Comparar alterações do agente
+149	Configurar comandos personalizados
+150	Configurar comandos personalizados...
+151	Configurar agentes de código visíveis
+152	Configurar agentes de código visíveis...
+153	Confirmar remoção
+154	Fonte do console
+155	Tamanho da fonte do console
+156	A resposta foi copiada para a área de transferência e a issue foi aberta.
+157	Copiar
+158	Copiar esta resposta e abrir a issue (GitHub CLI não instalada)
+159	Custo
+160	Não foi possível fazer check-out de {0}.\n\n{1}
+161	Não foi possível fechar a issue: {0}
+162	Não foi possível criar o worktree.\n\n{0}
+163	Não foi possível excluir o branch local {0}.
+164	Não foi possível excluir {0} em {1}.
+165	Não foi possível determinar o diretório da área de trabalho atual.
+166	Não foi possível determinar o diretório da área de trabalho para redefinir as alterações.
+167	Não foi possível encontrar a caixa de mensagem de commit do Git Changes. A mensagem gerada foi copiada para a área de transferência — cole-a com Ctrl+V.
+168	Não foi possível listar as issues com a GitHub CLI: {0}
+169	Não foi possível listar as issues: {0} — instale a GitHub CLI (gh) e execute \"gh auth login\" para repositórios privados.
+170	Não foi possível carregar as issues: {0}
+171	Não foi possível carregar a última sessão do {0}:\n{1}
+172	Não foi possível carregar as sessões do {0}:\n{1}
+173	Não foi possível abrir o GitHub Issues: {0}
+174	Não foi possível abrir HKCU\\Console para escrita.
+175	Não foi possível abrir a transcrição da sessão:\n{0}
+176	Não foi possível abrir {0} na janela de diff:\n\n{1}
+177	Não foi possível publicar a resposta: {0}
+178	Não foi possível ler a área de transferência: {0}
+179	Não foi possível ler a saída do gh: {0}
+180	Não foi possível remover o worktree (um arquivo ainda pode estar aberto): {0}
+181	Não foi possível salvar a área de transferência em arquivo: {0}
+182	Não foi possível fazer stage das alterações.\n\n{0}
+183	Não foi possível iniciar o Visual Studio: {0}
+184	Não foi possível gravar a mensagem de commit em um arquivo temporário.
+185	Cria o branch fix/issue-N em seu próprio worktree e abre uma aba de chat que trabalha na issue lá.
+186	Cria o branch e o worktree da correção e abre o chat da issue com este modelo e esforço.
+187	Ctrl+Enter — envia o prompt (Enter insere uma nova linha)
+188	Atual
+189	Sessão atual

@@ -1,0 +1,73 @@
+<<<<
+            string aboutMessage = $"Claude Code Extension for Visual Studio\n\n" +
+                                $"Version: {version}\n" +
+                                $"Author: Daniel Carvalho Liedke\n" +
+                                $"Copyright © Daniel Carvalho Liedke 2026\n\n" +
+                                $"Provides seamless integration with Claude Code, Codex, Cursor Agent, Open Code, Devin, PI, Antigravity, Reasonix, Qwen Code and Grok AI assistants directly within Visual Studio 2022/2026 IDE.";
+====
+            string aboutMessage = L("Claude Code Extension for Visual Studio\n\n" +
+                                    "Version: {0}\n" +
+                                    "Author: Daniel Carvalho Liedke\n" +
+                                    "Copyright © Daniel Carvalho Liedke 2026\n\n" +
+                                    "Provides seamless integration with Claude Code, Codex, Cursor Agent, Open Code, Devin, PI, Antigravity, Reasonix, Qwen Code and Grok AI assistants directly within Visual Studio 2022/2026 IDE.",
+                                    version);
+>>>>
+<<<<
+                $"{GetProviderDisplayName(provider)} takes its model when it starts.\n\n" +
+                $"Restart it now to run on \"{GetSelectedProviderModelLabel(provider)}\"?",
+====
+                L("{0} takes its model when it starts.\n\n" +
+                  "Restart it now to run on \"{1}\"?",
+                  GetProviderDisplayName(provider), GetSelectedProviderModelLabel(provider)),
+>>>>
+<<<<
+                "Codex reads its reasoning level when the terminal starts.\n\n" +
+                $"Restart it now with \"{GetCodexReasoningLabel(level)}\" reasoning?",
+====
+                L("Codex reads its reasoning level when the terminal starts.\n\n" +
+                  "Restart it now with \"{0}\" reasoning?",
+                  GetCodexReasoningLabel(level)),
+>>>>
+<<<<
+                    $"This will open a command prompt and install Caveman for {environment}:\n\n" +
+                    "  npx skills add JuliusBrussee/caveman -g\n\n" +
+                    "Follow the prompts there. When you close the command prompt, the code agent will be reloaded so the Caveman skill is picked up" +
+                    $" (only if Claude Code ({environment}) is the active agent).\n\n" +
+                    "Continue?",
+====
+                    L("This will open a command prompt and install Caveman for {0}:\n\n" +
+                      "  npx skills add JuliusBrussee/caveman -g\n\n" +
+                      "Follow the prompts there. When you close the command prompt, the code agent will be reloaded so the Caveman skill is picked up" +
+                      " (only if Claude Code ({0}) is the active agent).\n\n" +
+                      "Continue?",
+                      environment),
+>>>>
+<<<<
+headerBlock.Inlines.Add("📁  Set Working Directory (");
+====
+headerBlock.Inlines.Add(L("📁  Set Working Directory") + " (");
+>>>>
+<<<<
+                "Antigravity is not installed. A regular CMD terminal will be used instead.\r\n\r\n" +
+                "(you may click CTRL+C to copy full instructions)\r\n\r\n" +
+                "INSTALLATION\r\n\r\n" +
+                "Open PowerShell and run:\r\n\r\n" +
+                "irm https://antigravity.google/cli/install.ps1 | iex\r\n\r\n" +
+                "Then add the install folder to your PATH:\r\n\r\n" +
+                agyPath + "\r\n\r\n" +
+                "(Open a new terminal afterwards so the updated PATH takes effect.)\r\n\r\n" +
+                "The agent is launched with the 'agy' command.\r\n\r\n" +
+                "For more details, visit: https://antigravity.google/download";
+====
+                L("Antigravity is not installed. A regular CMD terminal will be used instead.\r\n\r\n" +
+                  "(you may click CTRL+C to copy full instructions)\r\n\r\n" +
+                  "INSTALLATION\r\n\r\n" +
+                  "Open PowerShell and run:\r\n\r\n" +
+                  "irm https://antigravity.google/cli/install.ps1 | iex\r\n\r\n" +
+                  "Then add the install folder to your PATH:\r\n\r\n" +
+                  "{0}\r\n\r\n" +
+                  "(Open a new terminal afterwards so the updated PATH takes effect.)\r\n\r\n" +
+                  "The agent is launched with the 'agy' command.\r\n\r\n" +
+                  "For more details, visit: https://antigravity.google/download",
+                  agyPath);
+>>>>

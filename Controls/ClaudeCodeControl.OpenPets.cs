@@ -27,6 +27,7 @@ using System.Windows.Media;
 using ClaudeCodeVS.Agents;
 
 using Microsoft.VisualStudio.Shell;
+using static ClaudeCodeVS.UI.Loc;
 
 namespace ClaudeCodeVS
 {
@@ -45,9 +46,9 @@ namespace ClaudeCodeVS
                 await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
 
                 var confirm = MessageBox.Show(
-                    "This will download the latest OpenPets release for Windows from GitHub (about 180 MB) and then start its installer.\n\n" +
-                    "Continue?",
-                    "Install OpenPets",
+                    L("This will download the latest OpenPets release for Windows from GitHub (about 180 MB) and then start its installer.\n\n" +
+                    "Continue?"),
+                    L("Install OpenPets"),
                     MessageBoxButton.OKCancel,
                     MessageBoxImage.Question);
 
@@ -84,7 +85,7 @@ namespace ClaudeCodeVS
             catch (Exception ex)
             {
                 Debug.WriteLine($"InstallOpenPetsAsync failed: {ex.Message}");
-                MessageBox.Show($"Failed to install OpenPets: {ex.Message}", "Install OpenPets", MessageBoxButton.OK, MessageBoxImage.Error);
+                MessageBox.Show(L("Failed to install OpenPets: {0}", ex.Message), L("Install OpenPets"), MessageBoxButton.OK, MessageBoxImage.Error);
             }
         }
 
@@ -100,7 +101,7 @@ namespace ClaudeCodeVS
 
             status = new TextBlock
             {
-                Text = "Starting…",
+                Text = L("Starting…"),
                 Foreground = themeFg,
                 TextWrapping = TextWrapping.Wrap
             };
@@ -116,7 +117,7 @@ namespace ClaudeCodeVS
 
             var cancelButton = new Button
             {
-                Content = "Cancel",
+                Content = L("Cancel"),
                 Width = 100,
                 Height = 28,
                 Margin = new Thickness(0, 14, 0, 0),
@@ -134,7 +135,7 @@ namespace ClaudeCodeVS
 
             var window = new Window
             {
-                Title = "Install OpenPets",
+                Title = L("Install OpenPets"),
                 Width = 460,
                 SizeToContent = SizeToContent.Height,
                 WindowStartupLocation = WindowStartupLocation.CenterOwner,
@@ -166,7 +167,7 @@ namespace ClaudeCodeVS
                 client.DefaultRequestHeaders.UserAgent.ParseAdd("ClaudeCodeExtension");
                 client.DefaultRequestHeaders.Accept.ParseAdd("application/vnd.github+json");
 
-                status.Text = "Looking up the latest OpenPets release…";
+                status.Text = L("Looking up the latest OpenPets release…");
                 string json;
                 using (var response = await client.GetAsync(OpenPetsRelease.LatestReleaseApiUrl, token))
                 {
@@ -201,7 +202,7 @@ namespace ClaudeCodeVS
 
                 try
                 {
-                    status.Text = $"Downloading OpenPets {release.Tag}…";
+                    status.Text = L("Downloading OpenPets {0}…", release.Tag);
                     bar.IsIndeterminate = true;
 
                     using (var response = await client.GetAsync(release.Installer.DownloadUrl, HttpCompletionOption.ResponseHeadersRead, token))
@@ -224,17 +225,17 @@ namespace ClaudeCodeVS
                                 if (total > 0)
                                 {
                                     bar.Value = received * 100.0 / total;
-                                    status.Text = $"Downloading OpenPets {release.Tag}… {FormatMegabytes(received)} of {FormatMegabytes(total)} ({(int)bar.Value}%)";
+                                    status.Text = L("Downloading OpenPets {0}… {1} of {2} ({3}%)", release.Tag, FormatMegabytes(received), FormatMegabytes(total), (int)bar.Value);
                                 }
                                 else
                                 {
-                                    status.Text = $"Downloading OpenPets {release.Tag}… {FormatMegabytes(received)}";
+                                    status.Text = L("Downloading OpenPets {0}… {1}", release.Tag, FormatMegabytes(received));
                                 }
                             }
                         }
                     }
 
-                    status.Text = "Checking the download…";
+                    status.Text = L("Checking the download…");
                     bar.IsIndeterminate = true;
 
                     string actualHash = await Task.Run(() => ComputeSha256(partial));

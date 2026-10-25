@@ -18,6 +18,7 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
 using Microsoft.VisualStudio.Shell;
+using static ClaudeCodeVS.UI.Loc;
 
 namespace ClaudeCodeVS
 {
@@ -32,7 +33,7 @@ namespace ClaudeCodeVS
         /// </summary>
         private static readonly (string, string)[] FollowUpPresets =
         {
-            ("Commit and push (no AI credit)",
+            (N("Commit and push (no AI credit)"),
                 "Commit and push code changes but keep only the human author and no references to AI model"),
         };
 
@@ -57,10 +58,10 @@ namespace ClaudeCodeVS
             string solutionName = GetCurrentSolutionName();
             if (string.IsNullOrEmpty(solutionName))
             {
-                stack.Children.Add(MakeSectionHeader("On Agent Finish", themeFg));
+                stack.Children.Add(MakeSectionHeader(L("On Agent Finish"), themeFg));
                 stack.Children.Add(new TextBlock
                 {
-                    Text = "On Agent Finish is configured separately for each solution. Open a solution or folder to set it up.",
+                    Text = L("On Agent Finish is configured separately for each solution. Open a solution or folder to set it up."),
                     Foreground = themeFg,
                     TextWrapping = TextWrapping.Wrap,
                     Margin = new Thickness(4, 0, 0, 6)
@@ -77,11 +78,11 @@ namespace ClaudeCodeVS
             if (!hasOwnConfig) workingConfig.Enabled = false;
 
             // ---- On Agent Finish fields ----
-            stack.Children.Add(MakeSectionHeader($"On Agent Finish — {solutionName}", themeFg));
+            stack.Children.Add(MakeSectionHeader(L("On Agent Finish — {0}", solutionName), themeFg));
 
             stack.Children.Add(new TextBlock
             {
-                Text = "These settings apply only to this solution. Each solution keeps its own.",
+                Text = L("These settings apply only to this solution. Each solution keeps its own."),
                 FontSize = 11,
                 Opacity = 0.7,
                 Foreground = themeFg,
@@ -90,14 +91,14 @@ namespace ClaudeCodeVS
             });
 
             var afEnabledCheck = MakeCheckBox(
-                "Notify / run an action when the agent finishes",
-                "When the agent stops working (the terminal goes idle), optionally play a sound, show a Visual Studio notification (with how long it took, plus token count for Claude Code), and run an action.",
+                L("Notify / run an action when the agent finishes"),
+                L("When the agent stops working (the terminal goes idle), optionally play a sound, show a Visual Studio notification (with how long it took, plus token count for Claude Code), and run an action."),
                 false, themeFg);
             stack.Children.Add(afEnabledCheck);
 
             stack.Children.Add(new TextBlock
             {
-                Text = "Detected by watching the terminal go idle, so it covers any agent.",
+                Text = L("Detected by watching the terminal go idle, so it covers any agent."),
                 FontSize = 11,
                 Opacity = 0.7,
                 Foreground = themeFg,
@@ -105,26 +106,26 @@ namespace ClaudeCodeVS
                 Margin = new Thickness(20, 0, 0, 4)
             });
 
-            var afSoundCheck = MakeCheckBox("Play a sound",
-                "Play a system sound when the agent finishes.", false, themeFg);
+            var afSoundCheck = MakeCheckBox(L("Play a sound"),
+                L("Play a system sound when the agent finishes."), false, themeFg);
             afSoundCheck.Margin = new Thickness(20, 4, 0, 4);
             stack.Children.Add(afSoundCheck);
 
-            var afQuestionSoundCheck = MakeCheckBox("Play a different sound when the agent asks a question",
-                "Play a distinct sound when the agent stops and waits for your answer (a yes/no confirmation or a selection menu) instead of finishing. Uses a different tone than the finish sound so you can tell them apart.",
+            var afQuestionSoundCheck = MakeCheckBox(L("Play a different sound when the agent asks a question"),
+                L("Play a distinct sound when the agent stops and waits for your answer (a yes/no confirmation or a selection menu) instead of finishing. Uses a different tone than the finish sound so you can tell them apart."),
                 false, themeFg);
             afQuestionSoundCheck.Margin = new Thickness(20, 4, 0, 4);
             stack.Children.Add(afQuestionSoundCheck);
 
-            var afToastCheck = MakeCheckBox("Show a notification",
-                "Show a Visual Studio info bar with the turn's duration and token count when the agent finishes.",
+            var afToastCheck = MakeCheckBox(L("Show a notification"),
+                L("Show a Visual Studio info bar with the turn's duration and token count when the agent finishes."),
                 false, themeFg);
             afToastCheck.Margin = new Thickness(20, 4, 0, 4);
             stack.Children.Add(afToastCheck);
 
             stack.Children.Add(new TextBlock
             {
-                Text = "Action:",
+                Text = L("Action:"),
                 Foreground = themeFg,
                 Margin = new Thickness(20, 6, 0, 2)
             });
@@ -142,19 +143,19 @@ namespace ClaudeCodeVS
 
             Func<string, AgentFinishActionType, ComboBoxItem> mkActionItem = (txt, val) =>
                 new ComboBoxItem { Content = txt, Tag = val, Style = afItemStyle };
-            afActionCombo.Items.Add(mkActionItem("None (notify only)", AgentFinishActionType.None));
-            afActionCombo.Items.Add(mkActionItem("Build solution", AgentFinishActionType.BuildSolution));
-            afActionCombo.Items.Add(mkActionItem("Rebuild solution", AgentFinishActionType.RebuildSolution));
-            afActionCombo.Items.Add(mkActionItem("Run (F5)", AgentFinishActionType.Run));
-            afActionCombo.Items.Add(mkActionItem("Run without debugging (Ctrl+F5)", AgentFinishActionType.RunWithoutDebugging));
-            afActionCombo.Items.Add(mkActionItem("Run all tests", AgentFinishActionType.RunTests));
-            afActionCombo.Items.Add(mkActionItem("Run a script…", AgentFinishActionType.RunScript));
-            afActionCombo.Items.Add(mkActionItem("Send a command to the agent", AgentFinishActionType.SendToAgent));
+            afActionCombo.Items.Add(mkActionItem(L("None (notify only)"), AgentFinishActionType.None));
+            afActionCombo.Items.Add(mkActionItem(L("Build solution"), AgentFinishActionType.BuildSolution));
+            afActionCombo.Items.Add(mkActionItem(L("Rebuild solution"), AgentFinishActionType.RebuildSolution));
+            afActionCombo.Items.Add(mkActionItem(L("Run (F5)"), AgentFinishActionType.Run));
+            afActionCombo.Items.Add(mkActionItem(L("Run without debugging (Ctrl+F5)"), AgentFinishActionType.RunWithoutDebugging));
+            afActionCombo.Items.Add(mkActionItem(L("Run all tests"), AgentFinishActionType.RunTests));
+            afActionCombo.Items.Add(mkActionItem(L("Run a script…"), AgentFinishActionType.RunScript));
+            afActionCombo.Items.Add(mkActionItem(L("Send a command to the agent"), AgentFinishActionType.SendToAgent));
             stack.Children.Add(afActionCombo);
 
             stack.Children.Add(new TextBlock
             {
-                Text = "Script path (for \"Run a script\") or command text (for \"Send a command\"):",
+                Text = L("Script path (for \"Run a script\") or command text (for \"Send a command\"):"),
                 Foreground = themeFg,
                 Margin = new Thickness(20, 4, 0, 2)
             });
@@ -167,8 +168,8 @@ namespace ClaudeCodeVS
             };
             stack.Children.Add(afScriptBox);
 
-            var afAutoCloseScriptCheck = MakeCheckBox("Close script window when it finishes",
-                "When enabled, script windows close automatically after the script exits. When disabled, they stay open so you can read the output.",
+            var afAutoCloseScriptCheck = MakeCheckBox(L("Close script window when it finishes"),
+                L("When enabled, script windows close automatically after the script exits. When disabled, they stay open so you can read the output."),
                 false, themeFg);
             afAutoCloseScriptCheck.Margin = new Thickness(20, 4, 0, 4);
             stack.Children.Add(afAutoCloseScriptCheck);
@@ -182,14 +183,14 @@ namespace ClaudeCodeVS
             }
             afActionCombo.SelectionChanged += (s, e) => SyncScriptActionOptions();
 
-            var afCleanBeforeRunCheck = MakeCheckBox("Clean solution before running",
-                "When enabled, Run and Run without debugging clean the solution before launching.",
+            var afCleanBeforeRunCheck = MakeCheckBox(L("Clean solution before running"),
+                L("When enabled, Run and Run without debugging clean the solution before launching."),
                 true, themeFg);
             afCleanBeforeRunCheck.Margin = new Thickness(20, 4, 0, 4);
             stack.Children.Add(afCleanBeforeRunCheck);
 
-            var afRebuildBeforeRunCheck = MakeCheckBox("Rebuild solution before running",
-                "When enabled, Run and Run without debugging rebuild the solution before launching. If the rebuild fails, launching is skipped.",
+            var afRebuildBeforeRunCheck = MakeCheckBox(L("Rebuild solution before running"),
+                L("When enabled, Run and Run without debugging rebuild the solution before launching. If the rebuild fails, launching is skipped."),
                 true, themeFg);
             afRebuildBeforeRunCheck.Margin = new Thickness(20, 4, 0, 4);
             stack.Children.Add(afRebuildBeforeRunCheck);
@@ -207,7 +208,7 @@ namespace ClaudeCodeVS
 
             stack.Children.Add(new TextBlock
             {
-                Text = "Also send to agent after the action succeeds (optional):",
+                Text = L("Also send to agent after the action succeeds (optional):"),
                 Foreground = themeFg,
                 Margin = new Thickness(20, 6, 0, 2)
             });
@@ -236,7 +237,7 @@ namespace ClaudeCodeVS
 
             var afFollowUpPresetButton = new Button
             {
-                Content = "Preset ▾",
+                Content = L("Preset ▾"),
                 Width = 90,
                 Height = 24,
                 Margin = new Thickness(6, 0, 0, 0)
@@ -261,12 +262,12 @@ namespace ClaudeCodeVS
             {
                 if (followUpGenerateCommitMessageAndPush)
                 {
-                    afFollowUpHint.Text = "Generate Commit Message, Commit and Push";
+                    afFollowUpHint.Text = L("Generate Commit Message, Commit and Push");
                     afFollowUpHint.Visibility = Visibility.Visible;
                 }
                 else if (followUpGenerateCommitMessage)
                 {
-                    afFollowUpHint.Text = "Generate Commit Message";
+                    afFollowUpHint.Text = L("Generate Commit Message");
                     afFollowUpHint.Visibility = Visibility.Visible;
                 }
                 else
@@ -296,15 +297,15 @@ namespace ClaudeCodeVS
             };
 
             var afFollowUpPresetMenu = new ContextMenu();
-            var generateCommitMessageItem = new MenuItem { Header = "Generate Commit Message" };
+            var generateCommitMessageItem = new MenuItem { Header = L("Generate Commit Message") };
             generateCommitMessageItem.Click += (s, ea) => SetFollowUpText(string.Empty, true);
             afFollowUpPresetMenu.Items.Add(generateCommitMessageItem);
-            var generateCommitMessageAndPushItem = new MenuItem { Header = "Generate Commit Message, Commit and Push" };
+            var generateCommitMessageAndPushItem = new MenuItem { Header = L("Generate Commit Message, Commit and Push") };
             generateCommitMessageAndPushItem.Click += (s, ea) => SetFollowUpText(string.Empty, false, true);
             afFollowUpPresetMenu.Items.Add(generateCommitMessageAndPushItem);
             foreach (var preset in FollowUpPresets)
             {
-                var item = new MenuItem { Header = preset.Item1 };
+                var item = new MenuItem { Header = L(preset.Item1) };
                 item.Click += (s, ea) => SetFollowUpText(preset.Item2, false);
                 afFollowUpPresetMenu.Items.Add(item);
             }
@@ -327,7 +328,7 @@ namespace ClaudeCodeVS
 
             stack.Children.Add(new TextBlock
             {
-                Text = "e.g. \"Commit and push the changes\", or pick a preset such as Generate Commit Message. Skipped if the action fails (build/rebuild errors) or is skipped. Not available for \"Send a command to the agent\", which already sends text.",
+                Text = L("e.g. \"Commit and push the changes\", or pick a preset such as Generate Commit Message. Skipped if the action fails (build/rebuild errors) or is skipped. Not available for \"Send a command to the agent\", which already sends text."),
                 FontSize = 11,
                 Opacity = 0.7,
                 Foreground = themeFg,
@@ -345,14 +346,14 @@ namespace ClaudeCodeVS
             }
             afActionCombo.SelectionChanged += (s, e) => SyncFollowUpOptions();
 
-            var afConfirmCheck = MakeCheckBox("Ask before running the action",
-                "When enabled, the action appears as a button on the notification and runs only when you click it. When disabled, the action runs automatically. Recommended on for scripts, run, and rebuild.",
+            var afConfirmCheck = MakeCheckBox(L("Ask before running the action"),
+                L("When enabled, the action appears as a button on the notification and runs only when you click it. When disabled, the action runs automatically. Recommended on for scripts, run, and rebuild."),
                 false, themeFg);
             afConfirmCheck.Margin = new Thickness(20, 4, 0, 4);
             stack.Children.Add(afConfirmCheck);
 
-            var afReqChangesCheck = MakeCheckBox("Only run the action if files changed",
-                "Skip the action when the agent did not modify any files (git working tree clean). Has no effect outside a git repository.",
+            var afReqChangesCheck = MakeCheckBox(L("Only run the action if files changed"),
+                L("Skip the action when the agent did not modify any files (git working tree clean). Has no effect outside a git repository."),
                 false, themeFg);
             afReqChangesCheck.Margin = new Thickness(20, 4, 0, 4);
             stack.Children.Add(afReqChangesCheck);
@@ -364,7 +365,7 @@ namespace ClaudeCodeVS
             };
             afIdlePanel.Children.Add(new TextBlock
             {
-                Text = "Idle seconds before \"finished\" is detected:",
+                Text = L("Idle seconds before \"finished\" is detected:"),
                 Foreground = themeFg,
                 VerticalAlignment = VerticalAlignment.Center,
                 Margin = new Thickness(0, 0, 8, 0)
@@ -394,8 +395,8 @@ namespace ClaudeCodeVS
 
             var afIdleNativeHint = new TextBlock
             {
-                Text = "Native mode is on: the agent reports the end of a turn itself, so nothing waits for the " +
-                       "console to go idle.",
+                Text = L("Native mode is on: the agent reports the end of a turn itself, so nothing waits for the " +
+                       "console to go idle."),
                 FontSize = 11,
                 Opacity = 0.7,
                 Foreground = themeFg,

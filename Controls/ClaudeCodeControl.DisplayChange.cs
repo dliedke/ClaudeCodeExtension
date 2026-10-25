@@ -119,6 +119,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.VisualStudio.Shell;
 using Microsoft.Win32;
+using static ClaudeCodeVS.UI.Loc;
 
 namespace ClaudeCodeVS
 {
@@ -793,8 +794,8 @@ namespace ClaudeCodeVS
             _ = ThreadHelper.JoinableTaskFactory.RunAsync(async delegate
             {
                 await ShowAgentFinishNotificationAsync(
-                    "The agent terminal did not come back at the right size after the display changed, so part of the panel stays blank and the agent draws where you cannot see it. Restarting the terminal repairs it.",
-                    "Restart terminal",
+                    L("The agent terminal did not come back at the right size after the display changed, so part of the panel stays blank and the agent draws where you cannot see it. Restarting the terminal repairs it."),
+                    L("Restart terminal"),
                     async delegate { await RestartTerminalWithSelectedProviderAsync(); },
                     InfoBarSlot.TerminalGeometry);
             });

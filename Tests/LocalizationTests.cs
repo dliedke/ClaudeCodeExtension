@@ -376,7 +376,7 @@ namespace ClaudeCodeExtension.Tests
         {
             var keys = new HashSet<string>(StringComparer.Ordinal);
 
-            foreach (string folder in new[] { "UI", "Controls" })
+            foreach (string folder in new[] { "UI", "Controls", "Diff", "ToolWindows", "Package" })
             {
                 foreach (string file in Directory.GetFiles(RepositoryLayout.Path(folder), "*.cs"))
                 {
@@ -394,7 +394,7 @@ namespace ClaudeCodeExtension.Tests
                 {
                     foreach (Match match in XamlKey.Matches(File.ReadAllText(file)))
                     {
-                        keys.Add(Regex.Replace(match.Groups[1].Value, @"\\(.)", "$1"));
+                        keys.Add(System.Net.WebUtility.HtmlDecode(Regex.Replace(match.Groups[1].Value, @"\\(.)", "$1")));
                     }
                 }
             }

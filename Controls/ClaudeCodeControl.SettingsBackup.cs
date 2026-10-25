@@ -22,6 +22,7 @@ using System.Windows.Media;
 using Microsoft.VisualStudio.Shell;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
+using static ClaudeCodeVS.UI.Loc;
 
 namespace ClaudeCodeVS
 {
@@ -64,7 +65,7 @@ namespace ClaudeCodeVS
             error = null;
             if (string.IsNullOrWhiteSpace(json))
             {
-                error = "The file is empty.";
+                error = L("The file is empty.");
                 return null;
             }
 
@@ -80,7 +81,7 @@ namespace ClaudeCodeVS
             }
             catch (Exception ex)
             {
-                error = $"The file is not a valid settings file: {ex.Message}";
+                error = L("The file is not a valid settings file: {0}", ex.Message);
                 return null;
             }
 
@@ -90,7 +91,7 @@ namespace ClaudeCodeVS
                 settings = root[ExportSettingsKey] as JObject;
                 if (settings == null)
                 {
-                    error = "The file has no settings section.";
+                    error = L("The file has no settings section.");
                     return null;
                 }
             }
@@ -100,7 +101,7 @@ namespace ClaudeCodeVS
                 .Select(p => p.Name);
             if (!knownNames.Any(n => settings.Property(n) != null))
             {
-                error = "The file does not contain Claude Code Extension settings.";
+                error = L("The file does not contain Claude Code Extension settings.");
                 return null;
             }
 
@@ -112,13 +113,13 @@ namespace ClaudeCodeVS
                 });
                 if (settings.ToObject<ClaudeCodeSettings>(serializer) == null)
                 {
-                    error = "The settings in the file could not be read.";
+                    error = L("The settings in the file could not be read.");
                     return null;
                 }
             }
             catch (Exception ex)
             {
-                error = $"The settings in the file could not be read: {ex.Message}";
+                error = L("The settings in the file could not be read: {0}", ex.Message);
                 return null;
             }
 
@@ -166,27 +167,27 @@ namespace ClaudeCodeVS
             };
 
             // ---- Save ----
-            stack.Children.Add(MakeSectionHeader("Save configuration", themeFg));
+            stack.Children.Add(MakeSectionHeader(L("Save configuration"), themeFg));
             stack.Children.Add(MakeHint(
-                "Saves the entire extension configuration to a JSON file: every setting in this window, custom " +
+                L("Saves the entire extension configuration to a JSON file: every setting in this window, custom " +
                 "commands, On Agent Finish (global and per solution), visible agents and models, toolbar layout, " +
-                "CLI paths, prompt history and session titles. Changes not yet confirmed with OK are not included."));
-            var saveButton = MakeButton("Save All Settings to File...");
+                "CLI paths, prompt history and session titles. Changes not yet confirmed with OK are not included.")));
+            var saveButton = MakeButton(L("Save All Settings to File..."));
             stack.Children.Add(saveButton);
 
             // ---- Load ----
-            stack.Children.Add(MakeSectionHeader("Load configuration", themeFg));
+            stack.Children.Add(MakeSectionHeader(L("Load configuration"), themeFg));
             stack.Children.Add(MakeHint(
-                "Replaces the entire extension configuration with a saved file (a claudecode-settings.json copied " +
+                L("Replaces the entire extension configuration with a saved file (a claudecode-settings.json copied " +
                 "from another machine also works). The current configuration is backed up next to the settings file " +
-                "first, and the code agent restarts to apply the loaded settings."));
-            var loadButton = MakeButton("Load All Settings from File...");
+                "first, and the code agent restarts to apply the loaded settings.")));
+            var loadButton = MakeButton(L("Load All Settings from File..."));
             stack.Children.Add(loadButton);
 
             // ---- Folder ----
-            stack.Children.Add(MakeSectionHeader("Settings folder", themeFg));
+            stack.Children.Add(MakeSectionHeader(L("Settings folder"), themeFg));
             stack.Children.Add(MakeHint(ConfigurationPath));
-            var openFolderButton = MakeButton("Open Settings Folder");
+            var openFolderButton = MakeButton(L("Open Settings Folder"));
             stack.Children.Add(openFolderButton);
 
             saveButton.Click += (s, args) => ExportConfigurationToFile(Window.GetWindow(stack));
@@ -198,12 +199,12 @@ namespace ClaudeCodeVS
                 if (imported == null) return;
 
                 var confirm = MessageBox.Show(owner,
-                    "Replace ALL current extension settings with the ones in this file?\n\n" +
+                    L("Replace ALL current extension settings with the ones in this file?\n\n" +
                     "Unsaved changes in the Settings window are discarded, the current configuration is " +
                     "backed up next to the settings file, and the code agent restarts.\n\n" +
                     "Close any other Visual Studio windows first — they keep their own settings in memory " +
-                    "and would overwrite the loaded ones the next time they save.",
-                    "Load All Settings",
+                    "and would overwrite the loaded ones the next time they save."),
+                    L("Load All Settings"),
                     MessageBoxButton.YesNo,
                     MessageBoxImage.Warning);
                 if (confirm != MessageBoxResult.Yes) return;
@@ -241,8 +242,8 @@ namespace ClaudeCodeVS
             {
                 var sfd = new Microsoft.Win32.SaveFileDialog
                 {
-                    Title = "Save All Settings",
-                    Filter = "JSON files (*.json)|*.json|All files (*.*)|*.*",
+                    Title = L("Save All Settings"),
+                    Filter = L("JSON files (*.json)|*.json|All files (*.*)|*.*"),
                     DefaultExt = ".json",
                     FileName = $"ClaudeCodeExtension-settings-{DateTime.Now:yyyyMMdd}.json",
                     OverwritePrompt = true
@@ -263,13 +264,13 @@ namespace ClaudeCodeVS
                 File.WriteAllText(sfd.FileName,
                     SerializeJsonIndented(BuildConfigurationExport(settingsObj, versionText, DateTime.UtcNow)));
 
-                MessageBox.Show(owner, $"Settings saved to:\n{sfd.FileName}", "Save All Settings",
+                MessageBox.Show(owner, L("Settings saved to:\n{0}", sfd.FileName), L("Save All Settings"),
                     MessageBoxButton.OK, MessageBoxImage.Information);
             }
             catch (Exception ex)
             {
                 Debug.WriteLine($"Error exporting settings: {ex.Message}");
-                MessageBox.Show(owner, $"Failed to save settings: {ex.Message}", "Error",
+                MessageBox.Show(owner, L("Failed to save settings: {0}", ex.Message), L("Error"),
                     MessageBoxButton.OK, MessageBoxImage.Error);
             }
         }
@@ -284,8 +285,8 @@ namespace ClaudeCodeVS
             {
                 var ofd = new Microsoft.Win32.OpenFileDialog
                 {
-                    Title = "Load All Settings",
-                    Filter = "JSON files (*.json)|*.json|All files (*.*)|*.*",
+                    Title = L("Load All Settings"),
+                    Filter = L("JSON files (*.json)|*.json|All files (*.*)|*.*"),
                     CheckFileExists = true
                 };
                 if (ofd.ShowDialog(owner) != true) return null;
@@ -293,14 +294,14 @@ namespace ClaudeCodeVS
                 var imported = ParseConfigurationImport(File.ReadAllText(ofd.FileName), out string error);
                 if (imported == null)
                 {
-                    MessageBox.Show(owner, error, "Load All Settings", MessageBoxButton.OK, MessageBoxImage.Warning);
+                    MessageBox.Show(owner, error, L("Load All Settings"), MessageBoxButton.OK, MessageBoxImage.Warning);
                 }
                 return imported;
             }
             catch (Exception ex)
             {
                 Debug.WriteLine($"Error reading settings import: {ex.Message}");
-                MessageBox.Show(owner, $"Failed to read the settings file: {ex.Message}", "Error",
+                MessageBox.Show(owner, L("Failed to read the settings file: {0}", ex.Message), L("Error"),
                     MessageBoxButton.OK, MessageBoxImage.Error);
                 return null;
             }
@@ -334,7 +335,7 @@ namespace ClaudeCodeVS
             catch (Exception ex)
             {
                 Debug.WriteLine($"Error writing imported settings: {ex.Message}");
-                MessageBox.Show($"Failed to load settings: {ex.Message}", "Error",
+                MessageBox.Show(L("Failed to load settings: {0}", ex.Message), L("Error"),
                     MessageBoxButton.OK, MessageBoxImage.Error);
                 return;
             }
@@ -371,8 +372,8 @@ namespace ClaudeCodeVS
             {
                 Debug.WriteLine($"Error restarting terminal after settings load: {ex.Message}");
                 await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
-                MessageBox.Show($"Settings were loaded, but the code agent failed to restart: {ex.Message}",
-                    "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                MessageBox.Show(L("Settings were loaded, but the code agent failed to restart: {0}", ex.Message),
+                    L("Error"), MessageBoxButton.OK, MessageBoxImage.Error);
             }
 
             Debug.WriteLine($"Settings loaded from file; previous configuration backed up to {backupPath ?? "(none)"}");

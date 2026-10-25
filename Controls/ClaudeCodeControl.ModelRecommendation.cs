@@ -27,6 +27,7 @@ using ClaudeCodeVS.Agents;
 using ClaudeCodeVS.UI;
 
 using Microsoft.VisualStudio.Shell;
+using static ClaudeCodeVS.UI.Loc;
 
 namespace ClaudeCodeVS
 {
@@ -85,8 +86,8 @@ namespace ClaudeCodeVS
             if (!IsClaudeProvider(provider))
             {
                 MessageBox.Show(
-                    "Recommend AI Model works with Claude Code only.\n\nSwitch the agent to Claude Code or Claude Code (WSL) to use it.",
-                    "Recommend AI Model",
+                    L("Recommend AI Model works with Claude Code only.\n\nSwitch the agent to Claude Code or Claude Code (WSL) to use it."),
+                    L("Recommend AI Model"),
                     MessageBoxButton.OK,
                     MessageBoxImage.Information);
                 return;
@@ -95,8 +96,8 @@ namespace ClaudeCodeVS
             if (string.IsNullOrWhiteSpace(prompt))
             {
                 MessageBox.Show(
-                    "Type your prompt first, then click Recommend AI Model to get the model and effort that suit it.",
-                    "Recommend AI Model",
+                    L("Type your prompt first, then click Recommend AI Model to get the model and effort that suit it."),
+                    L("Recommend AI Model"),
                     MessageBoxButton.OK,
                     MessageBoxImage.Information);
                 return;
@@ -171,7 +172,7 @@ namespace ClaudeCodeVS
 
             var dialog = new Window
             {
-                Title = "Recommend AI Model",
+                Title = L("Recommend AI Model"),
                 Width = 560,
                 SizeToContent = SizeToContent.Height,
                 WindowStartupLocation = WindowStartupLocation.CenterOwner,
@@ -187,7 +188,7 @@ namespace ClaudeCodeVS
 
             root.Children.Add(new TextBlock
             {
-                Text = "Prompt",
+                Text = L("Prompt"),
                 FontWeight = FontWeights.SemiBold,
                 Foreground = themeFg,
                 Margin = new Thickness(0, 0, 0, 4)
@@ -210,7 +211,7 @@ namespace ClaudeCodeVS
 
             var status = new TextBlock
             {
-                Text = $"Asking {GetClaudeModelDisplayName(ClaudeModel.Opus)} ({GetChatEffortLabel(EffortLevel.XHigh)}) which model and effort suit this prompt…",
+                Text = L("Asking {0} ({1}) which model and effort suit this prompt…", GetClaudeModelDisplayName(ClaudeModel.Opus), GetChatEffortLabel(EffortLevel.XHigh)),
                 Foreground = themeFg,
                 TextWrapping = TextWrapping.Wrap
             };
@@ -256,12 +257,12 @@ namespace ClaudeCodeVS
                 return label;
             };
 
-            makeLabel("Model:", 0);
+            makeLabel(L("Model:"), 0);
             var modelCombo = MakeThemedComboBox(comboRes, themeFg);
             Grid.SetColumn(modelCombo, 1);
             pickers.Children.Add(modelCombo);
 
-            makeLabel("Effort:", 2);
+            makeLabel(L("Effort:"), 2);
             var effortCombo = MakeThemedComboBox(comboRes, themeFg);
             Grid.SetColumn(effortCombo, 3);
             pickers.Children.Add(effortCombo);
@@ -313,12 +314,12 @@ namespace ClaudeCodeVS
                 return button;
             };
 
-            var applyButton = makeButton("Apply");
+            var applyButton = makeButton(L("Apply"));
             applyButton.IsDefault = true;
             applyButton.IsEnabled = false;
-            applyButton.ToolTip = "Switch to the model and effort selected above. The prompt is not sent.";
+            applyButton.ToolTip = L("Switch to the model and effort selected above. The prompt is not sent.");
 
-            var cancelButton = makeButton("Cancel");
+            var cancelButton = makeButton(L("Cancel"));
             cancelButton.IsCancel = true;
 
             var buttons = new StackPanel
@@ -381,7 +382,7 @@ namespace ClaudeCodeVS
                         string reasonText = recommendation.Reason?.Trim() ?? string.Empty;
                         if (fableUnavailable)
                         {
-                            reasonText = (reasonText + " Fable was recommended, but it needs usage credits and the balance is zero.").Trim();
+                            reasonText = (reasonText + " " + L("Fable was recommended, but it needs usage credits and the balance is zero.")).Trim();
                         }
 
                         if (!string.IsNullOrWhiteSpace(reasonText))
@@ -395,8 +396,7 @@ namespace ClaudeCodeVS
                     }
                     else
                     {
-                        status.Text = "No recommendation: " + (error ?? "the answer could not be read.")
-                            + " You can still pick a model and effort yourself.";
+                        status.Text = L("No recommendation: {0} You can still pick a model and effort yourself.", error ?? L("the answer could not be read."));
                     }
                 }).FileAndForget("claudecode/recommendmodel/request");
 #pragma warning restore VSSDK007, VSTHRD110
@@ -510,7 +510,7 @@ namespace ClaudeCodeVS
 
                 if (completed != exited.Task)
                 {
-                    return (null, "Claude Code did not answer in time.");
+                    return (null, L("Claude Code did not answer in time."));
                 }
 
                 await host.WaitForOutputDrainAsync(2000);
@@ -583,11 +583,11 @@ namespace ClaudeCodeVS
 
                 if (tabLive)
                 {
-                    AddNativeMessageToSession(session, ChatMessageKind.Notice, $"💡 Switched to {label}.");
+                    AddNativeMessageToSession(session, ChatMessageKind.Notice, L("💡 Switched to {0}.", label));
                 }
                 else
                 {
-                    await RelaunchSessionAsync(session, $"💡 Switched to {label}");
+                    await RelaunchSessionAsync(session, L("💡 Switched to {0}", label));
                 }
                 return;
             }
@@ -626,11 +626,11 @@ namespace ClaudeCodeVS
 
                 if (live)
                 {
-                    AddNativeMessage(ChatMessageKind.Notice, $"💡 Switched to {label}.");
+                    AddNativeMessage(ChatMessageKind.Notice, L("💡 Switched to {0}.", label));
                 }
                 else
                 {
-                    await RelaunchNativeSessionAsync($"💡 Switched to {label}");
+                    await RelaunchNativeSessionAsync(L("💡 Switched to {0}", label));
                 }
                 return;
             }

@@ -27,6 +27,7 @@ using System.Windows.Media;
 using Microsoft.VisualStudio.Shell;
 using Newtonsoft.Json.Linq;
 using ClaudeCodeVS.Agents;
+using static ClaudeCodeVS.UI.Loc;
 
 namespace ClaudeCodeVS
 {
@@ -480,7 +481,7 @@ namespace ClaudeCodeVS
 
             if (string.IsNullOrEmpty(preview))
             {
-                preview = "(no user messages)";
+                preview = L("(no user messages)");
             }
 
             return new SessionInfo
@@ -1033,8 +1034,8 @@ namespace ClaudeCodeVS
             catch (Exception ex)
             {
                 Debug.WriteLine($"Error opening session history: {ex.Message}");
-                MessageBox.Show($"Error opening session history: {ex.Message}",
-                    "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                MessageBox.Show(L("Error opening session history: {0}", ex.Message),
+                    L("Error"), MessageBoxButton.OK, MessageBoxImage.Error);
             }
         }
 
@@ -1054,9 +1055,9 @@ namespace ClaudeCodeVS
             if (adapter == null)
             {
                 MessageBox.Show(
-                    "Session history is available for Claude Code, Codex and Devin (native or WSL). " +
-                    "Switch the active code agent to one of those providers first.",
-                    "Session History",
+                    L("Session history is available for Claude Code, Codex and Devin (native or WSL). " +
+                    "Switch the active code agent to one of those providers first."),
+                    L("Session History"),
                     MessageBoxButton.OK, MessageBoxImage.Information);
                 return;
             }
@@ -1067,8 +1068,8 @@ namespace ClaudeCodeVS
                 : await GetWorkspaceDirectoryAsync();
             if (string.IsNullOrEmpty(workspaceDir))
             {
-                MessageBox.Show("Could not determine the current workspace directory.",
-                    "Session History", MessageBoxButton.OK, MessageBoxImage.Warning);
+                MessageBox.Show(L("Could not determine the current workspace directory."),
+                    L("Session History"), MessageBoxButton.OK, MessageBoxImage.Warning);
                 return;
             }
 
@@ -1076,7 +1077,7 @@ namespace ClaudeCodeVS
 
             var dialog = new Window
             {
-                Title = $"{GetSessionHistoryProviderName(selected.Value)} Session History — {workspaceDir}",
+                Title = L("{0} Session History — {1}", GetSessionHistoryProviderName(selected.Value), workspaceDir),
                 Width = 760,
                 Height = 460,
                 WindowStartupLocation = WindowStartupLocation.CenterOwner,
@@ -1107,7 +1108,7 @@ namespace ClaudeCodeVS
 
             var filterLabel = new TextBlock
             {
-                Text = "Filter:",
+                Text = L("Filter:"),
                 Foreground = themeFg,
                 VerticalAlignment = VerticalAlignment.Center,
                 Margin = new Thickness(0, 0, 8, 0)
@@ -1123,8 +1124,8 @@ namespace ClaudeCodeVS
                 VerticalContentAlignment = VerticalAlignment.Center,
                 Height = 26,
                 Margin = new Thickness(0, 0, 12, 0),
-                ToolTip = "Type to filter by title, preview text, or date. Double-click a session to resume; " +
-                          "right-click or press F2 to rename."
+                ToolTip = L("Type to filter by title, preview text, or date. Double-click a session to resume; " +
+                          "right-click or press F2 to rename.")
             };
             Grid.SetColumn(searchBox, 1);
             filterBar.Children.Add(searchBox);
@@ -1133,7 +1134,7 @@ namespace ClaudeCodeVS
             // relying on the implicit last-modified ordering. Tag holds the persisted key.
             var sortLabel = new TextBlock
             {
-                Text = "Sort:",
+                Text = L("Sort:"),
                 Foreground = themeFg,
                 VerticalAlignment = VerticalAlignment.Center,
                 Margin = new Thickness(0, 0, 6, 0)
@@ -1145,15 +1146,15 @@ namespace ClaudeCodeVS
             var sortCombo = MakeThemedComboBox(comboRes, themeFg);
             sortCombo.MinWidth = 150;
             sortCombo.Margin = new Thickness(0, 0, 12, 0);
-            sortCombo.ToolTip = "Choose how sessions are ordered. Your choice is remembered across restarts.";
+            sortCombo.ToolTip = L("Choose how sessions are ordered. Your choice is remembered across restarts.");
 
             var sortOptions = new[]
             {
-                new { Key = "modified", Label = "Last modified" },
-                new { Key = "oldest",   Label = "Oldest first" },
-                new { Key = "tokens",   Label = "Most tokens" },
-                new { Key = "messages", Label = "Most messages" },
-                new { Key = "title",    Label = "Title (A–Z)" }
+                new { Key = "modified", Label = L("Last modified") },
+                new { Key = "oldest",   Label = L("Oldest first") },
+                new { Key = "tokens",   Label = L("Most tokens") },
+                new { Key = "messages", Label = L("Most messages") },
+                new { Key = "title",    Label = L("Title (A–Z)") }
             };
             string savedSort = string.IsNullOrWhiteSpace(_settings?.SessionHistorySortMode)
                 ? "modified" : _settings.SessionHistorySortMode;
@@ -1174,11 +1175,11 @@ namespace ClaudeCodeVS
 
             var renamedOnlyCheck = new CheckBox
             {
-                Content = "Renamed only",
+                Content = L("Renamed only"),
                 Foreground = themeFg,
                 VerticalAlignment = VerticalAlignment.Center,
                 IsChecked = _settings?.SessionHistoryRenamedOnly == true,
-                ToolTip = "Show only sessions you have given a custom title."
+                ToolTip = L("Show only sessions you have given a custom title.")
             };
 
             var rightFilterPanel = new StackPanel
@@ -1218,7 +1219,7 @@ namespace ClaudeCodeVS
 
             var loading = new TextBlock
             {
-                Text = "Loading sessions…",
+                Text = L("Loading sessions…"),
                 Foreground = themeFg,
                 FontStyle = FontStyles.Italic,
                 TextAlignment = TextAlignment.Center,
@@ -1245,13 +1246,13 @@ namespace ClaudeCodeVS
                 return b;
             };
 
-            var resumeButton = mkBtn("Resume");
-            var continueButton = mkBtn("Resume Last Session");
-            var viewButton = mkBtn("View");
-            var renameButton = mkBtn("Rename");
-            var deleteButton = mkBtn("Delete");
-            var refreshButton = mkBtn("Refresh");
-            var closeButton = mkBtn("Close");
+            var resumeButton = mkBtn(L("Resume"));
+            var continueButton = mkBtn(L("Resume Last Session"));
+            var viewButton = mkBtn(L("View"));
+            var renameButton = mkBtn(L("Rename"));
+            var deleteButton = mkBtn(L("Delete"));
+            var refreshButton = mkBtn(L("Refresh"));
+            var closeButton = mkBtn(L("Close"));
             closeButton.IsCancel = true;
 
             // Capability gating (e.g. Devin has no delete verb): fixed for the dialog's lifetime,
@@ -1260,7 +1261,7 @@ namespace ClaudeCodeVS
             deleteButton.IsEnabled = adapter.CanDelete;
             deleteButton.ToolTip = adapter.CanDelete
                 ? null
-                : $"{GetSessionHistoryProviderName(selected.Value)} does not support deleting sessions from here.";
+                : L("{0} does not support deleting sessions from here.", GetSessionHistoryProviderName(selected.Value));
 
             var buttonBar = new DockPanel { LastChildFill = false, Margin = new Thickness(0, 10, 0, 0) };
             Grid.SetRow(buttonBar, 2);
@@ -1355,7 +1356,7 @@ namespace ClaudeCodeVS
                     loading.Visibility = Visibility.Visible;
                     loading.Text = loadedSessions.Count == 0
                         ? loading.Text  // keep the "no sessions on disk" message set by the loader
-                        : "No sessions match the current filter.";
+                        : L("No sessions match the current filter.");
                 }
                 else
                 {
@@ -1370,7 +1371,7 @@ namespace ClaudeCodeVS
                 loadedSessions.Clear();
                 listBox.Items.Clear();
                 loading.Visibility = Visibility.Visible;
-                loading.Text = "Loading sessions…";
+                loading.Text = L("Loading sessions…");
 
                 SessionHistoryListResult listResult;
                 try
@@ -1381,7 +1382,7 @@ namespace ClaudeCodeVS
                 {
                     Debug.WriteLine($"Session history load failed: {ex}");
                     loading.Visibility = Visibility.Visible;
-                    loading.Text = $"Could not load {GetSessionHistoryProviderName(selected.Value)} sessions:\n{ex.Message}";
+                    loading.Text = L("Could not load {0} sessions:\n{1}", GetSessionHistoryProviderName(selected.Value), ex.Message);
                     return;
                 }
 
@@ -1389,7 +1390,7 @@ namespace ClaudeCodeVS
                 if (sessions.Count == 0)
                 {
                     loading.Visibility = Visibility.Visible;
-                    loading.Text = listResult.EmptyMessage ?? "No sessions were found for this workspace.";
+                    loading.Text = listResult.EmptyMessage ?? L("No sessions were found for this workspace.");
                     return;
                 }
 
@@ -1477,8 +1478,8 @@ namespace ClaudeCodeVS
                 if (sel == null || !adapter.CanDelete) return;
 
                 var confirm = MessageBox.Show(
-                    $"Delete this session transcript?\n\n{sel.FilePath}{adapter.DeleteConfirmationSuffix}\n\nThis cannot be undone.",
-                    "Delete Session", MessageBoxButton.YesNo, MessageBoxImage.Warning);
+                    L("Delete this session transcript?\n\n{0}{1}\n\nThis cannot be undone.", sel.FilePath, adapter.DeleteConfirmationSuffix),
+                    L("Delete Session"), MessageBoxButton.YesNo, MessageBoxImage.Warning);
                 if (confirm != MessageBoxResult.Yes) return;
 
                 try
@@ -1496,7 +1497,7 @@ namespace ClaudeCodeVS
                 }
                 catch (Exception ex)
                 {
-                    MessageBox.Show($"Failed to delete: {ex.Message}", "Error",
+                    MessageBox.Show(L("Failed to delete: {0}", ex.Message), L("Error"),
                         MessageBoxButton.OK, MessageBoxImage.Error);
                 }
             };
@@ -1512,12 +1513,12 @@ namespace ClaudeCodeVS
 
             // Right-click context menu on the list (issue #95): View / Rename / Delete.
             var listContextMenu = new ContextMenu();
-            var viewMenuItem = new MenuItem { Header = "View…" };
+            var viewMenuItem = new MenuItem { Header = L("View…") };
             viewMenuItem.Click += (s, args) =>
                 StartSessionHistoryTask(viewSelectedAsync, "claudecode/sessionhistory/view");
-            var renameMenuItem = new MenuItem { Header = "Rename…" };
+            var renameMenuItem = new MenuItem { Header = L("Rename…") };
             renameMenuItem.Click += (s, args) => renameSelected();
-            var deleteMenuItem = new MenuItem { Header = "Delete" };
+            var deleteMenuItem = new MenuItem { Header = L("Delete") };
             deleteMenuItem.Click += (s, args) =>
                 StartSessionHistoryTask(deleteSelectedAsync, "claudecode/sessionhistory/delete");
             listContextMenu.Items.Add(viewMenuItem);
@@ -1599,7 +1600,7 @@ namespace ClaudeCodeVS
 
             var dialog = new Window
             {
-                Title = "Rename Session",
+                Title = L("Rename Session"),
                 Width = 480,
                 Height = 180,
                 WindowStartupLocation = WindowStartupLocation.CenterOwner,
@@ -1618,7 +1619,7 @@ namespace ClaudeCodeVS
 
             var label = new TextBlock
             {
-                Text = "Custom title (leave empty to restore the auto-generated preview):",
+                Text = L("Custom title (leave empty to restore the auto-generated preview):"),
                 Foreground = themeFg,
                 TextWrapping = TextWrapping.Wrap,
                 Margin = new Thickness(0, 0, 0, 6)
@@ -1662,7 +1663,7 @@ namespace ClaudeCodeVS
             };
 
             var okButton = mkBtn("OK", true, false);
-            var cancelButton = mkBtn("Cancel", false, true);
+            var cancelButton = mkBtn(L("Cancel"), false, true);
             cancelButton.Margin = new Thickness(0);
             buttonPanel.Children.Add(okButton);
             buttonPanel.Children.Add(cancelButton);
@@ -1708,8 +1709,8 @@ namespace ClaudeCodeVS
             catch (Exception ex)
             {
                 Debug.WriteLine($"ViewSessionTranscript error: {ex.Message}");
-                MessageBox.Show($"Could not open the session transcript:\n{ex.Message}",
-                    "View Session", MessageBoxButton.OK, MessageBoxImage.Error);
+                MessageBox.Show(L("Could not open the session transcript:\n{0}", ex.Message),
+                    L("View Session"), MessageBoxButton.OK, MessageBoxImage.Error);
             }
         }
 
@@ -1755,7 +1756,7 @@ namespace ClaudeCodeVS
         /// </summary>
         internal static string NormalizeTranscriptTitle(string title)
         {
-            if (string.IsNullOrWhiteSpace(title)) return "(untitled session)";
+            if (string.IsNullOrWhiteSpace(title)) return L("(untitled session)");
 
             var sb = new StringBuilder(title.Length);
             bool pendingSpace = false;
@@ -1981,7 +1982,7 @@ namespace ClaudeCodeVS
             BringSessionTabToFront(targetTab);
 
             await RelaunchSessionAsync(targetTab,
-                $"🕘 Resumed the {GetSessionHistoryProviderName(session.Provider)} session.",
+                L("🕘 Resumed the {0} session.", GetSessionHistoryProviderName(session.Provider)),
                 resumeSessionId: session.SessionId);
         }
 
@@ -2019,8 +2020,8 @@ namespace ClaudeCodeVS
                 catch (Exception ex)
                 {
                     await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
-                    MessageBox.Show($"Could not load the latest {GetSessionHistoryProviderName(selected.Value)} session:\n{ex.Message}",
-                        "Session History", MessageBoxButton.OK, MessageBoxImage.Error);
+                    MessageBox.Show(L("Could not load the latest {0} session:\n{1}", GetSessionHistoryProviderName(selected.Value), ex.Message),
+                        L("Session History"), MessageBoxButton.OK, MessageBoxImage.Error);
                     return;
                 }
 
@@ -2028,8 +2029,8 @@ namespace ClaudeCodeVS
                 if (latest == null)
                 {
                     await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
-                    MessageBox.Show($"No {GetSessionHistoryProviderName(selected.Value)} sessions were found for this workspace.",
-                        "Session History", MessageBoxButton.OK, MessageBoxImage.Information);
+                    MessageBox.Show(L("No {0} sessions were found for this workspace.", GetSessionHistoryProviderName(selected.Value)),
+                        L("Session History"), MessageBoxButton.OK, MessageBoxImage.Information);
                     return;
                 }
 
