@@ -1,0 +1,191 @@
+570	開始修正
+571	正在啟動代理程式…
+572	正在啟動…
+573	子代理程式
+574	不顯示「佈景主題已變更。要重新啟動 AI 程式碼代理程式嗎？」快顯視窗。在 Visual Studio 自動切換佈景主題時很有用（例如按 F5 時觸發的偵錯佈景主題）。
+575	切換到上方選擇的模型與投入程度。不會傳送提示。
+576	終端機
+577	終端機錯誤
+578	終端機無法使用。請重新啟動終端機。
+579	終端機未執行。請先重新啟動終端機。
+580	終端機類型
+581	代理程式沒有傳回認可訊息。
+582	代理程式正忙於另一輪。請等它完成後再產生認可訊息。
+583	無法建立代理程式工作階段。
+584	顯示變更後，代理程式終端機沒有恢復成正確的大小，因此面板有一部分保持空白，代理程式在您看不到的地方繪製。重新啟動終端機即可修復。
+585	代理程式終端機正忙著處理一個很大的回應———輸入與點按很快就會重新生效。不需要重新啟動。
+586	建置未及時完成。
+587	建置失敗。
+588	關閉方案或 Visual Studio 時開啟的聊天索引標籤，會在下次開啟時恢復，每個都會顯示先前的訊息並繼續對話。恢復的索引標籤只有在您傳送訊息時才會啟動其代理程式。僅限 Claude Code、Codex 與 Devin。您自行關閉的索引標籤不會重新開啟；工作階段歷程記錄中仍可找到。
+589	聊天工具列會移到訊息方塊內、文字下方，就像大多數聊天應用程式一樣：重新啟動、重新命名、色彩與附加歸入 ✚ 新聊天之後的 ⋯ 功能表，接著是模型、投入程度與權限選擇器，自訂命令、工具與設定位於最右端。
+590	聊天工具列使用 Visual Studio 本身的圖示，即時狀態會顯示旋轉的圓環，每個聊天索引標籤會顯示 ✅ 已完成、❌ 錯誤、❓ 等待您的回答，以及下方選擇的工作中圖示。
+591	已建立認可，但推送失敗。\n\n{0}
+592	主控台的字碼頁由代理程式啟動的每個處理序共用。變更字碼頁的命令———PowerShell 的 [Console]::OutputEncoding、shell 命令中的 chcp、某些 .NET CLI 工具———結束後仍保持變更，此後終端機會顯示亂碼，直到重新啟動為止。\n\n開啟此選項時，一發現偏移就會立即還原字碼頁。如果某個代理程式工作流程刻意將主控台切換到其他字碼頁且需要保持，請關閉此選項。
+593	自訂背景色彩不是有效的十六進位值（請使用 #RRGGBB，例如 #F4ECFF）。\n\n保留先前的色彩。
+594	此檔案不包含 Claude Code Extension 設定。
+595	此檔案沒有設定區段。
+596	此檔案是空的。
+597	此檔案不是有效的設定檔：{0}
+598	此問題工作樹的資料夾已存在，且不是 git 工作樹：\n\n{0}\n\n請將其刪除或重新命名，然後再試一次。
+599	已先將最新的 {0} 合併到 {1}。請再次執行「合併」。
+600	合併失敗。\n\n{0}
+601	無法自動重新啟用新版主控台。\n\n錯誤：{0}\n\n請在命令提示字元中執行下列命令，然後重新啟動 Visual Studio:\n\n{1}
+602	已重新啟用新版主控台。\n\n必須重新啟動 Visual Studio，終端機才能正確附加。要立即重新啟動嗎？
+603	重建未及時完成。
+604	重建失敗。
+605	無法讀取檔案中的設定。
+606	無法讀取檔案中的設定：{0}
+607	方案清除未及時完成。已略過執行動作。
+608	方案重建未及時完成。已略過執行動作。
+609	方案重建失敗。已略過執行動作。
+610	由於此電腦已啟用舊版主控台模式 (HKCU\\Console\\ForceV2 = 0)，無法將終端機附加到面板。\n\n請在命令提示字元中執行下列命令，然後重新啟動 Visual Studio:\n\n{0}
+611	無法將終端機附加到面板。\n\n請再次嘗試「重新啟動程式碼代理程式」。如果問題仍然存在，請附上記錄檔回報：\n{0}
+612	終端機已啟動，但無法附加到面板。\n\n請再次嘗試「重新啟動程式碼代理程式」。如果問題仍然存在，請附上記錄檔回報：\n{0}
+613	工作樹中有未認可的變更。請先「認可並推送」。
+614	佈景主題
+615	佈景主題已變更
+616	佈景主題已變更。要重新啟動 AI 程式碼代理程式以套用新的終端機色彩嗎？
+617	佈景主題偏好設定已變更。要重新啟動 AI 程式碼代理程式以套用新的終端機色彩嗎？
+618	錯誤清單中沒有可傳送的建置錯誤。
+619	沒有可描述的變更。
+620	下列 CLI 可執行檔路徑不存在於磁碟上：\n\n{0}\n\n如果路徑錯誤，代理程式將無法啟動。仍要儲存這些路徑嗎？
+621	這些設定僅適用於此方案。每個方案保有自己的設定。
+622	這會關閉其聊天索引標籤，並刪除工作樹與本機分支 {0}，包括未認可的變更。
+623	這會關閉其聊天索引標籤，並刪除工作樹與本機分支 {0}。
+624	這會從 GitHub 下載適用於 Windows 的最新 OpenPets 版本（約 180 MB），然後啟動其安裝程式。\n\n要繼續嗎？
+625	這會開啟命令提示字元並為 {0} 安裝 Caveman:\n\n  npx skills add JuliusBrussee/caveman -g\n\n請依照該處的提示操作。關閉命令提示字元後，程式碼代理程式會重新載入以使用 Caveman 技能 (僅在 Claude Code ({0}) 是作用中代理程式時)。\n\n要繼續嗎？
+626	標題 (A–Z)
+627	若要使用 Claude Code (WSL)，必須安裝 WSL，並在 WSL 內安裝 Claude Code。\r\n\r\n（可按 CTRL+C 複製完整說明）\r\n\r\n請確認 BIOS 中已啟用虛擬化。\r\n\r\n以系統管理員身分開啟 PowerShell 並執行：\r\n\r\ndism.exe /online /enable-feature /featurename:Microsoft-Windows-Subsystem-Linux /all /norestart\r\n\r\ndism.exe /online /enable-feature /featurename:VirtualMachinePlatform /all /norestart\r\n\r\nwsl --install\r\n\r\n# 在 Windows 子系統 Linux 版中啟動 shell\r\nwsl\r\n\r\n# https://learn.microsoft.com/en-us/windows/dev-environment/javascript/nodejs-on-wsl\r\n# 在 WSL 中安裝 Node.js\r\ncurl -o- https://raw.githubusercontent.com/nvm-sh/nvm/master/install.sh | bash\r\n\r\n# 在新索引標籤中，或結束後再次執行 `wsl`，然後安裝 Node.js\r\nnvm install 22\r\n\r\n# 在 WSL 中安裝並執行 Claude Code\r\nnpm i -g @anthropic-ai/claude-code\r\nclaude
+628	若要使用 Codex，必須安裝 WSL，並在 WSL 內安裝 Codex。\r\n\r\n（可按 CTRL+C 複製完整說明）\r\n\r\n請確認 BIOS 中已啟用虛擬化。\r\n\r\n以系統管理員身分開啟 PowerShell 並執行：\r\n\r\ndism.exe /online /enable-feature /featurename:Microsoft-Windows-Subsystem-Linux /all /norestart\r\n\r\ndism.exe /online /enable-feature /featurename:VirtualMachinePlatform /all /norestart\r\n\r\nwsl --install\r\n\r\n# 在 Windows 子系統 Linux 版中啟動 shell\r\nwsl\r\n\r\n# https://learn.microsoft.com/en-us/windows/dev-environment/javascript/nodejs-on-wsl\r\n# 在 WSL 中安裝 Node.js\r\ncurl -o- https://raw.githubusercontent.com/nvm-sh/nvm/master/install.sh | bash\r\n\r\n# 在新索引標籤中，或結束後再次執行 `wsl`，然後安裝 Node.js\r\nnvm install 22\r\n\r\n# 在 WSL 中安裝並執行 Codex\r\nnpm i -g @openai/codex\r\ncodex
+629	若要使用 Cursor Agent，必須安裝 WSL 與 cursor-agent。\r\n\r\n（可按 CTRL+C 複製完整說明）\r\n\r\n請確認 BIOS 中已啟用虛擬化。\r\n\r\n以系統管理員身分開啟 PowerShell 並執行：\r\n\r\ndism.exe /online /enable-feature /featurename:Microsoft-Windows-Subsystem-Linux /all /norestart\r\n\r\ndism.exe /online /enable-feature /featurename:VirtualMachinePlatform /all /norestart\r\n\r\nwsl --install\r\n\r\n在 WSL 內安裝 cursor agent:\r\n\r\nwsl \r\n\r\ncurl https://cursor.com/install -fsS | bash\r\n\r\n複製並貼上建議的 2 個命令，將 cursor 加入 PATH:\r\n\r\necho 'export PATH=\"$HOME/.local/bin:$PATH\"' >> ~/.bashrc\r\nsource ~/.bashrc\r\n\r\n啟動 cursor-agent 以登入：\r\n\r\ncursor-agent
+630	若要使用 Devin，必須安裝 WSL，並在 WSL 內安裝 Devin。\r\n\r\n（可按 CTRL+C 複製完整說明）\r\n\r\n請確認 BIOS 中已啟用虛擬化。\r\n\r\n以系統管理員身分開啟 PowerShell 並執行：\r\n\r\ndism.exe /online /enable-feature /featurename:Microsoft-Windows-Subsystem-Linux /all /norestart\r\n\r\ndism.exe /online /enable-feature /featurename:VirtualMachinePlatform /all /norestart\r\n\r\nwsl --install\r\n\r\n在 WSL 內安裝 Devin:\r\n\r\nwsl\r\n\r\ncurl -fsSL https://cli.devin.ai/install.sh | bash\r\n\r\n啟動 devin 以登入：\r\n\r\ndevin
+631	切換用量視窗。僅限 Claude / Devin 提供者。
+632	工具列
+633	上方（預設）———提示在上，終端機在下
+634	追蹤代理程式變更以供檢閱
+635	追蹤代理程式變更以供檢閱（保留/復原）
+636	關閉「追蹤代理程式變更以供檢閱」會捨棄檢閱清單。檔案保留目前的內容，但您將無法再保留或復原代理程式對它們的變更。\n\n仍要關閉嗎？
+637	輸入以依標題、預覽文字或日期篩選。按兩下工作階段可繼續；按一下滑鼠右鍵或按 F2 可重新命名。
+638	輸入以依名稱、系列或識別碼搜尋所有模型。字詞可以依任意順序輸入。
+639	先輸入提示，然後按一下「建議 AI 模型」，以取得適合它的模型與投入程度。
+640	復原代理程式變更
+641	復原所有代理程式變更
+642	要復原代理程式對全部 {0} 個擱置中檔案的變更嗎？
+643	要復原代理程式對全部 {0} 個擱置中檔案的變更嗎？
+644	要復原代理程式對 {0} 的變更嗎？\n\n檔案會還原成代理程式變更之前的狀態。
+645	更新程式碼代理程式
+646	將作用中程式碼代理程式的 CLI 更新為最新版本。
+647	已更新您的本機 {0}。
+648	正在更新本機 {0}…
+649	用量列
+650	用量資訊僅適用於 Claude Code 與 Devin。\n\n請將作用中的程式碼代理程式切換為 Claude Code 或 Devin 以檢視用量。
+651	使用低成本 AI 模型產生主題
+652	使用原生模式（以聊天取代內嵌終端機）
+653	驗證
+654	檢視
+655	檢視程式碼變更
+656	檢視程式碼變更需要 Git 存放庫。\n\n目前的工作目錄不在 Git 存放庫內，因此沒有可顯示的追蹤變更。請開啟受 Git 版本控制的方案或資料夾以使用此功能。
+657	檢視工作階段
+658	檢視…
+659	無法自動重新啟動 Visual Studio。請關閉後重新開啟，讓終端機可以附加。
+660	WSL 無法使用，或無法存取 Claude Code 專案資料夾。
+661	正在等待確認…
+662	警告：{0} 在編輯器中有未儲存的變更。復原也會捨棄這些編輯，包括您自己所做的編輯。選擇「否」可先儲存或檢查它們。
+663	警告：{0} 在編輯器中有未儲存的變更。復原也會捨棄這些檔案中未儲存的編輯，包括您自己所做的編輯。選擇「否」可先儲存或檢查它們。
+664	顯示 Claude 用量頁面需要 WebView2 執行階段。請按一下下方進行安裝，然後重新開啟此視窗。\n\n詳細資料：{0}
+665	Visual Studio 建置以錯誤結束時，自動將錯誤（以及作為內容的警告）傳送給作用中的程式碼代理程式以便修正。僅在代理程式終端機執行中且建置確實有錯誤時才傳送。
+666	剪貼簿文字較短時會直接插入提示。超過截斷門檻時會儲存為暫存檔並附加，以避免貼上遭截斷。
+667	啟用時，「傳送選取範圍」只會插入檔案路徑與行號 (例如 \"File: foo.cs (lines 10-15)\")，不含選取的程式碼。AI 代理程式會直接讀取檔案。
+668	啟用時，Antigravity 會以 --dangerously-skip-permissions 啟動
+669	啟用時，Claude Code 的每個工作階段（包括重新啟動）都會以規劃模式啟動。下次啟動時生效。
+670	啟用時，Claude Code 會以 --dangerously-skip-permissions 啟動
+671	啟用時，Codex 會以 --ask-for-approval never 啟動
+672	啟用時，Cursor Agent 會以 --yolo 啟動，略過所有核准
+673	啟用時，Devin 會以 --permission-mode dangerous 啟動
+674	啟用時，Grok 會以 --always-approve 啟動，自動核准每個動作
+675	啟用時，Qwen Code 會以 --yolo 啟動，自動核准每個動作
+676	啟用時，「執行」與「啟動但不偵錯」會在啟動前清除方案。
+677	啟用時，「執行」與「啟動但不偵錯」會在啟動前重建方案。如果重建失敗，則略過啟動。
+678	啟用時，超過約 1 KB 的提示會儲存為暫存檔，只傳送檔案路徑。可避免大型內容貼上遭截斷。
+679	啟用時，指令碼結束後指令碼視窗會自動關閉。停用時視窗會保持開啟，方便您閱讀輸出。
+680	啟用時，動作會顯示為通知上的按鈕，只有按一下時才會執行。停用時，動作會自動執行。建議對指令碼、執行與重建啟用。
+681	啟用時，傳送提示時絕不使用剪貼簿。提示會儲存為暫存檔，只透過模擬按鍵將簡短的檔案參考輸入終端機。如果其他應用程式（剪貼簿管理員、遠端桌面、安全性工具）佔用剪貼簿，使一般以貼上為基礎的傳送失敗，請使用此選項。\n\n僅適用於命令提示字元終端機類型———Windows Terminal 不接受此處使用的模擬按鍵。
+682	啟用時，面板會以聊天形式顯示與代理程式的對話，由代理程式本身的結構化通訊協定驅動，而非主控台視窗。回答會以串流方式顯示，工具呼叫與其結果會顯示為可摺疊的卡片，並回報每輪的權杖用量與費用。\n\n沒有結構化通道的代理程式會自動繼續使用內嵌終端機。下方的終端機設定僅在使用終端機時適用。
+683	啟用時，在您開始輸入之前，提示方塊會以淡色顯示您上次傳送的提示———讓您在輸出捲動時仍能看到代理程式正在處理什麼。這只是提醒，不會再次傳送；按 Ctrl+上 可編輯並重新傳送。
+684	當代理程式停止工作（終端機進入閒置）時，可選擇播放音效、顯示 Visual Studio 通知（含耗時，Claude Code 另含權杖數），並執行動作。
+685	提示面板（輸入方塊與用量列）相對於終端機的停駐位置。
+686	偵錯時，若應用程式遇到未處理的執行階段例外狀況，會自動將例外狀況（類型、訊息與堆疊追蹤）傳送給作用中的程式碼代理程式以便修正。僅在代理程式終端機執行中時才傳送。
+687	代理程式工作時，狀態列一律顯示「Thinking…」，而不是輪流顯示「Pondering…」或「Noodling…」之類的趣味字詞。旋轉圖示與時鐘仍會表示它正在工作。
+688	Windows Terminal（更好的表情符號/Unicode 支援）
+689	在 PATH 中找不到 Windows Terminal (wt.exe)。\n\n若要安裝，請以系統管理員身分開啟命令提示字元並執行：\n\n    winget install --id Microsoft.WindowsTerminal -e\n\n安裝後，請重新啟動 Visual Studio 並再試一次。\n\n正在將終端機類型還原為命令提示字元。
+690	在 PATH 中找不到 Windows Terminal (wt.exe)。\n\n若要安裝，請以系統管理員身分開啟命令提示字元並執行：\n\n    winget install --id Microsoft.WindowsTerminal -e\n\n或從下列位置安裝：\n• Microsoft Store: https://aka.ms/terminal\n• GitHub: https://github.com/microsoft/terminal/releases\n\n安裝後，請重新啟動 Visual Studio 並再試一次。\n\n（按 Ctrl+C 可複製此訊息）
+691	找不到 Windows Terminal
+692	支援 Windows Terminal——偵測會讀取終端機的主控台緩衝區（以 UI 自動化作為後援），可靠性可能略低於命令提示字元。
+693	索引標籤上的工作中圖示：
+694	無法快轉您的本機 {0}——準備好後請提取。
+695	您的本機 {0} 有不在 {1} 上的認可，因此未更新。
+696	您的本機 {0} 有未認可的變更，因此未更新———準備好後請提取。
+697	清除
+698	例如 \"認可並推送變更\"，或選擇「產生認可訊息」等預設集。如果動作失敗（建置/重建錯誤）或遭略過，則不會傳送。不適用於「傳送命令給代理程式」，因為它本身已傳送文字。
+699	gh 沒有回應。
+700	git 沒有回應。
+701	影像
+702	無工作樹
+703	未推送
+704	待推送
+705	已推送
+706	執行
+707	啟動但不偵錯
+708	無法讀取回答。
+709	基底分支
+710	未認可的變更
+711	工作樹 {0}
+712	{0}（待檢閱）
+713	{0} 工作階段歷程記錄———{1}
+714	{0} 及另外 {1} 個
+715	領先 {0} 個認可
+716	{0} 不支援從這裡刪除工作階段。
+717	已變更 {0} 個檔案
+718	仍有 {0} 個檔案待檢閱。
+719	{0} 個檔案待檢閱
+720	仍有 {0} 個檔案待檢閱。
+721	已變更 {0} 個檔案
+722	{0} 個檔案待檢閱
+723	{0} 會在啟動時讀取模型。\n\n要立即重新啟動，以 \"{1}\" 執行嗎？
+724	↶ 復原
+725	↶ 全部復原
+726	↻ 重新整理
+727	⇄ 比較
+728	♻️  重新啟動程式碼代理程式
+729	⚠ 此字型不是等寬字型。終端機會將其文字顯示錯亂，窄字母後出現空隙，寬字母互相重疊。
+730	✓ 保留
+731	✓ 全部保留
+732	⧉  卸離 / 附加終端機
+733	⧉  將終端機卸離到個別索引標籤
+734	🌐 在瀏覽器中開啟
+735	🌓  月亮（動畫）
+736	🐞  GitHub Issues
+737	👤 切換帳戶
+738	💡  建議 AI 模型
+739	💡 建議
+740	💡 已切換到 {0}
+741	💡 已切換到 {0}。
+742	💬 聊天已開啟
+743	📁  設定工作目錄
+744	📁  設定工作目錄...
+745	📄  插入作用中檔案路徑
+746	📄  檢視程式碼變更
+747	📊  顯示用量
+748	📋  插入編輯器選取範圍
+749	📎  附加檔案...
+750	📜  工作階段歷程記錄
+751	📝  產生認可訊息
+752	📥  從剪貼簿貼上
+753	🔄  箭號（藍色，靜止）
+754	🔄️  更新程式碼代理程式
+755	🕐  時鐘（動畫）
+756	🕘 已繼續 {0} 工作階段。
+757	🖼 正在載入 {0}…
+758	🖼 無法載入 {0}——請在瀏覽器中開啟
+759	🚀  產生認可訊息、認可並推送
+760	🛠️  將建置錯誤傳送給代理程式

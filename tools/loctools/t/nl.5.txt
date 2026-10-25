@@ -1,0 +1,6 @@
+761	{0} van {1}
+762	Fable - Meest veeleisende taken
+763	Opus - Complexe taken
+764	Sonnet - Dagelijkse taken
+765	Haiku - Eenvoudige taken
+766	Opus Plan - Opus voor planning, Sonnet voor uitvoering

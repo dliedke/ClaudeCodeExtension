@@ -1,0 +1,190 @@
+190	Cài đặt Cursor Agent
+191	Cursor Agent chưa được cài đặt. Một terminal CMD thông thường sẽ được dùng thay thế.\r\n\r\n(bạn có thể nhấn CTRL+C để sao chép toàn bộ hướng dẫn)\r\n\r\nCÀI ĐẶT: Cài đặt gốc (Windows)\r\n\r\nMở PowerShell và chạy:\r\n\r\nirm 'https://cursor.com/install?win32=true' | iex\r\n\r\nSau đó thêm agent.cmd vào biến môi trường PATH:\r\nC:\\Users\\%username%\\AppData\\Local\\cursor-agent\r\n\r\nCài thêm ripgrep (phụ thuộc bắt buộc):\r\n\r\nwinget install -e --id BurntSushi.ripgrep.MSVC\r\n\r\nĐể biết thêm chi tiết, hãy truy cập: https://cursor.com
+192	Cursor Agent: Chế độ Yolo
+193	Đường dẫn tệp thực thi CLI tùy chỉnh
+194	Lệnh tùy chỉnh
+195	Màu nền tùy chỉnh
+196	Lệnh tùy chỉnh xuất hiện trong danh sách thả xuống của thanh công cụ cạnh menu tác nhân. Bấm vào một lệnh sẽ gửi văn bản đã cấu hình trực tiếp tới tác nhân mã đang hoạt động — hữu ích cho lệnh gạch chéo (ví dụ /codex-review) hoặc lời nhắc soạn sẵn.
+197	Tiêu đề tùy chỉnh (để trống để khôi phục bản xem trước tự động):
+198	Cắt
+199	Tối
+200	Mặc định
+201	Màu mặc định cho các phiên ở chế độ gốc. Màu được chọn cho một phiên riêng (nút bảng màu trong cuộc trò chuyện) vẫn được ưu tiên.
+202	Xóa
+203	Xóa phiên
+204	Xóa tệp này do tác nhân tạo
+205	Xóa bản ghi phiên này?\n\n{0}{1}\n\nKhông thể hoàn tác thao tác này.
+206	Xóa {0}, worktree và tab trò chuyện của nó
+207	Xóa {0}?\n\nTác nhân đã tạo tệp này. Hoàn tác sẽ xóa nó khỏi đĩa.
+208	Đã xóa {0} trên {1}.
+209	Tách trò chuyện ra tab riêng
+210	Tách terminal ra tab riêng
+211	Được phát hiện bằng cách theo dõi khi terminal rảnh, nên áp dụng cho mọi tác nhân.
+212	Cài đặt Devin
+213	Devin chưa được cài đặt. Một terminal CMD thông thường sẽ được dùng thay thế.\r\n\r\n(bạn có thể nhấn CTRL+C để sao chép toàn bộ hướng dẫn)\r\n\r\nCÀI ĐẶT\r\n\r\nMở Windows Terminal và chạy:\r\n\r\nirm https://static.devin.ai/cli/setup.ps1 | iex\r\n\r\n(Phải cài đặt từ Windows Terminal. Mở một terminal mới\r\nsau đó để PATH đã cập nhật có hiệu lực.)\r\n\r\nSau khi cài, lệnh 'devin' hoạt động trong cả Windows Terminal lẫn\r\nCommand Prompt thông thường. Tác nhân được khởi chạy bằng lệnh 'devin'.\r\n\r\nĐể biết thêm chi tiết, hãy truy cập: https://devin.ai
+214	Không thể đọc mức sử dụng của Devin.
+215	Devin: Chế độ nguy hiểm
+216	Tắt bảng nhớ tạm (gõ lời nhắc thay vì dán)
+217	Hủy bỏ bản sửa
+218	Hủy bỏ bản sửa cho issue #{0}?\n\n
+219	Không hỏi khởi động lại tác nhân AI khi chủ đề thay đổi
+220	Tải xuống WebView2 Runtime
+221	Đang tải xuống OpenPets {0}…
+222	Đang tải xuống OpenPets {0}… {1}
+223	Đang tải xuống OpenPets {0}… {1} / {2} ({3}%)
+224	Tải bản phát hành thú cưng màn hình OpenPets mới nhất cho Windows từ GitHub, hiển thị tiến trình tải xuống, đối chiếu với checksum được công bố của bản phát hành, rồi khởi chạy trình cài đặt. Đóng cửa sổ này trước, bỏ các thay đổi chưa lưu.
+225	Kéo & Thả
+226	Kéo để sắp xếp lại
+227	Mỗi tệp sẽ trở lại như trước khi tác nhân thay đổi. Các tệp do tác nhân tạo sẽ bị xóa.
+228	Sửa lệnh tùy chỉnh
+229	Sửa...
+230	Nỗ lực (Tự động)
+231	Nỗ lực ({0})
+232	Nỗ lực:
+233	Mã hóa ký tự
+234	Nhập thư mục làm việc tùy chỉnh cho terminal:\n  - Đường dẫn tuyệt đối (ví dụ C:\\Projects\\MyRepo)\n  - Đường dẫn tương đối so với thư mục solution (ví dụ ..\\OtherRepo)\n  - Để trống để dùng thư mục solution mặc định
+235	Enter — gửi lời nhắc (Shift+Enter xuống dòng)
+236	Lỗi
+237	Lỗi khi đính kèm tệp được thả: {0}
+238	Lỗi khi cấu hình lệnh tùy chỉnh: {0}
+239	Lỗi khi cấu hình các tác nhân hiển thị: {0}
+240	Lỗi khi mở hộp thoại Cài đặt: {0}
+241	Lỗi khi mở tệp: {0}
+242	Lỗi khi mở hình ảnh: {0}
+243	Lỗi khi mở lịch sử phiên: {0}
+244	Lỗi khi dán hình ảnh: {0}
+245	Lỗi khi chọn tệp: {0}
+246	Lỗi khi gửi lời nhắc: {0}
+247	Lỗi khi gửi văn bản tới terminal: {0}
+248	Mọi thay đổi chưa commit trong kho, so với commit gần nhất
+249	Tệp thực thi
+250	Đối số khởi chạy bổ sung
+251	Fable được đề xuất, nhưng mô hình này cần tín dụng sử dụng và số dư đang bằng 0.
+252	Xóa thất bại: {0}
+253	Khởi tạo terminal thất bại: {0}
+254	Cài đặt Caveman thất bại: {0}
+255	Cài đặt OpenPets thất bại: {0}
+256	Tải cài đặt thất bại: {0}
+257	Đọc tệp cài đặt thất bại: {0}
+258	Tải lại Antigravity thất bại: {0}
+259	Tải lại Claude Code thất bại: {0}
+260	Tải lại Codex thất bại: {0}
+261	Tải lại Cursor Agent thất bại: {0}
+262	Tải lại Devin thất bại: {0}
+263	Tải lại Grok thất bại: {0}
+264	Tải lại Qwen Code thất bại: {0}
+265	Đặt lại mốc thay đổi mã thất bại.
+266	Khởi động lại terminal thất bại: {0}
+267	Chạy script On-Agent-Finish thất bại:\n\n{0}\n\n{1}
+268	Lưu cài đặt thất bại: {0}
+269	Gửi lệnh tùy chỉnh thất bại: {0}
+270	Stage các thay đổi để commit thất bại.\n\n{0}
+271	Khởi động terminal nhúng thất bại: {0}
+272	Cập nhật tác nhân thất bại: {0}
+273	Ghi thông điệp commit ra tệp tạm thất bại.
+274	Phần mở rộng tệp mà bộ chọn \"@\" liệt kê, ví dụ \".cs, .lua\". Để trống để liệt kê mọi tệp. Thư mục chỉ hiển thị khi chứa tệp phù hợp.
+275	Lọc theo số, tiêu đề, nhãn hoặc tác giả.
+276	Bộ lọc:
+277	Tìm
+278	Sửa issue #{0}
+279	Đã hủy bỏ bản sửa.
+280	Sửa bằng tác nhân
+281	Sửa một issue sẽ mở một tab trò chuyện cho nó, việc này cần Chế độ gốc. Hãy bật trong ⚙ Cài đặt... → Terminal → Dùng chế độ gốc.
+282	Các thư mục mà bộ chọn \"@\" bỏ qua, ví dụ \"Plugins, Assets/ThirdParty\". Một tên riêng lẻ bị bỏ qua ở bất cứ đâu nó xuất hiện; một đường dẫn chỉ bị bỏ qua tại vị trí đó. bin, obj, node_modules và các thư mục build tương tự luôn bị bỏ qua.
+283	Phông chữ áp dụng cho terminal nhúng (Command Prompt và Windows Terminal). Mặc định là Cascadia Mono. Chỉ liệt kê phông chữ đơn cách — console vẽ chữ trên lưới ô cố định, nên phông chữ tỷ lệ sẽ bị lộn xộn. Trên hệ thống dùng chữ viết mà Cascadia Mono không hiển thị được (tiếng Trung, Nhật, Hàn, v.v.), hãy chọn một phông chữ đơn cách hỗ trợ chữ viết của bạn — ví dụ MS Gothic hoặc NSimSun. Tìm theo tên; danh sách và bản xem trước hiển thị bằng chính từng phông chữ.
+284	Phông chữ của cuộc trò chuyện ở chế độ gốc. Mọi phông chữ đã cài đều được liệt kê, kể cả phông chữ tỷ lệ: cuộc trò chuyện được Windows dàn trang, không theo lưới ký tự cố định mà console cần, nên không có gì bị lộn xộn. Khối mã và diff vẫn dùng phông chữ đơn cách để các cột thẳng hàng. Ctrl+Cuộn trên cuộc trò chuyện sẽ phóng to/thu nhỏ dựa trên cỡ chữ này và được ghi nhớ riêng.
+285	Cỡ chữ (tính bằng point) của terminal nhúng. \"Mặc định\" giữ kích thước riêng của terminal. Trong Command Prompt, Ctrl+Cuộn trên terminal sẽ tự động cập nhật cỡ chữ này, nên mức phóng mà bạn chọn được giữ cho phiên sau. Trong Windows Terminal, Ctrl+Cuộn chỉ có tác dụng trong phiên hiện tại — hãy đặt cỡ chữ ở đây.
+286	Cỡ chữ của hộp nhập lời nhắc (cũng có thể chỉnh bằng Ctrl+Cuộn).
+287	Tạo thông điệp commit
+288	Tạo thông điệp commit cần Chế độ gốc. Hãy bật trong ⚙ Cài đặt... → Terminal → Dùng chế độ gốc, rồi bắt đầu một phiên.
+289	Tạo thông điệp commit, commit và push
+290	Git
+291	Không tìm thấy GitHub CLI (gh) — issue được liệt kê ở chế độ chỉ đọc từ API công khai; trả lời và đóng issue cần gh.
+292	GitHub Issues
+293	GitHub Issues — {0}
+294	Cài đặt Grok
+295	Grok chưa được cài đặt. Một terminal CMD thông thường sẽ được dùng thay thế.\r\n\r\n(bạn có thể nhấn CTRL+C để sao chép toàn bộ hướng dẫn)\r\n\r\nCÀI ĐẶT\r\n\r\nMở PowerShell và chạy:\r\n\r\nirm https://x.ai/cli/install.ps1 | iex\r\n\r\n(Hoặc: winget install xAI.GrokBuild. Mở một terminal mới sau đó\r\nđể PATH đã cập nhật có hiệu lực.)\r\n\r\nCẤU HÌNH\r\n\r\nChạy 'grok login' một lần trong terminal để đăng nhập bằng tài khoản grok.com của bạn.\r\n\r\nTác nhân được khởi chạy bằng lệnh 'grok'.\r\n\r\nĐể biết thêm chi tiết, hãy truy cập: https://grok.com/build
+296	Grok: Luôn phê duyệt
+297	Ẩn hộp nhập lời nhắc
+298	Ẩn hộp lời nhắc khi trò chuyện gốc ở trong tab riêng
+299	Ẩn hộp nhập lời nhắc (chỉ terminal)
+300	Ẩn bảng này khi trò chuyện gốc ở trong tab riêng
+301	Đã xóa lịch sử
+302	Số giây rảnh trước khi phát hiện \"đã xong\":
+303	Trong solution liên kết với Team Foundation Version Control (Azure DevOps / TFS), Claude Code ở chế độ gốc sẽ check out từng tệp chỉ đọc qua Visual Studio trước khi ghi, nên không bao giờ phải tự gỡ cờ chỉ đọc. Nếu check out thất bại, chẳng hạn vì người khác đang khóa tệp, thao tác sửa sẽ bị chặn và Claude được yêu cầu hỏi bạn. Không ảnh hưởng tới kho khác hay tác nhân khác. Áp dụng từ phiên trò chuyện tiếp theo.
+304	Ở chế độ gốc, khung soạn thảo của chính tab trò chuyện có các bộ chọn tác nhân/mô hình/nỗ lực/quyền, nên hộp lời nhắc của bảng này tự thu gọn khi cuộc trò chuyện chuyển sang tab riêng. Nó tự hiện lại mỗi khi cuộc trò chuyện được gắn lại vào bảng.
+305	Chèn tham chiếu @ tới tệp đang mở trong tab trình soạn thảo đang hoạt động, giống ngữ cảnh \"Active Document\" của GitHub Copilot.
+306	Cài đặt Caveman
+307	Cài đặt Caveman (WSL)...
+308	Cài đặt Caveman (Windows)...
+309	Cài đặt OpenPets
+310	Cài đặt OpenPets mới nhất (Windows)...
+311	Cài skill Caveman (trả lời siêu nén) bằng \"npx skills add JuliusBrussee/caveman -g\" trong một cửa sổ dòng lệnh, rồi tải lại tác nhân mã khi bạn đóng cửa sổ đó. Đóng cửa sổ này trước, bỏ các thay đổi chưa lưu. Chỉ dành cho Claude Code.\nLưu ý: Windows và WSL lưu skill riêng biệt, nên hãy cài cho từng môi trường bạn dùng (WSL cần Node.js/npx bên trong bản phân phối).
+312	Màu không hợp lệ
+313	Tệp JSON (*.json)|*.json|Tất cả các tệp (*.*)|*.*
+314	Giữ mỗi tệp mà tác nhân thay đổi trong danh sách xem xét ở chế độ xem Thay đổi, với nút Giữ và Hoàn tác cho từng tệp. Hoàn tác khôi phục tệp về như trước khi tác nhân thay đổi lần đầu. Ảnh chụp chỉ lưu trong bộ nhớ. Chỉ áp dụng khi dự án nằm trong kho git.
+315	Luôn hiển thị lời nhắc cuối cùng
+316	Giữ terminal ở bảng mã khởi chạy (UTF-8)
+317	Ngôn ngữ
+318	Ngôn ngữ của toàn bộ tiện ích mở rộng: bảng, menu, hộp thoại, thông báo và các tab trò chuyện. Tự động sẽ theo ngôn ngữ của Visual Studio. Thêm hoặc sửa một ngôn ngữ bằng cách đặt tệp <code>.json vào {0}. Áp dụng ngay, kể cả các cửa sổ và cuộc trò chuyện đang mở.
+319	Ngôn ngữ:
+320	Lần kiểm tra cuối: {0}
+321	Sửa đổi lần cuối
+322	Lời nhắc đã gửi gần nhất (Ctrl+Lên để sửa và gửi lại):
+323	Bố cục
+324	Trái — lời nhắc bên trái, terminal bên phải
+325	Chế độ console cũ đang bật trên máy này (HKCU\\Console\\ForceV2 = 0).\n\nWindows cần console hiện đại để gắn terminal vào bảng, nên terminal sẽ trống cho đến khi thay đổi điều này.\n\nBật lại console hiện đại ngay bây giờ? Thao tác này chỉ thay đổi cài đặt người dùng của riêng bạn và không cần quyền quản trị viên.
+326	Để Devin bắt đầu với mô hình mặc định của chính tài khoản đó.
+327	Sáng
+328	Liệt kê các GitHub issue của kho và sửa một issue trong nhánh, worktree và tab trò chuyện riêng, rồi commit, hợp nhất và trả lời trên issue. Cần Chế độ gốc.
+329	Tải tất cả cài đặt
+330	Tải tất cả cài đặt từ tệp...
+331	Tải cấu hình
+332	Đang tải claude.ai...
+333	Đang tải bình luận…
+334	Đang tải issue…
+335	Đang tải phiên…
+336	Đang tải bình luận của issue…
+337	Đang tìm bản phát hành OpenPets mới nhất…
+338	Hợp nhất
+339	Đã hủy hợp nhất.
+340	Hợp nhất vào {0}…
+341	Hợp nhất bản sửa vào nhánh cơ sở, push, trả lời trên issue, đóng issue và dọn dẹp.
+342	Hợp nhất {0} vào {1} và push {2} lên {3}. Trả lời trên issue #{4}:
+343	Đã hợp nhất vào {0}.
+344	Đã hợp nhất {0} vào {1} và push.
+345	Hợp nhất…
+346	Hợp nhất {0} mới nhất gây xung đột trong:\n\n{1}\n\nViệc hợp nhất đang diễn ra trong worktree của issue — hãy giải quyết ở đó, rồi chạy lại Hợp nhất.
+347	Hợp nhất {0} mới nhất gây xung đột. Các xung đột đã được gửi tới cuộc trò chuyện của issue để giải quyết — chạy lại Hợp nhất khi tác nhân đã xong.
+348	Đã đổi mô hình
+349	Chọn mô hình
+350	Mô hình:
+351	Hiện đại — biểu tượng Visual Studio và trạng thái có màu trên các tab
+352	Nhiều tin nhắn nhất
+353	Nhiều token nhất
+354	Chuyển xuống
+355	Chuyển lên
+356	Chuyển terminal sang một tab riêng và quay lại.
+357	Tên (hiển thị trong danh sách thả xuống):
+358	Thu hẹp các tệp được liệt kê khi gõ \"@\" trong lời nhắc. Các tệp bị .gitignore bỏ qua luôn bị loại. Phân tách các mục bằng dấu phẩy.
+359	Bảng màu gốc
+360	Chế độ gốc
+361	Chế độ gốc không mở terminal, nên loại terminal vẫn là Command Prompt khi chế độ này bật.
+362	Chế độ gốc đang bật: tác nhân tự báo khi kết thúc một lượt, nên không cần chờ console rảnh.
+363	Mới
+364	Kết quả tiếp theo (Enter)
+365	Không tìm thấy phiên Codex nào cho không gian làm việc này.
+366	Không tìm thấy phiên Devin nào cho không gian làm việc này.
+367	Không có tài liệu
+368	Không tìm thấy kho GitHub cho solution đang mở. GitHub Issues cần một kho git có remote github.com.
+369	Không có lời nhắc
+370	Không có vùng chọn
+371	Không có tài liệu nào đang mở trong trình soạn thảo.
+372	Không có thay đổi nào của tác nhân đang chờ xem xét
+373	Không có tác nhân nào đang chạy. Hãy bắt đầu một phiên tác nhân trước khi tạo thông điệp commit.
+374	Không có tác nhân nào đang chạy. Hãy bắt đầu một phiên tác nhân trước khi gửi lỗi build.
+375	Không phát hiện thay đổi
+376	Không có issue nào đã đóng.
+377	Chưa có bản sửa. Sửa bằng tác nhân sẽ bắt đầu một bản sửa từ {0}.
+378	Không tìm thấy kho git cho không gian làm việc hiện tại.
+379	Không có issue nào khớp với bộ lọc.

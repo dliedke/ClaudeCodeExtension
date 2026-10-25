@@ -6,7 +6,7 @@ Visual Studio Extension (VSIX) for VS 2022/2026 — integrates AI code assistant
 
 - Author: Daniel Carvalho Liedke (dliedke@gmail.com) | License: MIT
 - Repository: https://github.com/dliedke/ClaudeCodeExtension
-- Current Version: 268.0 | Target Framework: .NET Framework 4.7.2
+- Current Version: 270.0 | Target Framework: .NET Framework 4.7.2
 
 Step-by-step procedures for recurring tasks (release, Exp-hive debugging, publish, adding a
 provider/setting/UI file) live in `docs/SKILLS.md`. Short build/style brief for non-Claude agents: `docs/AGENTS.md`.
@@ -164,7 +164,7 @@ ClaudeCodeExtension/
 │   ├── ChatTabStatus.cs                 # Chat tab status glyph + title from the first prompt (pure, unit-tested)
 │   ├── PromptAttachments.cs             # Splits the "Files attached:" block out of a sent prompt for the chat bubble (pure, unit-tested)
 │   ├── ImagePreview.cs                  # Attachment thumbnails + hover preview, shared by composer chips/cards and the chat bubble strip
-│   ├── Loc.cs / LocExtension.cs         # Chat UI localization: L("English")/N("English") + {local:Loc '...'}, lang/<culture>.json (pure, unit-tested)
+│   ├── Loc.cs / LocExtension.cs         # UI localization (whole extension): L("English")/N("English") + {local:Loc '...'}, lang/<culture>.json (pure, unit-tested)
 │   ├── WelcomeCardLayout.cs             # Welcome card layout rule: tips stack once taller than 120 % of the left column width, account email line break (pure, unit-tested)
 │   ├── HostedWindowBounds.cs            # Detects a native child window (Usage WebView2) drifted from its WPF slot (pure)
 │   ├── MarkdownFlowRenderer.cs          # Markdown → FlowDocument + the MarkdownBlock control
@@ -247,7 +247,7 @@ Four cross-cutting rules (full text in `docs/ARCHITECTURE.md` → *Cross-Cutting
 - Active provider UI rule (v24.0): provider-dependent UI (checkmarks, captions, menu visibility, active labels) must use `_currentRunningProvider` when a terminal is alive, falling back to `_settings.SelectedProvider` only before launch.
 - Terminal focus rule (v26.0): never focus the embedded terminal with direct `SetForegroundWindow`/`SetFocus`; use `FocusTerminalForInputAsync()`/`FocusTerminalForInput()`/`FocusTerminalWindow()`. Hook focus checks stay Win32-only.
 - Agent send rule (v82.0): send agent-bound text through `SendTextToAgentAsync()`, not `SendTextToTerminalAsync()` — native mode has no console. Console-only traffic (slash commands, CLI updates, plugin installs) is the exception; new console-scraping logic must bail out when `IsNativeModeActive`.
-- Chat localization rule (v269.0): new or changed native chat UI text is wrapped in `L("...")`/`N("...")`/`{local:Loc '...'}` and translated in every `lang/*.json` in the same change (recipe: `docs/SKILLS.md` → *Localize chat text*); `test.cmd` fails on a missing or orphaned translation. Text set from code must also be redone by `RefreshChatLanguage()` so a language switch reaches open chats.
+- Chat localization rule (v269.0, whole extension since v270.0): new or changed UI text — chat, panel, menus, dialogs, message boxes — is wrapped in `L("...")`/`N("...")`/`{local:Loc '...'}` and translated in every `lang/*.json` in the same change (recipe: `docs/SKILLS.md` → *Localize chat text*); `test.cmd` fails on a missing or orphaned translation. Text set from code must also be redone by `RefreshChatLanguage()` (or a tool window's own `Loc.LanguageChanged` handler) so a language switch reaches everything already open.
 
 | File | `docs/ARCHITECTURE.md` section |
 |------|-------------------------------|

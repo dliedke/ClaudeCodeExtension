@@ -51,6 +51,7 @@ namespace ClaudeCodeVS
 
         private DispatcherTimer _autoRefreshTimer;
         private int _autoRefreshSeconds;
+        private DateTime? _lastCheckedAt;
         private bool _isHostVisible;
 
         /// <summary>
@@ -1374,7 +1375,15 @@ namespace ClaudeCodeVS
         private void UpdateStatus()
         {
             if (StatusText == null) return;
-            StatusText.Text = L("Last checked: {0}", DateTime.Now.ToString("HH:mm:ss"));
+            _lastCheckedAt = DateTime.Now;
+            StatusText.Text = L("Last checked: {0}", _lastCheckedAt.Value.ToString("HH:mm:ss"));
+        }
+
+        /// <summary>Redoes the status line set in code after a live language switch.</summary>
+        public void RefreshLanguage()
+        {
+            if (StatusText == null || !_lastCheckedAt.HasValue) return;
+            StatusText.Text = L("Last checked: {0}", _lastCheckedAt.Value.ToString("HH:mm:ss"));
         }
 
         public void ApplyAutoRefreshSeconds(int seconds)

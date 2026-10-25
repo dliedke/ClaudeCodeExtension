@@ -1,0 +1,190 @@
+380	Không có issue nào.
+381	Không có mô hình nào khớp với tìm kiếm.
+382	Tác nhân không báo cáo mô hình nào
+383	Tác nhân không báo cáo mô hình nào.
+384	Không có phiên tác nhân gốc nào khả dụng.
+385	Không có issue nào đang mở.
+386	Không có đề xuất: {0} Bạn vẫn có thể tự chọn mô hình và mức nỗ lực.
+387	Không có kết quả
+388	Không tìm thấy phiên nào trong:\n{0}
+389	Không có phiên nào khớp với bộ lọc hiện tại.
+390	Không tìm thấy phiên nào cho không gian làm việc này.
+391	Không có văn bản nào được chọn trong trình soạn thảo đang hoạt động.\nHãy chọn một đoạn mã trước.
+392	Không tìm thấy phiên {0} nào cho không gian làm việc này.
+393	Không (chỉ thông báo)
+394	Không khả dụng với Windows Terminal (chỉ hoạt động với Command Prompt).
+395	Không phải đơn cách — terminal sẽ hiển thị phông chữ này lộn xộn.
+396	Chưa chắc? Đề xuất sẽ hỏi Claude mô hình và mức nỗ lực nào phù hợp với issue này.
+397	Chưa cập nhật từ {0} — bấm để mở trang mức sử dụng
+398	Lưu ý: Phải cài đặt Windows Terminal (winget install Microsoft.WindowsTerminal).
+399	Lưu ý: Windows Terminal cần được cài đặt. Nếu không tìm thấy, hướng dẫn cài đặt sẽ được hiển thị.
+400	Không có gì đang chờ xem xét
+401	Không có gì để dán
+402	Thông báo / chạy hành động khi tác nhân hoàn tất
+403	Bây giờ
+404	Cũ nhất trước
+405	Khi tác nhân hoàn tất
+406	Khi tác nhân hoàn tất được cấu hình riêng cho từng solution. Hãy mở một solution hoặc thư mục để thiết lập.
+407	Khi tác nhân hoàn tất — {0}
+408	Khi cuộc trò chuyện mở trong tab riêng, bảng chỉ còn các thanh mức sử dụng nên sẽ bị ẩn. Nó quay lại khi cuộc trò chuyện được gắn lại hoặc tắt chế độ gốc, và View > Other Windows > Claude Code Extension luôn hiển thị nó bất cứ lúc nào.
+409	Nút thanh công cụ một lần bấm
+410	Chỉ chạy hành động nếu có tệp thay đổi
+411	Chỉ các loại tệp này:
+412	Mở
+413	Mở Mức sử dụng Claude
+414	Cài đặt Open Code
+415	Open Code chưa được cài đặt. Một terminal CMD thông thường sẽ được dùng thay thế.\r\n\r\n(bạn có thể nhấn CTRL+C để sao chép toàn bộ hướng dẫn)\r\n\r\nCÀI ĐẶT: Cài đặt bằng NPM\r\n\r\nMở cmd và chạy:\r\n\r\nnpm i -g opencode-ai\r\n\r\nYêu cầu:\r\n- Đã cài Node.js\r\n\r\nĐể biết thêm chi tiết, hãy truy cập: https://opencode.ai
+416	Mở trò chuyện sửa lỗi
+417	Mở thư mục cài đặt
+418	Mở claude.ai/settings/usage trong trình duyệt mặc định
+419	Mở trong VS
+420	Mở trên GitHub
+421	Mở chế độ xem Thay đổi (diff). Chỉ hiển thị trong kho git.
+422	Mở hộp thoại cài đặt hợp nhất (bố cục, loại terminal, chủ đề, cách gửi, tự động thu phóng, tự động mở thay đổi).
+423	Mở worktree của bản sửa trong cửa sổ Visual Studio mới để build và kiểm thử.
+424	Mở tệp này trong cửa sổ diff của Visual Studio: trước khi tác nhân sửa ở bên trái, hiện tại ở bên phải
+425	Mở trang mức sử dụng thay thế.
+426	Cài đặt PI
+427	PI chưa được cài đặt. Một terminal CMD thông thường sẽ được dùng thay thế.\r\n\r\n(bạn có thể nhấn CTRL+C để sao chép toàn bộ hướng dẫn)\r\n\r\nCÀI ĐẶT: Cài đặt bằng NPM\r\n\r\nMở cmd và chạy:\r\n\r\nnpm install -g @earendil-works/pi-coding-agent\r\n\r\nYêu cầu:\r\n- Đã cài Node.js\r\n- Đã cài Git for Windows (Git Bash) để hỗ trợ bash\r\n\r\nĐể biết thêm chi tiết, hãy truy cập: https://pi.dev
+428	Dán
+429	Lỗi dán
+430	Dán thất bại
+431	Đường dẫn để trống sẽ dùng cách phát hiện mặc định (PATH / vị trí cài đặt tích hợp).\nChỉ đặt đường dẫn khi muốn nhà cung cấp dùng một tệp thực thi cụ thể.\nNhà cung cấp gốc cần đường dẫn Windows đầy đủ (ví dụ C:\\Tools\\claude.exe). Nhà cung cấp WSL cần đường dẫn hoặc lệnh Linux (ví dụ /home/me/.local/bin/claude).
+432	Đang chờ xem xét
+433	Chọn...
+434	Trạng thái làm việc đơn giản (luôn là \"Thinking…\")
+435	Phát âm thanh khác khi tác nhân đặt câu hỏi
+436	Phát một âm thanh riêng khi tác nhân dừng lại và chờ câu trả lời của bạn (xác nhận có/không hoặc menu lựa chọn) thay vì hoàn tất. Dùng âm khác với âm hoàn tất để bạn phân biệt được.
+437	Phát âm thanh
+438	Phát âm thanh hệ thống khi tác nhân hoàn tất.
+439	Vui lòng nhập lời nhắc.
+440	Vui lòng chuyển sang tài khoản mong muốn trong trình duyệt, rồi bấm OK để tiếp tục Claude Code.
+441	Đăng câu trả lời này lên issue
+442	Đã đăng câu trả lời lên issue.
+443	Đang đăng câu trả lời…
+444	Đang chuẩn bị worktree…
+445	Mẫu sẵn ▾
+446	Nhấn Enter để tìm
+447	Kết quả trước (Shift+Enter)
+448	Lời nhắc
+449	Lời nhắc / Dán hình ảnh
+450	Cỡ chữ lời nhắc
+451	Đã xóa lịch sử lời nhắc.
+452	Hộp nhập lời nhắc
+453	Vị trí bảng lời nhắc
+454	Gửi lời nhắc
+455	Phông chữ tỷ lệ bị ẩn theo mặc định vì terminal hiển thị chúng lộn xộn. Chỉ chọn mục này nếu bạn cần một kiểu chữ mà bộ lọc đơn cách bỏ sót.
+456	Pull từ git trước lời nhắc đầu tiên
+457	Push {0} thất bại, nên không có gì được hợp nhất.\n\n{1}
+458	Đặt một ký hiệu trước tên mỗi tab trò chuyện để bạn biết từ dải tab mỗi phiên đang làm gì: ⏳ đang làm việc, ❓ chờ câu trả lời của bạn, ✳ xong, ❌ lỗi.
+459	Cài đặt Qwen Code
+460	Qwen Code chưa được cài đặt. Một terminal CMD thông thường sẽ được dùng thay thế.\r\n\r\n(bạn có thể nhấn CTRL+C để sao chép toàn bộ hướng dẫn)\r\n\r\nCÀI ĐẶT\r\n\r\nCần Node.js 22 trở lên. Mở một terminal và chạy:\r\n\r\nnpm install -g @qwen-code/qwen-code@latest\r\n\r\n(Mở một terminal mới sau đó để PATH đã cập nhật có hiệu lực.)\r\n\r\nCẤU HÌNH\r\n\r\nChạy 'qwen' một lần trong terminal và gõ /auth để thiết lập Coding Plan hoặc khóa API.\r\n(Đăng nhập Qwen OAuth miễn phí đã ngừng hoạt động.)\r\n\r\nTác nhân được khởi chạy bằng lệnh 'qwen'.\r\n\r\nĐể biết thêm chi tiết, hãy truy cập: https://github.com/QwenLM/qwen-code
+461	Qwen Code: Chế độ Yolo
+462	Đọc lại danh sách mô hình từ Devin CLI.
+463	Suy luận ({0})
+464	Đã đổi mức suy luận
+465	Suy luận:
+466	Cài đặt Reasonix
+467	Reasonix chưa được cài đặt. Một terminal CMD thông thường sẽ được dùng thay thế.\r\n\r\n(bạn có thể nhấn CTRL+C để sao chép toàn bộ hướng dẫn)\r\n\r\nCÀI ĐẶT\r\n\r\nMở một terminal và chạy:\r\n\r\nnpm i -g reasonix\r\n\r\n(Mở một terminal mới sau đó để PATH đã cập nhật có hiệu lực.)\r\n\r\nCẤU HÌNH\r\n\r\nĐặt khóa API DeepSeek của bạn trước khi khởi chạy, ví dụ:\r\n\r\nsetx DEEPSEEK_API_KEY sk-...\r\n\r\n(hoặc để trình hướng dẫn thiết lập của Reasonix lưu nó.)\r\n\r\nTác nhân được khởi chạy bằng lệnh 'reasonix'.\r\n\r\nĐể biết thêm chi tiết, hãy truy cập: https://github.com/esengine/DeepSeek-Reasonix/releases
+468	Rebuild solution
+469	Rebuild solution trước khi chạy
+470	Rebuild, rồi {0}
+471	Đề xuất mô hình AI
+472	Đề xuất mô hình AI chỉ hoạt động với Claude Code.\n\nHãy chuyển tác nhân sang Claude Code hoặc Claude Code (WSL) để sử dụng.
+473	Làm mới
+474	Làm mới mô hình
+475	Làm mới ngay
+476	Làm mới dữ liệu mức sử dụng mỗi 1 phút trong nền, kể cả khi tab Mức sử dụng Claude đã đóng hoặc không được chọn. Khi tắt, chỉ làm mới khi cửa sổ mức sử dụng đang mở hoặc được làm mới thủ công.
+477	Làm mới dữ liệu mức sử dụng mỗi 2 phút
+478	Đang làm mới danh sách mô hình…
+479	Xóa
+480	Xóa lệnh tùy chỉnh \"{0}\"?
+481	Xóa khỏi mục yêu thích
+482	Đang xóa bản sửa…
+483	Đổi tên
+484	Chỉ mục đã đổi tên
+485	Đổi tên…
+486	Mở lại các tab trò chuyện khi mở solution
+487	Thay thế TẤT CẢ cài đặt hiện tại của tiện ích mở rộng bằng cài đặt trong tệp này?\n\nCác thay đổi chưa lưu trong cửa sổ Cài đặt sẽ bị bỏ, cấu hình hiện tại được sao lưu cạnh tệp cài đặt, và tác nhân mã sẽ khởi động lại.\n\nHãy đóng mọi cửa sổ Visual Studio khác trước — chúng giữ cài đặt riêng trong bộ nhớ và sẽ ghi đè cài đặt vừa tải vào lần lưu tiếp theo.
+488	Thay thế toàn bộ cấu hình tiện ích mở rộng bằng một tệp đã lưu (tệp claudecode-settings.json sao chép từ máy khác cũng dùng được). Cấu hình hiện tại được sao lưu cạnh tệp cài đặt trước, và tác nhân mã khởi động lại để áp dụng cài đặt đã tải.
+489	Đặt lại
+490	Đặt lại mọi cài đặt hiển thị ở đây về mặc định?
+491	Đặt lại mốc về trạng thái không gian làm việc hiện tại
+492	Khôi phục mặc định
+493	Khởi động lại tác nhân mã
+494	Khởi động lại terminal
+495	Khởi động lại tác nhân mã đang hoạt động.
+496	Khởi động lại tác nhân mã? Phiên hiện tại sẽ bị kết thúc.
+497	Khôi phục mọi tệp đang chờ về như trước khi tác nhân thay đổi
+498	Khôi phục tệp này về như trước khi tác nhân thay đổi
+499	Khôi phục {0}?\n\nTác nhân đã xóa tệp này. Hoàn tác sẽ đặt nó trở lại như cũ.
+500	Tiếp tục
+501	Tiếp tục phiên gần nhất
+502	Tiếp tục một phiên Claude Code hoặc Codex trước đó.
+503	Phải — terminal bên trái, lời nhắc bên phải
+504	Chạy
+505	Chạy (F5)
+506	Chạy một script…
+507	Chạy tất cả kiểm thử
+508	Chạy script
+509	Chạy không gỡ lỗi
+510	Chạy không gỡ lỗi (Ctrl+F5)
+511	Chạy {0}
+512	Chạy \"git pull\" trong kho của solution trước lời nhắc đầu tiên bạn gửi, để tác nhân không bao giờ bắt đầu sửa mã đã lỗi thời so với remote. Chạy một lần cho mỗi solution trong mỗi phiên Visual Studio, không phải mỗi lời nhắc. Bỏ qua khi dự án không nằm trong kho git, nhánh không có remote để pull, hoặc tác nhân vẫn đang xử lý tin nhắn trước. Nếu pull gây xung đột, các tệp xung đột được mô tả cho tác nhân và nó được yêu cầu giải quyết trước khi làm điều bạn yêu cầu.
+513	Giống Tạo thông điệp commit, sau đó stage, commit và push mọi thay đổi ngay lập tức. Cần Chế độ gốc.
+514	Lưu tất cả cài đặt
+515	Lưu tất cả cài đặt ra tệp...
+516	Lưu cấu hình
+517	Lưu toàn bộ cấu hình tiện ích mở rộng ra tệp JSON: mọi cài đặt trong cửa sổ này, lệnh tùy chỉnh, Khi tác nhân hoàn tất (toàn cục và theo solution), tác nhân và mô hình hiển thị, bố cục thanh công cụ, đường dẫn CLI, lịch sử lời nhắc và tiêu đề phiên. Thay đổi chưa xác nhận bằng OK sẽ không được bao gồm.
+518	Đường dẫn script (cho \"Chạy một script\") hoặc văn bản lệnh (cho \"Gửi lệnh\"):
+519	Tìm trong tất cả mô hình
+520	Chọn
+521	Chọn tất cả
+522	Chọn mô hình — {0}
+523	Chọn loại terminal
+524	Chọn chủ đề
+525	Hãy chọn một issue.
+526	Chọn những tác nhân mã nào xuất hiện trong menu tác nhân. Tác nhân đang hoạt động luôn được hiển thị.
+527	Chọn tệp thực thi {0}
+528	Gửi lỗi build cho tác nhân
+529	Gửi vùng chọn tới Claude Code
+530	Gửi lệnh cho tác nhân
+531	Gửi lệnh
+532	Gửi lời nhắc lớn dưới dạng tệp
+533	Gửi lời nhắc bằng
+534	Chỉ gửi vùng chọn dưới dạng tham chiếu (không kèm mã)
+535	Gửi {0}
+536	Lịch sử phiên
+537	Lịch sử phiên khả dụng cho Claude Code, Codex và Devin (gốc hoặc WSL). Hãy chuyển tác nhân mã đang hoạt động sang một trong các nhà cung cấp đó trước.
+538	Đặt ngôn ngữ
+539	Đặt thư mục làm việc
+540	Đặt thư mục làm việc tùy chỉnh (tuyệt đối hoặc tương đối so với solution). Để trống để dùng hành vi mặc định.
+541	Đặt thư mục làm việc tùy chỉnh cho tác nhân.
+542	Thư mục cài đặt
+543	Đã lưu cài đặt vào:\n{0}
+544	Đã tải cài đặt, nhưng khởi động lại tác nhân mã thất bại: {0}
+545	Cài đặt...
+546	Hiện trò chuyện
+547	Hiện mức sử dụng
+548	Hiện thanh thông tin Visual Studio với thời lượng và số token của lượt khi tác nhân hoàn tất.
+549	Hiện số lượng subagent mà Claude Code đang chạy theo thời gian thực trên thanh công cụ của bảng, cạnh các nút. Di chuột lên để xem từng subagent đang làm gì. Ẩn khi không có subagent nào chạy. Chỉ dành cho Claude Code.
+550	Hiện thông báo
+551	Hiện số subagent đang hoạt động (Claude Code)
+552	Hiện tất cả phông chữ (kể cả phông chữ tỷ lệ)
+553	Hiện thanh mức sử dụng nội tuyến
+554	Chỉ hiện các phiên bạn đã đặt tiêu đề tùy chỉnh.
+555	Hiện tab trò chuyện (mở lại nếu đã đóng hoặc bị ẩn)
+556	Hiện bộ chuyển tài khoản claude.ai (ví dụ chuyển giữa tài khoản Team và cá nhân)
+557	Hiện các thanh mức sử dụng phiên/tuần thu nhỏ trong bảng lời nhắc. Chỉ áp dụng khi nhà cung cấp Claude Code đang hoạt động.
+558	Hiện trạng thái phiên trên mỗi tab trò chuyện
+559	Hiện số token trong cuộc trò chuyện
+560	Hiện:
+561	Hiện số token mỗi lượt đã dùng, theo thời gian thực khi tác nhân làm việc và ở dòng còn lại sau lượt. Vòng mức sử dụng trên thanh công cụ trò chuyện không bị ảnh hưởng.
+562	Đăng xuất
+563	Đăng xuất và chuyển tài khoản Claude mà cuộc trò chuyện này sử dụng.
+564	Skill
+565	Bỏ qua hành động khi tác nhân không sửa tệp nào (cây làm việc git sạch). Không có tác dụng bên ngoài kho git.
+566	Bỏ qua các thư mục này:
+567	Một số tệp không thể khôi phục:\n\n{0}
+568	Sắp xếp:
+569	Đang stage các thay đổi…

@@ -1,0 +1,191 @@
+570	Bắt đầu sửa
+571	Đang khởi động tác nhân…
+572	Đang khởi động…
+573	Subagent
+574	Ẩn cửa sổ bật lên \"Chủ đề đã thay đổi. Khởi động lại tác nhân mã AI?\". Hữu ích khi Visual Studio tự động đổi chủ đề (ví dụ chủ đề gỡ lỗi được kích hoạt bởi F5).
+575	Chuyển sang mô hình và mức nỗ lực đã chọn ở trên. Lời nhắc không được gửi.
+576	Terminal
+577	Lỗi terminal
+578	Terminal không khả dụng. Vui lòng khởi động lại terminal.
+579	Terminal không chạy. Vui lòng khởi động lại terminal trước.
+580	Loại terminal
+581	Tác nhân không trả về thông điệp commit.
+582	Tác nhân đang bận với một lượt khác. Hãy chờ nó xong trước khi tạo thông điệp commit.
+583	Không thể tạo phiên tác nhân.
+584	Terminal của tác nhân không trở lại đúng kích thước sau khi màn hình thay đổi, nên một phần bảng vẫn trống và tác nhân vẽ ở chỗ bạn không nhìn thấy. Khởi động lại terminal sẽ khắc phục.
+585	Terminal của tác nhân đang bận xử lý một phản hồi lớn — thao tác gõ và bấm sẽ hoạt động lại trong giây lát. Không cần khởi động lại.
+586	Build không hoàn tất kịp thời.
+587	Build thất bại.
+588	Các tab trò chuyện đang mở khi bạn đóng solution hoặc Visual Studio sẽ quay lại vào lần mở tiếp theo, mỗi tab tiếp tục cuộc trò chuyện với các tin nhắn trước được hiển thị. Tab được mở lại chỉ khởi động tác nhân khi bạn gửi tin nhắn cho nó. Chỉ Claude Code, Codex và Devin. Tab bạn tự đóng sẽ không được mở lại; Lịch sử phiên vẫn còn giữ nó.
+589	Thanh công cụ trò chuyện chuyển vào bên trong hộp tin nhắn, bên dưới văn bản, giống hầu hết ứng dụng trò chuyện: khởi động lại, đổi tên, màu và đính kèm được gom vào menu ⋯ sau ✚ trò chuyện mới, tiếp theo là các bộ chọn mô hình, nỗ lực và quyền, còn lệnh tùy chỉnh, công cụ và cài đặt nằm ở đầu bên phải.
+590	Thanh công cụ trò chuyện dùng biểu tượng riêng của Visual Studio, trạng thái trực tiếp hiển thị vòng xoay, và mỗi tab trò chuyện hiển thị ✅ xong, ❌ lỗi, ❓ chờ câu trả lời của bạn và biểu tượng đang làm việc được chọn bên dưới.
+591	Đã tạo commit, nhưng push thất bại.\n\n{0}
+592	Bảng mã của console được dùng chung với mọi tiến trình mà tác nhân khởi chạy. Một lệnh thay đổi nó - [Console]::OutputEncoding của PowerShell, chcp trong lệnh shell, một số công cụ .NET CLI - sẽ để nguyên thay đổi sau khi thoát, và từ đó terminal hiển thị ký tự lỗi cho đến khi được khởi động lại.\n\nKhi bật tùy chọn này, bảng mã được đặt lại ngay khi phát hiện sai lệch. Hãy tắt nếu một quy trình của tác nhân cố ý chuyển console sang bảng mã khác và cần giữ nguyên.
+593	Màu nền tùy chỉnh không phải giá trị hex hợp lệ (dùng #RRGGBB, ví dụ #F4ECFF).\n\nGiữ màu trước đó.
+594	Tệp không chứa cài đặt của Claude Code Extension.
+595	Tệp không có phần cài đặt.
+596	Tệp trống.
+597	Tệp không phải là tệp cài đặt hợp lệ: {0}
+598	Thư mục cho worktree của issue này đã tồn tại và không phải là git worktree:\n\n{0}\n\nHãy xóa hoặc đổi tên nó, rồi thử lại.
+599	{0} mới nhất đã được hợp nhất vào {1} trước. Hãy chạy lại Hợp nhất.
+600	Hợp nhất thất bại.\n\n{0}
+601	Không thể tự động bật lại console hiện đại.\n\nLỗi: {0}\n\nHãy chạy lệnh này trong Command Prompt và khởi động lại Visual Studio:\n\n{1}
+602	Đã bật lại console hiện đại.\n\nPhải khởi động lại Visual Studio để terminal gắn đúng cách. Khởi động lại ngay?
+603	Rebuild không hoàn tất kịp thời.
+604	Rebuild thất bại.
+605	Không thể đọc cài đặt trong tệp.
+606	Không thể đọc cài đặt trong tệp: {0}
+607	Clean solution không hoàn tất kịp thời. Hành động chạy đã bị bỏ qua.
+608	Rebuild solution không hoàn tất kịp thời. Hành động chạy đã bị bỏ qua.
+609	Rebuild solution thất bại. Hành động chạy đã bị bỏ qua.
+610	Không thể gắn terminal vào bảng vì chế độ console cũ đang bật trên máy này (HKCU\\Console\\ForceV2 = 0).\n\nHãy chạy lệnh này trong Command Prompt và khởi động lại Visual Studio:\n\n{0}
+611	Không thể gắn terminal vào bảng.\n\nHãy thử lại \"Khởi động lại tác nhân mã\". Nếu sự cố vẫn tiếp diễn, hãy báo cáo kèm tệp nhật ký:\n{0}
+612	Terminal đã khởi động nhưng không thể gắn vào bảng.\n\nHãy thử lại \"Khởi động lại tác nhân mã\". Nếu sự cố vẫn tiếp diễn, hãy báo cáo kèm tệp nhật ký:\n{0}
+613	Worktree có thay đổi chưa commit. Hãy Commit & Push chúng trước.
+614	Chủ đề
+615	Đã đổi chủ đề
+616	Chủ đề đã thay đổi. Khởi động lại tác nhân mã AI để áp dụng màu terminal mới?
+617	Tùy chọn chủ đề đã thay đổi. Khởi động lại tác nhân mã AI để áp dụng màu terminal mới?
+618	Không có lỗi build nào trong Error List để gửi.
+619	Không có thay đổi nào để mô tả.
+620	Các đường dẫn tệp thực thi CLI này không tồn tại trên đĩa:\n\n{0}\n\nTác nhân sẽ không khởi chạy được nếu đường dẫn sai. Vẫn lưu các đường dẫn này?
+621	Các cài đặt này chỉ áp dụng cho solution này. Mỗi solution giữ cài đặt riêng.
+622	Thao tác này đóng tab trò chuyện của nó và xóa worktree cùng nhánh cục bộ {0}, kể cả các thay đổi chưa commit.
+623	Thao tác này đóng tab trò chuyện của nó và xóa worktree cùng nhánh cục bộ {0}.
+624	Thao tác này sẽ tải bản phát hành OpenPets mới nhất cho Windows từ GitHub (khoảng 180 MB) rồi khởi chạy trình cài đặt.\n\nTiếp tục?
+625	Thao tác này sẽ mở một cửa sổ dòng lệnh và cài Caveman cho {0}:\n\n  npx skills add JuliusBrussee/caveman -g\n\nLàm theo hướng dẫn tại đó. Khi bạn đóng cửa sổ dòng lệnh, tác nhân mã sẽ được tải lại để nhận skill Caveman (chỉ khi Claude Code ({0}) là tác nhân đang hoạt động).\n\nTiếp tục?
+626	Tiêu đề (A–Z)
+627	Để dùng Claude Code (WSL), bạn cần cài WSL và cài Claude Code bên trong WSL.\r\n\r\n(bạn có thể nhấn CTRL+C để sao chép toàn bộ hướng dẫn)\r\n\r\nĐảm bảo ảo hóa đã được bật trong BIOS.\r\n\r\nMở PowerShell với quyền quản trị viên và chạy:\r\n\r\ndism.exe /online /enable-feature /featurename:Microsoft-Windows-Subsystem-Linux /all /norestart\r\n\r\ndism.exe /online /enable-feature /featurename:VirtualMachinePlatform /all /norestart\r\n\r\nwsl --install\r\n\r\n# Khởi động shell bên trong Windows Subsystem for Linux\r\nwsl\r\n\r\n# https://learn.microsoft.com/en-us/windows/dev-environment/javascript/nodejs-on-wsl\r\n# Cài Node.js trong WSL\r\ncurl -o- https://raw.githubusercontent.com/nvm-sh/nvm/master/install.sh | bash\r\n\r\n# Trong tab mới hoặc sau khi thoát và chạy lại `wsl` để cài Node.js\r\nnvm install 22\r\n\r\n# Cài và chạy Claude Code trong WSL\r\nnpm i -g @anthropic-ai/claude-code\r\nclaude
+628	Để dùng Codex, bạn cần cài WSL và cài Codex bên trong WSL.\r\n\r\n(bạn có thể nhấn CTRL+C để sao chép toàn bộ hướng dẫn)\r\n\r\nĐảm bảo ảo hóa đã được bật trong BIOS.\r\n\r\nMở PowerShell với quyền quản trị viên và chạy:\r\n\r\ndism.exe /online /enable-feature /featurename:Microsoft-Windows-Subsystem-Linux /all /norestart\r\n\r\ndism.exe /online /enable-feature /featurename:VirtualMachinePlatform /all /norestart\r\n\r\nwsl --install\r\n\r\n# Khởi động shell bên trong Windows Subsystem for Linux\r\nwsl\r\n\r\n# https://learn.microsoft.com/en-us/windows/dev-environment/javascript/nodejs-on-wsl\r\n# Cài Node.js trong WSL\r\ncurl -o- https://raw.githubusercontent.com/nvm-sh/nvm/master/install.sh | bash\r\n\r\n# Trong tab mới hoặc sau khi thoát và chạy lại `wsl` để cài Node.js\r\nnvm install 22\r\n\r\n# Cài và chạy Codex trong WSL\r\nnpm i -g @openai/codex\r\ncodex
+629	Để dùng Cursor Agent, bạn cần cài WSL và cursor-agent.\r\n\r\n(bạn có thể nhấn CTRL+C để sao chép toàn bộ hướng dẫn)\r\n\r\nĐảm bảo ảo hóa đã được bật trong BIOS.\r\n\r\nMở PowerShell với quyền quản trị viên và chạy:\r\n\r\ndism.exe /online /enable-feature /featurename:Microsoft-Windows-Subsystem-Linux /all /norestart\r\n\r\ndism.exe /online /enable-feature /featurename:VirtualMachinePlatform /all /norestart\r\n\r\nwsl --install\r\n\r\nCài cursor agent bên trong WSL:\r\n\r\nwsl \r\n\r\ncurl https://cursor.com/install -fsS | bash\r\n\r\nSao chép và dán 2 lệnh được gợi ý để thêm cursor vào PATH:\r\n\r\necho 'export PATH=\"$HOME/.local/bin:$PATH\"' >> ~/.bashrc\r\nsource ~/.bashrc\r\n\r\nKhởi động cursor-agent để đăng nhập:\r\n\r\ncursor-agent
+630	Để dùng Devin, bạn cần cài WSL và cài Devin bên trong WSL.\r\n\r\n(bạn có thể nhấn CTRL+C để sao chép toàn bộ hướng dẫn)\r\n\r\nĐảm bảo ảo hóa đã được bật trong BIOS.\r\n\r\nMở PowerShell với quyền quản trị viên và chạy:\r\n\r\ndism.exe /online /enable-feature /featurename:Microsoft-Windows-Subsystem-Linux /all /norestart\r\n\r\ndism.exe /online /enable-feature /featurename:VirtualMachinePlatform /all /norestart\r\n\r\nwsl --install\r\n\r\nCài Devin bên trong WSL:\r\n\r\nwsl\r\n\r\ncurl -fsSL https://cli.devin.ai/install.sh | bash\r\n\r\nKhởi động devin để đăng nhập:\r\n\r\ndevin
+631	Bật/tắt cửa sổ mức sử dụng. Chỉ dành cho nhà cung cấp Claude / Devin.
+632	Thanh công cụ
+633	Trên (mặc định) — lời nhắc ở trên, terminal ở dưới
+634	Theo dõi thay đổi của tác nhân để xem xét
+635	Theo dõi thay đổi của tác nhân để xem xét (Giữ/Hoàn tác)
+636	Tắt \"Theo dõi thay đổi của tác nhân để xem xét\" sẽ bỏ danh sách xem xét. Các tệp giữ nguyên nội dung hiện tại, nhưng bạn sẽ không thể Giữ hoặc Hoàn tác các thay đổi của tác nhân đối với chúng nữa.\n\nVẫn tắt?
+637	Gõ để lọc theo tiêu đề, văn bản xem trước hoặc ngày. Bấm đúp vào một phiên để tiếp tục; bấm chuột phải hoặc nhấn F2 để đổi tên.
+638	Gõ để tìm mọi mô hình theo tên, họ hoặc id. Các từ có thể gõ theo thứ tự bất kỳ.
+639	Hãy nhập lời nhắc trước, rồi bấm Đề xuất mô hình AI để nhận mô hình và mức nỗ lực phù hợp.
+640	Hoàn tác thay đổi của tác nhân
+641	Hoàn tác mọi thay đổi của tác nhân
+642	Hoàn tác thay đổi của tác nhân đối với cả {0} tệp đang chờ?
+643	Hoàn tác thay đổi của tác nhân đối với cả {0} tệp đang chờ?
+644	Hoàn tác thay đổi của tác nhân đối với {0}?\n\nTệp sẽ trở lại như trước khi tác nhân thay đổi.
+645	Cập nhật tác nhân mã
+646	Cập nhật CLI của tác nhân mã đang hoạt động lên phiên bản mới nhất.
+647	Đã cập nhật {0} cục bộ của bạn.
+648	Đang cập nhật {0} cục bộ…
+649	Thanh mức sử dụng
+650	Thông tin mức sử dụng chỉ khả dụng cho Claude Code và Devin.\n\nHãy chuyển tác nhân mã đang hoạt động sang Claude Code hoặc Devin để xem mức sử dụng.
+651	Dùng mô hình AI chi phí thấp để tạo chủ đề
+652	Dùng chế độ gốc (trò chuyện thay cho terminal nhúng)
+653	Xác thực
+654	Xem
+655	Xem thay đổi mã
+656	Xem thay đổi mã cần một kho Git.\n\nThư mục làm việc hiện tại không nằm trong kho Git, nên không có thay đổi được theo dõi nào để hiển thị. Hãy mở một solution hoặc thư mục được quản lý phiên bản bằng Git để dùng tính năng này.
+657	Xem phiên
+658	Xem…
+659	Không thể tự động khởi động lại Visual Studio. Vui lòng đóng và mở lại để terminal có thể gắn vào.
+660	WSL không khả dụng hoặc không truy cập được thư mục dự án Claude Code.
+661	Đang chờ xác nhận…
+662	Cảnh báo: {0} có thay đổi chưa lưu trong trình soạn thảo. Hoàn tác cũng sẽ bỏ các chỉnh sửa đó, kể cả những gì bạn tự sửa. Chọn Không để lưu hoặc xem lại trước.
+663	Cảnh báo: {0} có thay đổi chưa lưu trong trình soạn thảo. Hoàn tác cũng sẽ bỏ các chỉnh sửa chưa lưu trong các tệp này, kể cả những gì bạn tự sửa. Chọn Không để lưu hoặc xem lại trước.
+664	Cần WebView2 runtime để hiển thị trang mức sử dụng Claude. Bấm bên dưới để cài đặt, rồi mở lại cửa sổ này.\n\nChi tiết: {0}
+665	Khi một bản build Visual Studio kết thúc với lỗi, tự động gửi các lỗi (và cảnh báo, để có ngữ cảnh) tới tác nhân mã đang hoạt động để nó sửa. Chỉ gửi khi terminal của tác nhân đang chạy và bản build thực sự có lỗi.
+666	Khi văn bản trong bảng nhớ tạm ngắn, nó được chèn thẳng vào lời nhắc. Khi vượt ngưỡng cắt ngắn, nó được lưu vào tệp tạm và đính kèm, tránh việc dán bị cắt.
+667	Khi bật, \"Gửi vùng chọn\" chỉ chèn đường dẫn tệp và số dòng (ví dụ \"File: foo.cs (lines 10-15)\"), không kèm mã đã chọn. Tác nhân AI sẽ đọc tệp trực tiếp.
+668	Khi bật, Antigravity khởi động với --dangerously-skip-permissions
+669	Khi bật, Claude Code bắt đầu mọi phiên ở chế độ lập kế hoạch, kể cả khi Khởi động lại. Có hiệu lực từ lần khởi động tiếp theo.
+670	Khi bật, Claude Code khởi động với --dangerously-skip-permissions
+671	Khi bật, Codex khởi động với --ask-for-approval never
+672	Khi bật, Cursor Agent khởi động với --yolo để bỏ qua mọi phê duyệt
+673	Khi bật, Devin khởi động với --permission-mode dangerous
+674	Khi bật, Grok khởi động với --always-approve để tự động phê duyệt mọi hành động
+675	Khi bật, Qwen Code khởi động với --yolo để tự động phê duyệt mọi hành động
+676	Khi bật, Chạy và Chạy không gỡ lỗi sẽ clean solution trước khi khởi chạy.
+677	Khi bật, Chạy và Chạy không gỡ lỗi sẽ rebuild solution trước khi khởi chạy. Nếu rebuild thất bại, việc khởi chạy bị bỏ qua.
+678	Khi bật, lời nhắc lớn hơn khoảng 1 KB được lưu vào tệp tạm và chỉ gửi đường dẫn tệp. Tránh việc dán nội dung lớn bị cắt.
+679	Khi bật, cửa sổ script tự đóng sau khi script kết thúc. Khi tắt, chúng vẫn mở để bạn đọc đầu ra.
+680	Khi bật, hành động xuất hiện dưới dạng nút trên thông báo và chỉ chạy khi bạn bấm. Khi tắt, hành động chạy tự động. Nên bật cho script, chạy và rebuild.
+681	Khi bật, bảng nhớ tạm không bao giờ được dùng để gửi lời nhắc. Lời nhắc được lưu vào tệp tạm và chỉ một tham chiếu tệp ngắn được gõ vào terminal bằng thao tác phím mô phỏng. Hãy dùng tùy chọn này nếu ứng dụng khác (trình quản lý bảng nhớ tạm, Remote Desktop, công cụ bảo mật) chiếm bảng nhớ tạm và làm hỏng việc gửi bằng cách dán thông thường.\n\nChỉ khả dụng với loại terminal Command Prompt — Windows Terminal không nhận các thao tác phím mô phỏng mà tùy chọn này sử dụng.
+682	Khi bật, bảng hiển thị cuộc hội thoại với tác nhân dưới dạng trò chuyện, được điều khiển bằng giao thức có cấu trúc của chính tác nhân thay vì cửa sổ console. Câu trả lời hiển thị dần, các lệnh gọi công cụ và kết quả được hiển thị dưới dạng thẻ có thể thu gọn, và mức dùng token cùng chi phí được báo cáo cho mỗi lượt.\n\nCác tác nhân không có kênh có cấu trúc sẽ tự động tiếp tục dùng terminal nhúng. Các cài đặt terminal bên dưới chỉ áp dụng khi đang dùng terminal.
+683	Khi bật, hộp lời nhắc hiển thị lời nhắc gần nhất bạn đã gửi, làm mờ, cho đến khi bạn bắt đầu gõ — để bạn thấy tác nhân đang làm gì trong khi đầu ra cuộn qua. Đây chỉ là lời nhắc nhở và không bao giờ được gửi lại; nhấn Ctrl+Lên để sửa và gửi lại.
+684	Khi tác nhân ngừng làm việc (terminal rảnh), tùy chọn phát âm thanh, hiển thị thông báo Visual Studio (kèm thời gian thực hiện, và số token với Claude Code), và chạy một hành động.
+685	Vị trí bảng lời nhắc (hộp nhập và thanh mức sử dụng) được gắn so với terminal.
+686	Khi gỡ lỗi, nếu ứng dụng gặp ngoại lệ thời gian chạy chưa được xử lý, tự động gửi ngoại lệ (loại, thông báo và stack trace) tới tác nhân mã đang hoạt động để nó sửa. Chỉ gửi khi terminal của tác nhân đang chạy.
+687	Khi tác nhân làm việc, dòng trạng thái luôn hiển thị \"Thinking…\" thay vì luân phiên các từ vui như \"Pondering…\" hay \"Noodling…\". Biểu tượng xoay và đồng hồ vẫn cho thấy nó đang làm việc.
+688	Windows Terminal (hỗ trợ emoji/unicode tốt hơn)
+689	Không tìm thấy Windows Terminal (wt.exe) trong PATH.\n\nĐể cài đặt, mở Command Prompt với quyền quản trị viên và chạy:\n\n    winget install --id Microsoft.WindowsTerminal -e\n\nSau khi cài đặt, khởi động lại Visual Studio và thử lại.\n\nĐang chuyển loại terminal về Command Prompt.
+690	Không tìm thấy Windows Terminal (wt.exe) trong PATH.\n\nĐể cài đặt, mở Command Prompt với quyền quản trị viên và chạy:\n\n    winget install --id Microsoft.WindowsTerminal -e\n\nHoặc cài từ:\n• Microsoft Store: https://aka.ms/terminal\n• GitHub: https://github.com/microsoft/terminal/releases\n\nSau khi cài đặt, khởi động lại Visual Studio và thử lại.\n\n(Nhấn Ctrl+C để sao chép thông báo này)
+691	Không tìm thấy Windows Terminal
+692	Windows Terminal được hỗ trợ — việc phát hiện đọc bộ đệm console của terminal (với phương án dự phòng UI Automation) và có thể kém tin cậy hơn một chút so với Command Prompt.
+693	Biểu tượng đang làm việc trên tab:
+694	Không thể fast-forward {0} cục bộ của bạn — hãy pull khi sẵn sàng.
+695	{0} cục bộ của bạn có commit không có trên {1}, nên không được cập nhật.
+696	{0} cục bộ của bạn có thay đổi chưa commit, nên không được cập nhật — hãy pull khi sẵn sàng.
+697	clean
+698	ví dụ \"Commit và push các thay đổi\", hoặc chọn một mẫu sẵn như Tạo thông điệp commit. Bị bỏ qua nếu hành động thất bại (lỗi build/rebuild) hoặc bị bỏ qua. Không khả dụng cho \"Gửi lệnh cho tác nhân\", vốn đã gửi văn bản.
+699	gh không phản hồi.
+700	git không phản hồi.
+701	hình ảnh
+702	không có worktree
+703	chưa push
+704	đang chờ push
+705	đã push
+706	chạy
+707	chạy không gỡ lỗi
+708	không thể đọc câu trả lời.
+709	nhánh cơ sở
+710	thay đổi chưa commit
+711	worktree {0}
+712	{0} (đang chờ xem xét)
+713	Lịch sử phiên {0} — {1}
+714	{0} và {1} mục khác
+715	Đi trước {0} commit
+716	{0} không hỗ trợ xóa phiên từ đây.
+717	{0} tệp đã thay đổi
+718	{0} tệp vẫn đang chờ xem xét.
+719	{0} tệp đang chờ xem xét
+720	{0} tệp vẫn đang chờ xem xét.
+721	{0} tệp đã thay đổi
+722	{0} tệp đang chờ xem xét
+723	{0} lấy mô hình khi khởi động.\n\nKhởi động lại ngay để chạy với \"{1}\"?
+724	↶ Hoàn tác
+725	↶ Hoàn tác tất cả
+726	↻ Làm mới
+727	⇄ So sánh
+728	♻️  Khởi động lại tác nhân mã
+729	⚠ Phông chữ này không phải đơn cách. Terminal sẽ hiển thị văn bản lộn xộn, có khoảng trống sau các chữ hẹp và chữ rộng bị chồng lên nhau.
+730	✓ Giữ
+731	✓ Giữ tất cả
+732	⧉  Tách / Gắn terminal
+733	⧉  Tách terminal ra tab riêng
+734	🌐 Mở trong trình duyệt
+735	🌓  Mặt trăng (động)
+736	🐞  GitHub Issues
+737	👤 Chuyển tài khoản
+738	💡  Đề xuất mô hình AI
+739	💡 Đề xuất
+740	💡 Đã chuyển sang {0}
+741	💡 Đã chuyển sang {0}.
+742	💬 trò chuyện đang mở
+743	📁  Đặt thư mục làm việc
+744	📁  Đặt thư mục làm việc...
+745	📄  Chèn đường dẫn tệp đang mở
+746	📄  Xem thay đổi mã
+747	📊  Hiện mức sử dụng
+748	📋  Chèn vùng chọn trong trình soạn thảo
+749	📎  Đính kèm tệp...
+750	📜  Lịch sử phiên
+751	📝  Tạo thông điệp commit
+752	📥  Dán từ bảng nhớ tạm
+753	🔄  Mũi tên (xanh, tĩnh)
+754	🔄️  Cập nhật tác nhân mã
+755	🕐  Đồng hồ (động)
+756	🕘 Đã tiếp tục phiên {0}.
+757	🖼 Đang tải {0}…
+758	🖼 Không thể tải {0} — hãy mở trong trình duyệt
+759	🚀  Tạo thông điệp commit, commit và push
+760	🛠️  Gửi lỗi build cho tác nhân

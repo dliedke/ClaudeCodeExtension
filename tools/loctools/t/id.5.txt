@@ -1,0 +1,6 @@
+761	{0} dari {1}
+762	Fable - Tugas paling menuntut
+763	Opus - Tugas kompleks
+764	Sonnet - Tugas sehari-hari
+765	Haiku - Tugas mudah
+766	Opus Plan - Opus untuk perencanaan, Sonnet untuk eksekusi

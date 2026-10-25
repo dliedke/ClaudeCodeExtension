@@ -290,8 +290,9 @@ Namespaces: `ClaudeCodeVS` for controls/models, `ClaudeCodeExtension` for the pa
 
 ## Localize chat text
 
-Scope: the native chat tab only (transcript, composer, status line, cards, usage popup). Settings
-dialogs and the panel stay English.
+Scope (v270.0): the whole extension — chat tab, panel, menus, toolbar, Settings and other dialogs,
+message boxes, the Code Changes and Claude Usage windows. Model names, effort levels and provider
+names stay as the CLIs spell them.
 
 1. Write the English text wrapped: `L("Turn interrupted.")`, `L("Done in {0}", d)` (formats with
    the chat language's culture), XAML `{local:Loc 'Jump to the latest message'}` (escape `'` as `\'`).
@@ -309,7 +310,9 @@ dialogs and the panel stay English.
    without a rebuild, drop the file in `%LocalAppData%\ClaudeCodeExtension\lang` (it also
    overrides embedded entries).
 5. Text set from code after the XAML is built does not follow a language switch on its own: make
-   sure `RefreshChatLanguage()` (or the view's `RefreshLanguage()`) redoes it.
+   sure `RefreshChatLanguage()` (or the view's `RefreshLanguage()`) redoes it. A tool window that
+   lives outside the panel subscribes to `Loc.LanguageChanged` itself (Code Changes, Claude Usage).
+   Dialogs and menus built when opened need nothing.
 
 ---
 

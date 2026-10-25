@@ -1592,7 +1592,34 @@ namespace ClaudeCodeVS
             }
             else
             {
-                SearchResultsText.Text = $"{_currentMatchIndex + 1} of {_searchMatches.Count}";
+                SearchResultsText.Text = L("{0} of {1}", _currentMatchIndex + 1, _searchMatches.Count);
+            }
+        }
+
+        /// <summary>
+        /// Redoes the text set in code (summary, file rows, auto-scroll tooltip, search results) after a
+        /// live language switch; the XAML captions follow on their own.
+        /// </summary>
+        public void RefreshLanguage()
+        {
+            ThreadHelper.ThrowIfNotOnUIThread();
+
+            try
+            {
+                RefreshUI();
+                UpdateAutoScrollButtonState();
+                if (_searchMatches.Count > 0 && SearchTextBox.Text == _currentSearchText)
+                {
+                    UpdateSearchResultsTextInternal();
+                }
+                else
+                {
+                    SearchResultsText.Text = Retranslate(SearchResultsText.Text);
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Code Changes language refresh failed: {ex.Message}");
             }
         }
 

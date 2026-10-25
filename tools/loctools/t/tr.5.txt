@@ -1,0 +1,6 @@
+761	{0} / {1}
+762	Fable - En zorlu görevler
+763	Opus - Karmaşık görevler
+764	Sonnet - Günlük görevler
+765	Haiku - Kolay görevler
+766	Opus Plan - Planlama için Opus, yürütme için Sonnet

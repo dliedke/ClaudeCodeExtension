@@ -1,0 +1,6 @@
+761	{0} von {1}
+762	Fable - Anspruchsvollste Aufgaben
+763	Opus - Komplexe Aufgaben
+764	Sonnet - Alltägliche Aufgaben
+765	Haiku - Einfache Aufgaben
+766	Opus Plan - Opus für die Planung, Sonnet für die Ausführung

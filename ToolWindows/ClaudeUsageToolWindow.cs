@@ -67,6 +67,7 @@ namespace ClaudeCodeVS
         private void OnLanguageChanged(object sender, EventArgs e)
         {
             this.Caption = L("Claude Usage");
+            _control?.RefreshLanguage();
         }
 
         public override void OnToolWindowCreated()

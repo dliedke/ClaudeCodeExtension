@@ -143,9 +143,11 @@ namespace ClaudeCodeVS
         /// <summary>
         /// Puts the panel and the open chats into the language just applied, without reopening them. The
         /// XAML captions already followed through their bindings; this redoes the text built in code —
-        /// panel captions set at run time, selector captions, tab captions, status line, pending cards
-        /// and, while it is still up, the welcome card. Menus and dialogs are built when opened, so they
-        /// pick up the language on their own.
+        /// panel captions set at run time, the toolbar tooltips mirrored into the chat composers, the
+        /// usage bar notice, the last-prompt hint, selector captions, tab captions, status line, pending
+        /// cards and, while it is still up, the welcome card. The Code Changes and Claude Usage windows follow
+        /// <see cref="UI.Loc.LanguageChanged"/> themselves. Menus and dialogs are built when opened, so
+        /// they pick up the language on their own.
         /// </summary>
         private void RefreshChatLanguage()
         {
@@ -153,10 +155,14 @@ namespace ClaudeCodeVS
 
             try
             {
-                UpdateDetachButtonIcon(IsNativeModeActive ? IsChatDetachedToOwnTab : _isTerminalDetached);
+                // RefreshToolbarLayout also redoes the detach caption and copies the promoted buttons'
+                // tooltips into every chat composer again (the copies are plain text, not bindings).
+                RefreshToolbarLayout();
                 UpdateSetWorkingDirectoryMenuHeader();
                 UpdateEffortSelection();
                 if (InlineWeeklyLabel != null) InlineWeeklyLabel.Text = UI.Loc.Retranslate(InlineWeeklyLabel.Text);
+                UpdateInlineUsageStaleNotice();
+                UpdateLastPromptHint();
             }
             catch (Exception ex)
             {

@@ -173,6 +173,11 @@ Pull requests for new features are welcome. Bug fixes too — if you find an iss
 
 ## Version History
 
+### Version 270.0
+- The language setting now translates the whole extension, not just the chat: panel, menus, toolbar, Settings and other dialogs, messages, and the Code Changes and Claude Usage windows (*Settings → Layout → Language*).
+- Switching the language updates everything already open at once, including the toolbar buttons inside chat tabs, the usage bars and the Code Changes window.
+- All 20 languages now cover the full extension.
+
 ### Version 269.0
 - The chat tab is now available in 20 languages: English, Simplified Chinese, Japanese, Portuguese (Brazil), Spanish, Korean, German, French, Russian, Traditional Chinese, Indonesian, Turkish, Vietnamese, Polish, Italian, Ukrainian, Arabic, Hindi, Thai and Dutch. Pick one under *Settings → Layout → Chat language*, or leave it on Automatic to follow the Visual Studio language.
 - Changing the chat language now takes effect at once in every open chat, without restarting Visual Studio; messages already in the conversation keep the language they were written in.

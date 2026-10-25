@@ -1,0 +1,6 @@
+761	{0} / {1}
+762	Fable - Tác vụ khắt khe nhất
+763	Opus - Tác vụ phức tạp
+764	Sonnet - Tác vụ hằng ngày
+765	Haiku - Tác vụ đơn giản
+766	Opus Plan - Opus để lập kế hoạch, Sonnet để thực thi

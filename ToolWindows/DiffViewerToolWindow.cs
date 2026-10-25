@@ -66,7 +66,9 @@ namespace ClaudeCodeVS
         /// </summary>
         private void OnLanguageChanged(object sender, EventArgs e)
         {
+            ThreadHelper.ThrowIfNotOnUIThread();
             this.Caption = L("Code Changes");
+            _diffViewerControl?.RefreshLanguage();
         }
 
         private void OnDiffViewerPreviewKeyDown(object sender, KeyEventArgs e)
