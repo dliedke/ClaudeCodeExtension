@@ -73,6 +73,12 @@ namespace ClaudeCodeVS
 
         /// <summary>Identifies the AI title call in flight; null when none. A reset makes a late answer stale.</summary>
         public object AutoTitleRequest { get; set; }
+
+        /// <summary>
+        /// AI title waiting to become the session's name (Claude Code) because the agent had no session
+        /// id yet when it arrived; saved at the end of the turn. Null when nothing is waiting.
+        /// </summary>
+        public string PendingSessionName { get; set; }
         public string LastRateLimitNotice { get; set; }
 
         /// <summary>

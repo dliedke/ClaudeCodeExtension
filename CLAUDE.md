@@ -165,6 +165,7 @@ ClaudeCodeExtension/
 │   ├── PromptAttachments.cs             # Splits the "Files attached:" block out of a sent prompt for the chat bubble (pure, unit-tested)
 │   ├── ImagePreview.cs                  # Attachment thumbnails + hover preview, shared by composer chips/cards and the chat bubble strip
 │   ├── Loc.cs / LocExtension.cs         # Chat UI localization: L("English")/N("English") + {local:Loc '...'}, lang/<culture>.json (pure, unit-tested)
+│   ├── SessionListPresentation.cs       # Session History / welcome card recent list: cleaned first-prompt preview, date groups (pure, unit-tested)
 │   ├── WelcomeCardLayout.cs             # Welcome card layout rule: tips stack once taller than 120 % of the left column width, account email line break (pure, unit-tested)
 │   ├── HostedWindowBounds.cs            # Detects a native child window (Usage WebView2) drifted from its WPF slot (pure)
 │   ├── MarkdownFlowRenderer.cs          # Markdown → FlowDocument + the MarkdownBlock control

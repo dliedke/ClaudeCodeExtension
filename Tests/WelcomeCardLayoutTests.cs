@@ -45,6 +45,13 @@ namespace ClaudeCodeExtension.Tests
         }
 
         [TestMethod]
+        public void RecentConversationsStayBesideTheFactsWhateverTheirHeight()
+        {
+            Assert.IsFalse(WelcomeCardLayout.ShouldStack(600, 200, 400, recentListShown: true));
+            Assert.IsTrue(WelcomeCardLayout.ShouldStack(230, 220, 100, recentListShown: true), "No room beside still stacks.");
+        }
+
+        [TestMethod]
         public void UnmeasuredCardKeepsTheDefaultLayout()
         {
             Assert.IsFalse(WelcomeCardLayout.ShouldStack(0, 220, 500));

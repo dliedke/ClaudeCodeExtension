@@ -379,6 +379,12 @@ namespace ClaudeCodeVS
         public string Preview { get; set; } = string.Empty;
 
         /// <summary>
+        /// Claude Code only: git branch the session was last on, as the transcript records it. Empty
+        /// outside a git repository or when the provider does not record it.
+        /// </summary>
+        public string GitBranch { get; set; } = string.Empty;
+
+        /// <summary>
         /// User-assigned custom title for this session (issue #95). Empty when the user has
         /// not renamed the session, in which case <see cref="Preview"/> is shown instead.
         /// Loaded from <see cref="ClaudeCodeSettings.SessionCustomTitles"/>; not parsed from
@@ -623,6 +629,13 @@ namespace ClaudeCodeVS
         /// footer. The composer's usage ring is not affected. On by default.
         /// </summary>
         public bool ShowChatTokenCounts { get; set; } = true;
+
+        /// <summary>
+        /// If true, a tool call that fails (a command with a non-zero exit code, an edit that did not
+        /// apply) opens its card in the native chat by itself. Off leaves it collapsed, still marked as
+        /// failed. On by default.
+        /// </summary>
+        public bool ExpandFailedToolCalls { get; set; } = true;
 
         /// <summary>
         /// If true, the native chat's live status line always says "Thinking…" instead of rotating
@@ -1109,12 +1122,6 @@ namespace ClaudeCodeVS
         /// empty means the built-in accent blue.
         /// </summary>
         public string DefaultNativeSessionColor { get; set; } = string.Empty;
-
-        /// <summary>
-        /// Remembered state of the "Renamed only" filter toggle in the Session History
-        /// window, so it persists across Visual Studio restarts (issue #95).
-        /// </summary>
-        public bool SessionHistoryRenamedOnly { get; set; } = false;
 
         /// <summary>
         /// Remembered sort order for the Session History list, so the chosen ordering persists

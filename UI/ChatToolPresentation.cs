@@ -166,6 +166,61 @@ namespace ClaudeCodeVS.UI
         }
 
         /// <summary>
+        /// What an opened shell tool card shows as its input: the command as it was run, rather than the
+        /// JSON payload, where every quote and backslash in it would be escaped. Arguments other than the
+        /// command and its description (already the card's header) follow as <c>name: value</c> lines.
+        /// Null when the call is not a shell command or carries no command, so the caller keeps the JSON.
+        /// </summary>
+        public static string FormatShellInput(string toolName, string inputJson)
+        {
+            if (string.IsNullOrWhiteSpace(toolName))
+            {
+                return null;
+            }
+
+            switch (NormalizeToolName(toolName).ToLowerInvariant())
+            {
+                case "bash":
+                case "shell":
+                case "powershell":
+                case "run_command":
+                case "execute":
+                    break;
+                default:
+                    return null;
+            }
+
+            JObject input = TryParse(inputJson);
+            string command = GetString(input, ShellCommandFields);
+            if (string.IsNullOrEmpty(command))
+            {
+                return null;
+            }
+
+            var text = new StringBuilder(command.TrimEnd());
+            bool first = true;
+            foreach (JProperty property in input.Properties())
+            {
+                if (ShellCommandFields.Contains(property.Name, StringComparer.OrdinalIgnoreCase) ||
+                    string.Equals(property.Name, "description", StringComparison.OrdinalIgnoreCase))
+                {
+                    continue;
+                }
+
+                text.Append(first ? "\n\n" : "\n");
+                first = false;
+                text.Append(property.Name).Append(": ").Append(property.Value.Type == JTokenType.String
+                    ? (string)property.Value
+                    : Newtonsoft.Json.JsonConvert.SerializeObject(property.Value));
+            }
+
+            return text.ToString();
+        }
+
+        /// <summary>Fields a shell tool carries its command in, by agent.</summary>
+        private static readonly string[] ShellCommandFields = { "command", "cmd", "script" };
+
+        /// <summary>
         /// Strips the MCP prefix (<c>mcp__server__tool</c>) and any namespace, so a server-provided tool
         /// reads as its own name instead of a wire identifier.
         /// </summary>

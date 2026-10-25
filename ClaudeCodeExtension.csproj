@@ -140,6 +140,7 @@
     <Compile Include="UI\ImagePreview.cs" />
     <Compile Include="UI\Loc.cs" />
     <Compile Include="UI\LocExtension.cs" />
+    <Compile Include="UI\SessionListPresentation.cs" />
     <Compile Include="UI\WelcomeCardLayout.cs" />
     <Compile Include="UI\MarkdownFlowRenderer.cs" />
     <Compile Include="UI\ChatTranscriptView.xaml.cs">

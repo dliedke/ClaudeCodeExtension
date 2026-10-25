@@ -173,6 +173,14 @@ Pull requests for new features are welcome. Bug fixes too — if you find an iss
 
 ## Version History
 
+### Version 269.0
+- New Claude Code chats are named automatically with the AI title, so the name shows in Session History and in Claude Code's own resume list.
+- Session History groups conversations by date, shows the git branch of each one, and no longer shows attachment paths or pull-conflict text as the preview; the "Renamed only" filter was removed.
+- The native chat's welcome card lists the workspace's recent conversations, resumable with one click; the tips stay one click away under "Show tips".
+- Command cards in the native chat show the command as it was run instead of escaped JSON.
+- New setting "Open failed tool calls automatically" (on by default) lets failed tool cards stay closed, since the agent usually recovers by itself.
+- The native chat's usage popup keeps showing when the figures were last updated, with a small spinner beside it while they refresh, instead of replacing it with "Refreshing…".
+
 ### Version 268.0
 - Fixed an empty box shown after the weekly limit in the usage bars and in the native chat's usage popup.
 - The usage popup no longer stays on "Refreshing…" for a long time while the usage page is reloaded in the background.

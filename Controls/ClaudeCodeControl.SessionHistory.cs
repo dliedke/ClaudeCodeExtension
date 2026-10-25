@@ -27,6 +27,7 @@ using System.Windows.Media;
 using Microsoft.VisualStudio.Shell;
 using Newtonsoft.Json.Linq;
 using ClaudeCodeVS.Agents;
+using ClaudeCodeVS.UI;
 
 namespace ClaudeCodeVS
 {
@@ -378,6 +379,62 @@ namespace ClaudeCodeVS
         }
 
         /// <summary>
+        /// The <paramref name="count"/> most recently modified Claude Code conversations of a workspace,
+        /// newest first, for the welcome card. Only as many transcripts are parsed as it takes to find
+        /// them; sessions in <paramref name="excludedIds"/> (open in a chat tab) and ones without a
+        /// prompt are skipped. Titles are applied the way Session History applies them.
+        /// </summary>
+        private async Task<List<SessionInfo>> LoadRecentClaudeSessionsAsync(AiProvider provider, string workspaceDir,
+            int count, ICollection<string> excludedIds)
+        {
+            string sessionDir = await ResolveSessionDirectoryAsync(provider, workspaceDir);
+            if (string.IsNullOrEmpty(sessionDir))
+            {
+                return new List<SessionInfo>();
+            }
+
+            List<SessionInfo> recent = await Task.Run(() =>
+            {
+                var found = new List<SessionInfo>();
+                if (!Directory.Exists(sessionDir)) return found;
+
+                IEnumerable<FileInfo> files = new DirectoryInfo(sessionDir)
+                    .GetFiles("*.jsonl", SearchOption.TopDirectoryOnly)
+                    .OrderByDescending(f => f.LastWriteTimeUtc);
+
+                foreach (FileInfo file in files)
+                {
+                    if (excludedIds.Contains(Path.GetFileNameWithoutExtension(file.Name))) continue;
+
+                    try
+                    {
+                        SessionInfo info = ParseSessionFile(file.FullName, provider);
+                        if (info != null && info.MessageCount > 0) found.Add(info);
+                    }
+                    catch (Exception ex)
+                    {
+                        Debug.WriteLine($"Skipping unreadable session file {file.FullName}: {ex.Message}");
+                    }
+
+                    if (found.Count >= count) break;
+                }
+
+                return found;
+            });
+
+            await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
+            foreach (SessionInfo info in recent)
+            {
+                // The transcript's own name is the newest (renames here are written to it too).
+                info.CustomTitle = !string.IsNullOrWhiteSpace(info.TranscriptTitle)
+                    ? info.TranscriptTitle
+                    : GetNativeSessionTitle(info.SessionId);
+            }
+
+            return recent;
+        }
+
+        /// <summary>
         /// Reads a single JSONL transcript and extracts the metadata shown in the dialog:
         /// first user-typed prompt (preview), user/assistant turn count, total token usage,
         /// and the originating cwd. Skips system/snapshot/attachment lines because they
@@ -395,6 +452,7 @@ namespace ClaudeCodeVS
             int tokenCount = 0;
             bool sawCommandInvocation = false;
             string transcriptTitle = null;
+            string gitBranch = string.Empty;
 
             // Open with FileShare.ReadWrite so we can also peek at the active session
             // that Claude Code itself currently has open for writing.
@@ -425,6 +483,15 @@ namespace ClaudeCodeVS
                         cwd = (string)obj["cwd"] ?? string.Empty;
                     }
 
+                    // Every record carries the branch it was written on; the last one is where the
+                    // session left off. "HEAD" means a detached checkout, not a branch, so it is skipped
+                    // and the last real branch name stays.
+                    string recordBranch = (string)obj["gitBranch"];
+                    if (!string.IsNullOrEmpty(recordBranch) && recordBranch != "HEAD")
+                    {
+                        gitBranch = recordBranch;
+                    }
+
                     // Checked before the type dispatch: skill expansions land as "assistant" lines and
                     // would inflate the count there too. Kept after the cwd read so a session whose
                     // first record is a meta line does not lose its originating directory.
@@ -453,8 +520,9 @@ namespace ClaudeCodeVS
                         messageCount++;
                         if (string.IsNullOrEmpty(preview))
                         {
-                            preview = text.Length > 120 ? text.Substring(0, 120) + "…" : text;
-                            preview = preview.Replace("\r", " ").Replace("\n", " ").Trim();
+                            // Without what the extension wraps around a prompt (pull conflicts,
+                            // attachments); a message that was only that leaves the next one to preview.
+                            preview = SessionListPresentation.CleanPromptPreview(text);
                         }
                     }
                     else if (type == "assistant")
@@ -488,6 +556,7 @@ namespace ClaudeCodeVS
                 SessionId = sessionId,
                 FilePath = filePath,
                 Preview = preview,
+                GitBranch = gitBranch,
                 MessageCount = messageCount,
                 TokenCount = tokenCount,
                 LastModified = fi.LastWriteTime,
@@ -616,6 +685,37 @@ namespace ClaudeCodeVS
             catch (Exception ex)
             {
                 Debug.WriteLine($"[ClaudeCode] Could not make native session visible to the CLI: {ex.Message}");
+            }
+        }
+
+        /// <summary>
+        /// Keeps the session's saved name (given by hand or generated from the first prompt) readable by
+        /// Claude Code's /resume picker, which only scans the last <see cref="ClaudeTranscriptScanBytes"/>
+        /// of a transcript: when that tail holds no title record, the records are appended again. Called
+        /// after each native turn and when an automatic name is saved; cheap when there is nothing to do.
+        /// </summary>
+        private async Task KeepClaudeTitleInTranscriptAsync(AiProvider provider, string sessionId)
+        {
+            try
+            {
+                await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
+                string title = GetNativeSessionTitle(sessionId);
+                if (string.IsNullOrWhiteSpace(title)) return;
+
+                string path = await FindClaudeTranscriptPathAsync(provider, sessionId);
+                if (path == null) return;
+
+                await Task.Run(() =>
+                {
+                    if (ReadClaudeTranscriptTitle(path) == null)
+                    {
+                        AppendClaudeTitleRecords(path, sessionId, title);
+                    }
+                });
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"[ClaudeCode] Could not keep session title in transcript: {ex.Message}");
             }
         }
 
@@ -932,17 +1032,15 @@ namespace ClaudeCodeVS
         }
 
         /// <summary>
-        /// Builds the two-line row content for a session. Renamed sessions (issue #95) get a
-        /// distinct layout: a colored left accent bar plus a bold, accented title line with a
-        /// pencil marker. Un-renamed sessions show the plain auto-generated preview. The dim
-        /// metadata line (date + counts) sits above either way.
+        /// Builds the two-line row content for a session: the title — the session's name (given by
+        /// hand or generated from the first prompt), else the first prompt itself — over a dim line
+        /// with the date, the counts and the git branch.
         /// </summary>
-        private static FrameworkElement CreateSessionItemContent(SessionInfo s, Brush themeFg, Brush accentBrush)
+        private static FrameworkElement CreateSessionItemContent(SessionInfo s, Brush themeFg)
         {
-            bool renamed = !string.IsNullOrWhiteSpace(s.CustomTitle);
+            bool titled = !string.IsNullOrWhiteSpace(s.CustomTitle);
 
-            string ts = s.LastModified.ToString("yyyy-MM-dd HH:mm");
-            string meta = ts;
+            string meta = s.LastModified.ToString("yyyy-MM-dd HH:mm");
             if (s.MessageCount >= 0 || s.TokenCount >= 0)
             {
                 var details = new List<string>();
@@ -956,43 +1054,66 @@ namespace ClaudeCodeVS
                 meta += "   (" + string.Join(", ", details) + ")";
             }
 
-            var root = new Grid();
-            root.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-            root.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-
-            // Left accent bar — colored for renamed rows, transparent otherwise (keeps text aligned).
-            var accentBar = new Border
+            if (!string.IsNullOrEmpty(s.GitBranch))
             {
-                Width = 3,
-                Background = renamed ? accentBrush : Brushes.Transparent,
-                CornerRadius = new CornerRadius(1.5),
-                Margin = new Thickness(0, 1, 8, 1)
-            };
-            Grid.SetColumn(accentBar, 0);
-            root.Children.Add(accentBar);
+                meta += "   [" + s.GitBranch + "]";
+            }
 
-            var stack = new StackPanel { Orientation = Orientation.Vertical };
-            Grid.SetColumn(stack, 1);
+            var stack = new StackPanel { Orientation = Orientation.Vertical, Margin = new Thickness(4, 0, 0, 0) };
+
+            stack.Children.Add(new TextBlock
+            {
+                Text = s.DisplayTitle,
+                Foreground = themeFg,
+                FontWeight = titled ? FontWeights.SemiBold : FontWeights.Normal,
+                TextWrapping = TextWrapping.Wrap
+            });
 
             stack.Children.Add(new TextBlock
             {
                 Text = meta,
                 Foreground = themeFg,
                 Opacity = 0.6,
-                FontSize = 11
+                FontSize = 11,
+                TextTrimming = TextTrimming.CharacterEllipsis,
+                Margin = new Thickness(0, 2, 0, 0)
             });
 
-            stack.Children.Add(new TextBlock
+            return stack;
+        }
+
+        /// <summary>
+        /// The non-selectable row that opens a date band in the list. Disabled so the keyboard and the
+        /// mouse skip it; it carries no <see cref="SessionInfo"/>, so no action ever sees it as a session.
+        /// </summary>
+        private static ListBoxItem CreateSessionGroupHeader(SessionDateGroup group, Brush themeFg)
+        {
+            string caption;
+            switch (group)
             {
-                Text = renamed ? "✎ " + s.CustomTitle : s.Preview,
-                Foreground = renamed ? accentBrush : themeFg,
-                FontWeight = renamed ? FontWeights.SemiBold : FontWeights.Normal,
-                TextWrapping = TextWrapping.Wrap,
-                Margin = new Thickness(0, 1, 0, 0)
-            });
+                case SessionDateGroup.Today: caption = "Today"; break;
+                case SessionDateGroup.Yesterday: caption = "Yesterday"; break;
+                case SessionDateGroup.Last7Days: caption = "Previous 7 days"; break;
+                case SessionDateGroup.Last30Days: caption = "Previous 30 days"; break;
+                default: caption = "Older"; break;
+            }
 
-            root.Children.Add(stack);
-            return root;
+            return new ListBoxItem
+            {
+                Content = new TextBlock
+                {
+                    Text = caption,
+                    Foreground = themeFg,
+                    FontWeight = FontWeights.SemiBold,
+                    Opacity = 0.75
+                },
+                IsEnabled = false,
+                Focusable = false,
+                IsHitTestVisible = false,
+                Background = Brushes.Transparent,
+                Padding = new Thickness(2, 8, 2, 0),
+                Margin = new Thickness(0)
+            };
         }
 
         /// <summary>
@@ -1002,9 +1123,13 @@ namespace ClaudeCodeVS
         private static string BuildSessionTooltip(SessionInfo s)
         {
             string tip = $"Session: {s.SessionId}\nFile: {s.FilePath}\ncwd: {s.Cwd}";
+            if (!string.IsNullOrEmpty(s.GitBranch))
+            {
+                tip += $"\nBranch: {s.GitBranch}";
+            }
             if (!string.IsNullOrWhiteSpace(s.CustomTitle))
             {
-                tip += $"\nOriginal: {s.Preview}";
+                tip += $"\nFirst prompt: {s.Preview}";
             }
             return tip;
         }
@@ -1094,12 +1219,7 @@ namespace ClaudeCodeVS
             grid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) }); // list
             grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });   // buttons
 
-            // Accent used to make renamed sessions stand out (a frozen green that reads on
-            // both dark and light themes). Shared by the row layout and the accent bar.
-            var accentBrush = new SolidColorBrush(Color.FromRgb(0x3F, 0xB9, 0x50));
-            accentBrush.Freeze();
-
-            // --- Row 0: filter bar (search + "Renamed only" toggle) ---
+            // --- Row 0: filter bar (search + sort) ---
             var filterBar = new Grid { Margin = new Thickness(0, 0, 0, 8) };
             filterBar.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
             filterBar.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
@@ -1123,7 +1243,7 @@ namespace ClaudeCodeVS
                 VerticalContentAlignment = VerticalAlignment.Center,
                 Height = 26,
                 Margin = new Thickness(0, 0, 12, 0),
-                ToolTip = "Type to filter by title, preview text, or date. Double-click a session to resume; " +
+                ToolTip = "Type to filter by title, first prompt, branch, or date. Double-click a session to resume; " +
                           "right-click or press F2 to rename."
             };
             Grid.SetColumn(searchBox, 1);
@@ -1144,7 +1264,6 @@ namespace ClaudeCodeVS
             var comboRes = BuildThemedComboResources(themeBg, themeFg);
             var sortCombo = MakeThemedComboBox(comboRes, themeFg);
             sortCombo.MinWidth = 150;
-            sortCombo.Margin = new Thickness(0, 0, 12, 0);
             sortCombo.ToolTip = "Choose how sessions are ordered. Your choice is remembered across restarts.";
 
             var sortOptions = new[]
@@ -1172,15 +1291,6 @@ namespace ClaudeCodeVS
                 sortCombo.SelectedIndex = 0;
             }
 
-            var renamedOnlyCheck = new CheckBox
-            {
-                Content = "Renamed only",
-                Foreground = themeFg,
-                VerticalAlignment = VerticalAlignment.Center,
-                IsChecked = _settings?.SessionHistoryRenamedOnly == true,
-                ToolTip = "Show only sessions you have given a custom title."
-            };
-
             var rightFilterPanel = new StackPanel
             {
                 Orientation = Orientation.Horizontal,
@@ -1188,7 +1298,6 @@ namespace ClaudeCodeVS
             };
             rightFilterPanel.Children.Add(sortLabel);
             rightFilterPanel.Children.Add(sortCombo);
-            rightFilterPanel.Children.Add(renamedOnlyCheck);
             Grid.SetColumn(rightFilterPanel, 2);
             filterBar.Children.Add(rightFilterPanel);
 
@@ -1287,15 +1396,14 @@ namespace ClaudeCodeVS
             // Full set of sessions for the workspace; the visible list is a filtered view of this.
             var loadedSessions = new List<SessionInfo>();
 
-            // Rebuilds the visible list from loadedSessions, applying the search text and the
-            // "Renamed only" toggle, and preserves the current selection where possible.
+            // Rebuilds the visible list from loadedSessions, applying the search text, and preserves
+            // the current selection where possible. Sorted by date, the rows sit under date bands.
             Action applyFilter = () =>
             {
                 string previouslySelectedId = (listBox.SelectedItem as ListBoxItem)?.Tag is SessionInfo psi
                     ? psi.SessionId : null;
 
                 string query = (searchBox.Text ?? string.Empty).Trim();
-                bool renamedOnly = renamedOnlyCheck.IsChecked == true;
 
                 listBox.Items.Clear();
 
@@ -1326,31 +1434,44 @@ namespace ClaudeCodeVS
                         break;
                 }
 
+                bool groupByDate = sortKey == "modified" || sortKey == "oldest";
+                DateTime now = DateTime.Now;
+                SessionDateGroup? currentGroup = null;
+
                 int reselectIndex = -1;
+                int firstSessionIndex = -1;
                 foreach (var s in orderedSessions)
                 {
-                    bool isRenamed = !string.IsNullOrWhiteSpace(s.CustomTitle);
-                    if (renamedOnly && !isRenamed) continue;
-
                     if (query.Length > 0)
                     {
-                        string haystack = $"{s.CustomTitle}\n{s.Preview}\n{s.LastModified:yyyy-MM-dd HH:mm}";
+                        string haystack = $"{s.CustomTitle}\n{s.Preview}\n{s.GitBranch}\n{s.LastModified:yyyy-MM-dd HH:mm}";
                         if (haystack.IndexOf(query, StringComparison.OrdinalIgnoreCase) < 0) continue;
+                    }
+
+                    if (groupByDate)
+                    {
+                        SessionDateGroup group = SessionListPresentation.GetDateGroup(s.LastModified, now);
+                        if (group != currentGroup)
+                        {
+                            currentGroup = group;
+                            listBox.Items.Add(CreateSessionGroupHeader(group, themeFg));
+                        }
                     }
 
                     var lbi = new ListBoxItem
                     {
-                        Content = CreateSessionItemContent(s, themeFg, accentBrush),
+                        Content = CreateSessionItemContent(s, themeFg),
                         Tag = s,
                         Background = themeBg,
                         Foreground = themeFg,
                         ToolTip = BuildSessionTooltip(s)
                     };
                     if (s.SessionId == previouslySelectedId) reselectIndex = listBox.Items.Count;
+                    if (firstSessionIndex < 0) firstSessionIndex = listBox.Items.Count;
                     listBox.Items.Add(lbi);
                 }
 
-                if (listBox.Items.Count == 0)
+                if (firstSessionIndex < 0)
                 {
                     loading.Visibility = Visibility.Visible;
                     loading.Text = loadedSessions.Count == 0
@@ -1360,7 +1481,7 @@ namespace ClaudeCodeVS
                 else
                 {
                     loading.Visibility = Visibility.Collapsed;
-                    listBox.SelectedIndex = reselectIndex >= 0 ? reselectIndex : 0;
+                    listBox.SelectedIndex = reselectIndex >= 0 ? reselectIndex : firstSessionIndex;
                 }
             };
 
@@ -1397,18 +1518,6 @@ namespace ClaudeCodeVS
                 applyFilter();
             };
 
-            // Persist the "Renamed only" toggle so it survives across sessions (issue #95).
-            Action saveRenamedOnly = () =>
-            {
-                bool on = renamedOnlyCheck.IsChecked == true;
-                if (_settings != null && _settings.SessionHistoryRenamedOnly != on)
-                {
-                    _settings.SessionHistoryRenamedOnly = on;
-                    SaveSettings();
-                }
-                applyFilter();
-            };
-
             // Persist the chosen sort order so it survives across sessions (issue #114).
             Action saveSortMode = () =>
             {
@@ -1422,8 +1531,6 @@ namespace ClaudeCodeVS
             };
 
             searchBox.TextChanged += (s, args) => applyFilter();
-            renamedOnlyCheck.Checked += (s, args) => saveRenamedOnly();
-            renamedOnlyCheck.Unchecked += (s, args) => saveRenamedOnly();
             sortCombo.SelectionChanged += (s, args) => saveSortMode();
 
             // Wire up buttons.
@@ -1466,7 +1573,7 @@ namespace ClaudeCodeVS
                     AppendClaudeTitleRecords(sel.FilePath, sel.SessionId, newTitle);
                 }
 
-                applyFilter(); // re-render so the renamed-row layout (and any filter) updates
+                applyFilter(); // re-render so the new title (and any filter) updates
             };
 
             // Delete the selected transcript (and any custom title it carried). Codex deletion goes

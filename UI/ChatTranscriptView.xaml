@@ -91,6 +91,32 @@
 			</Setter>
 		</Style>
 
+		<!-- A conversation in the welcome card's recent list: flat, highlighted under the mouse. The
+		     negative left margin lines its text up with the list caption above it. -->
+		<Style x:Key="WelcomeRecentButtonStyle" TargetType="Button">
+			<Setter Property="Background" Value="Transparent"/>
+			<Setter Property="BorderThickness" Value="0"/>
+			<Setter Property="Padding" Value="4,3,4,3"/>
+			<Setter Property="Margin" Value="-4,0,0,1"/>
+			<Setter Property="Cursor" Value="Hand"/>
+			<Setter Property="HorizontalContentAlignment" Value="Stretch"/>
+			<Setter Property="Foreground" Value="{DynamicResource {x:Static vsshell:VsBrushes.WindowTextKey}}"/>
+			<Setter Property="Template">
+				<Setter.Value>
+					<ControlTemplate TargetType="Button">
+						<Border Background="{TemplateBinding Background}" CornerRadius="3" Padding="{TemplateBinding Padding}">
+							<ContentPresenter HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"/>
+						</Border>
+						<ControlTemplate.Triggers>
+							<Trigger Property="IsMouseOver" Value="True">
+								<Setter Property="Background" Value="{DynamicResource {x:Static vsshell:VsBrushes.CommandBarHoverOverSelectedKey}}"/>
+							</Trigger>
+						</ControlTemplate.Triggers>
+					</ControlTemplate>
+				</Setter.Value>
+			</Setter>
+		</Style>
+
 		<!-- Rendered markdown: headings, lists, tables, emphasis and fenced code. -->
 		<Style x:Key="MarkdownBodyStyle" TargetType="local:MarkdownBlock">
 			<Setter Property="FontFamily" Value="{DynamicResource ChatFontFamily}"/>
@@ -1011,23 +1037,61 @@
 							<Rectangle x:Name="WelcomeDivider" Grid.Column="1" Width="1" Margin="0,2,14,2" Opacity="0.35"
 							           Fill="{StaticResource ChatAccentBrush}"/>
 
+							<!-- Right column: the workspace's recent conversations when it has any (tips
+							     folded away behind a link), the tips otherwise. SetWelcomeRecentSessions. -->
 							<StackPanel x:Name="WelcomeTipsPanel" Grid.Column="2" VerticalAlignment="Center">
-								<TextBlock Text="{local:Loc 'Tips for getting started'}"
-								           FontWeight="SemiBold"
-								           Margin="0,0,0,4"
-								           FontSize="{DynamicResource ChatFontSize}"
-								           Foreground="{StaticResource ChatAccentBrush}"/>
-								<ItemsControl x:Name="WelcomeTips">
-									<ItemsControl.ItemTemplate>
-										<DataTemplate>
-											<TextBlock Text="{Binding}"
-											           TextWrapping="Wrap"
-											           Margin="0,0,0,3"
-											           Opacity="0.85"
-											           FontSize="{DynamicResource ChatSmallFontSize}"/>
-										</DataTemplate>
-									</ItemsControl.ItemTemplate>
-								</ItemsControl>
+								<StackPanel x:Name="WelcomeRecentPanel" Visibility="Collapsed">
+									<TextBlock Text="{local:Loc 'Recent conversations'}"
+									           FontWeight="SemiBold"
+									           Margin="0,0,0,4"
+									           FontSize="{DynamicResource ChatFontSize}"
+									           Foreground="{StaticResource ChatAccentBrush}"/>
+									<ItemsControl x:Name="WelcomeRecentList">
+										<ItemsControl.ItemTemplate>
+											<DataTemplate>
+												<Button Style="{StaticResource WelcomeRecentButtonStyle}"
+												        ToolTip="{Binding ToolTip}"
+												        Click="WelcomeRecentSession_Click">
+													<StackPanel>
+														<TextBlock Text="{Binding Title}"
+														           TextTrimming="CharacterEllipsis"
+														           FontSize="{DynamicResource ChatSmallFontSize}"/>
+														<TextBlock Text="{Binding Detail}"
+														           TextTrimming="CharacterEllipsis"
+														           Opacity="0.6"
+														           FontSize="{DynamicResource ChatTinyFontSize}"/>
+													</StackPanel>
+												</Button>
+											</DataTemplate>
+										</ItemsControl.ItemTemplate>
+									</ItemsControl>
+									<TextBlock Margin="0,4,0,0" FontSize="{DynamicResource ChatSmallFontSize}">
+										<Hyperlink Click="WelcomeAllSessions_Click"
+										           Foreground="{DynamicResource ChatLinkAccentBrush}"><Run Text="{local:Loc 'All sessions…'}"/></Hyperlink>
+										<Run Text="  ·  "/>
+										<Hyperlink Click="WelcomeTipsToggle_Click"
+										           Foreground="{DynamicResource ChatLinkAccentBrush}"><Run x:Name="WelcomeTipsToggleText"/></Hyperlink>
+									</TextBlock>
+								</StackPanel>
+
+								<StackPanel x:Name="WelcomeTipsSection">
+									<TextBlock Text="{local:Loc 'Tips for getting started'}"
+									           FontWeight="SemiBold"
+									           Margin="0,0,0,4"
+									           FontSize="{DynamicResource ChatFontSize}"
+									           Foreground="{StaticResource ChatAccentBrush}"/>
+									<ItemsControl x:Name="WelcomeTips">
+										<ItemsControl.ItemTemplate>
+											<DataTemplate>
+												<TextBlock Text="{Binding}"
+												           TextWrapping="Wrap"
+												           Margin="0,0,0,3"
+												           Opacity="0.85"
+												           FontSize="{DynamicResource ChatSmallFontSize}"/>
+											</DataTemplate>
+										</ItemsControl.ItemTemplate>
+									</ItemsControl>
+								</StackPanel>
 							</StackPanel>
 						</Grid>
 					</Border>
@@ -1577,8 +1641,25 @@
 						             Foreground="{StaticResource ChatAccentBrush}" Background="#33808080" BorderThickness="0"/>
 					</StackPanel>
 
-					<TextBlock x:Name="UsageUpdatedText" Margin="0,8,0,0" FontSize="{DynamicResource ChatSmallFontSize}"
-					           Opacity="0.6" Visibility="Collapsed"/>
+					<!-- "Updated 2:15 PM", plus a small rotating ring while a ring click's refresh runs. The ring
+					     is rotated by an animation started in code, like StatusRingSpinner, never by a style trigger. -->
+					<StackPanel x:Name="UsageUpdatedRow" Orientation="Horizontal" Margin="0,8,0,0" Visibility="Collapsed">
+						<TextBlock x:Name="UsageUpdatedText" FontSize="{DynamicResource ChatSmallFontSize}"
+						           Opacity="0.6" VerticalAlignment="Center"/>
+						<Grid x:Name="UsageRefreshSpinner" Width="10" Height="10" Margin="6,0,0,0"
+						      VerticalAlignment="Center" Visibility="Collapsed"
+						      RenderTransformOrigin="0.5,0.5" Background="Transparent"
+						      ToolTip="{local:Loc 'Refreshing…'}">
+							<Grid.RenderTransform>
+								<RotateTransform x:Name="UsageRefreshRotation" Angle="0"/>
+							</Grid.RenderTransform>
+							<Ellipse StrokeThickness="1.5" Opacity="0.2"
+							         Stroke="{StaticResource ChatAccentBrush}"/>
+							<Path StrokeThickness="1.5" StrokeStartLineCap="Round" StrokeEndLineCap="Round"
+							      Stroke="{StaticResource ChatAccentBrush}"
+							      Data="M 5,0.75 A 4.25,4.25 0 0 1 9.25,5"/>
+						</Grid>
+					</StackPanel>
 
 					<Rectangle Height="1" Margin="0,10,0,10" Opacity="0.25"
 					           Fill="{DynamicResource {x:Static vsshell:VsBrushes.WindowTextKey}}"/>

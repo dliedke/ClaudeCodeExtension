@@ -2545,6 +2545,7 @@ namespace ClaudeCodeVS
                     {
                         session.CodexTurnRendered?.TrySetResult(true);
                     }
+                    SaveAutoSessionName(session, writeTranscript: false);
                     SyncClaudeTranscript(session.SelectedProvider, session.AgentSession?.SessionId, agentEvent.Kind, null);
                     break;
             }
@@ -2624,6 +2625,7 @@ namespace ClaudeCodeVS
                     {
                         _codexNativeTurnRendered?.TrySetResult(true);
                     }
+                    SaveAutoSessionName(null, writeTranscript: false);
                     SyncClaudeTranscript(_currentRunningProvider ?? _settings.SelectedProvider,
                         _agentSession?.SessionId, agentEvent.Kind, null);
                     break;
@@ -2649,6 +2651,8 @@ namespace ClaudeCodeVS
             {
                 StartSessionHistoryTask(() => MakeNativeSessionResumableInCliAsync(provider, sessionId),
                     "claudecode/nativemode/resumevisible");
+                StartSessionHistoryTask(() => KeepClaudeTitleInTranscriptAsync(provider, sessionId),
+                    "claudecode/nativemode/keeptitle");
             }
         }
 
@@ -2710,7 +2714,8 @@ namespace ClaudeCodeVS
             {
                 ToolCallId = agentEvent.ToolCallId,
                 ToolName = agentEvent.ToolName,
-                ToolInputJson = FormatToolInput(agentEvent.ToolInputJson),
+                ToolInputJson = ChatToolPresenter.FormatShellInput(agentEvent.ToolName, agentEvent.ToolInputJson)
+                                ?? FormatToolInput(agentEvent.ToolInputJson),
                 Header = presentation.Title,
                 ToolIcon = presentation.Icon,
                 ToolTarget = ResolveToolTarget(agentEvent, presentation),
@@ -2779,8 +2784,9 @@ namespace ClaudeCodeVS
             message.IsError = agentEvent.IsError;
             message.IsRunning = false;
 
-            // Failures open themselves: a collapsed row would hide the reason the agent gave up.
-            if (agentEvent.IsError)
+            // Failures open themselves: a collapsed row would hide the reason the agent gave up. The
+            // agent usually recovers on its own, so this can be turned off in Settings.
+            if (agentEvent.IsError && _settings?.ExpandFailedToolCalls != false)
             {
                 message.IsExpanded = true;
             }
@@ -3711,7 +3717,7 @@ namespace ClaudeCodeVS
             message.IsError = agentEvent.IsError;
             message.IsRunning = false;
 
-            if (agentEvent.IsError)
+            if (agentEvent.IsError && _settings?.ExpandFailedToolCalls != false)
             {
                 message.IsExpanded = true;
             }

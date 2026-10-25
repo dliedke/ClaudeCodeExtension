@@ -72,6 +72,7 @@ namespace ClaudeCodeExtension.Tests
             Assert.AreEqual(ChatIconStyle.Classic, fresh.ChatIconStyle);
             Assert.AreEqual(ChatWorkingTabIcon.Clock, fresh.ChatWorkingTabIcon);
             Assert.IsTrue(fresh.ShowChatTokenCounts);
+            Assert.IsTrue(fresh.ExpandFailedToolCalls, "Failed tool cards keep opening by themselves unless turned off.");
         }
 
         [TestMethod]

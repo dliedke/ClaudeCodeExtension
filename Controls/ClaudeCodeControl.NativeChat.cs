@@ -675,6 +675,8 @@ namespace ClaudeCodeVS
             transcript.ClearChatRequested += OnComposerClearChatRequested;
             transcript.NewChatRequested += OnComposerNewChatRequested;
             transcript.RenameSessionRequested += OnComposerRenameSessionRequested;
+            transcript.WelcomeSessionRequested += OnWelcomeSessionRequested;
+            transcript.WelcomeAllSessionsRequested += OnWelcomeAllSessionsRequested;
             transcript.ColorPickerRequested += OnComposerColorPickerRequested;
             transcript.ZoomChanged += OnComposerZoomChanged;
             transcript.ComposerHeightChanged += OnComposerHeightChanged;
@@ -1276,6 +1278,8 @@ namespace ClaudeCodeVS
             ChatTranscript.ClearChatRequested += OnComposerClearChatRequested;
             ChatTranscript.NewChatRequested += OnComposerNewChatRequested;
             ChatTranscript.RenameSessionRequested += OnComposerRenameSessionRequested;
+            ChatTranscript.WelcomeSessionRequested += OnWelcomeSessionRequested;
+            ChatTranscript.WelcomeAllSessionsRequested += OnWelcomeAllSessionsRequested;
             ChatTranscript.ColorPickerRequested += OnComposerColorPickerRequested;
             ChatTranscript.ZoomChanged += OnComposerZoomChanged;
             ChatTranscript.ComposerHeightChanged += OnComposerHeightChanged;
@@ -2095,6 +2099,124 @@ namespace ClaudeCodeVS
                 BeginCliVersionLookup(provider.Value, directory);
                 BeginAccountLabelLookup(provider.Value, directory);
             }
+
+            BeginWelcomeRecentSessionsLookup(transcript, directory);
+        }
+
+        /// <summary>How many past conversations the welcome card lists.</summary>
+        private const int WelcomeRecentSessionCount = 5;
+
+        /// <summary>Transcripts whose recent list is being read, so the card's re-renders do not pile up reads.</summary>
+        private readonly HashSet<ChatTranscriptView> _welcomeRecentLookups = new HashSet<ChatTranscriptView>();
+
+        /// <summary>
+        /// Fills the welcome card's recent list with the workspace's latest Claude Code conversations,
+        /// read in the background. Conversations open in a chat tab are left out. Any other agent, or no
+        /// past conversation, leaves the card on its tips.
+        /// </summary>
+        private void BeginWelcomeRecentSessionsLookup(ChatTranscriptView transcript, string workspace)
+        {
+            ThreadHelper.ThrowIfNotOnUIThread();
+
+            NativeChatSessionState owner = ResolveSessionFromSender(transcript);
+            AiProvider? provider = owner != null ? owner.SelectedProvider : GetActiveOrSelectedProvider();
+
+            if (!IsClaudeCodeSessionHistoryProvider(provider) || string.IsNullOrWhiteSpace(workspace))
+            {
+                transcript.SetWelcomeRecentSessions(null);
+                return;
+            }
+
+            if (!_welcomeRecentLookups.Add(transcript))
+            {
+                return;
+            }
+
+            var openSessionIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            if (!string.IsNullOrEmpty(_agentSession?.SessionId))
+            {
+                openSessionIds.Add(_agentSession.SessionId);
+            }
+
+            lock (_sessionLock)
+            {
+                foreach (NativeChatSessionState session in _nativeSessions.Values)
+                {
+                    if (!string.IsNullOrEmpty(session.AgentSession?.SessionId))
+                    {
+                        openSessionIds.Add(session.AgentSession.SessionId);
+                    }
+                }
+            }
+
+            StartSessionHistoryTask(async () =>
+            {
+                try
+                {
+                    List<SessionInfo> recent = await LoadRecentClaudeSessionsAsync(
+                        provider.Value, workspace, WelcomeRecentSessionCount, openSessionIds);
+
+                    await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
+                    if (transcript.IsWelcomeVisible)
+                    {
+                        transcript.SetWelcomeRecentSessions(recent.Select(BuildWelcomeRecentSession).ToList());
+                    }
+                }
+                finally
+                {
+                    await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
+                    _welcomeRecentLookups.Remove(transcript);
+                }
+            }, "claudecode/nativechat/welcomerecent");
+        }
+
+        /// <summary>One row of the welcome card's recent list: the name (else first prompt), then when and on which branch.</summary>
+        private static WelcomeRecentSession BuildWelcomeRecentSession(SessionInfo info)
+        {
+            DateTime when = info.LastModified;
+            string detail;
+            switch (SessionListPresentation.GetDateGroup(when, DateTime.Now))
+            {
+                case SessionDateGroup.Today:
+                    detail = L("Today") + " " + when.ToString("t", Loc.Culture);
+                    break;
+                case SessionDateGroup.Yesterday:
+                    detail = L("Yesterday") + " " + when.ToString("t", Loc.Culture);
+                    break;
+                default:
+                    detail = when.ToString("d", Loc.Culture);
+                    break;
+            }
+
+            if (!string.IsNullOrEmpty(info.GitBranch))
+            {
+                detail += "  ·  " + info.GitBranch;
+            }
+
+            return new WelcomeRecentSession
+            {
+                Title = info.DisplayTitle,
+                Detail = detail,
+                ToolTip = string.IsNullOrWhiteSpace(info.CustomTitle) ? null : info.Preview,
+                Session = info
+            };
+        }
+
+        /// <summary>A conversation clicked in the welcome card: resumed in the tab whose card it was.</summary>
+        private void OnWelcomeSessionRequested(object sender, WelcomeRecentSession row)
+        {
+            ThreadHelper.ThrowIfNotOnUIThread();
+
+            if (row?.Session is SessionInfo info)
+            {
+                NativeChatSessionState owner = ResolveSessionFromSender(sender);
+                StartSessionHistoryTask(() => ResumeSessionAsync(info, owner), "claudecode/nativechat/welcomeresume");
+            }
+        }
+
+        private void OnWelcomeAllSessionsRequested(object sender, EventArgs e)
+        {
+            StartSessionHistoryTask(ShowSessionHistoryDialogAsync, "claudecode/nativechat/welcomehistory");
         }
 
         /// <summary>

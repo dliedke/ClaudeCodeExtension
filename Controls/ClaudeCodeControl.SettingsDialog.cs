@@ -525,6 +525,12 @@ namespace ClaudeCodeVS
                 _settings.ShowChatTokenCounts, themeFg);
             layoutStack.Children.Add(showTokenCountsCheck);
 
+            var expandFailedToolsCheck = MakeCheckBox(
+                "Open failed tool calls automatically",
+                "A tool call that fails (for example a command that ends with an error) opens its card in the chat so you see why. The agent usually reads the error and tries another way; turn this off to keep those cards closed — they still show the failed mark.",
+                _settings.ExpandFailedToolCalls, themeFg);
+            layoutStack.Children.Add(expandFailedToolsCheck);
+
             var plainWorkingStatusCheck = MakeCheckBox(
                 "Plain working status (always \"Thinking…\")",
                 "While the agent works, the status line always says \"Thinking…\" instead of rotating through playful words like \"Pondering…\" or \"Noodling…\". The spinner and the clock still show it is working.",
@@ -1637,6 +1643,7 @@ namespace ClaudeCodeVS
             _settings.AutoTitleChatTabs       = autoTitleCheck.IsChecked == true;
             _settings.AutoTitleChatTabsWithAi = autoTitleAiCheck.IsChecked == true;
             _settings.ShowChatTokenCounts     = showTokenCountsCheck.IsChecked == true;
+            _settings.ExpandFailedToolCalls   = expandFailedToolsCheck.IsChecked == true;
             _settings.PlainChatWorkingStatus  = plainWorkingStatusCheck.IsChecked == true;
             UI.ChatTranscriptView.PlainWorkingStatus = _settings.PlainChatWorkingStatus;
 
