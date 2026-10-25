@@ -11,9 +11,11 @@
  * *******************************************************************************************************************/
 
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Diagnostics;
 using System.Windows;
+using Microsoft.VisualStudio.Shell;
 using Newtonsoft.Json;
 
 namespace ClaudeCodeVS
@@ -135,6 +137,61 @@ namespace ClaudeCodeVS
             {
                 Debug.WriteLine($"Chat language load failed, staying in English: {ex.Message}");
                 UI.Loc.SetLanguage(UI.Loc.EnglishLanguage);
+            }
+        }
+
+        /// <summary>
+        /// Puts the open chats into the language just applied, without reopening them. The XAML captions
+        /// already followed through their bindings; this redoes the text built in code — selector
+        /// captions, tab captions, status line, pending cards and, while it is still up, the welcome card.
+        /// </summary>
+        private void RefreshChatLanguage()
+        {
+            ThreadHelper.ThrowIfNotOnUIThread();
+
+            try
+            {
+                if (ChatTranscript != null)
+                {
+                    ChatTranscript.RefreshLanguage();
+                    if (IsNativeModeActive)
+                    {
+                        UpdateChatComposerState(ChatTranscript);
+                        if (ChatTranscript.IsWelcomeVisible)
+                        {
+                            ShowChatWelcome(ChatTranscript, null);
+                        }
+                    }
+
+                    UpdateChatTabCaption();
+                }
+
+                List<NativeChatSessionState> sessions;
+                lock (_sessionLock)
+                {
+                    sessions = new List<NativeChatSessionState>(_nativeSessions.Values);
+                }
+
+                foreach (NativeChatSessionState session in sessions)
+                {
+                    if (session.ChatTranscript == null)
+                    {
+                        continue;
+                    }
+
+                    session.ChatTranscript.RefreshLanguage();
+                    UpdateChatComposerState(session);
+                    if (session.ChatTranscript.IsWelcomeVisible)
+                    {
+                        ShowChatWelcome(session.ChatTranscript, session.WorkspaceOverride ?? session.StartedWorkspace);
+                    }
+
+                    UpdateSessionTabCaption(session);
+                }
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"Chat language refresh failed: {ex.Message}");
             }
         }
 

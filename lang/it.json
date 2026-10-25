@@ -45,7 +45,7 @@
   "Auto-pull hit merge conflicts in {0} — asking the agent to resolve them first.": "Il pull automatico ha generato conflitti di merge in {0} — l'agente dovrà risolverli prima.",
   "Auto-pull skipped: {0}": "Pull automatico saltato: {0}",
   "Auto-pull succeeded, but restoring your uncommitted changes conflicted in {0} — asking the agent to resolve them first.": "Pull automatico riuscito, ma il ripristino delle modifiche non salvate è andato in conflitto in {0} — l'agente dovrà risolverli prima.",
-  "Blocked for lack of permission: {0}. Enable \"Skip permissions\" in the agent menu to allow these tools.": "Bloccato per mancanza di autorizzazione: {0}. Attiva \"Skip permissions\" nel menu dell'agente per consentire questi strumenti.",
+  "Blocked for lack of permission: {0}. Enable \"Skip permissions\" in the agent menu to allow these tools.": "Bloccato per mancanza di autorizzazione: {0}. Attiva \"Salta autorizzazioni\" nel menu dell'agente per consentire questi strumenti.",
   "Cannot create new session: no workspace available.": "Impossibile creare una nuova sessione: nessuna area di lavoro disponibile.",
   "Change Account": "Cambia account",
   "Change how tool permissions are handled": "Cambia la gestione delle autorizzazioni degli strumenti",

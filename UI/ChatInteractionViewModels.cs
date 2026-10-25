@@ -180,6 +180,12 @@ namespace ClaudeCodeVS.UI
             return other == null ? chosen : chosen + " — additional info: " + other;
         }
 
+        /// <summary>Re-reads the translated placeholder after a chat language switch.</summary>
+        internal void RefreshLanguage()
+        {
+            Raise(nameof(OtherPlaceholder));
+        }
+
         public event PropertyChangedEventHandler PropertyChanged;
 
         private void Raise(string name)
@@ -378,6 +384,23 @@ namespace ClaudeCodeVS.UI
         }
 
         public bool IsResolved { get { return !_isPending; } }
+
+        /// <summary>
+        /// Re-reads the translated captions after a chat language switch. For a pending card: an answered
+        /// one only shows its <see cref="Outcome"/>, which stays as it was written.
+        /// </summary>
+        public void RefreshLanguage()
+        {
+            RaisePropertyChanged(nameof(Title));
+            RaisePropertyChanged(nameof(SubmitCaption));
+            RaisePropertyChanged(nameof(RejectCaption));
+            RaisePropertyChanged(nameof(AllowForSessionCaption));
+
+            foreach (ChatQuestionViewModel question in Questions)
+            {
+                question.RefreshLanguage();
+            }
+        }
 
         /// <summary>True when the card was accepted rather than declined or abandoned.</summary>
         public bool WasAccepted { get; private set; }

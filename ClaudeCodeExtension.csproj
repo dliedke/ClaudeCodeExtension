@@ -249,7 +249,25 @@
     </Content>
     <Content Include="app.png" />
     <!-- Chat UI translations (UI/Loc.cs). Resource name: ClaudeCodeExtension.lang.<culture>.json -->
+    <EmbeddedResource Include="lang\zh-Hans.json" />
+    <EmbeddedResource Include="lang\ja.json" />
+    <EmbeddedResource Include="lang\pt-BR.json" />
+    <EmbeddedResource Include="lang\es.json" />
+    <EmbeddedResource Include="lang\ko.json" />
+    <EmbeddedResource Include="lang\de.json" />
+    <EmbeddedResource Include="lang\fr.json" />
+    <EmbeddedResource Include="lang\ru.json" />
+    <EmbeddedResource Include="lang\zh-Hant.json" />
+    <EmbeddedResource Include="lang\id.json" />
+    <EmbeddedResource Include="lang\tr.json" />
+    <EmbeddedResource Include="lang\vi.json" />
+    <EmbeddedResource Include="lang\pl.json" />
     <EmbeddedResource Include="lang\it.json" />
+    <EmbeddedResource Include="lang\uk.json" />
+    <EmbeddedResource Include="lang\ar.json" />
+    <EmbeddedResource Include="lang\hi.json" />
+    <EmbeddedResource Include="lang\th.json" />
+    <EmbeddedResource Include="lang\nl.json" />
     <Content Include="docs\images\native-mode-diff.png" />
     <Content Include="docs\images\native-mode-plan.png" />
     <Content Include="docs\images\native-mode-question.png" />

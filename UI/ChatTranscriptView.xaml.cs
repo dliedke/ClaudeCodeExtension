@@ -432,12 +432,7 @@ namespace ClaudeCodeVS.UI
             UpdateToolsButtonVisibility();
             UpdateCustomCommandsButtonVisibility();
 
-            // Only reachable while native mode is on (Hidden is the only mode outside it), so this is
-            // also the one place that needs to know: "Clear this conversation" doubles as "restart the
-            // agent" here, and the default tooltip doesn't say that.
-            ComposerClearButton.ToolTip = mode == ComposerMode.Hidden
-                ? L("Clear this conversation and start fresh")
-                : L("Restart the agent and start a fresh conversation");
+            UpdateClearButtonToolTip();
 
             // ComposerBar's own Padding reserves room for the resize grip above and the input box
             // below the action row — but in ActionsOnly those rows are collapsed (only the action
@@ -453,6 +448,57 @@ namespace ClaudeCodeVS.UI
             // Docked in the panel the row has far less width than it does in a tab, and the switch
             // between the two does not always change the row's own width — so the tier is re-picked
             // here rather than waiting for a resize that may never come.
+            QueueComposerDensityRefresh();
+        }
+
+        /// <summary>
+        /// Only reachable while native mode is on (Hidden is the only mode outside it), so this is also
+        /// the one place that needs to know: "Clear this conversation" doubles as "restart the agent"
+        /// here, and the default tooltip doesn't say that.
+        /// </summary>
+        private void UpdateClearButtonToolTip()
+        {
+            ComposerClearButton.ToolTip = _composerMode == ComposerMode.Hidden
+                ? L("Clear this conversation and start fresh")
+                : L("Restart the agent and start a fresh conversation");
+        }
+
+        /// <summary>
+        /// Puts the text this view builds in code into the current chat language. The XAML captions
+        /// follow a switch on their own (<see cref="LocExtension"/>), and the owner refreshes what it
+        /// feeds in — selector captions, welcome card, usage figures. Messages already in the
+        /// conversation stay as they were written; a card still waiting for an answer is re-captioned.
+        /// </summary>
+        public void RefreshLanguage()
+        {
+            UpdateSendButtonVisibility();
+            UpdateClearButtonToolTip();
+
+            if (_modernStopLabel != null)
+            {
+                _modernStopLabel.Text = L("Stop");
+            }
+
+            if (_activityTimer != null && _activityTimer.IsEnabled)
+            {
+                _activityLabel = Loc.Retranslate(_activityLabel);
+                RenderActivity();
+            }
+            else if (!string.IsNullOrEmpty(StatusText.Text))
+            {
+                StatusText.Text = Loc.Retranslate(StatusText.Text);
+            }
+
+            ShowUsageUpdatedText();
+
+            foreach (ChatInteractionViewModel card in Messages.OfType<ChatInteractionViewModel>())
+            {
+                if (card.IsPending)
+                {
+                    card.RefreshLanguage();
+                }
+            }
+
             QueueComposerDensityRefresh();
         }
 
@@ -935,6 +981,7 @@ namespace ClaudeCodeVS.UI
 
         private object _classicStopContent;
         private object _classicScrollToEndContent;
+        private TextBlock _modernStopLabel;
 
         /// <summary>
         /// Stop and "jump to the latest message": flat Stop with the VS icon and a round floating
@@ -944,8 +991,9 @@ namespace ClaudeCodeVS.UI
         {
             if (_modernIcons)
             {
-                _classicStopContent = StopButton.Content;
-                _classicScrollToEndContent = ScrollToEndButton.Content;
+                // The local value, not the content: Classic's caption is a language binding to put back.
+                _classicStopContent = StopButton.ReadLocalValue(ContentControl.ContentProperty);
+                _classicScrollToEndContent = ScrollToEndButton.ReadLocalValue(ContentControl.ContentProperty);
 
                 var stopContent = new StackPanel { Orientation = Orientation.Horizontal };
                 stopContent.Children.Add(new CrispImage
@@ -956,7 +1004,8 @@ namespace ClaudeCodeVS.UI
                     Margin = new Thickness(0, 0, 5, 0),
                     VerticalAlignment = VerticalAlignment.Center
                 });
-                stopContent.Children.Add(new TextBlock { Text = L("Stop"), VerticalAlignment = VerticalAlignment.Center });
+                _modernStopLabel = new TextBlock { Text = L("Stop"), VerticalAlignment = VerticalAlignment.Center };
+                stopContent.Children.Add(_modernStopLabel);
 
                 StopButton.Style = (Style)FindResource("ModernStopButtonStyle");
                 StopButton.Content = stopContent;
@@ -970,13 +1019,31 @@ namespace ClaudeCodeVS.UI
             else if (_classicStopContent != null)
             {
                 StopButton.Style = null;
-                StopButton.Content = _classicStopContent;
+                RestoreLocalValue(StopButton, ContentControl.ContentProperty, _classicStopContent);
                 ScrollToEndButton.Style = null;
                 ScrollToEndButton.Width = 26;
                 ScrollToEndButton.Height = 26;
-                ScrollToEndButton.Content = _classicScrollToEndContent;
+                RestoreLocalValue(ScrollToEndButton, ContentControl.ContentProperty, _classicScrollToEndContent);
                 _classicStopContent = null;
                 _classicScrollToEndContent = null;
+                _modernStopLabel = null;
+            }
+        }
+
+        /// <summary>Puts back a value read with <c>ReadLocalValue</c>, a binding as a binding.</summary>
+        private static void RestoreLocalValue(DependencyObject target, DependencyProperty property, object saved)
+        {
+            if (saved is BindingExpressionBase expression)
+            {
+                BindingOperations.SetBinding(target, property, expression.ParentBindingBase);
+            }
+            else if (saved == DependencyProperty.UnsetValue)
+            {
+                target.ClearValue(property);
+            }
+            else
+            {
+                target.SetValue(property, saved);
             }
         }
 

@@ -173,6 +173,10 @@ Pull requests for new features are welcome. Bug fixes too — if you find an iss
 
 ## Version History
 
+### Version 269.0
+- The chat tab is now available in 20 languages: English, Simplified Chinese, Japanese, Portuguese (Brazil), Spanish, Korean, German, French, Russian, Traditional Chinese, Indonesian, Turkish, Vietnamese, Polish, Italian, Ukrainian, Arabic, Hindi, Thai and Dutch. Pick one under *Settings → Layout → Chat language*, or leave it on Automatic to follow the Visual Studio language.
+- Changing the chat language now takes effect at once in every open chat, without restarting Visual Studio; messages already in the conversation keep the language they were written in.
+
 ### Version 268.0
 - The native chat tab can now be shown in your language: Italian is included, and by default the chat follows the Visual Studio language (*Settings → Layout → Chat language*). Other languages can be added by dropping a translation file in the extension's `lang` folder under Local AppData. Thanks to [@ClaudioCas](https://github.com/ClaudioCas) (#223).
 - Chat tabs now come back when you reopen a solution, each continuing its conversation with the earlier messages shown; a reopened tab starts its agent only when you send it a message. On by default (*Settings → Terminal → Reopen chat tabs when the solution opens*); Claude Code, Codex and Devin.

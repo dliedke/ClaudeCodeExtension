@@ -37,8 +37,46 @@ namespace ClaudeCodeVS.UI
 
         private const string EmbeddedPrefix = "ClaudeCodeExtension.lang.";
 
+        /// <summary>
+        /// The languages shipped with the extension, in the order the Chat language list shows them, with the
+        /// name each one gives itself (fixed here: Windows' culture names vary by version and read "Indonesia").
+        /// Every one except English has an embedded <c>lang/&lt;code&gt;.json</c>.
+        /// </summary>
+        public static readonly IReadOnlyList<KeyValuePair<string, string>> BuiltInLanguages = new[]
+        {
+            new KeyValuePair<string, string>("en", "English"),
+            new KeyValuePair<string, string>("zh-Hans", "简体中文"),
+            new KeyValuePair<string, string>("ja", "日本語"),
+            new KeyValuePair<string, string>("pt-BR", "Português (Brasil)"),
+            new KeyValuePair<string, string>("es", "Español"),
+            new KeyValuePair<string, string>("ko", "한국어"),
+            new KeyValuePair<string, string>("de", "Deutsch"),
+            new KeyValuePair<string, string>("fr", "Français"),
+            new KeyValuePair<string, string>("ru", "Русский"),
+            new KeyValuePair<string, string>("zh-Hant", "繁體中文"),
+            new KeyValuePair<string, string>("id", "Bahasa Indonesia"),
+            new KeyValuePair<string, string>("tr", "Türkçe"),
+            new KeyValuePair<string, string>("vi", "Tiếng Việt"),
+            new KeyValuePair<string, string>("pl", "Polski"),
+            new KeyValuePair<string, string>("it", "Italiano"),
+            new KeyValuePair<string, string>("uk", "Українська"),
+            new KeyValuePair<string, string>("ar", "العربية"),
+            new KeyValuePair<string, string>("hi", "हिन्दी"),
+            new KeyValuePair<string, string>("th", "ไทย"),
+            new KeyValuePair<string, string>("nl", "Nederlands"),
+        };
+
         private static Dictionary<string, string> _strings = new Dictionary<string, string>(StringComparer.Ordinal);
         private static CultureInfo _culture = CultureInfo.InvariantCulture;
+
+        /// <summary>Translation → English of the language before the last switch, for <see cref="Retranslate"/>.</summary>
+        private static Dictionary<string, string> _previousToEnglish = new Dictionary<string, string>(StringComparer.Ordinal);
+
+        /// <summary>
+        /// Raised after every <see cref="SetLanguage"/>, on the caller's thread. The XAML captions
+        /// (<see cref="LocExtension"/>) follow it on their own; code-built text is refreshed by its owner.
+        /// </summary>
+        public static event EventHandler LanguageChanged;
 
         /// <summary>The folder users can drop extra or corrected <c>&lt;culture&gt;.json</c> files into.</summary>
         public static string UserLanguageFolder
@@ -98,6 +136,21 @@ namespace ClaudeCodeVS.UI
         }
 
         /// <summary>
+        /// Text an earlier <see cref="L(string)"/> returned in the language before the last switch, in the
+        /// current one — for a caption stored as plain text (a status line) that has to follow a switch.
+        /// Formatted text and anything that was never a translation come back unchanged.
+        /// </summary>
+        public static string Retranslate(string shown)
+        {
+            if (string.IsNullOrEmpty(shown))
+            {
+                return shown ?? string.Empty;
+            }
+
+            return L(_previousToEnglish.TryGetValue(shown, out string english) ? english : shown);
+        }
+
+        /// <summary>
         /// Switches the language. <paramref name="setting"/> is a culture code, <see cref="AutomaticLanguage"/>
         /// (the Visual Studio UI language) or empty (same as automatic).
         /// </summary>
@@ -131,10 +184,17 @@ namespace ClaudeCodeVS.UI
         }
 
         /// <summary>
-        /// The language code a setting stands for. Automatic takes <paramref name="uiCulture"/>'s full name
-        /// when a file exists for it, else its two-letter language ("it-IT" → "it").
+        /// The language code a setting stands for. Automatic takes the first of <paramref name="uiCulture"/>
+        /// and its parents that has a file ("zh-TW" → "zh-Hant", "it-IT" → "it"), then another variant of the
+        /// same language ("pt-PT" → "pt-BR"), else its two-letter language.
         /// </summary>
         public static string ResolveLanguage(string setting, CultureInfo uiCulture)
+        {
+            return ResolveLanguage(setting, uiCulture, AvailableLanguages());
+        }
+
+        /// <summary><see cref="ResolveLanguage(string, CultureInfo)"/> against a given language list. For the tests.</summary>
+        internal static string ResolveLanguage(string setting, CultureInfo uiCulture, IList<string> available)
         {
             if (!string.IsNullOrWhiteSpace(setting) &&
                 !string.Equals(setting, AutomaticLanguage, StringComparison.OrdinalIgnoreCase))
@@ -147,12 +207,30 @@ namespace ClaudeCodeVS.UI
                 return EnglishLanguage;
             }
 
-            IList<string> available = AvailableLanguages();
-            string match = available.FirstOrDefault(l => string.Equals(l, uiCulture.Name, StringComparison.OrdinalIgnoreCase));
-            return match ?? uiCulture.TwoLetterISOLanguageName;
+            // .NET Framework chains zh-TW → zh-CHT → zh-Hant → zh, so the script files are found here.
+            for (CultureInfo culture = uiCulture; !string.IsNullOrEmpty(culture.Name); culture = culture.Parent)
+            {
+                string exact = available.FirstOrDefault(l => string.Equals(l, culture.Name, StringComparison.OrdinalIgnoreCase));
+                if (exact != null)
+                {
+                    return exact;
+                }
+            }
+
+            string language = uiCulture.TwoLetterISOLanguageName;
+            if (IsEnglish(language))
+            {
+                return EnglishLanguage;
+            }
+
+            return available.FirstOrDefault(l => string.Equals(TwoLetterLanguage(l), language, StringComparison.OrdinalIgnoreCase))
+                ?? language;
         }
 
-        /// <summary>Every language with a translation file: embedded ones plus the user folder's.</summary>
+        /// <summary>
+        /// Every language with a translation file: embedded ones plus the user folder's. Built-in languages
+        /// come first in <see cref="BuiltInLanguages"/> order, other files after them alphabetically.
+        /// </summary>
         public static IList<string> AvailableLanguages()
         {
             var codes = new SortedSet<string>(StringComparer.OrdinalIgnoreCase);
@@ -180,12 +258,18 @@ namespace ClaudeCodeVS.UI
                 System.Diagnostics.Debug.WriteLine($"Language folder scan failed: {ex.Message}");
             }
 
-            return codes.ToList();
+            return codes.OrderBy(BuiltInOrder).ToList();
         }
 
         /// <summary>A language's own name for itself ("Italiano"), or the code when unknown.</summary>
         public static string DisplayName(string code)
         {
+            string builtIn = BuiltInLanguages.FirstOrDefault(l => string.Equals(l.Key, code, StringComparison.OrdinalIgnoreCase)).Value;
+            if (builtIn != null)
+            {
+                return builtIn;
+            }
+
             try
             {
                 CultureInfo culture = CultureInfo.GetCultureInfo(code);
@@ -200,6 +284,17 @@ namespace ClaudeCodeVS.UI
 
         private static void Apply(string code, Dictionary<string, string> strings)
         {
+            // Two keys can share a translation; the first one wins, which still reads right after the switch.
+            var previousToEnglish = new Dictionary<string, string>(StringComparer.Ordinal);
+            foreach (KeyValuePair<string, string> pair in _strings)
+            {
+                if (!string.IsNullOrEmpty(pair.Value) && !previousToEnglish.ContainsKey(pair.Value))
+                {
+                    previousToEnglish.Add(pair.Value, pair.Key);
+                }
+            }
+
+            _previousToEnglish = previousToEnglish;
             Language = string.IsNullOrEmpty(code) ? EnglishLanguage : code;
             _strings = strings;
 
@@ -211,11 +306,37 @@ namespace ClaudeCodeVS.UI
             {
                 _culture = CultureInfo.InvariantCulture;
             }
+
+            LanguageChanged?.Invoke(null, EventArgs.Empty);
         }
 
         private static bool IsEnglish(string code)
         {
             return string.IsNullOrEmpty(code) || code.StartsWith(EnglishLanguage, StringComparison.OrdinalIgnoreCase);
+        }
+
+        /// <summary>Position in <see cref="BuiltInLanguages"/>; files of other languages sort after all of them.</summary>
+        private static int BuiltInOrder(string code)
+        {
+            for (int i = 0; i < BuiltInLanguages.Count; i++)
+            {
+                if (string.Equals(BuiltInLanguages[i].Key, code, StringComparison.OrdinalIgnoreCase)) return i;
+            }
+            return BuiltInLanguages.Count;
+        }
+
+        /// <summary>"pt-BR" → "pt", "zh-Hant" → "zh"; the code's first part when it is no known culture.</summary>
+        private static string TwoLetterLanguage(string code)
+        {
+            try
+            {
+                return CultureInfo.GetCultureInfo(code).TwoLetterISOLanguageName;
+            }
+            catch (Exception)
+            {
+                int dash = code.IndexOf('-');
+                return dash > 0 ? code.Substring(0, dash) : code;
+            }
         }
 
         /// <summary>Adds the "English": "translation" pairs of <paramref name="json"/>; later files win.</summary>

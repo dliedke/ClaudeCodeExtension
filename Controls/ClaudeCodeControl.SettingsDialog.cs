@@ -550,7 +550,7 @@ namespace ClaudeCodeVS
             chatLanguageCombo.ToolTip = MakeToolTip(
                 "Language of the chat tab (toolbar, menus, status, cards). Automatic follows the Visual Studio language. " +
                 "Add or correct a language by putting a <code>.json file in " + UI.Loc.UserLanguageFolder + ". " +
-                "Applies to chats opened afterwards; the Settings windows stay in English.");
+                "Applies at once, open chats included; the Settings windows stay in English.");
             var languageChoices = new List<(string Code, string Label)>
             {
                 (UI.Loc.AutomaticLanguage, "Automatic (Visual Studio language)"),
@@ -1640,12 +1640,13 @@ namespace ClaudeCodeVS
             _settings.PlainChatWorkingStatus  = plainWorkingStatusCheck.IsChecked == true;
             UI.ChatTranscriptView.PlainWorkingStatus = _settings.PlainChatWorkingStatus;
 
-            // The language reaches chats opened from now on; the XAML of open ones is already built.
+            // Open chats switch at once: their XAML captions follow on their own, the rest is redone here.
             string newChatLanguage = (chatLanguageCombo.SelectedItem as ComboBoxItem)?.Tag as string ?? origChatLanguage;
             if (!string.Equals(newChatLanguage, origChatLanguage, StringComparison.OrdinalIgnoreCase))
             {
                 _settings.ChatLanguage = newChatLanguage;
                 ApplyChatLanguage();
+                RefreshChatLanguage();
             }
             _settings.ChatIconStyle           = newChatIconStyle;
             _settings.ChatWorkingTabIcon      = newWorkingTabIcon;

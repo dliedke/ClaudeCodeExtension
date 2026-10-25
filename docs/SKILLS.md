@@ -299,10 +299,17 @@ dialogs and the panel stay English.
    Needs `using static ClaudeCodeVS.UI.Loc;`.
 2. Never wrap text sent to the agent/CLI, slash commands, tool/provider/model names, log text or
    strings the code compares.
-3. Add the translation to `lang/it.json` (missing ones just show English). `test.cmd` reports
-   untranslated/orphaned keys as Inconclusive and fails only on mismatched `{n}` placeholders.
-4. New language: add `lang/<culture>.json` + an `<EmbeddedResource>` line in the csproj, or drop the
-   file in `%LocalAppData%\ClaudeCodeExtension\lang` (no rebuild; also overrides embedded entries).
+3. Translate it in **every** `lang/*.json` (19 files) in the same change — new, reworded or removed
+   text alike. Keep the `{n}` placeholders, any leading/trailing space and a leading icon (`🤖 `,
+   `■ `). `test.cmd` fails on a string missing from any file, on a translation whose English is gone
+   from the code, on duplicate keys, empty values and on those three rules.
+4. New built-in language: add it to `Loc.BuiltInLanguages` (code = .NET culture name, display name in
+   that language), add `lang/<code>.json` with every key and an `<EmbeddedResource>` line in the
+   csproj next to the others; the tests check the three agree. For a local fix or an extra language
+   without a rebuild, drop the file in `%LocalAppData%\ClaudeCodeExtension\lang` (it also
+   overrides embedded entries).
+5. Text set from code after the XAML is built does not follow a language switch on its own: make
+   sure `RefreshChatLanguage()` (or the view's `RefreshLanguage()`) redoes it.
 
 ---
 

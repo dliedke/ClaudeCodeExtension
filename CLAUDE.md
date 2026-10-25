@@ -197,7 +197,7 @@ ClaudeCodeExtension/
 │   ├── SKILLS.md                        # Step-by-step task recipes (release, Exp debugging, publish, add provider/setting/UI file)
 │   ├── AGENTS.md                        # Short instructions file for non-Claude agents
 │   └── images/                          # README screenshots (linked by raw GitHub URL so the Marketplace page resolves them)
-├── lang/                                # Chat UI translations, embedded: <culture>.json = { "English text": "translation" }
+├── lang/                                # Chat UI translations (19 + English), embedded: <culture>.json = { "English text": "translation" }
 ├── tools/repo-watcher/                  # Scheduled PR/issue watcher (gh check, then unattended Claude Code); see docs/SKILLS.md
 ├── Properties/AssemblyInfo.cs           # AssemblyVersion/FileVersion (bumped every release) + InternalsVisibleTo for Tests
 ├── Root (project metadata only):
@@ -243,10 +243,11 @@ Deep per-file gotchas and design decisions live in `docs/ARCHITECTURE.md` (kept 
 always-loaded file to keep context lean). Before editing any file below, read its section in that
 doc — it captures non-obvious behavior that isn't apparent from the code:
 
-Three cross-cutting rules (full text in `docs/ARCHITECTURE.md` → *Cross-Cutting Rules*) — read before touching provider selection, UI captions, terminal focus, or anything that sends text to the agent:
+Four cross-cutting rules (full text in `docs/ARCHITECTURE.md` → *Cross-Cutting Rules*) — read before touching provider selection, UI captions, terminal focus, or anything that sends text to the agent:
 - Active provider UI rule (v24.0): provider-dependent UI (checkmarks, captions, menu visibility, active labels) must use `_currentRunningProvider` when a terminal is alive, falling back to `_settings.SelectedProvider` only before launch.
 - Terminal focus rule (v26.0): never focus the embedded terminal with direct `SetForegroundWindow`/`SetFocus`; use `FocusTerminalForInputAsync()`/`FocusTerminalForInput()`/`FocusTerminalWindow()`. Hook focus checks stay Win32-only.
 - Agent send rule (v82.0): send agent-bound text through `SendTextToAgentAsync()`, not `SendTextToTerminalAsync()` — native mode has no console. Console-only traffic (slash commands, CLI updates, plugin installs) is the exception; new console-scraping logic must bail out when `IsNativeModeActive`.
+- Chat localization rule (v269.0): new or changed native chat UI text is wrapped in `L("...")`/`N("...")`/`{local:Loc '...'}` and translated in every `lang/*.json` in the same change (recipe: `docs/SKILLS.md` → *Localize chat text*); `test.cmd` fails on a missing or orphaned translation. Text set from code must also be redone by `RefreshChatLanguage()` so a language switch reaches open chats.
 
 | File | `docs/ARCHITECTURE.md` section |
 |------|-------------------------------|
