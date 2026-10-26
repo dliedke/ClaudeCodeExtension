@@ -13,10 +13,13 @@
 
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.Linq;
 using System.Threading;
+using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Documents;
+using System.Windows.Media;
 using ClaudeCodeVS.UI;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 
@@ -45,6 +48,80 @@ namespace ClaudeCodeExtension.Tests
                 Paragraph code = section.Blocks.OfType<Paragraph>().Single();
                 string text = new TextRange(code.ContentStart, code.ContentEnd).Text;
                 Assert.AreEqual("var a = 1;" + Environment.NewLine + "  b();", text);
+            });
+        }
+
+        /// <summary>
+        /// WPF draws a list marker right-aligned in the list's left padding and the document viewer clips
+        /// what spills out to the left: with the old fixed indent "10." lost its 1 at a 16 px chat font.
+        /// The indent must hold the widest marker plus the marker gap, in a proportional and a
+        /// monospaced font (whose digits are wider).
+        /// </summary>
+        [TestMethod]
+        public void OrderedListIndentFitsTheWidestMarker()
+        {
+            RunOnSta(() =>
+            {
+                foreach (string font in new[] { "Segoe UI", "Consolas" })
+                {
+                    foreach (double size in new[] { 12.0, 16.0, 24.0 })
+                    {
+                        foreach (int largest in new[] { 9, 10, 99, 100, 999 })
+                        {
+                            double indent = MarkdownFlowRenderer.OrderedListIndent(largest, size, out double markerOffset);
+                            var marker = new FormattedText(largest + ".", CultureInfo.InvariantCulture,
+                                FlowDirection.LeftToRight, new Typeface(font), size, Brushes.Black, 1.0);
+
+                            Assert.IsTrue(markerOffset > 0, "The marker needs a gap before the item text.");
+                            Assert.IsTrue(indent >= marker.WidthIncludingTrailingWhitespace + markerOffset,
+                                $"\"{largest}.\" in {font} {size}px needs {marker.WidthIncludingTrailingWhitespace + markerOffset:0.#}, got {indent}.");
+                        }
+                    }
+                }
+            });
+        }
+
+        [TestMethod]
+        public void LongOrderedListIsIndentedForItsLastNumber()
+        {
+            RunOnSta(() =>
+            {
+                string markdown = string.Join("\n", Enumerable.Range(1, 100).Select(n => n + ". item"));
+                var options = new MarkdownStyleOptions { BaseFontSize = 16 };
+                List list = MarkdownFlowRenderer.BuildBlockList(markdown, options).OfType<List>().Single();
+
+                Assert.AreEqual(100, list.ListItems.Count);
+                Assert.AreEqual(MarkdownFlowRenderer.OrderedListIndent(100, 16, out double markerOffset), list.Padding.Left);
+                Assert.AreEqual(markerOffset, list.MarkerOffset);
+                Assert.IsTrue(list.Padding.Left > MarkdownFlowRenderer.OrderedListIndent(9, 16, out _),
+                    "A three-digit list needs more room than a one-digit one.");
+            });
+        }
+
+        [TestMethod]
+        public void OrderedListKeepsTheNumberItStartsWith()
+        {
+            RunOnSta(() =>
+            {
+                List list = MarkdownFlowRenderer.BuildBlockList("Intro\n\n4. four\n5. five", null).OfType<List>().Single();
+                Assert.AreEqual(4, list.StartIndex);
+                Assert.AreEqual(2, list.ListItems.Count);
+
+                // WPF has no marker 0: a list written from 0 starts at 1 instead of failing to render.
+                List fromZero = MarkdownFlowRenderer.BuildBlockList("0. zero\n1. one", null).OfType<List>().Single();
+                Assert.AreEqual(1, fromZero.StartIndex);
+                Assert.AreEqual(2, fromZero.ListItems.Count);
+            });
+        }
+
+        [TestMethod]
+        public void BulletListIndentIsUnchanged()
+        {
+            RunOnSta(() =>
+            {
+                List list = MarkdownFlowRenderer.BuildBlockList("- a\n- b", null).OfType<List>().Single();
+                Assert.AreEqual(TextMarkerStyle.Disc, list.MarkerStyle);
+                Assert.AreEqual(16.0, list.Padding.Left);
             });
         }
 

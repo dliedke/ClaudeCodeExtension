@@ -360,6 +360,7 @@ namespace ClaudeCodeVS.UI
                             {
                                 Level = IndentLevel(ordered.Groups[1].Value),
                                 Ordered = true,
+                                Number = int.Parse(ordered.Groups[2].Value, System.Globalization.CultureInfo.InvariantCulture),
                                 Text = ordered.Groups[3].Value
                             });
                             i++;
@@ -424,7 +425,28 @@ namespace ClaudeCodeVS.UI
         {
             public int Level;
             public bool Ordered;
+            public int Number;
             public string Text = string.Empty;
+        }
+
+        /// <summary>
+        /// Indent of a numbered list, sized for its widest marker. WPF draws the marker right-aligned in
+        /// the list's left padding and lets whatever does not fit spill out to the left, where the
+        /// document viewer clips it: with a fixed indent, "10." showed as "0." (and a sliver of the 1)
+        /// at a 16 px chat font, and "100." lost a whole digit. Each character is budgeted at 0.6 em,
+        /// which covers monospaced digits too.
+        /// </summary>
+        /// <param name="largestNumber">The highest number the list shows.</param>
+        /// <param name="fontSize">The list's font size in device-independent pixels.</param>
+        /// <param name="markerOffset">Gap between the marker and the item text.</param>
+        /// <returns>The left padding of the list.</returns>
+        internal static double OrderedListIndent(int largestNumber, double fontSize, out double markerOffset)
+        {
+            int digits = Math.Max(1, largestNumber).ToString(System.Globalization.CultureInfo.InvariantCulture).Length;
+            markerOffset = Math.Round(0.4 * fontSize);
+
+            // digits + the period
+            return markerOffset + Math.Ceiling((digits + 1) * 0.6 * fontSize);
         }
 
         private static int IndentLevel(string indent)
@@ -454,6 +476,13 @@ namespace ClaudeCodeVS.UI
                 Padding = new Thickness(16, 0, 0, 0),
                 MarkerStyle = items[index].Ordered ? TextMarkerStyle.Decimal : TextMarkerStyle.Disc
             };
+
+            if (items[index].Ordered)
+            {
+                // A list that continues after a paragraph ("4. ...") keeps its numbers. WPF has no
+                // marker 0, so a list written from 0 starts at 1.
+                list.StartIndex = Math.Max(1, items[index].Number);
+            }
 
             int i = index;
             while (i < items.Count)
@@ -489,6 +518,14 @@ namespace ClaudeCodeVS.UI
                 AppendInlines(paragraph.Inlines, items[i].Text, options);
                 list.ListItems.Add(new ListItem(paragraph));
                 i++;
+            }
+
+            if (list.MarkerStyle == TextMarkerStyle.Decimal)
+            {
+                list.Padding = new Thickness(
+                    OrderedListIndent(list.StartIndex + list.ListItems.Count - 1, options.BaseFontSize, out double markerOffset),
+                    0, 0, 0);
+                list.MarkerOffset = markerOffset;
             }
 
             consumed = i - index;
