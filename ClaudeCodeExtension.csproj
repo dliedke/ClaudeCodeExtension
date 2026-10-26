@@ -184,6 +184,7 @@
     <None Include="tools\repo-watcher\prompt-issue.md" />
     <None Include="tools\repo-watcher\prompt-pr.md" />
     <None Include="tools\repo-watcher\Run-Claude.ps1" />
+    <None Include="tools\repo-watcher\run-claude-wsl.sh" />
     <None Include="tools\repo-watcher\Watch-Repo.ps1" />
   </ItemGroup>
   <ItemGroup>

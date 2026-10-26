@@ -7,7 +7,8 @@ param(
     [Parameter(Mandatory)][string]$Claude,
     [Parameter(Mandatory)][string]$PromptFile,
     [Parameter(Mandatory)][string]$RunLog,
-    [Parameter(Mandatory)][string]$Title
+    [Parameter(Mandatory)][string]$Title,
+    [switch]$Wsl
 )
 
 $Host.UI.RawUI.WindowTitle = "Claude repo watcher - $Title - do not shut down"
@@ -43,8 +44,17 @@ Write-Host ("Started {0:yyyy-MM-dd HH:mm:ss}. Log: {1}`n" -f (Get-Date), $RunLog
 
 $result = $null
 $isError = $false
-Get-Content $PromptFile -Raw |
-    & $Claude -p --model opus --effort high --permission-mode bypassPermissions --output-format stream-json --verbose 2>&1 |
+$flags = '-p', '--model', 'opus', '--effort', 'high', '--permission-mode', 'bypassPermissions', '--output-format', 'stream-json', '--verbose'
+$run = if ($Wsl) {
+    # bash reads the prompt file itself: piping from Windows PowerShell would mangle non-ASCII text.
+    # Login shell, so gh, git and ~/.local/bin are on PATH for Claude's own commands.
+    $linuxPrompt = (& wsl.exe -e wslpath -u ($PromptFile -replace '\\', '/') | Out-String).Trim()
+    $launcher    = (& wsl.exe -e wslpath -u ((Join-Path $PSScriptRoot 'run-claude-wsl.sh') -replace '\\', '/') | Out-String).Trim()
+    { & wsl.exe --cd (Get-Location).Path -e bash -l $launcher $Claude $linuxPrompt @flags 2>&1 }
+} else {
+    { Get-Content $PromptFile -Raw | & $Claude @flags 2>&1 }
+}
+& $run |
     ForEach-Object {
         $line = "$_"
         try { $evt = $line | ConvertFrom-Json } catch { Write-Host $line -ForegroundColor DarkGray; return }

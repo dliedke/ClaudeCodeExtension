@@ -5,6 +5,8 @@
 #   .\Install-RepoWatcher.ps1 -Minutes 15  # different interval
 #   .\Install-RepoWatcher.ps1 -Uninstall   # remove both tasks (keeps logs and state)
 #   .\Install-RepoWatcher.ps1 -SetupEmail you@gmail.com   # email every PR / issue outcome
+#   .\Install-RepoWatcher.ps1 -Wsl         # run claude and gh inside the default WSL distro
+#   .\Install-RepoWatcher.ps1 -SetupEmail you@example.com -Outlook   # send through classic Outlook (SMTP blocked)
 #
 # -SetupEmail asks for a Gmail app password (https://myaccount.google.com/apppasswords, needs
 # 2-step verification), stores it DPAPI-encrypted in the install folder and sends a test email.
@@ -19,7 +21,9 @@ param(
     [string]$RepoDir = (Resolve-Path (Join-Path $PSScriptRoot '..\..')).Path,
     [int]$Minutes    = 10,
     [switch]$Uninstall,
-    [string]$SetupEmail
+    [string]$SetupEmail,
+    [switch]$Outlook,
+    [switch]$Wsl
 )
 
 $ErrorActionPreference = 'Stop'
@@ -39,31 +43,45 @@ if ($SetupEmail) {
     New-Item -ItemType Directory -Force $InstallDir | Out-Null
     Copy-Item (Join-Path $PSScriptRoot 'Notify.ps1') $InstallDir -Force
     . (Join-Path $InstallDir 'Notify.ps1')
-    $password = Read-Host "Gmail app password for $SetupEmail" -AsSecureString
-    New-Object System.Management.Automation.PSCredential($SetupEmail, $password) |
-        Export-Clixml (Join-Path $InstallDir 'email-credential.xml')
-    @{ To = $SetupEmail; From = $SetupEmail } | ConvertTo-Json | Set-Content (Join-Path $InstallDir 'email.json') -Encoding utf8
+    if ($Outlook) {
+        @{ To = $SetupEmail; Transport = 'outlook' } | ConvertTo-Json | Set-Content (Join-Path $InstallDir 'email.json') -Encoding utf8
+    } else {
+        $password = Read-Host "Gmail app password for $SetupEmail" -AsSecureString
+        New-Object System.Management.Automation.PSCredential($SetupEmail, $password) |
+            Export-Clixml (Join-Path $InstallDir 'email-credential.xml')
+        @{ To = $SetupEmail; From = $SetupEmail } | ConvertTo-Json | Set-Content (Join-Path $InstallDir 'email.json') -Encoding utf8
+    }
     Send-WatcherMail (Get-WatcherMailConfig $InstallDir) '[ClaudeCodeExtension] Repo watcher email test' `
         'Email notifications are set up. You will get one email per watcher run with the outcome of each PR or issue (merged, fixed, rejected, deferred, failed, ...).'
     Write-Host "Test email sent to $SetupEmail. To turn emails off, delete email.json in $InstallDir."
     return
 }
 
-$claude = (Get-Command claude -ErrorAction SilentlyContinue).Source
-if (-not $claude) { throw 'claude was not found on PATH. Install Claude Code first.' }
-if (-not (Get-Command gh -ErrorAction SilentlyContinue)) { throw 'gh (GitHub CLI) was not found on PATH.' }
-& gh auth status *> $null
-if ($LASTEXITCODE -ne 0) { throw 'gh is not logged in. Run "gh auth login" first.' }
+if ($Wsl) {
+    # Login shell, so ~/.local/bin (the Claude Code installer's target) is on PATH.
+    $claude = (& wsl.exe -e bash -lc 'command -v claude' | Out-String).Trim()
+    if (-not $claude) { throw 'claude was not found in WSL. Install Claude Code in your default WSL distro first.' }
+    & wsl.exe -e bash -lc 'command -v gh' *> $null
+    if ($LASTEXITCODE -ne 0) { throw 'gh (GitHub CLI) was not found in WSL.' }
+    & wsl.exe -e gh auth status *> $null
+    if ($LASTEXITCODE -ne 0) { throw 'gh is not logged in inside WSL. Run "gh auth login" in WSL first.' }
+} else {
+    $claude = (Get-Command claude -ErrorAction SilentlyContinue).Source
+    if (-not $claude) { throw 'claude was not found on PATH. Install Claude Code first.' }
+    if (-not (Get-Command gh -ErrorAction SilentlyContinue)) { throw 'gh (GitHub CLI) was not found on PATH.' }
+    & gh auth status *> $null
+    if ($LASTEXITCODE -ne 0) { throw 'gh is not logged in. Run "gh auth login" first.' }
+}
 
 New-Item -ItemType Directory -Force $InstallDir | Out-Null
-Copy-Item (Join-Path $PSScriptRoot 'Watch-Repo.ps1'), (Join-Path $PSScriptRoot 'Run-Claude.ps1'), (Join-Path $PSScriptRoot 'Notify.ps1'), (Join-Path $PSScriptRoot 'prompt-*.md') $InstallDir -Force
+Copy-Item (Join-Path $PSScriptRoot 'Watch-Repo.ps1'), (Join-Path $PSScriptRoot 'Run-Claude.ps1'), (Join-Path $PSScriptRoot 'Notify.ps1'), (Join-Path $PSScriptRoot 'prompt-*.md'), (Join-Path $PSScriptRoot 'run-claude-wsl.sh') $InstallDir -Force
 
 $script = Join-Path $InstallDir 'Watch-Repo.ps1'
 $offset = 1
 foreach ($kind in $Tasks.Keys) {
     # conhost --headless keeps a console (publish.cmd needs one) without flashing a window.
     $arguments = "--headless powershell.exe -NoProfile -ExecutionPolicy Bypass -File `"$script`" " +
-                 "-Kind $kind -Repo $Repo -RepoDir `"$RepoDir`" -Claude `"$claude`""
+                 "-Kind $kind -Repo $Repo -RepoDir `"$RepoDir`" -Claude `"$claude`"" + $(if ($Wsl) { ' -Wsl' })
     $action    = New-ScheduledTaskAction -Execute 'conhost.exe' -Argument $arguments -WorkingDirectory $InstallDir
     # Stagger the two tasks so they don't fight over the shared lock on the same tick.
     $trigger   = New-ScheduledTaskTrigger -Once -At (Get-Date).AddMinutes($offset) `
@@ -81,7 +99,7 @@ foreach ($kind in $Tasks.Keys) {
 
 Write-Host "Installed to $InstallDir"
 Write-Host "  repo:   $Repo ($RepoDir)"
-Write-Host "  claude: $claude"
+Write-Host "  claude: $claude$(if ($Wsl) { ' (WSL)' })"
 Write-Host "  tasks:  $($Tasks.Values -join ', ') - every $Minutes minutes"
 Write-Host "  log:    $(Join-Path $InstallDir 'logs\watcher.log')"
 Write-Host "  email:  $(if (Test-Path (Join-Path $InstallDir 'email.json')) { 'on' } else { 'off (run with -SetupEmail you@gmail.com)' })"

@@ -8,10 +8,17 @@ param(
     [ValidateSet('pr', 'issue')][string]$Kind = 'pr',
     [string]$Repo    = 'dliedke/ClaudeCodeExtension',
     [Parameter(Mandatory)][string]$RepoDir,
-    [Parameter(Mandatory)][string]$Claude
+    [Parameter(Mandatory)][string]$Claude,
+    [switch]$Wsl
 )
 
 $ErrorActionPreference = 'Stop'
+# WSL programs write UTF-8; without this, non-ASCII titles from gh come back garbled.
+if ($Wsl) { [Console]::OutputEncoding = [Text.Encoding]::UTF8 }
+
+function Invoke-Gh {
+    if ($Wsl) { & wsl.exe -e gh @args } else { & gh @args }
+}
 
 $Root        = $PSScriptRoot
 $Prompt      = Join-Path $Root "prompt-$Kind.md"
@@ -83,9 +90,9 @@ try { if (-not $mutex.WaitOne(0)) { exit 0 } } catch [System.Threading.Abandoned
 try {
     # --- Free check -----------------------------------------------------------------------
     if ($Kind -eq 'pr') {
-        $json = & gh pr list --repo $Repo --state open --json number,headRefOid,title,author 2>&1
+        $json = Invoke-Gh pr list --repo $Repo --state open --json number,headRefOid,title,author 2>&1
     } else {
-        $json = & gh issue list --repo $Repo --state open --limit 100 --json number,title,author 2>&1
+        $json = Invoke-Gh issue list --repo $Repo --state open --limit 100 --json number,title,author 2>&1
     }
     if ($LASTEXITCODE -ne 0) { Write-Log "gh failed: $json"; exit 0 }
     # Filter blanks: Windows PowerShell turns "[]" into one empty object.
@@ -126,18 +133,29 @@ try {
 
     # Claude reports each item's outcome here; every outcome is emailed.
     $resultFile = [IO.Path]::ChangeExtension($runLog, '.results.json')
+    $resultTarget = if ($Wsl) { (& wsl.exe -e wslpath -u ($resultFile -replace '\\', '/') | Out-String).Trim() } else { $resultFile }
     $text = (Get-Content $Prompt -Raw) + @"
 
 
 Items to handle in this run: $numbers
 
-When you are done, write a JSON array with one entry per item to $resultFile, for example:
+When you are done, write a JSON array with one entry per item to $resultTarget, for example:
 [{"number": 220, "outcome": "merged", "version": "266.0", "summary": "One user-facing sentence.", "details": "What you changed or checked, or why you rejected it."}]
 outcome is one of: merged, fixed, answered, asked-for-details, deferred, rejected, skipped-unsafe, failed.
 version is the published version, or null when nothing was published.
 details is a few plain sentences for the maintainer: what was changed, tested and published, what was
 not verified by hand, or the specific reasons for rejecting, deferring or skipping. This is emailed.
 "@
+    if ($Wsl) {
+        $text += @"
+
+
+You run inside WSL (Linux) on the Windows clone of the repo. Use git and gh from WSL. Windows tools work
+through WSL interop from the repo root: run "cmd.exe /c test.cmd" and "cmd.exe /c publish.cmd", and build with
+"/mnt/c/Program Files/Microsoft Visual Studio/18/Enterprise/MSBuild/Current/Bin/MSBuild.exe" ClaudeCodeExtension.sln -p:Configuration=Release -v:minimal
+Keep each file's existing line endings.
+"@
+    }
     $promptFile = [IO.Path]::ChangeExtension($runLog, '.prompt.md')
     Set-Content $promptFile $text -Encoding utf8
 
@@ -148,7 +166,7 @@ not verified by hand, or the specific reasons for rejecting, deferring or skippi
     # until the task's time limit killed it, with no state saved and no email sent.
     $title = "$(if ($Kind -eq 'pr') { 'PR' } else { 'issue' }) $numbers"
     $runArgs = "-NoProfile -ExecutionPolicy Bypass -File `"$(Join-Path $Root 'Run-Claude.ps1')`" " +
-               "-Claude `"$Claude`" -PromptFile `"$promptFile`" -RunLog `"$runLog`" -Title `"$title`""
+               "-Claude `"$Claude`" -PromptFile `"$promptFile`" -RunLog `"$runLog`" -Title `"$title`"" + $(if ($Wsl) { ' -Wsl' })
     $proc = Start-Process powershell.exe -ArgumentList $runArgs -WorkingDirectory $RepoDir -PassThru
     $null = $proc.Handle   # cache the handle, or ExitCode reads back empty after exit
     $proc.WaitForExit()

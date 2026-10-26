@@ -152,6 +152,8 @@ Code (Opus, high effort) running unattended. Scripts live in `tools/repo-watcher
 .\tools\repo-watcher\Install-RepoWatcher.ps1 -Minutes 15  # other interval
 .\tools\repo-watcher\Install-RepoWatcher.ps1 -Uninstall   # remove the tasks
 .\tools\repo-watcher\Install-RepoWatcher.ps1 -SetupEmail you@gmail.com   # email every PR / issue outcome
+.\tools\repo-watcher\Install-RepoWatcher.ps1 -SetupEmail you@example.com -Outlook   # same, via classic Outlook when SMTP is blocked
+.\tools\repo-watcher\Install-RepoWatcher.ps1 -Wsl         # use claude + gh from the default WSL distro (auto-accepts the proxy "Continue" notice)
 ```
 
 Prerequisites: `claude` and `gh` on PATH, `gh auth login` done, and this machine able to run
