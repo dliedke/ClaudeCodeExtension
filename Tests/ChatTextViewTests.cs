@@ -13,10 +13,13 @@
 
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.Linq;
 using System.Threading;
+using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Documents;
+using System.Windows.Media;
 using ClaudeCodeVS.UI;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 
@@ -26,19 +29,99 @@ namespace ClaudeCodeExtension.Tests
     public class ChatTextViewTests
     {
         [TestMethod]
-        public void CodeBlocksUseTextBlockInsteadOfTextBox()
+        public void CodeBlocksAreSelectableDocumentTextNotATextBox()
         {
             RunOnSta(() =>
             {
-                List<Block> blocks = MarkdownFlowRenderer.BuildBlockList("```cs\nvar a = 1;\n```", null);
-                BlockUIContainer container = blocks.OfType<BlockUIContainer>().Single();
-                var border = container.Child as Border;
-                var grid = border?.Child as Grid;
+                List<Block> blocks = MarkdownFlowRenderer.BuildBlockList("```cs\nvar a = 1;\n  b();\n```", null);
+                Section section = blocks.OfType<Section>().Single();
 
-                Assert.IsNotNull(grid, "The code block should keep its bordered Grid layout.");
-                Assert.IsTrue(grid.Children.OfType<TextBlock>().Any(), "The code body should be a TextBlock.");
-                Assert.IsFalse(grid.Children.OfType<TextBox>().Any(),
+                // Only the header (language label + copy button) is an embedded element; a TextBox anywhere
+                // in it would reintroduce the WPF TextBoxView crash path.
+                BlockUIContainer header = section.Blocks.OfType<BlockUIContainer>().Single();
+                var panel = (Panel)header.Child;
+                Assert.IsFalse(panel.Children.OfType<TextBox>().Any(),
                     "A TextBox here would reintroduce the WPF TextBoxView crash path.");
+
+                // The code is a document paragraph, so it selects and copies like the rest of the reply,
+                // with its lines and indentation intact.
+                Paragraph code = section.Blocks.OfType<Paragraph>().Single();
+                string text = new TextRange(code.ContentStart, code.ContentEnd).Text;
+                Assert.AreEqual("var a = 1;" + Environment.NewLine + "  b();", text);
+            });
+        }
+
+        /// <summary>
+        /// WPF draws a list marker right-aligned in the list's left padding and the document viewer clips
+        /// what spills out to the left: with the old fixed indent "10." lost its 1 at a 16 px chat font.
+        /// The indent must hold the widest marker plus the marker gap, in a proportional and a
+        /// monospaced font (whose digits are wider).
+        /// </summary>
+        [TestMethod]
+        public void OrderedListIndentFitsTheWidestMarker()
+        {
+            RunOnSta(() =>
+            {
+                foreach (string font in new[] { "Segoe UI", "Consolas" })
+                {
+                    foreach (double size in new[] { 12.0, 16.0, 24.0 })
+                    {
+                        foreach (int largest in new[] { 9, 10, 99, 100, 999 })
+                        {
+                            double indent = MarkdownFlowRenderer.OrderedListIndent(largest, size, out double markerOffset);
+                            var marker = new FormattedText(largest + ".", CultureInfo.InvariantCulture,
+                                FlowDirection.LeftToRight, new Typeface(font), size, Brushes.Black, 1.0);
+
+                            Assert.IsTrue(markerOffset > 0, "The marker needs a gap before the item text.");
+                            Assert.IsTrue(indent >= marker.WidthIncludingTrailingWhitespace + markerOffset,
+                                $"\"{largest}.\" in {font} {size}px needs {marker.WidthIncludingTrailingWhitespace + markerOffset:0.#}, got {indent}.");
+                        }
+                    }
+                }
+            });
+        }
+
+        [TestMethod]
+        public void LongOrderedListIsIndentedForItsLastNumber()
+        {
+            RunOnSta(() =>
+            {
+                string markdown = string.Join("\n", Enumerable.Range(1, 100).Select(n => n + ". item"));
+                var options = new MarkdownStyleOptions { BaseFontSize = 16 };
+                List list = MarkdownFlowRenderer.BuildBlockList(markdown, options).OfType<List>().Single();
+
+                Assert.AreEqual(100, list.ListItems.Count);
+                Assert.AreEqual(MarkdownFlowRenderer.OrderedListIndent(100, 16, out double markerOffset), list.Padding.Left);
+                Assert.AreEqual(markerOffset, list.MarkerOffset);
+                Assert.IsTrue(list.Padding.Left > MarkdownFlowRenderer.OrderedListIndent(9, 16, out _),
+                    "A three-digit list needs more room than a one-digit one.");
+            });
+        }
+
+        [TestMethod]
+        public void OrderedListKeepsTheNumberItStartsWith()
+        {
+            RunOnSta(() =>
+            {
+                List list = MarkdownFlowRenderer.BuildBlockList("Intro\n\n4. four\n5. five", null).OfType<List>().Single();
+                Assert.AreEqual(4, list.StartIndex);
+                Assert.AreEqual(2, list.ListItems.Count);
+
+                // WPF has no marker 0: a list written from 0 starts at 1 instead of failing to render.
+                List fromZero = MarkdownFlowRenderer.BuildBlockList("0. zero\n1. one", null).OfType<List>().Single();
+                Assert.AreEqual(1, fromZero.StartIndex);
+                Assert.AreEqual(2, fromZero.ListItems.Count);
+            });
+        }
+
+        [TestMethod]
+        public void BulletListIndentIsUnchanged()
+        {
+            RunOnSta(() =>
+            {
+                List list = MarkdownFlowRenderer.BuildBlockList("- a\n- b", null).OfType<List>().Single();
+                Assert.AreEqual(TextMarkerStyle.Disc, list.MarkerStyle);
+                Assert.AreEqual(16.0, list.Padding.Left);
             });
         }
 
@@ -98,6 +181,70 @@ namespace ClaudeCodeExtension.Tests
                 block.ScrollToHome();
                 block.ScrollToVerticalOffset(0.0);
             });
+        }
+
+        /// <summary>
+        /// Raw tool input/output used to be an unwrapped TextBox that scrolled sideways. A FlowDocument
+        /// always wraps at its page width, so no-wrap is a page as wide as the longest line.
+        /// </summary>
+        [TestMethod]
+        public void NoWrapPlainTextGetsAPageAsWideAsItsLongestLine()
+        {
+            RunOnSta(() =>
+            {
+                string longLine = "Get-ChildItem -Path C:\\Some\\Very\\Long\\Folder -Recurse -Filter *.cs | Select-Object FullName";
+                var block = new MarkdownBlock
+                {
+                    DeferRenderingUntilLoaded = false,
+                    IsPlainText = true,
+                    IsNoWrap = true,
+                    FontFamily = new FontFamily("Consolas"),
+                    FontSize = 12,
+                    Markdown = "short\n" + longLine
+                };
+
+                var typeface = new Typeface(new FontFamily("Consolas"), FontStyles.Normal, FontWeights.Normal, FontStretches.Normal);
+                double longWidth = new FormattedText(longLine, CultureInfo.InvariantCulture, FlowDirection.LeftToRight,
+                    typeface, 12, Brushes.Black, 1.0).WidthIncludingTrailingWhitespace;
+
+                Assert.IsTrue(block.Document.PageWidth >= longWidth, "The page must fit the longest line unwrapped.");
+                Assert.AreEqual(ScrollBarVisibility.Auto, block.HorizontalScrollBarVisibility);
+
+                // Turning it off goes back to wrapping at the viewer's width.
+                block.IsNoWrap = false;
+                Assert.IsTrue(double.IsNaN(block.Document.PageWidth));
+                Assert.AreEqual(ScrollBarVisibility.Disabled, block.HorizontalScrollBarVisibility);
+            });
+        }
+
+        [TestMethod]
+        public void ToolTextStyleDoesNotWrap()
+        {
+            string xaml = RepositoryLayout.ReadText("UI", "ChatTranscriptView.xaml");
+            int style = xaml.IndexOf("x:Key=\"ChatToolTextStyle\"", StringComparison.Ordinal);
+            int end = xaml.IndexOf("</Style>", style, StringComparison.Ordinal);
+
+            StringAssert.Contains(xaml.Substring(style, end - style), "<Setter Property=\"IsNoWrap\" Value=\"True\"/>");
+        }
+
+        /// <summary>
+        /// After a Ctrl+Scroll zoom-in the virtualized panel kept arranging rows in slots as wide as the
+        /// old viewport, so right-aligned user bubbles and stretched tool cards ran off screen. Rows are
+        /// pinned to the viewport width so the stale slot no longer matters.
+        /// </summary>
+        [TestMethod]
+        public void TranscriptRowsArePinnedToTheViewportWidth()
+        {
+            string xaml = RepositoryLayout.ReadText("UI", "ChatTranscriptView.xaml");
+            int list = xaml.IndexOf("x:Name=\"MessagesList\"", StringComparison.Ordinal);
+            int style = xaml.IndexOf("<ItemsControl.ItemContainerStyle>", list, StringComparison.Ordinal);
+            int end = xaml.IndexOf("</ItemsControl.ItemContainerStyle>", style, StringComparison.Ordinal);
+
+            Assert.IsTrue(style > list, "MessagesList needs an ItemContainerStyle.");
+            string body = xaml.Substring(style, end - style);
+            StringAssert.Contains(body, "Property=\"Width\"");
+            StringAssert.Contains(body, "Binding ViewportWidth, RelativeSource={RelativeSource AncestorType=ScrollViewer}");
+            StringAssert.Contains(body, "<Setter Property=\"HorizontalAlignment\" Value=\"Left\"/>");
         }
 
         [TestMethod]

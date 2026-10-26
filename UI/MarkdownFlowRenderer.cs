@@ -360,6 +360,7 @@ namespace ClaudeCodeVS.UI
                             {
                                 Level = IndentLevel(ordered.Groups[1].Value),
                                 Ordered = true,
+                                Number = int.Parse(ordered.Groups[2].Value, System.Globalization.CultureInfo.InvariantCulture),
                                 Text = ordered.Groups[3].Value
                             });
                             i++;
@@ -424,7 +425,28 @@ namespace ClaudeCodeVS.UI
         {
             public int Level;
             public bool Ordered;
+            public int Number;
             public string Text = string.Empty;
+        }
+
+        /// <summary>
+        /// Indent of a numbered list, sized for its widest marker. WPF draws the marker right-aligned in
+        /// the list's left padding and lets whatever does not fit spill out to the left, where the
+        /// document viewer clips it: with a fixed indent, "10." showed as "0." (and a sliver of the 1)
+        /// at a 16 px chat font, and "100." lost a whole digit. Each character is budgeted at 0.6 em,
+        /// which covers monospaced digits too.
+        /// </summary>
+        /// <param name="largestNumber">The highest number the list shows.</param>
+        /// <param name="fontSize">The list's font size in device-independent pixels.</param>
+        /// <param name="markerOffset">Gap between the marker and the item text.</param>
+        /// <returns>The left padding of the list.</returns>
+        internal static double OrderedListIndent(int largestNumber, double fontSize, out double markerOffset)
+        {
+            int digits = Math.Max(1, largestNumber).ToString(System.Globalization.CultureInfo.InvariantCulture).Length;
+            markerOffset = Math.Round(0.4 * fontSize);
+
+            // digits + the period
+            return markerOffset + Math.Ceiling((digits + 1) * 0.6 * fontSize);
         }
 
         private static int IndentLevel(string indent)
@@ -454,6 +476,13 @@ namespace ClaudeCodeVS.UI
                 Padding = new Thickness(16, 0, 0, 0),
                 MarkerStyle = items[index].Ordered ? TextMarkerStyle.Decimal : TextMarkerStyle.Disc
             };
+
+            if (items[index].Ordered)
+            {
+                // A list that continues after a paragraph ("4. ...") keeps its numbers. WPF has no
+                // marker 0, so a list written from 0 starts at 1.
+                list.StartIndex = Math.Max(1, items[index].Number);
+            }
 
             int i = index;
             while (i < items.Count)
@@ -489,6 +518,14 @@ namespace ClaudeCodeVS.UI
                 AppendInlines(paragraph.Inlines, items[i].Text, options);
                 list.ListItems.Add(new ListItem(paragraph));
                 i++;
+            }
+
+            if (list.MarkerStyle == TextMarkerStyle.Decimal)
+            {
+                list.Padding = new Thickness(
+                    OrderedListIndent(list.StartIndex + list.ListItems.Count - 1, options.BaseFontSize, out double markerOffset),
+                    0, 0, 0);
+                list.MarkerOffset = markerOffset;
             }
 
             consumed = i - index;
@@ -546,10 +583,12 @@ namespace ClaudeCodeVS.UI
         {
             string body = code.TrimEnd('\n');
 
-            // One bordered box: the top row holds the language label (left) and the copy button (top-right
-            // corner); the code below is a TextBlock, not a TextBox: TextBoxView's soft-wrap metrics are
-            // what crash the process on .NET Framework (dotnet/wpf#11481), and the copy button already
-            // gives users the whole block.
+            // One bordered section: the top row holds the language label (left) and the copy button (top-right
+            // corner); the code below is a paragraph of the document itself, so it selects and copies like the
+            // rest of the reply. Not a TextBox: TextBoxView's soft-wrap metrics are what crash the process on
+            // .NET Framework (dotnet/wpf#11481). Not a TextBlock in the UI container either: the document
+            // treats an embedded element as one unselectable object, and a drag that starts on it moves the
+            // caret past the block, which scrolled the transcript to the block's end.
             var header = new DockPanel { LastChildFill = false, Margin = new Thickness(9, 4, 4, 0) };
 
             if (!string.IsNullOrEmpty(language))
@@ -576,32 +615,38 @@ namespace ClaudeCodeVS.UI
                 header.Children.Add(copyButton);
             }
 
-            var text = new TextBlock
+            var codeParagraph = new Paragraph
             {
-                Text = body,
-                TextWrapping = TextWrapping.Wrap,
+                Margin = new Thickness(0),
+                Padding = new Thickness(9, 2, 9, 8),
                 Foreground = options.TextBrush,
                 FontFamily = options.CodeFontFamily,
                 FontSize = Math.Max(9, options.BaseFontSize - 1),
-                Padding = new Thickness(9, 0, 9, 8)
+                TextAlignment = TextAlignment.Left
             };
 
-            var grid = new Grid();
-            grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
-            grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
-            Grid.SetRow(header, 0);
-            grid.Children.Add(header);
-            Grid.SetRow(text, 1);
-            grid.Children.Add(text);
+            // Explicit line breaks: a newline inside a Run is not a reliable break in a FlowDocument.
+            string[] lines = body.Replace("\r\n", "\n").Split('\n');
+            for (int i = 0; i < lines.Length; i++)
+            {
+                if (i > 0)
+                {
+                    codeParagraph.Inlines.Add(new LineBreak());
+                }
 
-            return new BlockUIContainer(new Border
+                codeParagraph.Inlines.Add(new Run(lines[i]));
+            }
+
+            var section = new Section
             {
                 Margin = new Thickness(0, 2, 0, 8),
                 Background = options.CodeBackground,
                 BorderBrush = options.CodeBorderBrush,
-                BorderThickness = new Thickness(1),
-                Child = grid
-            });
+                BorderThickness = new Thickness(1)
+            };
+            section.Blocks.Add(new BlockUIContainer(header) { Margin = new Thickness(0) });
+            section.Blocks.Add(codeParagraph);
+            return section;
         }
 
         /// <summary>
@@ -974,6 +1019,20 @@ namespace ClaudeCodeVS.UI
             "IsIncremental", typeof(bool), typeof(MarkdownBlock),
             new PropertyMetadata(false, OnVisualInputChanged));
 
+        /// <summary>
+        /// With <see cref="IsPlainText"/>: lines are not wrapped and the block scrolls sideways instead —
+        /// raw tool input and output (commands, JSON, logs) read line by line.
+        /// </summary>
+        public static readonly DependencyProperty IsNoWrapProperty = DependencyProperty.Register(
+            "IsNoWrap", typeof(bool), typeof(MarkdownBlock),
+            new PropertyMetadata(false, OnVisualInputChanged));
+
+        public bool IsNoWrap
+        {
+            get { return (bool)GetValue(IsNoWrapProperty); }
+            set { SetValue(IsNoWrapProperty, value); }
+        }
+
         /// <summary>When true the text is shown as-is with only URLs linked (notices, errors), not parsed as markdown.</summary>
         public static readonly DependencyProperty IsPlainTextProperty = DependencyProperty.Register(
             "IsPlainText", typeof(bool), typeof(MarkdownBlock),
@@ -1201,13 +1260,22 @@ namespace ClaudeCodeVS.UI
         {
             base.OnPropertyChanged(e);
 
-            if (e.Property == DocumentProperty && e.NewValue is FlowDocument document &&
-                document.ReadLocalValue(FlowDocument.FontFamilyProperty) == DependencyProperty.UnsetValue)
+            if (e.Property == DocumentProperty && e.NewValue is FlowDocument document)
             {
                 // A FlowDocumentScrollViewer does not pass its font down to the document, which then falls
                 // back to WPF's serif document default (Georgia). Bind it so the chat font reaches the text.
-                document.SetBinding(FlowDocument.FontFamilyProperty,
-                    new Binding(nameof(FontFamily)) { Source = this });
+                if (document.ReadLocalValue(FlowDocument.FontFamilyProperty) == DependencyProperty.UnsetValue)
+                {
+                    document.SetBinding(FlowDocument.FontFamilyProperty,
+                        new Binding(nameof(FontFamily)) { Source = this });
+                }
+
+                // The same document default justifies every paragraph; chat text reads left-aligned
+                // (Left is the leading edge, so right-to-left languages still align to the right).
+                if (document.ReadLocalValue(FlowDocument.TextAlignmentProperty) == DependencyProperty.UnsetValue)
+                {
+                    document.TextAlignment = TextAlignment.Left;
+                }
             }
 
             if (e.Property == DocumentProperty && !_settingDocument)
@@ -1218,7 +1286,9 @@ namespace ClaudeCodeVS.UI
                 return;
             }
 
-            if (e.Property == FontSizeProperty || e.Property == ForegroundProperty)
+            // A no-wrap page is measured in the block's font, so a new font needs a new page width.
+            if (e.Property == FontSizeProperty || e.Property == ForegroundProperty ||
+                (IsNoWrap && e.Property == FontFamilyProperty))
             {
                 Rebuild();
             }
@@ -1366,17 +1436,50 @@ namespace ClaudeCodeVS.UI
             _incrementalOptions = null;
             _tailBlocks.Clear();
 
+            FlowDocument document = IsPlainText
+                ? MarkdownFlowRenderer.BuildPlain(Markdown, options)
+                : MarkdownFlowRenderer.Build(Markdown, options);
+
+            bool noWrap = IsNoWrap && IsPlainText;
+            if (noWrap)
+            {
+                // A FlowDocument always wraps at its page width, so "no wrap" means a page as wide as
+                // the longest line; the viewer then scrolls it sideways, as the TextBox did before.
+                document.PageWidth = MeasureWidestLine(Markdown,
+                    new Typeface(FontFamily, FontStyle, FontWeight, FontStretch), FontSize,
+                    VisualTreeHelper.GetDpi(this).PixelsPerDip);
+            }
+
+            HorizontalScrollBarVisibility = noWrap ? ScrollBarVisibility.Auto : ScrollBarVisibility.Disabled;
+
             _settingDocument = true;
             try
             {
-                Document = IsPlainText
-                    ? MarkdownFlowRenderer.BuildPlain(Markdown, options)
-                    : MarkdownFlowRenderer.Build(Markdown, options);
+                Document = document;
             }
             finally
             {
                 _settingDocument = false;
             }
+        }
+
+        /// <summary>
+        /// Width of the longest line of <paramref name="text"/>, plus one em of slack for the rounding
+        /// and tab-stop differences between <see cref="FormattedText"/> and the document's own layout.
+        /// </summary>
+        internal static double MeasureWidestLine(string text, Typeface typeface, double fontSize, double pixelsPerDip)
+        {
+            double widest = 0;
+            foreach (string line in (text ?? string.Empty).Replace("\r\n", "\n").Split('\n'))
+            {
+                if (line.Length == 0) continue;
+
+                var formatted = new FormattedText(line, System.Globalization.CultureInfo.CurrentUICulture,
+                    FlowDirection.LeftToRight, typeface, fontSize, Brushes.Black, pixelsPerDip);
+                widest = Math.Max(widest, formatted.WidthIncludingTrailingWhitespace);
+            }
+
+            return Math.Ceiling(widest + fontSize);
         }
     }
 }
