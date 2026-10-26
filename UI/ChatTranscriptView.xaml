@@ -1080,6 +1080,18 @@
 							<VirtualizingStackPanel/>
 						</ItemsPanelTemplate>
 					</ItemsControl.ItemsPanel>
+					<!-- Each row is exactly as wide as the viewport. The VirtualizingStackPanel keeps arranging
+					     rows in slots as wide as the viewport was before a Ctrl+Scroll zoom-in, even though the
+					     rows and the panel themselves measure narrower; a right-aligned user bubble then sat on
+					     the stale slot's right edge, off screen, and tool cards stretched past it. A row of a
+					     fixed width no longer depends on the slot. -->
+					<ItemsControl.ItemContainerStyle>
+						<Style TargetType="ContentPresenter">
+							<Setter Property="Width"
+							        Value="{Binding ViewportWidth, RelativeSource={RelativeSource AncestorType=ScrollViewer}}"/>
+							<Setter Property="HorizontalAlignment" Value="Left"/>
+						</Style>
+					</ItemsControl.ItemContainerStyle>
 					<ItemsControl.ItemTemplateSelector>
 						<local:ChatMessageTemplateSelector
 							UserTemplate="{StaticResource UserTemplate}"

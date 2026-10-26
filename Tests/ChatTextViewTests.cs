@@ -227,6 +227,26 @@ namespace ClaudeCodeExtension.Tests
             StringAssert.Contains(xaml.Substring(style, end - style), "<Setter Property=\"IsNoWrap\" Value=\"True\"/>");
         }
 
+        /// <summary>
+        /// After a Ctrl+Scroll zoom-in the virtualized panel kept arranging rows in slots as wide as the
+        /// old viewport, so right-aligned user bubbles and stretched tool cards ran off screen. Rows are
+        /// pinned to the viewport width so the stale slot no longer matters.
+        /// </summary>
+        [TestMethod]
+        public void TranscriptRowsArePinnedToTheViewportWidth()
+        {
+            string xaml = RepositoryLayout.ReadText("UI", "ChatTranscriptView.xaml");
+            int list = xaml.IndexOf("x:Name=\"MessagesList\"", StringComparison.Ordinal);
+            int style = xaml.IndexOf("<ItemsControl.ItemContainerStyle>", list, StringComparison.Ordinal);
+            int end = xaml.IndexOf("</ItemsControl.ItemContainerStyle>", style, StringComparison.Ordinal);
+
+            Assert.IsTrue(style > list, "MessagesList needs an ItemContainerStyle.");
+            string body = xaml.Substring(style, end - style);
+            StringAssert.Contains(body, "Property=\"Width\"");
+            StringAssert.Contains(body, "Binding ViewportWidth, RelativeSource={RelativeSource AncestorType=ScrollViewer}");
+            StringAssert.Contains(body, "<Setter Property=\"HorizontalAlignment\" Value=\"Left\"/>");
+        }
+
         [TestMethod]
         public void MarkdownBlockWaitsForLoadBeforeBuildingItsDocument()
         {
