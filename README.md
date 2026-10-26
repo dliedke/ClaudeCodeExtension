@@ -183,7 +183,7 @@ Pull requests for new features are welcome. Bug fixes too — if you find an iss
 - A numbered list that starts at a number other than 1 keeps its numbering.
 - Expanded tool calls show their command and output unwrapped again, with sideways scrolling for long lines.
 - Zooming the native chat in with Ctrl+Scroll no longer pushes your messages and tool calls past the right edge.
-- The coloured bar of a tool call no longer pokes out of its rounded frame, and the expand arrow sits centred whether the row is open or closed.
+- The coloured bar of a tool call no longer pokes out of its rounded frame, and the expand arrow sits centred whether the row is open or closed. Thanks to [@Gh61](https://github.com/Gh61) (#225).
 
 ### Version 271.0
 - Fixed native chat text (replies, your messages, tool call input and output) showing in a serif font instead of the chat font chosen in Settings. Thanks to [@Gh61](https://github.com/Gh61) (#224).
