@@ -17,6 +17,7 @@ using System.Text;
 using System.Text.RegularExpressions;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Data;
 using System.Windows.Documents;
 using System.Windows.Input;
 using System.Windows.Media;
@@ -87,8 +88,8 @@ namespace ClaudeCodeVS.UI
         /// <summary>An empty document with the renderer's page settings, for callers that fill it themselves.</summary>
         public static FlowDocument CreateDocument(MarkdownStyleOptions options)
         {
-            // FontFamily is deliberately left alone: with no local value the document inherits the host's
-            // font, which is the whole point of the chat font setting. (Assigning null throws.)
+            // FontFamily is deliberately left alone: MarkdownBlock binds it to its own font (the chat font
+            // setting) when the document is shown. (Assigning null throws.)
             return new FlowDocument
             {
                 PagePadding = new Thickness(0),
@@ -1199,6 +1200,15 @@ namespace ClaudeCodeVS.UI
         protected override void OnPropertyChanged(DependencyPropertyChangedEventArgs e)
         {
             base.OnPropertyChanged(e);
+
+            if (e.Property == DocumentProperty && e.NewValue is FlowDocument document &&
+                document.ReadLocalValue(FlowDocument.FontFamilyProperty) == DependencyProperty.UnsetValue)
+            {
+                // A FlowDocumentScrollViewer does not pass its font down to the document, which then falls
+                // back to WPF's serif document default (Georgia). Bind it so the chat font reaches the text.
+                document.SetBinding(FlowDocument.FontFamilyProperty,
+                    new Binding(nameof(FontFamily)) { Source = this });
+            }
 
             if (e.Property == DocumentProperty && !_settingDocument)
             {
