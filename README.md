@@ -176,6 +176,9 @@ Pull requests for new features are welcome. Bug fixes too — if you find an iss
 
 ## Version History
 
+### Version 271.0
+- Fixed native chat text (replies, your messages, tool call input and output) showing in a serif font instead of the chat font chosen in Settings.
+
 ### Version 270.0
 - The language setting now translates the whole extension, not just the chat: panel, menus, toolbar, Settings and other dialogs, messages, and the Code Changes and Claude Usage windows (*Settings → Layout → Language*).
 - The language switches in real time: picking one in Settings changes the whole extension immediately, the Settings window included, and everything already open follows; Cancel puts the previous language back.
