@@ -171,15 +171,25 @@
 									<ControlTemplate TargetType="ToggleButton">
 										<Border x:Name="HeaderShell" Background="Transparent" Padding="4,4,4,4">
 											<DockPanel LastChildFill="True">
-												<TextBlock x:Name="Chevron" DockPanel.Dock="Left"
-												           Text="›" FontSize="13" Opacity="0.55"
-												           Width="14" TextAlignment="Center"
-												           VerticalAlignment="Center"
-												           RenderTransformOrigin="0.5,0.5">
-													<TextBlock.RenderTransform>
-														<RotateTransform Angle="0"/>
-													</TextBlock.RenderTransform>
-												</TextBlock>
+												<!-- Drawn, not the "›" glyph: a glyph's ink sits low and off-centre in
+												     its text box, so the collapsed arrow looked misplaced and only the
+												     rotated one landed near the middle. A path rotates about its own
+												     centre and stays centred both ways. -->
+												<Grid DockPanel.Dock="Left" Width="14" VerticalAlignment="Center">
+													<Path x:Name="Chevron"
+													      Data="M 0.6,0.6 L 3.4,3.5 L 0.6,6.4"
+													      Width="4" Height="7"
+													      Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Expander}}"
+													      StrokeThickness="1.2"
+													      StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round"
+													      Opacity="0.55"
+													      HorizontalAlignment="Center" VerticalAlignment="Center"
+													      RenderTransformOrigin="0.5,0.5">
+														<Path.RenderTransform>
+															<RotateTransform Angle="0"/>
+														</Path.RenderTransform>
+													</Path>
+												</Grid>
 												<ContentPresenter ContentSource="Content"/>
 											</DockPanel>
 										</Border>
@@ -316,7 +326,9 @@
 						<ColumnDefinition Width="*"/>
 					</Grid.ColumnDefinitions>
 
-					<Rectangle Grid.Column="0" Fill="{Binding ToolAccent}"/>
+					<!-- Left corners follow the card's inner corner (radius 4 minus the 1 px frame): a square
+					     bar poked out of the rounded frame, and ClipToBounds only clips to the rectangle. -->
+					<Border Grid.Column="0" CornerRadius="3,0,0,3" Background="{Binding ToolAccent}"/>
 
 					<Expander Grid.Column="1" Style="{StaticResource RowExpanderStyle}"
 					          IsExpanded="{Binding IsExpanded, Mode=TwoWay}"

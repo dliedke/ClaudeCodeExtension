@@ -182,6 +182,7 @@ Pull requests for new features are welcome. Bug fixes too — if you find an iss
 - Numbered lists in the native chat show their full numbers from 10 up instead of cutting off the first digit.
 - A numbered list that starts at a number other than 1 keeps its numbering.
 - Expanded tool calls show their command and output unwrapped again, with sideways scrolling for long lines.
+- The coloured bar of a tool call no longer pokes out of its rounded frame, and the expand arrow sits centred whether the row is open or closed.
 
 ### Version 271.0
 - Fixed native chat text (replies, your messages, tool call input and output) showing in a serif font instead of the chat font chosen in Settings. Thanks to [@Gh61](https://github.com/Gh61) (#224).
