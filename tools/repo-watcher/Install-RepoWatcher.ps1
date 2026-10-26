@@ -74,7 +74,7 @@ if ($Wsl) {
 }
 
 New-Item -ItemType Directory -Force $InstallDir | Out-Null
-Copy-Item (Join-Path $PSScriptRoot 'Watch-Repo.ps1'), (Join-Path $PSScriptRoot 'Run-Claude.ps1'), (Join-Path $PSScriptRoot 'Notify.ps1'), (Join-Path $PSScriptRoot 'prompt-*.md'), (Join-Path $PSScriptRoot 'run-claude-wsl.sh') $InstallDir -Force
+Copy-Item (Join-Path $PSScriptRoot 'Watch-Repo.ps1'), (Join-Path $PSScriptRoot 'Run-Claude.ps1'), (Join-Path $PSScriptRoot 'Notify.ps1'), (Join-Path $PSScriptRoot 'prompt-*.md'), (Join-Path $PSScriptRoot 'run-claude-wsl.sh'), (Join-Path $PSScriptRoot 'Show-RepoWatcher.ps1') $InstallDir -Force
 
 $script = Join-Path $InstallDir 'Watch-Repo.ps1'
 $offset = 1
@@ -102,4 +102,5 @@ Write-Host "  repo:   $Repo ($RepoDir)"
 Write-Host "  claude: $claude$(if ($Wsl) { ' (WSL)' })"
 Write-Host "  tasks:  $($Tasks.Values -join ', ') - every $Minutes minutes"
 Write-Host "  log:    $(Join-Path $InstallDir 'logs\watcher.log')"
+Write-Host "  status: $(Join-Path $InstallDir 'Show-RepoWatcher.ps1') (live view of every check)"
 Write-Host "  email:  $(if (Test-Path (Join-Path $InstallDir 'email.json')) { 'on' } else { 'off (run with -SetupEmail you@gmail.com)' })"

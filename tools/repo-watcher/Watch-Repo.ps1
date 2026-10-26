@@ -28,6 +28,11 @@ $MainLog     = Join-Path $LogDir 'watcher.log'
 $MaxAttempts = 3
 
 New-Item -ItemType Directory -Force $LogDir | Out-Null
+# Every tick logs one line (so Show-RepoWatcher.ps1 shows it's alive); keep the last 2000.
+if ((Test-Path $MainLog) -and (Get-Item $MainLog).Length -gt 400KB) {
+    $keep = Get-Content $MainLog -Tail 2000
+    Set-Content $MainLog $keep
+}
 
 function Write-Log([string]$msg) {
     Add-Content -Path $MainLog -Value ("{0:yyyy-MM-dd HH:mm:ss}  [{1}] {2}" -f (Get-Date), $Kind, $msg)
@@ -85,19 +90,21 @@ function Send-Results([string]$resultFile, [int]$exitCode) {
 # outlast the polling interval. A busy lock just means this tick is skipped.
 $mutex = New-Object System.Threading.Mutex($false, 'Global\ClaudeCodeExtensionRepoWatcher')
 # Abandoned = a previous run was killed while holding it; the lock is ours now.
-try { if (-not $mutex.WaitOne(0)) { exit 0 } } catch [System.Threading.AbandonedMutexException] { }
+try { if (-not $mutex.WaitOne(0)) { Write-Log 'Another run is in progress; skipped.'; exit 0 } } catch [System.Threading.AbandonedMutexException] { }
 
 try {
     # --- Free check -----------------------------------------------------------------------
+    # Field lists are quoted: unquoted a,b,c is an array, and splatting it through Invoke-Gh
+    # passes the fields as separate words, which gh rejects ("unknown arguments").
     if ($Kind -eq 'pr') {
-        $json = Invoke-Gh pr list --repo $Repo --state open --json number,headRefOid,title,author 2>&1
+        $json = Invoke-Gh pr list --repo $Repo --state open --json 'number,headRefOid,title,author' 2>&1
     } else {
-        $json = Invoke-Gh issue list --repo $Repo --state open --limit 100 --json number,title,author 2>&1
+        $json = Invoke-Gh issue list --repo $Repo --state open --limit 100 --json 'number,title,author' 2>&1
     }
     if ($LASTEXITCODE -ne 0) { Write-Log "gh failed: $json"; exit 0 }
     # Filter blanks: Windows PowerShell turns "[]" into one empty object.
     $items = @(($json | Out-String | ConvertFrom-Json) | Where-Object { $_.number })
-    if ($items.Count -eq 0) { exit 0 }
+    if ($items.Count -eq 0) { Write-Log "No open ${Kind}s."; exit 0 }
 
     # PRs are keyed by head commit, so new pushes to a handled PR are picked up again.
     # Issues are handled once; follow-up comments or reopens need a manual look.
@@ -114,7 +121,7 @@ try {
     }
 
     $pending = @($items | Where-Object { -not $state.handled.ContainsKey((Get-Key $_)) })
-    if ($pending.Count -eq 0) { exit 0 }
+    if ($pending.Count -eq 0) { Write-Log "$($items.Count) open, all handled."; exit 0 }
     $numbers = ($pending | ForEach-Object { "#$($_.number)" }) -join ', '
 
     # --- Don't touch the repo while you're working in it ----------------------------------

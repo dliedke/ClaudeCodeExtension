@@ -193,11 +193,14 @@ Prerequisites: `claude` and `gh` on PATH, `gh auth login` done, and this machine
   in a normal PowerShell window, since it reads the password from the keyboard. Delete
   `email.json` to turn emails off.
 
-Check activity in `%USERPROFILE%\.claude\repo-watcher\logs\watcher.log` (one line per run that
-found work) and the `run-<kind>-<time>.log` files (Claude's summary for each run).
+Check activity with `%USERPROFILE%\.claude\repo-watcher\Show-RepoWatcher.ps1` (task state, last/next
+run, then a live tail of `logs\watcher.log`, which gets one line per check) and the
+`run-<kind>-<time>.log` files (Claude's summary for each run).
 
 Gotchas: Windows PowerShell 5.1 turns `gh`'s empty `[]` into one blank object, so the script
-filters items without a number. Without that filter, Claude starts on every tick. Don't use
+filters items without a number. Without that filter, Claude starts on every tick. Quote `gh`'s
+`--json` field list: unquoted `a,b,c` is an array, and splatting it through `Invoke-Gh` passes
+the fields as separate words ("unknown arguments"), so every check failed before doing anything. Don't use
 `Start-Process -Wait` for the Claude console: Windows PowerShell then waits for every descendant,
 and the build servers left by `test.cmd`/`publish.cmd` blocked the run until the 3-hour task
 limit killed it (no state, no email). The script waits on the console process only. Issue text
