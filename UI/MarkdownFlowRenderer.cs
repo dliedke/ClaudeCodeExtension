@@ -546,10 +546,12 @@ namespace ClaudeCodeVS.UI
         {
             string body = code.TrimEnd('\n');
 
-            // One bordered box: the top row holds the language label (left) and the copy button (top-right
-            // corner); the code below is a TextBlock, not a TextBox: TextBoxView's soft-wrap metrics are
-            // what crash the process on .NET Framework (dotnet/wpf#11481), and the copy button already
-            // gives users the whole block.
+            // One bordered section: the top row holds the language label (left) and the copy button (top-right
+            // corner); the code below is a paragraph of the document itself, so it selects and copies like the
+            // rest of the reply. Not a TextBox: TextBoxView's soft-wrap metrics are what crash the process on
+            // .NET Framework (dotnet/wpf#11481). Not a TextBlock in the UI container either: the document
+            // treats an embedded element as one unselectable object, and a drag that starts on it moves the
+            // caret past the block, which scrolled the transcript to the block's end.
             var header = new DockPanel { LastChildFill = false, Margin = new Thickness(9, 4, 4, 0) };
 
             if (!string.IsNullOrEmpty(language))
@@ -576,32 +578,38 @@ namespace ClaudeCodeVS.UI
                 header.Children.Add(copyButton);
             }
 
-            var text = new TextBlock
+            var codeParagraph = new Paragraph
             {
-                Text = body,
-                TextWrapping = TextWrapping.Wrap,
+                Margin = new Thickness(0),
+                Padding = new Thickness(9, 2, 9, 8),
                 Foreground = options.TextBrush,
                 FontFamily = options.CodeFontFamily,
                 FontSize = Math.Max(9, options.BaseFontSize - 1),
-                Padding = new Thickness(9, 0, 9, 8)
+                TextAlignment = TextAlignment.Left
             };
 
-            var grid = new Grid();
-            grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
-            grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
-            Grid.SetRow(header, 0);
-            grid.Children.Add(header);
-            Grid.SetRow(text, 1);
-            grid.Children.Add(text);
+            // Explicit line breaks: a newline inside a Run is not a reliable break in a FlowDocument.
+            string[] lines = body.Replace("\r\n", "\n").Split('\n');
+            for (int i = 0; i < lines.Length; i++)
+            {
+                if (i > 0)
+                {
+                    codeParagraph.Inlines.Add(new LineBreak());
+                }
 
-            return new BlockUIContainer(new Border
+                codeParagraph.Inlines.Add(new Run(lines[i]));
+            }
+
+            var section = new Section
             {
                 Margin = new Thickness(0, 2, 0, 8),
                 Background = options.CodeBackground,
                 BorderBrush = options.CodeBorderBrush,
-                BorderThickness = new Thickness(1),
-                Child = grid
-            });
+                BorderThickness = new Thickness(1)
+            };
+            section.Blocks.Add(new BlockUIContainer(header) { Margin = new Thickness(0) });
+            section.Blocks.Add(codeParagraph);
+            return section;
         }
 
         /// <summary>

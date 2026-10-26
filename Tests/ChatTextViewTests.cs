@@ -26,19 +26,25 @@ namespace ClaudeCodeExtension.Tests
     public class ChatTextViewTests
     {
         [TestMethod]
-        public void CodeBlocksUseTextBlockInsteadOfTextBox()
+        public void CodeBlocksAreSelectableDocumentTextNotATextBox()
         {
             RunOnSta(() =>
             {
-                List<Block> blocks = MarkdownFlowRenderer.BuildBlockList("```cs\nvar a = 1;\n```", null);
-                BlockUIContainer container = blocks.OfType<BlockUIContainer>().Single();
-                var border = container.Child as Border;
-                var grid = border?.Child as Grid;
+                List<Block> blocks = MarkdownFlowRenderer.BuildBlockList("```cs\nvar a = 1;\n  b();\n```", null);
+                Section section = blocks.OfType<Section>().Single();
 
-                Assert.IsNotNull(grid, "The code block should keep its bordered Grid layout.");
-                Assert.IsTrue(grid.Children.OfType<TextBlock>().Any(), "The code body should be a TextBlock.");
-                Assert.IsFalse(grid.Children.OfType<TextBox>().Any(),
+                // Only the header (language label + copy button) is an embedded element; a TextBox anywhere
+                // in it would reintroduce the WPF TextBoxView crash path.
+                BlockUIContainer header = section.Blocks.OfType<BlockUIContainer>().Single();
+                var panel = (Panel)header.Child;
+                Assert.IsFalse(panel.Children.OfType<TextBox>().Any(),
                     "A TextBox here would reintroduce the WPF TextBoxView crash path.");
+
+                // The code is a document paragraph, so it selects and copies like the rest of the reply,
+                // with its lines and indentation intact.
+                Paragraph code = section.Blocks.OfType<Paragraph>().Single();
+                string text = new TextRange(code.ContentStart, code.ContentEnd).Text;
+                Assert.AreEqual("var a = 1;" + Environment.NewLine + "  b();", text);
             });
         }
 

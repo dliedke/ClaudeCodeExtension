@@ -178,6 +178,7 @@ Pull requests for new features are welcome. Bug fixes too — if you find an iss
 
 ### Version 272.0
 - Native chat text is left-aligned again instead of justified.
+- Code blocks in the native chat can be selected and copied in part again, and starting a selection in one no longer jumps the conversation.
 
 ### Version 271.0
 - Fixed native chat text (replies, your messages, tool call input and output) showing in a serif font instead of the chat font chosen in Settings. Thanks to [@Gh61](https://github.com/Gh61) (#224).
