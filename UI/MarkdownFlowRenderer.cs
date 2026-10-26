@@ -1201,13 +1201,22 @@ namespace ClaudeCodeVS.UI
         {
             base.OnPropertyChanged(e);
 
-            if (e.Property == DocumentProperty && e.NewValue is FlowDocument document &&
-                document.ReadLocalValue(FlowDocument.FontFamilyProperty) == DependencyProperty.UnsetValue)
+            if (e.Property == DocumentProperty && e.NewValue is FlowDocument document)
             {
                 // A FlowDocumentScrollViewer does not pass its font down to the document, which then falls
                 // back to WPF's serif document default (Georgia). Bind it so the chat font reaches the text.
-                document.SetBinding(FlowDocument.FontFamilyProperty,
-                    new Binding(nameof(FontFamily)) { Source = this });
+                if (document.ReadLocalValue(FlowDocument.FontFamilyProperty) == DependencyProperty.UnsetValue)
+                {
+                    document.SetBinding(FlowDocument.FontFamilyProperty,
+                        new Binding(nameof(FontFamily)) { Source = this });
+                }
+
+                // The same document default justifies every paragraph; chat text reads left-aligned
+                // (Left is the leading edge, so right-to-left languages still align to the right).
+                if (document.ReadLocalValue(FlowDocument.TextAlignmentProperty) == DependencyProperty.UnsetValue)
+                {
+                    document.TextAlignment = TextAlignment.Left;
+                }
             }
 
             if (e.Property == DocumentProperty && !_settingDocument)
