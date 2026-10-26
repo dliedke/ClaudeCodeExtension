@@ -183,6 +183,50 @@ namespace ClaudeCodeExtension.Tests
             });
         }
 
+        /// <summary>
+        /// Raw tool input/output used to be an unwrapped TextBox that scrolled sideways. A FlowDocument
+        /// always wraps at its page width, so no-wrap is a page as wide as the longest line.
+        /// </summary>
+        [TestMethod]
+        public void NoWrapPlainTextGetsAPageAsWideAsItsLongestLine()
+        {
+            RunOnSta(() =>
+            {
+                string longLine = "Get-ChildItem -Path C:\\Some\\Very\\Long\\Folder -Recurse -Filter *.cs | Select-Object FullName";
+                var block = new MarkdownBlock
+                {
+                    DeferRenderingUntilLoaded = false,
+                    IsPlainText = true,
+                    IsNoWrap = true,
+                    FontFamily = new FontFamily("Consolas"),
+                    FontSize = 12,
+                    Markdown = "short\n" + longLine
+                };
+
+                var typeface = new Typeface(new FontFamily("Consolas"), FontStyles.Normal, FontWeights.Normal, FontStretches.Normal);
+                double longWidth = new FormattedText(longLine, CultureInfo.InvariantCulture, FlowDirection.LeftToRight,
+                    typeface, 12, Brushes.Black, 1.0).WidthIncludingTrailingWhitespace;
+
+                Assert.IsTrue(block.Document.PageWidth >= longWidth, "The page must fit the longest line unwrapped.");
+                Assert.AreEqual(ScrollBarVisibility.Auto, block.HorizontalScrollBarVisibility);
+
+                // Turning it off goes back to wrapping at the viewer's width.
+                block.IsNoWrap = false;
+                Assert.IsTrue(double.IsNaN(block.Document.PageWidth));
+                Assert.AreEqual(ScrollBarVisibility.Disabled, block.HorizontalScrollBarVisibility);
+            });
+        }
+
+        [TestMethod]
+        public void ToolTextStyleDoesNotWrap()
+        {
+            string xaml = RepositoryLayout.ReadText("UI", "ChatTranscriptView.xaml");
+            int style = xaml.IndexOf("x:Key=\"ChatToolTextStyle\"", StringComparison.Ordinal);
+            int end = xaml.IndexOf("</Style>", style, StringComparison.Ordinal);
+
+            StringAssert.Contains(xaml.Substring(style, end - style), "<Setter Property=\"IsNoWrap\" Value=\"True\"/>");
+        }
+
         [TestMethod]
         public void MarkdownBlockWaitsForLoadBeforeBuildingItsDocument()
         {

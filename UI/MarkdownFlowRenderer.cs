@@ -1019,6 +1019,20 @@ namespace ClaudeCodeVS.UI
             "IsIncremental", typeof(bool), typeof(MarkdownBlock),
             new PropertyMetadata(false, OnVisualInputChanged));
 
+        /// <summary>
+        /// With <see cref="IsPlainText"/>: lines are not wrapped and the block scrolls sideways instead —
+        /// raw tool input and output (commands, JSON, logs) read line by line.
+        /// </summary>
+        public static readonly DependencyProperty IsNoWrapProperty = DependencyProperty.Register(
+            "IsNoWrap", typeof(bool), typeof(MarkdownBlock),
+            new PropertyMetadata(false, OnVisualInputChanged));
+
+        public bool IsNoWrap
+        {
+            get { return (bool)GetValue(IsNoWrapProperty); }
+            set { SetValue(IsNoWrapProperty, value); }
+        }
+
         /// <summary>When true the text is shown as-is with only URLs linked (notices, errors), not parsed as markdown.</summary>
         public static readonly DependencyProperty IsPlainTextProperty = DependencyProperty.Register(
             "IsPlainText", typeof(bool), typeof(MarkdownBlock),
@@ -1272,7 +1286,9 @@ namespace ClaudeCodeVS.UI
                 return;
             }
 
-            if (e.Property == FontSizeProperty || e.Property == ForegroundProperty)
+            // A no-wrap page is measured in the block's font, so a new font needs a new page width.
+            if (e.Property == FontSizeProperty || e.Property == ForegroundProperty ||
+                (IsNoWrap && e.Property == FontFamilyProperty))
             {
                 Rebuild();
             }
@@ -1420,17 +1436,50 @@ namespace ClaudeCodeVS.UI
             _incrementalOptions = null;
             _tailBlocks.Clear();
 
+            FlowDocument document = IsPlainText
+                ? MarkdownFlowRenderer.BuildPlain(Markdown, options)
+                : MarkdownFlowRenderer.Build(Markdown, options);
+
+            bool noWrap = IsNoWrap && IsPlainText;
+            if (noWrap)
+            {
+                // A FlowDocument always wraps at its page width, so "no wrap" means a page as wide as
+                // the longest line; the viewer then scrolls it sideways, as the TextBox did before.
+                document.PageWidth = MeasureWidestLine(Markdown,
+                    new Typeface(FontFamily, FontStyle, FontWeight, FontStretch), FontSize,
+                    VisualTreeHelper.GetDpi(this).PixelsPerDip);
+            }
+
+            HorizontalScrollBarVisibility = noWrap ? ScrollBarVisibility.Auto : ScrollBarVisibility.Disabled;
+
             _settingDocument = true;
             try
             {
-                Document = IsPlainText
-                    ? MarkdownFlowRenderer.BuildPlain(Markdown, options)
-                    : MarkdownFlowRenderer.Build(Markdown, options);
+                Document = document;
             }
             finally
             {
                 _settingDocument = false;
             }
+        }
+
+        /// <summary>
+        /// Width of the longest line of <paramref name="text"/>, plus one em of slack for the rounding
+        /// and tab-stop differences between <see cref="FormattedText"/> and the document's own layout.
+        /// </summary>
+        internal static double MeasureWidestLine(string text, Typeface typeface, double fontSize, double pixelsPerDip)
+        {
+            double widest = 0;
+            foreach (string line in (text ?? string.Empty).Replace("\r\n", "\n").Split('\n'))
+            {
+                if (line.Length == 0) continue;
+
+                var formatted = new FormattedText(line, System.Globalization.CultureInfo.CurrentUICulture,
+                    FlowDirection.LeftToRight, typeface, fontSize, Brushes.Black, pixelsPerDip);
+                widest = Math.Max(widest, formatted.WidthIncludingTrailingWhitespace);
+            }
+
+            return Math.Ceiling(widest + fontSize);
         }
     }
 }

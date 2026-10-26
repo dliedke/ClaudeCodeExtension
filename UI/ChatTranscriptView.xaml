@@ -105,12 +105,13 @@
 			<Setter Property="CodeCopyButtonStyle" Value="{StaticResource CodeCopyButtonStyle}"/>
 		</Style>
 
-		<!-- Raw tool input/result: the same document viewer as the messages, in the code font. It must
-		     not go back to a TextBox: TextBoxView's soft-wrap metrics are what crash VS on .NET Framework
-		     (dotnet/wpf#11481, #2314). -->
+		<!-- Raw tool input/result: the same document viewer as the messages, in the code font, unwrapped
+		     and scrolled sideways like a command line. It must not go back to a TextBox: TextBoxView's
+		     soft-wrap metrics are what crash VS on .NET Framework (dotnet/wpf#11481, #2314). -->
 		<Style x:Key="ChatToolTextStyle" TargetType="local:MarkdownBlock" BasedOn="{StaticResource MarkdownBodyStyle}">
 			<Setter Property="FontFamily" Value="{DynamicResource ChatCodeFontFamily}"/>
 			<Setter Property="FontSize" Value="{DynamicResource ChatSmallFontSize}"/>
+			<Setter Property="IsNoWrap" Value="True"/>
 		</Style>
 
 		<!-- Message body: rendered markdown, also while the reply is still streaming. IsIncremental
