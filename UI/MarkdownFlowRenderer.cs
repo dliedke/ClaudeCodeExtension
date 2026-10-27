@@ -907,6 +907,18 @@ namespace ClaudeCodeVS.UI
                     }
                 }
 
+                if (c == '<')
+                {
+                    Inline html = TryBuildHtmlInline(text, i, options, out int consumed);
+                    if (html != null)
+                    {
+                        flush();
+                        target.Add(html);
+                        i += consumed;
+                        continue;
+                    }
+                }
+
                 if (c == '~' && i + 1 < text.Length && text[i + 1] == '~')
                 {
                     int close = FindEmphasisCloser(text, i + 2, '~', 2);
@@ -986,6 +998,126 @@ namespace ClaudeCodeVS.UI
         internal static bool IsEscapable(char c)
         {
             return @"!""#$%&'()*+,-./:;<=>?@[\]^_`{|}~".IndexOf(c) >= 0;
+        }
+
+        /// <summary>
+        /// The few HTML tags markdown has no syntax for: &lt;u&gt;, &lt;sub&gt;, &lt;sup&gt;, &lt;kbd&gt; and
+        /// &lt;br&gt; (also &lt;br/&gt; and &lt;br /&gt;). Only bare tags, no attributes; an unknown or unclosed
+        /// tag returns null and stays literal text, as half-streamed markup should.
+        /// </summary>
+        private static Inline TryBuildHtmlInline(string text, int start, MarkdownStyleOptions options, out int consumed)
+        {
+            consumed = 0;
+            Match open = HtmlTagPattern.Match(text, start);
+            if (!open.Success || open.Groups[1].Length > 0)
+            {
+                return null;
+            }
+
+            string name = open.Groups[2].Value.ToLowerInvariant();
+            if (name == "br")
+            {
+                consumed = open.Length;
+                return new LineBreak();
+            }
+
+            if (open.Groups[3].Length > 0 || Array.IndexOf(HtmlInlineTags, name) < 0)
+            {
+                return null;
+            }
+
+            int contentStart = start + open.Length;
+            int close = FindClosingTag(text, contentStart, name, out int closeLength);
+            if (close < 0)
+            {
+                return null;
+            }
+
+            string inner = text.Substring(contentStart, close - contentStart);
+            consumed = close + closeLength - start;
+
+            if (name == "kbd")
+            {
+                return BuildKeyCap(inner, options);
+            }
+
+            Span span;
+            switch (name)
+            {
+                case "u":
+                    span = new Underline();
+                    break;
+                default: // sub, sup
+                    span = new Span
+                    {
+                        BaselineAlignment = name == "sub" ? BaselineAlignment.Subscript : BaselineAlignment.Superscript,
+                        FontSize = Math.Round(options.BaseFontSize * 0.75, 1)
+                    };
+                    break;
+            }
+
+            AppendInlines(span.Inlines, inner, options);
+            return span;
+        }
+
+        private static readonly Regex HtmlTagPattern = new Regex(@"\G<(/?)([A-Za-z]+)\s*(/?)>", RegexOptions.Compiled);
+        private static readonly string[] HtmlInlineTags = { "u", "sub", "sup", "kbd" };
+
+        /// <summary>Start of the "&lt;/name&gt;" that closes an opening tag, counting nested ones of the same name; -1 if none.</summary>
+        private static int FindClosingTag(string text, int from, string name, out int length)
+        {
+            length = 0;
+            int depth = 0;
+            int j = text.IndexOf('<', from);
+            while (j >= 0)
+            {
+                Match tag = HtmlTagPattern.Match(text, j);
+                if (tag.Success && string.Equals(tag.Groups[2].Value, name, StringComparison.OrdinalIgnoreCase))
+                {
+                    if (tag.Groups[1].Length > 0)
+                    {
+                        if (depth == 0)
+                        {
+                            length = tag.Length;
+                            return j;
+                        }
+
+                        depth--;
+                    }
+                    else if (tag.Groups[3].Length == 0)
+                    {
+                        depth++;
+                    }
+                }
+
+                j = text.IndexOf('<', j + 1);
+            }
+
+            return -1;
+        }
+
+        /// <summary>
+        /// &lt;kbd&gt; as a key cap: a rounded box with a heavier bottom edge around the key in the code
+        /// font. It is an embedded element, so a copied selection leaves the key's text out.
+        /// </summary>
+        private static Inline BuildKeyCap(string key, MarkdownStyleOptions options)
+        {
+            var cap = new Border
+            {
+                BorderBrush = options.CodeBorderBrush,
+                Background = options.CodeBackground,
+                BorderThickness = new Thickness(1, 1, 1, 2),
+                CornerRadius = new CornerRadius(3),
+                Padding = new Thickness(4, 0, 4, 0),
+                Child = new TextBlock
+                {
+                    Text = key,
+                    FontFamily = options.CodeFontFamily,
+                    FontSize = Math.Round(options.BaseFontSize * 0.85, 1)
+                }
+            };
+
+            return new InlineUIContainer(cap) { BaselineAlignment = BaselineAlignment.Center };
         }
 
         private static int MarkerRunLength(string text, int start)

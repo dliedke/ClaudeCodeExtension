@@ -349,6 +349,96 @@ namespace ClaudeCodeExtension.Tests
             });
         }
 
+        [TestMethod]
+        public void UnderlineTagIsUnderlined()
+        {
+            RunOnSta(() =>
+            {
+                Paragraph paragraph = Render("a <u>under **bold**</u> b");
+                Underline underline = paragraph.Inlines.OfType<Underline>().Single();
+
+                Assert.AreEqual("under bold", TextOf(underline.Inlines));
+                Assert.IsInstanceOfType(underline.Inlines.LastInline, typeof(Bold));
+                Assert.AreEqual("a under bold b", TextOf(paragraph.Inlines));
+            });
+        }
+
+        [TestMethod]
+        public void EveryBrVariantIsALineBreak()
+        {
+            RunOnSta(() =>
+            {
+                Paragraph paragraph = Render("a<br>b<br/>c<br />d<BR>e");
+
+                Assert.AreEqual(4, paragraph.Inlines.OfType<LineBreak>().Count());
+                Assert.AreEqual("a\nb\nc\nd\ne", TextOf(paragraph.Inlines));
+            });
+        }
+
+        [TestMethod]
+        public void SubAndSupShiftTheBaseline()
+        {
+            RunOnSta(() =>
+            {
+                Span[] spans = Render("H<sub>2</sub>O and E = mc<sup>2</sup>").Inlines.OfType<Span>().ToArray();
+
+                Assert.AreEqual(BaselineAlignment.Subscript, spans[0].BaselineAlignment);
+                Assert.AreEqual(BaselineAlignment.Superscript, spans[1].BaselineAlignment);
+                Assert.IsTrue(spans[0].FontSize < 12, "smaller than the base font");
+                Assert.AreEqual("2", TextOf(spans[1].Inlines));
+            });
+        }
+
+        [TestMethod]
+        public void KbdIsAKeyCap()
+        {
+            RunOnSta(() =>
+            {
+                InlineUIContainer[] keys = Render("<kbd>Ctrl</kbd> + <kbd>P</kbd>").Inlines.OfType<InlineUIContainer>().ToArray();
+                var cap = (System.Windows.Controls.Border)keys[0].Child;
+
+                Assert.AreEqual(2, keys.Length);
+                Assert.AreEqual("Ctrl", ((System.Windows.Controls.TextBlock)cap.Child).Text);
+                Assert.AreEqual(2.0, cap.BorderThickness.Bottom);
+            });
+        }
+
+        [TestMethod]
+        public void UnknownUnclosedOrAttributedTagsStayLiteral()
+        {
+            RunOnSta(() =>
+            {
+                foreach (string literal in new[] { "a <u>unclosed", "<div>x</div>", "<u class=\"x\">y</u>", "1 < 2 > 0", "List<int>" })
+                {
+                    Paragraph paragraph = Render(literal);
+                    Assert.AreEqual(literal, TextOf(paragraph.Inlines), literal);
+                    Assert.IsTrue(paragraph.Inlines.All(inline => inline is Run), literal);
+                }
+            });
+        }
+
+        [TestMethod]
+        public void TagsInsideCodeSpansAndEscapedTagsStayLiteral()
+        {
+            RunOnSta(() =>
+            {
+                Assert.AreEqual("<u>x</u>", TextOf(Render("`<u>x</u>`").Inlines));
+                Assert.IsFalse(Render(@"\<u>x</u>").Inlines.OfType<Underline>().Any());
+            });
+        }
+
+        [TestMethod]
+        public void NestedSameTagsCloseAtTheirOwnPartner()
+        {
+            RunOnSta(() =>
+            {
+                Underline outer = Render("<u>a <u>b</u> c</u>").Inlines.OfType<Underline>().Single();
+
+                Assert.AreEqual("a b c", TextOf(outer.Inlines));
+                Assert.AreEqual(1, outer.Inlines.OfType<Underline>().Count());
+            });
+        }
+
         internal static Paragraph Render(string markdown)
         {
             return MarkdownFlowRenderer.BuildBlockList(markdown, null).OfType<Paragraph>().Single();
