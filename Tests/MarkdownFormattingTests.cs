@@ -290,6 +290,65 @@ namespace ClaudeCodeExtension.Tests
             });
         }
 
+        [TestMethod]
+        public void QuoteIsABorderedSectionWithItsOwnBlocks()
+        {
+            RunOnSta(() =>
+            {
+                Section quote = MarkdownFlowRenderer.BuildBlockList("> first **bold**\n>\n> second", null)
+                    .OfType<Section>().Single();
+                Paragraph[] paragraphs = quote.Blocks.OfType<Paragraph>().ToArray();
+
+                Assert.AreEqual(3.0, quote.BorderThickness.Left);
+                Assert.AreEqual(2, paragraphs.Length);
+                Assert.AreEqual("first bold", TextOf(paragraphs[0].Inlines));
+                Assert.AreEqual("second", TextOf(paragraphs[1].Inlines));
+                Assert.AreEqual(0.0, paragraphs[1].Margin.Bottom, "no extra gap above the bar's end");
+            });
+        }
+
+        [TestMethod]
+        public void ListInsideAQuoteIsAList()
+        {
+            RunOnSta(() =>
+            {
+                Section quote = MarkdownFlowRenderer.BuildBlockList("> Steps:\n> - one\n> - [x] two", null)
+                    .OfType<Section>().Single();
+                List list = quote.Blocks.OfType<List>().Single();
+
+                Assert.AreEqual(2, list.ListItems.Count);
+                Assert.AreEqual("✅ two", TextOf(((Paragraph)list.ListItems.LastListItem.Blocks.FirstBlock).Inlines));
+            });
+        }
+
+        [TestMethod]
+        public void NestedQuoteIsASectionInsideTheQuote()
+        {
+            RunOnSta(() =>
+            {
+                Section outer = MarkdownFlowRenderer.BuildBlockList("> outer\n>\n> > inner\n> > > deepest", null)
+                    .OfType<Section>().Single();
+                Section inner = outer.Blocks.OfType<Section>().Single();
+                Section deepest = inner.Blocks.OfType<Section>().Single();
+
+                Assert.AreEqual("outer", TextOf(outer.Blocks.OfType<Paragraph>().Single().Inlines));
+                Assert.AreEqual("inner", TextOf(inner.Blocks.OfType<Paragraph>().Single().Inlines));
+                Assert.AreEqual("deepest", TextOf(deepest.Blocks.OfType<Paragraph>().Single().Inlines));
+            });
+        }
+
+        [TestMethod]
+        public void QuoteLinesKeepTheirLineBreaks()
+        {
+            RunOnSta(() =>
+            {
+                Section quote = MarkdownFlowRenderer.BuildBlockList("> line one\n> line two", null)
+                    .OfType<Section>().Single();
+
+                Assert.AreEqual("line one\nline two", TextOf(quote.Blocks.OfType<Paragraph>().Single().Inlines));
+            });
+        }
+
         internal static Paragraph Render(string markdown)
         {
             return MarkdownFlowRenderer.BuildBlockList(markdown, null).OfType<Paragraph>().Single();

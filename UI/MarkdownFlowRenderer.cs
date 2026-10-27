@@ -333,7 +333,7 @@ namespace ClaudeCodeVS.UI
                         i++;
                     }
 
-                    blocks.Add(BuildQuote(string.Join(" ", quoted), options));
+                    blocks.Add(BuildQuote(string.Join("\n", quoted), options));
                     continue;
                 }
 
@@ -591,9 +591,13 @@ namespace ClaudeCodeVS.UI
             };
         }
 
+        /// <summary>
+        /// A quote is a bordered <see cref="Section"/> whose content (the lines without their "&gt;")
+        /// goes through the block parser again, so lists, code, tables and nested quotes work inside it.
+        /// </summary>
         private static Block BuildQuote(string text, MarkdownStyleOptions options)
         {
-            var paragraph = new Paragraph
+            var section = new Section
             {
                 Margin = new Thickness(0, 0, 0, 6),
                 Padding = new Thickness(10, 2, 0, 2),
@@ -601,8 +605,19 @@ namespace ClaudeCodeVS.UI
                 BorderThickness = new Thickness(3, 0, 0, 0)
             };
 
-            AppendInlines(paragraph.Inlines, text, options);
-            return paragraph;
+            foreach (Block block in BuildBlocks(text, options))
+            {
+                section.Blocks.Add(block);
+            }
+
+            // The last block's own bottom gap would only widen the bar below the text.
+            Block last = section.Blocks.LastBlock;
+            if (last != null)
+            {
+                last.Margin = new Thickness(last.Margin.Left, last.Margin.Top, last.Margin.Right, 0);
+            }
+
+            return section;
         }
 
         private const string CopyCodeGlyph = "⧉";

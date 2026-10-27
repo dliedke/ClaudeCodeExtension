@@ -182,6 +182,7 @@ Pull requests for new features are welcome. Bug fixes too — if you find an iss
 - Table columns in the native chat follow the left, center and right alignment written in the table.
 - A backslash before a markdown character in the native chat shows that character as written instead of formatting with it.
 - Task lists in the native chat show ticked and empty boxes instead of raw brackets.
+- Quotes in the native chat can contain lists, code, tables and nested quotes.
 
 ### Version 272.0
 - Native chat text is left-aligned again instead of justified.
