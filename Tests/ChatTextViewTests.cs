@@ -360,6 +360,54 @@ namespace ClaudeCodeExtension.Tests
         }
 
         [TestMethod]
+        public void ShiftWheelStepMovesLikeAVerticalStepAndStaysInRange()
+        {
+            // Wheel down (negative delta) scrolls right, by 16 px per wheel line, like the vertical step.
+            Assert.AreEqual(148.0, ChatTranscriptView.HorizontalWheelTarget(100, 1000, -120, 3));
+            Assert.AreEqual(52.0, ChatTranscriptView.HorizontalWheelTarget(100, 1000, 120, 3));
+
+            Assert.AreEqual(0.0, ChatTranscriptView.HorizontalWheelTarget(10, 1000, 120, 3), "not past the left edge");
+            Assert.AreEqual(1000.0, ChatTranscriptView.HorizontalWheelTarget(990, 1000, -120, 3), "not past the right edge");
+            Assert.AreEqual(148.0, ChatTranscriptView.HorizontalWheelTarget(100, 1000, -120, -1), "page-scroll setting: 3 lines");
+        }
+
+        [TestMethod]
+        public void ShiftWheelFindsTheClosestScrollerThatCanMoveSideways()
+        {
+            RunOnSta(() =>
+            {
+                // transcript > wide reply (nothing to scroll sideways) > code block whose content is wider
+                var code = new Border { Width = 600, Height = 20 };
+                var codeScroller = new ScrollViewer
+                {
+                    Width = 200,
+                    HorizontalScrollBarVisibility = ScrollBarVisibility.Auto,
+                    VerticalScrollBarVisibility = ScrollBarVisibility.Disabled,
+                    Content = code
+                };
+                var reply = new ScrollViewer
+                {
+                    HorizontalScrollBarVisibility = ScrollBarVisibility.Auto,
+                    Content = new StackPanel { Children = { codeScroller } }
+                };
+                var transcript = new ScrollViewer { Width = 400, Height = 300, Content = reply };
+
+                transcript.Measure(new Size(400, 300));
+                transcript.Arrange(new Rect(0, 0, 400, 300));
+                transcript.UpdateLayout();
+
+                Assert.AreSame(codeScroller, ChatTranscriptView.FindHorizontalScrollTarget(code, transcript));
+                Assert.IsNull(ChatTranscriptView.FindHorizontalScrollTarget(reply, transcript),
+                    "a scroller with nothing to scroll sideways does not take the wheel");
+
+                codeScroller.HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled;
+                transcript.UpdateLayout();
+                Assert.IsNull(ChatTranscriptView.FindHorizontalScrollTarget(code, transcript),
+                    "a scroller with its horizontal bar disabled (wrapped text) is skipped");
+            });
+        }
+
+        [TestMethod]
         public void ScrollingAwayStopsFollowingAndScrollingBackReArmsIt()
         {
             Assert.IsFalse(ChatTranscriptView.ResolveFollowingAfterScroll(
