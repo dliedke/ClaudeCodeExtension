@@ -310,6 +310,7 @@ namespace ClaudeCodeVS.UI
                 {
                     var rows = new List<string>();
                     string header = line;
+                    string separator = lines[i + 1];
                     i += 2;
                     while (i < lines.Length && lines[i].IndexOf('|') >= 0 && !string.IsNullOrWhiteSpace(lines[i]))
                     {
@@ -317,7 +318,7 @@ namespace ClaudeCodeVS.UI
                         i++;
                     }
 
-                    blocks.Add(BuildTable(header, rows, options));
+                    blocks.Add(BuildTable(header, separator, rows, options));
                     continue;
                 }
 
@@ -677,9 +678,10 @@ namespace ClaudeCodeVS.UI
             resetTimer.Start();
         }
 
-        private static Block BuildTable(string headerLine, IList<string> rowLines, MarkdownStyleOptions options)
+        private static Block BuildTable(string headerLine, string separatorLine, IList<string> rowLines, MarkdownStyleOptions options)
         {
             string[] headers = SplitTableRow(headerLine);
+            TextAlignment[] alignments = ParseTableAlignments(separatorLine, headers.Length);
 
             var table = new Table { CellSpacing = 0, Margin = new Thickness(0, 2, 0, 8) };
             for (int c = 0; c < headers.Length; c++)
@@ -691,9 +693,9 @@ namespace ClaudeCodeVS.UI
             table.RowGroups.Add(group);
 
             var headerRow = new TableRow { FontWeight = FontWeights.SemiBold };
-            foreach (string header in headers)
+            for (int c = 0; c < headers.Length; c++)
             {
-                headerRow.Cells.Add(BuildTableCell(header, options, true));
+                headerRow.Cells.Add(BuildTableCell(headers[c], alignments[c], options));
             }
             group.Rows.Add(headerRow);
 
@@ -704,7 +706,7 @@ namespace ClaudeCodeVS.UI
 
                 for (int c = 0; c < headers.Length; c++)
                 {
-                    row.Cells.Add(BuildTableCell(c < cells.Length ? cells[c] : string.Empty, options, false));
+                    row.Cells.Add(BuildTableCell(c < cells.Length ? cells[c] : string.Empty, alignments[c], options));
                 }
 
                 group.Rows.Add(row);
@@ -713,9 +715,31 @@ namespace ClaudeCodeVS.UI
             return table;
         }
 
-        private static TableCell BuildTableCell(string text, MarkdownStyleOptions options, bool isHeader)
+        /// <summary>
+        /// Column alignment from the separator row: ":--" left, ":-:" center, "--:" right. A column
+        /// without colons, or one the separator does not cover, stays left like the document.
+        /// </summary>
+        internal static TextAlignment[] ParseTableAlignments(string separatorLine, int columns)
         {
-            var paragraph = new Paragraph { Margin = new Thickness(0) };
+            string[] specs = SplitTableRow(separatorLine);
+            var alignments = new TextAlignment[columns];
+            for (int c = 0; c < columns; c++)
+            {
+                string spec = c < specs.Length ? specs[c] : string.Empty;
+                bool left = spec.StartsWith(":", StringComparison.Ordinal);
+                bool right = spec.Length > 1 && spec.EndsWith(":", StringComparison.Ordinal);
+
+                alignments[c] = left && right ? TextAlignment.Center
+                    : right ? TextAlignment.Right
+                    : TextAlignment.Left;
+            }
+
+            return alignments;
+        }
+
+        private static TableCell BuildTableCell(string text, TextAlignment alignment, MarkdownStyleOptions options)
+        {
+            var paragraph = new Paragraph { Margin = new Thickness(0), TextAlignment = alignment };
             AppendInlines(paragraph.Inlines, text, options);
 
             return new TableCell(paragraph)

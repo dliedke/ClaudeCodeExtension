@@ -152,6 +152,34 @@ namespace ClaudeCodeExtension.Tests
             });
         }
 
+        [TestMethod]
+        public void TableColumnsFollowTheSeparatorAlignment()
+        {
+            RunOnSta(() =>
+            {
+                const string markdown =
+                    "| Left | Center | Right | Plain |\n" +
+                    "|:-----|:------:|------:|-------|\n" +
+                    "| a    | b      | c     | d     |";
+                Table table = MarkdownFlowRenderer.BuildBlockList(markdown, null).OfType<Table>().Single();
+                var expected = new[] { TextAlignment.Left, TextAlignment.Center, TextAlignment.Right, TextAlignment.Left };
+
+                foreach (TableRow row in table.RowGroups[0].Rows)
+                {
+                    TextAlignment[] actual = row.Cells.Select(cell => ((Paragraph)cell.Blocks.FirstBlock).TextAlignment).ToArray();
+                    CollectionAssert.AreEqual(expected, actual);
+                }
+            });
+        }
+
+        [TestMethod]
+        public void SeparatorWithFewerColumnsLeavesTheRestLeft()
+        {
+            CollectionAssert.AreEqual(
+                new[] { TextAlignment.Right, TextAlignment.Left, TextAlignment.Left },
+                MarkdownFlowRenderer.ParseTableAlignments("--: | ---", 3));
+        }
+
         internal static Paragraph Render(string markdown)
         {
             return MarkdownFlowRenderer.BuildBlockList(markdown, null).OfType<Paragraph>().Single();
