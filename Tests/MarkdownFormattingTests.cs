@@ -239,6 +239,57 @@ namespace ClaudeCodeExtension.Tests
             });
         }
 
+        [TestMethod]
+        public void TaskListShowsBoxesInsteadOfBullets()
+        {
+            RunOnSta(() =>
+            {
+                List list = MarkdownFlowRenderer.BuildBlockList("- [x] done\n- [ ] todo **now**\n- [X] also done", null)
+                    .OfType<List>().Single();
+                string[] items = list.ListItems.Select(item => TextOf(((Paragraph)item.Blocks.FirstBlock).Inlines)).ToArray();
+
+                Assert.AreEqual(TextMarkerStyle.None, list.MarkerStyle);
+                CollectionAssert.AreEqual(new[] { "\u2611 done", "\u2610 todo now", "\u2611 also done" }, items);
+            });
+        }
+
+        [TestMethod]
+        public void MixedListKeepsItsBullets()
+        {
+            RunOnSta(() =>
+            {
+                List list = MarkdownFlowRenderer.BuildBlockList("- [ ] todo\n- plain", null).OfType<List>().Single();
+
+                Assert.AreEqual(TextMarkerStyle.Disc, list.MarkerStyle);
+                Assert.AreEqual("\u2610 todo", TextOf(((Paragraph)list.ListItems.FirstListItem.Blocks.FirstBlock).Inlines));
+            });
+        }
+
+        [TestMethod]
+        public void BracketsWithoutTaskSyntaxStayLiteral()
+        {
+            RunOnSta(() =>
+            {
+                List list = MarkdownFlowRenderer.BuildBlockList("- [link](https://x.y) text\n- [] empty", null)
+                    .OfType<List>().Single();
+
+                Assert.AreEqual(TextMarkerStyle.Disc, list.MarkerStyle);
+                Assert.AreEqual("[] empty", TextOf(((Paragraph)list.ListItems.LastListItem.Blocks.FirstBlock).Inlines));
+            });
+        }
+
+        [TestMethod]
+        public void OrderedTaskListKeepsItsNumbers()
+        {
+            RunOnSta(() =>
+            {
+                List list = MarkdownFlowRenderer.BuildBlockList("1. [x] first\n2. [ ] second", null).OfType<List>().Single();
+
+                Assert.AreEqual(TextMarkerStyle.Decimal, list.MarkerStyle);
+                Assert.AreEqual("\u2611 first", TextOf(((Paragraph)list.ListItems.FirstListItem.Blocks.FirstBlock).Inlines));
+            });
+        }
+
         internal static Paragraph Render(string markdown)
         {
             return MarkdownFlowRenderer.BuildBlockList(markdown, null).OfType<Paragraph>().Single();

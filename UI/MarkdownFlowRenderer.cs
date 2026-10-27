@@ -59,6 +59,7 @@ namespace ClaudeCodeVS.UI
         private static readonly Regex BulletPattern = new Regex(@"^(\s*)([-*+])\s+(.*)$", RegexOptions.Compiled);
         private static readonly Regex OrderedPattern = new Regex(@"^(\s*)(\d{1,3})[.)]\s+(.*)$", RegexOptions.Compiled);
         private static readonly Regex QuotePattern = new Regex(@"^\s{0,3}>\s?(.*)$", RegexOptions.Compiled);
+        private static readonly Regex TaskPattern = new Regex(@"^\[([ xX])\]\s+(.*)$", RegexOptions.Compiled);
         private static readonly Regex TableSeparatorPattern = new Regex(@"^\s*\|?\s*:?-{2,}:?\s*(\|\s*:?-{2,}:?\s*)*\|?\s*$", RegexOptions.Compiled);
 
         /// <summary>A bare URL with no markdown brackets around it. Trailing sentence punctuation is stripped separately.</summary>
@@ -422,6 +423,8 @@ namespace ClaudeCodeVS.UI
             return blocks;
         }
 
+        private static readonly FontFamily TaskBoxFont = new FontFamily("Segoe UI Symbol");
+
         private class ListEntry
         {
             public int Level;
@@ -485,6 +488,8 @@ namespace ClaudeCodeVS.UI
                 list.StartIndex = Math.Max(1, items[index].Number);
             }
 
+            bool allTasks = !items[index].Ordered;
+            bool anyTask = false;
             int i = index;
             while (i < items.Count)
             {
@@ -516,9 +521,32 @@ namespace ClaudeCodeVS.UI
                 }
 
                 var paragraph = new Paragraph { Margin = new Thickness(0, 0, 0, 2) };
-                AppendInlines(paragraph.Inlines, items[i].Text, options);
+                string text = items[i].Text;
+                Match task = TaskPattern.Match(text);
+                if (task.Success)
+                {
+                    // A task-list item ("- [ ] todo", "- [x] done") shows a read-only box instead of
+                    // its brackets. U+2610/U+2611 rather than the U+2705 emoji: WPF on .NET Framework draws no colour emoji,
+                    // and the two symbols come from one font with the same width, so items line up.
+                    bool done = task.Groups[1].Value != " ";
+                    paragraph.Inlines.Add(new Run(done ? "\u2611 " : "\u2610 ") { FontFamily = TaskBoxFont });
+                    text = task.Groups[2].Value;
+                    anyTask = true;
+                }
+                else
+                {
+                    allTasks = false;
+                }
+
+                AppendInlines(paragraph.Inlines, text, options);
                 list.ListItems.Add(new ListItem(paragraph));
                 i++;
+            }
+
+            if (allTasks && anyTask)
+            {
+                // Like GitHub: a bullet list made only of tasks drops the bullets, the boxes are the markers.
+                list.MarkerStyle = TextMarkerStyle.None;
             }
 
             if (list.MarkerStyle == TextMarkerStyle.Decimal)
