@@ -487,8 +487,6 @@ namespace ClaudeCodeVS.UI
                 list.StartIndex = Math.Max(1, items[index].Number);
             }
 
-            bool allTasks = !items[index].Ordered;
-            bool anyTask = false;
             int i = index;
             while (i < items.Count)
             {
@@ -531,22 +529,11 @@ namespace ClaudeCodeVS.UI
                     bool done = task.Groups[1].Value != " ";
                     paragraph.Inlines.Add(new Run(done ? "\u2705 " : "\u2610 "));
                     text = task.Groups[2].Value;
-                    anyTask = true;
-                }
-                else
-                {
-                    allTasks = false;
                 }
 
                 AppendInlines(paragraph.Inlines, text, options);
                 list.ListItems.Add(new ListItem(paragraph));
                 i++;
-            }
-
-            if (allTasks && anyTask)
-            {
-                // Like GitHub: a bullet list made only of tasks drops the bullets, the boxes are the markers.
-                list.MarkerStyle = TextMarkerStyle.None;
             }
 
             if (list.MarkerStyle == TextMarkerStyle.Decimal)

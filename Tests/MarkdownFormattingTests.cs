@@ -240,7 +240,7 @@ namespace ClaudeCodeExtension.Tests
         }
 
         [TestMethod]
-        public void TaskListShowsBoxesInsteadOfBullets()
+        public void TaskListShowsBoxesAfterItsBullets()
         {
             RunOnSta(() =>
             {
@@ -248,7 +248,7 @@ namespace ClaudeCodeExtension.Tests
                     .OfType<List>().Single();
                 string[] items = list.ListItems.Select(item => TextOf(((Paragraph)item.Blocks.FirstBlock).Inlines)).ToArray();
 
-                Assert.AreEqual(TextMarkerStyle.None, list.MarkerStyle);
+                Assert.AreEqual(TextMarkerStyle.Disc, list.MarkerStyle);
                 CollectionAssert.AreEqual(new[] { "\u2705 done", "\u2610 todo now", "\u2705 also done" }, items);
             });
         }
