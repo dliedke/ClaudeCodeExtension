@@ -792,38 +792,35 @@ namespace ClaudeCodeVS.UI
                     }
                 }
 
-                if ((c == '*' || c == '_') && i + 1 < text.Length && text[i + 1] == c)
-                {
-                    string marker = new string(c, 2);
-                    int close = text.IndexOf(marker, i + 2, StringComparison.Ordinal);
-                    if (close > i + 2)
-                    {
-                        flush();
-                        var bold = new Bold();
-                        AppendInlines(bold.Inlines, text.Substring(i + 2, close - i - 2), options);
-                        target.Add(bold);
-                        i = close + 2;
-                        continue;
-                    }
-                }
-
                 if (c == '*' || c == '_')
                 {
-                    int close = text.IndexOf(c, i + 1);
-                    if (close > i + 1 && !char.IsWhiteSpace(text[i + 1]))
+                    // The run length decides the span: *italic*, **bold**, ***both***. A run whose span
+                    // does not close gives up one literal marker and the rest of the run is tried again,
+                    // so "**a* b" is "*" + italic "a".
+                    int count = Math.Min(MarkerRunLength(text, i), 3);
+                    int close = FindEmphasisCloser(text, i + count, c, count);
+                    if (close > i + count && !char.IsWhiteSpace(text[i + count]))
                     {
                         flush();
-                        var italic = new Italic();
-                        AppendInlines(italic.Inlines, text.Substring(i + 1, close - i - 1), options);
-                        target.Add(italic);
-                        i = close + 1;
+                        Span span = count == 1 ? new Italic() : (Span)new Bold();
+                        InlineCollection inner = span.Inlines;
+                        if (count == 3)
+                        {
+                            var italic = new Italic();
+                            span.Inlines.Add(italic);
+                            inner = italic.Inlines;
+                        }
+
+                        AppendInlines(inner, text.Substring(i + count, close - i - count), options);
+                        target.Add(span);
+                        i = close + count;
                         continue;
                     }
                 }
 
                 if (c == '~' && i + 1 < text.Length && text[i + 1] == '~')
                 {
-                    int close = text.IndexOf("~~", i + 2, StringComparison.Ordinal);
+                    int close = FindEmphasisCloser(text, i + 2, '~', 2);
                     if (close > i + 2 && !char.IsWhiteSpace(text[i + 2]))
                     {
                         flush();
@@ -887,6 +884,59 @@ namespace ClaudeCodeVS.UI
             }
 
             flush();
+        }
+
+        private static int MarkerRunLength(string text, int start)
+        {
+            int end = start;
+            while (end < text.Length && text[end] == text[start])
+            {
+                end++;
+            }
+
+            return end - start;
+        }
+
+        /// <summary>
+        /// Finds where a span opened by <paramref name="count"/> markers closes, or -1. Markers are
+        /// looked at as whole runs: a run can close the span only if it is long enough and does not
+        /// follow whitespace, and its last <paramref name="count"/> characters are the closer — so
+        /// "**bold *it***" closes the bold after the italic, not inside it. An italic skips runs of
+        /// exactly two (a bold nested in it). Code spans are skipped; their content is literal.
+        /// </summary>
+        private static int FindEmphasisCloser(string text, int from, char marker, int count)
+        {
+            int j = from;
+            while (j < text.Length)
+            {
+                char c = text[j];
+                if (c == '`')
+                {
+                    int codeClose = text.IndexOf('`', j + 1);
+                    if (codeClose > j + 1)
+                    {
+                        j = codeClose + 1;
+                        continue;
+                    }
+                }
+
+                if (c != marker)
+                {
+                    j++;
+                    continue;
+                }
+
+                int run = MarkerRunLength(text, j);
+                bool longEnough = count == 1 ? run != 2 : run >= count;
+                if (longEnough && j > from && !char.IsWhiteSpace(text[j - 1]))
+                {
+                    return j + run - count;
+                }
+
+                j += run;
+            }
+
+            return -1;
         }
 
         /// <summary>

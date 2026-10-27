@@ -178,6 +178,7 @@ Pull requests for new features are welcome. Bug fixes too — if you find an iss
 
 ### Version 273.0
 - The native chat shows strikethrough text.
+- Bold italic text and lines mixing bold, italic, strikethrough and code render correctly instead of turning the rest of the line italic.
 
 ### Version 272.0
 - Native chat text is left-aligned again instead of justified.

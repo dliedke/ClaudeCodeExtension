@@ -74,6 +74,84 @@ namespace ClaudeCodeExtension.Tests
             });
         }
 
+        [TestMethod]
+        public void TripleAsteriskIsBoldItalic()
+        {
+            RunOnSta(() =>
+            {
+                Bold bold = Render("a ***both*** b").Inlines.OfType<Bold>().Single();
+                Italic italic = bold.Inlines.OfType<Italic>().Single();
+
+                Assert.AreEqual("both", TextOf(italic.Inlines));
+                Assert.AreEqual("a both b", TextOf(Render("a ***both*** b").Inlines));
+            });
+        }
+
+        [TestMethod]
+        public void MixedFormattingLineKeepsEverySpanSeparate()
+        {
+            RunOnSta(() =>
+            {
+                Paragraph paragraph = Render(
+                    "**bold**, *italic*, ***both***, ~~struck~~ and `code`. Combined: **bold with `code` inside**");
+                List<Inline> top = paragraph.Inlines.ToList();
+
+                Assert.AreEqual(
+                    "bold, italic, both, struck and code. Combined: bold with code inside",
+                    TextOf(top));
+                Assert.AreEqual(3, top.OfType<Bold>().Count(), "bold, both, and the combined bold");
+                Assert.AreEqual(1, top.OfType<Italic>().Count(), "only *italic* is italic at the top level");
+                Assert.AreEqual("bold with code inside", TextOf(top.OfType<Bold>().Last().Inlines));
+                Assert.IsTrue(top.OfType<Run>().Any(r => r.Text == ", "), "the separators stay plain text");
+            });
+        }
+
+        [TestMethod]
+        public void BoldClosesAfterANestedItalicThatEndsWithIt()
+        {
+            RunOnSta(() =>
+            {
+                Bold bold = Render("**bold *it***").Inlines.OfType<Bold>().Single();
+
+                Assert.AreEqual("it", TextOf(bold.Inlines.OfType<Italic>().Single().Inlines));
+                Assert.AreEqual("bold it", TextOf(bold.Inlines));
+            });
+        }
+
+        [TestMethod]
+        public void ItalicSkipsANestedBold()
+        {
+            RunOnSta(() =>
+            {
+                Italic italic = Render("*a **b** c*").Inlines.OfType<Italic>().Single();
+
+                Assert.AreEqual("b", TextOf(italic.Inlines.OfType<Bold>().Single().Inlines));
+                Assert.AreEqual("a b c", TextOf(italic.Inlines));
+            });
+        }
+
+        [TestMethod]
+        public void MarkerInsideCodeSpanDoesNotCloseEmphasis()
+        {
+            RunOnSta(() =>
+            {
+                Bold bold = Render("**see `a**b` here**").Inlines.OfType<Bold>().Single();
+
+                Assert.AreEqual("see a**b here", TextOf(bold.Inlines));
+            });
+        }
+
+        [TestMethod]
+        public void UnclosedEmphasisStaysLiteral()
+        {
+            RunOnSta(() =>
+            {
+                Assert.AreEqual("**half typed", TextOf(Render("**half typed").Inlines));
+                Assert.AreEqual("2 * 3 * 4", TextOf(Render("2 * 3 * 4").Inlines));
+                Assert.IsFalse(Render("2 * 3 * 4").Inlines.OfType<Span>().Any());
+            });
+        }
+
         internal static Paragraph Render(string markdown)
         {
             return MarkdownFlowRenderer.BuildBlockList(markdown, null).OfType<Paragraph>().Single();
