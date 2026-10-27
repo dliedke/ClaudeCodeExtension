@@ -424,7 +424,14 @@ namespace ClaudeCodeVS.UI
             return blocks;
         }
 
-        private const string TaskDoneBox = "\u2705";
+        /// <summary>
+        /// The done box: U+2705 (green check) on a light background; on a dark one the softer purple
+        /// U+2611 U+FE0F (emoji presentation), which also pairs with the square of the open box there.
+        /// </summary>
+        internal static string TaskDoneBox(bool lightText)
+        {
+            return lightText ? "\u2611\ufe0f" : "\u2705";
+        }
 
         /// <summary>
         /// The open box: U+1F532 (dark frame) on a light background, U+1F533 (light frame) on a dark
@@ -548,12 +555,13 @@ namespace ClaudeCodeVS.UI
                 if (task.Success)
                 {
                     // A task-list item ("- [ ] todo", "- [x] done") shows a read-only box instead of
-                    // its brackets: U+2705 (the green check emoji) when done, an empty square when open.
+                    // its brackets: a check emoji when done, an empty square when open (both by theme, below).
                     // Both come from Segoe UI Emoji, pinned so the chat font cannot change them: emoji
                     // glyphs share one width, so done and open items line up, and the check keeps its
                     // colour (a symbol font such as Segoe UI Symbol only has a monochrome outline of it).
                     bool done = task.Groups[1].Value != " ";
-                    string box = done ? TaskDoneBox : TaskOpenBox(IsLightText(options.TextBrush));
+                    bool lightText = IsLightText(options.TextBrush);
+                    string box = done ? TaskDoneBox(lightText) : TaskOpenBox(lightText);
                     paragraph.Inlines.Add(new Run(box) { FontFamily = TaskBoxFont });
                     paragraph.Inlines.Add(new Run(" "));
                     text = task.Groups[2].Value;

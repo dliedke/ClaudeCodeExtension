@@ -264,7 +264,7 @@ namespace ClaudeCodeExtension.Tests
                     .Select(item => ((Paragraph)item.Blocks.FirstBlock).Inlines.OfType<Run>().First())
                     .ToArray();
 
-                Assert.AreEqual("✅", boxes[0].Text);
+                Assert.AreEqual("\u2705", boxes[0].Text);
                 Assert.AreEqual("\U0001F532", boxes[1].Text);
                 Assert.IsTrue(boxes.All(box => box.FontFamily.Source == "Segoe UI Emoji"),
                     "both boxes come from one emoji font, so they share a width whatever the chat font is");
@@ -281,7 +281,8 @@ namespace ClaudeCodeExtension.Tests
 
                 Assert.AreEqual("\U0001F533", FirstBox("- [ ] todo", dark), "light frame on a dark theme");
                 Assert.AreEqual("\U0001F532", FirstBox("- [ ] todo", light), "dark frame on a light theme");
-                Assert.AreEqual("✅", FirstBox("- [x] done", dark), "the check is the same in both");
+                Assert.AreEqual("\u2611\uFE0F", FirstBox("- [x] done", dark), "softer purple check on a dark theme");
+                Assert.AreEqual("\u2705", FirstBox("- [x] done", light), "green check on a light theme");
             });
         }
 
@@ -363,7 +364,7 @@ namespace ClaudeCodeExtension.Tests
                 List list = quote.Blocks.OfType<List>().Single();
 
                 Assert.AreEqual(2, list.ListItems.Count);
-                Assert.AreEqual("✅ two", TextOf(((Paragraph)list.ListItems.LastListItem.Blocks.FirstBlock).Inlines));
+                Assert.AreEqual("\u2705 two", TextOf(((Paragraph)list.ListItems.LastListItem.Blocks.FirstBlock).Inlines));
             });
         }
 
