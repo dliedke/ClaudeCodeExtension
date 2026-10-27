@@ -2605,6 +2605,21 @@ namespace ClaudeCodeVS.UI
                 return;
             }
 
+            // Shift+wheel scrolls the unwrapped content under the pointer sideways: a code block, raw
+            // tool input/output, a tool card's diff. Without it only dragging the scrollbar moved them.
+            // Nothing to scroll sideways there: the wheel scrolls the transcript as usual.
+            if (Keyboard.Modifiers == ModifierKeys.Shift)
+            {
+                ScrollViewer sideways = FindHorizontalScrollTarget(e.OriginalSource as DependencyObject, TranscriptScroll);
+                if (sideways != null)
+                {
+                    sideways.ScrollToHorizontalOffset(HorizontalWheelTarget(
+                        sideways.HorizontalOffset, sideways.ScrollableWidth, e.Delta, SystemParameters.WheelScrollLines));
+                    e.Handled = true;
+                    return;
+                }
+            }
+
             // A wheel turn means the reader is taking over. Stop any scroll-to-end pass that is
             // still chasing a layout; otherwise it would yank the view back to the bottom.
             _scrollToEndActive = false;
@@ -2722,6 +2737,49 @@ namespace ClaudeCodeVS.UI
             }
 
             return null;
+        }
+
+        /// <summary>
+        /// The closest scroller under the pointer that can move sideways, or null. A document viewer
+        /// (<see cref="FlowDocumentScrollViewer"/>, so every <see cref="MarkdownBlock"/>) keeps its
+        /// <see cref="ScrollViewer"/> inside its template: the pointer's content walks up past it to the
+        /// viewer, so that one is looked up downwards. Scrollers with nothing to scroll sideways are
+        /// skipped, so a wrapped reply around a code block does not swallow the wheel.
+        /// </summary>
+        internal static ScrollViewer FindHorizontalScrollTarget(DependencyObject source, ScrollViewer transcript)
+        {
+            while (source != null)
+            {
+                ScrollViewer candidate = source as ScrollViewer
+                    ?? (source is FlowDocumentScrollViewer document ? FindVisualChild<ScrollViewer>(document) : null);
+
+                if (candidate != null && !ReferenceEquals(candidate, transcript) &&
+                    candidate.HorizontalScrollBarVisibility != ScrollBarVisibility.Disabled &&
+                    candidate.ScrollableWidth > 0.5)
+                {
+                    return candidate;
+                }
+
+                if (ReferenceEquals(source, transcript))
+                {
+                    return null;
+                }
+
+                source = GetParent(source);
+            }
+
+            return null;
+        }
+
+        /// <summary>
+        /// Horizontal offset after one Shift+wheel step: as many pixels as a vertical wheel step moves the
+        /// transcript (16 per line), wheel down to the right, clamped to the scrollable width.
+        /// </summary>
+        internal static double HorizontalWheelTarget(double offset, double scrollableWidth, int delta, int wheelScrollLines)
+        {
+            double lines = wheelScrollLines <= 0 ? 3 : wheelScrollLines;
+            double target = offset - lines * 16.0 * (delta / 120.0);
+            return Math.Max(0.0, Math.Min(scrollableWidth, target));
         }
 
         private static ScrollViewer FindAncestorScrollViewer(DependencyObject source)

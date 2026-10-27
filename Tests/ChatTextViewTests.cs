@@ -35,19 +35,82 @@ namespace ClaudeCodeExtension.Tests
             {
                 List<Block> blocks = MarkdownFlowRenderer.BuildBlockList("```cs\nvar a = 1;\n  b();\n```", null);
                 Section section = blocks.OfType<Section>().Single();
+                BlockUIContainer[] containers = section.Blocks.OfType<BlockUIContainer>().ToArray();
 
-                // Only the header (language label + copy button) is an embedded element; a TextBox anywhere
-                // in it would reintroduce the WPF TextBoxView crash path.
-                BlockUIContainer header = section.Blocks.OfType<BlockUIContainer>().Single();
-                var panel = (Panel)header.Child;
+                // The header (language label + copy button); a TextBox anywhere in the block would
+                // reintroduce the WPF TextBoxView crash path.
+                var panel = (Panel)containers[0].Child;
                 Assert.IsFalse(panel.Children.OfType<TextBox>().Any(),
                     "A TextBox here would reintroduce the WPF TextBoxView crash path.");
 
-                // The code is a document paragraph, so it selects and copies like the rest of the reply,
-                // with its lines and indentation intact.
-                Paragraph code = section.Blocks.OfType<Paragraph>().Single();
-                string text = new TextRange(code.ContentStart, code.ContentEnd).Text;
-                Assert.AreEqual("var a = 1;" + Environment.NewLine + "  b();", text);
+                // The code is its own plain-text document viewer (a MarkdownBlock, not a TextBox), so it
+                // selects and copies within the block, with its lines and indentation intact.
+                var code = (MarkdownBlock)containers[1].Child;
+                Assert.IsTrue(code.IsPlainText);
+                Assert.AreEqual("var a = 1;\n  b();", code.Markdown);
+
+                code.DeferRenderingUntilLoaded = false;
+                Paragraph paragraph = code.Document.Blocks.OfType<Paragraph>().Single();
+                Assert.AreEqual("var a = 1;" + Environment.NewLine + "  b();",
+                    new TextRange(paragraph.ContentStart, paragraph.ContentEnd).Text);
+            });
+        }
+
+        /// <summary>
+        /// Long code lines stay on one line and the block scrolls sideways: the code viewer uses the
+        /// same no-wrap mode as raw tool output (see <see cref="NoWrapPlainTextGetsAPageAsWideAsItsLongestLine"/>),
+        /// in the code font, with vertical scrolling left disabled so the wheel stays with the transcript.
+        /// </summary>
+        [TestMethod]
+        public void CodeBlockUsesTheNoWrapViewerOfToolOutput()
+        {
+            RunOnSta(() =>
+            {
+                var options = new MarkdownStyleOptions { BaseFontSize = 14, CodeFontFamily = new FontFamily("Consolas") };
+                var code = (MarkdownBlock)MarkdownFlowRenderer.BuildBlockList("```\n" + new string('a', 300) + "\n```", options)
+                    .OfType<Section>().Single().Blocks.OfType<BlockUIContainer>().Last().Child;
+
+                Assert.IsTrue(code.IsNoWrap);
+                Assert.AreEqual("Consolas", code.FontFamily.Source);
+                Assert.AreEqual(13.0, code.FontSize);
+                Assert.AreEqual(ScrollBarVisibility.Disabled, code.VerticalScrollBarVisibility);
+
+                code.DeferRenderingUntilLoaded = false;
+                Assert.AreEqual(ScrollBarVisibility.Auto, code.HorizontalScrollBarVisibility);
+                Assert.IsFalse(double.IsNaN(code.Document.PageWidth), "the page is as wide as the longest line");
+            });
+        }
+
+        /// <summary>
+        /// Visual Studio lays text out in Display mode, which rounds every glyph advance to whole pixels;
+        /// on a long line that drifts well past the one-em slack from the Ideal measure, and the end of
+        /// the line wrapped inside the no-wrap page. The page must fit the line in both modes.
+        /// </summary>
+        [TestMethod]
+        public void NoWrapPageFitsALongLineInDisplayAndIdealMode()
+        {
+            RunOnSta(() =>
+            {
+                const string line = "        var lines = filtered.Select(c => string.Join(\";\", c.Id, c.FirstName, c.LastName, c.Email, " +
+                    "c.Phone, c.Region, c.Country, c.City, c.Street, c.PostalCode, c.TotalSpent.ToString(\"C\", culture), " +
+                    "c.LastOrderDate.ToString(\"yyyy-MM-dd HH:mm:ss\"), c.LoyaltyTier, c.PreferredLanguage, c.MarketingConsent, " +
+                    "c.Notes?.Replace(\";\", \",\").Replace(\"\\n\", \" \")));";
+
+                foreach (string font in new[] { "Cascadia Mono", "Consolas" })
+                {
+                    foreach (double size in new[] { 12.0, 13.0, 14.0 })
+                    {
+                        var typeface = new Typeface(new FontFamily(font), FontStyles.Normal, FontWeights.Normal, FontStretches.Normal);
+                        double page = MarkdownBlock.MeasureWidestLine(line, typeface, size, 1.0);
+
+                        foreach (TextFormattingMode mode in new[] { TextFormattingMode.Ideal, TextFormattingMode.Display })
+                        {
+                            double width = new FormattedText(line, CultureInfo.InvariantCulture, FlowDirection.LeftToRight,
+                                typeface, size, Brushes.Black, null, mode, 1.0).WidthIncludingTrailingWhitespace;
+                            Assert.IsTrue(page >= width, $"{font} {size}px {mode}: line {width:0.#}, page {page}.");
+                        }
+                    }
+                }
             });
         }
 
@@ -294,6 +357,54 @@ namespace ClaudeCodeExtension.Tests
                 following: true, readerTookOver: false, atBottom: false));
             Assert.IsFalse(ChatTranscriptView.ResolveFollowingAfterScroll(
                 following: false, readerTookOver: false, atBottom: false));
+        }
+
+        [TestMethod]
+        public void ShiftWheelStepMovesLikeAVerticalStepAndStaysInRange()
+        {
+            // Wheel down (negative delta) scrolls right, by 16 px per wheel line, like the vertical step.
+            Assert.AreEqual(148.0, ChatTranscriptView.HorizontalWheelTarget(100, 1000, -120, 3));
+            Assert.AreEqual(52.0, ChatTranscriptView.HorizontalWheelTarget(100, 1000, 120, 3));
+
+            Assert.AreEqual(0.0, ChatTranscriptView.HorizontalWheelTarget(10, 1000, 120, 3), "not past the left edge");
+            Assert.AreEqual(1000.0, ChatTranscriptView.HorizontalWheelTarget(990, 1000, -120, 3), "not past the right edge");
+            Assert.AreEqual(148.0, ChatTranscriptView.HorizontalWheelTarget(100, 1000, -120, -1), "page-scroll setting: 3 lines");
+        }
+
+        [TestMethod]
+        public void ShiftWheelFindsTheClosestScrollerThatCanMoveSideways()
+        {
+            RunOnSta(() =>
+            {
+                // transcript > wide reply (nothing to scroll sideways) > code block whose content is wider
+                var code = new Border { Width = 600, Height = 20 };
+                var codeScroller = new ScrollViewer
+                {
+                    Width = 200,
+                    HorizontalScrollBarVisibility = ScrollBarVisibility.Auto,
+                    VerticalScrollBarVisibility = ScrollBarVisibility.Disabled,
+                    Content = code
+                };
+                var reply = new ScrollViewer
+                {
+                    HorizontalScrollBarVisibility = ScrollBarVisibility.Auto,
+                    Content = new StackPanel { Children = { codeScroller } }
+                };
+                var transcript = new ScrollViewer { Width = 400, Height = 300, Content = reply };
+
+                transcript.Measure(new Size(400, 300));
+                transcript.Arrange(new Rect(0, 0, 400, 300));
+                transcript.UpdateLayout();
+
+                Assert.AreSame(codeScroller, ChatTranscriptView.FindHorizontalScrollTarget(code, transcript));
+                Assert.IsNull(ChatTranscriptView.FindHorizontalScrollTarget(reply, transcript),
+                    "a scroller with nothing to scroll sideways does not take the wheel");
+
+                codeScroller.HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled;
+                transcript.UpdateLayout();
+                Assert.IsNull(ChatTranscriptView.FindHorizontalScrollTarget(code, transcript),
+                    "a scroller with its horizontal bar disabled (wrapped text) is skipped");
+            });
         }
 
         [TestMethod]

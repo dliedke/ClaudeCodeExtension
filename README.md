@@ -176,6 +176,11 @@ Pull requests for new features are welcome. Bug fixes too — if you find an iss
 
 ## Version History
 
+### Version 274.0
+- Long lines in native chat code blocks stay on one line and the block scrolls sideways instead of wrapping.
+- Very long lines in expanded tool calls no longer wrap at their end.
+- Shift+mouse wheel scrolls code blocks, tool call input and output, and diffs in the native chat sideways.
+
 ### Version 273.0
 - The native chat shows strikethrough text.
 - Bold italic text and lines mixing bold, italic, strikethrough and code render correctly instead of turning the rest of the line italic.
