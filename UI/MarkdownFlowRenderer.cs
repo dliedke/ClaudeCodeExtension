@@ -651,9 +651,9 @@ namespace ClaudeCodeVS.UI
             string body = code.TrimEnd('\n');
 
             // One bordered section: the top row holds the language label (left) and the copy button (top-right
-            // corner); the code below is a paragraph of the document itself, so it selects and copies like the
-            // rest of the reply. Not a TextBox: TextBoxView's soft-wrap metrics are what crash the process on
-            // .NET Framework (dotnet/wpf#11481). Not a TextBlock in the UI container either: the document
+            // corner); the code below sits in its own document viewer (BuildCodeViewer) so long lines scroll
+            // sideways. Not a TextBox: TextBoxView's soft-wrap metrics are what crash the process on
+            // .NET Framework (dotnet/wpf#11481). Not a bare TextBlock in the UI container either: the document
             // treats an embedded element as one unselectable object, and a drag that starts on it moves the
             // caret past the block, which scrolled the transcript to the block's end.
             var header = new DockPanel { LastChildFill = false, Margin = new Thickness(9, 4, 4, 0) };
@@ -682,28 +682,6 @@ namespace ClaudeCodeVS.UI
                 header.Children.Add(copyButton);
             }
 
-            var codeParagraph = new Paragraph
-            {
-                Margin = new Thickness(0),
-                Padding = new Thickness(9, 2, 9, 8),
-                Foreground = options.TextBrush,
-                FontFamily = options.CodeFontFamily,
-                FontSize = Math.Max(9, options.BaseFontSize - 1),
-                TextAlignment = TextAlignment.Left
-            };
-
-            // Explicit line breaks: a newline inside a Run is not a reliable break in a FlowDocument.
-            string[] lines = body.Replace("\r\n", "\n").Split('\n');
-            for (int i = 0; i < lines.Length; i++)
-            {
-                if (i > 0)
-                {
-                    codeParagraph.Inlines.Add(new LineBreak());
-                }
-
-                codeParagraph.Inlines.Add(new Run(lines[i]));
-            }
-
             var section = new Section
             {
                 Margin = new Thickness(0, 2, 0, 8),
@@ -712,8 +690,33 @@ namespace ClaudeCodeVS.UI
                 BorderThickness = new Thickness(1)
             };
             section.Blocks.Add(new BlockUIContainer(header) { Margin = new Thickness(0) });
-            section.Blocks.Add(codeParagraph);
+            section.Blocks.Add(new BlockUIContainer(BuildCodeViewer(body, options)) { Margin = new Thickness(0) });
             return section;
+        }
+
+        /// <summary>
+        /// The code in its own <see cref="MarkdownBlock"/>, set up like raw tool output (plain text,
+        /// <see cref="MarkdownBlock.IsNoWrap"/>): long lines stay on one line and the block scrolls
+        /// sideways instead of wrapping. A paragraph of the reply's document cannot do that, since a
+        /// FlowDocument wraps every paragraph at its page width. It is a document viewer, not a TextBox
+        /// (dotnet/wpf#11481): the code selects and copies within the block, and the viewer handles its
+        /// own mouse input, so a drag starting on it does not move the reply's caret. Vertical scrolling
+        /// stays disabled, so the wheel keeps scrolling the transcript. Links in the code and the
+        /// selection colour come from the reply's block (see <see cref="MarkdownBlock"/>'s Loaded).
+        /// </summary>
+        private static MarkdownBlock BuildCodeViewer(string body, MarkdownStyleOptions options)
+        {
+            return new MarkdownBlock
+            {
+                IsPlainText = true,
+                IsNoWrap = true,
+                FontFamily = options.CodeFontFamily,
+                FontSize = Math.Max(9, options.BaseFontSize - 1),
+                Foreground = options.TextBrush,
+                AccentBrush = options.AccentBrush,
+                Margin = new Thickness(9, 2, 9, 8),
+                Markdown = body
+            };
         }
 
         /// <summary>
@@ -1458,11 +1461,56 @@ namespace ClaudeCodeVS.UI
         private void OnHyperlinkClick(object sender, RoutedEventArgs e)
         {
             Hyperlink link = e.Source as Hyperlink ?? e.OriginalSource as Hyperlink;
-            if (link?.Tag is string url && !string.IsNullOrEmpty(url))
+            // The click bubbles on from a nested block's document to the outer one; each block
+            // answers only for links of its own document, so a link opens once.
+            if (link == null || !ReferenceEquals(DocumentOf(link), Document))
             {
-                e.Handled = true;
-                LinkClicked?.Invoke(this, url);
+                return;
             }
+
+            if (link.Tag is string url && !string.IsNullOrEmpty(url))
+            {
+                // A block nested in another one (a code block's own viewer) has no subscriber of its
+                // own: hand the click to the reply's block, which the chat wires up.
+                MarkdownBlock owner = LinkClicked == null ? FindOuterBlock() : this;
+                if (owner == null || owner.LinkClicked == null)
+                {
+                    return;
+                }
+
+                e.Handled = true;
+                owner.LinkClicked.Invoke(owner, url);
+            }
+        }
+
+        private static FlowDocument DocumentOf(DependencyObject element)
+        {
+            DependencyObject current = element;
+            while (current != null && !(current is FlowDocument))
+            {
+                current = LogicalTreeHelper.GetParent(current);
+            }
+
+            return current as FlowDocument;
+        }
+
+        /// <summary>The closest <see cref="MarkdownBlock"/> this one is embedded in, or null.</summary>
+        private MarkdownBlock FindOuterBlock()
+        {
+            DependencyObject current = this;
+            while (current != null)
+            {
+                current = current is Visual || current is System.Windows.Media.Media3D.Visual3D
+                    ? VisualTreeHelper.GetParent(current) ?? LogicalTreeHelper.GetParent(current)
+                    : LogicalTreeHelper.GetParent(current);
+
+                if (current is MarkdownBlock outer)
+                {
+                    return outer;
+                }
+            }
+
+            return null;
         }
 
         private void CopySelection_Click(object sender, RoutedEventArgs e)
@@ -1564,6 +1612,15 @@ namespace ClaudeCodeVS.UI
         private void OnLoadedForRendering(object sender, RoutedEventArgs e)
         {
             _isLoaded = true;
+
+            // A nested block (a code block's own viewer) selects with the reply's colours, not the
+            // system highlight its own default style would give it.
+            if (ReadLocalValue(SelectionBrushProperty) == DependencyProperty.UnsetValue && FindOuterBlock() is MarkdownBlock outer)
+            {
+                SetBinding(SelectionBrushProperty, new Binding(nameof(SelectionBrush)) { Source = outer });
+                SetBinding(SelectionOpacityProperty, new Binding(nameof(SelectionOpacity)) { Source = outer });
+            }
+
             if (_documentPending)
             {
                 Rebuild();
@@ -1829,8 +1886,13 @@ namespace ClaudeCodeVS.UI
         }
 
         /// <summary>
-        /// Width of the longest line of <paramref name="text"/>, plus one em of slack for the rounding
-        /// and tab-stop differences between <see cref="FormattedText"/> and the document's own layout.
+        /// Width of the longest line of <paramref name="text"/>, plus one em of slack for the tab-stop
+        /// differences between <see cref="FormattedText"/> and the document's own layout. Each line is
+        /// measured in both formatting modes and the wider one wins: Visual Studio lays text out in
+        /// Display mode, which rounds every glyph advance to whole pixels, so on a long line it drifts
+        /// far past one em from the Ideal measure (+134 px on a 330-character line in Cascadia Mono
+        /// 13 px) — the page came out too narrow and the line's end wrapped after all. Taking the wider
+        /// of the two does not depend on the mode being inherited yet when the document is built.
         /// </summary>
         internal static double MeasureWidestLine(string text, Typeface typeface, double fontSize, double pixelsPerDip)
         {
@@ -1839,9 +1901,12 @@ namespace ClaudeCodeVS.UI
             {
                 if (line.Length == 0) continue;
 
-                var formatted = new FormattedText(line, System.Globalization.CultureInfo.CurrentUICulture,
-                    FlowDirection.LeftToRight, typeface, fontSize, Brushes.Black, pixelsPerDip);
-                widest = Math.Max(widest, formatted.WidthIncludingTrailingWhitespace);
+                foreach (TextFormattingMode mode in new[] { TextFormattingMode.Ideal, TextFormattingMode.Display })
+                {
+                    var formatted = new FormattedText(line, System.Globalization.CultureInfo.CurrentUICulture,
+                        FlowDirection.LeftToRight, typeface, fontSize, Brushes.Black, null, mode, pixelsPerDip);
+                    widest = Math.Max(widest, formatted.WidthIncludingTrailingWhitespace);
+                }
             }
 
             return Math.Ceiling(widest + fontSize);
