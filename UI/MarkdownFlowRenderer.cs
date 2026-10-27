@@ -45,7 +45,8 @@ namespace ClaudeCodeVS.UI
 
     /// <summary>
     /// A deliberately small markdown renderer: headings, lists, block quotes, rules, tables, fenced
-    /// code and the inline runs (<c>**bold**</c>, <c>*italic*</c>, <c>`code`</c>, links).
+    /// code, the inline runs (<c>**bold**</c>, <c>*italic*</c>, <c>~~strike~~</c>, <c>`code`</c>, links)
+    /// and a handful of bare inline HTML tags.
     /// <para>
     /// Not a CommonMark implementation and not trying to be one. It covers what the agents actually
     /// emit; anything it does not recognise falls through as plain text, which is exactly what the
@@ -1002,8 +1003,10 @@ namespace ClaudeCodeVS.UI
 
         /// <summary>
         /// The few HTML tags markdown has no syntax for: &lt;u&gt;, &lt;sub&gt;, &lt;sup&gt;, &lt;kbd&gt; and
-        /// &lt;br&gt; (also &lt;br/&gt; and &lt;br /&gt;). Only bare tags, no attributes; an unknown or unclosed
-        /// tag returns null and stays literal text, as half-streamed markup should.
+        /// &lt;br&gt; (also &lt;br/&gt; and &lt;br /&gt;), plus the basic formatting tags a model writes when it
+        /// slips out of markdown: &lt;b&gt;/&lt;strong&gt;, &lt;i&gt;/&lt;em&gt;, &lt;s&gt;/&lt;del&gt;, &lt;ins&gt;, &lt;mark&gt;
+        /// and &lt;code&gt;. Only bare tags, no attributes; an unknown or unclosed tag returns null and
+        /// stays literal text, as half-streamed markup should.
         /// </summary>
         private static Inline TryBuildHtmlInline(string text, int start, MarkdownStyleOptions options, out int consumed)
         {
@@ -1042,10 +1045,34 @@ namespace ClaudeCodeVS.UI
             }
 
             Span span;
+            if (name == "code")
+            {
+                // Like a backtick span: the content is literal, only links inside are recognised.
+                span = new Span();
+                AppendCodeSpanInlines(span.Inlines, inner, options);
+                return span;
+            }
+
             switch (name)
             {
                 case "u":
+                case "ins":
                     span = new Underline();
+                    break;
+                case "b":
+                case "strong":
+                    span = new Bold();
+                    break;
+                case "i":
+                case "em":
+                    span = new Italic();
+                    break;
+                case "s":
+                case "del":
+                    span = new Span { TextDecorations = TextDecorations.Strikethrough };
+                    break;
+                case "mark":
+                    span = new Span { Background = MarkBrush };
                     break;
                 default: // sub, sup
                     span = new Span
@@ -1061,7 +1088,18 @@ namespace ClaudeCodeVS.UI
         }
 
         private static readonly Regex HtmlTagPattern = new Regex(@"\G<(/?)([A-Za-z]+)\s*(/?)>", RegexOptions.Compiled);
-        private static readonly string[] HtmlInlineTags = { "u", "sub", "sup", "kbd" };
+        private static readonly string[] HtmlInlineTags =
+            { "u", "sub", "sup", "kbd", "b", "strong", "i", "em", "s", "del", "ins", "mark", "code" };
+
+        /// <summary>&lt;mark&gt; highlight: a translucent yellow that keeps the text readable in light and dark themes.</summary>
+        private static readonly Brush MarkBrush = CreateFrozenBrush(Color.FromArgb(0x70, 0xFF, 0xD5, 0x00));
+
+        private static Brush CreateFrozenBrush(Color color)
+        {
+            var brush = new SolidColorBrush(color);
+            brush.Freeze();
+            return brush;
+        }
 
         /// <summary>Start of the "&lt;/name&gt;" that closes an opening tag, counting nested ones of the same name; -1 if none.</summary>
         private static int FindClosingTag(string text, int from, string name, out int length)

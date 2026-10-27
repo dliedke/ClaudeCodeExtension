@@ -439,6 +439,50 @@ namespace ClaudeCodeExtension.Tests
             });
         }
 
+        [TestMethod]
+        public void BasicHtmlFormattingTagsMapToTheirMarkdownCounterparts()
+        {
+            RunOnSta(() =>
+            {
+                Assert.IsInstanceOfType(Render("<b>x</b>").Inlines.Single(), typeof(Bold));
+                Assert.IsInstanceOfType(Render("<strong>x</strong>").Inlines.Single(), typeof(Bold));
+                Assert.IsInstanceOfType(Render("<i>x</i>").Inlines.Single(), typeof(Italic));
+                Assert.IsInstanceOfType(Render("<em>x</em>").Inlines.Single(), typeof(Italic));
+                Assert.IsInstanceOfType(Render("<ins>x</ins>").Inlines.Single(), typeof(Underline));
+                Assert.AreEqual(TextDecorations.Strikethrough, Render("<s>x</s>").Inlines.Single().TextDecorations);
+                Assert.AreEqual(TextDecorations.Strikethrough, Render("<del>x</del>").Inlines.Single().TextDecorations);
+                Assert.IsNotNull(Render("<mark>x</mark>").Inlines.Single().Background);
+                Assert.AreEqual("a x b", TextOf(Render("a <STRONG>x</STRONG> b").Inlines));
+            });
+        }
+
+        [TestMethod]
+        public void HtmlTagsNestWithMarkdown()
+        {
+            RunOnSta(() =>
+            {
+                Bold bold = Render("<b>bold *and italic*</b>").Inlines.OfType<Bold>().Single();
+                Assert.AreEqual("and italic", TextOf(bold.Inlines.OfType<Italic>().Single().Inlines));
+
+                Italic italic = Render("*a <mark>marked</mark> word*").Inlines.OfType<Italic>().Single();
+                Assert.AreEqual("a marked word", TextOf(italic.Inlines));
+            });
+        }
+
+        [TestMethod]
+        public void CodeTagContentIsLiteralCode()
+        {
+            RunOnSta(() =>
+            {
+                Span code = (Span)Render("<code>**not bold** x</code>").Inlines.Single();
+                Run run = code.Inlines.OfType<Run>().Single();
+
+                Assert.AreEqual("**not bold** x", run.Text);
+                Assert.IsNotNull(run.FontFamily);
+                Assert.IsFalse(code.Inlines.OfType<Bold>().Any());
+            });
+        }
+
         internal static Paragraph Render(string markdown)
         {
             return MarkdownFlowRenderer.BuildBlockList(markdown, null).OfType<Paragraph>().Single();
