@@ -176,6 +176,10 @@ Pull requests for new features are welcome. Bug fixes too — if you find an iss
 
 ## Version History
 
+### Version 275.0
+- The native chat no longer jumps while a code block is streaming in.
+- Code blocks and tool call input and output have a little more room above and below the text, so the sideways scrollbar no longer sits right against the last line.
+
 ### Version 274.0
 - Long lines in native chat code blocks stay on one line and the block scrolls sideways instead of wrapping.
 - Very long lines in expanded tool calls no longer wrap at their end.
