@@ -907,6 +907,9 @@ namespace ClaudeCodeVS.UI
                     }
                 }
 
+                // Only inline [label](url) links. Reference-style links ("[text][id]" plus an "[id]: url"
+                // line) are deliberately not supported: agents almost never write them, and while a reply
+                // streams the definition usually arrives after the paragraph using it is already final.
                 if (c == '[')
                 {
                     int labelEnd = text.IndexOf(']', i + 1);
