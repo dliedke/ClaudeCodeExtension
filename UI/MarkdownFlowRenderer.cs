@@ -423,8 +423,6 @@ namespace ClaudeCodeVS.UI
             return blocks;
         }
 
-        private static readonly FontFamily TaskBoxFont = new FontFamily("Segoe UI Symbol");
-
         private class ListEntry
         {
             public int Level;
@@ -526,10 +524,11 @@ namespace ClaudeCodeVS.UI
                 if (task.Success)
                 {
                     // A task-list item ("- [ ] todo", "- [x] done") shows a read-only box instead of
-                    // its brackets. U+2610/U+2611 rather than the U+2705 emoji: WPF on .NET Framework draws no colour emoji,
-                    // and the two symbols come from one font with the same width, so items line up.
+                    // its brackets: U+2705 (the green check emoji) when done, U+2610 when open. No font is set,
+                    // so the chat font falls back to Segoe UI Emoji and the check keeps its colour; a symbol
+                    // font such as Segoe UI Symbol only has a monochrome outline of it.
                     bool done = task.Groups[1].Value != " ";
-                    paragraph.Inlines.Add(new Run(done ? "\u2611 " : "\u2610 ") { FontFamily = TaskBoxFont });
+                    paragraph.Inlines.Add(new Run(done ? "\u2705 " : "\u2610 "));
                     text = task.Groups[2].Value;
                     anyTask = true;
                 }

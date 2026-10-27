@@ -249,7 +249,7 @@ namespace ClaudeCodeExtension.Tests
                 string[] items = list.ListItems.Select(item => TextOf(((Paragraph)item.Blocks.FirstBlock).Inlines)).ToArray();
 
                 Assert.AreEqual(TextMarkerStyle.None, list.MarkerStyle);
-                CollectionAssert.AreEqual(new[] { "\u2611 done", "\u2610 todo now", "\u2611 also done" }, items);
+                CollectionAssert.AreEqual(new[] { "\u2705 done", "\u2610 todo now", "\u2705 also done" }, items);
             });
         }
 
@@ -286,7 +286,7 @@ namespace ClaudeCodeExtension.Tests
                 List list = MarkdownFlowRenderer.BuildBlockList("1. [x] first\n2. [ ] second", null).OfType<List>().Single();
 
                 Assert.AreEqual(TextMarkerStyle.Decimal, list.MarkerStyle);
-                Assert.AreEqual("\u2611 first", TextOf(((Paragraph)list.ListItems.FirstListItem.Blocks.FirstBlock).Inlines));
+                Assert.AreEqual("\u2705 first", TextOf(((Paragraph)list.ListItems.FirstListItem.Blocks.FirstBlock).Inlines));
             });
         }
 
