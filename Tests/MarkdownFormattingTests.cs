@@ -180,6 +180,65 @@ namespace ClaudeCodeExtension.Tests
                 MarkdownFlowRenderer.ParseTableAlignments("--: | ---", 3));
         }
 
+        [TestMethod]
+        public void BackslashEscapesMarkdownPunctuation()
+        {
+            RunOnSta(() =>
+            {
+                Paragraph paragraph = Render(@"\*not italic\*, \`not code\`, \~~not struck\~~, a \\ b");
+
+                Assert.AreEqual(@"*not italic*, `not code`, ~~not struck~~, a \ b", TextOf(paragraph.Inlines));
+                Assert.IsTrue(paragraph.Inlines.All(inline => inline is Run));
+            });
+        }
+
+        [TestMethod]
+        public void EscapedHashAtLineStartIsNoHeading()
+        {
+            RunOnSta(() =>
+            {
+                List<Block> blocks = MarkdownFlowRenderer.BuildBlockList(@"\# not a heading", null);
+
+                Assert.AreEqual("# not a heading", TextOf(((Paragraph)blocks.Single()).Inlines));
+                Assert.AreEqual(1, blocks.Count);
+            });
+        }
+
+        [TestMethod]
+        public void EscapedMarkerDoesNotCloseEmphasis()
+        {
+            RunOnSta(() =>
+            {
+                Bold bold = Render(@"**a \** b**").Inlines.OfType<Bold>().Single();
+
+                Assert.AreEqual("a ** b", TextOf(bold.Inlines));
+            });
+        }
+
+        [TestMethod]
+        public void BackslashBeforeOtherCharactersIsKept()
+        {
+            RunOnSta(() =>
+            {
+                Assert.AreEqual(@"C:\Users\me", TextOf(Render(@"C:\Users\me").Inlines));
+                Assert.AreEqual(@"\*", TextOf(Render(@"`\*`").Inlines), "code spans are literal");
+            });
+        }
+
+        [TestMethod]
+        public void EscapedPipeStaysInsideTheTableCell()
+        {
+            RunOnSta(() =>
+            {
+                Table table = MarkdownFlowRenderer.BuildBlockList("| a | b |\n|---|---|\n| x \\| y | z |", null)
+                    .OfType<Table>().Single();
+                TableRow row = table.RowGroups[0].Rows[1];
+
+                Assert.AreEqual(2, row.Cells.Count);
+                Assert.AreEqual("x | y", TextOf(((Paragraph)row.Cells[0].Blocks.FirstBlock).Inlines));
+            });
+        }
+
         internal static Paragraph Render(string markdown)
         {
             return MarkdownFlowRenderer.BuildBlockList(markdown, null).OfType<Paragraph>().Single();

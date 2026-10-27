@@ -756,13 +756,29 @@ namespace ClaudeCodeVS.UI
             if (trimmed.StartsWith("|", StringComparison.Ordinal)) trimmed = trimmed.Substring(1);
             if (trimmed.EndsWith("|", StringComparison.Ordinal)) trimmed = trimmed.Substring(0, trimmed.Length - 1);
 
-            string[] cells = trimmed.Split('|');
-            for (int i = 0; i < cells.Length; i++)
+            // An escaped "\|" is a pipe inside the cell, not a column break.
+            var cells = new List<string>();
+            var cell = new StringBuilder();
+            for (int i = 0; i < trimmed.Length; i++)
             {
-                cells[i] = cells[i].Trim();
+                if (trimmed[i] == '\\' && i + 1 < trimmed.Length && trimmed[i + 1] == '|')
+                {
+                    cell.Append('|');
+                    i++;
+                }
+                else if (trimmed[i] == '|')
+                {
+                    cells.Add(cell.ToString().Trim());
+                    cell.Clear();
+                }
+                else
+                {
+                    cell.Append(trimmed[i]);
+                }
             }
 
-            return cells;
+            cells.Add(cell.ToString().Trim());
+            return cells.ToArray();
         }
 
         #endregion
@@ -801,6 +817,13 @@ namespace ClaudeCodeVS.UI
                     flush();
                     target.Add(new LineBreak());
                     i++;
+                    continue;
+                }
+
+                if (c == '\\' && i + 1 < text.Length && IsEscapable(text[i + 1]))
+                {
+                    buffer.Append(text[i + 1]);
+                    i += 2;
                     continue;
                 }
 
@@ -910,6 +933,16 @@ namespace ClaudeCodeVS.UI
             flush();
         }
 
+        /// <summary>
+        /// CommonMark escapes: a backslash before ASCII punctuation makes it literal ("\*" is a star,
+        /// "\#" at a line start is no heading). Before anything else the backslash is kept, so
+        /// "C:\Users" reads as written.
+        /// </summary>
+        internal static bool IsEscapable(char c)
+        {
+            return @"!""#$%&'()*+,-./:;<=>?@[\]^_`{|}~".IndexOf(c) >= 0;
+        }
+
         private static int MarkerRunLength(string text, int start)
         {
             int end = start;
@@ -934,6 +967,12 @@ namespace ClaudeCodeVS.UI
             while (j < text.Length)
             {
                 char c = text[j];
+                if (c == '\\' && j + 1 < text.Length && IsEscapable(text[j + 1]))
+                {
+                    j += 2;
+                    continue;
+                }
+
                 if (c == '`')
                 {
                     int codeClose = text.IndexOf('`', j + 1);
