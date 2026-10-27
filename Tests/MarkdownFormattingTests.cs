@@ -17,6 +17,7 @@ using System.Text;
 using System.Threading;
 using System.Windows;
 using System.Windows.Documents;
+using System.Windows.Media;
 using ClaudeCodeVS.UI;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 
@@ -268,6 +269,34 @@ namespace ClaudeCodeExtension.Tests
                 Assert.IsTrue(boxes.All(box => box.FontFamily.Source == "Segoe UI Emoji"),
                     "both boxes come from one emoji font, so they share a width whatever the chat font is");
             });
+        }
+
+        [TestMethod]
+        public void OpenBoxFollowsTheThemeOfTheText()
+        {
+            RunOnSta(() =>
+            {
+                var dark = new MarkdownStyleOptions { TextBrush = new SolidColorBrush(Color.FromRgb(0xF1, 0xF1, 0xF1)) };
+                var light = new MarkdownStyleOptions { TextBrush = new SolidColorBrush(Color.FromRgb(0x1E, 0x1E, 0x1E)) };
+
+                Assert.AreEqual("\U0001F533", FirstBox("- [ ] todo", dark), "light frame on a dark theme");
+                Assert.AreEqual("\U0001F532", FirstBox("- [ ] todo", light), "dark frame on a light theme");
+                Assert.AreEqual("✅", FirstBox("- [x] done", dark), "the check is the same in both");
+            });
+        }
+
+        [TestMethod]
+        public void TextThatIsNotASolidColourCountsAsDark()
+        {
+            Assert.IsFalse(MarkdownFlowRenderer.IsLightText(null));
+            Assert.IsFalse(MarkdownFlowRenderer.IsLightText(Brushes.Black));
+            Assert.IsTrue(MarkdownFlowRenderer.IsLightText(Brushes.White));
+        }
+
+        private static string FirstBox(string markdown, MarkdownStyleOptions options)
+        {
+            List list = MarkdownFlowRenderer.BuildBlockList(markdown, options).OfType<List>().Single();
+            return ((Paragraph)list.ListItems.FirstListItem.Blocks.FirstBlock).Inlines.OfType<Run>().First().Text;
         }
 
         [TestMethod]

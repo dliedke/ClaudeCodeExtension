@@ -425,7 +425,28 @@ namespace ClaudeCodeVS.UI
         }
 
         private const string TaskDoneBox = "\u2705";
-        private const string TaskOpenBox = "\U0001F532";
+
+        /// <summary>
+        /// The open box: U+1F532 (dark frame) on a light background, U+1F533 (light frame) on a dark
+        /// one, where the dark frame melts into the background. A theme switch changes the block's
+        /// foreground, which rebuilds the document, so the box follows the theme.
+        /// </summary>
+        internal static string TaskOpenBox(bool lightText)
+        {
+            return lightText ? "\U0001F533" : "\U0001F532";
+        }
+
+        /// <summary>Whether a text brush is light, i.e. the text sits on a dark theme. Not a solid colour: false.</summary>
+        internal static bool IsLightText(Brush brush)
+        {
+            if (!(brush is SolidColorBrush solid))
+            {
+                return false;
+            }
+
+            Color c = solid.Color;
+            return (0.299 * c.R + 0.587 * c.G + 0.114 * c.B) / 255 > 0.5;
+        }
         private static readonly FontFamily TaskBoxFont = new FontFamily("Segoe UI Emoji");
 
         private class ListEntry
@@ -527,12 +548,13 @@ namespace ClaudeCodeVS.UI
                 if (task.Success)
                 {
                     // A task-list item ("- [ ] todo", "- [x] done") shows a read-only box instead of
-                    // its brackets: U+2705 (the green check emoji) when done, U+1F532 when open. Both come
-                    // from Segoe UI Emoji, pinned so the chat font cannot change them: emoji glyphs share
-                    // one width, so done and open items line up, and the check keeps its colour (a symbol
-                    // font such as Segoe UI Symbol only has a monochrome outline of it).
+                    // its brackets: U+2705 (the green check emoji) when done, an empty square when open.
+                    // Both come from Segoe UI Emoji, pinned so the chat font cannot change them: emoji
+                    // glyphs share one width, so done and open items line up, and the check keeps its
+                    // colour (a symbol font such as Segoe UI Symbol only has a monochrome outline of it).
                     bool done = task.Groups[1].Value != " ";
-                    paragraph.Inlines.Add(new Run(done ? TaskDoneBox : TaskOpenBox) { FontFamily = TaskBoxFont });
+                    string box = done ? TaskDoneBox : TaskOpenBox(IsLightText(options.TextBrush));
+                    paragraph.Inlines.Add(new Run(box) { FontFamily = TaskBoxFont });
                     paragraph.Inlines.Add(new Run(" "));
                     text = task.Groups[2].Value;
                 }
