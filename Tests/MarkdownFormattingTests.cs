@@ -249,7 +249,24 @@ namespace ClaudeCodeExtension.Tests
                 string[] items = list.ListItems.Select(item => TextOf(((Paragraph)item.Blocks.FirstBlock).Inlines)).ToArray();
 
                 Assert.AreEqual(TextMarkerStyle.Disc, list.MarkerStyle);
-                CollectionAssert.AreEqual(new[] { "\u2705 done", "\u2610 todo now", "\u2705 also done" }, items);
+                CollectionAssert.AreEqual(new[] { "\u2705 done", "\U0001F532 todo now", "\u2705 also done" }, items);
+            });
+        }
+
+        [TestMethod]
+        public void DoneAndOpenBoxesArePinnedToTheEmojiFont()
+        {
+            RunOnSta(() =>
+            {
+                List list = MarkdownFlowRenderer.BuildBlockList("- [x] done\n- [ ] todo", null).OfType<List>().Single();
+                Run[] boxes = list.ListItems
+                    .Select(item => ((Paragraph)item.Blocks.FirstBlock).Inlines.OfType<Run>().First())
+                    .ToArray();
+
+                Assert.AreEqual("✅", boxes[0].Text);
+                Assert.AreEqual("\U0001F532", boxes[1].Text);
+                Assert.IsTrue(boxes.All(box => box.FontFamily.Source == "Segoe UI Emoji"),
+                    "both boxes come from one emoji font, so they share a width whatever the chat font is");
             });
         }
 
@@ -261,7 +278,7 @@ namespace ClaudeCodeExtension.Tests
                 List list = MarkdownFlowRenderer.BuildBlockList("- [ ] todo\n- plain", null).OfType<List>().Single();
 
                 Assert.AreEqual(TextMarkerStyle.Disc, list.MarkerStyle);
-                Assert.AreEqual("\u2610 todo", TextOf(((Paragraph)list.ListItems.FirstListItem.Blocks.FirstBlock).Inlines));
+                Assert.AreEqual("\U0001F532 todo", TextOf(((Paragraph)list.ListItems.FirstListItem.Blocks.FirstBlock).Inlines));
             });
         }
 

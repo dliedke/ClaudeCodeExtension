@@ -424,6 +424,10 @@ namespace ClaudeCodeVS.UI
             return blocks;
         }
 
+        private const string TaskDoneBox = "\u2705";
+        private const string TaskOpenBox = "\U0001F532";
+        private static readonly FontFamily TaskBoxFont = new FontFamily("Segoe UI Emoji");
+
         private class ListEntry
         {
             public int Level;
@@ -523,11 +527,13 @@ namespace ClaudeCodeVS.UI
                 if (task.Success)
                 {
                     // A task-list item ("- [ ] todo", "- [x] done") shows a read-only box instead of
-                    // its brackets: U+2705 (the green check emoji) when done, U+2610 when open. No font is set,
-                    // so the chat font falls back to Segoe UI Emoji and the check keeps its colour; a symbol
-                    // font such as Segoe UI Symbol only has a monochrome outline of it.
+                    // its brackets: U+2705 (the green check emoji) when done, U+1F532 when open. Both come
+                    // from Segoe UI Emoji, pinned so the chat font cannot change them: emoji glyphs share
+                    // one width, so done and open items line up, and the check keeps its colour (a symbol
+                    // font such as Segoe UI Symbol only has a monochrome outline of it).
                     bool done = task.Groups[1].Value != " ";
-                    paragraph.Inlines.Add(new Run(done ? "\u2705 " : "\u2610 "));
+                    paragraph.Inlines.Add(new Run(done ? TaskDoneBox : TaskOpenBox) { FontFamily = TaskBoxFont });
+                    paragraph.Inlines.Add(new Run(" "));
                     text = task.Groups[2].Value;
                 }
 
