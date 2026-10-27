@@ -45,7 +45,8 @@ namespace ClaudeCodeVS.UI
 
     /// <summary>
     /// A deliberately small markdown renderer: headings, lists, block quotes, rules, tables, fenced
-    /// code and the inline runs (<c>**bold**</c>, <c>*italic*</c>, <c>`code`</c>, links).
+    /// code, the inline runs (<c>**bold**</c>, <c>*italic*</c>, <c>~~strike~~</c>, <c>`code`</c>, links)
+    /// and a handful of bare inline HTML tags.
     /// <para>
     /// Not a CommonMark implementation and not trying to be one. It covers what the agents actually
     /// emit; anything it does not recognise falls through as plain text, which is exactly what the
@@ -59,6 +60,7 @@ namespace ClaudeCodeVS.UI
         private static readonly Regex BulletPattern = new Regex(@"^(\s*)([-*+])\s+(.*)$", RegexOptions.Compiled);
         private static readonly Regex OrderedPattern = new Regex(@"^(\s*)(\d{1,3})[.)]\s+(.*)$", RegexOptions.Compiled);
         private static readonly Regex QuotePattern = new Regex(@"^\s{0,3}>\s?(.*)$", RegexOptions.Compiled);
+        private static readonly Regex TaskPattern = new Regex(@"^\[([ xX])\]\s+(.*)$", RegexOptions.Compiled);
         private static readonly Regex TableSeparatorPattern = new Regex(@"^\s*\|?\s*:?-{2,}:?\s*(\|\s*:?-{2,}:?\s*)*\|?\s*$", RegexOptions.Compiled);
 
         /// <summary>A bare URL with no markdown brackets around it. Trailing sentence punctuation is stripped separately.</summary>
@@ -310,6 +312,7 @@ namespace ClaudeCodeVS.UI
                 {
                     var rows = new List<string>();
                     string header = line;
+                    string separator = lines[i + 1];
                     i += 2;
                     while (i < lines.Length && lines[i].IndexOf('|') >= 0 && !string.IsNullOrWhiteSpace(lines[i]))
                     {
@@ -317,7 +320,7 @@ namespace ClaudeCodeVS.UI
                         i++;
                     }
 
-                    blocks.Add(BuildTable(header, rows, options));
+                    blocks.Add(BuildTable(header, separator, rows, options));
                     continue;
                 }
 
@@ -331,7 +334,7 @@ namespace ClaudeCodeVS.UI
                         i++;
                     }
 
-                    blocks.Add(BuildQuote(string.Join(" ", quoted), options));
+                    blocks.Add(BuildQuote(string.Join("\n", quoted), options));
                     continue;
                 }
 
@@ -420,6 +423,38 @@ namespace ClaudeCodeVS.UI
 
             return blocks;
         }
+
+        /// <summary>
+        /// The done box: U+2705 (green check) on a light background; on a dark one the softer purple
+        /// U+2611 U+FE0F (emoji presentation), which also pairs with the square of the open box there.
+        /// </summary>
+        internal static string TaskDoneBox(bool lightText)
+        {
+            return lightText ? "\u2611\ufe0f" : "\u2705";
+        }
+
+        /// <summary>
+        /// The open box: U+1F532 (dark frame) on a light background, U+1F533 (light frame) on a dark
+        /// one, where the dark frame melts into the background. A theme switch changes the block's
+        /// foreground, which rebuilds the document, so the box follows the theme.
+        /// </summary>
+        internal static string TaskOpenBox(bool lightText)
+        {
+            return lightText ? "\U0001F533" : "\U0001F532";
+        }
+
+        /// <summary>Whether a text brush is light, i.e. the text sits on a dark theme. Not a solid colour: false.</summary>
+        internal static bool IsLightText(Brush brush)
+        {
+            if (!(brush is SolidColorBrush solid))
+            {
+                return false;
+            }
+
+            Color c = solid.Color;
+            return (0.299 * c.R + 0.587 * c.G + 0.114 * c.B) / 255 > 0.5;
+        }
+        private static readonly FontFamily TaskBoxFont = new FontFamily("Segoe UI Emoji");
 
         private class ListEntry
         {
@@ -515,7 +550,24 @@ namespace ClaudeCodeVS.UI
                 }
 
                 var paragraph = new Paragraph { Margin = new Thickness(0, 0, 0, 2) };
-                AppendInlines(paragraph.Inlines, items[i].Text, options);
+                string text = items[i].Text;
+                Match task = TaskPattern.Match(text);
+                if (task.Success)
+                {
+                    // A task-list item ("- [ ] todo", "- [x] done") shows a read-only box instead of
+                    // its brackets: a check emoji when done, an empty square when open (both by theme, below).
+                    // Both come from Segoe UI Emoji, pinned so the chat font cannot change them: emoji
+                    // glyphs share one width, so done and open items line up, and the check keeps its
+                    // colour (a symbol font such as Segoe UI Symbol only has a monochrome outline of it).
+                    bool done = task.Groups[1].Value != " ";
+                    bool lightText = IsLightText(options.TextBrush);
+                    string box = done ? TaskDoneBox(lightText) : TaskOpenBox(lightText);
+                    paragraph.Inlines.Add(new Run(box) { FontFamily = TaskBoxFont });
+                    paragraph.Inlines.Add(new Run(" "));
+                    text = task.Groups[2].Value;
+                }
+
+                AppendInlines(paragraph.Inlines, text, options);
                 list.ListItems.Add(new ListItem(paragraph));
                 i++;
             }
@@ -563,9 +615,13 @@ namespace ClaudeCodeVS.UI
             };
         }
 
+        /// <summary>
+        /// A quote is a bordered <see cref="Section"/> whose content (the lines without their "&gt;")
+        /// goes through the block parser again, so lists, code, tables and nested quotes work inside it.
+        /// </summary>
         private static Block BuildQuote(string text, MarkdownStyleOptions options)
         {
-            var paragraph = new Paragraph
+            var section = new Section
             {
                 Margin = new Thickness(0, 0, 0, 6),
                 Padding = new Thickness(10, 2, 0, 2),
@@ -573,8 +629,19 @@ namespace ClaudeCodeVS.UI
                 BorderThickness = new Thickness(3, 0, 0, 0)
             };
 
-            AppendInlines(paragraph.Inlines, text, options);
-            return paragraph;
+            foreach (Block block in BuildBlocks(text, options))
+            {
+                section.Blocks.Add(block);
+            }
+
+            // The last block's own bottom gap would only widen the bar below the text.
+            Block last = section.Blocks.LastBlock;
+            if (last != null)
+            {
+                last.Margin = new Thickness(last.Margin.Left, last.Margin.Top, last.Margin.Right, 0);
+            }
+
+            return section;
         }
 
         private const string CopyCodeGlyph = "⧉";
@@ -677,9 +744,10 @@ namespace ClaudeCodeVS.UI
             resetTimer.Start();
         }
 
-        private static Block BuildTable(string headerLine, IList<string> rowLines, MarkdownStyleOptions options)
+        private static Block BuildTable(string headerLine, string separatorLine, IList<string> rowLines, MarkdownStyleOptions options)
         {
             string[] headers = SplitTableRow(headerLine);
+            TextAlignment[] alignments = ParseTableAlignments(separatorLine, headers.Length);
 
             var table = new Table { CellSpacing = 0, Margin = new Thickness(0, 2, 0, 8) };
             for (int c = 0; c < headers.Length; c++)
@@ -691,9 +759,9 @@ namespace ClaudeCodeVS.UI
             table.RowGroups.Add(group);
 
             var headerRow = new TableRow { FontWeight = FontWeights.SemiBold };
-            foreach (string header in headers)
+            for (int c = 0; c < headers.Length; c++)
             {
-                headerRow.Cells.Add(BuildTableCell(header, options, true));
+                headerRow.Cells.Add(BuildTableCell(headers[c], alignments[c], options));
             }
             group.Rows.Add(headerRow);
 
@@ -704,7 +772,7 @@ namespace ClaudeCodeVS.UI
 
                 for (int c = 0; c < headers.Length; c++)
                 {
-                    row.Cells.Add(BuildTableCell(c < cells.Length ? cells[c] : string.Empty, options, false));
+                    row.Cells.Add(BuildTableCell(c < cells.Length ? cells[c] : string.Empty, alignments[c], options));
                 }
 
                 group.Rows.Add(row);
@@ -713,9 +781,31 @@ namespace ClaudeCodeVS.UI
             return table;
         }
 
-        private static TableCell BuildTableCell(string text, MarkdownStyleOptions options, bool isHeader)
+        /// <summary>
+        /// Column alignment from the separator row: ":--" left, ":-:" center, "--:" right. A column
+        /// without colons, or one the separator does not cover, stays left like the document.
+        /// </summary>
+        internal static TextAlignment[] ParseTableAlignments(string separatorLine, int columns)
         {
-            var paragraph = new Paragraph { Margin = new Thickness(0) };
+            string[] specs = SplitTableRow(separatorLine);
+            var alignments = new TextAlignment[columns];
+            for (int c = 0; c < columns; c++)
+            {
+                string spec = c < specs.Length ? specs[c] : string.Empty;
+                bool left = spec.StartsWith(":", StringComparison.Ordinal);
+                bool right = spec.Length > 1 && spec.EndsWith(":", StringComparison.Ordinal);
+
+                alignments[c] = left && right ? TextAlignment.Center
+                    : right ? TextAlignment.Right
+                    : TextAlignment.Left;
+            }
+
+            return alignments;
+        }
+
+        private static TableCell BuildTableCell(string text, TextAlignment alignment, MarkdownStyleOptions options)
+        {
+            var paragraph = new Paragraph { Margin = new Thickness(0), TextAlignment = alignment };
             AppendInlines(paragraph.Inlines, text, options);
 
             return new TableCell(paragraph)
@@ -732,13 +822,29 @@ namespace ClaudeCodeVS.UI
             if (trimmed.StartsWith("|", StringComparison.Ordinal)) trimmed = trimmed.Substring(1);
             if (trimmed.EndsWith("|", StringComparison.Ordinal)) trimmed = trimmed.Substring(0, trimmed.Length - 1);
 
-            string[] cells = trimmed.Split('|');
-            for (int i = 0; i < cells.Length; i++)
+            // An escaped "\|" is a pipe inside the cell, not a column break.
+            var cells = new List<string>();
+            var cell = new StringBuilder();
+            for (int i = 0; i < trimmed.Length; i++)
             {
-                cells[i] = cells[i].Trim();
+                if (trimmed[i] == '\\' && i + 1 < trimmed.Length && trimmed[i + 1] == '|')
+                {
+                    cell.Append('|');
+                    i++;
+                }
+                else if (trimmed[i] == '|')
+                {
+                    cells.Add(cell.ToString().Trim());
+                    cell.Clear();
+                }
+                else
+                {
+                    cell.Append(trimmed[i]);
+                }
             }
 
-            return cells;
+            cells.Add(cell.ToString().Trim());
+            return cells.ToArray();
         }
 
         #endregion
@@ -746,7 +852,7 @@ namespace ClaudeCodeVS.UI
         #region Inline level
 
         /// <summary>
-        /// Appends the inline runs of one paragraph: inline code, bold, italic and links. A marker with
+        /// Appends the inline runs of one paragraph: inline code, bold, italic, strikethrough and links. A marker with
         /// no closing partner is emitted literally — half-typed emphasis is normal while text streams.
         /// </summary>
         public static void AppendInlines(InlineCollection target, string text, MarkdownStyleOptions options)
@@ -780,6 +886,13 @@ namespace ClaudeCodeVS.UI
                     continue;
                 }
 
+                if (c == '\\' && i + 1 < text.Length && IsEscapable(text[i + 1]))
+                {
+                    buffer.Append(text[i + 1]);
+                    i += 2;
+                    continue;
+                }
+
                 if (c == '`')
                 {
                     int close = text.IndexOf('`', i + 1);
@@ -792,35 +905,61 @@ namespace ClaudeCodeVS.UI
                     }
                 }
 
-                if ((c == '*' || c == '_') && i + 1 < text.Length && text[i + 1] == c)
+                if (c == '*' || c == '_')
                 {
-                    string marker = new string(c, 2);
-                    int close = text.IndexOf(marker, i + 2, StringComparison.Ordinal);
-                    if (close > i + 2)
+                    // The run length decides the span: *italic*, **bold**, ***both***. A run whose span
+                    // does not close gives up one literal marker and the rest of the run is tried again,
+                    // so "**a* b" is "*" + italic "a".
+                    int count = Math.Min(MarkerRunLength(text, i), 3);
+                    int close = FindEmphasisCloser(text, i + count, c, count);
+                    if (close > i + count && !char.IsWhiteSpace(text[i + count]))
                     {
                         flush();
-                        var bold = new Bold();
-                        AppendInlines(bold.Inlines, text.Substring(i + 2, close - i - 2), options);
-                        target.Add(bold);
+                        Span span = count == 1 ? new Italic() : (Span)new Bold();
+                        InlineCollection inner = span.Inlines;
+                        if (count == 3)
+                        {
+                            var italic = new Italic();
+                            span.Inlines.Add(italic);
+                            inner = italic.Inlines;
+                        }
+
+                        AppendInlines(inner, text.Substring(i + count, close - i - count), options);
+                        target.Add(span);
+                        i = close + count;
+                        continue;
+                    }
+                }
+
+                if (c == '<')
+                {
+                    Inline html = TryBuildHtmlInline(text, i, options, out int consumed);
+                    if (html != null)
+                    {
+                        flush();
+                        target.Add(html);
+                        i += consumed;
+                        continue;
+                    }
+                }
+
+                if (c == '~' && i + 1 < text.Length && text[i + 1] == '~')
+                {
+                    int close = FindEmphasisCloser(text, i + 2, '~', 2);
+                    if (close > i + 2 && !char.IsWhiteSpace(text[i + 2]))
+                    {
+                        flush();
+                        var strike = new Span { TextDecorations = TextDecorations.Strikethrough };
+                        AppendInlines(strike.Inlines, text.Substring(i + 2, close - i - 2), options);
+                        target.Add(strike);
                         i = close + 2;
                         continue;
                     }
                 }
 
-                if (c == '*' || c == '_')
-                {
-                    int close = text.IndexOf(c, i + 1);
-                    if (close > i + 1 && !char.IsWhiteSpace(text[i + 1]))
-                    {
-                        flush();
-                        var italic = new Italic();
-                        AppendInlines(italic.Inlines, text.Substring(i + 1, close - i - 1), options);
-                        target.Add(italic);
-                        i = close + 1;
-                        continue;
-                    }
-                }
-
+                // Only inline [label](url) links. Reference-style links ("[text][id]" plus an "[id]: url"
+                // line) are deliberately not supported: agents almost never write them, and while a reply
+                // streams the definition usually arrives after the paragraph using it is already final.
                 if (c == '[')
                 {
                     int labelEnd = text.IndexOf(']', i + 1);
@@ -873,6 +1012,232 @@ namespace ClaudeCodeVS.UI
             }
 
             flush();
+        }
+
+        /// <summary>
+        /// CommonMark escapes: a backslash before ASCII punctuation makes it literal ("\*" is a star,
+        /// "\#" at a line start is no heading). Before anything else the backslash is kept, so
+        /// "C:\Users" reads as written.
+        /// </summary>
+        internal static bool IsEscapable(char c)
+        {
+            return @"!""#$%&'()*+,-./:;<=>?@[\]^_`{|}~".IndexOf(c) >= 0;
+        }
+
+        /// <summary>
+        /// The few HTML tags markdown has no syntax for: &lt;u&gt;, &lt;sub&gt;, &lt;sup&gt;, &lt;kbd&gt; and
+        /// &lt;br&gt; (also &lt;br/&gt; and &lt;br /&gt;), plus the basic formatting tags a model writes when it
+        /// slips out of markdown: &lt;b&gt;/&lt;strong&gt;, &lt;i&gt;/&lt;em&gt;, &lt;s&gt;/&lt;del&gt;, &lt;ins&gt;, &lt;mark&gt;
+        /// and &lt;code&gt;. Only bare tags, no attributes; an unknown or unclosed tag returns null and
+        /// stays literal text, as half-streamed markup should.
+        /// </summary>
+        private static Inline TryBuildHtmlInline(string text, int start, MarkdownStyleOptions options, out int consumed)
+        {
+            consumed = 0;
+            Match open = HtmlTagPattern.Match(text, start);
+            if (!open.Success || open.Groups[1].Length > 0)
+            {
+                return null;
+            }
+
+            string name = open.Groups[2].Value.ToLowerInvariant();
+            if (name == "br")
+            {
+                consumed = open.Length;
+                return new LineBreak();
+            }
+
+            if (open.Groups[3].Length > 0 || Array.IndexOf(HtmlInlineTags, name) < 0)
+            {
+                return null;
+            }
+
+            int contentStart = start + open.Length;
+            int close = FindClosingTag(text, contentStart, name, out int closeLength);
+            if (close < 0)
+            {
+                return null;
+            }
+
+            string inner = text.Substring(contentStart, close - contentStart);
+            consumed = close + closeLength - start;
+
+            if (name == "kbd")
+            {
+                return BuildKeyCap(inner, options);
+            }
+
+            Span span;
+            if (name == "code")
+            {
+                // Like a backtick span: the content is literal, only links inside are recognised.
+                span = new Span();
+                AppendCodeSpanInlines(span.Inlines, inner, options);
+                return span;
+            }
+
+            switch (name)
+            {
+                case "u":
+                case "ins":
+                    span = new Underline();
+                    break;
+                case "b":
+                case "strong":
+                    span = new Bold();
+                    break;
+                case "i":
+                case "em":
+                    span = new Italic();
+                    break;
+                case "s":
+                case "del":
+                    span = new Span { TextDecorations = TextDecorations.Strikethrough };
+                    break;
+                case "mark":
+                    span = new Span { Background = MarkBrush };
+                    break;
+                default: // sub, sup
+                    span = new Span
+                    {
+                        BaselineAlignment = name == "sub" ? BaselineAlignment.Subscript : BaselineAlignment.Superscript,
+                        FontSize = Math.Round(options.BaseFontSize * 0.75, 1)
+                    };
+                    break;
+            }
+
+            AppendInlines(span.Inlines, inner, options);
+            return span;
+        }
+
+        private static readonly Regex HtmlTagPattern = new Regex(@"\G<(/?)([A-Za-z]+)\s*(/?)>", RegexOptions.Compiled);
+        private static readonly string[] HtmlInlineTags =
+            { "u", "sub", "sup", "kbd", "b", "strong", "i", "em", "s", "del", "ins", "mark", "code" };
+
+        /// <summary>&lt;mark&gt; highlight: a translucent yellow that keeps the text readable in light and dark themes.</summary>
+        private static readonly Brush MarkBrush = CreateFrozenBrush(Color.FromArgb(0x70, 0xFF, 0xD5, 0x00));
+
+        private static Brush CreateFrozenBrush(Color color)
+        {
+            var brush = new SolidColorBrush(color);
+            brush.Freeze();
+            return brush;
+        }
+
+        /// <summary>Start of the "&lt;/name&gt;" that closes an opening tag, counting nested ones of the same name; -1 if none.</summary>
+        private static int FindClosingTag(string text, int from, string name, out int length)
+        {
+            length = 0;
+            int depth = 0;
+            int j = text.IndexOf('<', from);
+            while (j >= 0)
+            {
+                Match tag = HtmlTagPattern.Match(text, j);
+                if (tag.Success && string.Equals(tag.Groups[2].Value, name, StringComparison.OrdinalIgnoreCase))
+                {
+                    if (tag.Groups[1].Length > 0)
+                    {
+                        if (depth == 0)
+                        {
+                            length = tag.Length;
+                            return j;
+                        }
+
+                        depth--;
+                    }
+                    else if (tag.Groups[3].Length == 0)
+                    {
+                        depth++;
+                    }
+                }
+
+                j = text.IndexOf('<', j + 1);
+            }
+
+            return -1;
+        }
+
+        /// <summary>
+        /// &lt;kbd&gt; as a key cap: a rounded box with a heavier bottom edge around the key in the code
+        /// font. It is an embedded element, so a copied selection leaves the key's text out.
+        /// </summary>
+        private static Inline BuildKeyCap(string key, MarkdownStyleOptions options)
+        {
+            var cap = new Border
+            {
+                BorderBrush = options.CodeBorderBrush,
+                Background = options.CodeBackground,
+                BorderThickness = new Thickness(1, 1, 1, 2),
+                CornerRadius = new CornerRadius(3),
+                Padding = new Thickness(4, 0, 4, 0),
+                Child = new TextBlock
+                {
+                    Text = key,
+                    FontFamily = options.CodeFontFamily,
+                    FontSize = Math.Round(options.BaseFontSize * 0.85, 1)
+                }
+            };
+
+            return new InlineUIContainer(cap) { BaselineAlignment = BaselineAlignment.Center };
+        }
+
+        private static int MarkerRunLength(string text, int start)
+        {
+            int end = start;
+            while (end < text.Length && text[end] == text[start])
+            {
+                end++;
+            }
+
+            return end - start;
+        }
+
+        /// <summary>
+        /// Finds where a span opened by <paramref name="count"/> markers closes, or -1. Markers are
+        /// looked at as whole runs: a run can close the span only if it is long enough and does not
+        /// follow whitespace, and its last <paramref name="count"/> characters are the closer — so
+        /// "**bold *it***" closes the bold after the italic, not inside it. An italic skips runs of
+        /// exactly two (a bold nested in it). Code spans are skipped; their content is literal.
+        /// </summary>
+        private static int FindEmphasisCloser(string text, int from, char marker, int count)
+        {
+            int j = from;
+            while (j < text.Length)
+            {
+                char c = text[j];
+                if (c == '\\' && j + 1 < text.Length && IsEscapable(text[j + 1]))
+                {
+                    j += 2;
+                    continue;
+                }
+
+                if (c == '`')
+                {
+                    int codeClose = text.IndexOf('`', j + 1);
+                    if (codeClose > j + 1)
+                    {
+                        j = codeClose + 1;
+                        continue;
+                    }
+                }
+
+                if (c != marker)
+                {
+                    j++;
+                    continue;
+                }
+
+                int run = MarkerRunLength(text, j);
+                bool longEnough = count == 1 ? run != 2 : run >= count;
+                if (longEnough && j > from && !char.IsWhiteSpace(text[j - 1]))
+                {
+                    return j + run - count;
+                }
+
+                j += run;
+            }
+
+            return -1;
         }
 
         /// <summary>

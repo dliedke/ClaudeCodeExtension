@@ -100,6 +100,9 @@ namespace ClaudeCodeExtension.Tests
             "\n" +
             "> quoted\n" +
             "> more\n" +
+            ">\n" +
+            "> - quoted item\n" +
+            "> > nested quote\n" +
             "\n" +
             "```csharp\n" +
             "var a = 1;\n" +
