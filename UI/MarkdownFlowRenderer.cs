@@ -1687,6 +1687,13 @@ namespace ClaudeCodeVS.UI
             {
                 Rebuild();
             }
+            else if (IsNoWrap && IsPlainText && _widthFont != null &&
+                     _widthFont.Item3 != VisualTreeHelper.GetDpi(this).PixelsPerDip)
+            {
+                // A code viewer builds before it is in the window, where the DPI is still the system one;
+                // on a monitor with another scale its page came out too narrow and long lines wrapped.
+                Rebuild();
+            }
         }
 
         private void OnIsVisibleChanged(object sender, DependencyPropertyChangedEventArgs e)
