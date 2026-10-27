@@ -176,6 +176,9 @@ Pull requests for new features are welcome. Bug fixes too — if you find an iss
 
 ## Version History
 
+### Version 273.0
+- The native chat shows strikethrough text.
+
 ### Version 272.0
 - Native chat text is left-aligned again instead of justified.
 - Code blocks in the native chat can be selected and copied in part again, and starting a selection in one no longer jumps the conversation.

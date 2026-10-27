@@ -746,7 +746,7 @@ namespace ClaudeCodeVS.UI
         #region Inline level
 
         /// <summary>
-        /// Appends the inline runs of one paragraph: inline code, bold, italic and links. A marker with
+        /// Appends the inline runs of one paragraph: inline code, bold, italic, strikethrough and links. A marker with
         /// no closing partner is emitted literally — half-typed emphasis is normal while text streams.
         /// </summary>
         public static void AppendInlines(InlineCollection target, string text, MarkdownStyleOptions options)
@@ -817,6 +817,20 @@ namespace ClaudeCodeVS.UI
                         AppendInlines(italic.Inlines, text.Substring(i + 1, close - i - 1), options);
                         target.Add(italic);
                         i = close + 1;
+                        continue;
+                    }
+                }
+
+                if (c == '~' && i + 1 < text.Length && text[i + 1] == '~')
+                {
+                    int close = text.IndexOf("~~", i + 2, StringComparison.Ordinal);
+                    if (close > i + 2 && !char.IsWhiteSpace(text[i + 2]))
+                    {
+                        flush();
+                        var strike = new Span { TextDecorations = TextDecorations.Strikethrough };
+                        AppendInlines(strike.Inlines, text.Substring(i + 2, close - i - 2), options);
+                        target.Add(strike);
+                        i = close + 2;
                         continue;
                     }
                 }
