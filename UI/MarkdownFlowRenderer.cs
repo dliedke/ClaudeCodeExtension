@@ -41,6 +41,21 @@ namespace ClaudeCodeVS.UI
 
         /// <summary>Style for the copy button in each code block's top-right corner; null leaves the button out.</summary>
         public Style CodeCopyButtonStyle { get; set; }
+
+        /// <summary>
+        /// When true a code block's viewer builds its document only once it is loaded. Set for the
+        /// unfinished tail of a streaming reply, which is rendered again on every update and mostly
+        /// thrown away (its code goes into the block already shown); everywhere else the viewer builds
+        /// at once, so the block does not lay out empty for a frame and then grow.
+        /// </summary>
+        internal bool DeferCodeRendering { get; set; }
+
+        internal MarkdownStyleOptions WithDeferredCode()
+        {
+            var copy = (MarkdownStyleOptions)MemberwiseClone();
+            copy.DeferCodeRendering = true;
+            return copy;
+        }
     }
 
     /// <summary>
@@ -669,9 +684,10 @@ namespace ClaudeCodeVS.UI
                 });
             }
 
+            Button copyButton = null;
             if (options.CodeCopyButtonStyle != null)
             {
-                var copyButton = new Button
+                copyButton = new Button
                 {
                     Content = CopyCodeGlyph,
                     Tag = body,
@@ -689,9 +705,52 @@ namespace ClaudeCodeVS.UI
                 BorderBrush = options.CodeBorderBrush,
                 BorderThickness = new Thickness(1)
             };
+            MarkdownBlock viewer = BuildCodeViewer(body, options);
             section.Blocks.Add(new BlockUIContainer(header) { Margin = new Thickness(0) });
-            section.Blocks.Add(new BlockUIContainer(BuildCodeViewer(body, options)) { Margin = new Thickness(0) });
+            section.Blocks.Add(new BlockUIContainer(viewer) { Margin = new Thickness(0) });
+            section.Tag = new CodeBlockParts(language, copyButton, viewer);
             return section;
+        }
+
+        /// <summary>The parts of a fenced code block that change while its code is still streaming.</summary>
+        private sealed class CodeBlockParts
+        {
+            public CodeBlockParts(string language, Button copyButton, MarkdownBlock viewer)
+            {
+                Language = language ?? string.Empty;
+                CopyButton = copyButton;
+                Viewer = viewer;
+            }
+
+            public string Language { get; }
+            public Button CopyButton { get; }
+            public MarkdownBlock Viewer { get; }
+        }
+
+        /// <summary>
+        /// Gives the code block <paramref name="existing"/> the code of <paramref name="fresh"/>, a newer
+        /// render of the same block, instead of swapping the block. A streaming reply renders its open code
+        /// block again on every update; a new block lays out from nothing, so the transcript jumped by the
+        /// block's height on each chunk, and the old viewer's page width had to be measured again over all
+        /// lines. False when either is not a code block or the language differs (a different block).
+        /// </summary>
+        internal static bool TryUpdateCodeBlock(Block existing, Block fresh)
+        {
+            if (!(existing?.Tag is CodeBlockParts current) || !(fresh?.Tag is CodeBlockParts next) ||
+                !string.Equals(current.Language, next.Language, StringComparison.Ordinal) ||
+                (current.CopyButton == null) != (next.CopyButton == null))
+            {
+                return false;
+            }
+
+            string body = next.Viewer.Markdown;
+            if (current.CopyButton != null)
+            {
+                current.CopyButton.Tag = body;
+            }
+
+            current.Viewer.Markdown = body;
+            return true;
         }
 
         /// <summary>
@@ -703,11 +762,14 @@ namespace ClaudeCodeVS.UI
         /// own mouse input, so a drag starting on it does not move the reply's caret. Vertical scrolling
         /// stays disabled, so the wheel keeps scrolling the transcript. Links in the code and the
         /// selection colour come from the reply's block (see <see cref="MarkdownBlock"/>'s Loaded).
+        /// Every input is set here, before Markdown, so it can build at once instead of on Loaded
+        /// (see <see cref="MarkdownStyleOptions.DeferCodeRendering"/>).
         /// </summary>
         private static MarkdownBlock BuildCodeViewer(string body, MarkdownStyleOptions options)
         {
             return new MarkdownBlock
             {
+                DeferRenderingUntilLoaded = options.DeferCodeRendering,
                 IsPlainText = true,
                 IsNoWrap = true,
                 FontFamily = options.CodeFontFamily,
@@ -1809,29 +1871,54 @@ namespace ClaudeCodeVS.UI
                 return;
             }
 
-            BlockCollection blocks = Document.Blocks;
-            foreach (Block block in _tailBlocks)
-            {
-                blocks.Remove(block);
-            }
-            _tailBlocks.Clear();
-
+            // The text after the old boundary, rendered again: the blocks that became final, then the new tail.
+            var fresh = new List<Block>();
             int boundary = MarkdownFlowRenderer.FindStableBoundary(text, _frozenLength);
             if (boundary > _frozenLength)
             {
-                foreach (Block block in MarkdownFlowRenderer.BuildBlockList(
-                    text.Substring(_frozenLength, boundary - _frozenLength), _incrementalOptions))
+                fresh.AddRange(MarkdownFlowRenderer.BuildBlockList(
+                    text.Substring(_frozenLength, boundary - _frozenLength), _incrementalOptions));
+            }
+
+            int frozenCount = fresh.Count;
+            fresh.AddRange(MarkdownFlowRenderer.BuildBlockList(text.Substring(boundary), _incrementalOptions.WithDeferredCode()));
+            _frozenLength = boundary;
+
+            // Both lists start at the old boundary, so the blocks pair up by position. A code block keeps
+            // its place and takes the new code (an open fence grows on every update); every other block
+            // is swapped where it stands.
+            BlockCollection blocks = Document.Blocks;
+            var previousTail = new List<Block>(_tailBlocks);
+            _tailBlocks.Clear();
+            for (int i = 0; i < fresh.Count; i++)
+            {
+                Block block = fresh[i];
+                if (i < previousTail.Count)
+                {
+                    if (MarkdownFlowRenderer.TryUpdateCodeBlock(previousTail[i], block))
+                    {
+                        block = previousTail[i];
+                    }
+                    else
+                    {
+                        blocks.InsertBefore(previousTail[i], block);
+                        blocks.Remove(previousTail[i]);
+                    }
+                }
+                else
                 {
                     blocks.Add(block);
                 }
 
-                _frozenLength = boundary;
+                if (i >= frozenCount)
+                {
+                    _tailBlocks.Add(block);
+                }
             }
 
-            foreach (Block block in MarkdownFlowRenderer.BuildBlockList(text.Substring(boundary), _incrementalOptions))
+            for (int i = fresh.Count; i < previousTail.Count; i++)
             {
-                blocks.Add(block);
-                _tailBlocks.Add(block);
+                blocks.Remove(previousTail[i]);
             }
 
             _incrementalText = text;
@@ -1867,9 +1954,13 @@ namespace ClaudeCodeVS.UI
             {
                 // A FlowDocument always wraps at its page width, so "no wrap" means a page as wide as
                 // the longest line; the viewer then scrolls it sideways, as the TextBox did before.
-                document.PageWidth = MeasureWidestLine(Markdown,
+                document.PageWidth = MeasurePageWidth(Markdown,
                     new Typeface(FontFamily, FontStyle, FontWeight, FontStretch), FontSize,
                     VisualTreeHelper.GetDpi(this).PixelsPerDip);
+
+                // A little room above the text and between it and the horizontal scrollbar, which
+                // otherwise sits right against the last line. Vertical only: the page width stays.
+                document.PagePadding = new Thickness(0, NoWrapVerticalPadding, 0, NoWrapVerticalPadding);
             }
 
             HorizontalScrollBarVisibility = noWrap ? ScrollBarVisibility.Auto : ScrollBarVisibility.Disabled;
@@ -1883,6 +1974,53 @@ namespace ClaudeCodeVS.UI
             {
                 _settingDocument = false;
             }
+        }
+
+        /// <summary>Space above and below the text of a no-wrap block (code blocks, raw tool input/output).</summary>
+        private const double NoWrapVerticalPadding = 4;
+
+        // ---- no-wrap page width, kept across updates ----
+
+        /// <summary>The text <see cref="_widthOfCompleteLines"/> was measured for.</summary>
+        private string _widthText;
+
+        /// <summary>End of its complete lines (just past the last newline): only the line after it can still grow.</summary>
+        private int _widthCompleteEnd;
+
+        private double _widthOfCompleteLines;
+        private Tuple<Typeface, double, double> _widthFont;
+
+        /// <summary>
+        /// <see cref="MeasureWidestLine"/> of <paramref name="text"/>, measuring only what is new when the
+        /// text grew by an append in the same font: a streaming code block gets its code again on every
+        /// update, and measuring every line twice each time made the cost grow with the block.
+        /// </summary>
+        private double MeasurePageWidth(string text, Typeface typeface, double fontSize, double pixelsPerDip)
+        {
+            text = text ?? string.Empty;
+            var font = Tuple.Create(typeface, fontSize, pixelsPerDip);
+            bool appended = _widthText != null && font.Equals(_widthFont) &&
+                text.Length >= _widthCompleteEnd &&
+                string.CompareOrdinal(text, 0, _widthText, 0, _widthCompleteEnd) == 0;
+            if (!appended)
+            {
+                _widthCompleteEnd = 0;
+                _widthOfCompleteLines = 0;
+            }
+
+            // The widest of the parts is the widest of the whole: MeasureWidestLine only grows with its widest line.
+            int completeEnd = text.LastIndexOf('\n') + 1;
+            if (completeEnd > _widthCompleteEnd)
+            {
+                _widthOfCompleteLines = Math.Max(_widthOfCompleteLines, MeasureWidestLine(
+                    text.Substring(_widthCompleteEnd, completeEnd - _widthCompleteEnd), typeface, fontSize, pixelsPerDip));
+                _widthCompleteEnd = completeEnd;
+            }
+
+            _widthText = text;
+            _widthFont = font;
+            return Math.Max(_widthOfCompleteLines,
+                MeasureWidestLine(text.Substring(completeEnd), typeface, fontSize, pixelsPerDip));
         }
 
         /// <summary>

@@ -142,6 +142,34 @@ namespace ClaudeCodeExtension.Tests
             });
         }
 
+        /// <summary>
+        /// A code block that is still streaming stays the same block, its viewer taking each update's code,
+        /// instead of a new block laying out from nothing on every chunk (the transcript jumped by its height).
+        /// </summary>
+        [TestMethod]
+        public void StreamingCodeBlockIsUpdatedInPlace()
+        {
+            RunOnSta(() =>
+            {
+                const string text = "Intro.\n\n```cs\nint a = 1;\n\nint b = 2;\nint c = 3;\n```\n\nAfter.";
+                var block = new MarkdownBlock { DeferRenderingUntilLoaded = false, IsIncremental = true };
+
+                Section codeBlock = null;
+                for (int shown = "Intro.\n\n```cs\nint".Length; shown <= text.Length; shown++)
+                {
+                    block.Markdown = text.Substring(0, shown);
+                    Section current = block.Document.Blocks.OfType<Section>().Single();
+                    Assert.IsTrue(codeBlock == null || ReferenceEquals(codeBlock, current), "Replaced at " + shown);
+                    codeBlock = current;
+                }
+
+                var viewer = (MarkdownBlock)((BlockUIContainer)codeBlock.Blocks.LastBlock).Child;
+                Assert.AreEqual("int a = 1;\n\nint b = 2;\nint c = 3;", viewer.Markdown);
+                CollectionAssert.AreEqual(Describe(MarkdownFlowRenderer.BuildBlockList(text, null)),
+                    block.Document.Blocks.Select(b => b.GetType().Name + ": " + new TextRange(b.ContentStart, b.ContentEnd).Text).ToList());
+            });
+        }
+
         /// <summary>Block type and text, enough to tell two renders apart.</summary>
         private static List<string> Describe(IEnumerable<Block> blocks)
         {
