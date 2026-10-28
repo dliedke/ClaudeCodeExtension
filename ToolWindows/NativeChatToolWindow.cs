@@ -31,7 +31,7 @@ namespace ClaudeCodeVS
     /// </para>
     /// </summary>
     [Guid("C3D4E5F6-A7B8-9012-CDEF-AB3456789012")]
-    public class NativeChatToolWindow : ToolWindowPane, IVsWindowFrameNotify, IVsWindowFrameNotify2
+    public class NativeChatToolWindow : ToolWindowPane, IVsWindowFrameNotify, IVsWindowFrameNotify2, IChatTabHost
     {
         private readonly Grid _host;
         private uint _notifyCookie;
@@ -96,6 +96,38 @@ namespace ClaudeCodeVS
                 Debug.WriteLine($"Error updating native chat caption: {ex.Message}");
             }
         }
+
+        #region IChatTabHost
+
+        bool IChatTabHost.IsAlive => Frame is IVsWindowFrame;
+
+        bool IChatTabHost.IsVisible
+        {
+            get
+            {
+                ThreadHelper.ThrowIfNotOnUIThread();
+                return Frame is IVsWindowFrame frame && frame.IsVisible() == VSConstants.S_OK;
+            }
+        }
+
+        int IChatTabHost.Show()
+        {
+            ThreadHelper.ThrowIfNotOnUIThread();
+            return Frame is IVsWindowFrame frame ? frame.Show() : VSConstants.E_FAIL;
+        }
+
+        void IChatTabHost.Close()
+        {
+            ThreadHelper.ThrowIfNotOnUIThread();
+            if (Frame is IVsWindowFrame frame)
+            {
+                frame.CloseFrame((uint)__FRAMECLOSE.FRAMECLOSE_NoSave);
+            }
+        }
+
+        IVsWindowFrame IChatTabHost.WindowFrame => Frame as IVsWindowFrame;
+
+        #endregion
 
         public override void OnToolWindowCreated()
         {

@@ -39,7 +39,16 @@ namespace ClaudeCodeVS
     {
         #region Chat Tab Fields
 
-        private NativeChatToolWindow _nativeChatWindow;
+        private IChatTabHost _nativeChatWindow;
+
+        /// <summary>
+        /// "Show all chats in one window", fixed for this Visual Studio session at the first chat tab:
+        /// chats already open in one kind of host must not be followed by chats in the other.
+        /// </summary>
+        private bool? _chatTabsInOneWindow;
+
+        /// <summary>The single chat window, once a chat has opened in it (its "+" is wired once, then).</summary>
+        private ChatContainerToolWindow _chatContainer;
 
         /// <summary>True while the transcript is parented into the document tab instead of the panel.</summary>
         private bool _chatIsInTab;
@@ -142,7 +151,7 @@ namespace ClaudeCodeVS
                 // null frame, `frame?.Show()` no-ops, and the panel is left collapsed around a tab that
                 // never appears — the "blank panel, only usage bars" state. Drop the stale pane so the
                 // block below builds a fresh one.
-                if (_nativeChatWindow != null && !(_nativeChatWindow.Frame is IVsWindowFrame))
+                if (_nativeChatWindow != null && !_nativeChatWindow.IsAlive)
                 {
                     _nativeChatWindow.Closed -= OnNativeChatWindowClosed;
                     _nativeChatWindow.Activated -= OnDefaultNativeChatWindowActivated;
@@ -151,7 +160,7 @@ namespace ClaudeCodeVS
 
                 if (_nativeChatWindow == null)
                 {
-                    _nativeChatWindow = package.FindToolWindow(typeof(NativeChatToolWindow), 0, true) as NativeChatToolWindow;
+                    _nativeChatWindow = GetOrCreateChatTabHost(package, 0);
                     if (_nativeChatWindow != null)
                     {
                         _nativeChatWindow.Closed += OnNativeChatWindowClosed;
@@ -159,8 +168,7 @@ namespace ClaudeCodeVS
                     }
                 }
 
-                IVsWindowFrame frame = _nativeChatWindow?.Frame as IVsWindowFrame;
-                if (_nativeChatWindow == null || frame == null)
+                if (_nativeChatWindow == null || !_nativeChatWindow.IsAlive)
                 {
                     // VS would not give us a document tab. Never leave the panel collapsed with the
                     // conversation nowhere: keep it in the panel so it stays usable, and let a later
@@ -206,7 +214,7 @@ namespace ClaudeCodeVS
                 // something unrelated happens to trigger a refresh.
                 RefreshToolbarLayout();
 
-                int showHr = frame.Show();
+                int showHr = _nativeChatWindow.Show();
                 if (ErrorHandler.Failed(showHr))
                 {
                     // The frame existed but would not surface. Same recovery as a null frame: fall
@@ -230,6 +238,44 @@ namespace ClaudeCodeVS
             {
                 Debug.WriteLine($"Error opening the chat tab: {ex.Message}");
             }
+        }
+
+        /// <summary>
+        /// The tab for one chat: its own VS document tab, or a tab inside the single "Claude Code"
+        /// window when <see cref="ClaudeCodeSettings.ChatTabsInOneWindow"/> was on when this Visual Studio
+        /// session opened its first chat. <paramref name="windowId"/> 0 is the main chat. Null when VS
+        /// would not create the window.
+        /// </summary>
+        private IChatTabHost GetOrCreateChatTabHost(AsyncPackage package, int windowId)
+        {
+            ThreadHelper.ThrowIfNotOnUIThread();
+
+            if (_chatTabsInOneWindow == null)
+            {
+                _chatTabsInOneWindow = _settings?.ChatTabsInOneWindow == true;
+            }
+
+            if (_chatTabsInOneWindow != true)
+            {
+                return package.FindToolWindow(typeof(NativeChatToolWindow), windowId, true) as NativeChatToolWindow;
+            }
+
+            var container = package.FindToolWindow(typeof(ChatContainerToolWindow), 0, true) as ChatContainerToolWindow;
+            if (container == null)
+            {
+                return null;
+            }
+
+            if (!ReferenceEquals(_chatContainer, container))
+            {
+                _chatContainer = container;
+                container.NewChatRequested += (s, e) =>
+                    OnComposerNewChatRequested((object)container.SelectedTranscript ?? ChatTranscript, EventArgs.Empty);
+            }
+
+            container.SetModernIcons(_settings?.ChatIconStyle == ChatIconStyle.Modern);
+
+            return container.GetOrCreateTab(windowId);
         }
 
         /// <summary>
@@ -526,7 +572,7 @@ namespace ClaudeCodeVS
 
             // Take the reference before closing: CloseFrame fires the Closed handler, which clears the
             // field on its way out.
-            NativeChatToolWindow window = _nativeChatWindow;
+            IChatTabHost window = _nativeChatWindow;
 
             ReturnNativeChatToPanel();
 
@@ -537,10 +583,7 @@ namespace ClaudeCodeVS
 
             try
             {
-                if (window.Frame is IVsWindowFrame frame)
-                {
-                    frame.CloseFrame((uint)__FRAMECLOSE.FRAMECLOSE_NoSave);
-                }
+                window.Close();
             }
             catch (Exception ex)
             {
@@ -570,8 +613,8 @@ namespace ClaudeCodeVS
                     return;
                 }
 
-                // Create/get tool window for this session (using session's window ID)
-                var window = package.FindToolWindow(typeof(NativeChatToolWindow), session.WindowId, true) as NativeChatToolWindow;
+                // Create/get the tab for this session (using session's window ID)
+                IChatTabHost window = GetOrCreateChatTabHost(package, session.WindowId);
                 if (window == null)
                 {
                     Debug.WriteLine($"ShowSessionInTabAsync: could not create window for session {session.SessionId}.");
@@ -612,10 +655,7 @@ namespace ClaudeCodeVS
                 RefreshToolbarLayout();
 
                 // Show the window
-                if (window.Frame is IVsWindowFrame frame)
-                {
-                    frame.Show();
-                }
+                window.Show();
 
                 if (focusComposer)
                 {
@@ -896,8 +936,7 @@ namespace ClaudeCodeVS
             return _chatIsInTab
                    && _nativeChatWindow != null
                    && _nativeChatWindow.HasChatContent
-                   && _nativeChatWindow.Frame is IVsWindowFrame frame
-                   && frame.IsVisible() == VSConstants.S_OK;
+                   && _nativeChatWindow.IsVisible;
         }
 
         /// <summary>The default session's chat tab is open (startup restore check, issue #209).</summary>
@@ -916,7 +955,7 @@ namespace ClaudeCodeVS
             get
             {
                 ThreadHelper.ThrowIfNotOnUIThread();
-                return _nativeChatWindow?.Frame as IVsWindowFrame;
+                return _nativeChatWindow?.WindowFrame;
             }
         }
 
@@ -1037,9 +1076,6 @@ namespace ClaudeCodeVS
             string captionTitle = string.IsNullOrWhiteSpace(title) ? GetAutoChatTitle(null) : title;
             _nativeChatWindow.UpdateCaption(DecorateChatTabCaption(null, BuildChatTabCaption(GetActiveOrSelectedProvider(), captionTitle)));
 
-            // Also kept as a header above the transcript: the VS tab strip truncates, and with several
-            // chats open the header is what tells them apart once a tab is selected.
-            ChatTranscript?.SetSessionTitle(title);
             ChatTranscript?.SetSessionTitleColor(GetCurrentNativeSessionColor());
         }
 
@@ -1079,7 +1115,6 @@ namespace ClaudeCodeVS
 
             string captionTitle = string.IsNullOrWhiteSpace(title) ? GetAutoChatTitle(session) : title;
             session.Window?.UpdateCaption(DecorateChatTabCaption(session, BuildChatTabCaption(session.SelectedProvider, captionTitle)));
-            session.ChatTranscript.SetSessionTitle(title);
             session.ChatTranscript.SetSessionTitleColor(GetNativeSessionColor(agentSessionId));
         }
 

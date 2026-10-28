@@ -6,7 +6,7 @@ Visual Studio Extension (VSIX) for VS 2022/2026 — integrates AI code assistant
 
 - Author: Daniel Carvalho Liedke (dliedke@gmail.com) | License: MIT
 - Repository: https://github.com/dliedke/ClaudeCodeExtension
-- Current Version: 268.0 | Target Framework: .NET Framework 4.7.2
+- Current Version: 273.0 | Target Framework: .NET Framework 4.7.2
 
 Step-by-step procedures for recurring tasks (release, Exp-hive debugging, publish, adding a
 provider/setting/UI file) live in `docs/SKILLS.md`. Short build/style brief for non-Claude agents: `docs/AGENTS.md`.
@@ -154,6 +154,8 @@ ClaudeCodeExtension/
 │   ├── ClaudeCodeControl.xaml
 │   ├── ClaudeUsageControl.xaml(.cs)
 │   ├── ChatTranscriptView.xaml(.cs)     # Native mode chat transcript
+│   ├── ChatContainerView.xaml(.cs)      # Tab strip + content of the single chat window
+│   ├── ThemedDialog.cs / ThemedDialogStyles.xaml # VS-themed title bar, scrollbars, rounded buttons/search box for the extension's dialogs
 │   ├── ChatMessages.cs                  # Chat message view-models
 │   ├── ChatInteractionViewModels.cs     # Question/permission/plan card view-models (transcript rows)
 │   ├── ChatToolPresentation.cs          # Tool call → header line + rendered diff (pure, unit-tested)
@@ -175,7 +177,9 @@ ClaudeCodeExtension/
 │   ├── DiffViewerToolWindow.cs
 │   ├── DetachedTerminalToolWindow.cs
 │   ├── ClaudeUsageToolWindow.cs
-│   └── NativeChatToolWindow.cs          # Document-area tab hosting the native-mode chat
+│   ├── NativeChatToolWindow.cs          # Document-area tab hosting one native-mode chat
+│   ├── ChatContainerToolWindow.cs       # "Show all chats in one window": single remembered window, one inner tab per chat
+│   └── IChatTabHost.cs                  # Where one chat is drawn (own VS tab or inner tab), shared by both hosts
 ├── Models/
 │   ├── ClaudeCodeModels.cs              # Enums & settings class
 │   └── NativeChatSessionState.cs        # Per-session native mode chat state (parallel sessions)
@@ -281,7 +285,7 @@ Three cross-cutting rules (full text in `docs/ARCHITECTURE.md` → *Cross-Cuttin
 | `Controls/ClaudeCodeControl.TfvcCheckout.cs`, `Agents/ClaudeEditHook.cs` | TFVC Checkout — PreToolUse hook over the control channel, QueryEdit checkout, deny-with-reason |
 | `Controls/ClaudeCodeControl.NativeMode.cs`, `Agents/*`, `UI/ChatTranscriptView.xaml` | Native Mode — Agent Sessions: `IAgentSession` contract, the six adapters, event map, streaming-duplication traps, `SendTextToAgentAsync` bifurcation |
 | `UI/Loc.cs`, `UI/LocExtension.cs`, `lang/*.json` | Chat UI Localization — English-as-key, lang file loading/override, XAML timing, what is never translated |
-| `Controls/ClaudeCodeControl.NativeChat.cs`, `Controls/ClaudeCodeControl.ChatTabStatus.cs`, `Controls/ClaudeCodeControl.ChatTabRestore.cs`, `ToolWindows/NativeChatToolWindow.cs` | Native Mode — Chat tab and composer (incl. tab status glyph + auto title, reopening tabs with the solution): MDI document-tab hosting, transcript re-parenting, composer reuse of the panel send path, live model/effort/permission switching via resume |
+| `Controls/ClaudeCodeControl.NativeChat.cs`, `Controls/ClaudeCodeControl.ChatTabStatus.cs`, `Controls/ClaudeCodeControl.ChatTabRestore.cs`, `ToolWindows/NativeChatToolWindow.cs`, `ToolWindows/ChatContainerToolWindow.cs` | Native Mode — Chat tab and composer (incl. tab status glyph + auto title, reopening tabs with the solution): MDI document-tab hosting, transcript re-parenting, composer reuse of the panel send path, live model/effort/permission switching via resume |
 
 When you add or materially change behavior in one of these files, update its section in
 `docs/ARCHITECTURE.md` (not this table) — the same way you'd update the Architecture section before.

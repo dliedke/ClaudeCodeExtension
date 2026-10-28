@@ -480,6 +480,14 @@ namespace ClaudeCodeVS
                 origAutoHidePanelInNative, themeFg);
             layoutStack.Children.Add(autoHidePanelInNativeCheck);
 
+            var chatTabsInOneWindowCheck = MakeCheckBox(
+                "Show all chats in one window (applies after restarting Visual Studio)",
+                "Every native chat opens as a tab inside a single \"Claude Code Chat\" window. Visual Studio " +
+                "remembers where that window is docked, also while debugging, instead of placing each chat " +
+                "tab among the code tabs on its own. Closing the window only hides it; the chats keep running.",
+                _settings.ChatTabsInOneWindow, themeFg);
+            layoutStack.Children.Add(chatTabsInOneWindowCheck);
+
             // Usage bars live in the prompt panel, so their two toggles sit on this tab instead of a
             // tab of their own (the former Usage tab, folded in in v223.0).
             layoutStack.Children.Add(MakeSectionHeader("Usage bars", themeFg));
@@ -1593,6 +1601,7 @@ namespace ClaudeCodeVS
             _settings.HidePromptPanel         = newHidePromptPanel;
             _settings.AutoHidePromptInNativeMode = newAutoHidePromptInNative;
             _settings.AutoHidePanelInNativeMode = newAutoHidePanelInNative;
+            _settings.ChatTabsInOneWindow = chatTabsInOneWindowCheck.IsChecked == true;
             _settings.SelectedTerminalType    = newTerminalType;
             _settings.UseNativeMode           = newUseNativeMode;
 

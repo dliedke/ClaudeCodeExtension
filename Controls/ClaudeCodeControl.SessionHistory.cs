@@ -1261,13 +1261,12 @@ namespace ClaudeCodeVS
             }
 
             GetThemeBrushes(out Brush themeBg, out Brush themeFg);
-            Brush subtleBorder = new SolidColorBrush(((themeFg as SolidColorBrush)?.Color ?? Colors.Gray)) { Opacity = 0.3 };
 
             var dialog = new Window
             {
                 Title = L("{0} Session History — {1}", GetSessionHistoryProviderName(selected.Value), workspaceDir),
                 Width = 760,
-                Height = 460,
+                Height = 480,
                 WindowStartupLocation = WindowStartupLocation.CenterOwner,
                 ResizeMode = ResizeMode.CanResize,
                 MinWidth = 560,
@@ -1277,40 +1276,29 @@ namespace ClaudeCodeVS
                 ShowInTaskbar = false
             };
             try { dialog.Owner = Application.Current?.MainWindow; } catch { }
+            // VS-themed title bar, scrollbars and controls (v273.0): the stock Windows chrome and
+            // controls made the dialog look out of place next to the IDE.
+            ThemedDialog.PrepareResources(dialog);
 
-            var grid = new Grid { Margin = new Thickness(12) };
+            var grid = new Grid { Margin = new Thickness(14, 6, 14, 14) };
             grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });   // filter bar
             grid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) }); // list
             grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });   // buttons
 
             // --- Row 0: filter bar (search + sort) ---
-            var filterBar = new Grid { Margin = new Thickness(0, 0, 0, 8) };
-            filterBar.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+            var filterBar = new Grid { Margin = new Thickness(0, 0, 0, 10) };
             filterBar.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
             filterBar.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
 
-            var filterLabel = new TextBlock
-            {
-                Text = L("Filter:"),
-                Foreground = themeFg,
-                VerticalAlignment = VerticalAlignment.Center,
-                Margin = new Thickness(0, 0, 8, 0)
-            };
-            Grid.SetColumn(filterLabel, 0);
-            filterBar.Children.Add(filterLabel);
-
             var searchBox = new TextBox
             {
-                Background = themeBg,
-                Foreground = themeFg,
-                BorderBrush = subtleBorder,
-                VerticalContentAlignment = VerticalAlignment.Center,
-                Height = 26,
+                Style = ThemedDialog.GetStyle(dialog, "ThemedDialogSearchBoxStyle"),
+                Tag = L("Search…"),
                 Margin = new Thickness(0, 0, 12, 0),
                 ToolTip = L("Type to filter by title, first prompt, branch, or date. Double-click a session to resume; " +
                             "right-click or press F2 to rename.")
             };
-            Grid.SetColumn(searchBox, 1);
+            Grid.SetColumn(searchBox, 0);
             filterBar.Children.Add(searchBox);
 
             // Sort selector (issue #114) — lets the user reliably order the list instead of
@@ -1319,15 +1307,17 @@ namespace ClaudeCodeVS
             {
                 Text = L("Sort:"),
                 Foreground = themeFg,
+                Opacity = 0.75,
                 VerticalAlignment = VerticalAlignment.Center,
-                Margin = new Thickness(0, 0, 6, 0)
+                Margin = new Thickness(0, 0, 8, 0)
             };
             // Use the shared flat themed ComboBox templates so the dropdown popup honors the
             // dark/light theme (the default WPF popup paints a hardcoded white background, which
             // left the light-on-white items unreadable in dark mode).
             var comboRes = BuildThemedComboResources(themeBg, themeFg);
             var sortCombo = MakeThemedComboBox(comboRes, themeFg);
-            sortCombo.MinWidth = 150;
+            sortCombo.MinWidth = 160;
+            sortCombo.Height = 30;
             sortCombo.ToolTip = L("Choose how sessions are ordered. Your choice is remembered across restarts.");
 
             var sortOptions = new[]
@@ -1362,26 +1352,26 @@ namespace ClaudeCodeVS
             };
             rightFilterPanel.Children.Add(sortLabel);
             rightFilterPanel.Children.Add(sortCombo);
-            Grid.SetColumn(rightFilterPanel, 2);
+            Grid.SetColumn(rightFilterPanel, 1);
             filterBar.Children.Add(rightFilterPanel);
 
             Grid.SetRow(filterBar, 0);
             grid.Children.Add(filterBar);
 
-            // --- Row 1: session list ---
+            // --- Row 1: session list, in a rounded frame ---
             var listBox = new ListBox
             {
-                Background = themeBg,
+                Background = Brushes.Transparent,
                 Foreground = themeFg,
-                BorderBrush = subtleBorder,
-                Padding = new Thickness(4),
+                BorderThickness = new Thickness(0),
                 HorizontalContentAlignment = HorizontalAlignment.Stretch
             };
             // No horizontal scrolling — long titles ellipsize to the panel width instead of overflowing.
             ScrollViewer.SetHorizontalScrollBarVisibility(listBox, ScrollBarVisibility.Disabled);
             listBox.ItemContainerStyle = CreateSessionRowStyle(themeBg);
-            Grid.SetRow(listBox, 1);
-            grid.Children.Add(listBox);
+            Border listFrame = ThemedDialog.ListFrame(listBox);
+            Grid.SetRow(listFrame, 1);
+            grid.Children.Add(listFrame);
 
             var loading = new TextBlock
             {
@@ -1396,66 +1386,69 @@ namespace ClaudeCodeVS
             Grid.SetRow(loading, 1);
             grid.Children.Add(loading);
 
-            // --- Row 2: button row (Refresh left, actions right) ---
-            Style buttonStyle = GetDialogButtonStyle();
-            Func<string, Button> mkBtn = (text) =>
+            // --- Row 2: button row ---
+            Style buttonStyle = ThemedDialog.GetStyle(dialog, "ThemedDialogButtonStyle");
+            Func<string, Button> mkBtn = (text) => new Button
             {
-                var b = new Button
-                {
-                    Content = text,
-                    MinWidth = 88,
-                    Height = 28,
-                    Margin = new Thickness(8, 0, 0, 0)
-                };
-                if (buttonStyle != null) b.Style = buttonStyle;
-                else { b.Background = themeBg; b.Foreground = themeFg; b.BorderBrush = themeFg; }
-                return b;
+                Content = text,
+                Style = buttonStyle,
+                Margin = new Thickness(8, 0, 0, 0)
             };
 
-            // Only the two actions that matter stay as buttons; View, Rename, Delete and Refresh live in
-            // the list-icon menu beside them (the same menu as a right-click on a row).
+            // Only the two actions that matter stay as buttons on the right; View, Rename, Delete and
+            // Refresh live in the list-icon menu beside them (the same menu as a right-click on a row).
             var resumeButton = mkBtn(L("Resume"));
+            resumeButton.Style = ThemedDialog.GetStyle(dialog, "ThemedDialogPrimaryButtonStyle");
             var closeButton = mkBtn(L("Close"));
             closeButton.IsCancel = true;
             // The action used most: Enter resumes the selected session, from the list or the filter box.
             resumeButton.IsDefault = true;
-            resumeButton.FontWeight = FontWeights.SemiBold;
 
             var moreButton = new Button
             {
-                Content = new TextBlock
-                {
-                    Text = "", // BulletedList
-                    FontFamily = new FontFamily("Segoe Fluent Icons, Segoe MDL2 Assets"),
-                    FontSize = 14,
-                    HorizontalAlignment = HorizontalAlignment.Center,
-                    VerticalAlignment = VerticalAlignment.Center
-                },
-                Width = 32,
-                Height = 28,
+                Content = "", // BulletedList
+                Style = ThemedDialog.GetStyle(dialog, "ThemedDialogIconButtonStyle"),
                 Margin = new Thickness(8, 0, 0, 0),
                 ToolTip = L("More actions")
             };
-            if (buttonStyle != null) moreButton.Style = buttonStyle;
-            else { moreButton.Background = themeBg; moreButton.Foreground = themeFg; moreButton.BorderBrush = themeFg; }
 
-            var buttonBar = new StackPanel
-            {
-                Orientation = Orientation.Horizontal,
-                HorizontalAlignment = HorizontalAlignment.Right,
-                Margin = new Thickness(0, 10, 0, 0)
-            };
+            // Reopens today's conversations, each in a tab of its own; wired below with the list.
+            var resumeTodayButton = mkBtn(L("Resume Today's Sessions"));
+            resumeTodayButton.Margin = new Thickness(0);
+            resumeTodayButton.IsEnabled = false;
+
+            var buttonBar = new DockPanel { LastChildFill = false, Margin = new Thickness(0, 12, 0, 0) };
             Grid.SetRow(buttonBar, 2);
-            buttonBar.Children.Add(resumeButton);
-            buttonBar.Children.Add(closeButton);
-            buttonBar.Children.Add(moreButton);
+            DockPanel.SetDock(resumeTodayButton, Dock.Left);
+            buttonBar.Children.Add(resumeTodayButton);
+
+            var rightActions = new StackPanel { Orientation = Orientation.Horizontal };
+            DockPanel.SetDock(rightActions, Dock.Right);
+            rightActions.Children.Add(resumeButton);
+            rightActions.Children.Add(closeButton);
+            rightActions.Children.Add(moreButton);
+            buttonBar.Children.Add(rightActions);
 
             grid.Children.Add(buttonBar);
 
             dialog.Content = grid;
+            ThemedDialog.ApplyChrome(dialog);
 
             // Full set of sessions for the workspace; the visible list is a filtered view of this.
             var loadedSessions = new List<SessionInfo>();
+
+            // Today's conversations not already open in a chat tab, oldest first, so the most recent one
+            // is opened last and ends up in front. Native mode only: the terminal has no chat tabs.
+            Func<List<SessionInfo>> todaysSessionsToReopen = () =>
+            {
+                if (!IsNativeModeActive) return new List<SessionInfo>();
+                DateTime now = DateTime.Now;
+                return loadedSessions
+                    .Where(s => SessionListPresentation.GetDateGroup(s.LastModified, now) == SessionDateGroup.Today
+                                && !TryFindOpenChatTab(s.SessionId, out _))
+                    .OrderBy(s => s.LastModified)
+                    .ToList();
+            };
 
             // Rebuilds the visible list from loadedSessions, applying the search text, and preserves
             // the current selection where possible. Sorted by date, the rows sit under date bands.
@@ -1544,6 +1537,8 @@ namespace ClaudeCodeVS
                     loading.Visibility = Visibility.Collapsed;
                     listBox.SelectedIndex = reselectIndex >= 0 ? reselectIndex : firstSessionIndex;
                 }
+
+                resumeTodayButton.IsEnabled = todaysSessionsToReopen().Count > 0;
             };
 
             // Loader — populates loadedSessions once parsing finishes, then renders via the filter.
@@ -1691,6 +1686,29 @@ namespace ClaudeCodeVS
             var deleteMenuItem = new MenuItem { Header = L("Delete") };
             deleteMenuItem.Click += (s, args) =>
                 StartSessionHistoryTask(deleteSelectedAsync, "claudecode/sessionhistory/delete");
+            resumeTodayButton.Click += (s, args) =>
+            {
+                List<SessionInfo> toReopen = todaysSessionsToReopen();
+                if (toReopen.Count == 0) return;
+
+                // Each one starts its own agent process, so a long list is confirmed first.
+                if (toReopen.Count > 5 &&
+                    MessageBox.Show(dialog, L("Reopen {0} sessions? Each one starts its own agent.", toReopen.Count),
+                        L("Session History"), MessageBoxButton.YesNo, MessageBoxImage.Question) != MessageBoxResult.Yes)
+                {
+                    return;
+                }
+
+                dialog.DialogResult = true;
+                StartSessionHistoryTask(async () =>
+                {
+                    foreach (SessionInfo session in toReopen)
+                    {
+                        await ResumeSessionInNewTabAsync(session, targetTab, workspaceDir);
+                    }
+                }, "claudecode/sessionhistory/resumetoday");
+            };
+
             var refreshMenuItem = new MenuItem { Header = L("Refresh List") };
             refreshMenuItem.Click += (s, args) =>
                 StartSessionHistoryTask(loadAsync, "claudecode/sessionhistory/refresh");
@@ -1781,7 +1799,7 @@ namespace ClaudeCodeVS
             {
                 Title = L("Rename Session"),
                 Width = 480,
-                Height = 180,
+                SizeToContent = SizeToContent.Height,
                 WindowStartupLocation = WindowStartupLocation.CenterOwner,
                 ResizeMode = ResizeMode.NoResize,
                 Background = themeBg,
@@ -1789,68 +1807,53 @@ namespace ClaudeCodeVS
                 ShowInTaskbar = false,
                 Owner = owner
             };
+            ThemedDialog.PrepareResources(dialog);
 
-            var grid = new Grid { Margin = new Thickness(12) };
-            grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
-            grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
-            grid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
-            grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+            var stack = new StackPanel { Margin = new Thickness(16, 6, 16, 16) };
 
-            var label = new TextBlock
+            stack.Children.Add(new TextBlock
             {
                 Text = L("Custom title (leave empty to restore the auto-generated preview):"),
                 Foreground = themeFg,
                 TextWrapping = TextWrapping.Wrap,
-                Margin = new Thickness(0, 0, 0, 6)
-            };
-            Grid.SetRow(label, 0);
-            grid.Children.Add(label);
+                Margin = new Thickness(0, 0, 0, 8)
+            });
 
             var titleBox = new TextBox
             {
                 Text = session.CustomTitle ?? string.Empty,
-                Background = themeBg,
-                Foreground = themeFg,
-                BorderBrush = themeFg,
-                Margin = new Thickness(0, 0, 0, 10)
+                Style = ThemedDialog.GetStyle(dialog, "ThemedDialogTextBoxStyle"),
+                Margin = new Thickness(0, 0, 0, 16)
             };
-            Grid.SetRow(titleBox, 1);
-            grid.Children.Add(titleBox);
+            stack.Children.Add(titleBox);
 
             var buttonPanel = new StackPanel
             {
                 Orientation = Orientation.Horizontal,
                 HorizontalAlignment = HorizontalAlignment.Right
             };
-            Grid.SetRow(buttonPanel, 3);
 
-            Style editorButtonStyle = GetDialogButtonStyle();
-            Func<string, bool, bool, Button> mkBtn = (text, isDefault, isCancel) =>
+            var okButton = new Button
             {
-                var b = new Button
-                {
-                    Content = text,
-                    Width = 75,
-                    Height = 25,
-                    Margin = new Thickness(0, 0, 8, 0),
-                    IsDefault = isDefault,
-                    IsCancel = isCancel
-                };
-                if (editorButtonStyle != null) b.Style = editorButtonStyle;
-                else { b.Background = themeBg; b.Foreground = themeFg; b.BorderBrush = themeFg; }
-                return b;
+                Content = L("OK"),
+                Style = ThemedDialog.GetStyle(dialog, "ThemedDialogPrimaryButtonStyle"),
+                IsDefault = true
             };
-
-            var okButton = mkBtn(L("OK"), true, false);
-            var cancelButton = mkBtn(L("Cancel"), false, true);
-            cancelButton.Margin = new Thickness(0);
+            var cancelButton = new Button
+            {
+                Content = L("Cancel"),
+                Style = ThemedDialog.GetStyle(dialog, "ThemedDialogButtonStyle"),
+                Margin = new Thickness(8, 0, 0, 0),
+                IsCancel = true
+            };
             buttonPanel.Children.Add(okButton);
             buttonPanel.Children.Add(cancelButton);
-            grid.Children.Add(buttonPanel);
+            stack.Children.Add(buttonPanel);
 
             okButton.Click += (s, args) => { dialog.DialogResult = true; };
 
-            dialog.Content = grid;
+            dialog.Content = stack;
+            ThemedDialog.ApplyChrome(dialog);
             dialog.Loaded += (s, args) => { titleBox.SelectAll(); titleBox.Focus(); };
 
             bool? ok = dialog.ShowDialog();
@@ -2286,8 +2289,9 @@ namespace ClaudeCodeVS
                 ShowInTaskbar = false
             };
             try { dialog.Owner = owner; } catch { }
+            ThemedDialog.PrepareResources(dialog);
 
-            var stack = new StackPanel { Margin = new Thickness(16, 14, 16, 14) };
+            var stack = new StackPanel { Margin = new Thickness(16, 6, 16, 16) };
             stack.Children.Add(new TextBlock
             {
                 Text = L("This chat tab already has a conversation. Where do you want to resume \"{0}\"?",
@@ -2307,19 +2311,14 @@ namespace ClaudeCodeVS
             });
 
             var buttons = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right };
-            Style buttonStyle = GetDialogButtonStyle();
-            Func<string, Button> mkBtn = text =>
-            {
-                var b = new Button { Content = text, MinWidth = 96, Height = 28, Margin = new Thickness(8, 0, 0, 0), Padding = new Thickness(10, 0, 10, 0) };
-                if (buttonStyle != null) b.Style = buttonStyle;
-                else { b.Background = themeBg; b.Foreground = themeFg; b.BorderBrush = themeFg; }
-                return b;
-            };
+            Style buttonStyle = ThemedDialog.GetStyle(dialog, "ThemedDialogButtonStyle");
+            Func<string, Button> mkBtn = text => new Button { Content = text, Style = buttonStyle, Margin = new Thickness(8, 0, 0, 0) };
 
             bool? choice = null;
             var newTabButton = mkBtn(L("New Tab"));
+            newTabButton.Style = ThemedDialog.GetStyle(dialog, "ThemedDialogPrimaryButtonStyle");
+            newTabButton.Margin = new Thickness(0);
             newTabButton.IsDefault = true;
-            newTabButton.FontWeight = FontWeights.SemiBold;
             newTabButton.Click += (s, e) => { choice = true; dialog.DialogResult = true; };
             var thisTabButton = mkBtn(L("This Tab"));
             thisTabButton.Click += (s, e) => { choice = false; dialog.DialogResult = true; };
@@ -2332,6 +2331,7 @@ namespace ClaudeCodeVS
             stack.Children.Add(buttons);
 
             dialog.Content = stack;
+            ThemedDialog.ApplyChrome(dialog);
             dialog.Loaded += (s, e) => newTabButton.Focus();
             dialog.ShowDialog();
             return choice;

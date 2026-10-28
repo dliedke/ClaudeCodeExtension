@@ -457,6 +457,29 @@ namespace ClaudeCodeVS.UI
             QueueComposerDensityRefresh();
         }
 
+        private bool _showNewChatAction = true;
+
+        /// <summary>
+        /// False in the single chat window ("Show all chats in one window"), whose tab strip has its
+        /// own "+": the composer's ✚ and the ⋯ menu's "New chat session" would only repeat it.
+        /// </summary>
+        public bool ShowNewChatAction
+        {
+            get { return _showNewChatAction; }
+            set
+            {
+                if (_showNewChatAction == value)
+                {
+                    return;
+                }
+
+                _showNewChatAction = value;
+                ComposerOverflowNewChatItem.Visibility = value ? Visibility.Visible : Visibility.Collapsed;
+                ApplyComposerDensity(_composerDensity);
+                QueueComposerDensityRefresh();
+            }
+        }
+
         private bool _compactToolbar;
 
         /// <summary>
@@ -749,7 +772,8 @@ namespace ClaudeCodeVS.UI
             ComposerClearButton.Visibility = unfolded;
             // The compact toolbar keeps ✚ out of the ⋯ menu: a new chat is the one session action used
             // often. Only the tightest tier folds it as well.
-            ComposerNewChatButton.Visibility = !folded || (IsCompactToolbarActive && density != ComposerDensity.Tight)
+            ComposerNewChatButton.Visibility = _showNewChatAction
+                                               && (!folded || (IsCompactToolbarActive && density != ComposerDensity.Tight))
                 ? Visibility.Visible
                 : Visibility.Collapsed;
             ComposerRenameSessionButton.Visibility = unfolded;
@@ -1876,6 +1900,18 @@ namespace ClaudeCodeVS.UI
             ColorPickerRequested?.Invoke(this, EventArgs.Empty);
         }
 
+        /// <summary>Rename this chat, as the composer's ✎ does — for the single chat window's tab menu.</summary>
+        public void RequestRename()
+        {
+            RenameSessionRequested?.Invoke(this, EventArgs.Empty);
+        }
+
+        /// <summary>Pick this chat's color, as the composer's color button does — for the tab menu.</summary>
+        public void RequestColorPicker()
+        {
+            ColorPickerRequested?.Invoke(this, EventArgs.Empty);
+        }
+
         /// <summary>
         /// Drops the 📎 menu (attach a file / insert editor selection / insert active file path) —
         /// the composer's counterpart to the panel's AttachDropdownButton, which is hidden while
@@ -1926,40 +1962,8 @@ namespace ClaudeCodeVS.UI
             ComposerOverflowButton.ContextMenu.IsOpen = true;
         }
 
-        private void SessionTitleBar_MouseLeftButtonUp(object sender, System.Windows.Input.MouseButtonEventArgs e)
-        {
-            RenameSessionRequested?.Invoke(this, EventArgs.Empty);
-        }
-
-        /// <summary>Raised by the small color swatch: pick a custom color for this session's title.</summary>
+        /// <summary>Raised by the composer's color button: pick a custom accent color for this session.</summary>
         public event EventHandler ColorPickerRequested;
-
-        private void SessionColorSwatch_MouseLeftButtonUp(object sender, System.Windows.Input.MouseButtonEventArgs e)
-        {
-            // Own handler so the click doesn't bubble up to SessionTitleBar and also open the
-            // rename dialog.
-            e.Handled = true;
-            ColorPickerRequested?.Invoke(this, EventArgs.Empty);
-        }
-
-        /// <summary>
-        /// Shows or hides the session-name header above the transcript. Kept out of the VS tab
-        /// caption (it truncated long titles awkwardly in the narrow tab strip) — this row has the
-        /// full width of the chat view to work with instead.
-        /// </summary>
-        public void SetSessionTitle(string title)
-        {
-            if (string.IsNullOrEmpty(title))
-            {
-                SessionTitleBar.Visibility = Visibility.Collapsed;
-                SessionTitleText.Text = string.Empty;
-            }
-            else
-            {
-                SessionTitleText.Text = title;
-                SessionTitleBar.Visibility = Visibility.Visible;
-            }
-        }
 
         private static readonly Color DefaultAccentColor = Color.FromRgb(0x1C, 0x8A, 0xE0); // matches ChatAccentBrush's XAML default
 

@@ -2896,9 +2896,9 @@ namespace ClaudeCodeVS
 
             try
             {
-                if (session?.Window?.Frame is IVsWindowFrame frame)
+                if (session?.Window != null && session.Window.IsAlive)
                 {
-                    frame.Show();
+                    session.Window.Show();
                     session.ChatTranscript?.FocusComposer();
                 }
             }

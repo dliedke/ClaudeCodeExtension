@@ -530,6 +530,9 @@ namespace ClaudeCodeVS
                     session.ChatTranscript.CompactToolbar = compactToolbar;
                 }
             }
+
+            // The single chat window's "+".
+            _chatContainer?.SetModernIcons(modern);
         }
 
         /// <summary>Re-applies the captions of every chat tab, after a tab status or title setting changed.</summary>

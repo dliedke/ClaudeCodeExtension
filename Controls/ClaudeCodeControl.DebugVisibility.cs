@@ -169,12 +169,12 @@ namespace ClaudeCodeVS
 
                 if (_chatIsInTab)
                 {
-                    RestoreFrameIfHiddenByVS(_nativeChatWindow?.Frame as IVsWindowFrame);
+                    RestoreFrameIfHiddenByVS(_nativeChatWindow?.WindowFrame);
                 }
 
                 foreach (var pair in _nativeSessions)
                 {
-                    RestoreFrameIfHiddenByVS(pair.Value?.Window?.Frame as IVsWindowFrame);
+                    RestoreFrameIfHiddenByVS(pair.Value?.Window?.WindowFrame);
                 }
             }
             catch (Exception ex)
@@ -212,11 +212,11 @@ namespace ClaudeCodeVS
                     RestoreFrameIfHiddenByVS(_detachedTerminalWindow?.Frame as IVsWindowFrame);
                 }
 
-                RestoreFrameIfHiddenByVS(_nativeChatWindow?.Frame as IVsWindowFrame);
+                RestoreFrameIfHiddenByVS(_nativeChatWindow?.WindowFrame);
 
                 foreach (var pair in _nativeSessions)
                 {
-                    RestoreFrameIfHiddenByVS(pair.Value?.Window?.Frame as IVsWindowFrame);
+                    RestoreFrameIfHiddenByVS(pair.Value?.Window?.WindowFrame);
                 }
 
                 // Frame visibility says nothing about the embedded conhost/wt.exe HWND living

@@ -137,7 +137,7 @@ Then choose it via *⚙ → Settings... → Terminal*.
 - Pick an AI provider, *Configure Visible Code Agents...*
 - Provider-specific flags: Claude *Skip Permissions* and *Start in Plan Mode*, Codex *Approval Never*, Cursor *Yolo Mode*, Devin *Dangerous Mode*, Antigravity *Skip Permissions*, Qwen Code *Yolo Mode*, Grok *Always Approve*
 - *Hide Prompt Input Box*, *Configure Custom Commands...*, *Settings...*, About
-- *Settings...* opens the consolidated dialog with tabs for On Agent Finish, Prompt (send key, large prompts, clipboard, selection as reference, last prompt, font size, @ file picker), Automation (auto-open Changes, track agent changes for review, pull before sending, TFVC checkout, auto-send build and runtime errors, Install Caveman, Install latest OpenPets), Layout (prompt panel position, prompt box, usage bars, subagent count), Terminal (native mode, terminal type, encoding, fonts), Theme, Toolbar, CLI Paths (including extra launch arguments), and Backup (save/load all settings to a file)
+- *Settings...* opens the consolidated dialog with tabs for On Agent Finish, Prompt (send key, large prompts, clipboard, selection as reference, last prompt, font size, @ file picker), Automation (auto-open Changes, track agent changes for review, pull before sending, TFVC checkout, auto-send build and runtime errors, Install Caveman, Install latest OpenPets), Layout (prompt panel position, prompt box, usage bars, subagent count, all chats in one window), Terminal (native mode, terminal type, encoding, fonts), Theme, Toolbar, CLI Paths (including extra launch arguments), and Backup (save/load all settings to a file)
 
 **☰ Tools dropdown**: Holds *Update Code Agent*, *Restart Code Agent*, *Detach/Attach Terminal*, *View Code Changes*, *Session History*, *Show Usage*, *Set Working Directory...*, *Send Build Errors to Agent*, *Generate Commit Message*, *Generate Commit Message, Commit and Push*, *Recommend AI Model*, and *GitHub Issues*. Promote any of these to one-click toolbar buttons — and reorder them by dragging — via *⚙ → Settings... → Toolbar*; promoted features leave the dropdown, which hides once they all become buttons.
 
@@ -172,6 +172,15 @@ Pull requests for new features are welcome. Bug fixes too — if you find an iss
 - The extension's original developer reviews the PR and publishes the new version to the Marketplace.
 
 ## Version History
+
+### Version 273.0
+- New "Show all chats in one window" option in Settings → Layout (off by default, applies after restarting Visual Studio): every chat opens as a tab inside a single Claude Code window that stays where you dock it, also while debugging.
+- In that window, switch chats with a click or Ctrl+PageUp/PageDown, close one with its ✕ or a middle click, and start a new one with + (which replaces the ✚ in each chat); closing the window only hides it and the chats keep running.
+- Right-click a chat's tab in that window to rename it, change its color, close it or close the others.
+- Drag the tabs to reorder them; when they no longer fit, a ▾ button lists every chat.
+- The title bar above the conversation was removed: the chat's title is already shown on its tab.
+- New "Resume Today's Sessions" button in Session History reopens all of today's conversations at once, each in its own tab (those already open are skipped).
+- Session History, Rename Session and the resume question now look like Visual Studio's own dialogs: themed title bar and scrollbars, a search box, rounded buttons and an accent-colored main action.
 
 ### Version 272.0
 - Typing "@" in a very large project no longer freezes Visual Studio (or the whole PC): the file list is now built within fixed time and memory limits.

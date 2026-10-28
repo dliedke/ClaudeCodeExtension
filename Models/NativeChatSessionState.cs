@@ -44,8 +44,9 @@ namespace ClaudeCodeVS
         public IAgentSession AgentSession { get; set; }
         public ChatTranscriptView ChatTranscript { get; set; }
 
-        /// <summary>The document tab hosting this session, so its caption can be kept in sync.</summary>
-        public NativeChatToolWindow Window { get; set; }
+        /// <summary>The tab hosting this session (its own VS tab or one inside the single chat window),
+        /// so its caption can be kept in sync.</summary>
+        public IChatTabHost Window { get; set; }
 
         /// <summary>
         /// Files staged in this tab's composer (📎, drag &amp; drop, pasted images). Per-session, so an

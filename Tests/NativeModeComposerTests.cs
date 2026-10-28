@@ -769,9 +769,9 @@ namespace ClaudeCodeExtension.Tests
         {
             string showBody = ExtractMethodBody(NativeChatSource, "private async Task ShowNativeChatTabAsync(bool focusComposer)");
 
-            StringAssert.Contains(showBody, "!(_nativeChatWindow.Frame is IVsWindowFrame)",
+            StringAssert.Contains(showBody, "!_nativeChatWindow.IsAlive",
                 "A cached window whose frame VS already tore down must be dropped, not reused into a null-frame no-op.");
-            StringAssert.Contains(showBody, "_nativeChatWindow == null || frame == null",
+            StringAssert.Contains(showBody, "_nativeChatWindow == null || !_nativeChatWindow.IsAlive",
                 "The panel must not be collapsed until a real document-tab frame has been obtained.");
             StringAssert.Contains(showBody, "EnsureNativeChatVisibleInPanel();",
                 "No usable frame must fall back to a working panel rather than a blank one.");

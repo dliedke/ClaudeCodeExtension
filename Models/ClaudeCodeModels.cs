@@ -616,6 +616,14 @@ namespace ClaudeCodeVS
         public bool AutoHidePanelInNativeMode { get; set; } = true;
 
         /// <summary>
+        /// If true, every native-mode chat opens as a tab inside one "Claude Code Chat" window
+        /// (<c>ChatContainerToolWindow</c>), whose position VS remembers, instead of each chat being
+        /// its own VS document tab placed wherever VS decides. Read when the first chat tab of a Visual
+        /// Studio session is created, so a change applies after a restart. Default false.
+        /// </summary>
+        public bool ChatTabsInOneWindow { get; set; } = false;
+
+        /// <summary>
         /// If true, each native chat tab shows what its session is doing in front of its caption:
         /// working, waiting for the user's answer, done or error. On by default.
         /// </summary>
