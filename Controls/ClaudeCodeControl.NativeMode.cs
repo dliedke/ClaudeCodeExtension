@@ -2519,8 +2519,7 @@ namespace ClaudeCodeVS
                     break;
 
                 case AgentEventKind.UsageUpdated:
-                    if (sessionId == _activeSessionId)
-                        ApplyNativeLiveUsage(agentEvent.Usage);
+                    ApplyNativeLiveUsageForSession(session, agentEvent.Usage);
                     break;
 
                 case AgentEventKind.RateLimitUpdated:
@@ -3086,6 +3085,31 @@ namespace ClaudeCodeVS
             {
                 ChatTranscript.SetActivityDetail(
                     ChatFormatting.Tokens(_nativeTurnInputTokens, _nativeTurnOutputTokens));
+            }
+        }
+
+        /// <summary>
+        /// <see cref="ApplyNativeLiveUsage"/> for a chat tab: counts into the tab's own totals and its own
+        /// status line, whichever tab sent the last prompt — parallel turns each keep counting.
+        /// </summary>
+        private void ApplyNativeLiveUsageForSession(NativeChatSessionState session, AgentUsage usage)
+        {
+            ThreadHelper.ThrowIfNotOnUIThread();
+
+            if (usage == null || session?.ChatTranscript == null)
+            {
+                return;
+            }
+
+            session.TurnOutputTokens += usage.OutputTokens;
+
+            // Latest, not summed — see ApplyNativeLiveUsage.
+            if (usage.InputTokens > 0) session.TurnInputTokens = usage.InputTokens;
+
+            if (_settings?.ShowChatTokenCounts != false)
+            {
+                session.ChatTranscript.SetActivityDetail(
+                    ChatFormatting.Tokens(session.TurnInputTokens, session.TurnOutputTokens));
             }
         }
 

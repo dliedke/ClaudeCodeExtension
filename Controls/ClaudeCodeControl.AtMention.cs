@@ -42,7 +42,9 @@ namespace ClaudeCodeVS
         private const int AtMentionMaxResults = 60;
         private const int AtMentionMaxEntries = 50000;         // files kept in the index (folders are derived from them)
         private const int AtMentionMaxScannedFiles = 250000;   // bound on the filesystem walk when a filter matches little
-        private const int AtMentionGitTimeoutMs = 15000;
+        private const int AtMentionGitTimeoutMs = 15000;       // whole git listing (tracked + untracked)
+        private const int AtMentionGitOthersTimeoutMs = 5000;  // untracked part, after the tracked files
+        private const int AtMentionWalkTimeoutMs = 10000;      // filesystem walk outside a repository
         private const int AtPopupPageSize = 8;                 // rows PageUp/PageDown jump (the list shows about ten)
         private static readonly TimeSpan AtEntriesTtl = TimeSpan.FromSeconds(30);
 
@@ -206,6 +208,9 @@ namespace ClaudeCodeVS
                 if (caret < 0 || caret > text.Length) { HideAtPopup(target); return; }
 
                 if (TryUpdateSlashPopup(target, text, caret)) return;
+
+                // Settings → Prompt → "Show the @ file picker" off: "@" is plain text.
+                if (_settings != null && !_settings.AtMentionEnabled) { HideAtPopup(target); return; }
 
                 int at = -1;
                 for (int i = caret - 1; i >= 0; i--)
@@ -462,14 +467,120 @@ namespace ClaudeCodeVS
         /// Null when git is unavailable or the folder is not inside a repository, so the caller falls
         /// back to walking the disk.
         /// </summary>
-        private List<string> ListGitWorkspaceFiles(string root)
+        private IEnumerable<string> ListGitWorkspaceFiles(string root)
         {
-            string output = RunGitCommand(root, "ls-files -z --cached --others --exclude-standard", AtMentionGitTimeoutMs);
-            if (output == null) return null;
+            string inside = RunGitCommand(root, "rev-parse --is-inside-work-tree", 5000);
+            if (inside == null || inside.Trim() != "true") return null;
 
-            return output.Split(new[] { '\0' }, StringSplitOptions.RemoveEmptyEntries)
-                .Distinct(StringComparer.Ordinal) // --cached lists a file once per conflict stage
-                .ToList();
+            return StreamGitWorkspaceFiles(root);
+        }
+
+        /// <summary>
+        /// Streams the git file list instead of reading it whole: a large repository with big
+        /// untracked folders not covered by .gitignore can list millions of paths, and buffering them
+        /// (then splitting and de-duplicating copies) exhausted the machine's memory. Tracked files
+        /// come first — they are read from the index and are fast — then untracked ones with a
+        /// shorter time budget. Stops at <see cref="AtMentionMaxScannedFiles"/> entries, at the
+        /// deadline, or as soon as the consumer has enough (git is killed then).
+        /// </summary>
+        private IEnumerable<string> StreamGitWorkspaceFiles(string root)
+        {
+            var clock = Stopwatch.StartNew();
+            int scanned = 0;
+            string previous = null;
+
+            foreach (string file in StreamGitLsFiles(root, "ls-files -z --cached", AtMentionGitTimeoutMs))
+            {
+                if (string.Equals(file, previous, StringComparison.Ordinal)) continue; // once per conflict stage
+                previous = file;
+                if (++scanned > AtMentionMaxScannedFiles) yield break;
+                yield return file;
+            }
+
+            int remainingMs = Math.Min(AtMentionGitOthersTimeoutMs, AtMentionGitTimeoutMs - (int)clock.ElapsedMilliseconds);
+            foreach (string file in StreamGitLsFiles(root, "ls-files -z --others --exclude-standard", remainingMs))
+            {
+                if (++scanned > AtMentionMaxScannedFiles) yield break;
+                yield return file;
+            }
+        }
+
+        /// <summary>
+        /// Runs a NUL-separated git listing and yields its entries as they arrive. The process runs
+        /// at below-normal priority and is killed when <paramref name="timeoutMs"/> elapses or the
+        /// caller stops enumerating; whatever was read so far is kept.
+        /// </summary>
+        private IEnumerable<string> StreamGitLsFiles(string root, string arguments, int timeoutMs)
+        {
+            string gitPath = ResolveGitPath();
+            if (string.IsNullOrEmpty(gitPath) || timeoutMs <= 0) yield break;
+
+            Process process = null;
+            try
+            {
+                process = Process.Start(new ProcessStartInfo
+                {
+                    FileName = gitPath,
+                    Arguments = arguments,
+                    WorkingDirectory = root,
+                    RedirectStandardOutput = true,
+                    RedirectStandardError = true,
+                    UseShellExecute = false,
+                    CreateNoWindow = true,
+                    StandardOutputEncoding = System.Text.Encoding.UTF8,
+                    StandardErrorEncoding = System.Text.Encoding.UTF8
+                });
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"StreamGitLsFiles start error: {ex.Message}");
+            }
+            if (process == null) yield break;
+
+            using (process)
+            using (new System.Threading.Timer(_ => KillQuietly(process), null, timeoutMs, System.Threading.Timeout.Infinite))
+            {
+                try { process.PriorityClass = ProcessPriorityClass.BelowNormal; } catch { }
+                _ = process.StandardError.ReadToEndAsync(); // drained so git never blocks on a full stderr pipe
+
+                try
+                {
+                    var buffer = new char[8192];
+                    var entry = new System.Text.StringBuilder();
+                    int read;
+                    while ((read = SafeRead(process.StandardOutput, buffer)) > 0)
+                    {
+                        for (int i = 0; i < read; i++)
+                        {
+                            if (buffer[i] != '\0') { entry.Append(buffer[i]); continue; }
+                            if (entry.Length > 0) yield return entry.ToString();
+                            entry.Clear();
+                        }
+                    }
+                }
+                finally
+                {
+                    KillQuietly(process);
+                }
+            }
+        }
+
+        private static int SafeRead(StreamReader reader, char[] buffer)
+        {
+            try { return reader.Read(buffer, 0, buffer.Length); }
+            catch { return 0; }
+        }
+
+        private static void KillQuietly(Process process)
+        {
+            try
+            {
+                if (!process.HasExited) process.Kill();
+            }
+            catch
+            {
+                // already exited or disposed
+            }
         }
 
         /// <summary>
@@ -482,9 +593,12 @@ namespace ClaudeCodeVS
             var queue = new Queue<string>();
             queue.Enqueue(rootFull);
             int scanned = 0;
+            var clock = Stopwatch.StartNew();
 
             while (queue.Count > 0 && scanned < AtMentionMaxScannedFiles)
             {
+                if (clock.ElapsedMilliseconds > AtMentionWalkTimeoutMs) yield break;
+
                 string dir = queue.Dequeue();
 
                 string[] files;

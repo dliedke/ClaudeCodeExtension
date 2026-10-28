@@ -10,6 +10,8 @@
  *
  * *******************************************************************************************************************/
 
+using System.Collections.Generic;
+using ClaudeCodeVS.Agents;
 using ClaudeCodeVS.UI;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 
@@ -72,6 +74,102 @@ namespace ClaudeCodeExtension.Tests
             vm.Select(vm.Options[0]);
             vm.Select(vm.Options[1]);
             Assert.AreEqual("Answer1, Answer2", vm.BuildAnswer());
+        }
+
+        [TestMethod]
+        public void CapturedAnswerKeepsChoiceAndNoteApart()
+        {
+            ChatQuestionViewModel vm = Question(false, "Answer1", "Answer2");
+            vm.Select(vm.Options[1]);
+            vm.OtherAnswer = "  but keep it short ";
+            vm.CaptureAnswer();
+
+            Assert.AreEqual("Answer2", vm.AnsweredChoice);
+            Assert.AreEqual("but keep it short", vm.AnsweredNote);
+            Assert.IsTrue(vm.HasAnsweredNote);
+            Assert.IsFalse(vm.WasLeftBlank);
+        }
+
+        [TestMethod]
+        public void CapturedFreeTextAloneIsTheChoice()
+        {
+            ChatQuestionViewModel vm = Question(true, "Answer1", "Answer2");
+            vm.OtherAnswer = "my own";
+            vm.CaptureAnswer();
+
+            Assert.AreEqual("my own", vm.AnsweredChoice);
+            Assert.IsFalse(vm.HasAnsweredNote);
+            Assert.IsFalse(vm.WasLeftBlank);
+        }
+
+        [TestMethod]
+        public void CapturedBlankQuestionSaysNoAnswer()
+        {
+            ChatQuestionViewModel vm = Question(false, "Answer1");
+            vm.CaptureAnswer();
+
+            Assert.AreEqual("No answer", vm.AnsweredChoice);
+            Assert.IsFalse(vm.HasAnsweredNote);
+            Assert.IsTrue(vm.WasLeftBlank);
+        }
+
+        private static ChatInteractionViewModel QuestionCard(int questionCount)
+        {
+            var questions = new List<AgentQuestion>();
+            for (int i = 0; i < questionCount; i++)
+            {
+                questions.Add(new AgentQuestion
+                {
+                    Question = "Q" + i + "?",
+                    Options = new[] { new AgentQuestionOption { Label = "Yes" } }
+                });
+            }
+
+            return new ChatInteractionViewModel(new AgentInteractionRequest((allow, reason, answers) => { })
+            {
+                Kind = AgentInteractionKind.Question,
+                Questions = questions
+            });
+        }
+
+        [TestMethod]
+        public void TitleNamesTheQuestionsOnceAnswered()
+        {
+            ChatInteractionViewModel single = QuestionCard(1);
+            Assert.AreEqual("The agent needs your input", single.Title);
+            single.Questions[0].Select(single.Questions[0].Options[0]);
+            single.Submit();
+            Assert.AreEqual("Question", single.Title);
+
+            ChatInteractionViewModel several = QuestionCard(2);
+            several.Questions[0].Select(several.Questions[0].Options[0]);
+            several.Submit();
+            Assert.AreEqual("Questions", several.Title);
+
+            ChatInteractionViewModel skipped = QuestionCard(1);
+            skipped.Reject();
+            Assert.AreEqual("Question skipped", skipped.Title);
+        }
+
+        [TestMethod]
+        public void RecommendedSuffixIsTranslatedForDisplayOnly()
+        {
+            try
+            {
+                Loc.SetLanguageFromJson("it", "{ \"(Recommended)\": \"(Scelta consigliata)\" }");
+                ChatQuestionViewModel vm = Question(false, "Chiusura (Recommended)", "Apertura");
+
+                Assert.AreEqual("Chiusura (Scelta consigliata)", vm.Options[0].DisplayLabel);
+                Assert.AreEqual("Apertura", vm.Options[1].DisplayLabel);
+                Assert.AreEqual("Chiusura (Scelta consigliata)", ChatOptionViewModel.LocalizeLabel("Chiusura (recommended) "));
+
+                vm.Select(vm.Options[0]);
+                Assert.AreEqual("Chiusura (Recommended)", vm.BuildAnswer(), "The agent must get its own label back.");
+            }
+            finally
+            {
+                Loc.SetLanguageFromJson(Loc.EnglishLanguage, null);
+            }
         }
     }
 }

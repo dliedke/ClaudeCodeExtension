@@ -428,6 +428,7 @@ namespace ClaudeCodeVS.UI
             ComposerInputBorder.Visibility = fullOnly;
             UpdateSendButtonVisibility();
             ComposerSettingsButton.Visibility = fullOnly;
+            ComposerSessionHistoryButton.Visibility = fullOnly;
             ComposerPromotedButtons.Visibility = fullOnly;
             UpdateToolsButtonVisibility();
             UpdateCustomCommandsButtonVisibility();
@@ -991,6 +992,7 @@ namespace ClaudeCodeVS.UI
             yield return (ComposerCustomCommandsButton, KnownMonikers.Event);
             yield return (ComposerToolsButton, KnownMonikers.BulletList);
             yield return (ComposerSettingsButton, KnownMonikers.Settings);
+            yield return (ComposerSessionHistoryButton, KnownMonikers.History);
             yield return (ComposerSendButton, KnownMonikers.Send);
         }
 
@@ -1467,6 +1469,9 @@ namespace ClaudeCodeVS.UI
 
         /// <summary>Raised by the welcome card's "All sessions…" link: open Session History.</summary>
         public event EventHandler WelcomeAllSessionsRequested;
+
+        /// <summary>Raised by the composer's 🕘 button beside ⚙: open Session History for this tab.</summary>
+        public event EventHandler SessionHistoryRequested;
 
         private bool _welcomeTipsExpanded;
 
@@ -2145,6 +2150,11 @@ namespace ClaudeCodeVS.UI
         private void ComposerSettingsButton_Click(object sender, RoutedEventArgs e)
         {
             ConfigMenuClicked?.Invoke(this, ChatConfigMenu.Settings);
+        }
+
+        private void ComposerSessionHistoryButton_Click(object sender, RoutedEventArgs e)
+        {
+            SessionHistoryRequested?.Invoke(this, EventArgs.Empty);
         }
 
         private void ComposerToolsButton_Click(object sender, RoutedEventArgs e)

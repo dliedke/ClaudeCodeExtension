@@ -515,6 +515,12 @@ namespace ClaudeCodeVS
         public bool KeepLastPromptVisible { get; set; } = false;
 
         /// <summary>
+        /// "@" file picker on/off. When false, typing "@" in the prompt is plain text: no popup and
+        /// no workspace indexing. Default true. See ClaudeCodeControl.AtMention.cs.
+        /// </summary>
+        public bool AtMentionEnabled { get; set; } = true;
+
+        /// <summary>
         /// "@" file picker: file types to list (e.g. ".cs, .lua"); empty = every file. Folders are
         /// shown only when they contain a matching file. Issue #174. See ClaudeCodeControl.AtMention.cs.
         /// </summary>

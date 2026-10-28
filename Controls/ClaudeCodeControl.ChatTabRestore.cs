@@ -166,12 +166,9 @@ namespace ClaudeCodeVS
             RecordOpenChatTabs();
         }
 
-        /// <summary>Same steps as <see cref="StartParallelSessionAsync"/>, with a resume and the transcript replay.</summary>
         private async Task RestoreParallelChatTabAsync(SavedChatTab tab, string workspace)
         {
-            await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
-
-            NativeChatSessionState session = CreateAndRegisterSession(tab.Provider, workspace, null, state =>
+            await OpenResumedChatTabAsync(tab.Provider, workspace, tab.SessionId, focus: false, configure: state =>
             {
                 state.SelectedModel = tab.SelectedModel;
                 state.SelectedClaudeModel = tab.SelectedClaudeModel;
@@ -182,18 +179,39 @@ namespace ClaudeCodeVS
                 state.AutoPermissions = tab.AutoPermissions;
                 state.ManualMode = tab.ManualMode;
                 state.AutoTitle = string.IsNullOrWhiteSpace(tab.Title) ? null : tab.Title;
+            });
+        }
+
+        /// <summary>
+        /// Same steps as <see cref="StartParallelSessionAsync"/>, with a resume and the transcript replay:
+        /// opens <paramref name="sessionId"/> in a new chat tab. Used to reopen tabs with the solution and
+        /// by Session History's "New Tab". <paramref name="focus"/> brings the tab forward with the
+        /// composer focused. Returns null when the agent session could not be created.
+        /// </summary>
+        private async Task<NativeChatSessionState> OpenResumedChatTabAsync(AiProvider provider, string workspace, string sessionId,
+            bool focus, Action<NativeChatSessionState> configure)
+        {
+            await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
+
+            NativeChatSessionState session = CreateAndRegisterSession(provider, workspace, null, state =>
+            {
+                configure?.Invoke(state);
                 state.DeferAgentLaunch = true;
-            }, tab.SessionId);
+            }, sessionId);
 
             if (session?.AgentSession == null)
             {
-                return;
+                return null;
             }
 
             session.ChatTranscript.Clear();
             session.ChatTranscript.SetStatus(L("Starting the agent..."));
 
-            await ShowSessionInTabAsync(session, focusComposer: false);
+            await ShowSessionInTabAsync(session, focusComposer: focus);
+            if (focus)
+            {
+                _lastFocusedNativeSessionId = session.SessionId;
+            }
 
             UpdateChatComposerState(session);
             if (_settings != null)
@@ -213,7 +231,7 @@ namespace ClaudeCodeVS
             session.ChatTranscript.SetStatus(L("Ready."));
 
             bool replayed = (agent as AcpSession)?.WasResumedFromLoad == true ||
-                            await TryReplayResumedTranscriptAsync(tab.Provider, workspace, tab.SessionId, session);
+                            await TryReplayResumedTranscriptAsync(provider, workspace, sessionId, session);
 
             await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
             if (!replayed)
@@ -222,6 +240,7 @@ namespace ClaudeCodeVS
             }
 
             UpdateSessionTabCaption(session);
+            return session;
         }
 
         /// <summary>True when a tab — the main chat or a parallel one — already shows this conversation.</summary>

@@ -28,6 +28,7 @@ using Microsoft.VisualStudio.Shell;
 using Newtonsoft.Json.Linq;
 using ClaudeCodeVS.Agents;
 using ClaudeCodeVS.UI;
+using static ClaudeCodeVS.UI.Loc;
 
 namespace ClaudeCodeVS
 {
@@ -381,11 +382,11 @@ namespace ClaudeCodeVS
         /// <summary>
         /// The <paramref name="count"/> most recently modified Claude Code conversations of a workspace,
         /// newest first, for the welcome card. Only as many transcripts are parsed as it takes to find
-        /// them; sessions in <paramref name="excludedIds"/> (open in a chat tab) and ones without a
-        /// prompt are skipped. Titles are applied the way Session History applies them.
+        /// them; ones without a prompt are skipped. Conversations open in a chat tab are kept, so the
+        /// card lists the same ones as Session History. Titles are applied the way Session History applies them.
         /// </summary>
         private async Task<List<SessionInfo>> LoadRecentClaudeSessionsAsync(AiProvider provider, string workspaceDir,
-            int count, ICollection<string> excludedIds)
+            int count)
         {
             string sessionDir = await ResolveSessionDirectoryAsync(provider, workspaceDir);
             if (string.IsNullOrEmpty(sessionDir))
@@ -404,8 +405,6 @@ namespace ClaudeCodeVS
 
                 foreach (FileInfo file in files)
                 {
-                    if (excludedIds.Contains(Path.GetFileNameWithoutExtension(file.Name))) continue;
-
                     try
                     {
                         SessionInfo info = ParseSessionFile(file.FullName, provider);
@@ -1034,47 +1033,51 @@ namespace ClaudeCodeVS
         /// <summary>
         /// Builds the two-line row content for a session: the title — the session's name (given by
         /// hand or generated from the first prompt), else the first prompt itself — over a dim line
-        /// with the date, the counts and the git branch.
+        /// with when, the counts, the git branch and whether a chat tab already shows it.
+        /// <paramref name="timeOnly"/> is set under the Today/Yesterday bands, which already say the day.
         /// </summary>
-        private static FrameworkElement CreateSessionItemContent(SessionInfo s, Brush themeFg)
+        private static FrameworkElement CreateSessionItemContent(SessionInfo s, Brush themeFg, bool timeOnly, bool isOpen)
         {
             bool titled = !string.IsNullOrWhiteSpace(s.CustomTitle);
 
-            string meta = s.LastModified.ToString("yyyy-MM-dd HH:mm");
-            if (s.MessageCount >= 0 || s.TokenCount >= 0)
+            var parts = new List<string>
             {
-                var details = new List<string>();
-                if (s.MessageCount >= 0) details.Add($"{s.MessageCount} msgs");
-                if (s.TokenCount >= 0)
-                {
-                    details.Add(s.TokenCount > 1000
-                        ? $"{s.TokenCount / 1000.0:0.#}k tokens"
-                        : $"{s.TokenCount} tokens");
-                }
-                meta += "   (" + string.Join(", ", details) + ")";
+                s.LastModified.ToString(timeOnly ? "t" : "g", Loc.Culture)
+            };
+            if (s.MessageCount >= 0)
+            {
+                parts.Add(s.MessageCount == 1 ? L("1 message") : L("{0:N0} messages", s.MessageCount));
             }
-
+            if (s.TokenCount >= 0)
+            {
+                parts.Add(L("{0} tokens", ChatUsageIndicator.FormatTokens(s.TokenCount)));
+            }
             if (!string.IsNullOrEmpty(s.GitBranch))
             {
-                meta += "   [" + s.GitBranch + "]";
+                parts.Add(s.GitBranch);
+            }
+            if (isOpen)
+            {
+                parts.Add(L("already open"));
             }
 
-            var stack = new StackPanel { Orientation = Orientation.Vertical, Margin = new Thickness(4, 0, 0, 0) };
+            var stack = new StackPanel { Orientation = Orientation.Vertical };
 
             stack.Children.Add(new TextBlock
             {
                 Text = s.DisplayTitle,
                 Foreground = themeFg,
+                FontSize = 13,
                 FontWeight = titled ? FontWeights.SemiBold : FontWeights.Normal,
-                TextWrapping = TextWrapping.Wrap
+                TextTrimming = TextTrimming.CharacterEllipsis
             });
 
             stack.Children.Add(new TextBlock
             {
-                Text = meta,
+                Text = string.Join("  ·  ", parts),
                 Foreground = themeFg,
                 Opacity = 0.6,
-                FontSize = 11,
+                FontSize = 11.5,
                 TextTrimming = TextTrimming.CharacterEllipsis,
                 Margin = new Thickness(0, 2, 0, 0)
             });
@@ -1083,37 +1086,97 @@ namespace ClaudeCodeVS
         }
 
         /// <summary>
-        /// The non-selectable row that opens a date band in the list. Disabled so the keyboard and the
-        /// mouse skip it; it carries no <see cref="SessionInfo"/>, so no action ever sees it as a session.
+        /// The non-selectable row that opens a date band in the list: a small caption followed by a
+        /// thin rule. Disabled so the keyboard and the mouse skip it; it carries no
+        /// <see cref="SessionInfo"/>, so no action ever sees it as a session.
         /// </summary>
         private static ListBoxItem CreateSessionGroupHeader(SessionDateGroup group, Brush themeFg)
         {
             string caption;
             switch (group)
             {
-                case SessionDateGroup.Today: caption = "Today"; break;
-                case SessionDateGroup.Yesterday: caption = "Yesterday"; break;
-                case SessionDateGroup.Last7Days: caption = "Previous 7 days"; break;
-                case SessionDateGroup.Last30Days: caption = "Previous 30 days"; break;
-                default: caption = "Older"; break;
+                case SessionDateGroup.Today: caption = L("Today"); break;
+                case SessionDateGroup.Yesterday: caption = L("Yesterday"); break;
+                case SessionDateGroup.Last7Days: caption = L("Previous 7 days"); break;
+                case SessionDateGroup.Last30Days: caption = L("Previous 30 days"); break;
+                default: caption = L("Older"); break;
             }
+
+            var row = new Grid();
+            row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+            row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+
+            row.Children.Add(new TextBlock
+            {
+                Text = caption,
+                Foreground = themeFg,
+                FontSize = 11.5,
+                FontWeight = FontWeights.SemiBold,
+                Opacity = 0.7
+            });
+
+            var rule = new System.Windows.Shapes.Rectangle
+            {
+                Height = 1,
+                Fill = themeFg,
+                Opacity = 0.18,
+                VerticalAlignment = VerticalAlignment.Center,
+                Margin = new Thickness(10, 1, 0, 0)
+            };
+            Grid.SetColumn(rule, 1);
+            row.Children.Add(rule);
 
             return new ListBoxItem
             {
-                Content = new TextBlock
-                {
-                    Text = caption,
-                    Foreground = themeFg,
-                    FontWeight = FontWeights.SemiBold,
-                    Opacity = 0.75
-                },
+                Content = row,
                 IsEnabled = false,
                 Focusable = false,
                 IsHitTestVisible = false,
-                Background = Brushes.Transparent,
-                Padding = new Thickness(2, 8, 2, 0),
-                Margin = new Thickness(0)
+                Padding = new Thickness(4, 12, 4, 4)
             };
+        }
+
+        /// <summary>
+        /// Row look of the session list: rounded hover/selection background derived from the theme
+        /// background (lighter on dark themes, darker on light ones) instead of the stock WPF
+        /// gray box with its white focus border.
+        /// </summary>
+        private static Style CreateSessionRowStyle(Brush themeBg)
+        {
+            var border = new FrameworkElementFactory(typeof(Border));
+            border.SetValue(Border.CornerRadiusProperty, new CornerRadius(4));
+            border.SetBinding(Border.BackgroundProperty,
+                new System.Windows.Data.Binding("Background") { RelativeSource = System.Windows.Data.RelativeSource.TemplatedParent });
+            border.SetBinding(Border.PaddingProperty,
+                new System.Windows.Data.Binding("Padding") { RelativeSource = System.Windows.Data.RelativeSource.TemplatedParent });
+            border.AppendChild(new FrameworkElementFactory(typeof(ContentPresenter)));
+
+            var style = new Style(typeof(ListBoxItem));
+            style.Setters.Add(new Setter(Control.TemplateProperty, new ControlTemplate(typeof(ListBoxItem)) { VisualTree = border }));
+            style.Setters.Add(new Setter(Control.BackgroundProperty, Brushes.Transparent));
+            style.Setters.Add(new Setter(Control.PaddingProperty, new Thickness(10, 6, 10, 7)));
+            style.Setters.Add(new Setter(FrameworkElement.MarginProperty, new Thickness(0, 1, 0, 1)));
+            style.Setters.Add(new Setter(Control.HorizontalContentAlignmentProperty, HorizontalAlignment.Stretch));
+            style.Setters.Add(new Setter(FrameworkElement.FocusVisualStyleProperty, null));
+
+            var hover = new Trigger { Property = UIElement.IsMouseOverProperty, Value = true };
+            hover.Setters.Add(new Setter(Control.BackgroundProperty, ShiftThemeBrush(themeBg, 16)));
+            style.Triggers.Add(hover);
+
+            var selected = new Trigger { Property = ListBoxItem.IsSelectedProperty, Value = true };
+            selected.Setters.Add(new Setter(Control.BackgroundProperty, ShiftThemeBrush(themeBg, 34)));
+            style.Triggers.Add(selected);
+
+            return style;
+        }
+
+        /// <summary>The theme background moved <paramref name="shift"/> steps toward the foreground.</summary>
+        private static Brush ShiftThemeBrush(Brush themeBg, int shift)
+        {
+            Color c = (themeBg as SolidColorBrush)?.Color ?? Colors.Gray;
+            int delta = (c.R + c.G + c.B) < 384 ? shift : -shift;
+            Func<byte, byte> move = v => (byte)Math.Max(0, Math.Min(255, v + delta));
+            return new SolidColorBrush(Color.FromRgb(move(c.R), move(c.G), move(c.B)));
         }
 
         /// <summary>
@@ -1122,14 +1185,14 @@ namespace ClaudeCodeVS
         /// </summary>
         private static string BuildSessionTooltip(SessionInfo s)
         {
-            string tip = $"Session: {s.SessionId}\nFile: {s.FilePath}\ncwd: {s.Cwd}";
+            string tip = L("Session: {0}", s.SessionId) + "\n" + L("File: {0}", s.FilePath) + "\n" + L("Folder: {0}", s.Cwd);
             if (!string.IsNullOrEmpty(s.GitBranch))
             {
-                tip += $"\nBranch: {s.GitBranch}";
+                tip += "\n" + L("Branch: {0}", s.GitBranch);
             }
             if (!string.IsNullOrWhiteSpace(s.CustomTitle))
             {
-                tip += $"\nFirst prompt: {s.Preview}";
+                tip += "\n" + L("First prompt: {0}", s.Preview);
             }
             return tip;
         }
@@ -1158,8 +1221,8 @@ namespace ClaudeCodeVS
             catch (Exception ex)
             {
                 Debug.WriteLine($"Error opening session history: {ex.Message}");
-                MessageBox.Show($"Error opening session history: {ex.Message}",
-                    "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                MessageBox.Show(L("Error opening session history: {0}", ex.Message),
+                    L("Error"), MessageBoxButton.OK, MessageBoxImage.Error);
             }
         }
 
@@ -1179,9 +1242,9 @@ namespace ClaudeCodeVS
             if (adapter == null)
             {
                 MessageBox.Show(
-                    "Session history is available for Claude Code, Codex and Devin (native or WSL). " +
-                    "Switch the active code agent to one of those providers first.",
-                    "Session History",
+                    L("Session history is available for Claude Code, Codex and Devin (native or WSL). " +
+                      "Switch the active code agent to one of those providers first."),
+                    L("Session History"),
                     MessageBoxButton.OK, MessageBoxImage.Information);
                 return;
             }
@@ -1192,16 +1255,17 @@ namespace ClaudeCodeVS
                 : await GetWorkspaceDirectoryAsync();
             if (string.IsNullOrEmpty(workspaceDir))
             {
-                MessageBox.Show("Could not determine the current workspace directory.",
-                    "Session History", MessageBoxButton.OK, MessageBoxImage.Warning);
+                MessageBox.Show(L("Could not determine the current workspace directory."),
+                    L("Session History"), MessageBoxButton.OK, MessageBoxImage.Warning);
                 return;
             }
 
             GetThemeBrushes(out Brush themeBg, out Brush themeFg);
+            Brush subtleBorder = new SolidColorBrush(((themeFg as SolidColorBrush)?.Color ?? Colors.Gray)) { Opacity = 0.3 };
 
             var dialog = new Window
             {
-                Title = $"{GetSessionHistoryProviderName(selected.Value)} Session History — {workspaceDir}",
+                Title = L("{0} Session History — {1}", GetSessionHistoryProviderName(selected.Value), workspaceDir),
                 Width = 760,
                 Height = 460,
                 WindowStartupLocation = WindowStartupLocation.CenterOwner,
@@ -1227,7 +1291,7 @@ namespace ClaudeCodeVS
 
             var filterLabel = new TextBlock
             {
-                Text = "Filter:",
+                Text = L("Filter:"),
                 Foreground = themeFg,
                 VerticalAlignment = VerticalAlignment.Center,
                 Margin = new Thickness(0, 0, 8, 0)
@@ -1239,12 +1303,12 @@ namespace ClaudeCodeVS
             {
                 Background = themeBg,
                 Foreground = themeFg,
-                BorderBrush = themeFg,
+                BorderBrush = subtleBorder,
                 VerticalContentAlignment = VerticalAlignment.Center,
                 Height = 26,
                 Margin = new Thickness(0, 0, 12, 0),
-                ToolTip = "Type to filter by title, first prompt, branch, or date. Double-click a session to resume; " +
-                          "right-click or press F2 to rename."
+                ToolTip = L("Type to filter by title, first prompt, branch, or date. Double-click a session to resume; " +
+                            "right-click or press F2 to rename.")
             };
             Grid.SetColumn(searchBox, 1);
             filterBar.Children.Add(searchBox);
@@ -1253,7 +1317,7 @@ namespace ClaudeCodeVS
             // relying on the implicit last-modified ordering. Tag holds the persisted key.
             var sortLabel = new TextBlock
             {
-                Text = "Sort:",
+                Text = L("Sort:"),
                 Foreground = themeFg,
                 VerticalAlignment = VerticalAlignment.Center,
                 Margin = new Thickness(0, 0, 6, 0)
@@ -1264,15 +1328,15 @@ namespace ClaudeCodeVS
             var comboRes = BuildThemedComboResources(themeBg, themeFg);
             var sortCombo = MakeThemedComboBox(comboRes, themeFg);
             sortCombo.MinWidth = 150;
-            sortCombo.ToolTip = "Choose how sessions are ordered. Your choice is remembered across restarts.";
+            sortCombo.ToolTip = L("Choose how sessions are ordered. Your choice is remembered across restarts.");
 
             var sortOptions = new[]
             {
-                new { Key = "modified", Label = "Last modified" },
-                new { Key = "oldest",   Label = "Oldest first" },
-                new { Key = "tokens",   Label = "Most tokens" },
-                new { Key = "messages", Label = "Most messages" },
-                new { Key = "title",    Label = "Title (A–Z)" }
+                new { Key = "modified", Label = L("Last modified") },
+                new { Key = "oldest",   Label = L("Oldest first") },
+                new { Key = "tokens",   Label = L("Most tokens") },
+                new { Key = "messages", Label = L("Most messages") },
+                new { Key = "title",    Label = L("Title (A–Z)") }
             };
             string savedSort = string.IsNullOrWhiteSpace(_settings?.SessionHistorySortMode)
                 ? "modified" : _settings.SessionHistorySortMode;
@@ -1309,25 +1373,19 @@ namespace ClaudeCodeVS
             {
                 Background = themeBg,
                 Foreground = themeFg,
-                BorderBrush = themeFg,
-                FontFamily = new FontFamily("Cascadia Mono, Consolas"),
+                BorderBrush = subtleBorder,
+                Padding = new Thickness(4),
                 HorizontalContentAlignment = HorizontalAlignment.Stretch
             };
-            // No horizontal scrolling — rows wrap to the panel width instead of overflowing.
+            // No horizontal scrolling — long titles ellipsize to the panel width instead of overflowing.
             ScrollViewer.SetHorizontalScrollBarVisibility(listBox, ScrollBarVisibility.Disabled);
-            // Give each entry breathing room and let the row content stretch so long
-            // titles/previews ellipsize instead of overflowing.
-            var itemContainerStyle = new Style(typeof(ListBoxItem));
-            itemContainerStyle.Setters.Add(new Setter(Control.PaddingProperty, new Thickness(6, 5, 6, 6)));
-            itemContainerStyle.Setters.Add(new Setter(FrameworkElement.MarginProperty, new Thickness(0, 0, 0, 4)));
-            itemContainerStyle.Setters.Add(new Setter(Control.HorizontalContentAlignmentProperty, HorizontalAlignment.Stretch));
-            listBox.ItemContainerStyle = itemContainerStyle;
+            listBox.ItemContainerStyle = CreateSessionRowStyle(themeBg);
             Grid.SetRow(listBox, 1);
             grid.Children.Add(listBox);
 
             var loading = new TextBlock
             {
-                Text = "Loading sessions…",
+                Text = L("Loading sessions…"),
                 Foreground = themeFg,
                 FontStyle = FontStyles.Italic,
                 TextAlignment = TextAlignment.Center,
@@ -1354,40 +1412,43 @@ namespace ClaudeCodeVS
                 return b;
             };
 
-            var resumeButton = mkBtn("Resume");
-            var continueButton = mkBtn("Resume Last Session");
-            var viewButton = mkBtn("View");
-            var renameButton = mkBtn("Rename");
-            var deleteButton = mkBtn("Delete");
-            var refreshButton = mkBtn("Refresh");
-            var closeButton = mkBtn("Close");
+            // Only the two actions that matter stay as buttons; View, Rename, Delete and Refresh live in
+            // the list-icon menu beside them (the same menu as a right-click on a row).
+            var resumeButton = mkBtn(L("Resume"));
+            var closeButton = mkBtn(L("Close"));
             closeButton.IsCancel = true;
+            // The action used most: Enter resumes the selected session, from the list or the filter box.
+            resumeButton.IsDefault = true;
+            resumeButton.FontWeight = FontWeights.SemiBold;
 
-            // Capability gating (e.g. Devin has no delete verb): fixed for the dialog's lifetime,
-            // since the provider cannot change without closing and reopening this window.
-            viewButton.IsEnabled = adapter.CanViewTranscript;
-            deleteButton.IsEnabled = adapter.CanDelete;
-            deleteButton.ToolTip = adapter.CanDelete
-                ? null
-                : $"{GetSessionHistoryProviderName(selected.Value)} does not support deleting sessions from here.";
+            var moreButton = new Button
+            {
+                Content = new TextBlock
+                {
+                    Text = "", // BulletedList
+                    FontFamily = new FontFamily("Segoe Fluent Icons, Segoe MDL2 Assets"),
+                    FontSize = 14,
+                    HorizontalAlignment = HorizontalAlignment.Center,
+                    VerticalAlignment = VerticalAlignment.Center
+                },
+                Width = 32,
+                Height = 28,
+                Margin = new Thickness(8, 0, 0, 0),
+                ToolTip = L("More actions")
+            };
+            if (buttonStyle != null) moreButton.Style = buttonStyle;
+            else { moreButton.Background = themeBg; moreButton.Foreground = themeFg; moreButton.BorderBrush = themeFg; }
 
-            var buttonBar = new DockPanel { LastChildFill = false, Margin = new Thickness(0, 10, 0, 0) };
+            var buttonBar = new StackPanel
+            {
+                Orientation = Orientation.Horizontal,
+                HorizontalAlignment = HorizontalAlignment.Right,
+                Margin = new Thickness(0, 10, 0, 0)
+            };
             Grid.SetRow(buttonBar, 2);
-
-            // Refresh sits apart on the left; the destructive/launch actions group on the right.
-            refreshButton.Margin = new Thickness(0);
-            DockPanel.SetDock(refreshButton, Dock.Left);
-            buttonBar.Children.Add(refreshButton);
-
-            var rightActions = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right };
-            DockPanel.SetDock(rightActions, Dock.Right);
-            rightActions.Children.Add(viewButton);
-            rightActions.Children.Add(renameButton);
-            rightActions.Children.Add(deleteButton);
-            rightActions.Children.Add(continueButton);
-            rightActions.Children.Add(resumeButton);
-            rightActions.Children.Add(closeButton);
-            buttonBar.Children.Add(rightActions);
+            buttonBar.Children.Add(resumeButton);
+            buttonBar.Children.Add(closeButton);
+            buttonBar.Children.Add(moreButton);
 
             grid.Children.Add(buttonBar);
 
@@ -1458,12 +1519,12 @@ namespace ClaudeCodeVS
                         }
                     }
 
+                    bool timeOnly = groupByDate &&
+                        (currentGroup == SessionDateGroup.Today || currentGroup == SessionDateGroup.Yesterday);
                     var lbi = new ListBoxItem
                     {
-                        Content = CreateSessionItemContent(s, themeFg),
+                        Content = CreateSessionItemContent(s, themeFg, timeOnly, TryFindOpenChatTab(s.SessionId, out _)),
                         Tag = s,
-                        Background = themeBg,
-                        Foreground = themeFg,
                         ToolTip = BuildSessionTooltip(s)
                     };
                     if (s.SessionId == previouslySelectedId) reselectIndex = listBox.Items.Count;
@@ -1476,7 +1537,7 @@ namespace ClaudeCodeVS
                     loading.Visibility = Visibility.Visible;
                     loading.Text = loadedSessions.Count == 0
                         ? loading.Text  // keep the "no sessions on disk" message set by the loader
-                        : "No sessions match the current filter.";
+                        : L("No sessions match the current filter.");
                 }
                 else
                 {
@@ -1491,7 +1552,7 @@ namespace ClaudeCodeVS
                 loadedSessions.Clear();
                 listBox.Items.Clear();
                 loading.Visibility = Visibility.Visible;
-                loading.Text = "Loading sessions…";
+                loading.Text = L("Loading sessions…");
 
                 SessionHistoryListResult listResult;
                 try
@@ -1502,7 +1563,7 @@ namespace ClaudeCodeVS
                 {
                     Debug.WriteLine($"Session history load failed: {ex}");
                     loading.Visibility = Visibility.Visible;
-                    loading.Text = $"Could not load {GetSessionHistoryProviderName(selected.Value)} sessions:\n{ex.Message}";
+                    loading.Text = L("Could not load {0} sessions:\n{1}", GetSessionHistoryProviderName(selected.Value), ex.Message);
                     return;
                 }
 
@@ -1510,7 +1571,7 @@ namespace ClaudeCodeVS
                 if (sessions.Count == 0)
                 {
                     loading.Visibility = Visibility.Visible;
-                    loading.Text = listResult.EmptyMessage ?? "No sessions were found for this workspace.";
+                    loading.Text = listResult.EmptyMessage ?? L("No sessions were found for this workspace.");
                     return;
                 }
 
@@ -1584,8 +1645,8 @@ namespace ClaudeCodeVS
                 if (sel == null || !adapter.CanDelete) return;
 
                 var confirm = MessageBox.Show(
-                    $"Delete this session transcript?\n\n{sel.FilePath}{adapter.DeleteConfirmationSuffix}\n\nThis cannot be undone.",
-                    "Delete Session", MessageBoxButton.YesNo, MessageBoxImage.Warning);
+                    L("Delete this session transcript?\n\n{0}{1}\n\nThis cannot be undone.", sel.FilePath, adapter.DeleteConfirmationSuffix),
+                    L("Delete Session"), MessageBoxButton.YesNo, MessageBoxImage.Warning);
                 if (confirm != MessageBoxResult.Yes) return;
 
                 try
@@ -1603,61 +1664,91 @@ namespace ClaudeCodeVS
                 }
                 catch (Exception ex)
                 {
-                    MessageBox.Show($"Failed to delete: {ex.Message}", "Error",
+                    MessageBox.Show(L("Failed to delete: {0}", ex.Message), L("Error"),
                         MessageBoxButton.OK, MessageBoxImage.Error);
                 }
             };
 
-            // Open the selected transcript, rendered as a readable conversation, in the
-            // default text editor (Notepad). Purely a viewer — nothing is modified.
-            Func<Task> viewSelectedAsync = async () =>
+            // Open the selected transcript, rendered as a readable conversation, as a read-only
+            // document in Visual Studio. The history closes first: it is modal, so the document
+            // would otherwise open behind it, out of reach.
+            Action viewSelected = () =>
             {
                 var sel = currentSelection();
                 if (sel == null || !adapter.CanViewTranscript) return;
-                await ViewSessionTranscriptAsync(adapter, sel, workspaceDir);
+                dialog.DialogResult = true;
+                StartSessionHistoryTask(() => ViewSessionTranscriptAsync(adapter, sel, workspaceDir),
+                    "claudecode/sessionhistory/view");
             };
 
-            // Right-click context menu on the list (issue #95): View / Rename / Delete.
+            // One menu for the secondary actions, opened by the list-icon button and by a right-click
+            // on a row (issue #95): View / Rename / Delete, then Refresh.
             var listContextMenu = new ContextMenu();
-            var viewMenuItem = new MenuItem { Header = "View…" };
-            viewMenuItem.Click += (s, args) =>
-                StartSessionHistoryTask(viewSelectedAsync, "claudecode/sessionhistory/view");
-            var renameMenuItem = new MenuItem { Header = "Rename…" };
+            var viewMenuItem = new MenuItem { Header = L("View as Text") };
+            viewMenuItem.Click += (s, args) => viewSelected();
+            var renameMenuItem = new MenuItem { Header = L("Rename…"), InputGestureText = "F2" };
             renameMenuItem.Click += (s, args) => renameSelected();
-            var deleteMenuItem = new MenuItem { Header = "Delete" };
+            var deleteMenuItem = new MenuItem { Header = L("Delete") };
             deleteMenuItem.Click += (s, args) =>
                 StartSessionHistoryTask(deleteSelectedAsync, "claudecode/sessionhistory/delete");
+            var refreshMenuItem = new MenuItem { Header = L("Refresh List") };
+            refreshMenuItem.Click += (s, args) =>
+                StartSessionHistoryTask(loadAsync, "claudecode/sessionhistory/refresh");
             listContextMenu.Items.Add(viewMenuItem);
             listContextMenu.Items.Add(renameMenuItem);
             listContextMenu.Items.Add(deleteMenuItem);
-            // Only enable the items when a row is selected.
+            listContextMenu.Items.Add(new Separator());
+            listContextMenu.Items.Add(refreshMenuItem);
+            // Row actions need a selected row; capability gating (e.g. Devin has no delete verb) is
+            // fixed for the dialog's lifetime, since the provider cannot change while it is open.
             listContextMenu.Opened += (s, args) =>
             {
                 bool hasSel = currentSelection() != null;
                 viewMenuItem.IsEnabled = hasSel && adapter.CanViewTranscript;
                 renameMenuItem.IsEnabled = hasSel;
                 deleteMenuItem.IsEnabled = hasSel && adapter.CanDelete;
+                deleteMenuItem.ToolTip = adapter.CanDelete
+                    ? null
+                    : L("{0} does not support deleting sessions from here.", GetSessionHistoryProviderName(selected.Value));
             };
+            ToolTipService.SetShowOnDisabled(deleteMenuItem, true);
             listBox.ContextMenu = listContextMenu;
+
+            moreButton.Click += (s, args) =>
+            {
+                listContextMenu.PlacementTarget = moreButton;
+                listContextMenu.Placement = System.Windows.Controls.Primitives.PlacementMode.Top;
+                listContextMenu.IsOpen = true;
+            };
+            // WPF only anchors a context menu to the clicked element when no target is set, so the
+            // button's anchor must go, or the next right-click on a row would open it at the button.
+            listContextMenu.Closed += (s, args) =>
+            {
+                listContextMenu.ClearValue(ContextMenu.PlacementTargetProperty);
+                listContextMenu.ClearValue(ContextMenu.PlacementProperty);
+            };
 
             // WPF Click handlers must be void-returning, so async work is fired off via
             // JoinableTaskFactory rather than `async (s, args) =>` lambdas (which would
             // swallow exceptions and trip VSTHRD101).
-            resumeButton.Click += (s, args) =>
+            // Asks first (with this dialog as owner, so Cancel returns to the list) where the session
+            // goes; the dialog only closes once there is something to do.
+            Action resumeSelected = () =>
             {
                 var sel = currentSelection();
                 if (sel == null) return;
+
+                HistoryResumeTarget target = ChooseHistoryResumeTarget(sel, targetTab, dialog, out NativeChatSessionState openTab);
+                if (target == HistoryResumeTarget.Cancel) return;
+
                 dialog.DialogResult = true;
-                StartSessionHistoryTask(() => ResumeSessionAsync(sel, targetTab), "claudecode/sessionhistory");
+                StartSessionHistoryTask(() => ResumeFromHistoryAsync(sel, targetTab, workspaceDir, target, openTab),
+                    "claudecode/sessionhistory");
             };
 
-            listBox.MouseDoubleClick += (s, args) =>
-            {
-                var sel = currentSelection();
-                if (sel == null) return;
-                dialog.DialogResult = true;
-                StartSessionHistoryTask(() => ResumeSessionAsync(sel, targetTab), "claudecode/sessionhistory");
-            };
+            resumeButton.Click += (s, args) => resumeSelected();
+
+            listBox.MouseDoubleClick += (s, args) => resumeSelected();
 
             // F2 renames the selected session (issue #95) — the familiar shell rename key.
             listBox.PreviewKeyDown += (s, args) =>
@@ -1669,24 +1760,6 @@ namespace ClaudeCodeVS
                 }
             };
 
-            continueButton.Click += (s, args) =>
-            {
-                dialog.DialogResult = true;
-                StartSessionHistoryTask(() => ContinueLastSessionAsync(targetTab), "claudecode/sessionhistory");
-            };
-
-            viewButton.Click += (s, args) =>
-                StartSessionHistoryTask(viewSelectedAsync, "claudecode/sessionhistory/view");
-
-            renameButton.Click += (s, args) => renameSelected();
-
-            deleteButton.Click += (s, args) =>
-                StartSessionHistoryTask(deleteSelectedAsync, "claudecode/sessionhistory/delete");
-
-            refreshButton.Click += (s, args) =>
-            {
-                StartSessionHistoryTask(loadAsync, "claudecode/sessionhistory/refresh");
-            };
             closeButton.Click += (s, args) => { dialog.DialogResult = false; };
 
             dialog.Loaded += (s, args) =>
@@ -1706,7 +1779,7 @@ namespace ClaudeCodeVS
 
             var dialog = new Window
             {
-                Title = "Rename Session",
+                Title = L("Rename Session"),
                 Width = 480,
                 Height = 180,
                 WindowStartupLocation = WindowStartupLocation.CenterOwner,
@@ -1725,7 +1798,7 @@ namespace ClaudeCodeVS
 
             var label = new TextBlock
             {
-                Text = "Custom title (leave empty to restore the auto-generated preview):",
+                Text = L("Custom title (leave empty to restore the auto-generated preview):"),
                 Foreground = themeFg,
                 TextWrapping = TextWrapping.Wrap,
                 Margin = new Thickness(0, 0, 0, 6)
@@ -1768,8 +1841,8 @@ namespace ClaudeCodeVS
                 return b;
             };
 
-            var okButton = mkBtn("OK", true, false);
-            var cancelButton = mkBtn("Cancel", false, true);
+            var okButton = mkBtn(L("OK"), true, false);
+            var cancelButton = mkBtn(L("Cancel"), false, true);
             cancelButton.Margin = new Thickness(0);
             buttonPanel.Children.Add(okButton);
             buttonPanel.Children.Add(cancelButton);
@@ -1790,8 +1863,9 @@ namespace ClaudeCodeVS
 
         /// <summary>
         /// Renders the selected session's JSONL transcript as a readable, plain-text
-        /// conversation, writes it to a temp file, and opens it in the default text
-        /// editor (Notepad). Read-only — the original transcript is never modified.
+        /// conversation, writes it to a temp file named after the session, and opens it as a
+        /// read-only document in Visual Studio (the default text editor when DTE is unavailable).
+        /// The original transcript is never modified.
         /// </summary>
         private async Task ViewSessionTranscriptAsync(ISessionHistoryProvider adapter, SessionInfo session, string workspaceDir)
         {
@@ -1806,18 +1880,53 @@ namespace ClaudeCodeVS
                 string tempDir = Path.Combine(Path.GetTempPath(), "ClaudeCodeExtension", "SessionView");
                 Directory.CreateDirectory(tempDir);
 
-                // SessionId is a UUID, so it's already filesystem-safe.
-                string outPath = Path.Combine(tempDir, $"session-{session.SessionId}.txt");
+                // The file name is the document tab's caption: the session's title, plus the start of
+                // its id so two sessions with the same title never share a file.
+                string outPath = Path.Combine(tempDir, BuildTranscriptFileName(session));
+                if (File.Exists(outPath))
+                {
+                    File.SetAttributes(outPath, FileAttributes.Normal);
+                }
                 File.WriteAllText(outPath, transcript, new UTF8Encoding(false));
+                // Read-only on disk, so the editor opens it locked and nobody mistakes it for the session.
+                File.SetAttributes(outPath, FileAttributes.ReadOnly);
 
-                Process.Start(new ProcessStartInfo(outPath) { UseShellExecute = true });
+                var dte = Package.GetGlobalService(typeof(EnvDTE.DTE)) as EnvDTE.DTE;
+                if (dte != null)
+                {
+                    dte.ItemOperations.OpenFile(outPath);
+                }
+                else
+                {
+                    Process.Start(new ProcessStartInfo(outPath) { UseShellExecute = true });
+                }
             }
             catch (Exception ex)
             {
                 Debug.WriteLine($"ViewSessionTranscript error: {ex.Message}");
-                MessageBox.Show($"Could not open the session transcript:\n{ex.Message}",
-                    "View Session", MessageBoxButton.OK, MessageBoxImage.Error);
+                MessageBox.Show(L("Could not open the session transcript:\n{0}", ex.Message),
+                    L("View Session"), MessageBoxButton.OK, MessageBoxImage.Error);
             }
+        }
+
+        /// <summary>"&lt;title&gt; (1a2b3c4d).txt", with characters Windows rejects in file names replaced.</summary>
+        internal static string BuildTranscriptFileName(SessionInfo session)
+        {
+            string title = (session?.DisplayTitle ?? string.Empty).Trim();
+            var name = new StringBuilder(title.Length);
+            char[] invalid = Path.GetInvalidFileNameChars();
+            foreach (char c in title)
+            {
+                name.Append(Array.IndexOf(invalid, c) >= 0 || char.IsControl(c) ? '_' : c);
+            }
+
+            string clean = name.ToString().Trim().TrimEnd('.');
+            if (clean.Length > 60) clean = clean.Substring(0, 60).TrimEnd();
+            if (clean.Length == 0) clean = "session";
+
+            string id = session?.SessionId ?? string.Empty;
+            string shortId = id.Length > 8 ? id.Substring(0, 8) : id;
+            return shortId.Length > 0 ? $"{clean} ({shortId}).txt" : clean + ".txt";
         }
 
         /// <summary>Formats the provider-neutral messages returned by Codex App Server.</summary>
@@ -2041,6 +2150,193 @@ namespace ClaudeCodeVS
         /// With <paramref name="targetTab"/> (the parallel chat tab the dialog was opened from) only
         /// that tab is relaunched into the conversation; the panel's session is left alone.
         /// </summary>
+        /// <summary>Where a conversation picked in Session History is resumed.</summary>
+        private enum HistoryResumeTarget
+        {
+            Cancel,
+            SwitchToOpenTab, // a chat tab already shows it: bring that tab forward, never resume it twice
+            CurrentTab,
+            NewTab
+        }
+
+        /// <summary>
+        /// Decides where <paramref name="session"/> goes. A conversation already open in a chat tab is
+        /// only brought forward — resuming it again would leave two CLIs writing one transcript. When
+        /// the tab the history was opened from already holds a conversation, the user picks between a
+        /// new tab and that tab. Terminal mode has no chat tabs and always resumes in place.
+        /// </summary>
+        private HistoryResumeTarget ChooseHistoryResumeTarget(SessionInfo session, NativeChatSessionState targetTab,
+            Window owner, out NativeChatSessionState openTab)
+        {
+            ThreadHelper.ThrowIfNotOnUIThread();
+            openTab = null;
+
+            if (!IsNativeModeActive)
+            {
+                return HistoryResumeTarget.CurrentTab;
+            }
+
+            if (TryFindOpenChatTab(session.SessionId, out openTab))
+            {
+                return HistoryResumeTarget.SwitchToOpenTab;
+            }
+
+            if (!ChatTabHasConversation(targetTab))
+            {
+                return HistoryResumeTarget.CurrentTab;
+            }
+
+            bool? newTab = AskResumeInNewTab(session, owner);
+            if (newTab == null) return HistoryResumeTarget.Cancel;
+            return newTab.Value ? HistoryResumeTarget.NewTab : HistoryResumeTarget.CurrentTab;
+        }
+
+        /// <summary>True when the chat tab (null = the main chat) shows at least one prompt the user sent.</summary>
+        private bool ChatTabHasConversation(NativeChatSessionState tab)
+        {
+            ChatTranscriptView transcript = tab != null ? tab.ChatTranscript : ChatTranscript;
+            return transcript != null && transcript.Messages.Any(m => m.IsUser);
+        }
+
+        private async Task ResumeFromHistoryAsync(SessionInfo session, NativeChatSessionState targetTab, string workspaceDir,
+            HistoryResumeTarget target, NativeChatSessionState openTab)
+        {
+            switch (target)
+            {
+                case HistoryResumeTarget.SwitchToOpenTab:
+                    await SwitchToOpenChatTabAsync(openTab);
+                    break;
+                case HistoryResumeTarget.NewTab:
+                    await ResumeSessionInNewTabAsync(session, targetTab, workspaceDir);
+                    break;
+                case HistoryResumeTarget.CurrentTab:
+                    await ResumeSessionAsync(session, targetTab);
+                    break;
+            }
+        }
+
+        /// <summary>
+        /// Opens <paramref name="session"/> in a new chat tab, leaving the current conversation alone.
+        /// The new tab copies the model/effort/permission choices of the tab it was asked from when
+        /// that tab runs the same agent; otherwise it starts from the settings' defaults. A GitHub
+        /// issue tab's worktree carries over, since the CLI only resumes from the same directory.
+        /// </summary>
+        private async Task ResumeSessionInNewTabAsync(SessionInfo session, NativeChatSessionState fromTab, string workspaceDir)
+        {
+            await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
+
+            AiProvider fromProvider = fromTab?.SelectedProvider ?? _currentRunningProvider ?? _settings.SelectedProvider;
+            NativeChatSessionState seed = fromProvider == session.Provider ? fromTab : null;
+
+            try
+            {
+                NativeChatSessionState tab = await OpenResumedChatTabAsync(session.Provider, workspaceDir, session.SessionId,
+                    focus: true, configure: state =>
+                    {
+                        if (seed != null)
+                        {
+                            state.SelectedModel = seed.SelectedModel;
+                            state.SelectedClaudeModel = seed.SelectedClaudeModel;
+                            state.SelectedEffortLevel = seed.SelectedEffortLevel;
+                            state.SelectedCodexReasoningLevel = seed.SelectedCodexReasoningLevel;
+                            state.SkipPermissions = seed.SkipPermissions;
+                            state.AutoPermissions = seed.AutoPermissions;
+                            state.ManualMode = seed.ManualMode;
+                        }
+                        state.WorkspaceOverride = fromTab?.WorkspaceOverride;
+                    });
+
+                if (tab == null)
+                {
+                    MessageBox.Show(L("Failed to create new session."), L("Session History"),
+                        MessageBoxButton.OK, MessageBoxImage.Error);
+                    return;
+                }
+
+                await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
+                RecordOpenChatTabs();
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"Resume in new tab failed: {ex}");
+                await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
+                MessageBox.Show(L("Failed to create new session: {0}", ex.Message), L("Session History"),
+                    MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+        }
+
+        /// <summary>
+        /// Asks whether a conversation picked in Session History opens in a new tab (true) or replaces
+        /// the conversation in the current one (false); null when cancelled. "New tab" is the default
+        /// button: it is the choice that loses nothing.
+        /// </summary>
+        private bool? AskResumeInNewTab(SessionInfo session, Window owner)
+        {
+            GetThemeBrushes(out Brush themeBg, out Brush themeFg);
+
+            var dialog = new Window
+            {
+                Title = L("Resume Conversation"),
+                Width = 460,
+                SizeToContent = SizeToContent.Height,
+                WindowStartupLocation = owner != null ? WindowStartupLocation.CenterOwner : WindowStartupLocation.CenterScreen,
+                ResizeMode = ResizeMode.NoResize,
+                Background = themeBg,
+                Foreground = themeFg,
+                ShowInTaskbar = false
+            };
+            try { dialog.Owner = owner; } catch { }
+
+            var stack = new StackPanel { Margin = new Thickness(16, 14, 16, 14) };
+            stack.Children.Add(new TextBlock
+            {
+                Text = L("This chat tab already has a conversation. Where do you want to resume \"{0}\"?",
+                    session.DisplayTitle),
+                Foreground = themeFg,
+                TextWrapping = TextWrapping.Wrap,
+                Margin = new Thickness(0, 0, 0, 6)
+            });
+            stack.Children.Add(new TextBlock
+            {
+                Text = L("Resuming in this tab closes its current conversation; you can reopen it later from Session History."),
+                Foreground = themeFg,
+                Opacity = 0.65,
+                FontSize = 11.5,
+                TextWrapping = TextWrapping.Wrap,
+                Margin = new Thickness(0, 0, 0, 14)
+            });
+
+            var buttons = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right };
+            Style buttonStyle = GetDialogButtonStyle();
+            Func<string, Button> mkBtn = text =>
+            {
+                var b = new Button { Content = text, MinWidth = 96, Height = 28, Margin = new Thickness(8, 0, 0, 0), Padding = new Thickness(10, 0, 10, 0) };
+                if (buttonStyle != null) b.Style = buttonStyle;
+                else { b.Background = themeBg; b.Foreground = themeFg; b.BorderBrush = themeFg; }
+                return b;
+            };
+
+            bool? choice = null;
+            var newTabButton = mkBtn(L("New Tab"));
+            newTabButton.IsDefault = true;
+            newTabButton.FontWeight = FontWeights.SemiBold;
+            newTabButton.Click += (s, e) => { choice = true; dialog.DialogResult = true; };
+            var thisTabButton = mkBtn(L("This Tab"));
+            thisTabButton.Click += (s, e) => { choice = false; dialog.DialogResult = true; };
+            var cancelButton = mkBtn(L("Cancel"));
+            cancelButton.IsCancel = true;
+
+            buttons.Children.Add(newTabButton);
+            buttons.Children.Add(thisTabButton);
+            buttons.Children.Add(cancelButton);
+            stack.Children.Add(buttons);
+
+            dialog.Content = stack;
+            dialog.Loaded += (s, e) => newTabButton.Focus();
+            dialog.ShowDialog();
+            return choice;
+        }
+
         private async Task ResumeSessionAsync(SessionInfo session, NativeChatSessionState targetTab = null)
         {
             if (session == null) return;
@@ -2090,62 +2386,6 @@ namespace ClaudeCodeVS
             await RelaunchSessionAsync(targetTab,
                 $"🕘 Resumed the {GetSessionHistoryProviderName(session.Provider)} session.",
                 resumeSessionId: session.SessionId);
-        }
-
-        /// <summary>
-        /// Resumes the most recent session in the current workspace. Claude and Devin use their own
-        /// native continue switch in the embedded terminal; Codex resolves the latest thread id first
-        /// so terminal and native mode behave alike. Native mode and a parallel chat tab always resolve
-        /// the latest id, since the continue switch only exists on the terminal launch path.
-        /// </summary>
-        private async Task ContinueLastSessionAsync(NativeChatSessionState targetTab = null)
-        {
-            AiProvider? selected = targetTab != null ? targetTab.SelectedProvider : _settings?.SelectedProvider;
-            ISessionHistoryProvider adapter = ResolveSessionHistoryProvider(selected);
-            if (adapter == null)
-            {
-                return;
-            }
-
-            // Native mode launches ignore the "-c" sentinel (stream-json/ACP have no continue switch),
-            // so there the newest session id must be resolved first, too (#208).
-            bool nativeLaunch = _settings?.UseNativeMode == true && SupportsNativeMode(selected.Value);
-            if (!adapter.SupportsContinueSentinel || targetTab != null || nativeLaunch)
-            {
-                string workspaceDir = !string.IsNullOrEmpty(targetTab?.WorkspaceOverride)
-                    ? targetTab.WorkspaceOverride
-                    : await GetWorkspaceDirectoryAsync();
-                if (string.IsNullOrWhiteSpace(workspaceDir)) return;
-
-                List<SessionInfo> sessions;
-                try
-                {
-                    SessionHistoryListResult listResult = await adapter.ListAsync(selected.Value, workspaceDir);
-                    sessions = listResult.Sessions ?? new List<SessionInfo>();
-                }
-                catch (Exception ex)
-                {
-                    await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
-                    MessageBox.Show($"Could not load the latest {GetSessionHistoryProviderName(selected.Value)} session:\n{ex.Message}",
-                        "Session History", MessageBoxButton.OK, MessageBoxImage.Error);
-                    return;
-                }
-
-                SessionInfo latest = sessions.OrderByDescending(session => session.LastModified).FirstOrDefault();
-                if (latest == null)
-                {
-                    await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
-                    MessageBox.Show($"No {GetSessionHistoryProviderName(selected.Value)} sessions were found for this workspace.",
-                        "Session History", MessageBoxButton.OK, MessageBoxImage.Information);
-                    return;
-                }
-
-                await ResumeSessionAsync(latest, targetTab);
-                return;
-            }
-
-            _pendingResumeSessionId = "-c";
-            await RestartTerminalWithSelectedProviderAsync();
         }
 
         #endregion

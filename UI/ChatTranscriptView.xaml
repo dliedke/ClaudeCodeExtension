@@ -641,7 +641,7 @@
 							        Tag="{Binding DataContext, RelativeSource={RelativeSource AncestorType={x:Type ItemsControl}}}"
 							        Click="InteractionOption_Click">
 								<StackPanel>
-									<TextBlock Text="{Binding Label}" TextWrapping="Wrap"/>
+									<TextBlock Text="{Binding DisplayLabel}" TextWrapping="Wrap"/>
 									<TextBlock Text="{Binding Description}" TextWrapping="Wrap"
 									           FontSize="{DynamicResource ChatTinyFontSize}" Opacity="0.65" Margin="0,2,0,0"
 									           Visibility="{Binding HasDescription, Converter={StaticResource BoolToVis}}"/>
@@ -672,6 +672,51 @@
 			</StackPanel>
 		</DataTemplate>
 
+		<!-- One question of a submitted question card: the question, then its answer and free text
+		     indented under it, so each answer still reads next to what it answers. -->
+		<DataTemplate x:Key="InteractionAnswerTemplate" DataType="{x:Type local:ChatQuestionViewModel}">
+			<StackPanel Margin="0,0,0,8">
+				<Border Visibility="{Binding HasHeader, Converter={StaticResource BoolToVis}}"
+				        HorizontalAlignment="Left"
+				        Margin="0,0,0,3" Padding="6,1,6,1" CornerRadius="3"
+				        Background="#331C8AE0">
+					<TextBlock Text="{Binding Header}" FontSize="{DynamicResource ChatTinyFontSize}" FontWeight="SemiBold"
+					           Opacity="0.9"
+					           Foreground="{DynamicResource {x:Static vsshell:VsBrushes.WindowTextKey}}"/>
+				</Border>
+
+				<TextBlock Text="{Binding Question}" TextWrapping="Wrap" Opacity="0.75"
+				           FontSize="{DynamicResource ChatSmallFontSize}"/>
+
+				<Grid Margin="10,3,0,0">
+					<Grid.ColumnDefinitions>
+						<ColumnDefinition Width="Auto"/>
+						<ColumnDefinition Width="*"/>
+					</Grid.ColumnDefinitions>
+					<TextBlock Grid.Column="0" Text="→" Margin="0,0,6,0" Opacity="0.6"/>
+					<StackPanel Grid.Column="1">
+						<TextBlock Text="{Binding AnsweredChoice}" TextWrapping="Wrap">
+							<TextBlock.Style>
+								<Style TargetType="TextBlock">
+									<Setter Property="FontWeight" Value="SemiBold"/>
+									<Style.Triggers>
+										<DataTrigger Binding="{Binding WasLeftBlank}" Value="True">
+											<Setter Property="FontWeight" Value="Normal"/>
+											<Setter Property="FontStyle" Value="Italic"/>
+											<Setter Property="Opacity" Value="0.55"/>
+										</DataTrigger>
+									</Style.Triggers>
+								</Style>
+							</TextBlock.Style>
+						</TextBlock>
+						<TextBlock Text="{Binding AnsweredNote}" TextWrapping="Wrap" Margin="0,2,0,0"
+						           FontSize="{DynamicResource ChatSmallFontSize}" FontStyle="Italic" Opacity="0.75"
+						           Visibility="{Binding HasAnsweredNote, Converter={StaticResource BoolToVis}}"/>
+					</StackPanel>
+				</Grid>
+			</StackPanel>
+		</DataTemplate>
+
 		<!-- Question / plan / tool-permission card. Stays in the transcript once answered, showing
 		     what was decided, so scrolling back still explains why the agent did what it did. -->
 		<DataTemplate x:Key="InteractionTemplate" DataType="{x:Type local:ChatInteractionViewModel}">
@@ -679,8 +724,14 @@
 			        Background="{DynamicResource {x:Static vsshell:VsBrushes.WindowKey}}"
 			        BorderBrush="#881C8AE0" BorderThickness="1">
 				<StackPanel>
-					<TextBlock Text="{Binding Title}" FontWeight="SemiBold" Margin="0,0,0,8"
-					           TextWrapping="Wrap"/>
+					<DockPanel Margin="0,0,0,8">
+						<TextBlock DockPanel.Dock="Right" Margin="12,0,0,0"
+						           Text="{local:Loc '✓ Answered'}" Foreground="#FF4EC9B0"
+						           FontSize="{DynamicResource ChatSmallFontSize}" FontWeight="SemiBold"
+						           VerticalAlignment="Center"
+						           Visibility="{Binding ShowAnswerSummary, Converter={StaticResource BoolToVis}}"/>
+						<TextBlock Text="{Binding Title}" FontWeight="SemiBold" TextWrapping="Wrap"/>
+					</DockPanel>
 
 					<!-- Pending: the actual controls -->
 					<StackPanel Visibility="{Binding IsPending, Converter={StaticResource BoolToVis}}">
@@ -805,10 +856,16 @@
 						</DockPanel>
 					</StackPanel>
 
-					<!-- Answered: one line saying what happened -->
+					<!-- Answered question card: each question with its answer -->
+					<ItemsControl ItemsSource="{Binding Questions}"
+					              ItemTemplate="{StaticResource InteractionAnswerTemplate}"
+					              Margin="0,0,0,-8"
+					              Visibility="{Binding ShowAnswerSummary, Converter={StaticResource BoolToVis}}"/>
+
+					<!-- Any other answered card: one line saying what happened -->
 					<TextBlock Text="{Binding Outcome}" TextWrapping="Wrap"
 					           FontSize="{DynamicResource ChatSmallFontSize}" Opacity="0.75" FontStyle="Italic"
-					           Visibility="{Binding IsResolved, Converter={StaticResource BoolToVis}}"/>
+					           Visibility="{Binding ShowOutcome, Converter={StaticResource BoolToVis}}"/>
 				</StackPanel>
 			</Border>
 		</DataTemplate>
@@ -1131,6 +1188,25 @@
 							<VirtualizingStackPanel/>
 						</ItemsPanelTemplate>
 					</ItemsControl.ItemsPanel>
+					<!-- Sizes every row to the visible width: the virtualizing panel can keep a row as wide as
+					     it was before the tab shrank, which pushed a card's right-aligned buttons out of view.
+					     Left, not Stretch: in a slot still wider than the view a row would otherwise be centred. -->
+					<ItemsControl.ItemContainerStyle>
+						<Style TargetType="ContentPresenter">
+							<Setter Property="HorizontalAlignment" Value="Left"/>
+							<Setter Property="Width"
+							        Value="{Binding ViewportWidth, RelativeSource={RelativeSource AncestorType={x:Type ScrollViewer}}}"/>
+							<!-- Before the first layout pass the viewport is 0: stay auto-sized rather than
+							     measuring every row at zero width. -->
+							<Style.Triggers>
+								<DataTrigger Binding="{Binding ViewportWidth, RelativeSource={RelativeSource AncestorType={x:Type ScrollViewer}}}"
+								             Value="0">
+									<Setter Property="Width" Value="NaN"/>
+									<Setter Property="HorizontalAlignment" Value="Stretch"/>
+								</DataTrigger>
+							</Style.Triggers>
+						</Style>
+					</ItemsControl.ItemContainerStyle>
 					<ItemsControl.ItemTemplateSelector>
 						<local:ChatMessageTemplateSelector
 							UserTemplate="{StaticResource UserTemplate}"
@@ -1519,6 +1595,15 @@
 								        FontSize="13"
 								        ToolTip="{local:Loc 'Settings'}"
 								        Click="ComposerSettingsButton_Click"/>
+
+								<!-- Always here, beside ⚙, so past conversations are one click away rather than
+								     behind the ☰ Tools menu. The promoted Session History mirror is left out. -->
+								<Button x:Name="ComposerSessionHistoryButton" DockPanel.Dock="Left"
+								        Style="{StaticResource ComposerSelectorStyle}"
+								        Content="🕘"
+								        FontSize="13"
+								        ToolTip="{local:Loc 'Session History'}"
+								        Click="ComposerSessionHistoryButton_Click"/>
 							</DockPanel>
 						</DockPanel>
 					</ScrollViewer>

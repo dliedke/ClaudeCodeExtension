@@ -573,7 +573,8 @@ namespace ClaudeCodeExtension.Tests
             // The mirrors trail behind — they are duplicates of controls the panel already has.
             foreach (string mirror in new[]
             {
-                "ComposerPromotedButtons", "ComposerCustomCommandsButton", "ComposerToolsButton", "ComposerSettingsButton"
+                "ComposerPromotedButtons", "ComposerCustomCommandsButton", "ComposerToolsButton", "ComposerSettingsButton",
+                "ComposerSessionHistoryButton"
             })
             {
                 int idx = xaml.IndexOf($"x:Name=\"{mirror}\"", System.StringComparison.Ordinal);

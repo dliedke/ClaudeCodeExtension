@@ -80,6 +80,7 @@ namespace ClaudeCodeVS
             bool origDisableClipboardSend     = _settings.DisableClipboardSend;
             bool origSendSelectionRefOnly     = _settings.SendSelectionReferenceOnly;
             bool origKeepLastPromptVisible    = _settings.KeepLastPromptVisible;
+            bool origAtMentionEnabled         = _settings.AtMentionEnabled;
             string origAtFileTypes            = _settings.AtMentionFileTypes ?? string.Empty;
             string origAtExcludedFolders      = _settings.AtMentionExcludedFolders ?? string.Empty;
             bool origAutoSendBuildErrors      = _settings.AutoSendBuildErrorsToAgent;
@@ -257,6 +258,11 @@ namespace ClaudeCodeVS
             promptStack.Children.Add(fontSizeCombo);
 
             promptStack.Children.Add(MakeSectionHeader("@ file picker", themeFg));
+            var atMentionEnabledCheck = MakeCheckBox(
+                "Show the @ file picker",
+                "When enabled, typing \"@\" in the prompt lists the workspace's files and folders so you can insert a path. Turn it off to type \"@\" as plain text; the workspace is then never indexed.",
+                origAtMentionEnabled, themeFg);
+            promptStack.Children.Add(atMentionEnabledCheck);
             promptStack.Children.Add(new TextBlock
             {
                 Text = "Narrow the files listed when typing \"@\" in the prompt. Files ignored by .gitignore are always left out. Separate entries with commas.",
@@ -1379,6 +1385,7 @@ namespace ClaudeCodeVS
                 largeAsFileCheck.IsChecked = false;
                 disableClipboardCheck.IsChecked = false;
                 sendSelectionRefOnlyCheck.IsChecked = false;
+                atMentionEnabledCheck.IsChecked = true;
                 atFileTypesBox.Text = string.Empty;
                 atExcludedFoldersBox.Text = string.Empty;
                 autoOpenCheck.IsChecked = false;
@@ -1572,6 +1579,7 @@ namespace ClaudeCodeVS
             _settings.SendSelectionReferenceOnly = newSendSelectionRefOnly;
             _settings.KeepLastPromptVisible   = newKeepLastPromptVisible;
             UpdateLastPromptHint();
+            _settings.AtMentionEnabled = atMentionEnabledCheck.IsChecked == true;
             _settings.AtMentionFileTypes = (atFileTypesBox.Text ?? string.Empty).Trim();
             _settings.AtMentionExcludedFolders = (atExcludedFoldersBox.Text ?? string.Empty).Trim();
             _settings.AutoSendBuildErrorsToAgent = newAutoSendBuildErrors;

@@ -173,6 +173,27 @@ Pull requests for new features are welcome. Bug fixes too — if you find an iss
 
 ## Version History
 
+### Version 272.0
+- Typing "@" in a very large project no longer freezes Visual Studio (or the whole PC): the file list is now built within fixed time and memory limits.
+- New "Show the @ file picker" option in Settings → Prompt to turn the "@" file picker off, so "@" is typed as plain text (on by default).
+- The Session History window is now translated (Italian) and has a cleaner list: readable font, a tidier details line and softer row highlighting.
+- Resuming a conversation that is already open in a chat tab now switches to that tab instead of opening it a second time.
+- When the current chat tab already holds a conversation, Session History asks whether to resume in a new tab or in the current one.
+- Session History keeps only Resume and Close as buttons; View, Rename, Delete and Refresh moved to a menu button beside them, and "Resume Last Session" was removed (the latest conversation is already selected).
+- "View as Text" now opens the conversation as a read-only document inside Visual Studio instead of Notepad.
+
+### Version 271.0
+- Answered question cards list each question with its answer and note underneath, and mark questions left blank as "No answer".
+- Once answered, a question card is titled "Question" (or "Question skipped") instead of still asking for your input.
+
+### Version 270.0
+- The "Rename Session" window is now translated (Italian).
+- The "(Recommended)" tag on the agent's suggested answer in question cards is now translated (Italian).
+- Chat messages and question cards fit the chat tab again after it is made narrower, so the card buttons stay visible.
+- The live token count is shown again while the agent works in every chat tab, including when several chats run at once.
+- The welcome card's recent conversations now match Session History: they refresh when you return to the tab, and conversations open in another chat tab are listed as "already open" and clicking one switches to that tab.
+- New Session History button beside the Settings gear in the chat tab, so past conversations are one click away.
+
 ### Version 269.0
 - New Claude Code chats are named automatically with the AI title, so the name shows in Session History and in Claude Code's own resume list.
 - Session History groups conversations by date, shows the git branch of each one, and no longer shows attachment paths or pull-conflict text as the preview; the "Renamed only" filter was removed.
