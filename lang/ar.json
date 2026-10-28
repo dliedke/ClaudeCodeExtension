@@ -1065,5 +1065,12 @@
   "already open": "مفتوحة بالفعل",
   "{0:N0} messages": "{0:N0} رسائل",
   "{0} tokens": "{0} رموز مميزة",
-  "✓ Answered": "✓ تمت الإجابة"
+  "✓ Answered": "✓ تمت الإجابة",
+  "Open failed tool calls automatically": "فتح استدعاءات الأدوات الفاشلة تلقائيًا",
+  "A tool call that fails (for example a command that ends with an error) opens its card in the chat so you see why. The agent usually reads the error and tries another way; turn this off to keep those cards closed — they still show the failed mark.": "استدعاء الأداة الذي يفشل (مثل أمر ينتهي بخطأ) يفتح بطاقته في المحادثة لترى السبب. عادةً ما يقرأ الوكيل الخطأ ويجرب طريقة أخرى؛ أوقف هذا الخيار لإبقاء تلك البطاقات مغلقة — وتبقى علامة الفشل ظاهرة عليها.",
+  "Resume Last Session": "استئناف آخر جلسة",
+  "Renamed only": "المُعاد تسميتها فقط",
+  "Show only sessions you have given a custom title.": "إظهار الجلسات التي منحتها عنوانًا مخصصًا فقط.",
+  "Click to rename this session": "انقر لإعادة تسمية هذه الجلسة",
+  "Change session color": "تغيير لون الجلسة"
 }

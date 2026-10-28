@@ -99,7 +99,14 @@ namespace ClaudeCodeVS
 
         #region IChatTabHost
 
-        bool IChatTabHost.IsAlive => Frame is IVsWindowFrame;
+        bool IChatTabHost.IsAlive
+        {
+            get
+            {
+                ThreadHelper.ThrowIfNotOnUIThread();
+                return Frame is IVsWindowFrame;
+            }
+        }
 
         bool IChatTabHost.IsVisible
         {
@@ -125,7 +132,14 @@ namespace ClaudeCodeVS
             }
         }
 
-        IVsWindowFrame IChatTabHost.WindowFrame => Frame as IVsWindowFrame;
+        IVsWindowFrame IChatTabHost.WindowFrame
+        {
+            get
+            {
+                ThreadHelper.ThrowIfNotOnUIThread();
+                return Frame as IVsWindowFrame;
+            }
+        }
 
         #endregion
 

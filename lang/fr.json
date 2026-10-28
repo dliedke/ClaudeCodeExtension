@@ -1065,5 +1065,12 @@
   "already open": "déjà ouverte",
   "{0:N0} messages": "{0:N0} messages",
   "{0} tokens": "{0} jetons",
-  "✓ Answered": "✓ Répondu"
+  "✓ Answered": "✓ Répondu",
+  "Open failed tool calls automatically": "Ouvrir automatiquement les appels d'outils en échec",
+  "A tool call that fails (for example a command that ends with an error) opens its card in the chat so you see why. The agent usually reads the error and tries another way; turn this off to keep those cards closed — they still show the failed mark.": "Un appel d'outil qui échoue (par exemple une commande qui se termine par une erreur) ouvre sa carte dans le chat pour que vous voyiez pourquoi. L'agent lit généralement l'erreur et essaie autrement ; désactivez cette option pour garder ces cartes fermées — elles affichent toujours la marque d'échec.",
+  "Resume Last Session": "Reprendre la dernière session",
+  "Renamed only": "Renommées uniquement",
+  "Show only sessions you have given a custom title.": "Affiche uniquement les sessions auxquelles vous avez donné un titre personnalisé.",
+  "Click to rename this session": "Cliquez pour renommer cette session",
+  "Change session color": "Changer la couleur de la session"
 }

@@ -1076,6 +1076,9 @@ namespace ClaudeCodeVS
             string captionTitle = string.IsNullOrWhiteSpace(title) ? GetAutoChatTitle(null) : title;
             _nativeChatWindow.UpdateCaption(DecorateChatTabCaption(null, BuildChatTabCaption(GetActiveOrSelectedProvider(), captionTitle)));
 
+            // A name the user gave the session is also kept as a header above the transcript, in full:
+            // the VS tab strip truncates. An automatic title stays on the tab only.
+            ChatTranscript?.SetSessionTitle(IsAutoSessionTitle(_agentSession?.SessionId) ? null : title);
             ChatTranscript?.SetSessionTitleColor(GetCurrentNativeSessionColor());
         }
 
@@ -1115,6 +1118,7 @@ namespace ClaudeCodeVS
 
             string captionTitle = string.IsNullOrWhiteSpace(title) ? GetAutoChatTitle(session) : title;
             session.Window?.UpdateCaption(DecorateChatTabCaption(session, BuildChatTabCaption(session.SelectedProvider, captionTitle)));
+            session.ChatTranscript.SetSessionTitle(IsAutoSessionTitle(agentSessionId) ? null : title);
             session.ChatTranscript.SetSessionTitleColor(GetNativeSessionColor(agentSessionId));
         }
 
@@ -1231,6 +1235,12 @@ namespace ClaudeCodeVS
             {
                 _settings.SessionCustomTitles.Remove(oldSessionId);
                 _settings.SessionCustomTitles[newSessionId] = title;
+                changed = true;
+            }
+
+            if (_settings.SessionAutoTitleIds != null && _settings.SessionAutoTitleIds.Remove(oldSessionId))
+            {
+                _settings.SessionAutoTitleIds.Add(newSessionId);
                 changed = true;
             }
 
@@ -1639,6 +1649,7 @@ namespace ClaudeCodeVS
             {
                 _settings.SessionCustomTitles[sessionId] = newTitle;
             }
+            SetSessionAutoTitle(sessionId, false);
 
             SaveSettings();
 

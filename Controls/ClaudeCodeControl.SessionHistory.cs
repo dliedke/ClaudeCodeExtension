@@ -765,13 +765,39 @@ namespace ClaudeCodeVS
 
             if (string.IsNullOrEmpty(newTitle))
             {
+                SetSessionAutoTitle(sessionId, false);
                 return _settings.SessionCustomTitles.Remove(sessionId);
             }
 
             if (string.Equals(savedTitle, newTitle, StringComparison.Ordinal)) return false;
 
+            // Named in Claude Code itself: a name the user gave it, no longer the automatic one.
             _settings.SessionCustomTitles[sessionId] = newTitle;
+            SetSessionAutoTitle(sessionId, false);
             return true;
+        }
+
+        /// <summary>
+        /// True when the session's saved title is the automatic one of a new chat rather than a name
+        /// the user gave it. "Renamed only" and the chat's title bar leave those out.
+        /// </summary>
+        private bool IsAutoSessionTitle(string sessionId)
+        {
+            return !string.IsNullOrEmpty(sessionId) && _settings?.SessionAutoTitleIds?.Contains(sessionId) == true;
+        }
+
+        /// <summary>Marks the session's saved title as automatic, or as a name the user gave it. Not saved here.</summary>
+        private void SetSessionAutoTitle(string sessionId, bool isAuto)
+        {
+            if (string.IsNullOrEmpty(sessionId) || _settings == null) return;
+
+            if (_settings.SessionAutoTitleIds == null)
+            {
+                _settings.SessionAutoTitleIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            }
+
+            if (isAuto) _settings.SessionAutoTitleIds.Add(sessionId);
+            else _settings.SessionAutoTitleIds.Remove(sessionId);
         }
 
         /// <summary>
@@ -1345,6 +1371,16 @@ namespace ClaudeCodeVS
                 sortCombo.SelectedIndex = 0;
             }
 
+            var renamedOnlyCheck = new CheckBox
+            {
+                Content = L("Renamed only"),
+                Foreground = themeFg,
+                VerticalAlignment = VerticalAlignment.Center,
+                Margin = new Thickness(12, 0, 0, 0),
+                IsChecked = _settings?.SessionHistoryRenamedOnly == true,
+                ToolTip = L("Show only sessions you have given a custom title.")
+            };
+
             var rightFilterPanel = new StackPanel
             {
                 Orientation = Orientation.Horizontal,
@@ -1352,6 +1388,7 @@ namespace ClaudeCodeVS
             };
             rightFilterPanel.Children.Add(sortLabel);
             rightFilterPanel.Children.Add(sortCombo);
+            rightFilterPanel.Children.Add(renamedOnlyCheck);
             Grid.SetColumn(rightFilterPanel, 1);
             filterBar.Children.Add(rightFilterPanel);
 
@@ -1412,13 +1449,19 @@ namespace ClaudeCodeVS
                 ToolTip = L("More actions")
             };
 
+            // Resumes the newest conversation, whatever the filters show; wired below with the list.
+            var resumeLastButton = mkBtn(L("Resume Last Session"));
+            resumeLastButton.Margin = new Thickness(0);
+            resumeLastButton.IsEnabled = false;
+
             // Reopens today's conversations, each in a tab of its own; wired below with the list.
             var resumeTodayButton = mkBtn(L("Resume Today's Sessions"));
-            resumeTodayButton.Margin = new Thickness(0);
             resumeTodayButton.IsEnabled = false;
 
             var buttonBar = new DockPanel { LastChildFill = false, Margin = new Thickness(0, 12, 0, 0) };
             Grid.SetRow(buttonBar, 2);
+            DockPanel.SetDock(resumeLastButton, Dock.Left);
+            buttonBar.Children.Add(resumeLastButton);
             DockPanel.SetDock(resumeTodayButton, Dock.Left);
             buttonBar.Children.Add(resumeTodayButton);
 
@@ -1458,6 +1501,7 @@ namespace ClaudeCodeVS
                     ? psi.SessionId : null;
 
                 string query = (searchBox.Text ?? string.Empty).Trim();
+                bool renamedOnly = renamedOnlyCheck.IsChecked == true;
 
                 listBox.Items.Clear();
 
@@ -1496,6 +1540,10 @@ namespace ClaudeCodeVS
                 int firstSessionIndex = -1;
                 foreach (var s in orderedSessions)
                 {
+                    // The automatic title of a new chat is not a name the user gave it.
+                    bool isRenamed = !string.IsNullOrWhiteSpace(s.CustomTitle) && !IsAutoSessionTitle(s.SessionId);
+                    if (renamedOnly && !isRenamed) continue;
+
                     if (query.Length > 0)
                     {
                         string haystack = $"{s.CustomTitle}\n{s.Preview}\n{s.GitBranch}\n{s.LastModified:yyyy-MM-dd HH:mm}";
@@ -1538,6 +1586,7 @@ namespace ClaudeCodeVS
                     listBox.SelectedIndex = reselectIndex >= 0 ? reselectIndex : firstSessionIndex;
                 }
 
+                resumeLastButton.IsEnabled = loadedSessions.Count > 0;
                 resumeTodayButton.IsEnabled = todaysSessionsToReopen().Count > 0;
             };
 
@@ -1586,7 +1635,21 @@ namespace ClaudeCodeVS
                 applyFilter();
             };
 
+            // Persist the "Renamed only" toggle so it survives across sessions (issue #95).
+            Action saveRenamedOnly = () =>
+            {
+                bool on = renamedOnlyCheck.IsChecked == true;
+                if (_settings != null && _settings.SessionHistoryRenamedOnly != on)
+                {
+                    _settings.SessionHistoryRenamedOnly = on;
+                    SaveSettings();
+                }
+                applyFilter();
+            };
+
             searchBox.TextChanged += (s, args) => applyFilter();
+            renamedOnlyCheck.Checked += (s, args) => saveRenamedOnly();
+            renamedOnlyCheck.Unchecked += (s, args) => saveRenamedOnly();
             sortCombo.SelectionChanged += (s, args) => saveSortMode();
 
             // Wire up buttons.
@@ -1620,6 +1683,7 @@ namespace ClaudeCodeVS
                     _settings.SessionCustomTitles[sel.SessionId] = newTitle;
                     sel.CustomTitle = newTitle;
                 }
+                SetSessionAutoTitle(sel.SessionId, false);
 
                 SaveSettings();
 
@@ -1649,8 +1713,9 @@ namespace ClaudeCodeVS
                     await adapter.DeleteAsync(sel, workspaceDir);
 
                     await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
-                    if (_settings.SessionCustomTitles != null &&
-                        _settings.SessionCustomTitles.Remove(sel.SessionId))
+                    bool hadTitle = _settings.SessionCustomTitles?.Remove(sel.SessionId) == true;
+                    bool hadAutoMark = _settings.SessionAutoTitleIds?.Remove(sel.SessionId) == true;
+                    if (hadTitle || hadAutoMark)
                     {
                         SaveSettings();
                     }
@@ -1751,9 +1816,8 @@ namespace ClaudeCodeVS
             // swallow exceptions and trip VSTHRD101).
             // Asks first (with this dialog as owner, so Cancel returns to the list) where the session
             // goes; the dialog only closes once there is something to do.
-            Action resumeSelected = () =>
+            Action<SessionInfo> resumeSession = sel =>
             {
-                var sel = currentSelection();
                 if (sel == null) return;
 
                 HistoryResumeTarget target = ChooseHistoryResumeTarget(sel, targetTab, dialog, out NativeChatSessionState openTab);
@@ -1763,8 +1827,13 @@ namespace ClaudeCodeVS
                 StartSessionHistoryTask(() => ResumeFromHistoryAsync(sel, targetTab, workspaceDir, target, openTab),
                     "claudecode/sessionhistory");
             };
+            Action resumeSelected = () => resumeSession(currentSelection());
 
             resumeButton.Click += (s, args) => resumeSelected();
+
+            // The newest conversation of the workspace, ignoring the search and "Renamed only".
+            resumeLastButton.Click += (s, args) =>
+                resumeSession(loadedSessions.OrderByDescending(session => session.LastModified).FirstOrDefault());
 
             listBox.MouseDoubleClick += (s, args) => resumeSelected();
 
@@ -2146,13 +2215,6 @@ namespace ClaudeCodeVS
 
         #region Resume Integration
 
-        /// <summary>
-        /// Stops the current agent (if any), arms the one-shot resume token consumed by the selected
-        /// provider's terminal/native command builder, and restarts with the matching environment.
-        /// Switching native↔WSL is intentional because the two environments own separate stores.
-        /// With <paramref name="targetTab"/> (the parallel chat tab the dialog was opened from) only
-        /// that tab is relaunched into the conversation; the panel's session is left alone.
-        /// </summary>
         /// <summary>Where a conversation picked in Session History is resumed.</summary>
         private enum HistoryResumeTarget
         {
@@ -2337,6 +2399,13 @@ namespace ClaudeCodeVS
             return choice;
         }
 
+        /// <summary>
+        /// Stops the current agent (if any), arms the one-shot resume token consumed by the selected
+        /// provider's terminal/native command builder, and restarts with the matching environment.
+        /// Switching native↔WSL is intentional because the two environments own separate stores.
+        /// With <paramref name="targetTab"/> (the parallel chat tab the dialog was opened from) only
+        /// that tab is relaunched into the conversation; the panel's session is left alone.
+        /// </summary>
         private async Task ResumeSessionAsync(SessionInfo session, NativeChatSessionState targetTab = null)
         {
             if (session == null) return;

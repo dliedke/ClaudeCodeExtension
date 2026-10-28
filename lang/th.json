@@ -1065,5 +1065,12 @@
   "already open": "เปิดอยู่แล้ว",
   "{0:N0} messages": "{0:N0} ข้อความ",
   "{0} tokens": "{0} โทเค็น",
-  "✓ Answered": "✓ ตอบแล้ว"
+  "✓ Answered": "✓ ตอบแล้ว",
+  "Open failed tool calls automatically": "เปิดการเรียกใช้เครื่องมือที่ล้มเหลวโดยอัตโนมัติ",
+  "A tool call that fails (for example a command that ends with an error) opens its card in the chat so you see why. The agent usually reads the error and tries another way; turn this off to keep those cards closed — they still show the failed mark.": "การเรียกใช้เครื่องมือที่ล้มเหลว (เช่น คำสั่งที่จบด้วยข้อผิดพลาด) จะเปิดการ์ดของมันในแชทเพื่อให้คุณเห็นสาเหตุ โดยปกติเอเจนต์จะอ่านข้อผิดพลาดแล้วลองวิธีอื่น ปิดตัวเลือกนี้เพื่อให้การ์ดเหล่านั้นปิดอยู่ — การ์ดยังคงแสดงเครื่องหมายล้มเหลว",
+  "Resume Last Session": "ทำเซสชันล่าสุดต่อ",
+  "Renamed only": "เฉพาะที่เปลี่ยนชื่อแล้ว",
+  "Show only sessions you have given a custom title.": "แสดงเฉพาะเซสชันที่คุณตั้งชื่อเองแล้ว",
+  "Click to rename this session": "คลิกเพื่อเปลี่ยนชื่อเซสชันนี้",
+  "Change session color": "เปลี่ยนสีเซสชัน"
 }

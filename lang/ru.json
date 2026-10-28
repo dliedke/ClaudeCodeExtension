@@ -1065,5 +1065,12 @@
   "already open": "уже открыт",
   "{0:N0} messages": "Сообщений: {0:N0}",
   "{0} tokens": "Токенов: {0}",
-  "✓ Answered": "✓ Отвечено"
+  "✓ Answered": "✓ Отвечено",
+  "Open failed tool calls automatically": "Автоматически открывать неудачные вызовы инструментов",
+  "A tool call that fails (for example a command that ends with an error) opens its card in the chat so you see why. The agent usually reads the error and tries another way; turn this off to keep those cards closed — they still show the failed mark.": "Неудачный вызов инструмента (например, команда, завершившаяся ошибкой) открывает свою карточку в чате, чтобы вы видели причину. Обычно агент читает ошибку и пробует другой способ; отключите этот параметр, чтобы такие карточки оставались закрытыми — отметка об ошибке на них сохраняется.",
+  "Resume Last Session": "Возобновить последнюю сессию",
+  "Renamed only": "Только переименованные",
+  "Show only sessions you have given a custom title.": "Показывать только сессии, которым вы дали своё название.",
+  "Click to rename this session": "Щёлкните, чтобы переименовать этот сеанс",
+  "Change session color": "Изменить цвет сеанса"
 }

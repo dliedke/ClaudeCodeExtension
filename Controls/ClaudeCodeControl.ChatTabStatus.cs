@@ -472,6 +472,7 @@ namespace ClaudeCodeVS
             }
 
             _settings.SessionCustomTitles[sessionId] = title;
+            SetSessionAutoTitle(sessionId, true);
             SaveSettings();
 
             if (writeTranscript)

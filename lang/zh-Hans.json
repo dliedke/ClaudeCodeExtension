@@ -1065,5 +1065,12 @@
   "already open": "已打开",
   "{0:N0} messages": "{0:N0} 条消息",
   "{0} tokens": "{0} 个令牌",
-  "✓ Answered": "✓ 已回答"
+  "✓ Answered": "✓ 已回答",
+  "Open failed tool calls automatically": "自动展开失败的工具调用",
+  "A tool call that fails (for example a command that ends with an error) opens its card in the chat so you see why. The agent usually reads the error and tries another way; turn this off to keep those cards closed — they still show the failed mark.": "失败的工具调用（例如以错误结束的命令）会在聊天中展开其卡片，方便你查看原因。代理通常会读取错误并尝试其他方法；关闭此项可让这些卡片保持折叠——它们仍会显示失败标记。",
+  "Resume Last Session": "恢复上次会话",
+  "Renamed only": "仅已重命名",
+  "Show only sessions you have given a custom title.": "仅显示你设置了自定义标题的会话。",
+  "Click to rename this session": "单击以重命名此会话",
+  "Change session color": "更改会话颜色"
 }

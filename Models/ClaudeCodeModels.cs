@@ -211,7 +211,7 @@ namespace ClaudeCodeVS
     }
 
     /// <summary>
-    /// One native chat tab remembered for <see cref="ClaudeCodeSettings.ReopenChatTabsOnSolutionOpen"/>:
+    /// One native chat tab remembered for <see cref="ClaudeCodeSettings.ReopenChatTabsWithSolution"/>:
     /// which agent conversation it showed and the tab's own model/effort/permission choices. The
     /// title and color need no copy — they are stored by conversation id already.
     /// </summary>
@@ -666,9 +666,11 @@ namespace ClaudeCodeVS
         /// <summary>
         /// If true, the native chat tabs open when a solution (or folder) was last closed come back the
         /// next time it opens, each resuming its conversation. Claude Code, Codex and Devin only — the
-        /// agents that can resume. On by default.
+        /// agents that can resume. Off by default (v277.0). It replaced the v262.0 setting
+        /// <c>ReopenChatTabsOnSolutionOpen</c>, which was on by default, under a new name so existing
+        /// installs start with it off too; see <c>DropRetiredReopenChatTabsSetting</c>.
         /// </summary>
-        public bool ReopenChatTabsOnSolutionOpen { get; set; } = true;
+        public bool ReopenChatTabsWithSolution { get; set; }
 
         /// <summary>
         /// The chat tabs to reopen, keyed by workspace directory (lowercase), in tab order with the main
@@ -1120,6 +1122,21 @@ namespace ClaudeCodeVS
         /// </summary>
         public System.Collections.Generic.Dictionary<string, string> SessionCustomTitles { get; set; }
             = new System.Collections.Generic.Dictionary<string, string>(System.StringComparer.OrdinalIgnoreCase);
+
+        /// <summary>
+        /// Session ids whose <see cref="SessionCustomTitles"/> entry is the AI title of a new chat
+        /// (v276.0) rather than a name the user gave it. Such a session is still shown by its title,
+        /// but it does not count as renamed: the "Renamed only" filter and the session title bar
+        /// above the chat leave it out. Renaming the session (here or in Claude Code) removes the id.
+        /// </summary>
+        public System.Collections.Generic.HashSet<string> SessionAutoTitleIds { get; set; }
+            = new System.Collections.Generic.HashSet<string>(System.StringComparer.OrdinalIgnoreCase);
+
+        /// <summary>
+        /// Remembered state of the "Renamed only" filter toggle in the Session History
+        /// window, so it persists across Visual Studio restarts (issue #95).
+        /// </summary>
+        public bool SessionHistoryRenamedOnly { get; set; } = false;
 
         /// <summary>
         /// User-assigned custom title colors ("#RRGGBB") for native mode sessions, keyed the same

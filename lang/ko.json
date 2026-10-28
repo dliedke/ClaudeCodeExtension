@@ -1065,5 +1065,12 @@
   "already open": "이미 열림",
   "{0:N0} messages": "메시지 {0:N0}개",
   "{0} tokens": "토큰 {0}개",
-  "✓ Answered": "✓ 답변함"
+  "✓ Answered": "✓ 답변함",
+  "Open failed tool calls automatically": "실패한 도구 호출 자동으로 열기",
+  "A tool call that fails (for example a command that ends with an error) opens its card in the chat so you see why. The agent usually reads the error and tries another way; turn this off to keep those cards closed — they still show the failed mark.": "실패한 도구 호출(예: 오류로 끝난 명령)은 이유를 볼 수 있도록 채팅에서 카드가 열립니다. 에이전트는 보통 오류를 읽고 다른 방법을 시도합니다. 이 옵션을 끄면 해당 카드가 닫힌 채로 유지되며, 실패 표시는 계속 보입니다.",
+  "Resume Last Session": "마지막 세션 다시 시작",
+  "Renamed only": "이름 바꾼 항목만",
+  "Show only sessions you have given a custom title.": "사용자 지정 제목을 붙인 세션만 표시합니다.",
+  "Click to rename this session": "클릭하여 이 세션 이름 바꾸기",
+  "Change session color": "세션 색 변경"
 }

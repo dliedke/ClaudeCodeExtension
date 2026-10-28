@@ -572,8 +572,8 @@ namespace ClaudeCodeVS
             layoutStack.Children.Add(showTokenCountsCheck);
 
             var expandFailedToolsCheck = MakeCheckBox(
-                "Open failed tool calls automatically",
-                "A tool call that fails (for example a command that ends with an error) opens its card in the chat so you see why. The agent usually reads the error and tries another way; turn this off to keep those cards closed — they still show the failed mark.",
+                L("Open failed tool calls automatically"),
+                L("A tool call that fails (for example a command that ends with an error) opens its card in the chat so you see why. The agent usually reads the error and tries another way; turn this off to keep those cards closed — they still show the failed mark."),
                 _settings.ExpandFailedToolCalls, themeFg);
             layoutStack.Children.Add(expandFailedToolsCheck);
 
@@ -690,7 +690,7 @@ namespace ClaudeCodeVS
             var reopenChatTabsCheck = MakeCheckBox(
                 L("Reopen chat tabs when the solution opens"),
                 L("The chat tabs open when you closed the solution or Visual Studio come back the next time you open it, each continuing its conversation with the earlier messages shown. A reopened tab starts its agent only when you send it a message. Claude Code, Codex and Devin only. A tab you close yourself is not reopened; Session History still has it."),
-                _settings.ReopenChatTabsOnSolutionOpen, themeFg);
+                _settings.ReopenChatTabsWithSolution, themeFg);
             reopenChatTabsCheck.Margin = new Thickness(20, reopenChatTabsCheck.Margin.Top, reopenChatTabsCheck.Margin.Right, reopenChatTabsCheck.Margin.Bottom);
             reopenChatTabsCheck.IsEnabled = nativeModeCheck.IsChecked == true;
             nativeModeCheck.Checked += (s, e) => reopenChatTabsCheck.IsEnabled = true;
@@ -1657,8 +1657,8 @@ namespace ClaudeCodeVS
             _settings.UseNativeMode           = newUseNativeMode;
 
             // Turned off: forget the remembered tabs, so turning it back on never reopens a stale list.
-            _settings.ReopenChatTabsOnSolutionOpen = reopenChatTabsCheck.IsChecked == true;
-            if (!_settings.ReopenChatTabsOnSolutionOpen)
+            _settings.ReopenChatTabsWithSolution = reopenChatTabsCheck.IsChecked == true;
+            if (!_settings.ReopenChatTabsWithSolution)
             {
                 _settings.WorkspaceChatTabs?.Clear();
             }

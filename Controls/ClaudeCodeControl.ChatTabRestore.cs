@@ -73,7 +73,7 @@ namespace ClaudeCodeVS
             _chatTabsRestoredWorkspaceKey = key;
             _chatTabsSnapshotFrozen = false;
 
-            if (_settings?.ReopenChatTabsOnSolutionOpen != true || _settings.WorkspaceChatTabs == null ||
+            if (_settings?.ReopenChatTabsWithSolution != true || _settings.WorkspaceChatTabs == null ||
                 !_settings.WorkspaceChatTabs.TryGetValue(key, out List<SavedChatTab> saved) || saved == null)
             {
                 return null;
@@ -275,7 +275,7 @@ namespace ClaudeCodeVS
 
             try
             {
-                if (_chatTabsSnapshotFrozen || _settings?.ReopenChatTabsOnSolutionOpen != true || !IsNativeModeActive)
+                if (_chatTabsSnapshotFrozen || _settings?.ReopenChatTabsWithSolution != true || !IsNativeModeActive)
                 {
                     return;
                 }

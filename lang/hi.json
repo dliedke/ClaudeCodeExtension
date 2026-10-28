@@ -1065,5 +1065,12 @@
   "already open": "पहले से खुली",
   "{0:N0} messages": "{0:N0} संदेश",
   "{0} tokens": "{0} टोकन",
-  "✓ Answered": "✓ उत्तर दिया"
+  "✓ Answered": "✓ उत्तर दिया",
+  "Open failed tool calls automatically": "विफल टूल कॉल अपने आप खोलें",
+  "A tool call that fails (for example a command that ends with an error) opens its card in the chat so you see why. The agent usually reads the error and tries another way; turn this off to keep those cards closed — they still show the failed mark.": "विफल होने वाला टूल कॉल (जैसे कोई कमांड जो त्रुटि के साथ समाप्त होता है) चैट में अपना कार्ड खोलता है ताकि आप कारण देख सकें। एजेंट आमतौर पर त्रुटि पढ़कर दूसरा तरीका आज़माता है; उन कार्डों को बंद रखने के लिए इसे बंद करें — वे फिर भी विफलता का चिह्न दिखाते हैं।",
+  "Resume Last Session": "अंतिम सत्र फिर से शुरू करें",
+  "Renamed only": "केवल नाम बदले गए",
+  "Show only sessions you have given a custom title.": "केवल वे सत्र दिखाएँ जिन्हें आपने कस्टम शीर्षक दिया है।",
+  "Click to rename this session": "इस सत्र का नाम बदलने के लिए क्लिक करें",
+  "Change session color": "सत्र का रंग बदलें"
 }

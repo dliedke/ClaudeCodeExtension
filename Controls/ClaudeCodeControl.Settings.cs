@@ -309,6 +309,9 @@ namespace ClaudeCodeVS
                     // first launch — the catalog refresh that would drop it only runs when the model
                     // menu is opened.
                     DropRetiredReasonixModelSelection();
+
+                    // One-time cleanup (v277.0): reopening chat tabs with the solution is off for everyone.
+                    DropRetiredReopenChatTabsSetting();
                 }
                 else
                 {
@@ -431,6 +434,23 @@ namespace ClaudeCodeVS
             {
                 Debug.WriteLine($"Reasonix model selection cleanup error: {ex.Message}");
             }
+        }
+
+        /// <summary>
+        /// Drops the retired <c>ReopenChatTabsOnSolutionOpen</c> setting (v262.0-v276.0, on by default)
+        /// that the extension-data bag would otherwise keep writing back, and forgets the chat tab lists
+        /// it saved, so turning <see cref="ClaudeCodeSettings.ReopenChatTabsWithSolution"/> on later never
+        /// reopens a stale list from before the upgrade. Runs once: the field is gone after the next save.
+        /// </summary>
+        private void DropRetiredReopenChatTabsSetting()
+        {
+            const string retiredField = "ReopenChatTabsOnSolutionOpen";
+            if (_settings?.AdditionalData == null || !_settings.AdditionalData.Remove(retiredField))
+            {
+                return;
+            }
+
+            _settings.WorkspaceChatTabs?.Clear();
         }
 
         /// <summary>

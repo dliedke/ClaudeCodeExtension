@@ -1065,5 +1065,12 @@
   "already open": "zaten açık",
   "{0:N0} messages": "{0:N0} mesaj",
   "{0} tokens": "{0} belirteç",
-  "✓ Answered": "✓ Yanıtlandı"
+  "✓ Answered": "✓ Yanıtlandı",
+  "Open failed tool calls automatically": "Başarısız araç çağrılarını otomatik olarak aç",
+  "A tool call that fails (for example a command that ends with an error) opens its card in the chat so you see why. The agent usually reads the error and tries another way; turn this off to keep those cards closed — they still show the failed mark.": "Başarısız olan bir araç çağrısı (örneğin hatayla biten bir komut), nedenini görmeniz için sohbette kartını açar. Ajan genellikle hatayı okuyup başka bir yol dener; bu kartların kapalı kalması için bunu kapatın — kartlar yine de başarısızlık işaretini gösterir.",
+  "Resume Last Session": "Son oturumu sürdür",
+  "Renamed only": "Yalnızca yeniden adlandırılanlar",
+  "Show only sessions you have given a custom title.": "Yalnızca kendi adınızı verdiğiniz oturumları göster.",
+  "Click to rename this session": "Bu oturumu yeniden adlandırmak için tıklayın",
+  "Change session color": "Oturum rengini değiştir"
 }

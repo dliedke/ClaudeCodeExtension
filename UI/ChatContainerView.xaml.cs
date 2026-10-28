@@ -140,8 +140,10 @@ namespace ClaudeCodeVS.UI
             if (focusComposer)
             {
                 // The host was collapsed until now: focus once it has been laid out.
+#pragma warning disable VSTHRD001, VSTHRD110
                 Dispatcher.BeginInvoke(DispatcherPriority.Input, new Action(() =>
                     item.Host.Children.OfType<ChatTranscriptView>().FirstOrDefault()?.FocusComposer()));
+#pragma warning restore VSTHRD001, VSTHRD110
             }
 
             if (changed)
@@ -152,6 +154,8 @@ namespace ClaudeCodeVS.UI
 
         private void BringTabIntoView(ChatContainerTabItem item)
         {
+            // After layout: a tab just added has no container yet.
+#pragma warning disable VSTHRD001, VSTHRD110
             Dispatcher.BeginInvoke(DispatcherPriority.Loaded, new Action(() =>
             {
                 if (TabStrip.ItemContainerGenerator.ContainerFromItem(item) is FrameworkElement element)
@@ -159,6 +163,7 @@ namespace ClaudeCodeVS.UI
                     element.BringIntoView();
                 }
             }));
+#pragma warning restore VSTHRD001, VSTHRD110
         }
 
         private void UpdateEmptyState()

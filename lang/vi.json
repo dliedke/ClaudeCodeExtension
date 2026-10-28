@@ -1065,5 +1065,12 @@
   "already open": "đã mở",
   "{0:N0} messages": "{0:N0} tin nhắn",
   "{0} tokens": "{0} token",
-  "✓ Answered": "✓ Đã trả lời"
+  "✓ Answered": "✓ Đã trả lời",
+  "Open failed tool calls automatically": "Tự động mở các lệnh gọi công cụ bị lỗi",
+  "A tool call that fails (for example a command that ends with an error) opens its card in the chat so you see why. The agent usually reads the error and tries another way; turn this off to keep those cards closed — they still show the failed mark.": "Lệnh gọi công cụ bị lỗi (ví dụ một lệnh kết thúc bằng lỗi) sẽ mở thẻ của nó trong cuộc trò chuyện để bạn thấy lý do. Tác tử thường đọc lỗi và thử cách khác; tắt tùy chọn này để giữ các thẻ đó đóng — chúng vẫn hiển thị dấu lỗi.",
+  "Resume Last Session": "Tiếp tục phiên gần nhất",
+  "Renamed only": "Chỉ mục đã đổi tên",
+  "Show only sessions you have given a custom title.": "Chỉ hiện các phiên bạn đã đặt tiêu đề tùy chỉnh.",
+  "Click to rename this session": "Bấm để đổi tên phiên này",
+  "Change session color": "Đổi màu phiên"
 }

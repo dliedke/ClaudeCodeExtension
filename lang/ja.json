@@ -1065,5 +1065,12 @@
   "already open": "既に開いています",
   "{0:N0} messages": "{0:N0} 件のメッセージ",
   "{0} tokens": "{0} トークン",
-  "✓ Answered": "✓ 回答済み"
+  "✓ Answered": "✓ 回答済み",
+  "Open failed tool calls automatically": "失敗したツール呼び出しを自動的に開く",
+  "A tool call that fails (for example a command that ends with an error) opens its card in the chat so you see why. The agent usually reads the error and tries another way; turn this off to keep those cards closed — they still show the failed mark.": "失敗したツール呼び出し（エラーで終了したコマンドなど）は、理由がわかるようにチャットでカードが開きます。エージェントは通常エラーを読んで別の方法を試します。オフにするとそれらのカードは閉じたままになります。失敗マークは引き続き表示されます。",
+  "Resume Last Session": "最後のセッションを再開",
+  "Renamed only": "名前変更済みのみ",
+  "Show only sessions you have given a custom title.": "カスタムタイトルを付けたセッションのみ表示します。",
+  "Click to rename this session": "クリックしてこのセッションの名前を変更",
+  "Change session color": "セッションの色を変更"
 }

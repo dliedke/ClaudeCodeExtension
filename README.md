@@ -176,6 +176,13 @@ Pull requests for new features are welcome. Bug fixes too — if you find an iss
 
 ## Version History
 
+### Version 277.0
+- Reopening the previous chat tabs when a solution opens is now off by default for everyone, including existing installs; turn it on in *Settings → Terminal → Reopen chat tabs when the solution opens*.
+- "Resume Last Session" is back in Session History and reopens the newest conversation, whatever the search or sort shows.
+- The "Renamed only" filter is back in Session History and lists only the conversations you named yourself, leaving out the automatic titles.
+- A name you give a chat shows again above the conversation in full; click it to rename the chat or use its dot to change the color.
+- The "Open failed tool calls automatically" setting is now translated into every supported language.
+
 ### Version 276.0
 - Typing "@" in a very large project no longer freezes Visual Studio (or the whole PC): the file list is built within fixed time and memory limits. New "Show the @ file picker" option in Settings → Prompt turns the picker off (on by default).
 - New "Show all chats in one window" option in Settings → Layout (off by default, applies after restarting Visual Studio): every chat opens as a tab inside a single Claude Code window that stays where you dock it, also while debugging; closing it only hides it and the chats keep running.

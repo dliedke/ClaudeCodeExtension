@@ -1065,5 +1065,12 @@
   "Every native chat opens as a tab inside a single \"Claude Code\" window. Visual Studio remembers where that window is docked, also while debugging, instead of placing each chat tab among the code tabs on its own. Closing the window only hides it; the chats keep running.": "Ogni chat nativa si apre come scheda all'interno di un'unica finestra \"Claude Code\". Visual Studio ricorda dove è ancorata, anche durante il debug, invece di posizionare ogni scheda chat da sola tra le schede del codice. Chiudere la finestra la nasconde soltanto; le chat restano attive.",
   "Show all chats in one window (applies after restarting Visual Studio)": "Mostra tutte le chat in un'unica finestra (si applica dopo il riavvio di Visual Studio)",
   "Show the @ file picker": "Mostra il selettore di file @",
-  "When enabled, typing \"@\" in the prompt lists the workspace's files and folders so you can insert a path. Turn it off to type \"@\" as plain text; the workspace is then never indexed.": "Se attivo, digitando \"@\" nel prompt compaiono i file e le cartelle dell'area di lavoro, così puoi inserirne il percorso. Disattivalo per digitare \"@\" come testo normale; l'area di lavoro non viene più indicizzata."
+  "When enabled, typing \"@\" in the prompt lists the workspace's files and folders so you can insert a path. Turn it off to type \"@\" as plain text; the workspace is then never indexed.": "Se attivo, digitando \"@\" nel prompt compaiono i file e le cartelle dell'area di lavoro, così puoi inserirne il percorso. Disattivalo per digitare \"@\" come testo normale; l'area di lavoro non viene più indicizzata.",
+  "Open failed tool calls automatically": "Apri automaticamente le chiamate agli strumenti non riuscite",
+  "A tool call that fails (for example a command that ends with an error) opens its card in the chat so you see why. The agent usually reads the error and tries another way; turn this off to keep those cards closed — they still show the failed mark.": "Una chiamata a uno strumento che non riesce (ad esempio un comando che termina con un errore) apre la sua scheda nella chat, così vedi il motivo. Di solito l'agente legge l'errore e prova un'altra strada; disattiva questa opzione per tenere chiuse quelle schede: mostrano comunque il segno di errore.",
+  "Resume Last Session": "Riprendi l'ultima sessione",
+  "Renamed only": "Solo rinominate",
+  "Show only sessions you have given a custom title.": "Mostra solo le sessioni a cui hai dato un titolo personalizzato.",
+  "Click to rename this session": "Fai clic per rinominare questa sessione",
+  "Change session color": "Cambia il colore della sessione"
 }

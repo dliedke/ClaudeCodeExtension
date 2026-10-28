@@ -2029,8 +2029,39 @@ namespace ClaudeCodeVS.UI
             ComposerOverflowButton.ContextMenu.IsOpen = true;
         }
 
-        /// <summary>Raised by the composer's color button: pick a custom accent color for this session.</summary>
+        private void SessionTitleBar_MouseLeftButtonUp(object sender, System.Windows.Input.MouseButtonEventArgs e)
+        {
+            RenameSessionRequested?.Invoke(this, EventArgs.Empty);
+        }
+
+        /// <summary>Raised by the composer's color button and the title bar's swatch: pick a custom accent color for this session.</summary>
         public event EventHandler ColorPickerRequested;
+
+        private void SessionColorSwatch_MouseLeftButtonUp(object sender, System.Windows.Input.MouseButtonEventArgs e)
+        {
+            // Own handler so the click doesn't bubble up to SessionTitleBar and also open the
+            // rename dialog.
+            e.Handled = true;
+            ColorPickerRequested?.Invoke(this, EventArgs.Empty);
+        }
+
+        /// <summary>
+        /// Shows or hides the session-name header above the transcript (null or empty hides it). Has
+        /// the full width of the chat view, where the VS tab caption truncates long titles.
+        /// </summary>
+        public void SetSessionTitle(string title)
+        {
+            if (string.IsNullOrEmpty(title))
+            {
+                SessionTitleBar.Visibility = Visibility.Collapsed;
+                SessionTitleText.Text = string.Empty;
+            }
+            else
+            {
+                SessionTitleText.Text = title;
+                SessionTitleBar.Visibility = Visibility.Visible;
+            }
+        }
 
         private static readonly Color DefaultAccentColor = Color.FromRgb(0x1C, 0x8A, 0xE0); // matches ChatAccentBrush's XAML default
 

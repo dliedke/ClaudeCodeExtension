@@ -1065,5 +1065,12 @@
   "already open": "al geopend",
   "{0:N0} messages": "{0:N0} berichten",
   "{0} tokens": "{0} tokens",
-  "✓ Answered": "✓ Beantwoord"
+  "✓ Answered": "✓ Beantwoord",
+  "Open failed tool calls automatically": "Mislukte toolaanroepen automatisch openen",
+  "A tool call that fails (for example a command that ends with an error) opens its card in the chat so you see why. The agent usually reads the error and tries another way; turn this off to keep those cards closed — they still show the failed mark.": "Een toolaanroep die mislukt (bijvoorbeeld een opdracht die met een fout eindigt) opent zijn kaart in de chat zodat u ziet waarom. De agent leest de fout meestal en probeert het op een andere manier; schakel dit uit om die kaarten gesloten te houden — ze tonen nog steeds de foutmarkering.",
+  "Resume Last Session": "Laatste sessie hervatten",
+  "Renamed only": "Alleen hernoemd",
+  "Show only sessions you have given a custom title.": "Toon alleen sessies die je een eigen titel hebt gegeven.",
+  "Click to rename this session": "Klik om deze sessie een andere naam te geven",
+  "Change session color": "Sessiekleur wijzigen"
 }

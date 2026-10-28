@@ -122,7 +122,14 @@ namespace ClaudeCodeVS
             return null;
         }
 
-        internal IVsWindowFrame WindowFrame => Frame as IVsWindowFrame;
+        internal IVsWindowFrame WindowFrame
+        {
+            get
+            {
+                ThreadHelper.ThrowIfNotOnUIThread();
+                return Frame as IVsWindowFrame;
+            }
+        }
     }
 
     /// <summary>One chat inside <see cref="ChatContainerToolWindow"/>.</summary>
@@ -176,7 +183,14 @@ namespace ClaudeCodeVS
             Item.Caption = caption;
         }
 
-        public bool IsAlive => !IsClosed && _window.WindowFrame != null;
+        public bool IsAlive
+        {
+            get
+            {
+                ThreadHelper.ThrowIfNotOnUIThread();
+                return !IsClosed && _window.WindowFrame != null;
+            }
+        }
 
         public bool IsVisible
         {
@@ -217,6 +231,13 @@ namespace ClaudeCodeVS
             _window.Forget(this);
         }
 
-        public IVsWindowFrame WindowFrame => IsClosed ? null : _window.WindowFrame;
+        public IVsWindowFrame WindowFrame
+        {
+            get
+            {
+                ThreadHelper.ThrowIfNotOnUIThread();
+                return IsClosed ? null : _window.WindowFrame;
+            }
+        }
     }
 }

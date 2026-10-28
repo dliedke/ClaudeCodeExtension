@@ -1065,5 +1065,12 @@
   "already open": "sudah terbuka",
   "{0:N0} messages": "{0:N0} pesan",
   "{0} tokens": "{0} token",
-  "✓ Answered": "✓ Dijawab"
+  "✓ Answered": "✓ Dijawab",
+  "Open failed tool calls automatically": "Buka panggilan alat yang gagal secara otomatis",
+  "A tool call that fails (for example a command that ends with an error) opens its card in the chat so you see why. The agent usually reads the error and tries another way; turn this off to keep those cards closed — they still show the failed mark.": "Panggilan alat yang gagal (misalnya perintah yang berakhir dengan galat) membuka kartunya di obrolan agar Anda melihat penyebabnya. Agen biasanya membaca galat itu dan mencoba cara lain; matikan ini agar kartu tersebut tetap tertutup — kartu tetap menampilkan tanda gagal.",
+  "Resume Last Session": "Lanjutkan Sesi Terakhir",
+  "Renamed only": "Hanya yang diganti namanya",
+  "Show only sessions you have given a custom title.": "Tampilkan hanya sesi yang telah Anda beri judul kustom.",
+  "Click to rename this session": "Klik untuk mengganti nama sesi ini",
+  "Change session color": "Ubah warna sesi"
 }

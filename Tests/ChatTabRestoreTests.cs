@@ -23,13 +23,21 @@ namespace ClaudeCodeExtension.Tests
     public class ChatTabRestoreTests
     {
         [TestMethod]
-        public void ReopeningChatTabsIsOnByDefaultWithNothingSaved()
+        public void ReopeningChatTabsIsOffByDefaultWithNothingSaved()
         {
             var fresh = new ClaudeCodeSettings();
 
-            Assert.IsTrue(fresh.ReopenChatTabsOnSolutionOpen);
+            Assert.IsFalse(fresh.ReopenChatTabsWithSolution);
             Assert.IsNotNull(fresh.WorkspaceChatTabs);
             Assert.AreEqual(0, fresh.WorkspaceChatTabs.Count);
+        }
+
+        [TestMethod]
+        public void TheRetiredOnByDefaultSettingDoesNotTurnReopeningOn()
+        {
+            var loaded = JsonConvert.DeserializeObject<ClaudeCodeSettings>("{ \"ReopenChatTabsOnSolutionOpen\": true }");
+
+            Assert.IsFalse(loaded.ReopenChatTabsWithSolution);
         }
 
         [TestMethod]
