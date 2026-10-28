@@ -2519,8 +2519,7 @@ namespace ClaudeCodeVS
                     break;
 
                 case AgentEventKind.UsageUpdated:
-                    if (sessionId == _activeSessionId)
-                        ApplyNativeLiveUsage(agentEvent.Usage);
+                    ApplyNativeLiveUsageForSession(session, agentEvent.Usage);
                     break;
 
                 case AgentEventKind.RateLimitUpdated:
@@ -2545,6 +2544,7 @@ namespace ClaudeCodeVS
                     {
                         session.CodexTurnRendered?.TrySetResult(true);
                     }
+                    SaveAutoSessionName(session, writeTranscript: false);
                     SyncClaudeTranscript(session.SelectedProvider, session.AgentSession?.SessionId, agentEvent.Kind, null);
                     break;
             }
@@ -2624,6 +2624,7 @@ namespace ClaudeCodeVS
                     {
                         _codexNativeTurnRendered?.TrySetResult(true);
                     }
+                    SaveAutoSessionName(null, writeTranscript: false);
                     SyncClaudeTranscript(_currentRunningProvider ?? _settings.SelectedProvider,
                         _agentSession?.SessionId, agentEvent.Kind, null);
                     break;
@@ -2649,6 +2650,8 @@ namespace ClaudeCodeVS
             {
                 StartSessionHistoryTask(() => MakeNativeSessionResumableInCliAsync(provider, sessionId),
                     "claudecode/nativemode/resumevisible");
+                StartSessionHistoryTask(() => KeepClaudeTitleInTranscriptAsync(provider, sessionId),
+                    "claudecode/nativemode/keeptitle");
             }
         }
 
@@ -2710,7 +2713,8 @@ namespace ClaudeCodeVS
             {
                 ToolCallId = agentEvent.ToolCallId,
                 ToolName = agentEvent.ToolName,
-                ToolInputJson = FormatToolInput(agentEvent.ToolInputJson),
+                ToolInputJson = ChatToolPresenter.FormatShellInput(agentEvent.ToolName, agentEvent.ToolInputJson)
+                                ?? FormatToolInput(agentEvent.ToolInputJson),
                 Header = presentation.Title,
                 ToolIcon = presentation.Icon,
                 ToolTarget = ResolveToolTarget(agentEvent, presentation),
@@ -2779,8 +2783,9 @@ namespace ClaudeCodeVS
             message.IsError = agentEvent.IsError;
             message.IsRunning = false;
 
-            // Failures open themselves: a collapsed row would hide the reason the agent gave up.
-            if (agentEvent.IsError)
+            // Failures open themselves: a collapsed row would hide the reason the agent gave up. The
+            // agent usually recovers on its own, so this can be turned off in Settings.
+            if (agentEvent.IsError && _settings?.ExpandFailedToolCalls != false)
             {
                 message.IsExpanded = true;
             }
@@ -2891,9 +2896,9 @@ namespace ClaudeCodeVS
 
             try
             {
-                if (session?.Window?.Frame is IVsWindowFrame frame)
+                if (session?.Window != null && session.Window.IsAlive)
                 {
-                    frame.Show();
+                    session.Window.Show();
                     session.ChatTranscript?.FocusComposer();
                 }
             }
@@ -3080,6 +3085,31 @@ namespace ClaudeCodeVS
             {
                 ChatTranscript.SetActivityDetail(
                     ChatFormatting.Tokens(_nativeTurnInputTokens, _nativeTurnOutputTokens));
+            }
+        }
+
+        /// <summary>
+        /// <see cref="ApplyNativeLiveUsage"/> for a chat tab: counts into the tab's own totals and its own
+        /// status line, whichever tab sent the last prompt — parallel turns each keep counting.
+        /// </summary>
+        private void ApplyNativeLiveUsageForSession(NativeChatSessionState session, AgentUsage usage)
+        {
+            ThreadHelper.ThrowIfNotOnUIThread();
+
+            if (usage == null || session?.ChatTranscript == null)
+            {
+                return;
+            }
+
+            session.TurnOutputTokens += usage.OutputTokens;
+
+            // Latest, not summed — see ApplyNativeLiveUsage.
+            if (usage.InputTokens > 0) session.TurnInputTokens = usage.InputTokens;
+
+            if (_settings?.ShowChatTokenCounts != false)
+            {
+                session.ChatTranscript.SetActivityDetail(
+                    ChatFormatting.Tokens(session.TurnInputTokens, session.TurnOutputTokens));
             }
         }
 
@@ -3711,7 +3741,7 @@ namespace ClaudeCodeVS
             message.IsError = agentEvent.IsError;
             message.IsRunning = false;
 
-            if (agentEvent.IsError)
+            if (agentEvent.IsError && _settings?.ExpandFailedToolCalls != false)
             {
                 message.IsExpanded = true;
             }

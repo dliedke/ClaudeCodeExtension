@@ -50,6 +50,22 @@ namespace ClaudeCodeVS.UI
     }
 
     /// <summary>
+    /// A past conversation in the welcome card's recent list: what the row shows, and the session the
+    /// click resumes (<see cref="Session"/>, opaque to the view).
+    /// </summary>
+    public sealed class WelcomeRecentSession
+    {
+        public string Title { get; set; }
+
+        /// <summary>Dim second line: when, and on which git branch.</summary>
+        public string Detail { get; set; }
+
+        public string ToolTip { get; set; }
+
+        public object Session { get; set; }
+    }
+
+    /// <summary>
     /// Formatting shared by the live status line and the end-of-turn summary, so a turn is never
     /// described one way while it runs and another way once it ends.
     /// </summary>

@@ -379,6 +379,12 @@ namespace ClaudeCodeVS
         public string Preview { get; set; } = string.Empty;
 
         /// <summary>
+        /// Claude Code only: git branch the session was last on, as the transcript records it. Empty
+        /// outside a git repository or when the provider does not record it.
+        /// </summary>
+        public string GitBranch { get; set; } = string.Empty;
+
+        /// <summary>
         /// User-assigned custom title for this session (issue #95). Empty when the user has
         /// not renamed the session, in which case <see cref="Preview"/> is shown instead.
         /// Loaded from <see cref="ClaudeCodeSettings.SessionCustomTitles"/>; not parsed from
@@ -509,6 +515,12 @@ namespace ClaudeCodeVS
         public bool KeepLastPromptVisible { get; set; } = false;
 
         /// <summary>
+        /// "@" file picker on/off. When false, typing "@" in the prompt is plain text: no popup and
+        /// no workspace indexing. Default true. See ClaudeCodeControl.AtMention.cs.
+        /// </summary>
+        public bool AtMentionEnabled { get; set; } = true;
+
+        /// <summary>
         /// "@" file picker: file types to list (e.g. ".cs, .lua"); empty = every file. Folders are
         /// shown only when they contain a matching file. Issue #174. See ClaudeCodeControl.AtMention.cs.
         /// </summary>
@@ -604,6 +616,14 @@ namespace ClaudeCodeVS
         public bool AutoHidePanelInNativeMode { get; set; } = true;
 
         /// <summary>
+        /// If true, every native-mode chat opens as a tab inside one "Claude Code Chat" window
+        /// (<c>ChatContainerToolWindow</c>), whose position VS remembers, instead of each chat being
+        /// its own VS document tab placed wherever VS decides. Read when the first chat tab of a Visual
+        /// Studio session is created, so a change applies after a restart. Default false.
+        /// </summary>
+        public bool ChatTabsInOneWindow { get; set; } = false;
+
+        /// <summary>
         /// If true, each native chat tab shows what its session is doing in front of its caption:
         /// working, waiting for the user's answer, done or error. On by default.
         /// </summary>
@@ -623,6 +643,13 @@ namespace ClaudeCodeVS
         /// footer. The composer's usage ring is not affected. On by default.
         /// </summary>
         public bool ShowChatTokenCounts { get; set; } = true;
+
+        /// <summary>
+        /// If true, a tool call that fails (a command with a non-zero exit code, an edit that did not
+        /// apply) opens its card in the native chat by itself. Off leaves it collapsed, still marked as
+        /// failed. On by default.
+        /// </summary>
+        public bool ExpandFailedToolCalls { get; set; } = true;
 
         /// <summary>
         /// If true, the native chat's live status line always says "Thinking…" instead of rotating
@@ -1109,12 +1136,6 @@ namespace ClaudeCodeVS
         /// empty means the built-in accent blue.
         /// </summary>
         public string DefaultNativeSessionColor { get; set; } = string.Empty;
-
-        /// <summary>
-        /// Remembered state of the "Renamed only" filter toggle in the Session History
-        /// window, so it persists across Visual Studio restarts (issue #95).
-        /// </summary>
-        public bool SessionHistoryRenamedOnly { get; set; } = false;
 
         /// <summary>
         /// Remembered sort order for the Session History list, so the chosen ordering persists

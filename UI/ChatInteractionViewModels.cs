@@ -27,7 +27,29 @@ namespace ClaudeCodeVS.UI
     {
         private bool _isSelected;
 
+        /// <summary>The agent's exact option text. Sent back as the answer, so never reworded.</summary>
         public string Label { get; set; } = string.Empty;
+
+        /// <summary>
+        /// <see cref="Label"/> as shown on the card: the "(Recommended)" suffix the agent appends to its
+        /// suggested option is translated. Display only — the answer still carries the original label.
+        /// </summary>
+        public string DisplayLabel
+        {
+            get { return LocalizeLabel(Label); }
+        }
+
+        private const string RecommendedSuffix = "(Recommended)";
+
+        internal static string LocalizeLabel(string label)
+        {
+            if (string.IsNullOrEmpty(label)) return label ?? string.Empty;
+
+            string trimmed = label.TrimEnd();
+            if (!trimmed.EndsWith(RecommendedSuffix, StringComparison.OrdinalIgnoreCase)) return label;
+
+            return trimmed.Substring(0, trimmed.Length - RecommendedSuffix.Length) + L("(Recommended)");
+        }
 
         public string Description { get; set; } = string.Empty;
 
@@ -115,7 +137,7 @@ namespace ClaudeCodeVS.UI
         {
             get
             {
-                string[] selected = SelectedLabels();
+                string[] selected = Options.Where(o => o.IsSelected).Select(o => o.DisplayLabel).ToArray();
                 return selected.Length == 0
                     ? L("Other — type your own answer…")
                     : L("Type additional info to {0}…", JoinWithAnd(selected));
@@ -184,6 +206,51 @@ namespace ClaudeCodeVS.UI
         internal void RefreshLanguage()
         {
             Raise(nameof(OtherPlaceholder));
+        }
+
+        private string _answeredChoice = string.Empty;
+        private string _answeredNote = string.Empty;
+        private bool _wasLeftBlank;
+
+        /// <summary>
+        /// What was picked, as shown in the answered card: the selected options, else the free text,
+        /// else "No answer". Set by <see cref="CaptureAnswer"/>.
+        /// </summary>
+        public string AnsweredChoice { get { return _answeredChoice; } }
+
+        /// <summary>The free text typed next to selected options; empty when there was none.</summary>
+        public string AnsweredNote { get { return _answeredNote; } }
+
+        public bool HasAnsweredNote { get { return _answeredNote.Length > 0; } }
+
+        /// <summary>True when the question was submitted without any answer.</summary>
+        public bool WasLeftBlank { get { return _wasLeftBlank; } }
+
+        /// <summary>
+        /// Freezes the answer for the summary shown once the card is submitted, keeping the choice and
+        /// the free text apart so each answer still reads next to its question.
+        /// </summary>
+        internal void CaptureAnswer()
+        {
+            string other = string.IsNullOrWhiteSpace(_otherAnswer) ? null : _otherAnswer.Trim();
+            string[] selected = Options.Where(o => o.IsSelected).Select(o => o.DisplayLabel).ToArray();
+
+            _wasLeftBlank = selected.Length == 0 && other == null;
+            if (selected.Length == 0)
+            {
+                _answeredChoice = other ?? L("No answer");
+                _answeredNote = string.Empty;
+            }
+            else
+            {
+                _answeredChoice = string.Join(", ", selected);
+                _answeredNote = other ?? string.Empty;
+            }
+
+            Raise(nameof(AnsweredChoice));
+            Raise(nameof(AnsweredNote));
+            Raise(nameof(HasAnsweredNote));
+            Raise(nameof(WasLeftBlank));
         }
 
         public event PropertyChangedEventHandler PropertyChanged;
@@ -315,7 +382,10 @@ namespace ClaudeCodeVS.UI
                 switch (InteractionKind)
                 {
                     case AgentInteractionKind.PlanReview: return L("Plan ready for review");
-                    case AgentInteractionKind.Question: return L("The agent needs your input");
+                    case AgentInteractionKind.Question:
+                        if (_isPending) return L("The agent needs your input");
+                        if (!WasAccepted) return L("Question skipped");
+                        return Questions.Count > 1 ? L("Questions") : L("Question");
                     default:
                         string suffix = string.IsNullOrEmpty(ToolDescription) ? string.Empty : " - " + ToolDescription;
 
@@ -380,6 +450,9 @@ namespace ClaudeCodeVS.UI
                 _isPending = value;
                 RaisePropertyChanged(nameof(IsPending));
                 RaisePropertyChanged(nameof(IsResolved));
+                RaisePropertyChanged(nameof(ShowAnswerSummary));
+                RaisePropertyChanged(nameof(ShowOutcome));
+                RaisePropertyChanged(nameof(Title));
             }
         }
 
@@ -401,6 +474,15 @@ namespace ClaudeCodeVS.UI
                 question.RefreshLanguage();
             }
         }
+
+        /// <summary>
+        /// True once a question card is submitted: it then lists each question with its answer instead
+        /// of the one-line <see cref="Outcome"/>.
+        /// </summary>
+        public bool ShowAnswerSummary { get { return IsResolved && IsQuestion && WasAccepted; } }
+
+        /// <summary>True when the resolved card shows the one-line <see cref="Outcome"/>.</summary>
+        public bool ShowOutcome { get { return IsResolved && !ShowAnswerSummary; } }
 
         /// <summary>True when the card was accepted rather than declined or abandoned.</summary>
         public bool WasAccepted { get; private set; }
@@ -451,6 +533,11 @@ namespace ClaudeCodeVS.UI
 
                 _request.Allow(answers);
                 Outcome = L("Answered: {0}", string.Join(" · ", answers.Values));
+
+                foreach (ChatQuestionViewModel question in Questions)
+                {
+                    question.CaptureAnswer();
+                }
             }
             else
             {

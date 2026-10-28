@@ -1613,8 +1613,7 @@ namespace ClaudeCodeVS
             {
                 try
                 {
-                    if (session.Window?.Frame is IVsWindowFrame frame)
-                        frame.CloseFrame((uint)__FRAMECLOSE.FRAMECLOSE_NoSave);
+                    session.Window?.Close();
                 }
                 catch (Exception ex)
                 {

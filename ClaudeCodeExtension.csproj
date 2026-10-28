@@ -140,6 +140,7 @@
     <Compile Include="UI\ImagePreview.cs" />
     <Compile Include="UI\Loc.cs" />
     <Compile Include="UI\LocExtension.cs" />
+    <Compile Include="UI\SessionListPresentation.cs" />
     <Compile Include="UI\WelcomeCardLayout.cs" />
     <Compile Include="UI\MarkdownFlowRenderer.cs" />
     <Compile Include="UI\ChatTranscriptView.xaml.cs">
@@ -152,6 +153,12 @@
     <Compile Include="ToolWindows\ClaudeUsageToolWindow.cs" />
     <Compile Include="ToolWindows\DetachedTerminalToolWindow.cs" />
     <Compile Include="ToolWindows\NativeChatToolWindow.cs" />
+    <Compile Include="ToolWindows\IChatTabHost.cs" />
+    <Compile Include="ToolWindows\ChatContainerToolWindow.cs" />
+    <Compile Include="UI\ThemedDialog.cs" />
+    <Compile Include="UI\ChatContainerView.xaml.cs">
+      <DependentUpon>ChatContainerView.xaml</DependentUpon>
+    </Compile>
     <Compile Include="ToolWindows\DiffViewerToolWindow.cs" />
     <Compile Include="UI\DiffViewerControl.xaml.cs">
       <DependentUpon>DiffViewerControl.xaml</DependentUpon>
@@ -232,6 +239,14 @@
       <Generator>MSBuild:Compile</Generator>
     </Page>
     <Page Include="UI\ChatTranscriptView.xaml">
+      <Generator>MSBuild:Compile</Generator>
+      <SubType>Designer</SubType>
+    </Page>
+    <Page Include="UI\ThemedDialogStyles.xaml">
+      <Generator>MSBuild:Compile</Generator>
+      <SubType>Designer</SubType>
+    </Page>
+    <Page Include="UI\ChatContainerView.xaml">
       <Generator>MSBuild:Compile</Generator>
       <SubType>Designer</SubType>
     </Page>

@@ -310,5 +310,32 @@ namespace ClaudeCodeExtension.Tests
                 "12 processed · 10 cached input · 2 output",
                 ChatFormatting.CodexTokens(10, 2, 99));
         }
+
+        [TestMethod]
+        public void FormatShellInput_ShowsTheCommandUnescaped()
+        {
+            string json = "{\"command\":\"grep -c \\\"class Script.*Statement\\\" Script.h\",\"description\":\"Count statements\"}";
+
+            Assert.AreEqual("grep -c \"class Script.*Statement\" Script.h", ChatToolPresenter.FormatShellInput("Bash", json));
+        }
+
+        [TestMethod]
+        public void FormatShellInput_ListsOtherArgumentsUnderTheCommand()
+        {
+            string json = "{\"command\":\"npm test\",\"timeout\":120000,\"run_in_background\":true,\"description\":\"Run tests\"}";
+
+            Assert.AreEqual("npm test\n\ntimeout: 120000\nrun_in_background: true",
+                ChatToolPresenter.FormatShellInput("Bash", json));
+        }
+
+        [TestMethod]
+        public void FormatShellInput_LeavesOtherToolsAndCommandlessCallsToTheJson()
+        {
+            Assert.IsNull(ChatToolPresenter.FormatShellInput("Read", "{\"file_path\":\"C:\\\\a.cs\"}"));
+            Assert.IsNull(ChatToolPresenter.FormatShellInput("Bash", "{\"description\":\"nothing to run\"}"));
+            Assert.IsNull(ChatToolPresenter.FormatShellInput("Bash", "not json"));
+            Assert.IsNull(ChatToolPresenter.FormatShellInput(null, "{\"command\":\"ls\"}"));
+            Assert.AreEqual("Get-ChildItem", ChatToolPresenter.FormatShellInput("PowerShell", "{\"command\":\"Get-ChildItem\"}"));
+        }
     }
 }
