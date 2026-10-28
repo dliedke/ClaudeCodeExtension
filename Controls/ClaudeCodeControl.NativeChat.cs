@@ -17,6 +17,7 @@ using System.ComponentModel;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
+using System.Runtime.CompilerServices;
 using System.Text;
 using System.Text.RegularExpressions;
 using System.Threading;
@@ -38,7 +39,16 @@ namespace ClaudeCodeVS
     {
         #region Chat Tab Fields
 
-        private NativeChatToolWindow _nativeChatWindow;
+        private IChatTabHost _nativeChatWindow;
+
+        /// <summary>
+        /// "Show all chats in one window", fixed for this Visual Studio session at the first chat tab:
+        /// chats already open in one kind of host must not be followed by chats in the other.
+        /// </summary>
+        private bool? _chatTabsInOneWindow;
+
+        /// <summary>The single chat window, once a chat has opened in it (its "+" is wired once, then).</summary>
+        private ChatContainerToolWindow _chatContainer;
 
         /// <summary>True while the transcript is parented into the document tab instead of the panel.</summary>
         private bool _chatIsInTab;
@@ -141,7 +151,7 @@ namespace ClaudeCodeVS
                 // null frame, `frame?.Show()` no-ops, and the panel is left collapsed around a tab that
                 // never appears — the "blank panel, only usage bars" state. Drop the stale pane so the
                 // block below builds a fresh one.
-                if (_nativeChatWindow != null && !(_nativeChatWindow.Frame is IVsWindowFrame))
+                if (_nativeChatWindow != null && !_nativeChatWindow.IsAlive)
                 {
                     _nativeChatWindow.Closed -= OnNativeChatWindowClosed;
                     _nativeChatWindow.Activated -= OnDefaultNativeChatWindowActivated;
@@ -150,7 +160,7 @@ namespace ClaudeCodeVS
 
                 if (_nativeChatWindow == null)
                 {
-                    _nativeChatWindow = package.FindToolWindow(typeof(NativeChatToolWindow), 0, true) as NativeChatToolWindow;
+                    _nativeChatWindow = GetOrCreateChatTabHost(package, 0);
                     if (_nativeChatWindow != null)
                     {
                         _nativeChatWindow.Closed += OnNativeChatWindowClosed;
@@ -158,8 +168,7 @@ namespace ClaudeCodeVS
                     }
                 }
 
-                IVsWindowFrame frame = _nativeChatWindow?.Frame as IVsWindowFrame;
-                if (_nativeChatWindow == null || frame == null)
+                if (_nativeChatWindow == null || !_nativeChatWindow.IsAlive)
                 {
                     // VS would not give us a document tab. Never leave the panel collapsed with the
                     // conversation nowhere: keep it in the panel so it stays usable, and let a later
@@ -205,7 +214,7 @@ namespace ClaudeCodeVS
                 // something unrelated happens to trigger a refresh.
                 RefreshToolbarLayout();
 
-                int showHr = frame.Show();
+                int showHr = _nativeChatWindow.Show();
                 if (ErrorHandler.Failed(showHr))
                 {
                     // The frame existed but would not surface. Same recovery as a null frame: fall
@@ -229,6 +238,44 @@ namespace ClaudeCodeVS
             {
                 Debug.WriteLine($"Error opening the chat tab: {ex.Message}");
             }
+        }
+
+        /// <summary>
+        /// The tab for one chat: its own VS document tab, or a tab inside the single "Claude Code"
+        /// window when <see cref="ClaudeCodeSettings.ChatTabsInOneWindow"/> was on when this Visual Studio
+        /// session opened its first chat. <paramref name="windowId"/> 0 is the main chat. Null when VS
+        /// would not create the window.
+        /// </summary>
+        private IChatTabHost GetOrCreateChatTabHost(AsyncPackage package, int windowId)
+        {
+            ThreadHelper.ThrowIfNotOnUIThread();
+
+            if (_chatTabsInOneWindow == null)
+            {
+                _chatTabsInOneWindow = _settings?.ChatTabsInOneWindow == true;
+            }
+
+            if (_chatTabsInOneWindow != true)
+            {
+                return package.FindToolWindow(typeof(NativeChatToolWindow), windowId, true) as NativeChatToolWindow;
+            }
+
+            var container = package.FindToolWindow(typeof(ChatContainerToolWindow), 0, true) as ChatContainerToolWindow;
+            if (container == null)
+            {
+                return null;
+            }
+
+            if (!ReferenceEquals(_chatContainer, container))
+            {
+                _chatContainer = container;
+                container.NewChatRequested += (s, e) =>
+                    OnComposerNewChatRequested((object)container.SelectedTranscript ?? ChatTranscript, EventArgs.Empty);
+            }
+
+            container.SetModernIcons(_settings?.ChatIconStyle == ChatIconStyle.Modern);
+
+            return container.GetOrCreateTab(windowId);
         }
 
         /// <summary>
@@ -525,7 +572,7 @@ namespace ClaudeCodeVS
 
             // Take the reference before closing: CloseFrame fires the Closed handler, which clears the
             // field on its way out.
-            NativeChatToolWindow window = _nativeChatWindow;
+            IChatTabHost window = _nativeChatWindow;
 
             ReturnNativeChatToPanel();
 
@@ -536,10 +583,7 @@ namespace ClaudeCodeVS
 
             try
             {
-                if (window.Frame is IVsWindowFrame frame)
-                {
-                    frame.CloseFrame((uint)__FRAMECLOSE.FRAMECLOSE_NoSave);
-                }
+                window.Close();
             }
             catch (Exception ex)
             {
@@ -569,8 +613,8 @@ namespace ClaudeCodeVS
                     return;
                 }
 
-                // Create/get tool window for this session (using session's window ID)
-                var window = package.FindToolWindow(typeof(NativeChatToolWindow), session.WindowId, true) as NativeChatToolWindow;
+                // Create/get the tab for this session (using session's window ID)
+                IChatTabHost window = GetOrCreateChatTabHost(package, session.WindowId);
                 if (window == null)
                 {
                     Debug.WriteLine($"ShowSessionInTabAsync: could not create window for session {session.SessionId}.");
@@ -611,10 +655,7 @@ namespace ClaudeCodeVS
                 RefreshToolbarLayout();
 
                 // Show the window
-                if (window.Frame is IVsWindowFrame frame)
-                {
-                    frame.Show();
-                }
+                window.Show();
 
                 if (focusComposer)
                 {
@@ -675,6 +716,12 @@ namespace ClaudeCodeVS
             transcript.ClearChatRequested += OnComposerClearChatRequested;
             transcript.NewChatRequested += OnComposerNewChatRequested;
             transcript.RenameSessionRequested += OnComposerRenameSessionRequested;
+            transcript.WelcomeSessionRequested += OnWelcomeSessionRequested;
+            transcript.WelcomeAllSessionsRequested += OnWelcomeAllSessionsRequested;
+            transcript.IsVisibleChanged -= OnWelcomeTranscriptVisibleChanged;
+            transcript.IsVisibleChanged += OnWelcomeTranscriptVisibleChanged;
+            transcript.SessionHistoryRequested -= OnComposerSessionHistoryRequested;
+            transcript.SessionHistoryRequested += OnComposerSessionHistoryRequested;
             transcript.ColorPickerRequested += OnComposerColorPickerRequested;
             transcript.ZoomChanged += OnComposerZoomChanged;
             transcript.ComposerHeightChanged += OnComposerHeightChanged;
@@ -889,8 +936,7 @@ namespace ClaudeCodeVS
             return _chatIsInTab
                    && _nativeChatWindow != null
                    && _nativeChatWindow.HasChatContent
-                   && _nativeChatWindow.Frame is IVsWindowFrame frame
-                   && frame.IsVisible() == VSConstants.S_OK;
+                   && _nativeChatWindow.IsVisible;
         }
 
         /// <summary>The default session's chat tab is open (startup restore check, issue #209).</summary>
@@ -909,7 +955,7 @@ namespace ClaudeCodeVS
             get
             {
                 ThreadHelper.ThrowIfNotOnUIThread();
-                return _nativeChatWindow?.Frame as IVsWindowFrame;
+                return _nativeChatWindow?.WindowFrame;
             }
         }
 
@@ -1030,9 +1076,6 @@ namespace ClaudeCodeVS
             string captionTitle = string.IsNullOrWhiteSpace(title) ? GetAutoChatTitle(null) : title;
             _nativeChatWindow.UpdateCaption(DecorateChatTabCaption(null, BuildChatTabCaption(GetActiveOrSelectedProvider(), captionTitle)));
 
-            // Also kept as a header above the transcript: the VS tab strip truncates, and with several
-            // chats open the header is what tells them apart once a tab is selected.
-            ChatTranscript?.SetSessionTitle(title);
             ChatTranscript?.SetSessionTitleColor(GetCurrentNativeSessionColor());
         }
 
@@ -1072,7 +1115,6 @@ namespace ClaudeCodeVS
 
             string captionTitle = string.IsNullOrWhiteSpace(title) ? GetAutoChatTitle(session) : title;
             session.Window?.UpdateCaption(DecorateChatTabCaption(session, BuildChatTabCaption(session.SelectedProvider, captionTitle)));
-            session.ChatTranscript.SetSessionTitle(title);
             session.ChatTranscript.SetSessionTitleColor(GetNativeSessionColor(agentSessionId));
         }
 
@@ -1276,6 +1318,10 @@ namespace ClaudeCodeVS
             ChatTranscript.ClearChatRequested += OnComposerClearChatRequested;
             ChatTranscript.NewChatRequested += OnComposerNewChatRequested;
             ChatTranscript.RenameSessionRequested += OnComposerRenameSessionRequested;
+            ChatTranscript.WelcomeSessionRequested += OnWelcomeSessionRequested;
+            ChatTranscript.WelcomeAllSessionsRequested += OnWelcomeAllSessionsRequested;
+            ChatTranscript.IsVisibleChanged += OnWelcomeTranscriptVisibleChanged;
+            ChatTranscript.SessionHistoryRequested += OnComposerSessionHistoryRequested;
             ChatTranscript.ColorPickerRequested += OnComposerColorPickerRequested;
             ChatTranscript.ZoomChanged += OnComposerZoomChanged;
             ChatTranscript.ComposerHeightChanged += OnComposerHeightChanged;
@@ -2095,6 +2141,210 @@ namespace ClaudeCodeVS
                 BeginCliVersionLookup(provider.Value, directory);
                 BeginAccountLabelLookup(provider.Value, directory);
             }
+
+            BeginWelcomeRecentSessionsLookup(transcript, directory);
+        }
+
+        /// <summary>How many past conversations the welcome card lists.</summary>
+        private const int WelcomeRecentSessionCount = 5;
+
+        /// <summary>Transcripts whose recent list is being read, so the card's re-renders do not pile up reads.</summary>
+        private readonly HashSet<ChatTranscriptView> _welcomeRecentLookups = new HashSet<ChatTranscriptView>();
+
+        /// <summary>Workspace each welcome card's recent list was read for, so a re-shown tab reads it again.</summary>
+        private readonly ConditionalWeakTable<ChatTranscriptView, string> _welcomeRecentWorkspaces =
+            new ConditionalWeakTable<ChatTranscriptView, string>();
+
+        /// <summary>
+        /// Fills the welcome card's recent list with the workspace's latest Claude Code conversations,
+        /// read in the background. Conversations open in a chat tab are listed too, marked as open.
+        /// Any other agent, or no past conversation, leaves the card on its tips.
+        /// </summary>
+        private void BeginWelcomeRecentSessionsLookup(ChatTranscriptView transcript, string workspace)
+        {
+            ThreadHelper.ThrowIfNotOnUIThread();
+
+            _welcomeRecentWorkspaces.Remove(transcript);
+            _welcomeRecentWorkspaces.Add(transcript, workspace ?? string.Empty);
+
+            NativeChatSessionState owner = ResolveSessionFromSender(transcript);
+            AiProvider? provider = owner != null ? owner.SelectedProvider : GetActiveOrSelectedProvider();
+
+            if (!IsClaudeCodeSessionHistoryProvider(provider) || string.IsNullOrWhiteSpace(workspace))
+            {
+                transcript.SetWelcomeRecentSessions(null);
+                return;
+            }
+
+            if (!_welcomeRecentLookups.Add(transcript))
+            {
+                return;
+            }
+
+            StartSessionHistoryTask(async () =>
+            {
+                try
+                {
+                    List<SessionInfo> recent = await LoadRecentClaudeSessionsAsync(
+                        provider.Value, workspace, WelcomeRecentSessionCount);
+
+                    await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
+                    if (transcript.IsWelcomeVisible)
+                    {
+                        transcript.SetWelcomeRecentSessions(recent
+                            .Select(info => BuildWelcomeRecentSession(info, TryFindOpenChatTab(info.SessionId, out _)))
+                            .ToList());
+                    }
+                }
+                finally
+                {
+                    await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
+                    _welcomeRecentLookups.Remove(transcript);
+                }
+            }, "claudecode/nativechat/welcomerecent");
+        }
+
+        /// <summary>
+        /// The welcome card came back into view (its tab was brought forward): reads the recent list
+        /// again, since conversations may have moved on or been opened/closed since it was last read.
+        /// </summary>
+        private void OnWelcomeTranscriptVisibleChanged(object sender, DependencyPropertyChangedEventArgs e)
+        {
+            ThreadHelper.ThrowIfNotOnUIThread();
+
+            if (sender is ChatTranscriptView transcript &&
+                e.NewValue is bool visible && visible &&
+                transcript.IsWelcomeVisible &&
+                _welcomeRecentWorkspaces.TryGetValue(transcript, out string workspace))
+            {
+                BeginWelcomeRecentSessionsLookup(transcript, workspace);
+            }
+        }
+
+        /// <summary>
+        /// Finds the chat tab showing a conversation. <paramref name="session"/> is null when it is the
+        /// main chat (the one on <c>_agentSession</c>).
+        /// </summary>
+        private bool TryFindOpenChatTab(string sessionId, out NativeChatSessionState session)
+        {
+            session = null;
+            if (string.IsNullOrEmpty(sessionId))
+            {
+                return false;
+            }
+
+            bool Matches(IAgentSession agent) =>
+                agent != null &&
+                (string.Equals(agent.SessionId, sessionId, StringComparison.OrdinalIgnoreCase) ||
+                 string.Equals(agent.ResumableSessionId, sessionId, StringComparison.OrdinalIgnoreCase));
+
+            if (Matches(_agentSession))
+            {
+                return true;
+            }
+
+            lock (_sessionLock)
+            {
+                session = _nativeSessions.Values.FirstOrDefault(state => Matches(state.AgentSession));
+            }
+
+            return session != null;
+        }
+
+        /// <summary>Brings forward the tab already showing a conversation clicked in the welcome card.</summary>
+        private async Task SwitchToOpenChatTabAsync(NativeChatSessionState session)
+        {
+            await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
+
+            if (session != null)
+            {
+                BringSessionTabToFront(session);
+            }
+            else if (IsChatDetachedToOwnTab)
+            {
+                await ShowNativeChatTabAsync(focusComposer: true);
+            }
+            else
+            {
+                ChatTranscript?.FocusComposer();
+            }
+        }
+
+        /// <summary>
+        /// One row of the welcome card's recent list: the name (else first prompt), then when, on which
+        /// branch and whether a chat tab already shows it.
+        /// </summary>
+        private static WelcomeRecentSession BuildWelcomeRecentSession(SessionInfo info, bool isOpen)
+        {
+            DateTime when = info.LastModified;
+            string detail;
+            switch (SessionListPresentation.GetDateGroup(when, DateTime.Now))
+            {
+                case SessionDateGroup.Today:
+                    detail = L("Today") + " " + when.ToString("t", Loc.Culture);
+                    break;
+                case SessionDateGroup.Yesterday:
+                    detail = L("Yesterday") + " " + when.ToString("t", Loc.Culture);
+                    break;
+                default:
+                    detail = when.ToString("d", Loc.Culture);
+                    break;
+            }
+
+            if (!string.IsNullOrEmpty(info.GitBranch))
+            {
+                detail += "  ·  " + info.GitBranch;
+            }
+
+            if (isOpen)
+            {
+                detail += "  ·  " + L("already open");
+            }
+
+            return new WelcomeRecentSession
+            {
+                Title = info.DisplayTitle,
+                Detail = detail,
+                ToolTip = string.IsNullOrWhiteSpace(info.CustomTitle) ? null : info.Preview,
+                Session = info
+            };
+        }
+
+        /// <summary>
+        /// A conversation clicked in the welcome card: brought forward when a chat tab already shows it
+        /// (resuming it a second time would have two CLIs writing one transcript), otherwise resumed in
+        /// the tab whose card it was.
+        /// </summary>
+        private void OnWelcomeSessionRequested(object sender, WelcomeRecentSession row)
+        {
+            ThreadHelper.ThrowIfNotOnUIThread();
+
+            if (row?.Session is SessionInfo info)
+            {
+                if (TryFindOpenChatTab(info.SessionId, out NativeChatSessionState openTab))
+                {
+                    StartSessionHistoryTask(() => SwitchToOpenChatTabAsync(openTab), "claudecode/nativechat/welcomeswitch");
+                    return;
+                }
+
+                NativeChatSessionState owner = ResolveSessionFromSender(sender);
+                StartSessionHistoryTask(() => ResumeSessionAsync(info, owner), "claudecode/nativechat/welcomeresume");
+            }
+        }
+
+        private void OnWelcomeAllSessionsRequested(object sender, EventArgs e)
+        {
+            StartSessionHistoryTask(ShowSessionHistoryDialogAsync, "claudecode/nativechat/welcomehistory");
+        }
+
+        /// <summary>The composer's 🕘 beside ⚙: Session History for the tab it was clicked in.</summary>
+        private void OnComposerSessionHistoryRequested(object sender, EventArgs e)
+        {
+            ThreadHelper.ThrowIfNotOnUIThread();
+
+            // ShowSessionHistoryDialogAsync targets the focused chat; the click may not have moved focus.
+            MarkNativeSessionFocused(ResolveSessionFromSender(sender)?.SessionId);
+            StartSessionHistoryTask(ShowSessionHistoryDialogAsync, "claudecode/nativechat/composerhistory");
         }
 
         /// <summary>

@@ -91,6 +91,32 @@
 			</Setter>
 		</Style>
 
+		<!-- A conversation in the welcome card's recent list: flat, highlighted under the mouse. The
+		     negative left margin lines its text up with the list caption above it. -->
+		<Style x:Key="WelcomeRecentButtonStyle" TargetType="Button">
+			<Setter Property="Background" Value="Transparent"/>
+			<Setter Property="BorderThickness" Value="0"/>
+			<Setter Property="Padding" Value="4,3,4,3"/>
+			<Setter Property="Margin" Value="-4,0,0,1"/>
+			<Setter Property="Cursor" Value="Hand"/>
+			<Setter Property="HorizontalContentAlignment" Value="Stretch"/>
+			<Setter Property="Foreground" Value="{DynamicResource {x:Static vsshell:VsBrushes.WindowTextKey}}"/>
+			<Setter Property="Template">
+				<Setter.Value>
+					<ControlTemplate TargetType="Button">
+						<Border Background="{TemplateBinding Background}" CornerRadius="3" Padding="{TemplateBinding Padding}">
+							<ContentPresenter HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"/>
+						</Border>
+						<ControlTemplate.Triggers>
+							<Trigger Property="IsMouseOver" Value="True">
+								<Setter Property="Background" Value="{DynamicResource {x:Static vsshell:VsBrushes.CommandBarHoverOverSelectedKey}}"/>
+							</Trigger>
+						</ControlTemplate.Triggers>
+					</ControlTemplate>
+				</Setter.Value>
+			</Setter>
+		</Style>
+
 		<!-- Rendered markdown: headings, lists, tables, emphasis and fenced code. -->
 		<Style x:Key="MarkdownBodyStyle" TargetType="local:MarkdownBlock">
 			<Setter Property="FontFamily" Value="{DynamicResource ChatFontFamily}"/>
@@ -628,7 +654,7 @@
 							        Tag="{Binding DataContext, RelativeSource={RelativeSource AncestorType={x:Type ItemsControl}}}"
 							        Click="InteractionOption_Click">
 								<StackPanel>
-									<TextBlock Text="{Binding Label}" TextWrapping="Wrap"/>
+									<TextBlock Text="{Binding DisplayLabel}" TextWrapping="Wrap"/>
 									<TextBlock Text="{Binding Description}" TextWrapping="Wrap"
 									           FontSize="{DynamicResource ChatTinyFontSize}" Opacity="0.65" Margin="0,2,0,0"
 									           Visibility="{Binding HasDescription, Converter={StaticResource BoolToVis}}"/>
@@ -659,6 +685,51 @@
 			</StackPanel>
 		</DataTemplate>
 
+		<!-- One question of a submitted question card: the question, then its answer and free text
+		     indented under it, so each answer still reads next to what it answers. -->
+		<DataTemplate x:Key="InteractionAnswerTemplate" DataType="{x:Type local:ChatQuestionViewModel}">
+			<StackPanel Margin="0,0,0,8">
+				<Border Visibility="{Binding HasHeader, Converter={StaticResource BoolToVis}}"
+				        HorizontalAlignment="Left"
+				        Margin="0,0,0,3" Padding="6,1,6,1" CornerRadius="3"
+				        Background="#331C8AE0">
+					<TextBlock Text="{Binding Header}" FontSize="{DynamicResource ChatTinyFontSize}" FontWeight="SemiBold"
+					           Opacity="0.9"
+					           Foreground="{DynamicResource {x:Static vsshell:VsBrushes.WindowTextKey}}"/>
+				</Border>
+
+				<TextBlock Text="{Binding Question}" TextWrapping="Wrap" Opacity="0.75"
+				           FontSize="{DynamicResource ChatSmallFontSize}"/>
+
+				<Grid Margin="10,3,0,0">
+					<Grid.ColumnDefinitions>
+						<ColumnDefinition Width="Auto"/>
+						<ColumnDefinition Width="*"/>
+					</Grid.ColumnDefinitions>
+					<TextBlock Grid.Column="0" Text="→" Margin="0,0,6,0" Opacity="0.6"/>
+					<StackPanel Grid.Column="1">
+						<TextBlock Text="{Binding AnsweredChoice}" TextWrapping="Wrap">
+							<TextBlock.Style>
+								<Style TargetType="TextBlock">
+									<Setter Property="FontWeight" Value="SemiBold"/>
+									<Style.Triggers>
+										<DataTrigger Binding="{Binding WasLeftBlank}" Value="True">
+											<Setter Property="FontWeight" Value="Normal"/>
+											<Setter Property="FontStyle" Value="Italic"/>
+											<Setter Property="Opacity" Value="0.55"/>
+										</DataTrigger>
+									</Style.Triggers>
+								</Style>
+							</TextBlock.Style>
+						</TextBlock>
+						<TextBlock Text="{Binding AnsweredNote}" TextWrapping="Wrap" Margin="0,2,0,0"
+						           FontSize="{DynamicResource ChatSmallFontSize}" FontStyle="Italic" Opacity="0.75"
+						           Visibility="{Binding HasAnsweredNote, Converter={StaticResource BoolToVis}}"/>
+					</StackPanel>
+				</Grid>
+			</StackPanel>
+		</DataTemplate>
+
 		<!-- Question / plan / tool-permission card. Stays in the transcript once answered, showing
 		     what was decided, so scrolling back still explains why the agent did what it did. -->
 		<DataTemplate x:Key="InteractionTemplate" DataType="{x:Type local:ChatInteractionViewModel}">
@@ -666,8 +737,14 @@
 			        Background="{DynamicResource {x:Static vsshell:VsBrushes.WindowKey}}"
 			        BorderBrush="#881C8AE0" BorderThickness="1">
 				<StackPanel>
-					<TextBlock Text="{Binding Title}" FontWeight="SemiBold" Margin="0,0,0,8"
-					           TextWrapping="Wrap"/>
+					<DockPanel Margin="0,0,0,8">
+						<TextBlock DockPanel.Dock="Right" Margin="12,0,0,0"
+						           Text="{local:Loc '✓ Answered'}" Foreground="#FF4EC9B0"
+						           FontSize="{DynamicResource ChatSmallFontSize}" FontWeight="SemiBold"
+						           VerticalAlignment="Center"
+						           Visibility="{Binding ShowAnswerSummary, Converter={StaticResource BoolToVis}}"/>
+						<TextBlock Text="{Binding Title}" FontWeight="SemiBold" TextWrapping="Wrap"/>
+					</DockPanel>
 
 					<!-- Pending: the actual controls -->
 					<StackPanel Visibility="{Binding IsPending, Converter={StaticResource BoolToVis}}">
@@ -792,10 +869,16 @@
 						</DockPanel>
 					</StackPanel>
 
-					<!-- Answered: one line saying what happened -->
+					<!-- Answered question card: each question with its answer -->
+					<ItemsControl ItemsSource="{Binding Questions}"
+					              ItemTemplate="{StaticResource InteractionAnswerTemplate}"
+					              Margin="0,0,0,-8"
+					              Visibility="{Binding ShowAnswerSummary, Converter={StaticResource BoolToVis}}"/>
+
+					<!-- Any other answered card: one line saying what happened -->
 					<TextBlock Text="{Binding Outcome}" TextWrapping="Wrap"
 					           FontSize="{DynamicResource ChatSmallFontSize}" Opacity="0.75" FontStyle="Italic"
-					           Visibility="{Binding IsResolved, Converter={StaticResource BoolToVis}}"/>
+					           Visibility="{Binding ShowOutcome, Converter={StaticResource BoolToVis}}"/>
 				</StackPanel>
 			</Border>
 		</DataTemplate>
@@ -906,43 +989,6 @@
 		</Grid.RowDefinitions>
 
 		<DockPanel Grid.Row="0" LastChildFill="True">
-			<!-- Custom session name (✎ button / Session History rename), shown here instead of the tab
-			     caption — the VS document tab is narrow and truncates long titles awkwardly. Collapsed
-			     when the session has no custom title. -->
-			<Border x:Name="SessionTitleBar" DockPanel.Dock="Top"
-			        Visibility="Collapsed"
-			        Padding="10,5,10,5"
-			        Cursor="Hand"
-			        ToolTip="{local:Loc 'Click to rename this session'}"
-			        MouseLeftButtonUp="SessionTitleBar_MouseLeftButtonUp"
-			        Background="{DynamicResource {x:Static vsshell:VsBrushes.ToolWindowBackgroundKey}}"
-			        BorderBrush="{DynamicResource {x:Static vsshell:VsBrushes.ToolWindowBorderKey}}"
-			        BorderThickness="0,0,0,1">
-				<DockPanel LastChildFill="True">
-					<!-- Own click handler (marks the event handled) so picking a color doesn't also
-					     trigger the rename dialog bound to the rest of the bar. -->
-					<Border x:Name="SessionColorSwatch" DockPanel.Dock="Right"
-					        Width="12" Height="12" CornerRadius="6"
-					        Margin="8,0,0,0"
-					        Cursor="Hand"
-					        ToolTip="{local:Loc 'Change session color'}"
-					        MouseLeftButtonUp="SessionColorSwatch_MouseLeftButtonUp"
-					        Background="{StaticResource ChatAccentBrush}"
-					        BorderBrush="{DynamicResource {x:Static vsshell:VsBrushes.ToolWindowBorderKey}}"
-					        BorderThickness="1"/>
-					<StackPanel Orientation="Horizontal">
-						<TextBlock Text="✎" FontSize="{DynamicResource ChatSmallFontSize}" Opacity="0.6"
-						           Margin="0,0,6,0" VerticalAlignment="Center"/>
-						<TextBlock x:Name="SessionTitleText"
-						           FontSize="{DynamicResource ChatSmallFontSize}"
-						           FontWeight="SemiBold"
-						           VerticalAlignment="Center"
-						           TextTrimming="CharacterEllipsis"
-						           Foreground="{StaticResource ChatAccentBrush}"/>
-					</StackPanel>
-				</DockPanel>
-			</Border>
-
 			<!-- The list owns the scroll viewer (not an outer ScrollViewer + StackPanel): a
 			     VirtualizingStackPanel only virtualizes when the ScrollViewer that owns it is its
 			     ItemsPresenter's scroll owner. Without this, opening a resumed transcript realizes
@@ -1024,23 +1070,61 @@
 							<Rectangle x:Name="WelcomeDivider" Grid.Column="1" Width="1" Margin="0,2,14,2" Opacity="0.35"
 							           Fill="{StaticResource ChatAccentBrush}"/>
 
+							<!-- Right column: the workspace's recent conversations when it has any (tips
+							     folded away behind a link), the tips otherwise. SetWelcomeRecentSessions. -->
 							<StackPanel x:Name="WelcomeTipsPanel" Grid.Column="2" VerticalAlignment="Center">
-								<TextBlock Text="{local:Loc 'Tips for getting started'}"
-								           FontWeight="SemiBold"
-								           Margin="0,0,0,4"
-								           FontSize="{DynamicResource ChatFontSize}"
-								           Foreground="{StaticResource ChatAccentBrush}"/>
-								<ItemsControl x:Name="WelcomeTips">
-									<ItemsControl.ItemTemplate>
-										<DataTemplate>
-											<TextBlock Text="{Binding}"
-											           TextWrapping="Wrap"
-											           Margin="0,0,0,3"
-											           Opacity="0.85"
-											           FontSize="{DynamicResource ChatSmallFontSize}"/>
-										</DataTemplate>
-									</ItemsControl.ItemTemplate>
-								</ItemsControl>
+								<StackPanel x:Name="WelcomeRecentPanel" Visibility="Collapsed">
+									<TextBlock Text="{local:Loc 'Recent conversations'}"
+									           FontWeight="SemiBold"
+									           Margin="0,0,0,4"
+									           FontSize="{DynamicResource ChatFontSize}"
+									           Foreground="{StaticResource ChatAccentBrush}"/>
+									<ItemsControl x:Name="WelcomeRecentList">
+										<ItemsControl.ItemTemplate>
+											<DataTemplate>
+												<Button Style="{StaticResource WelcomeRecentButtonStyle}"
+												        ToolTip="{Binding ToolTip}"
+												        Click="WelcomeRecentSession_Click">
+													<StackPanel>
+														<TextBlock Text="{Binding Title}"
+														           TextTrimming="CharacterEllipsis"
+														           FontSize="{DynamicResource ChatSmallFontSize}"/>
+														<TextBlock Text="{Binding Detail}"
+														           TextTrimming="CharacterEllipsis"
+														           Opacity="0.6"
+														           FontSize="{DynamicResource ChatTinyFontSize}"/>
+													</StackPanel>
+												</Button>
+											</DataTemplate>
+										</ItemsControl.ItemTemplate>
+									</ItemsControl>
+									<TextBlock Margin="0,4,0,0" FontSize="{DynamicResource ChatSmallFontSize}">
+										<Hyperlink Click="WelcomeAllSessions_Click"
+										           Foreground="{DynamicResource ChatLinkAccentBrush}"><Run Text="{local:Loc 'All sessions…'}"/></Hyperlink>
+										<Run Text="  ·  "/>
+										<Hyperlink Click="WelcomeTipsToggle_Click"
+										           Foreground="{DynamicResource ChatLinkAccentBrush}"><Run x:Name="WelcomeTipsToggleText"/></Hyperlink>
+									</TextBlock>
+								</StackPanel>
+
+								<StackPanel x:Name="WelcomeTipsSection">
+									<TextBlock Text="{local:Loc 'Tips for getting started'}"
+									           FontWeight="SemiBold"
+									           Margin="0,0,0,4"
+									           FontSize="{DynamicResource ChatFontSize}"
+									           Foreground="{StaticResource ChatAccentBrush}"/>
+									<ItemsControl x:Name="WelcomeTips">
+										<ItemsControl.ItemTemplate>
+											<DataTemplate>
+												<TextBlock Text="{Binding}"
+												           TextWrapping="Wrap"
+												           Margin="0,0,0,3"
+												           Opacity="0.85"
+												           FontSize="{DynamicResource ChatSmallFontSize}"/>
+											</DataTemplate>
+										</ItemsControl.ItemTemplate>
+									</ItemsControl>
+								</StackPanel>
 							</StackPanel>
 						</Grid>
 					</Border>
@@ -1080,16 +1164,23 @@
 							<VirtualizingStackPanel/>
 						</ItemsPanelTemplate>
 					</ItemsControl.ItemsPanel>
-					<!-- Each row is exactly as wide as the viewport. The VirtualizingStackPanel keeps arranging
-					     rows in slots as wide as the viewport was before a Ctrl+Scroll zoom-in, even though the
-					     rows and the panel themselves measure narrower; a right-aligned user bubble then sat on
-					     the stale slot's right edge, off screen, and tool cards stretched past it. A row of a
-					     fixed width no longer depends on the slot. -->
+					<!-- Sizes every row to the visible width: the virtualizing panel can keep a row as wide as
+					     it was before the tab shrank, which pushed a card's right-aligned buttons out of view.
+					     Left, not Stretch: in a slot still wider than the view a row would otherwise be centred. -->
 					<ItemsControl.ItemContainerStyle>
 						<Style TargetType="ContentPresenter">
+							<Setter Property="HorizontalAlignment" Value="Left"/>
 							<Setter Property="Width"
 							        Value="{Binding ViewportWidth, RelativeSource={RelativeSource AncestorType=ScrollViewer}}"/>
-							<Setter Property="HorizontalAlignment" Value="Left"/>
+							<!-- Before the first layout pass the viewport is 0: stay auto-sized rather than
+							     measuring every row at zero width. -->
+							<Style.Triggers>
+								<DataTrigger Binding="{Binding ViewportWidth, RelativeSource={RelativeSource AncestorType=ScrollViewer}}"
+								             Value="0">
+									<Setter Property="Width" Value="NaN"/>
+									<Setter Property="HorizontalAlignment" Value="Stretch"/>
+								</DataTrigger>
+							</Style.Triggers>
 						</Style>
 					</ItemsControl.ItemContainerStyle>
 					<ItemsControl.ItemTemplateSelector>
@@ -1317,7 +1408,8 @@
 											<MenuItem Header="{local:Loc 'Restart agent / clear conversation'}"
 											          Style="{StaticResource ComposerMenuItemStyle}"
 											          Click="ComposerClearButton_Click"/>
-											<MenuItem Header="{local:Loc 'New chat session'}"
+											<MenuItem x:Name="ComposerOverflowNewChatItem"
+											          Header="{local:Loc 'New chat session'}"
 											          Style="{StaticResource ComposerMenuItemStyle}"
 											          Click="ComposerNewChatButton_Click"/>
 											<MenuItem Header="{local:Loc 'Rename this session'}"
@@ -1480,6 +1572,15 @@
 								        FontSize="13"
 								        ToolTip="{local:Loc 'Settings'}"
 								        Click="ComposerSettingsButton_Click"/>
+
+								<!-- Always here, beside ⚙, so past conversations are one click away rather than
+								     behind the ☰ Tools menu. The promoted Session History mirror is left out. -->
+								<Button x:Name="ComposerSessionHistoryButton" DockPanel.Dock="Left"
+								        Style="{StaticResource ComposerSelectorStyle}"
+								        Content="🕘"
+								        FontSize="13"
+								        ToolTip="{local:Loc 'Session History'}"
+								        Click="ComposerSessionHistoryButton_Click"/>
 							</DockPanel>
 						</DockPanel>
 					</ScrollViewer>
@@ -1602,8 +1703,25 @@
 						             Foreground="{StaticResource ChatAccentBrush}" Background="#33808080" BorderThickness="0"/>
 					</StackPanel>
 
-					<TextBlock x:Name="UsageUpdatedText" Margin="0,8,0,0" FontSize="{DynamicResource ChatSmallFontSize}"
-					           Opacity="0.6" Visibility="Collapsed"/>
+					<!-- "Updated 2:15 PM", plus a small rotating ring while a ring click's refresh runs. The ring
+					     is rotated by an animation started in code, like StatusRingSpinner, never by a style trigger. -->
+					<StackPanel x:Name="UsageUpdatedRow" Orientation="Horizontal" Margin="0,8,0,0" Visibility="Collapsed">
+						<TextBlock x:Name="UsageUpdatedText" FontSize="{DynamicResource ChatSmallFontSize}"
+						           Opacity="0.6" VerticalAlignment="Center"/>
+						<Grid x:Name="UsageRefreshSpinner" Width="10" Height="10" Margin="6,0,0,0"
+						      VerticalAlignment="Center" Visibility="Collapsed"
+						      RenderTransformOrigin="0.5,0.5" Background="Transparent"
+						      ToolTip="{local:Loc 'Refreshing…'}">
+							<Grid.RenderTransform>
+								<RotateTransform x:Name="UsageRefreshRotation" Angle="0"/>
+							</Grid.RenderTransform>
+							<Ellipse StrokeThickness="1.5" Opacity="0.2"
+							         Stroke="{StaticResource ChatAccentBrush}"/>
+							<Path StrokeThickness="1.5" StrokeStartLineCap="Round" StrokeEndLineCap="Round"
+							      Stroke="{StaticResource ChatAccentBrush}"
+							      Data="M 5,0.75 A 4.25,4.25 0 0 1 9.25,5"/>
+						</Grid>
+					</StackPanel>
 
 					<Rectangle Height="1" Margin="0,10,0,10" Opacity="0.25"
 					           Fill="{DynamicResource {x:Static vsshell:VsBrushes.WindowTextKey}}"/>

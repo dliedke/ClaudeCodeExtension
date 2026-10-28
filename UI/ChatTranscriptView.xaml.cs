@@ -187,7 +187,7 @@ namespace ClaudeCodeVS.UI
         /// </summary>
         public event EventHandler UsageRequested;
 
-        // Set from a ring click until the parent calls EndUsageRefresh; the popup's last line reads "Refreshing…" meanwhile.
+        // Set from a ring click until the parent calls EndUsageRefresh; the popup's last line shows a rotating ring meanwhile.
         private bool _usageRefreshing;
 
         // The latest snapshot's "Updated 2:15 PM" line, shown again once the refresh is over.
@@ -428,6 +428,7 @@ namespace ClaudeCodeVS.UI
             ComposerInputBorder.Visibility = fullOnly;
             UpdateSendButtonVisibility();
             ComposerSettingsButton.Visibility = fullOnly;
+            ComposerSessionHistoryButton.Visibility = fullOnly;
             ComposerPromotedButtons.Visibility = fullOnly;
             UpdateToolsButtonVisibility();
             UpdateCustomCommandsButtonVisibility();
@@ -500,6 +501,29 @@ namespace ClaudeCodeVS.UI
             }
 
             QueueComposerDensityRefresh();
+        }
+
+        private bool _showNewChatAction = true;
+
+        /// <summary>
+        /// False in the single chat window ("Show all chats in one window"), whose tab strip has its
+        /// own "+": the composer's ✚ and the ⋯ menu's "New chat session" would only repeat it.
+        /// </summary>
+        public bool ShowNewChatAction
+        {
+            get { return _showNewChatAction; }
+            set
+            {
+                if (_showNewChatAction == value)
+                {
+                    return;
+                }
+
+                _showNewChatAction = value;
+                ComposerOverflowNewChatItem.Visibility = value ? Visibility.Visible : Visibility.Collapsed;
+                ApplyComposerDensity(_composerDensity);
+                QueueComposerDensityRefresh();
+            }
         }
 
         private bool _compactToolbar;
@@ -794,7 +818,8 @@ namespace ClaudeCodeVS.UI
             ComposerClearButton.Visibility = unfolded;
             // The compact toolbar keeps ✚ out of the ⋯ menu: a new chat is the one session action used
             // often. Only the tightest tier folds it as well.
-            ComposerNewChatButton.Visibility = !folded || (IsCompactToolbarActive && density != ComposerDensity.Tight)
+            ComposerNewChatButton.Visibility = _showNewChatAction
+                                               && (!folded || (IsCompactToolbarActive && density != ComposerDensity.Tight))
                 ? Visibility.Visible
                 : Visibility.Collapsed;
             ComposerRenameSessionButton.Visibility = unfolded;
@@ -1058,6 +1083,7 @@ namespace ClaudeCodeVS.UI
             yield return (ComposerCustomCommandsButton, KnownMonikers.Event);
             yield return (ComposerToolsButton, KnownMonikers.BulletList);
             yield return (ComposerSettingsButton, KnownMonikers.Settings);
+            yield return (ComposerSessionHistoryButton, KnownMonikers.History);
             yield return (ComposerSendButton, KnownMonikers.Send);
         }
 
@@ -1486,7 +1512,8 @@ namespace ClaudeCodeVS.UI
             // panels with the constraints it actually gives them.
             WelcomeBannerContent.InvalidateMeasure();
 
-            bool stacked = WelcomeCardLayout.ShouldStack(cardWidth, leftWidth, tipsHeight);
+            bool stacked = WelcomeCardLayout.ShouldStack(cardWidth, leftWidth, tipsHeight,
+                WelcomeRecentPanel.Visibility == Visibility.Visible);
             if (_welcomeStacked == stacked)
             {
                 return;
@@ -1522,6 +1549,65 @@ namespace ClaudeCodeVS.UI
         public void HideWelcome()
         {
             WelcomeBanner.Visibility = Visibility.Collapsed;
+
+            // "Show tips" lasts as long as the card it was clicked on.
+            _welcomeTipsExpanded = false;
+            ApplyWelcomeTipsVisibility();
+        }
+
+        /// <summary>Raised by a click on a conversation in the welcome card's recent list.</summary>
+        public event EventHandler<WelcomeRecentSession> WelcomeSessionRequested;
+
+        /// <summary>Raised by the welcome card's "All sessions…" link: open Session History.</summary>
+        public event EventHandler WelcomeAllSessionsRequested;
+
+        /// <summary>Raised by the composer's 🕘 button beside ⚙: open Session History for this tab.</summary>
+        public event EventHandler SessionHistoryRequested;
+
+        private bool _welcomeTipsExpanded;
+
+        /// <summary>
+        /// Fills the welcome card's recent list. With conversations to show, they take the right-hand
+        /// column and the tips fold away behind a "Show tips" link; an empty or null list brings the
+        /// tips back. Independent of <see cref="ShowWelcome"/>, so a re-render of the card keeps it.
+        /// </summary>
+        public void SetWelcomeRecentSessions(IList<WelcomeRecentSession> sessions)
+        {
+            bool any = sessions != null && sessions.Count > 0;
+
+            WelcomeRecentList.ItemsSource = any ? sessions : null;
+            WelcomeRecentPanel.Visibility = any ? Visibility.Visible : Visibility.Collapsed;
+            ApplyWelcomeTipsVisibility();
+            QueueWelcomeLayoutRefresh();
+        }
+
+        private void ApplyWelcomeTipsVisibility()
+        {
+            bool hasRecent = WelcomeRecentPanel.Visibility == Visibility.Visible;
+
+            WelcomeTipsSection.Visibility = !hasRecent || _welcomeTipsExpanded ? Visibility.Visible : Visibility.Collapsed;
+            WelcomeTipsSection.Margin = hasRecent ? new Thickness(0, 10, 0, 0) : new Thickness(0);
+            WelcomeTipsToggleText.Text = _welcomeTipsExpanded ? L("Hide tips") : L("Show tips");
+        }
+
+        private void WelcomeRecentSession_Click(object sender, RoutedEventArgs e)
+        {
+            if ((sender as FrameworkElement)?.DataContext is WelcomeRecentSession session)
+            {
+                WelcomeSessionRequested?.Invoke(this, session);
+            }
+        }
+
+        private void WelcomeAllSessions_Click(object sender, RoutedEventArgs e)
+        {
+            WelcomeAllSessionsRequested?.Invoke(this, EventArgs.Empty);
+        }
+
+        private void WelcomeTipsToggle_Click(object sender, RoutedEventArgs e)
+        {
+            _welcomeTipsExpanded = !_welcomeTipsExpanded;
+            ApplyWelcomeTipsVisibility();
+            QueueWelcomeLayoutRefresh();
         }
 
         /// <summary>
@@ -1732,7 +1818,7 @@ namespace ClaudeCodeVS.UI
 
         /// <summary>
         /// Called by the parent once the refresh a ring click started is over — new figures arrived, or it gave
-        /// up. Replaces "Refreshing…" with the snapshot's own "Updated" line again.
+        /// up. Stops the ring beside the snapshot's "Updated" line.
         /// </summary>
         public void EndUsageRefresh()
         {
@@ -1740,12 +1826,30 @@ namespace ClaudeCodeVS.UI
             ShowUsageUpdatedText();
         }
 
-        // "Refreshing…" while a ring click's refresh is running, else the last snapshot's "Updated" line.
+        // The last snapshot's "Updated" line, with a small rotating ring beside it while a ring click's refresh is running.
         private void ShowUsageUpdatedText()
         {
-            string text = _usageRefreshing ? L("Refreshing…") : _usageUpdatedText;
-            UsageUpdatedText.Text = text;
-            UsageUpdatedText.Visibility = string.IsNullOrEmpty(text) ? Visibility.Collapsed : Visibility.Visible;
+            UsageUpdatedText.Text = _usageUpdatedText;
+            UsageUpdatedText.Visibility = string.IsNullOrEmpty(_usageUpdatedText) ? Visibility.Collapsed : Visibility.Visible;
+            UsageUpdatedRow.Visibility = _usageRefreshing || !string.IsNullOrEmpty(_usageUpdatedText)
+                ? Visibility.Visible
+                : Visibility.Collapsed;
+            UsageRefreshSpinner.Margin = new Thickness(string.IsNullOrEmpty(_usageUpdatedText) ? 0 : 6, 0, 0, 0);
+
+            // Started and stopped only on a change, so new figures landing mid-refresh do not restart the turn.
+            bool spinning = UsageRefreshSpinner.Visibility == Visibility.Visible;
+            if (_usageRefreshing == spinning)
+            {
+                return;
+            }
+
+            UsageRefreshSpinner.Visibility = _usageRefreshing ? Visibility.Visible : Visibility.Collapsed;
+            UsageRefreshRotation.BeginAnimation(RotateTransform.AngleProperty, _usageRefreshing
+                ? new System.Windows.Media.Animation.DoubleAnimation(0, 360, TimeSpan.FromSeconds(1))
+                {
+                    RepeatBehavior = System.Windows.Media.Animation.RepeatBehavior.Forever
+                }
+                : null);
         }
 
         private void UsageDetailsButton_Click(object sender, RoutedEventArgs e)
@@ -1863,6 +1967,18 @@ namespace ClaudeCodeVS.UI
             ColorPickerRequested?.Invoke(this, EventArgs.Empty);
         }
 
+        /// <summary>Rename this chat, as the composer's ✎ does — for the single chat window's tab menu.</summary>
+        public void RequestRename()
+        {
+            RenameSessionRequested?.Invoke(this, EventArgs.Empty);
+        }
+
+        /// <summary>Pick this chat's color, as the composer's color button does — for the tab menu.</summary>
+        public void RequestColorPicker()
+        {
+            ColorPickerRequested?.Invoke(this, EventArgs.Empty);
+        }
+
         /// <summary>
         /// Drops the 📎 menu (attach a file / insert editor selection / insert active file path) —
         /// the composer's counterpart to the panel's AttachDropdownButton, which is hidden while
@@ -1913,40 +2029,8 @@ namespace ClaudeCodeVS.UI
             ComposerOverflowButton.ContextMenu.IsOpen = true;
         }
 
-        private void SessionTitleBar_MouseLeftButtonUp(object sender, System.Windows.Input.MouseButtonEventArgs e)
-        {
-            RenameSessionRequested?.Invoke(this, EventArgs.Empty);
-        }
-
-        /// <summary>Raised by the small color swatch: pick a custom color for this session's title.</summary>
+        /// <summary>Raised by the composer's color button: pick a custom accent color for this session.</summary>
         public event EventHandler ColorPickerRequested;
-
-        private void SessionColorSwatch_MouseLeftButtonUp(object sender, System.Windows.Input.MouseButtonEventArgs e)
-        {
-            // Own handler so the click doesn't bubble up to SessionTitleBar and also open the
-            // rename dialog.
-            e.Handled = true;
-            ColorPickerRequested?.Invoke(this, EventArgs.Empty);
-        }
-
-        /// <summary>
-        /// Shows or hides the session-name header above the transcript. Kept out of the VS tab
-        /// caption (it truncated long titles awkwardly in the narrow tab strip) — this row has the
-        /// full width of the chat view to work with instead.
-        /// </summary>
-        public void SetSessionTitle(string title)
-        {
-            if (string.IsNullOrEmpty(title))
-            {
-                SessionTitleBar.Visibility = Visibility.Collapsed;
-                SessionTitleText.Text = string.Empty;
-            }
-            else
-            {
-                SessionTitleText.Text = title;
-                SessionTitleBar.Visibility = Visibility.Visible;
-            }
-        }
 
         private static readonly Color DefaultAccentColor = Color.FromRgb(0x1C, 0x8A, 0xE0); // matches ChatAccentBrush's XAML default
 
@@ -2137,6 +2221,11 @@ namespace ClaudeCodeVS.UI
         private void ComposerSettingsButton_Click(object sender, RoutedEventArgs e)
         {
             ConfigMenuClicked?.Invoke(this, ChatConfigMenu.Settings);
+        }
+
+        private void ComposerSessionHistoryButton_Click(object sender, RoutedEventArgs e)
+        {
+            SessionHistoryRequested?.Invoke(this, EventArgs.Empty);
         }
 
         private void ComposerToolsButton_Click(object sender, RoutedEventArgs e)

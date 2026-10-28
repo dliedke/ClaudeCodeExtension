@@ -2665,6 +2665,8 @@ namespace ClaudeCodeVS
                     foreach (ToolbarButton id in GetEffectiveToolbarOrder())
                     {
                         if (id == ToolbarButton.RestartAgent) continue;
+                        // The composer has its own 🕘 beside ⚙ (ComposerSessionHistoryButton).
+                        if (id == ToolbarButton.SessionHistory) continue;
                         if (!promoted.Contains(id)) continue;
 
                         System.Windows.Controls.Button source = GetToolbarButtonControl(id);

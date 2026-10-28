@@ -112,6 +112,7 @@ namespace ClaudeCodeVS
             bool origDisableClipboardSend     = _settings.DisableClipboardSend;
             bool origSendSelectionRefOnly     = _settings.SendSelectionReferenceOnly;
             bool origKeepLastPromptVisible    = _settings.KeepLastPromptVisible;
+            bool origAtMentionEnabled         = _settings.AtMentionEnabled;
             string origAtFileTypes            = _settings.AtMentionFileTypes ?? string.Empty;
             string origAtExcludedFolders      = _settings.AtMentionExcludedFolders ?? string.Empty;
             bool origAutoSendBuildErrors      = _settings.AutoSendBuildErrorsToAgent;
@@ -289,6 +290,11 @@ namespace ClaudeCodeVS
             promptStack.Children.Add(fontSizeCombo);
 
             promptStack.Children.Add(MakeSectionHeader(L("@ file picker"), themeFg));
+            var atMentionEnabledCheck = MakeCheckBox(
+                L("Show the @ file picker"),
+                L("When enabled, typing \"@\" in the prompt lists the workspace's files and folders so you can insert a path. Turn it off to type \"@\" as plain text; the workspace is then never indexed."),
+                origAtMentionEnabled, themeFg);
+            promptStack.Children.Add(atMentionEnabledCheck);
             promptStack.Children.Add(new TextBlock
             {
                 Text = L("Narrow the files listed when typing \"@\" in the prompt. Files ignored by .gitignore are always left out. Separate entries with commas."),
@@ -506,6 +512,14 @@ namespace ClaudeCodeVS
                 origAutoHidePanelInNative, themeFg);
             layoutStack.Children.Add(autoHidePanelInNativeCheck);
 
+            var chatTabsInOneWindowCheck = MakeCheckBox(
+                L("Show all chats in one window (applies after restarting Visual Studio)"),
+                L("Every native chat opens as a tab inside a single \"Claude Code\" window. Visual Studio " +
+                  "remembers where that window is docked, also while debugging, instead of placing each chat " +
+                  "tab among the code tabs on its own. Closing the window only hides it; the chats keep running."),
+                _settings.ChatTabsInOneWindow, themeFg);
+            layoutStack.Children.Add(chatTabsInOneWindowCheck);
+
             // Usage bars live in the prompt panel, so their two toggles sit on this tab instead of a
             // tab of their own (the former Usage tab, folded in in v223.0).
             layoutStack.Children.Add(MakeSectionHeader(L("Usage bars"), themeFg));
@@ -556,6 +570,12 @@ namespace ClaudeCodeVS
                 L("Shows how many tokens each turn used, live while the agent works and in the line left after the turn. The usage ring on the chat toolbar is not affected."),
                 _settings.ShowChatTokenCounts, themeFg);
             layoutStack.Children.Add(showTokenCountsCheck);
+
+            var expandFailedToolsCheck = MakeCheckBox(
+                "Open failed tool calls automatically",
+                "A tool call that fails (for example a command that ends with an error) opens its card in the chat so you see why. The agent usually reads the error and tries another way; turn this off to keep those cards closed — they still show the failed mark.",
+                _settings.ExpandFailedToolCalls, themeFg);
+            layoutStack.Children.Add(expandFailedToolsCheck);
 
             var plainWorkingStatusCheck = MakeCheckBox(
                 L("Plain working status (always \"Thinking…\")"),
@@ -1417,6 +1437,7 @@ namespace ClaudeCodeVS
                 largeAsFileCheck.IsChecked = false;
                 disableClipboardCheck.IsChecked = false;
                 sendSelectionRefOnlyCheck.IsChecked = false;
+                atMentionEnabledCheck.IsChecked = true;
                 atFileTypesBox.Text = string.Empty;
                 atExcludedFoldersBox.Text = string.Empty;
                 autoOpenCheck.IsChecked = false;
@@ -1617,6 +1638,7 @@ namespace ClaudeCodeVS
             _settings.SendSelectionReferenceOnly = newSendSelectionRefOnly;
             _settings.KeepLastPromptVisible   = newKeepLastPromptVisible;
             UpdateLastPromptHint();
+            _settings.AtMentionEnabled = atMentionEnabledCheck.IsChecked == true;
             _settings.AtMentionFileTypes = (atFileTypesBox.Text ?? string.Empty).Trim();
             _settings.AtMentionExcludedFolders = (atExcludedFoldersBox.Text ?? string.Empty).Trim();
             _settings.AutoSendBuildErrorsToAgent = newAutoSendBuildErrors;
@@ -1630,6 +1652,7 @@ namespace ClaudeCodeVS
             _settings.HidePromptPanel         = newHidePromptPanel;
             _settings.AutoHidePromptInNativeMode = newAutoHidePromptInNative;
             _settings.AutoHidePanelInNativeMode = newAutoHidePanelInNative;
+            _settings.ChatTabsInOneWindow = chatTabsInOneWindowCheck.IsChecked == true;
             _settings.SelectedTerminalType    = newTerminalType;
             _settings.UseNativeMode           = newUseNativeMode;
 
@@ -1688,6 +1711,7 @@ namespace ClaudeCodeVS
             _settings.AutoTitleChatTabs       = autoTitleCheck.IsChecked == true;
             _settings.AutoTitleChatTabsWithAi = autoTitleAiCheck.IsChecked == true;
             _settings.ShowChatTokenCounts     = showTokenCountsCheck.IsChecked == true;
+            _settings.ExpandFailedToolCalls   = expandFailedToolsCheck.IsChecked == true;
             _settings.PlainChatWorkingStatus  = plainWorkingStatusCheck.IsChecked == true;
             UI.ChatTranscriptView.PlainWorkingStatus = _settings.PlainChatWorkingStatus;
 

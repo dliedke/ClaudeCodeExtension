@@ -51,6 +51,9 @@ namespace ClaudeCodeExtension
     // MDI style docks the chat in the central document area, next to the open files, instead of the
     // narrow tool-window strip the other panes use.
     [ProvideToolWindow(typeof(ClaudeCodeVS.NativeChatToolWindow), Style = VsDockStyle.MDI, Transient = true)]
+    // "Show all chats in one window": not transient on purpose, so VS remembers where the user put it.
+    // Opens in the document area the first time, like the per-chat tabs.
+    [ProvideToolWindow(typeof(ClaudeCodeVS.ChatContainerToolWindow), Style = VsDockStyle.MDI)]
     // Bumped whenever the .vsct gains menus/toolbars, so VS re-merges its command table (v261.0: toolbar).
     [ProvideMenuResource("Menus.ctmenu", 2)]
     [Guid(ClaudeCodeExtensionPackage.PackageGuidString)]

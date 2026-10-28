@@ -140,7 +140,7 @@ Then choose it via *⚙ → Settings... → Terminal*.
 - Pick an AI provider, *Configure Visible Code Agents...*
 - Provider-specific flags: Claude *Skip Permissions* and *Start in Plan Mode*, Codex *Approval Never*, Cursor *Yolo Mode*, Devin *Dangerous Mode*, Antigravity *Skip Permissions*, Qwen Code *Yolo Mode*, Grok *Always Approve*
 - *Hide Prompt Input Box*, *Configure Custom Commands...*, *Settings...*, About
-- *Settings...* opens the consolidated dialog with tabs for On Agent Finish, Prompt (send key, large prompts, clipboard, selection as reference, last prompt, font size, @ file picker), Automation (auto-open Changes, track agent changes for review, pull before sending, TFVC checkout, auto-send build and runtime errors, Install Caveman, Install latest OpenPets), Layout (prompt panel position, prompt box, usage bars, subagent count), Terminal (native mode, terminal type, encoding, fonts), Theme, Toolbar, CLI Paths (including extra launch arguments), and Backup (save/load all settings to a file)
+- *Settings...* opens the consolidated dialog with tabs for On Agent Finish, Prompt (send key, large prompts, clipboard, selection as reference, last prompt, font size, @ file picker), Automation (auto-open Changes, track agent changes for review, pull before sending, TFVC checkout, auto-send build and runtime errors, Install Caveman, Install latest OpenPets), Layout (prompt panel position, prompt box, usage bars, subagent count, all chats in one window), Terminal (native mode, terminal type, encoding, fonts), Theme, Toolbar, CLI Paths (including extra launch arguments), and Backup (save/load all settings to a file)
 
 **☰ Tools dropdown**: Holds *Update Code Agent*, *Restart Code Agent*, *Detach/Attach Terminal*, *View Code Changes*, *Session History*, *Show Usage*, *Set Working Directory...*, *Send Build Errors to Agent*, *Generate Commit Message*, *Generate Commit Message, Commit and Push*, *Recommend AI Model*, and *GitHub Issues*. Promote any of these to one-click toolbar buttons — and reorder them by dragging — via *⚙ → Settings... → Toolbar*; promoted features leave the dropdown, which hides once they all become buttons.
 
@@ -175,6 +175,22 @@ Pull requests for new features are welcome. Bug fixes too — if you find an iss
 - The extension's original developer reviews the PR and publishes the new version to the Marketplace.
 
 ## Version History
+
+### Version 276.0
+- Typing "@" in a very large project no longer freezes Visual Studio (or the whole PC): the file list is built within fixed time and memory limits. New "Show the @ file picker" option in Settings → Prompt turns the picker off (on by default).
+- New "Show all chats in one window" option in Settings → Layout (off by default, applies after restarting Visual Studio): every chat opens as a tab inside a single Claude Code window that stays where you dock it, also while debugging; closing it only hides it and the chats keep running.
+- In that window, switch chats with a click or Ctrl+PageUp/PageDown, drag tabs to reorder them, start a new chat with +, and right-click a tab to rename it, change its color or close it; a ▾ button lists every chat when they no longer fit.
+- The title bar above the conversation was removed: the chat's title is already shown on its tab.
+- New Claude Code chats are named automatically with the AI title, so the name shows in Session History and in Claude Code's own resume list.
+- Session History groups conversations by date, shows each one's git branch and a cleaner preview, and looks like a Visual Studio dialog (themed title bar and scrollbars, search box, rounded buttons); the "Renamed only" filter was removed.
+- Session History keeps Resume and Close as buttons, with View, Rename, Delete and Refresh in a menu beside them; "Resume Last Session" was removed, since the latest conversation is already selected.
+- Resuming a conversation already open in a chat tab switches to that tab, and when the current tab holds a conversation you choose between a new tab and the current one.
+- New "Resume Today's Sessions" button in Session History reopens all of today's conversations, each in its own tab.
+- "View as Text" opens the conversation as a read-only document inside Visual Studio instead of Notepad.
+- The native chat's welcome card lists the workspace's recent conversations, resumable with one click (tips stay one click away), and a Session History button sits beside the chat's Settings gear.
+- Answered question cards list each question with its answer and note underneath, and mark questions left blank as "No answer".
+- Command cards show the command as it was run instead of escaped JSON, and a new "Open failed tool calls automatically" setting (on by default) lets failed tool cards stay closed.
+- The live token count shows again in every chat tab, and the usage popup keeps showing when its figures were last updated while they refresh.
 
 ### Version 275.0
 - The native chat no longer jumps while a code block is streaming in.

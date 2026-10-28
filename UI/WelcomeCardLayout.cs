@@ -44,16 +44,22 @@ namespace ClaudeCodeVS.UI
         /// than <see cref="StackHeightRatio"/> times as tall as that column is wide, or there is no room
         /// beside it at all. Judged on the side-by-side height rather than the current one — stacked,
         /// the tips are shorter, and testing that would flip the card back and forth.
+        /// With <paramref name="recentListShown"/> the recent conversations stay beside the facts
+        /// whatever their height; only a column with no room at all still stacks.
         /// </summary>
-        public static bool ShouldStack(double cardWidth, double leftWidth, double sideBySideTipsHeight)
+        public static bool ShouldStack(double cardWidth, double leftWidth, double sideBySideTipsHeight, bool recentListShown = false)
         {
             if (cardWidth <= 0 || leftWidth <= 0)
             {
                 return false;
             }
 
-            return TipsWidth(cardWidth, leftWidth) <= 0 ||
-                sideBySideTipsHeight > leftWidth * StackHeightRatio;
+            if (TipsWidth(cardWidth, leftWidth) <= 0)
+            {
+                return true;
+            }
+
+            return !recentListShown && sideBySideTipsHeight > leftWidth * StackHeightRatio;
         }
 
         /// <summary>

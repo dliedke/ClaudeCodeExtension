@@ -34,6 +34,7 @@ namespace ClaudeCodeVS
         private ChatTabStatus _defaultTabStatus;
         private string _defaultAutoTitle;
         private object _defaultAutoTitleRequest;
+        private string _defaultPendingSessionName;
 
         /// <summary>
         /// Sets what the tab of <paramref name="session"/> (null = the default session) shows in front of
@@ -119,11 +120,13 @@ namespace ClaudeCodeVS
             {
                 session.AutoTitle = null;
                 session.AutoTitleRequest = null;
+                session.PendingSessionName = null;
             }
             else
             {
                 _defaultAutoTitle = null;
                 _defaultAutoTitleRequest = null;
+                _defaultPendingSessionName = null;
             }
 
             SetChatTabStatus(session, ChatTabStatus.None);
@@ -300,7 +303,10 @@ namespace ClaudeCodeVS
             }
 
 #pragma warning disable VSSDK007, VSTHRD110
-            _ = ThreadHelper.JoinableTaskFactory.RunAsync(() => GenerateAiChatTitleAsync(session, provider.Value, prompt, request));
+            // Only a conversation this prompt opens is named after it; a resumed one keeps its history's
+            // topic, which the new prompt may not describe.
+            bool newConversation = IsNewConversation(session != null ? session.ChatTranscript : ChatTranscript);
+            _ = ThreadHelper.JoinableTaskFactory.RunAsync(() => GenerateAiChatTitleAsync(session, provider.Value, prompt, request, newConversation));
 #pragma warning restore VSSDK007, VSTHRD110
         }
 
@@ -325,7 +331,8 @@ namespace ClaudeCodeVS
         /// conversation (<paramref name="request"/> no longer current) or was closed meanwhile. Any failure
         /// (not logged in, quota, timeout) just keeps the prompt-based title.
         /// </summary>
-        private async Task GenerateAiChatTitleAsync(NativeChatSessionState session, AiProvider provider, string prompt, object request)
+        private async Task GenerateAiChatTitleAsync(NativeChatSessionState session, AiProvider provider, string prompt, object request,
+            bool nameSession)
         {
             string title = string.Empty;
 
@@ -375,6 +382,102 @@ namespace ClaudeCodeVS
             if (title.Length > 0 && !sessionClosed)
             {
                 SetAutoChatTitle(session, title);
+
+                // The AI title also names the session, as a rename would: Session History, the
+                // welcome card's recent list and Claude Code's own /resume picker all show it.
+                if (!nameSession)
+                {
+                    return;
+                }
+
+                if (session != null)
+                {
+                    session.PendingSessionName = title;
+                }
+                else
+                {
+                    _defaultPendingSessionName = title;
+                }
+
+                SaveAutoSessionName(session, writeTranscript: true);
+            }
+        }
+
+        /// <summary>
+        /// True when the transcript holds nothing but the prompt just sent: no earlier prompt and no reply,
+        /// so the conversation starts here rather than continuing a resumed one.
+        /// </summary>
+        private static bool IsNewConversation(ChatTranscriptView transcript)
+        {
+            if (transcript == null)
+            {
+                return false;
+            }
+
+            int prompts = 0;
+            foreach (ChatMessageViewModel message in transcript.Messages)
+            {
+                if (message.Kind == ChatMessageKind.Assistant || (message.Kind == ChatMessageKind.User && ++prompts > 1))
+                {
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        /// <summary>
+        /// Turns the AI title waiting in <paramref name="session"/> (null = the default session) into
+        /// the session's name: saved with the renamed titles and appended to the Claude Code transcript.
+        /// Waits — called again at the end of each turn — while the agent has no session id yet, and
+        /// gives up silently when the user named the session meanwhile. <paramref name="writeTranscript"/>
+        /// is false at the end of a turn, where <c>SyncClaudeTranscript</c> writes the transcript anyway.
+        /// </summary>
+        private void SaveAutoSessionName(NativeChatSessionState session, bool writeTranscript)
+        {
+            ThreadHelper.ThrowIfNotOnUIThread();
+
+            string title = session != null ? session.PendingSessionName : _defaultPendingSessionName;
+            if (string.IsNullOrEmpty(title) || _settings == null)
+            {
+                return;
+            }
+
+            AiProvider? provider = session != null
+                ? session.SelectedProvider
+                : _currentRunningProvider ?? _settings.SelectedProvider;
+            string sessionId = session != null ? session.AgentSession?.SessionId : _agentSession?.SessionId;
+            if (string.IsNullOrEmpty(sessionId))
+            {
+                return;
+            }
+
+            if (session != null)
+            {
+                session.PendingSessionName = null;
+            }
+            else
+            {
+                _defaultPendingSessionName = null;
+            }
+
+            if (!IsClaudeCodeSessionHistoryProvider(provider) || !string.IsNullOrWhiteSpace(GetNativeSessionTitle(sessionId)))
+            {
+                return;
+            }
+
+            if (_settings.SessionCustomTitles == null)
+            {
+                _settings.SessionCustomTitles = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            }
+
+            _settings.SessionCustomTitles[sessionId] = title;
+            SaveSettings();
+
+            if (writeTranscript)
+            {
+                StartSessionHistoryTask(() => KeepClaudeTitleInTranscriptAsync(provider.Value, sessionId),
+                    "claudecode/nativechat/autosessionname");
             }
         }
 
@@ -436,6 +539,9 @@ namespace ClaudeCodeVS
                     session.ChatTranscript.CompactToolbar = compactToolbar;
                 }
             }
+
+            // The single chat window's "+".
+            _chatContainer?.SetModernIcons(modern);
         }
 
         /// <summary>Re-applies the captions of every chat tab, after a tab status or title setting changed.</summary>

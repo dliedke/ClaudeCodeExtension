@@ -56,12 +56,6 @@ namespace ClaudeCodeVS
             /// <summary>True when <see cref="DeleteAsync"/> is implemented; otherwise Delete is disabled.</summary>
             bool CanDelete { get; }
 
-            /// <summary>
-            /// True when the CLI has its own "continue last conversation" switch, so Resume Last can
-            /// arm the <c>"-c"</c> sentinel. False means the newest session id has to be resolved first.
-            /// </summary>
-            bool SupportsContinueSentinel { get; }
-
             /// <summary>Extra warning appended to the delete confirmation, or empty.</summary>
             string DeleteConfirmationSuffix { get; }
 
@@ -132,8 +126,6 @@ namespace ClaudeCodeVS
 
             public bool CanDelete { get { return true; } }
 
-            public bool SupportsContinueSentinel { get { return true; } }
-
             public string DeleteConfirmationSuffix { get { return string.Empty; } }
 
             public async Task<SessionHistoryListResult> ListAsync(AiProvider provider, string workspaceDir)
@@ -184,10 +176,6 @@ namespace ClaudeCodeVS
             public bool CanViewTranscript { get { return true; } }
 
             public bool CanDelete { get { return true; } }
-
-            // Codex's own "resume --last" is not reachable from native mode, so Resume Last resolves
-            // an explicit id instead and both modes then behave identically.
-            public bool SupportsContinueSentinel { get { return false; } }
 
             public string DeleteConfirmationSuffix
             {
@@ -248,8 +236,6 @@ namespace ClaudeCodeVS
             // Neither the CLI nor Devin's ACP server exposes a delete verb, and removing rows from
             // sessions.db behind the agent's back would desynchronise its own state.
             public bool CanDelete { get { return false; } }
-
-            public bool SupportsContinueSentinel { get { return true; } }
 
             public string DeleteConfirmationSuffix { get { return string.Empty; } }
 

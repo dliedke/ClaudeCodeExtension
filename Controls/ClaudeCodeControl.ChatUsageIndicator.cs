@@ -35,7 +35,7 @@ namespace ClaudeCodeVS
         // The refresh a ring click started; a second click while it runs waits on it instead of starting another.
         private JoinableTask _indicatorRefresh;
 
-        // Longest the popup reads "Refreshing…"; the refresh itself keeps running past it.
+        // Longest the popup shows its refresh ring; the refresh itself keeps running past it.
         private const int UsageRefreshTextCapMs = 20000;
 
         // Completed by HandleScrapedSnapshot, so a ring click's refresh knows when the new figures are in.
@@ -166,7 +166,7 @@ namespace ClaudeCodeVS
         /// <summary>
         /// Ring click: the popup opens and the usage data refreshes behind it. The account guard comes first,
         /// as in the background timer. A visible tab is reloaded in place; a hidden one is scraped off-screen,
-        /// so the tab is never shown by this path. The popup reads "Refreshing…" until the refresh is over.
+        /// so the tab is never shown by this path. The popup shows a rotating ring until the refresh is over.
         /// </summary>
         private void OnComposerUsageRequested(object sender, EventArgs e)
         {
@@ -187,7 +187,7 @@ namespace ClaudeCodeVS
                 try
                 {
                     // Capped: a slow rebuild of the off-screen page can take over a minute, and the popup
-                    // should not sit on "Refreshing…" that long. Figures that land later still update it.
+                    // should not keep its ring spinning that long. Figures that land later still update it.
                     await Task.WhenAny(refresh.JoinAsync(), Task.Delay(UsageRefreshTextCapMs));
                 }
                 finally
