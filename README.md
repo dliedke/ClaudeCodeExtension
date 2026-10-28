@@ -176,6 +176,9 @@ Pull requests for new features are welcome. Bug fixes too — if you find an iss
 
 ## Version History
 
+### Version 278.0
+- The release notes now credit the contributor behind version 276.0.
+
 ### Version 277.0
 - Reopening the previous chat tabs when a solution opens is now off by default for everyone, including existing installs; turn it on in *Settings → Terminal → Reopen chat tabs when the solution opens*.
 - "Resume Last Session" is back in Session History and reopens the newest conversation, whatever the search or sort shows.
@@ -198,6 +201,7 @@ Pull requests for new features are welcome. Bug fixes too — if you find an iss
 - Answered question cards list each question with its answer and note underneath, and mark questions left blank as "No answer".
 - Command cards show the command as it was run instead of escaped JSON, and a new "Open failed tool calls automatically" setting (on by default) lets failed tool cards stay closed.
 - The live token count shows again in every chat tab, and the usage popup keeps showing when its figures were last updated while they refresh.
+- Thanks to [@ClaudioCas](https://github.com/ClaudioCas) for this release (#232).
 
 ### Version 275.0
 - The native chat no longer jumps while a code block is streaming in.
