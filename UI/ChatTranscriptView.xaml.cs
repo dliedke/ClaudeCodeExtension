@@ -504,29 +504,6 @@ namespace ClaudeCodeVS.UI
             QueueComposerDensityRefresh();
         }
 
-        private bool _showNewChatAction = true;
-
-        /// <summary>
-        /// False in the single chat window ("Show all chats in one window"), whose tab strip has its
-        /// own "+": the composer's ✚ and the ⋯ menu's "New chat session" would only repeat it.
-        /// </summary>
-        public bool ShowNewChatAction
-        {
-            get { return _showNewChatAction; }
-            set
-            {
-                if (_showNewChatAction == value)
-                {
-                    return;
-                }
-
-                _showNewChatAction = value;
-                ComposerOverflowNewChatItem.Visibility = value ? Visibility.Visible : Visibility.Collapsed;
-                ApplyComposerDensity(_composerDensity);
-                QueueComposerDensityRefresh();
-            }
-        }
-
         private bool _compactToolbar;
 
         /// <summary>
@@ -819,8 +796,7 @@ namespace ClaudeCodeVS.UI
             ComposerClearButton.Visibility = unfolded;
             // The compact toolbar keeps ✚ out of the ⋯ menu: a new chat is the one session action used
             // often. Only the tightest tier folds it as well.
-            ComposerNewChatButton.Visibility = _showNewChatAction
-                                               && (!folded || (IsCompactToolbarActive && density != ComposerDensity.Tight))
+            ComposerNewChatButton.Visibility = !folded || (IsCompactToolbarActive && density != ComposerDensity.Tight)
                 ? Visibility.Visible
                 : Visibility.Collapsed;
             ComposerRenameSessionButton.Visibility = unfolded;

@@ -1253,6 +1253,87 @@ namespace ClaudeCodeVS
         }
 
         /// <summary>
+        /// Today's conversations not already open in a chat tab, oldest first, so the most recent one
+        /// is opened last and ends up in front. Native mode only: the terminal has no chat tabs.
+        /// </summary>
+        private List<SessionInfo> TodaysSessionsToReopen(IEnumerable<SessionInfo> sessions)
+        {
+            if (!IsNativeModeActive) return new List<SessionInfo>();
+            DateTime now = DateTime.Now;
+            return sessions
+                .Where(s => SessionListPresentation.GetDateGroup(s.LastModified, now) == SessionDateGroup.Today
+                            && !TryFindOpenChatTab(s.SessionId, out _))
+                .OrderBy(s => s.LastModified)
+                .ToList();
+        }
+
+        /// <summary>
+        /// "Restore today's sessions" on the empty single chat window: the same action as the Session
+        /// History button of that name, for the selected agent and the solution's workspace, each
+        /// conversation in a tab of its own.
+        /// </summary>
+        private async Task ResumeTodaysSessionsAsync()
+        {
+            await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
+
+            AiProvider? selected = _currentRunningProvider ?? _settings?.SelectedProvider;
+            ISessionHistoryProvider adapter = ResolveSessionHistoryProvider(selected);
+            if (adapter == null)
+            {
+                MessageBox.Show(
+                    L("Session history is available for Claude Code, Codex and Devin (native or WSL). " +
+                      "Switch the active code agent to one of those providers first."),
+                    L("Session History"),
+                    MessageBoxButton.OK, MessageBoxImage.Information);
+                return;
+            }
+
+            string workspaceDir = await GetWorkspaceDirectoryAsync();
+            if (string.IsNullOrEmpty(workspaceDir))
+            {
+                MessageBox.Show(L("Could not determine the current workspace directory."),
+                    L("Session History"), MessageBoxButton.OK, MessageBoxImage.Warning);
+                return;
+            }
+
+            List<SessionInfo> toReopen;
+            try
+            {
+                SessionHistoryListResult listResult = await adapter.ListAsync(selected.Value, workspaceDir);
+                await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
+                toReopen = TodaysSessionsToReopen(listResult.Sessions ?? new List<SessionInfo>());
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"Restore today's sessions: list failed: {ex}");
+                await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
+                MessageBox.Show(L("Could not load {0} sessions:\n{1}", GetSessionHistoryProviderName(selected.Value), ex.Message),
+                    L("Session History"), MessageBoxButton.OK, MessageBoxImage.Warning);
+                return;
+            }
+
+            if (toReopen.Count == 0)
+            {
+                MessageBox.Show(L("There are no sessions from today to restore."),
+                    L("Session History"), MessageBoxButton.OK, MessageBoxImage.Information);
+                return;
+            }
+
+            // Each one starts its own agent process, so a long list is confirmed first.
+            if (toReopen.Count > 5 &&
+                MessageBox.Show(L("Reopen {0} sessions? Each one starts its own agent.", toReopen.Count),
+                    L("Session History"), MessageBoxButton.YesNo, MessageBoxImage.Question) != MessageBoxResult.Yes)
+            {
+                return;
+            }
+
+            foreach (SessionInfo session in toReopen)
+            {
+                await ResumeSessionInNewTabAsync(session, null, workspaceDir);
+            }
+        }
+
+        /// <summary>
         /// Builds and shows the session-history modal. The list is loaded asynchronously
         /// after the dialog is visible so the user gets a "Loading…" indicator instead
         /// of a frozen UI on cold reads (network shares, large numbers of transcripts).
@@ -1480,18 +1561,7 @@ namespace ClaudeCodeVS
             // Full set of sessions for the workspace; the visible list is a filtered view of this.
             var loadedSessions = new List<SessionInfo>();
 
-            // Today's conversations not already open in a chat tab, oldest first, so the most recent one
-            // is opened last and ends up in front. Native mode only: the terminal has no chat tabs.
-            Func<List<SessionInfo>> todaysSessionsToReopen = () =>
-            {
-                if (!IsNativeModeActive) return new List<SessionInfo>();
-                DateTime now = DateTime.Now;
-                return loadedSessions
-                    .Where(s => SessionListPresentation.GetDateGroup(s.LastModified, now) == SessionDateGroup.Today
-                                && !TryFindOpenChatTab(s.SessionId, out _))
-                    .OrderBy(s => s.LastModified)
-                    .ToList();
-            };
+            Func<List<SessionInfo>> todaysSessionsToReopen = () => TodaysSessionsToReopen(loadedSessions);
 
             // Rebuilds the visible list from loadedSessions, applying the search text, and preserves
             // the current selection where possible. Sorted by date, the rows sit under date bands.
