@@ -100,6 +100,18 @@ namespace ClaudeCodeVS.UI
             get { return !string.IsNullOrWhiteSpace(Header); }
         }
 
+        /// <summary>
+        /// True when the card shows this question's header badge in its title line instead — it is the
+        /// card's only question. Set once, by the card, before the row is shown.
+        /// </summary>
+        public bool HeaderInCardTitle { get; set; }
+
+        /// <summary>The header badge above the question itself: there is one and the title line does not show it.</summary>
+        public bool ShowHeaderBadge
+        {
+            get { return HasHeader && !HeaderInCardTitle; }
+        }
+
         public bool MultiSelect { get; set; }
 
         public ObservableCollection<ChatOptionViewModel> Options { get; }
@@ -310,6 +322,14 @@ namespace ClaudeCodeVS.UI
                 }
             }
 
+            // A lone question's badge reads as the card's subject, so it moves next to the title; with
+            // several, each keeps its own above its question, or nothing says which badge is whose.
+            if (Questions.Count == 1 && Questions[0].HasHeader)
+            {
+                Questions[0].HeaderInCardTitle = true;
+                TitleBadge = Questions[0].Header;
+            }
+
             ToolName = request.ToolName ?? string.Empty;
             ToolInputJson = request.ToolInputJson ?? string.Empty;
 
@@ -368,6 +388,14 @@ namespace ClaudeCodeVS.UI
         }
 
         public ObservableCollection<ChatQuestionViewModel> Questions { get; }
+
+        /// <summary>Header badge shown beside the title: the only question's header. Empty otherwise.</summary>
+        public string TitleBadge { get; } = string.Empty;
+
+        public bool HasTitleBadge
+        {
+            get { return !string.IsNullOrEmpty(TitleBadge); }
+        }
 
         public string PlanText { get { return _request.PlanText; } }
 
