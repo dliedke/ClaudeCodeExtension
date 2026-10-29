@@ -12,6 +12,7 @@
 - Focus the embedded terminal only through `FocusTerminalForInputAsync()` / `FocusTerminalForInput()` / `FocusTerminalWindow()`.
 - Do not bump Newtonsoft.Json: it is pinned to 13.0.3, the version VS itself loads (issue #112).
 - New or changed extension UI text (chat, panel, menus, dialogs, messages) is wrapped in `L("...")` / `N("...")` / `{local:Loc '...'}` and translated in every `lang/*.json` in the same change; `test.cmd` fails on a missing or orphaned translation (recipe: `docs/SKILLS.md` → *Localize chat text*).
+- Change the resumed-transcript limits or any other value chosen for performance only together with a measurement recorded in `docs/PERFORMANCE.md` (method, machine, before/after).
 
 ## Code Style
 - Language: C# targeting .NET Framework 4.7.2 for Visual Studio 2022/2026 (VS SDK 17.14)

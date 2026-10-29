@@ -2358,22 +2358,28 @@ namespace ClaudeCodeVS
             StartSessionHistoryTask(ShowSessionHistoryDialogAsync, "claudecode/nativechat/composerhistory");
         }
 
+        // Replay limits. Changing them must be backed by a measurement recorded in docs/PERFORMANCE.md
+        // (method, machine, numbers before and after) — they were set by feel twice before, and both
+        // times the reason behind them (rendering every row at once) stopped being true without anyone
+        // noticing.
+
         /// <summary>
-        /// Most user/assistant messages a replayed transcript may add. A long conversation would
-        /// otherwise take seconds to render and bury the composer under thousands of bubbles; the newest
-        /// ones are the ones worth showing, so the cap keeps the tail and says how much it dropped. The
-        /// value is a judgement call from v89.0, not a measurement. Tool cards do not count against it.
+        /// Most user/assistant messages a replayed transcript may add; the cap keeps the tail and says
+        /// how much it dropped. A safety cap for extreme sessions rather than a performance limit: with
+        /// the virtualized transcript only the visible rows are rendered, and the whole of a 154-message
+        /// session restored in ~0.3 s (0.8 s on a simulated slow machine), faster than with the former
+        /// 200/40 limits (docs/PERFORMANCE.md). Thinking and tool cards do not count against it.
         /// </summary>
-        private const int ResumedTranscriptMaxMessages = 200;
+        internal const int ResumedTranscriptMaxMessages = 1000;
 
         /// <summary>
         /// Most tool calls of a replayed Claude transcript shown as full tool cards; older ones inside
-        /// the shown messages collapse into one-line summaries. Kept apart from (and above)
-        /// <see cref="ResumedTranscriptMaxMessages"/> because a single turn often runs several tools.
-        /// Lowered from 500 after measuring a real resume: 116 full cards still cost enough layout
-        /// work to stall Visual Studio for seconds, and a one-line summary keeps the call traceable.
+        /// the shown messages collapse into one-line summaries. Was 40 when the transcript rendered every
+        /// row at once. With virtualization more cards do not slow the restore; they make paging deep into
+        /// the history about 50 % heavier on a slow machine (~210 vs ~140 ms per page), so 200 keeps most
+        /// conversations whole while sparing slow machines there (docs/PERFORMANCE.md).
         /// </summary>
-        internal const int ResumedTranscriptMaxToolCards = 40;
+        internal const int ResumedTranscriptMaxToolCards = 200;
 
         /// <summary>
         /// Lines of one summary row of older tool calls. The row is a single text block, and a long run
@@ -2493,7 +2499,12 @@ namespace ClaudeCodeVS
                     }
                     else
                     {
-                        AddNativeMessage(chat, row.Kind, row.Text);
+                        ChatMessageViewModel added = AddNativeMessage(chat, row.Kind, row.Text);
+                        if (added != null && row.Kind == ChatMessageKind.Thinking)
+                        {
+                            // Same caption as the live thinking row; it stays collapsed until opened.
+                            added.Header = L("Thinking");
+                        }
                     }
                 }
 
@@ -2624,11 +2635,19 @@ namespace ClaudeCodeVS
                     }
                     else if ((string)part["type"] == "text")
                     {
-                        // Historical thinking is deliberately not replayed: in real sessions it is the
-                        // bulk of the transcript (measured: 267k of 315k replay characters), and
-                        // rendering it as markdown on the UI thread is what made a resumed chat stall
-                        // Visual Studio for ~30 seconds. Live thinking still streams normally.
                         AppendAssistantTextPart(text, part);
+                    }
+                    else if ((string)part["type"] == "thinking")
+                    {
+                        // Its own collapsed row, as during the live turn. Skipped until v279.0: in sessions
+                        // with full thinking it was the bulk of the transcript (267k of 315k characters),
+                        // and before the transcript was virtualized (#219) rendering it stalled Visual
+                        // Studio for ~30 s. Measured since: collapsed and virtualized it costs nothing
+                        // noticeable, even at 364k characters on a simulated slow machine
+                        // (docs/PERFORMANCE.md). Current Claude Code mostly stores it empty.
+                        builder.AddMessage(ChatMessageKind.Assistant, text.ToString());
+                        text.Clear();
+                        builder.AddThinking((string)part["thinking"]);
                     }
                 }
 
@@ -2725,13 +2744,32 @@ namespace ClaudeCodeVS
                     return;
                 }
 
-                // Drop the oldest message, then the tool calls that belonged to it, so the replay never
-                // opens on cards whose message is gone.
+                // Drop the oldest message with the thinking that led to it, then the tool calls that
+                // belonged to it, so the replay never opens on cards or thinking whose message is gone.
+                while (_window.First != null && _window.First.Value.Kind == ChatMessageKind.Thinking)
+                {
+                    RemoveFirst();
+                }
+
                 RemoveFirst();
                 while (_window.First != null && _window.First.Value.Kind == ChatMessageKind.ToolCall)
                 {
                     RemoveFirst();
                 }
+            }
+
+            /// <summary>
+            /// The agent's recorded thinking before a reply, shown collapsed like a live one. It does not
+            /// count as a message, so it cannot push real messages out of the window.
+            /// </summary>
+            public void AddThinking(string text)
+            {
+                if (string.IsNullOrWhiteSpace(text))
+                {
+                    return;
+                }
+
+                _window.AddLast(new ResumedTranscriptRow { Kind = ChatMessageKind.Thinking, Text = text.TrimEnd() });
             }
 
             public void AddToolCall(string id, string name, string inputJson)
@@ -2823,6 +2861,11 @@ namespace ClaudeCodeVS
             {
                 ResumedTranscriptRow row = _window.First.Value;
                 _window.RemoveFirst();
+
+                if (row.Kind == ChatMessageKind.Thinking)
+                {
+                    return;
+                }
 
                 if (row.Kind != ChatMessageKind.ToolCall)
                 {

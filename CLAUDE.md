@@ -6,7 +6,7 @@ Visual Studio Extension (VSIX) for VS 2022/2026 — integrates AI code assistant
 
 - Author: Daniel Carvalho Liedke (dliedke@gmail.com) | License: MIT
 - Repository: https://github.com/dliedke/ClaudeCodeExtension
-- Current Version: 278.0 | Target Framework: .NET Framework 4.7.2
+- Current Version: 279.0 | Target Framework: .NET Framework 4.7.2
 
 Step-by-step procedures for recurring tasks (release, Exp-hive debugging, publish, adding a
 provider/setting/UI file) live in `docs/SKILLS.md`. Short build/style brief for non-Claude agents: `docs/AGENTS.md`.
@@ -200,6 +200,7 @@ ClaudeCodeExtension/
 ├── docs/
 │   ├── ARCHITECTURE.md                  # Per-file non-obvious details (on-demand reference; indexed from CLAUDE.md)
 │   ├── SKILLS.md                        # Step-by-step task recipes (release, Exp debugging, publish, add provider/setting/UI file)
+│   ├── PERFORMANCE.md                   # Native chat measurements (machine, method, numbers) behind the replay limits and other performance values
 │   ├── AGENTS.md                        # Short instructions file for non-Claude agents
 │   └── images/                          # README screenshots (linked by raw GitHub URL so the Marketplace page resolves them)
 ├── lang/                                # Chat UI translations (19 + English), embedded: <culture>.json = { "English text": "translation" }
@@ -248,11 +249,12 @@ Deep per-file gotchas and design decisions live in `docs/ARCHITECTURE.md` (kept 
 always-loaded file to keep context lean). Before editing any file below, read its section in that
 doc — it captures non-obvious behavior that isn't apparent from the code:
 
-Four cross-cutting rules (full text in `docs/ARCHITECTURE.md` → *Cross-Cutting Rules*) — read before touching provider selection, UI captions, terminal focus, or anything that sends text to the agent:
+Five cross-cutting rules (full text in `docs/ARCHITECTURE.md` → *Cross-Cutting Rules*) — read before touching provider selection, UI captions, terminal focus, anything that sends text to the agent, or a value chosen for performance:
 - Active provider UI rule (v24.0): provider-dependent UI (checkmarks, captions, menu visibility, active labels) must use `_currentRunningProvider` when a terminal is alive, falling back to `_settings.SelectedProvider` only before launch.
 - Terminal focus rule (v26.0): never focus the embedded terminal with direct `SetForegroundWindow`/`SetFocus`; use `FocusTerminalForInputAsync()`/`FocusTerminalForInput()`/`FocusTerminalWindow()`. Hook focus checks stay Win32-only.
 - Agent send rule (v82.0): send agent-bound text through `SendTextToAgentAsync()`, not `SendTextToTerminalAsync()` — native mode has no console. Console-only traffic (slash commands, CLI updates, plugin installs) is the exception; new console-scraping logic must bail out when `IsNativeModeActive`.
 - Chat localization rule (v269.0, whole extension since v270.0): new or changed UI text — chat, panel, menus, dialogs, message boxes — is wrapped in `L("...")`/`N("...")`/`{local:Loc '...'}` and translated in every `lang/*.json` in the same change (recipe: `docs/SKILLS.md` → *Localize chat text*); `test.cmd` fails on a missing or orphaned translation. Text set from code must also be redone by `RefreshChatLanguage()` (or a tool window's own `Loc.LanguageChanged` handler) so a language switch reaches everything already open.
+- Performance values rule (v279.0): the resumed-transcript limits and any other value chosen for performance (throttle intervals, virtualization cache, rendering caps) change only together with a measurement recorded in `docs/PERFORMANCE.md` (method, machine, before/after); `ReplayLimitsMatchTheMeasuredValues` pins the limits.
 
 | File | `docs/ARCHITECTURE.md` section |
 |------|-------------------------------|

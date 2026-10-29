@@ -176,6 +176,10 @@ Pull requests for new features are welcome. Bug fixes too — if you find an iss
 
 ## Version History
 
+### Version 279.0
+- A resumed conversation in the native chat now shows up to 1000 earlier messages (was 200), with full cards for the last 200 tool calls (was 40).
+- A resumed conversation shows the agent's earlier thinking again, collapsed like during the live reply.
+
 ### Version 278.0
 - The release notes now credit the contributor behind version 276.0.
 
