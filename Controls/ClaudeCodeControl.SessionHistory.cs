@@ -2229,7 +2229,8 @@ namespace ClaudeCodeVS
         /// Decides where <paramref name="session"/> goes. A conversation already open in a chat tab is
         /// only brought forward — resuming it again would leave two CLIs writing one transcript. When
         /// the tab the history was opened from already holds a conversation, the user picks between a
-        /// new tab and that tab. Terminal mode has no chat tabs and always resumes in place.
+        /// new tab and that tab; an empty tab with an unsent draft gets a new tab without asking.
+        /// Terminal mode has no chat tabs and always resumes in place.
         /// </summary>
         private HistoryResumeTarget ChooseHistoryResumeTarget(SessionInfo session, NativeChatSessionState targetTab,
             Window owner, out NativeChatSessionState openTab)
@@ -2249,7 +2250,8 @@ namespace ClaudeCodeVS
 
             if (!ChatTabHasConversation(targetTab))
             {
-                return HistoryResumeTarget.CurrentTab;
+                // A draft in the composer is usually a new topic: keep it and open the conversation beside it.
+                return ChatTabHasDraft(targetTab) ? HistoryResumeTarget.NewTab : HistoryResumeTarget.CurrentTab;
             }
 
             bool? newTab = AskResumeInNewTab(session, owner);
@@ -2262,6 +2264,18 @@ namespace ClaudeCodeVS
         {
             ChatTranscriptView transcript = tab != null ? tab.ChatTranscript : ChatTranscript;
             return transcript != null && transcript.Messages.Any(m => m.IsUser);
+        }
+
+        /// <summary>True when the chat tab (null = the main chat) has unsent text or attachments in its composer.</summary>
+        private bool ChatTabHasDraft(NativeChatSessionState tab)
+        {
+            ChatTranscriptView transcript = tab != null ? tab.ChatTranscript : ChatTranscript;
+            if (transcript != null && !string.IsNullOrWhiteSpace(transcript.ComposerText))
+            {
+                return true;
+            }
+
+            return tab != null ? tab.AttachedFiles.Count > 0 : attachedImagePaths.Count > 0;
         }
 
         private async Task ResumeFromHistoryAsync(SessionInfo session, NativeChatSessionState targetTab, string workspaceDir,
