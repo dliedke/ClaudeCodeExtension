@@ -95,8 +95,8 @@ namespace ClaudeCodeVS
 
         /// <summary>
         /// Builds and shows the consolidated settings dialog, then applies the
-        /// chosen values. The dialog is organized into tabs (On Agent Finish, Prompt, Automation, Layout,
-        /// Terminal, Theme, Toolbar, CLI Paths, Backup). Restart-requiring changes (terminal type,
+        /// chosen values. The dialog is organized into tabs (On Agent Finish, Prompt, Automation,
+        /// Terminal, Native mode, Toolbar, Appearance, CLI Paths, Backup).Restart-requiring changes (terminal type,
         /// theme) trigger a single terminal restart at the end if needed.
         /// </summary>
         private async System.Threading.Tasks.Task ShowConsolidatedSettingsDialogAsync()
@@ -155,8 +155,11 @@ namespace ClaudeCodeVS
                 Title = L("Claude Code Extension - Settings"),
                 Width = 840,
                 Height = 720,
+                // Resizable for long tabs; it never gets smaller than the size it was designed at.
+                MinWidth = 840,
+                MinHeight = 720,
                 WindowStartupLocation = WindowStartupLocation.CenterOwner,
-                ResizeMode = ResizeMode.NoResize,
+                ResizeMode = ResizeMode.CanResize,
                 Background = themeBg,
                 Foreground = themeFg,
                 ShowInTaskbar = false
@@ -458,11 +461,70 @@ namespace ClaudeCodeVS
             };
             automationStack.Children.Add(installOpenPetsButton);
 
-            // ========================= Layout tab =========================
-            var layoutStack = AddTab(L("Layout"));
+            // ================= Terminal tab + Native mode tab =================
+            // Each mode has its own tab with only its own settings (v280.0; the former Layout tab was split
+            // between them, the general options went to Prompt, Toolbar and Appearance). A banner on top
+            // says whether that mode is the one in use and offers to switch to it; the tab of the mode not
+            // in use stays readable but disabled. The switch is not applied until OK, like everything else.
+            var terminalPage = AddTab(L("Terminal"));
+            var nativePage = AddTab(L("Native mode"));
 
-            layoutStack.Children.Add(MakeSectionHeader(L("Prompt panel position"), themeFg));
-            layoutStack.Children.Add(new TextBlock
+            // The mode itself: no longer a visible checkbox (the banners switch it), kept as the state the
+            // rest of the dialog already listens to (terminal type, On Agent Finish, OK).
+            var nativeModeCheck = new CheckBox { IsChecked = _settings.UseNativeMode };
+
+            ModeBanner terminalBanner = MakeModeBanner(L("Use the terminal"), null, dialog, themeBg, themeFg);
+            ModeBanner nativeBanner = MakeModeBanner(L("Use native mode"),
+                L("The panel shows the conversation with the agent as a chat, driven by the agent's own structured protocol instead of a console window. Answers stream in, tool calls and their results are shown as collapsible cards, and token usage and cost are reported for each turn.\n\nAgents without a structured channel keep using the embedded terminal automatically."),
+                dialog, themeBg, themeFg);
+            terminalBanner.Switch.Click += (s, e) => nativeModeCheck.IsChecked = false;
+            nativeBanner.Switch.Click += (s, e) => nativeModeCheck.IsChecked = true;
+            terminalPage.Children.Add(terminalBanner.Root);
+            nativePage.Children.Add(nativeBanner.Root);
+
+            var terminalStack = new StackPanel { Orientation = Orientation.Vertical };
+            var nativeStack = new StackPanel { Orientation = Orientation.Vertical };
+            terminalPage.Children.Add(terminalStack);
+            nativePage.Children.Add(nativeStack);
+
+            // Fixed section order on each tab, whatever order the controls are built in below.
+            StackPanel AddSection(StackPanel page)
+            {
+                var section = new StackPanel { Orientation = Orientation.Vertical };
+                page.Children.Add(section);
+                return section;
+            }
+            var terminalPanelSection = AddSection(terminalStack);   // prompt panel position, prompt box
+            var terminalTypeSection = AddSection(terminalStack);    // terminal type, fonts, encoding
+            var nativeTabsSection = AddSection(nativeStack);
+            var nativeWindowSection = AddSection(nativeStack);
+            var nativeDisplaySection = AddSection(nativeStack);
+            var nativeIconsSection = AddSection(nativeStack);
+            var nativeFontSection = AddSection(nativeStack);
+            nativeTabsSection.Children.Add(MakeSectionHeader(L("Chat tabs"), themeFg));
+            nativeWindowSection.Children.Add(MakeSectionHeader(L("Chat window"), themeFg));
+            nativeDisplaySection.Children.Add(MakeSectionHeader(L("Chat display"), themeFg));
+
+            void SyncModeBanners()
+            {
+                bool native = nativeModeCheck.IsChecked == true;
+                terminalBanner.Show(!native, L("The embedded terminal is in use."),
+                    L("Native mode is in use, so these settings do not apply right now."));
+                nativeBanner.Show(native, L("Native mode is in use."),
+                    L("The embedded terminal is in use, so these settings do not apply right now."));
+                terminalStack.IsEnabled = !native;
+                nativeStack.IsEnabled = native;
+            }
+            nativeModeCheck.Checked += (s, e) => SyncModeBanners();
+            nativeModeCheck.Unchecked += (s, e) => SyncModeBanners();
+            SyncModeBanners();
+
+            // General options that used to sit on the Layout tab; added to their tabs when those are built.
+            var languageSection = new StackPanel { Orientation = Orientation.Vertical };
+            var subagentSection = new StackPanel { Orientation = Orientation.Vertical };
+
+            terminalPanelSection.Children.Add(MakeSectionHeader(L("Prompt panel position"), themeFg));
+            terminalPanelSection.Children.Add(new TextBlock
             {
                 Text = L("Where the prompt panel (input box and usage bars) is docked relative to the terminal."),
                 FontSize = 11,
@@ -482,19 +544,19 @@ namespace ClaudeCodeVS
                 origVertical && !origInvertLayout, themeFg, "promptPosition");
             var rightRadio = MakeRadioButton(L("Right — terminal on the left, prompt on the right"),
                 origVertical && origInvertLayout, themeFg, "promptPosition");
-            layoutStack.Children.Add(topRadio);
-            layoutStack.Children.Add(bottomRadio);
-            layoutStack.Children.Add(leftRadio);
-            layoutStack.Children.Add(rightRadio);
+            terminalPanelSection.Children.Add(topRadio);
+            terminalPanelSection.Children.Add(bottomRadio);
+            terminalPanelSection.Children.Add(leftRadio);
+            terminalPanelSection.Children.Add(rightRadio);
 
-            layoutStack.Children.Add(MakeSectionHeader(L("Prompt input box"), themeFg));
+            terminalPanelSection.Children.Add(MakeSectionHeader(L("Prompt input box"), themeFg));
             var hidePromptPanelCheck = MakeCheckBox(
                 L("Hide prompt input box (terminal only)"),
                 L("Collapses the multi-line prompt text box so the terminal fills the space it occupied. " +
                 "The controls row (Send/Attach, Restart, Model, and this ⚙ menu), file chips, and usage bars " +
                 "stay visible so you can turn it back on here or from the ⚙ menu."),
                 origHidePromptPanel, themeFg);
-            layoutStack.Children.Add(hidePromptPanelCheck);
+            terminalPanelSection.Children.Add(hidePromptPanelCheck);
 
             var autoHidePromptInNativeCheck = MakeCheckBox(
                 L("Hide prompt box while the native chat is in its own tab"),
@@ -502,7 +564,7 @@ namespace ClaudeCodeVS
                 "selectors, so this panel's prompt box auto-collapses once the chat leaves for its tab. " +
                 "It comes back automatically whenever the chat is docked back in the panel."),
                 origAutoHidePromptInNative, themeFg);
-            layoutStack.Children.Add(autoHidePromptInNativeCheck);
+            nativeWindowSection.Children.Add(autoHidePromptInNativeCheck);
 
             var autoHidePanelInNativeCheck = MakeCheckBox(
                 L("Hide this panel while the native chat is in its own tab"),
@@ -510,7 +572,7 @@ namespace ClaudeCodeVS
                 "It comes back when the chat is docked back or native mode is turned off, and " +
                 "View > Other Windows > Claude Code Extension shows it at any time."),
                 origAutoHidePanelInNative, themeFg);
-            layoutStack.Children.Add(autoHidePanelInNativeCheck);
+            nativeWindowSection.Children.Add(autoHidePanelInNativeCheck);
 
             var chatTabsInOneWindowCheck = MakeCheckBox(
                 L("Show all chats in one window (applies after restarting Visual Studio)"),
@@ -518,42 +580,41 @@ namespace ClaudeCodeVS
                   "remembers where that window is docked, also while debugging, instead of placing each chat " +
                   "tab among the code tabs on its own. Closing the window only hides it; the chats keep running."),
                 _settings.ChatTabsInOneWindow, themeFg);
-            layoutStack.Children.Add(chatTabsInOneWindowCheck);
+            nativeWindowSection.Children.Add(chatTabsInOneWindowCheck);
 
             // Usage bars live in the prompt panel, so their two toggles sit on this tab instead of a
             // tab of their own (the former Usage tab, folded in in v223.0).
-            layoutStack.Children.Add(MakeSectionHeader(L("Usage bars"), themeFg));
+            promptStack.Children.Add(MakeSectionHeader(L("Usage bars"), themeFg));
             var showBarsCheck = MakeCheckBox(
                 L("Show inline usage bars"),
                 L("Show the mini session/weekly usage bars in the prompt panel. Only applies when a Claude Code provider is active."),
                 origShowInlineBars, themeFg);
-            layoutStack.Children.Add(showBarsCheck);
+            promptStack.Children.Add(showBarsCheck);
 
             var autoRefreshCheck = MakeCheckBox(
                 L("Auto-refresh usage in the background"),
                 L("Refresh usage data every 1 minute in the background, even while the Claude Usage tab is closed or unfocused. Off refreshes only when the usage window is open or refreshed manually."),
                 origAutoRefresh > 0, themeFg);
-            layoutStack.Children.Add(autoRefreshCheck);
+            promptStack.Children.Add(autoRefreshCheck);
 
-            layoutStack.Children.Add(MakeSectionHeader(L("Subagents"), themeFg));
+            subagentSection.Children.Add(MakeSectionHeader(L("Subagents"), themeFg));
             var showSubagentCountCheck = MakeCheckBox(
                 L("Show active subagent count (Claude Code)"),
                 L("Show a live count of the subagents Claude Code is running in the panel toolbar, next to the toolbar buttons. Hover it to see what each one is working on. Hidden while no subagent is running. Claude Code only."),
                 origShowSubagentCount, themeFg);
-            layoutStack.Children.Add(showSubagentCountCheck);
+            subagentSection.Children.Add(showSubagentCountCheck);
 
-            layoutStack.Children.Add(MakeSectionHeader(L("Chat tabs (native mode)"), themeFg));
             var showChatTabStatusCheck = MakeCheckBox(
                 L("Show the session status on each chat tab"),
                 L("Puts a symbol in front of each chat tab's name, so you can tell from the tab strip what every session is doing: ⏳ working, ❓ waiting for your answer, ✳ done, ❌ error."),
                 _settings.ShowChatTabStatus, themeFg);
-            layoutStack.Children.Add(showChatTabStatusCheck);
+            nativeTabsSection.Children.Add(showChatTabStatusCheck);
 
             var autoTitleCheck = MakeCheckBox(
                 L("Automatically name chat tabs after the topic"),
                 L("A chat tab you have not renamed takes its name from your first message in it. Renaming the session always wins."),
                 _settings.AutoTitleChatTabs, themeFg);
-            layoutStack.Children.Add(autoTitleCheck);
+            nativeTabsSection.Children.Add(autoTitleCheck);
 
             var autoTitleAiCheck = MakeCheckBox(
                 L("Use a low-cost AI model to generate the topic"),
@@ -563,33 +624,33 @@ namespace ClaudeCodeVS
             autoTitleAiCheck.IsEnabled = autoTitleCheck.IsChecked == true;
             autoTitleCheck.Checked += (s, e) => autoTitleAiCheck.IsEnabled = true;
             autoTitleCheck.Unchecked += (s, e) => autoTitleAiCheck.IsEnabled = false;
-            layoutStack.Children.Add(autoTitleAiCheck);
+            nativeTabsSection.Children.Add(autoTitleAiCheck);
 
             var showTokenCountsCheck = MakeCheckBox(
                 L("Show token counts in the chat"),
                 L("Shows how many tokens each turn used, live while the agent works and in the line left after the turn. The usage ring on the chat toolbar is not affected."),
                 _settings.ShowChatTokenCounts, themeFg);
-            layoutStack.Children.Add(showTokenCountsCheck);
+            nativeDisplaySection.Children.Add(showTokenCountsCheck);
 
             var expandFailedToolsCheck = MakeCheckBox(
                 L("Open failed tool calls automatically"),
                 L("A tool call that fails (for example a command that ends with an error) opens its card in the chat so you see why. The agent usually reads the error and tries another way; turn this off to keep those cards closed — they still show the failed mark."),
                 _settings.ExpandFailedToolCalls, themeFg);
-            layoutStack.Children.Add(expandFailedToolsCheck);
+            nativeDisplaySection.Children.Add(expandFailedToolsCheck);
 
             var plainWorkingStatusCheck = MakeCheckBox(
                 L("Plain working status (always \"Thinking…\")"),
                 L("While the agent works, the status line always says \"Thinking…\" instead of rotating through playful words like \"Pondering…\" or \"Noodling…\". The spinner and the clock still show it is working."),
                 _settings.PlainChatWorkingStatus, themeFg);
-            layoutStack.Children.Add(plainWorkingStatusCheck);
+            nativeDisplaySection.Children.Add(plainWorkingStatusCheck);
 
             var compactToolbarCheck = MakeCheckBox(
                 L("Compact chat toolbar (inside the message box)"),
                 L("The chat toolbar moves inside the message box, under the text, as in most chat apps: restart, rename, color and attach are grouped in the ⋯ menu after ✚ new chat, the model, effort and permission selectors follow, and custom commands, tools and settings sit at the right end."),
                 _settings.CompactChatToolbar, themeFg);
-            layoutStack.Children.Add(compactToolbarCheck);
+            nativeDisplaySection.Children.Add(compactToolbarCheck);
 
-            layoutStack.Children.Add(MakeSectionHeader(L("Language"), themeFg));
+            languageSection.Children.Add(MakeSectionHeader(L("Language"), themeFg));
             var chatLanguageRow = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(4, 4, 0, 4) };
             chatLanguageRow.Children.Add(new TextBlock
             {
@@ -636,17 +697,17 @@ namespace ClaudeCodeVS
                 }
             };
             chatLanguageRow.Children.Add(chatLanguageCombo);
-            layoutStack.Children.Add(chatLanguageRow);
+            languageSection.Children.Add(chatLanguageRow);
 
-            layoutStack.Children.Add(MakeSectionHeader(L("Chat icons (native mode)"), themeFg));
+            nativeIconsSection.Children.Add(MakeSectionHeader(L("Chat icons"), themeFg));
             var classicIconsRadio = MakeRadioButton(L("Classic — text symbols and emoji"),
                 _settings.ChatIconStyle != ChatIconStyle.Modern, themeFg, "chatIconStyle");
             var modernIconsRadio = MakeRadioButton(L("Modern — Visual Studio icons and colored status on the tabs"),
                 _settings.ChatIconStyle == ChatIconStyle.Modern, themeFg, "chatIconStyle");
             modernIconsRadio.ToolTip = MakeToolTip(
                 L("The chat toolbar uses Visual Studio's own icons, the live status shows a rotating ring, and each chat tab shows ✅ done, ❌ error, ❓ waiting for your answer and the working icon chosen below."));
-            layoutStack.Children.Add(classicIconsRadio);
-            layoutStack.Children.Add(modernIconsRadio);
+            nativeIconsSection.Children.Add(classicIconsRadio);
+            nativeIconsSection.Children.Add(modernIconsRadio);
 
             var workingIconRow = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(24, 2, 0, 4) };
             workingIconRow.Children.Add(new TextBlock
@@ -674,37 +735,22 @@ namespace ClaudeCodeVS
             workingIconRow.IsEnabled = modernIconsRadio.IsChecked == true;
             modernIconsRadio.Checked += (s, e) => workingIconRow.IsEnabled = true;
             modernIconsRadio.Unchecked += (s, e) => workingIconRow.IsEnabled = false;
-            layoutStack.Children.Add(workingIconRow);
-
-            // ========================= Terminal tab =========================
-            var terminalStack = AddTab(L("Terminal"));
-
-            terminalStack.Children.Add(MakeSectionHeader(L("Native mode"), themeFg));
-
-            var nativeModeCheck = MakeCheckBox(
-                L("Use native mode (chat instead of an embedded terminal)"),
-                L("When enabled, the panel shows the conversation with the agent as a chat, driven by the agent's own structured protocol instead of a console window. Answers stream in, tool calls and their results are shown as collapsible cards, and token usage and cost are reported for each turn.\n\nAgents without a structured channel keep using the embedded terminal automatically. The terminal settings below apply only when the terminal is in use."),
-                _settings.UseNativeMode, themeFg);
-            terminalStack.Children.Add(nativeModeCheck);
+            nativeIconsSection.Children.Add(workingIconRow);
 
             var reopenChatTabsCheck = MakeCheckBox(
                 L("Reopen chat tabs when the solution opens"),
                 L("The chat tabs open when you closed the solution or Visual Studio come back the next time you open it, each continuing its conversation with the earlier messages shown. A reopened tab starts its agent only when you send it a message. Claude Code, Codex and Devin only. A tab you close yourself is not reopened; Session History still has it."),
                 _settings.ReopenChatTabsWithSolution, themeFg);
-            reopenChatTabsCheck.Margin = new Thickness(20, reopenChatTabsCheck.Margin.Top, reopenChatTabsCheck.Margin.Right, reopenChatTabsCheck.Margin.Bottom);
-            reopenChatTabsCheck.IsEnabled = nativeModeCheck.IsChecked == true;
-            nativeModeCheck.Checked += (s, e) => reopenChatTabsCheck.IsEnabled = true;
-            nativeModeCheck.Unchecked += (s, e) => reopenChatTabsCheck.IsEnabled = false;
-            terminalStack.Children.Add(reopenChatTabsCheck);
+            nativeTabsSection.Children.Insert(1, reopenChatTabsCheck);
 
-            terminalStack.Children.Add(MakeSectionHeader(L("Terminal type"), themeFg));
+            terminalTypeSection.Children.Add(MakeSectionHeader(L("Terminal type"), themeFg));
             var cmdRadio = MakeRadioButton(L("Command Prompt (default)"),
                 origTerminalType == TerminalType.CommandPrompt, themeFg, "terminalType");
             var wtRadio = MakeRadioButton(L("Windows Terminal (better emoji/unicode support)"),
                 origTerminalType == TerminalType.WindowsTerminal, themeFg, "terminalType");
-            terminalStack.Children.Add(cmdRadio);
-            terminalStack.Children.Add(wtRadio);
-            terminalStack.Children.Add(new TextBlock
+            terminalTypeSection.Children.Add(cmdRadio);
+            terminalTypeSection.Children.Add(wtRadio);
+            terminalTypeSection.Children.Add(new TextBlock
             {
                 Text = L("Note: Windows Terminal must be installed (winget install Microsoft.WindowsTerminal)."),
                 FontSize = 11,
@@ -715,19 +761,8 @@ namespace ClaudeCodeVS
             });
 
             // Native mode never opens a console, so offering Windows Terminal there only invites the
-            // "wt.exe was not found" prompt for a terminal that is never launched.
-            var nativeTerminalHint = new TextBlock
-            {
-                Text = L("Native mode does not open a terminal, so the terminal type stays on Command Prompt while it is on."),
-                FontSize = 11,
-                Opacity = 0.7,
-                Foreground = themeFg,
-                TextWrapping = TextWrapping.Wrap,
-                Visibility = Visibility.Collapsed,
-                Margin = new Thickness(20, 2, 0, 0)
-            };
-            terminalStack.Children.Add(nativeTerminalHint);
-
+            // "wt.exe was not found" prompt for a terminal that is never launched. The whole Terminal tab
+            // is disabled in native mode (SyncModeBanners); the type is also put back on Command Prompt.
             void SyncTerminalTypeAvailability()
             {
                 bool native = nativeModeCheck.IsChecked == true;
@@ -737,12 +772,6 @@ namespace ClaudeCodeVS
                     cmdRadio.IsChecked = true;
                 }
 
-                cmdRadio.IsEnabled = !native;
-                wtRadio.IsEnabled = !native;
-                cmdRadio.Opacity = native ? 0.5 : 1.0;
-                wtRadio.Opacity = native ? 0.5 : 1.0;
-                nativeTerminalHint.Visibility = native ? Visibility.Visible : Visibility.Collapsed;
-
                 // On Agent Finish tab: native mode pins the idle seconds to 1, terminal mode reopens the box.
                 agentFinishEditor?.SetNativeMode(native);
             }
@@ -751,8 +780,8 @@ namespace ClaudeCodeVS
             SyncTerminalTypeAvailability();
 
             // ---- Chat font (native mode) ----
-            terminalStack.Children.Add(MakeSectionHeader(L("Chat font (native mode)"), themeFg));
-            terminalStack.Children.Add(new TextBlock
+            nativeFontSection.Children.Add(MakeSectionHeader(L("Chat font"), themeFg));
+            nativeFontSection.Children.Add(new TextBlock
             {
                 Text = L("Font of the native-mode chat. Every installed font is listed, proportional ones included: " +
                        "the chat is laid out by Windows, not on the fixed character grid a console needs, so nothing " +
@@ -778,8 +807,9 @@ namespace ClaudeCodeVS
                 BorderBrush = themeFg,
                 Margin = new Thickness(4, 0, 0, 4)
             };
-            terminalStack.Children.Add(chatFontSearchBox);
+            nativeFontSection.Children.Add(chatFontSearchBox);
 
+            Style themedListBoxStyle = BuildThemedListBoxStyle();
             var chatFontList = new ListBox
             {
                 Width = 300,
@@ -788,9 +818,10 @@ namespace ClaudeCodeVS
                 Background = themeBg,
                 Foreground = themeFg,
                 BorderBrush = themeFg,
-                Margin = new Thickness(4, 0, 0, 4)
+                Margin = new Thickness(4, 0, 0, 4),
+                Style = themedListBoxStyle
             };
-            terminalStack.Children.Add(chatFontList);
+            nativeFontSection.Children.Add(chatFontList);
 
             var chatFontPreview = new TextBlock
             {
@@ -800,7 +831,7 @@ namespace ClaudeCodeVS
                 TextWrapping = TextWrapping.Wrap,
                 Margin = new Thickness(4, 2, 0, 4)
             };
-            terminalStack.Children.Add(chatFontPreview);
+            nativeFontSection.Children.Add(chatFontPreview);
 
             var chatFontSizeCombo = MakeThemedComboBox(comboRes, themeFg);
             chatFontSizeCombo.Width = 110;
@@ -814,11 +845,11 @@ namespace ClaudeCodeVS
                 chatFontSizeCombo.Items.Add(item);
             }
             if (chatFontSizeCombo.SelectedItem == null) chatFontSizeCombo.SelectedIndex = 0;
-            terminalStack.Children.Add(chatFontSizeCombo);
+            nativeFontSection.Children.Add(chatFontSizeCombo);
 
             // ---- Console font (searchable picker with live preview) ----
-            terminalStack.Children.Add(MakeSectionHeader(L("Console font"), themeFg));
-            terminalStack.Children.Add(new TextBlock
+            terminalTypeSection.Children.Add(MakeSectionHeader(L("Console font"), themeFg));
+            terminalTypeSection.Children.Add(new TextBlock
             {
                 Text = L("Font applied to the embedded terminal (Command Prompt and Windows Terminal). " +
                        "Defaults to Cascadia Mono. Only monospaced fonts are listed — consoles draw text on a " +
@@ -848,7 +879,7 @@ namespace ClaudeCodeVS
                 BorderBrush = themeFg,
                 Margin = new Thickness(4, 0, 0, 4)
             };
-            terminalStack.Children.Add(fontSearchBox);
+            terminalTypeSection.Children.Add(fontSearchBox);
 
             var fontList = new ListBox
             {
@@ -858,16 +889,17 @@ namespace ClaudeCodeVS
                 Background = themeBg,
                 Foreground = themeFg,
                 BorderBrush = themeFg,
-                Margin = new Thickness(4, 0, 0, 4)
+                Margin = new Thickness(4, 0, 0, 4),
+                Style = themedListBoxStyle
             };
-            terminalStack.Children.Add(fontList);
+            terminalTypeSection.Children.Add(fontList);
 
             var showAllFontsCheck = MakeCheckBox(
                 L("Show all fonts (including proportional ones)"),
                 L("Proportional fonts are hidden by default because the terminal renders them jumbled. " +
                 "Check this only if you need a face the monospace filter misses."),
                 !IsMonospaceFont(origConsoleFont), themeFg);
-            terminalStack.Children.Add(showAllFontsCheck);
+            terminalTypeSection.Children.Add(showAllFontsCheck);
 
             var fontPreview = new TextBlock
             {
@@ -877,7 +909,7 @@ namespace ClaudeCodeVS
                 TextWrapping = TextWrapping.Wrap,
                 Margin = new Thickness(4, 2, 0, 4)
             };
-            terminalStack.Children.Add(fontPreview);
+            terminalTypeSection.Children.Add(fontPreview);
 
             // Shown only while a proportional face is selected: that is exactly the state that produces the
             // jumbled terminal text of issue #105, so say so where the user can still change their mind.
@@ -892,7 +924,7 @@ namespace ClaudeCodeVS
                 Visibility = Visibility.Collapsed,
                 Margin = new Thickness(4, 0, 0, 4)
             };
-            terminalStack.Children.Add(fontWarning);
+            terminalTypeSection.Children.Add(fontWarning);
 
             // Populate with installed font families (sorted, distinct). Each item renders its own name in
             // its own face so the dropdown doubles as a preview; Segoe UI is a fallback for name glyphs.
@@ -964,19 +996,15 @@ namespace ClaudeCodeVS
             showAllFontsCheck.Unchecked += (s, e) => RefreshFontFilter();
             RefreshFontFilter();
 
-            // Scroll the current selection into view once the dialog is laid out. ScrollIntoView
-            // bubbles a RequestBringIntoView event up past the list's own internal scrollviewer into
-            // the Terminal tab's outer page scrollviewer, which "helpfully" scrolls the whole page down
-            // to keep the (small, mid-page) list in view too — landing the tab somewhere in the middle
-            // instead of at the top every time Settings opens. Put the page back at the top once that
-            // settles.
+            // Scroll the current selection into view each time the tab is shown (a tab's content is loaded
+            // again on every switch). ScrollIntoView's RequestBringIntoView would bubble past the list's own
+            // scroll viewer into the page's, which then scrolled the whole tab down to the (mid-page) list.
+            // Until v280.0 the page was put back at the top afterwards, which showed as the scrollbar
+            // jumping on every switch to the tab; now the list keeps the request to itself.
+            KeepScrollIntoViewInside(fontList);
             fontList.Loaded += (s, e) =>
             {
                 if (fontList.SelectedItem != null) fontList.ScrollIntoView(fontList.SelectedItem);
-#pragma warning disable VSTHRD001, VSTHRD110
-                Dispatcher.BeginInvoke(new Action(() => FindAncestorScrollViewer(fontList)?.ScrollToHome()),
-                    DispatcherPriority.ContextIdle);
-#pragma warning restore VSTHRD001, VSTHRD110
             };
 
             // ---- Chat font picker (same list, no monospace filter and no warning) ----
@@ -1029,18 +1057,15 @@ namespace ClaudeCodeVS
             }
             chatFontSearchBox.TextChanged += (s, e) => RefreshChatFontFilter();
 
+            KeepScrollIntoViewInside(chatFontList);
             chatFontList.Loaded += (s, e) =>
             {
                 if (chatFontList.SelectedItem != null) chatFontList.ScrollIntoView(chatFontList.SelectedItem);
-#pragma warning disable VSTHRD001, VSTHRD110
-                Dispatcher.BeginInvoke(new Action(() => FindAncestorScrollViewer(chatFontList)?.ScrollToHome()),
-                    DispatcherPriority.ContextIdle);
-#pragma warning restore VSTHRD001, VSTHRD110
             };
 
             // ---- Console font size ----
-            terminalStack.Children.Add(MakeSectionHeader(L("Console font size"), themeFg));
-            terminalStack.Children.Add(new TextBlock
+            terminalTypeSection.Children.Add(MakeSectionHeader(L("Console font size"), themeFg));
+            terminalTypeSection.Children.Add(new TextBlock
             {
                 Text = L("Font size (in points) of the embedded terminal. \"Default\" keeps the terminal's own " +
                        "sizing. In Command Prompt, Ctrl+Scroll over the terminal updates this size " +
@@ -1069,9 +1094,9 @@ namespace ClaudeCodeVS
                     consoleFontSizeCombo.Items.Add(item);
                 }
             }
-            terminalStack.Children.Add(consoleFontSizeCombo);
+            terminalTypeSection.Children.Add(consoleFontSizeCombo);
 
-            terminalStack.Children.Add(MakeSectionHeader(L("Encoding"), themeFg));
+            terminalTypeSection.Children.Add(MakeSectionHeader(L("Encoding"), themeFg));
 
             var keepCodePageCheck = MakeCheckBox(
                 L("Keep the terminal on its launch code page (UTF-8)"),
@@ -1081,7 +1106,7 @@ namespace ClaudeCodeVS
                 "While this is on, the code page is put back as soon as the drift is noticed. Turn it off if an agent " +
                 "workflow deliberately switches the console to a different code page and needs it to stay there."),
                 _settings.KeepTerminalCodePage, themeFg);
-            terminalStack.Children.Add(keepCodePageCheck);
+            terminalTypeSection.Children.Add(keepCodePageCheck);
 
             // "Disable clipboard" relies on simulated keystrokes that only conhost (Command Prompt)
             // accepts, so the toggle is enabled only while Command Prompt is selected. Keep it in sync
@@ -1114,8 +1139,11 @@ namespace ClaudeCodeVS
             wtRadio.Checked += (s, e) => SyncAgentFinishAvailability();
             SyncAgentFinishAvailability();
 
-            // ========================= Theme tab =========================
-            var themeStack = AddTab(L("Theme"));
+            // ====================== Appearance tab (theme) ======================
+            // The language of the whole extension opens it; it used to sit on the former Layout tab.
+            int appearanceTabIndex = tabs.Items.Count;
+            var themeStack = AddTab(L("Appearance"));
+            themeStack.Children.Add(languageSection);
 
             themeStack.Children.Add(MakeSectionHeader(L("Theme"), themeFg));
             var autoRadio = MakeRadioButton(L("Automatic (follow Visual Studio theme)"),
@@ -1319,9 +1347,19 @@ namespace ClaudeCodeVS
 
             // ========================= Toolbar tab =========================
             var toolbarStack = AddTab(L("Toolbar"));
-            var toolbarTab = BuildToolbarButtonsTabContent(toolbarStack, themeFg);
+            var toolbarTab = BuildToolbarButtonsTabContent(toolbarStack, themeFg, dialog);
             var toolbarButtonChecks = toolbarTab.Checks;
             var toolbarRowsPanel = toolbarTab.RowsPanel;
+
+            // The subagent count shows next to the toolbar buttons (and in the chat composer), in both
+            // modes, so it lives here rather than on a mode's tab.
+            toolbarStack.Children.Add(subagentSection);
+
+            // Toolbar comes before Appearance in the tab strip; it is built after it only because the
+            // Appearance tab's code comes first in this method.
+            object toolbarTabItem = tabs.Items[tabs.Items.Count - 1];
+            tabs.Items.Remove(toolbarTabItem);
+            tabs.Items.Insert(appearanceTabIndex, toolbarTabItem);
 
             toolbarStack.Children.Add(MakeSectionHeader(L("Alignment"), themeFg));
 
@@ -1460,9 +1498,15 @@ namespace ClaudeCodeVS
                 foreach (var tb in launchArgEditors.Values)
                     tb.Text = "";
 
-                // Toolbar tab: default promotes only Restart to a one-click button, in default order.
+                // Toolbar tab: default promotes Restart and Session History (🕘) to buttons and shows ☰,
+                // in default order. ⚡ keeps showing whether a custom command exists, ⚙ stays checked.
                 foreach (var kv in toolbarButtonChecks)
-                    kv.Value.IsChecked = kv.Key == ToolbarButton.RestartAgent;
+                {
+                    if (kv.Key == ToolbarButton.CustomCommands || kv.Key == ToolbarButton.Settings) continue;
+                    kv.Value.IsChecked = kv.Key == ToolbarButton.RestartAgent ||
+                                         kv.Key == ToolbarButton.SessionHistory ||
+                                         kv.Key == ToolbarButton.ToolsMenu;
+                }
                 for (int i = DefaultToolbarButtonOrder.Length - 1; i >= 0; i--)
                 {
                     var id = DefaultToolbarButtonOrder[i];
@@ -1603,9 +1647,12 @@ namespace ClaudeCodeVS
             bool newShowSubagentCount = showSubagentCountCheck.IsChecked == true;
             int newAutoRefresh = autoRefreshCheck.IsChecked == true ? 60 : 0;
             var newToolbarOrder = ReadToolbarRowOrder(toolbarRowsPanel);
+            // Only features are "promoted"; ☰ ⚡ ⚙ have a position in the order but no promotion state.
             var newVisibleToolbarButtons = newToolbarOrder
-                .Where(b => toolbarButtonChecks.TryGetValue(b, out var c) && c.IsChecked == true)
+                .Where(b => IsToolbarFeature(b) && toolbarButtonChecks.TryGetValue(b, out var c) && c.IsChecked == true)
                 .ToList();
+            bool newShowToolsMenu = !toolbarButtonChecks.TryGetValue(ToolbarButton.ToolsMenu, out var toolsMenuCheck) ||
+                                    toolsMenuCheck.IsChecked == true;
 
             // ---- Validate Windows Terminal availability before persisting ----
             // Skipped under native mode: the block above already pinned the type to Command Prompt.
@@ -1737,13 +1784,19 @@ namespace ClaudeCodeVS
             }
             _settings.UsageAutoRefreshSeconds = newAutoRefresh;
             _settings.PromptFontSize          = newFontSize;
+            bool origShowToolsMenu = _settings.ShowToolsMenuButton;
             _settings.VisibleToolbarButtons   = newVisibleToolbarButtons;
             _settings.ToolbarButtonOrder      = newToolbarOrder;
+            _settings.ShowToolsMenuButton     = newShowToolsMenu;
+            // The Toolbar tab now holds the user's own choice about Session History (🕘), so the one-time
+            // promotion of v280.0 must never run over it (see MigrateSessionHistoryButton).
+            _settings.SessionHistoryButtonMigrated = true;
 
             // Apply order changes to the live controls, then swap features between buttons and the
             // ☰ Tools dropdown.
             bool toolbarOrderChanged = !newToolbarOrder.SequenceEqual(origToolbarOrder);
-            bool toolbarVisibleChanged = !newVisibleToolbarButtons.OrderBy(b => b).SequenceEqual(origVisibleToolbarButtons.OrderBy(b => b));
+            bool toolbarVisibleChanged = !newVisibleToolbarButtons.OrderBy(b => b).SequenceEqual(origVisibleToolbarButtons.OrderBy(b => b)) ||
+                                         newShowToolsMenu != origShowToolsMenu;
             if (toolbarOrderChanged)
             {
                 ReorderToolbarControls();
@@ -1917,18 +1970,114 @@ namespace ClaudeCodeVS
         #region Settings Dialog Helpers
 
         /// <summary>
-        /// Walks up from <paramref name="element"/> to the nearest enclosing <see cref="ScrollViewer"/>
-        /// (a tab page's own scroll container), or null if none is found.
+        /// Stops a bring-into-view request from inside <paramref name="list"/> at the list itself. By then
+        /// the list's own scroll viewer has already scrolled the item into view; letting the request go on
+        /// would make the tab page's scroll viewer scroll the whole page to the list as well.
         /// </summary>
-        private static ScrollViewer FindAncestorScrollViewer(DependencyObject element)
+        private static void KeepScrollIntoViewInside(ListBox list)
         {
-            DependencyObject current = element;
-            while (current != null)
+            list.RequestBringIntoView += (s, e) => e.Handled = true;
+        }
+
+        /// <summary>
+        /// The banner on top of the Terminal and Native mode tabs: green with the switch button disabled
+        /// while that mode is in use, amber with the button enabled while the other mode is.
+        /// </summary>
+        private sealed class ModeBanner
+        {
+            private static readonly Brush ActiveBorder = Frozen(Color.FromRgb(0x2E, 0xA0, 0x43));
+            private static readonly Brush ActiveFill = Frozen(Color.FromArgb(0x33, 0x2E, 0xA0, 0x43));
+            private static readonly Brush InactiveBorder = Frozen(Color.FromRgb(0xD2, 0x99, 0x22));
+            private static readonly Brush InactiveFill = Frozen(Color.FromArgb(0x33, 0xD2, 0x99, 0x22));
+
+            public Border Root { get; set; }
+            public TextBlock Message { get; set; }
+            public Button Switch { get; set; }
+
+            public void Show(bool active, string activeText, string inactiveText)
             {
-                if (current is ScrollViewer scrollViewer) return scrollViewer;
-                current = VisualTreeHelper.GetParent(current);
+                Root.BorderBrush = active ? ActiveBorder : InactiveBorder;
+                Root.Background = active ? ActiveFill : InactiveFill;
+                Message.Text = (active ? "✓ " : "⚠ ") + (active ? activeText : inactiveText);
+                Switch.IsEnabled = !active;
             }
-            return null;
+
+            private static Brush Frozen(Color color)
+            {
+                var brush = new SolidColorBrush(color);
+                brush.Freeze();
+                return brush;
+            }
+        }
+
+        private ModeBanner MakeModeBanner(string switchCaption, string switchTooltip, Window dialog, Brush themeBg, Brush themeFg)
+        {
+            var message = new TextBlock
+            {
+                Foreground = themeFg,
+                FontWeight = FontWeights.SemiBold,
+                TextWrapping = TextWrapping.Wrap,
+                VerticalAlignment = VerticalAlignment.Center,
+                Margin = new Thickness(0, 0, 10, 0)
+            };
+
+            var switchButton = new Button
+            {
+                Content = switchCaption,
+                Height = 28,
+                MinWidth = 150,
+                Padding = new Thickness(12, 0, 12, 0),
+                VerticalAlignment = VerticalAlignment.Center,
+                ToolTip = switchTooltip == null ? null : MakeToolTip(switchTooltip)
+            };
+            ToolTipService.SetShowOnDisabled(switchButton, true);
+            Style buttonStyle = GetDialogButtonStyle();
+            if (buttonStyle != null) switchButton.Style = buttonStyle;
+            else { switchButton.Background = themeBg; switchButton.Foreground = themeFg; switchButton.BorderBrush = themeFg; }
+
+            var row = new DockPanel { LastChildFill = true };
+            DockPanel.SetDock(switchButton, Dock.Right);
+            row.Children.Add(switchButton);
+            row.Children.Add(message);
+
+            var root = new Border
+            {
+                BorderThickness = new Thickness(1),
+                CornerRadius = new CornerRadius(4),
+                Padding = new Thickness(10, 8, 10, 8),
+                Margin = new Thickness(0, 0, 0, 6),
+                Child = row
+            };
+
+            return new ModeBanner { Root = root, Message = message, Switch = switchButton };
+        }
+
+        /// <summary>
+        /// A ListBox template that keeps the theme background while disabled. The stock template swaps
+        /// it for the system's white control brush, so a disabled font picker (the Terminal or Native
+        /// mode tab of the mode not in use) turned into a white box — jarring in the light theme and with
+        /// the font names unreadable in the dark one. Disabled, the list is dimmed instead.
+        /// </summary>
+        private static Style BuildThemedListBoxStyle()
+        {
+            const string xaml =
+                "<Style xmlns='http://schemas.microsoft.com/winfx/2006/xaml/presentation' TargetType='ListBox'>" +
+                "  <Setter Property='Template'><Setter.Value>" +
+                "    <ControlTemplate TargetType='ListBox'>" +
+                "      <Border Background='{TemplateBinding Background}' BorderBrush='{TemplateBinding BorderBrush}'" +
+                "              BorderThickness='{TemplateBinding BorderThickness}' Padding='1' SnapsToDevicePixels='True'>" +
+                "        <ScrollViewer Focusable='False' Padding='{TemplateBinding Padding}'" +
+                "                      HorizontalScrollBarVisibility='Disabled' VerticalScrollBarVisibility='Auto'>" +
+                "          <ItemsPresenter/>" +
+                "        </ScrollViewer>" +
+                "      </Border>" +
+                "    </ControlTemplate>" +
+                "  </Setter.Value></Setter>" +
+                "  <Style.Triggers>" +
+                "    <Trigger Property='IsEnabled' Value='False'><Setter Property='Opacity' Value='0.5'/></Trigger>" +
+                "  </Style.Triggers>" +
+                "</Style>";
+            return (Style)System.Windows.Markup.XamlReader.Parse(xaml);
         }
 
         private static TextBlock MakeSectionHeader(string text, Brush fg)
@@ -1952,7 +2101,7 @@ namespace ClaudeCodeVS
                 case ToolbarButton.DetachTerminal: return (L("⧉  Detach / Attach Terminal"), L("Move the terminal to a separate tab and back."));
                 case ToolbarButton.RestartAgent: return (L("♻️  Restart Code Agent"), L("Restart the active code agent."));
                 case ToolbarButton.ViewChanges: return (L("📄  View Code Changes"), L("Open the Changes (diff) view. Shown only inside a git repository."));
-                case ToolbarButton.SessionHistory: return (L("📜  Session History"), L("Resume a previous Claude Code or Codex session."));
+                case ToolbarButton.SessionHistory: return (L("🕘  Session History"), L("Resume a previous Claude Code or Codex session."));
                 case ToolbarButton.ShowUsage: return (L("📊  Show Usage"), L("Toggle the usage window. Claude / Devin providers only."));
                 case ToolbarButton.SetWorkingDirectory: return (L("📁  Set Working Directory"), L("Set a custom working directory for the agent."));
                 case ToolbarButton.SendBuildErrors: return (L("🛠️  Send Build Errors to Agent"), L("Collect the current build errors and send them to the agent to fix, regardless of the auto-send setting."));
@@ -1960,6 +2109,9 @@ namespace ClaudeCodeVS
                 case ToolbarButton.GenerateCommitMessageAndPush: return (L("🚀  Generate Commit Message, Commit and Push"), L("Same as Generate Commit Message, then stage, commit and push all changes immediately. Requires Native Mode."));
                 case ToolbarButton.RecommendModel: return (L("💡  Recommend AI Model"), L("Ask Opus (Extra High) which Claude model and effort suit the prompt you typed, then confirm or adjust before it is applied. Claude Code only."));
                 case ToolbarButton.GitHubIssues: return (L("🐞  GitHub Issues"), L("List the repository's GitHub issues and fix one in its own branch, worktree and chat tab, then commit, merge and reply on the issue. Requires Native Mode."));
+                case ToolbarButton.ToolsMenu: return (L("☰  Tools menu"), L("The dropdown with every feature that is not a button. It hides by itself when it would be empty. Unchecked, it is never shown, and the unchecked features are not available anywhere."));
+                case ToolbarButton.CustomCommands: return (L("⚡  Custom Commands"), L("Shown whenever at least one custom command exists; the checkbox only shows whether one does. Configure… adds, edits or removes them."));
+                case ToolbarButton.Settings: return (L("⚙  Settings"), L("Always shown, so the settings stay reachable. Drag it to move it."));
                 default: return (id.ToString(), string.Empty);
             }
         }
@@ -1972,7 +2124,7 @@ namespace ClaudeCodeVS
         /// checkboxes keyed by feature, for collection on OK. See RefreshToolbarLayout /
         /// ReorderToolbarControls.
         /// </summary>
-        private (StackPanel RowsPanel, Dictionary<ToolbarButton, CheckBox> Checks) BuildToolbarButtonsTabContent(StackPanel stack, Brush themeFg)
+        private (StackPanel RowsPanel, Dictionary<ToolbarButton, CheckBox> Checks) BuildToolbarButtonsTabContent(StackPanel stack, Brush themeFg, Window settingsDialog)
         {
             stack.Children.Add(MakeSectionHeader(L("One-click toolbar buttons"), themeFg));
             stack.Children.Add(new TextBlock
@@ -2044,8 +2196,26 @@ namespace ClaudeCodeVS
             foreach (var id in GetEffectiveToolbarOrder())
             {
                 var meta = ToolbarFeatureMeta(id);
-                var cb = MakeCheckBox(meta.Label, meta.Tip, current.Contains(id), themeFg);
+
+                // Features: checked = a button, unchecked = a ☰ entry. The toolbar's own controls
+                // (v280.0): ☰ checked = shown; ⚡ and ⚙ are read-only — ⚡ shows whether a custom command
+                // exists, ⚙ is always there. All of them can be dragged.
+                bool isChecked;
+                switch (id)
+                {
+                    case ToolbarButton.ToolsMenu: isChecked = _settings.ShowToolsMenuButton; break;
+                    case ToolbarButton.CustomCommands: isChecked = _settings.CustomCommands?.Count > 0; break;
+                    case ToolbarButton.Settings: isChecked = true; break;
+                    default: isChecked = current.Contains(id); break;
+                }
+
+                var cb = MakeCheckBox(meta.Label, meta.Tip, isChecked, themeFg);
                 cb.VerticalAlignment = VerticalAlignment.Center;
+                if (id == ToolbarButton.CustomCommands || id == ToolbarButton.Settings)
+                {
+                    cb.IsEnabled = false;
+                    ToolTipService.SetShowOnDisabled(cb, true);
+                }
                 checks[id] = cb;
 
                 var grip = new TextBlock
@@ -2063,10 +2233,48 @@ namespace ClaudeCodeVS
                 var grid = new Grid();
                 grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
                 grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+                grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
                 Grid.SetColumn(grip, 0);
                 Grid.SetColumn(cb, 1);
                 grid.Children.Add(grip);
                 grid.Children.Add(cb);
+
+                if (id == ToolbarButton.CustomCommands)
+                {
+                    // Same dialog as ⚙ → Configure Custom Commands...; the commands are saved when it
+                    // closes, independently of this dialog's OK/Cancel, like from the menu.
+                    var configureButton = new Button
+                    {
+                        Content = L("Configure…"),
+                        Height = 24,
+                        MinWidth = 100,
+                        Padding = new Thickness(10, 0, 10, 0),
+                        Margin = new Thickness(8, 0, 4, 0),
+                        VerticalAlignment = VerticalAlignment.Center
+                    };
+                    Style configureStyle = GetDialogButtonStyle();
+                    if (configureStyle != null) configureButton.Style = configureStyle;
+                    CheckBox customCommandsCheck = cb;
+                    configureButton.Click += (s, ea) =>
+                    {
+                        try
+                        {
+                            if (_settings.CustomCommands == null) _settings.CustomCommands = new List<CustomCommand>();
+                            ShowCustomCommandsDialog(settingsDialog);
+                            SaveSettings();
+                            RefreshCustomCommandsButton();
+                            customCommandsCheck.IsChecked = _settings.CustomCommands.Count > 0;
+                        }
+                        catch (Exception ex)
+                        {
+                            Debug.WriteLine($"Error configuring custom commands: {ex.Message}");
+                            MessageBox.Show(L("Error configuring custom commands: {0}", ex.Message),
+                                L("Error"), MessageBoxButton.OK, MessageBoxImage.Error);
+                        }
+                    };
+                    Grid.SetColumn(configureButton, 2);
+                    grid.Children.Add(configureButton);
+                }
 
                 // Transparent background so the whole row is hit-testable; events bubble to the panel.
                 // No SizeAll cursor here — only the ⠿ grip shows the move cursor and starts a drag, so
@@ -2139,6 +2347,32 @@ namespace ClaudeCodeVS
 
                 rowsPanel.Children.Add(row);
             }
+
+            // Hiding ☰ strands every feature that is not a button; say so while that is the case.
+            var hiddenToolsWarning = new TextBlock
+            {
+                Text = L("⚠ The ☰ Tools menu is hidden, so the unchecked features above are not available anywhere."),
+                FontSize = 11,
+                FontWeight = FontWeights.SemiBold,
+                Foreground = new SolidColorBrush(Color.FromRgb(0xE8, 0x9B, 0x2B)),
+                TextWrapping = TextWrapping.Wrap,
+                Margin = new Thickness(4, 6, 0, 0)
+            };
+            stack.Children.Add(hiddenToolsWarning);
+
+            void SyncHiddenToolsWarning()
+            {
+                bool toolsHidden = checks.TryGetValue(ToolbarButton.ToolsMenu, out CheckBox toolsCheck) && toolsCheck.IsChecked != true;
+                bool anyStranded = checks.Any(kv => IsToolbarFeature(kv.Key) && kv.Value.IsChecked != true &&
+                    rowsPanel.Children.OfType<Border>().Any(r => Equals(r.Tag, kv.Key) && r.Visibility == Visibility.Visible));
+                hiddenToolsWarning.Visibility = toolsHidden && anyStranded ? Visibility.Visible : Visibility.Collapsed;
+            }
+            foreach (CheckBox check in checks.Values)
+            {
+                check.Checked += (s, ea) => SyncHiddenToolsWarning();
+                check.Unchecked += (s, ea) => SyncHiddenToolsWarning();
+            }
+            SyncHiddenToolsWarning();
 
             return (rowsPanel, checks);
         }

@@ -61,8 +61,8 @@ namespace ClaudeCodeVS
         High,
         Max,
         // Appended after Max to keep the existing persisted integer values stable
-        // (Auto=0..Max=4). The slider order (see _effortSliderOrder) drops Auto and
-        // presents: Low, Medium, High, XHigh ("Extra High"), Max, Ultracode.
+        // (Auto=0..Max=4). The slider order (see _effortSliderOrder) presents:
+        // Auto, Low, Medium, High, XHigh ("Extra High"), Max, Ultracode (Auto again since v280.0).
         // Ultracode maps to /effort ultracode (xhigh effort + dynamic workflows).
         XHigh,
         Ultracode
@@ -179,7 +179,21 @@ namespace ClaudeCodeVS
         GenerateCommitMessage,
         GenerateCommitMessageAndPush,
         RecommendModel,
-        GitHubIssues
+        GitHubIssues,
+
+        // v280.0: the toolbar's own controls, so they can be moved like the features. Appended at the
+        // end because the settings file stores the ordinal. They are positions in ToolbarButtonOrder,
+        // never entries of VisibleToolbarButtons: ☰ is shown per ShowToolsMenuButton, ⚡ whenever a
+        // custom command exists, and ⚙ always.
+
+        /// <summary>☰ Tools: the dropdown of every feature not promoted to a button.</summary>
+        ToolsMenu,
+
+        /// <summary>⚡ Custom Commands.</summary>
+        CustomCommands,
+
+        /// <summary>⚙ Settings / code agent selection. Always shown.</summary>
+        Settings
     }
 
     /// <summary>
@@ -767,7 +781,20 @@ namespace ClaudeCodeVS
         /// (RefreshToolbarLayout).
         /// </summary>
         public System.Collections.Generic.List<ToolbarButton> VisibleToolbarButtons { get; set; }
-            = new System.Collections.Generic.List<ToolbarButton> { ToolbarButton.RestartAgent };
+            = new System.Collections.Generic.List<ToolbarButton> { ToolbarButton.RestartAgent, ToolbarButton.SessionHistory };
+
+        /// <summary>
+        /// Whether the ☰ Tools button is shown (v280.0, Settings → Toolbar). While it is hidden, the
+        /// features not promoted to a button are not reachable anywhere — the Toolbar tab says so.
+        /// </summary>
+        public bool ShowToolsMenuButton { get; set; } = true;
+
+        /// <summary>
+        /// One-time migration flag (v280.0): the chat composer's always-present 🕘 became the Session
+        /// History toolbar button, so on the first load Session History is promoted once — otherwise the
+        /// 🕘 every existing user had in the chat would disappear.
+        /// </summary>
+        public bool SessionHistoryButtonMigrated { get; set; }
 
         /// <summary>
         /// User-defined display order of the configurable toolbar features. Drives both the toolbar

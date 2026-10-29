@@ -88,6 +88,7 @@ namespace ClaudeCodeVS.UI
         public ChatTranscriptView()
         {
             InitializeComponent();
+            EffortSliderStops.Attach(EffortPopupSlider);
 
             Messages = new ObservableCollection<ChatMessageViewModel>();
             Messages.CollectionChanged += OnMessagesChanged;
@@ -529,7 +530,7 @@ namespace ClaudeCodeVS.UI
         private bool _compactToolbar;
 
         /// <summary>
-        /// "Compact chat toolbar" (Settings → Layout): the action row moves inside the input box, under
+        /// "Compact chat toolbar" (Settings → Native mode): the action row moves inside the input box, under
         /// the text, the way most chat apps lay it out. The session actions (↻ ✚ ✎ 🎨 📎) stay folded
         /// into the ⋯ menu at its left, and ⚡ ☰ ⚙ move to its right end. Only while the composer is
         /// <see cref="ComposerMode.Full"/>: docked in the panel there is no input box to host the row.
@@ -920,22 +921,60 @@ namespace ClaudeCodeVS.UI
         /// place (<c>RefreshToolbarLayout</c>) that decides the glyph or wording — this never drifts
         /// out of sync with what the panel itself shows.
         /// </summary>
+        /// <summary>The composer's own button for a toolbar id passed to <see cref="SetPromotedButtons"/>, if any.</summary>
+        private Button OwnButton(string id)
+        {
+            switch (id)
+            {
+                case "CustomCommands": return ComposerCustomCommandsButton;
+                case "ToolsMenu": return ComposerToolsButton;
+                case "Settings": return ComposerSettingsButton;
+                case "SessionHistory": return ComposerSessionHistoryButton;
+                default: return null;
+            }
+        }
+
+        private string OwnButtonId(Button button)
+        {
+            if (ReferenceEquals(button, ComposerCustomCommandsButton)) return "CustomCommands";
+            if (ReferenceEquals(button, ComposerToolsButton)) return "ToolsMenu";
+            if (ReferenceEquals(button, ComposerSettingsButton)) return "Settings";
+            if (ReferenceEquals(button, ComposerSessionHistoryButton)) return "SessionHistory";
+            return null;
+        }
+
         public void SetPromotedButtons(IEnumerable<(string Id, object Content, object ToolTip)> buttons)
         {
             foreach (Button old in ComposerPromotedButtons.Children)
             {
-                _classicIconContent.Remove(old);
+                if (OwnButtonId(old) == null)
+                {
+                    _classicIconContent.Remove(old);
+                }
             }
 
             ComposerPromotedButtons.Children.Clear();
 
             if (buttons == null)
             {
+                // No order from the panel (terminal mode): the composer's own buttons in their default order.
+                ComposerPromotedButtons.Children.Add(ComposerCustomCommandsButton);
+                ComposerPromotedButtons.Children.Add(ComposerToolsButton);
+                ComposerPromotedButtons.Children.Add(ComposerSettingsButton);
+                ComposerPromotedButtons.Children.Add(ComposerSessionHistoryButton);
                 return;
             }
 
             foreach (var entry in buttons)
             {
+                // ⚡ ☰ ⚙ 🕘 are this view's own buttons: the entry only says where they go.
+                Button own = OwnButton(entry.Id);
+                if (own != null)
+                {
+                    ComposerPromotedButtons.Children.Add(own);
+                    continue;
+                }
+
                 var button = new Button
                 {
                     Style = (Style)FindResource("ComposerSelectorStyle"),

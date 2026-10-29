@@ -199,10 +199,28 @@ namespace ClaudeCodeVS
         }
 
         /// <summary>
+        /// Gives a menu built in code the look of the composer dropdowns (v280.0, ModernContextMenuStyle in
+        /// ChatStyles.xaml). The style comes from this control's resources, so it also works for menus in
+        /// the dialogs, which do not merge the chat styles themselves; its entries pick up the implicit
+        /// row and separator styles it carries.
+        /// </summary>
+        private void ApplyModernMenuStyle(ContextMenu menu)
+        {
+            if (menu != null && TryFindResource("ModernContextMenuStyle") is Style style)
+            {
+                menu.Style = style;
+            }
+        }
+
+        /// <summary>
         /// Shows the modal dialog for adding, editing, and removing custom commands.
         /// Mutates _settings.CustomCommands in place; caller is responsible for saving.
         /// </summary>
-        private void ShowCustomCommandsDialog()
+        /// <param name="owner">
+        /// The window to center on and stay above: the Settings dialog when opened from its Toolbar tab
+        /// (v280.0), otherwise Visual Studio's main window.
+        /// </param>
+        private void ShowCustomCommandsDialog(Window owner = null)
         {
             GetThemeBrushes(out Brush themeBg, out Brush themeFg);
 
@@ -220,7 +238,7 @@ namespace ClaudeCodeVS
                 ShowInTaskbar = false
             };
 
-            try { dialog.Owner = Application.Current?.MainWindow; } catch { }
+            try { dialog.Owner = owner ?? Application.Current?.MainWindow; } catch { }
 
             var grid = new Grid { Margin = new Thickness(12) };
             grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });

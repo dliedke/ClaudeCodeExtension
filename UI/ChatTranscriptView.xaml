@@ -820,7 +820,7 @@
 							        Visibility="{Binding CanAllowForSession, Converter={StaticResource BoolToVis}}"
 							        Click="InteractionAllowMenu_Click">
 								<Button.ContextMenu>
-									<ContextMenu>
+									<ContextMenu Style="{StaticResource ModernContextMenuStyle}">
 										<MenuItem Header="{Binding AllowForSessionCaption}"
 										          Click="InteractionAllowForSession_Click"/>
 									</ContextMenu>
@@ -835,7 +835,7 @@
 							        Visibility="{Binding IsPlanReview, Converter={StaticResource BoolToVis}}"
 							        Click="InteractionAllowMenu_Click">
 								<Button.ContextMenu>
-									<ContextMenu>
+									<ContextMenu Style="{StaticResource ModernContextMenuStyle}">
 										<MenuItem Header="{local:Loc 'Approve and switch model'}">
 											<MenuItem Header="Opus" Tag="Opus" Click="InteractionApprovePlan_Click"/>
 											<MenuItem Header="Sonnet" Tag="Sonnet" Click="InteractionApprovePlan_Click"/>
@@ -1564,7 +1564,7 @@
 									</Grid>
 								</Button>
 
-								<!-- "Show active subagent count" (Settings → Layout): running subagents of this tab's session. -->
+								<!-- "Show active subagent count" (Settings → Toolbar): running subagents of this tab's session. -->
 								<Border x:Name="ComposerSubagentBadge" DockPanel.Dock="Left"
 								        Visibility="Collapsed" Height="22" Margin="0,0,2,0" Padding="7,0,7,0"
 								        CornerRadius="9" BorderThickness="1" VerticalAlignment="Center"
@@ -1587,37 +1587,39 @@
 								     button here opens the panel's actual ContextMenu instance re-anchored to itself,
 								     or invokes the same click handler the panel button does — there is no separate
 								     copy of the menu contents or the feature logic. Populated by RefreshToolbarLayout. -->
-								<StackPanel x:Name="ComposerPromotedButtons" DockPanel.Dock="Left" Orientation="Horizontal"/>
+								<!-- The composer's own ⚡ ☰ ⚙ 🕘 live in the same row as the mirrors, so they can sit
+								     anywhere in the order set in Settings → Toolbar (v280.0): SetPromotedButtons puts
+								     each at its place. 🕘 is the Session History toolbar button (it targets this tab),
+								     shown when that feature is promoted. Default order here: ⚡ ☰ ⚙ 🕘. -->
+								<StackPanel x:Name="ComposerPromotedButtons" DockPanel.Dock="Left" Orientation="Horizontal">
+									<Button x:Name="ComposerCustomCommandsButton"
+									        Style="{StaticResource ComposerSelectorStyle}"
+									        Content="⚡"
+									        FontSize="13"
+									        ToolTip="{local:Loc 'Custom commands'}"
+									        Click="ComposerCustomCommandsButton_Click"/>
 
-								<Button x:Name="ComposerCustomCommandsButton" DockPanel.Dock="Left"
-								        Style="{StaticResource ComposerSelectorStyle}"
-								        Content="⚡"
-								        FontSize="13"
-								        ToolTip="{local:Loc 'Custom commands'}"
-								        Click="ComposerCustomCommandsButton_Click"/>
+									<Button x:Name="ComposerToolsButton"
+									        Style="{StaticResource ComposerSelectorStyle}"
+									        Content="☰"
+									        FontSize="13"
+									        ToolTip="{local:Loc 'Tools'}"
+									        Click="ComposerToolsButton_Click"/>
 
-								<Button x:Name="ComposerToolsButton" DockPanel.Dock="Left"
-								        Style="{StaticResource ComposerSelectorStyle}"
-								        Content="☰"
-								        FontSize="13"
-								        ToolTip="{local:Loc 'Tools'}"
-								        Click="ComposerToolsButton_Click"/>
+									<Button x:Name="ComposerSettingsButton"
+									        Style="{StaticResource ComposerSelectorStyle}"
+									        Content="⚙"
+									        FontSize="13"
+									        ToolTip="{local:Loc 'Settings'}"
+									        Click="ComposerSettingsButton_Click"/>
 
-								<Button x:Name="ComposerSettingsButton" DockPanel.Dock="Left"
-								        Style="{StaticResource ComposerSelectorStyle}"
-								        Content="⚙"
-								        FontSize="13"
-								        ToolTip="{local:Loc 'Settings'}"
-								        Click="ComposerSettingsButton_Click"/>
-
-								<!-- Always here, beside ⚙, so past conversations are one click away rather than
-								     behind the ☰ Tools menu. The promoted Session History mirror is left out. -->
-								<Button x:Name="ComposerSessionHistoryButton" DockPanel.Dock="Left"
-								        Style="{StaticResource ComposerSelectorStyle}"
-								        Content="🕘"
-								        FontSize="13"
-								        ToolTip="{local:Loc 'Session History'}"
-								        Click="ComposerSessionHistoryButton_Click"/>
+									<Button x:Name="ComposerSessionHistoryButton"
+									        Style="{StaticResource ComposerSelectorStyle}"
+									        Content="🕘"
+									        FontSize="13"
+									        ToolTip="{local:Loc 'Session History'}"
+									        Click="ComposerSessionHistoryButton_Click"/>
+								</StackPanel>
 							</DockPanel>
 						</DockPanel>
 					</ScrollViewer>
@@ -1638,16 +1640,20 @@
 		       PlacementTarget="{Binding ElementName=ComposerEffortButton}"
 		       StaysOpen="False"
 		       AllowsTransparency="True"
-		       PopupAnimation="Fade"
 		       Opened="EffortPopup_Opened"
 		       Closed="EffortPopup_Closed">
-			<Border Padding="12,9,12,10" CornerRadius="5" Margin="6"
-			        Background="{DynamicResource {x:Static vsshell:VsBrushes.CommandBarMenuBackgroundGradientKey}}"
+			<!-- Shadow on its own layer under the content: an effect on the content itself would turn off
+			     ClearType for its text. Same shadow as the menus (ModernContextMenuStyle). -->
+			<Grid Margin="6">
+				<Border CornerRadius="5" Background="{DynamicResource {x:Static vsshell:VsBrushes.WindowKey}}">
+					<Border.Effect>
+						<DropShadowEffect BlurRadius="5" ShadowDepth="1" Opacity="0.2"/>
+					</Border.Effect>
+				</Border>
+			<Border Padding="12,9,12,10" CornerRadius="5"
+			        Background="{DynamicResource {x:Static vsshell:VsBrushes.WindowKey}}"
 			        BorderBrush="{DynamicResource {x:Static vsshell:VsBrushes.CommandBarMenuBorderKey}}"
 			        BorderThickness="1">
-				<Border.Effect>
-					<DropShadowEffect BlurRadius="10" ShadowDepth="2" Opacity="0.35"/>
-				</Border.Effect>
 				<StackPanel>
 					<TextBlock x:Name="EffortPopupLabel" Text="{local:Loc 'Effort'}" Margin="1,0,0,6"
 					           FontSize="{DynamicResource ChatSmallFontSize}"
@@ -1657,6 +1663,7 @@
 					        ValueChanged="EffortPopupSlider_ValueChanged"/>
 				</StackPanel>
 			</Border>
+			</Grid>
 		</Popup>
 
 		<!-- Usage: the figures the ring stands for. Plan limits are read from the Claude Usage snapshot, so
@@ -1665,15 +1672,19 @@
 		       Placement="Top"
 		       PlacementTarget="{Binding ElementName=ComposerUsageButton}"
 		       StaysOpen="False"
-		       AllowsTransparency="True"
-		       PopupAnimation="Fade">
-			<Border Padding="12,10,12,10" CornerRadius="5" Margin="6" MinWidth="280" MaxWidth="440"
-			        Background="{DynamicResource {x:Static vsshell:VsBrushes.CommandBarMenuBackgroundGradientKey}}"
+		       AllowsTransparency="True">
+			<!-- Shadow on its own layer under the content: an effect on the content itself would turn off
+			     ClearType for its text. Same shadow as the menus (ModernContextMenuStyle). -->
+			<Grid Margin="6">
+				<Border CornerRadius="5" Background="{DynamicResource {x:Static vsshell:VsBrushes.WindowKey}}">
+					<Border.Effect>
+						<DropShadowEffect BlurRadius="5" ShadowDepth="1" Opacity="0.2"/>
+					</Border.Effect>
+				</Border>
+			<Border Padding="12,10,12,10" CornerRadius="5" MinWidth="280" MaxWidth="440"
+			        Background="{DynamicResource {x:Static vsshell:VsBrushes.WindowKey}}"
 			        BorderBrush="{DynamicResource {x:Static vsshell:VsBrushes.CommandBarMenuBorderKey}}"
 			        BorderThickness="1">
-				<Border.Effect>
-					<DropShadowEffect BlurRadius="10" ShadowDepth="2" Opacity="0.35"/>
-				</Border.Effect>
 				<StackPanel>
 					<!-- Context window -->
 					<Grid>
@@ -1771,6 +1782,7 @@
 					        Click="UsageDetailsButton_Click"/>
 				</StackPanel>
 			</Border>
+			</Grid>
 		</Popup>
 	</Grid>
 </UserControl>
