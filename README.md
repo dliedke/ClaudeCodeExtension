@@ -176,6 +176,10 @@ Pull requests for new features are welcome. Bug fixes too — if you find an iss
 
 ## Version History
 
+### Version 283.0
+- Session History and the recent conversations list now show when each Claude Code conversation was last used, so renaming a conversation or opening the list no longer changes its date or moves it to the top.
+- Thanks to [@ClaudioCas](https://github.com/ClaudioCas) for this release (#237).
+
 ### Version 282.0
 - Settings saved in one Visual Studio window are no longer undone by another open window: each window now writes only the settings it actually changed.
 - Thanks to [@ClaudioCas](https://github.com/ClaudioCas) for this release (#236).
