@@ -708,7 +708,12 @@ namespace ClaudeCodeExtension.Tests
         {
             string body = ExtractMethodBody(ProviderManagementSource, "private void RefreshToolbarLayout()");
 
-            StringAssert.Contains(body, "ChatTranscript?.SetToolsMenuHasItems(anyInDropdown)",
+            // v280.0: the user can also hide ☰ (ShowToolsMenuButton); both copies follow the combined rule.
+            StringAssert.Contains(body, "bool showTools = anyInDropdown && _settings.ShowToolsMenuButton;",
+                "☰ shows only when its menu has entries and the user has not hidden it.");
+            StringAssert.Contains(body, "ToolsDropdownButton.Visibility = showTools ? Visibility.Visible : Visibility.Collapsed;",
+                "The panel's own ☰ must follow the combined rule.");
+            StringAssert.Contains(body, "ChatTranscript?.SetToolsMenuHasItems(showTools)",
                 "The composer's ☰ mirror must collapse under the same condition as the panel's own ☰.");
         }
 

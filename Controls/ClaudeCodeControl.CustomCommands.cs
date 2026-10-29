@@ -202,7 +202,11 @@ namespace ClaudeCodeVS
         /// Shows the modal dialog for adding, editing, and removing custom commands.
         /// Mutates _settings.CustomCommands in place; caller is responsible for saving.
         /// </summary>
-        private void ShowCustomCommandsDialog()
+        /// <param name="owner">
+        /// The window to center on and stay above: the Settings dialog when opened from its Toolbar tab
+        /// (v280.0), otherwise Visual Studio's main window.
+        /// </param>
+        private void ShowCustomCommandsDialog(Window owner = null)
         {
             GetThemeBrushes(out Brush themeBg, out Brush themeFg);
 
@@ -220,7 +224,7 @@ namespace ClaudeCodeVS
                 ShowInTaskbar = false
             };
 
-            try { dialog.Owner = Application.Current?.MainWindow; } catch { }
+            try { dialog.Owner = owner ?? Application.Current?.MainWindow; } catch { }
 
             var grid = new Grid { Margin = new Thickness(12) };
             grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });

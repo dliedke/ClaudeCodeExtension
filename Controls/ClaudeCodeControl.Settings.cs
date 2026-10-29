@@ -265,6 +265,7 @@ namespace ClaudeCodeVS
                     // collapse accumulated duplicate entries while preserving order.
                     DedupePreservingOrder(_settings.VisibleProviders);
                     DedupePreservingOrder(_settings.VisibleToolbarButtons);
+                    MigrateSessionHistoryButton(_settings);
 
                     // Retired providers (e.g. QwenCode ordinal 6) deserialize into
                     // a numeric value that is no longer a declared enum member.
@@ -399,6 +400,35 @@ namespace ClaudeCodeVS
             if (writeIndex < list.Count)
             {
                 list.RemoveRange(writeIndex, list.Count - writeIndex);
+            }
+        }
+
+        /// <summary>
+        /// v280.0: the chat composer's 🕘 (always shown until then) became the Session History toolbar
+        /// button, which follows the promotion setting like any other feature. Promote Session History once,
+        /// on the first load of a settings file from before that, so no existing user loses the 🕘; after
+        /// that the user's own choice in Settings → Toolbar stands. Also drops the toolbar's own controls
+        /// (☰ ⚡ ⚙) from the promoted list — they are positions, never promoted features.
+        /// </summary>
+        internal static void MigrateSessionHistoryButton(ClaudeCodeSettings settings)
+        {
+            if (settings == null) return;
+
+            if (settings.VisibleToolbarButtons == null)
+            {
+                settings.VisibleToolbarButtons = new System.Collections.Generic.List<ToolbarButton>();
+            }
+
+            settings.VisibleToolbarButtons.RemoveAll(b => !IsToolbarFeature(b));
+
+            if (!settings.SessionHistoryButtonMigrated)
+            {
+                if (!settings.VisibleToolbarButtons.Contains(ToolbarButton.SessionHistory))
+                {
+                    settings.VisibleToolbarButtons.Add(ToolbarButton.SessionHistory);
+                }
+
+                settings.SessionHistoryButtonMigrated = true;
             }
         }
 

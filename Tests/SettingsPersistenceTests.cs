@@ -21,6 +21,61 @@ namespace ClaudeCodeExtension.Tests
     public class SettingsPersistenceTests
     {
         /// <summary>
+        /// v280.0: the chat composer's always-present 🕘 became the Session History toolbar button.
+        /// A settings file from before that gets it promoted once, so nobody loses the 🕘.
+        /// </summary>
+        [TestMethod]
+        public void SessionHistoryIsPromotedOnceForSettingsFromBeforeTheMerge()
+        {
+            var settings = new ClaudeCodeSettings
+            {
+                VisibleToolbarButtons = new System.Collections.Generic.List<ToolbarButton> { ToolbarButton.RestartAgent },
+                SessionHistoryButtonMigrated = false
+            };
+
+            ClaudeCodeControl.MigrateSessionHistoryButton(settings);
+
+            CollectionAssert.AreEqual(
+                new[] { ToolbarButton.RestartAgent, ToolbarButton.SessionHistory },
+                settings.VisibleToolbarButtons);
+            Assert.IsTrue(settings.SessionHistoryButtonMigrated);
+        }
+
+        /// <summary>Once migrated, un-promoting Session History in Settings → Toolbar is the user's choice and sticks.</summary>
+        [TestMethod]
+        public void SessionHistoryMigrationDoesNotOverrideTheUsersLaterChoice()
+        {
+            var settings = new ClaudeCodeSettings
+            {
+                VisibleToolbarButtons = new System.Collections.Generic.List<ToolbarButton> { ToolbarButton.RestartAgent },
+                SessionHistoryButtonMigrated = true
+            };
+
+            ClaudeCodeControl.MigrateSessionHistoryButton(settings);
+
+            CollectionAssert.AreEqual(new[] { ToolbarButton.RestartAgent }, settings.VisibleToolbarButtons);
+        }
+
+        /// <summary>☰ ⚡ ⚙ only have a position in the toolbar order; they are never "promoted" features.</summary>
+        [TestMethod]
+        public void ToolbarControlsAreNeverKeptAsPromotedFeatures()
+        {
+            var settings = new ClaudeCodeSettings
+            {
+                VisibleToolbarButtons = new System.Collections.Generic.List<ToolbarButton>
+                {
+                    ToolbarButton.ToolsMenu, ToolbarButton.ViewChanges, ToolbarButton.Settings, ToolbarButton.CustomCommands
+                },
+                SessionHistoryButtonMigrated = true
+            };
+
+            ClaudeCodeControl.MigrateSessionHistoryButton(settings);
+
+            CollectionAssert.AreEqual(new[] { ToolbarButton.ViewChanges }, settings.VisibleToolbarButtons);
+            Assert.IsTrue(new ClaudeCodeSettings().ShowToolsMenuButton, "☰ is shown by default.");
+        }
+
+        /// <summary>
         /// Issue #112: the old code serialized through JToken.ToString(Formatting), a member whose
         /// presence depends on the Newtonsoft.Json build actually loaded. Inside Visual Studio that
         /// is VS's own copy, not the one shipped with the extension, and the call threw "Method not

@@ -2544,9 +2544,12 @@ namespace ClaudeCodeVS
                 IsMenuItemVisible(GenerateCommitMessageAndPushMenuItem) ||
                 IsMenuItemVisible(RecommendModelMenuItem) ||
                 IsMenuItemVisible(GitHubIssuesMenuItem);
+            // The user can also hide ☰ altogether (Settings → Toolbar, v280.0); the unpromoted features
+            // are then unreachable, which the Toolbar tab warns about.
+            bool showTools = anyInDropdown && _settings.ShowToolsMenuButton;
             if (ToolsDropdownButton != null)
-                ToolsDropdownButton.Visibility = anyInDropdown ? Visibility.Visible : Visibility.Collapsed;
-            ChatTranscript?.SetToolsMenuHasItems(anyInDropdown);
+                ToolsDropdownButton.Visibility = showTools ? Visibility.Visible : Visibility.Collapsed;
+            ChatTranscript?.SetToolsMenuHasItems(showTools);
 
             // Parallel session tabs (_nativeSessions) have no toolbar of their own — their composer is
             // always ComposerMode.Full (ShowSessionInTabAsync), so it needs the ☰ has-items flag mirrored
@@ -2561,7 +2564,7 @@ namespace ClaudeCodeVS
             }
             foreach (ChatTranscriptView sessionTranscript in parallelTranscripts)
             {
-                sessionTranscript.SetToolsMenuHasItems(anyInDropdown);
+                sessionTranscript.SetToolsMenuHasItems(showTools);
             }
 
             // Issue #151 follow-up: once the chat has its own tab, every one of these toolbar Buttons is
@@ -2665,8 +2668,18 @@ namespace ClaudeCodeVS
                     foreach (ToolbarButton id in GetEffectiveToolbarOrder())
                     {
                         if (id == ToolbarButton.RestartAgent) continue;
-                        // The composer has its own 🕘 beside ⚙ (ComposerSessionHistoryButton).
-                        if (id == ToolbarButton.SessionHistory) continue;
+
+                        // The composer has its own ☰ ⚡ ⚙ and 🕘 (Session History, which also targets the
+                        // tab it is clicked in); they are passed by id only, at their configured place in
+                        // the order, and ChatTranscriptView slots its own button in there. ☰ and ⚡ still
+                        // hide themselves when they would open an empty menu.
+                        if (!IsToolbarFeature(id) || id == ToolbarButton.SessionHistory)
+                        {
+                            if (id == ToolbarButton.SessionHistory && !promoted.Contains(id)) continue;
+                            mirrored.Add((id.ToString(), null, null));
+                            continue;
+                        }
+
                         if (!promoted.Contains(id)) continue;
 
                         System.Windows.Controls.Button source = GetToolbarButtonControl(id);
@@ -2709,15 +2722,26 @@ namespace ClaudeCodeVS
         private static bool IsMenuItemVisible(System.Windows.Controls.MenuItem item)
             => item != null && item.Visibility == Visibility.Visible;
 
-        /// <summary>Default left-to-right order of the configurable toolbar features.</summary>
+        /// <summary>
+        /// Default left-to-right order of the toolbar: the configurable features, then the toolbar's own
+        /// ☰ ⚡ ⚙ (movable since v280.0, in the order they had before).
+        /// </summary>
         private static readonly ToolbarButton[] DefaultToolbarButtonOrder =
         {
             ToolbarButton.UpdateAgent, ToolbarButton.DetachTerminal, ToolbarButton.RestartAgent,
             ToolbarButton.ViewChanges, ToolbarButton.SessionHistory, ToolbarButton.ShowUsage,
             ToolbarButton.SetWorkingDirectory, ToolbarButton.SendBuildErrors,
             ToolbarButton.GenerateCommitMessage, ToolbarButton.GenerateCommitMessageAndPush,
-            ToolbarButton.RecommendModel, ToolbarButton.GitHubIssues
+            ToolbarButton.RecommendModel, ToolbarButton.GitHubIssues,
+            ToolbarButton.ToolsMenu, ToolbarButton.CustomCommands, ToolbarButton.Settings
         };
+
+        /// <summary>
+        /// A feature that is either a toolbar button or a ☰ Tools entry, as opposed to the toolbar's own
+        /// ☰ ⚡ ⚙, which only have a position.
+        /// </summary>
+        internal static bool IsToolbarFeature(ToolbarButton b)
+            => b != ToolbarButton.ToolsMenu && b != ToolbarButton.CustomCommands && b != ToolbarButton.Settings;
 
         /// <summary>
         /// Returns the configured feature order, completed with any features missing from the saved
@@ -2755,6 +2779,9 @@ namespace ClaudeCodeVS
                 case ToolbarButton.GenerateCommitMessageAndPush: return GenerateCommitMessageAndPushToolbarButton;
                 case ToolbarButton.RecommendModel: return RecommendModelToolbarButton;
                 case ToolbarButton.GitHubIssues: return GitHubIssuesToolbarButton;
+                case ToolbarButton.ToolsMenu: return ToolsDropdownButton;
+                case ToolbarButton.CustomCommands: return CustomCommandsButton;
+                case ToolbarButton.Settings: return MenuDropdownButton;
                 default: return null;
             }
         }
@@ -2800,6 +2827,18 @@ namespace ClaudeCodeVS
                     RightButtonsPanel.Children.Remove(btn);
                     RightButtonsPanel.Children.Insert(0, btn);
                 }
+
+                // 📎 and 🤖 are not in the order; they travel with their neighbours, so the default
+                // layout stays what it always was (… 📎 ☰ ⚡ 🤖 ⚙) wherever ☰ and ⚙ are moved.
+                void KeepBefore(System.Windows.UIElement follower, System.Windows.UIElement anchor)
+                {
+                    if (follower == null || anchor == null ||
+                        !RightButtonsPanel.Children.Contains(follower) || !RightButtonsPanel.Children.Contains(anchor)) return;
+                    RightButtonsPanel.Children.Remove(follower);
+                    RightButtonsPanel.Children.Insert(RightButtonsPanel.Children.IndexOf(anchor), follower);
+                }
+                KeepBefore(AttachDropdownButton, ToolsDropdownButton);
+                KeepBefore(ModelDropdownButton, MenuDropdownButton);
             }
 
             if (ToolsContextMenu != null)

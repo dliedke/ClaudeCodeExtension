@@ -56,7 +56,7 @@ Enjoying the extension? [Buy me a coffee](https://www.buymeacoffee.com/dliedke) 
 
 - **Detach / attach terminal** — Pop the terminal into a separate VS tab and bring it back at any time. State persists across sessions.
 
-- **Theme aware** — Follows VS dark/light theme automatically, or force dark, light, or a custom background color via *⚙ → Settings → Theme*. Prompt zoom is persisted across sessions, and native chat zoom (Ctrl+Scroll, Ctrl+0 resets it) is too; set the terminal's console font and size via *⚙ → Settings → Terminal* (Ctrl+Scroll zoom applies for the current session).
+- **Theme aware** — Follows VS dark/light theme automatically, or force dark, light, or a custom background color via *⚙ → Settings → Appearance*. Prompt zoom is persisted across sessions, and native chat zoom (Ctrl+Scroll, Ctrl+0 resets it) is too; set the terminal's console font and size via *⚙ → Settings → Terminal* (Ctrl+Scroll zoom applies for the current session).
 
 - **20 languages support**: English, Simplified Chinese, Japanese, Portuguese (Brazil), Spanish, Korean, German, French, Russian, Traditional Chinese, Indonesian, Turkish, Vietnamese, Polish, Italian, Ukrainian, Arabic, Hindi, Thai and Dutch. Pick one under *⚙ → Settings → Layout → Chat language*, or leave it on Automatic to follow the Visual Studio language.
 
@@ -65,7 +65,7 @@ Enjoying the extension? [Buy me a coffee](https://www.buymeacoffee.com/dliedke) 
 
 ## Native Mode
 
-The default chat experience for new installs — turn it off via *⚙ → Settings... → Terminal → Use native mode* to go back to the embedded terminal. Lost the chat tab? *💬 Show Chat* in the panel or *View → Other Windows → Claude Code Chat* brings it back.
+The default chat experience for new installs — switch to the embedded terminal via *⚙ → Settings... → Terminal → Use the terminal*. Lost the chat tab? *💬 Show Chat* in the panel or *View → Other Windows → Claude Code Chat* brings it back.
 
 <!-- Images are served from this repository's raw URLs, which the VS Marketplace can also reach — the
      overview is rendered from this file with no repo context, so relative paths would not resolve there.
@@ -140,7 +140,7 @@ Then choose it via *⚙ → Settings... → Terminal*.
 - Pick an AI provider, *Configure Visible Code Agents...*
 - Provider-specific flags: Claude *Skip Permissions* and *Start in Plan Mode*, Codex *Approval Never*, Cursor *Yolo Mode*, Devin *Dangerous Mode*, Antigravity *Skip Permissions*, Qwen Code *Yolo Mode*, Grok *Always Approve*
 - *Hide Prompt Input Box*, *Configure Custom Commands...*, *Settings...*, About
-- *Settings...* opens the consolidated dialog with tabs for On Agent Finish, Prompt (send key, large prompts, clipboard, selection as reference, last prompt, font size, @ file picker), Automation (auto-open Changes, track agent changes for review, pull before sending, TFVC checkout, auto-send build and runtime errors, Install Caveman, Install latest OpenPets), Layout (prompt panel position, prompt box, usage bars, subagent count, all chats in one window), Terminal (native mode, terminal type, encoding, fonts), Theme, Toolbar, CLI Paths (including extra launch arguments), and Backup (save/load all settings to a file)
+- *Settings...* opens the consolidated dialog with tabs for On Agent Finish, Prompt (send key, large prompts, clipboard, selection as reference, last prompt, font size, @ file picker, usage bars), Automation (auto-open Changes, track agent changes for review, pull before sending, TFVC checkout, auto-send build and runtime errors, Install Caveman, Install latest OpenPets), Terminal (prompt panel position, prompt box, terminal type, encoding, fonts), Native mode (chat tabs, chat window, chat display, icons, chat font), Toolbar (incl. subagent count, ☰/⚡/⚙ position), Appearance (language, theme), CLI Paths (including extra launch arguments), and Backup (save/load all settings to a file)
 
 **☰ Tools dropdown**: Holds *Update Code Agent*, *Restart Code Agent*, *Detach/Attach Terminal*, *View Code Changes*, *Session History*, *Show Usage*, *Set Working Directory...*, *Send Build Errors to Agent*, *Generate Commit Message*, *Generate Commit Message, Commit and Push*, *Recommend AI Model*, and *GitHub Issues*. Promote any of these to one-click toolbar buttons — and reorder them by dragging — via *⚙ → Settings... → Toolbar*; promoted features leave the dropdown, which hides once they all become buttons.
 
@@ -175,6 +175,13 @@ Pull requests for new features are welcome. Bug fixes too — if you find an iss
 - The extension's original developer reviews the PR and publishes the new version to the Marketplace.
 
 ## Version History
+
+### Version 280.0
+- Settings has a new *Native mode* tab next to *Terminal*: each mode's settings live on its own tab, a banner shows which mode is in use, and its button switches to the other one.
+- The *Layout* tab is gone: its options moved to *Terminal*, *Native mode*, *Prompt* (usage bars) and *Toolbar* (subagent count), and the language to *Appearance* (formerly *Theme*).
+- The Settings window can be resized, a disabled font list no longer turns into a white box, and switching tabs no longer makes the page jump.
+- *Settings → Toolbar* can now move ☰ Tools, ⚡ Custom Commands and ⚙ Settings like the other buttons, hide ☰ Tools, and open *Configure Custom Commands* from the ⚡ row.
+- The chat's 🕘 and the Session History button are now the same toolbar button, with the clock icon everywhere; it stays on for everyone who had it.
 
 ### Version 279.0
 - A resumed conversation in the native chat now shows up to 1000 earlier messages (was 200), with full cards for the last 200 tool calls (was 40).

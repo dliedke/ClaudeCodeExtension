@@ -6,7 +6,7 @@
  * Copyright © Daniel Carvalho Liedke 2026
  * Usage and reproduction in any manner whatsoever without the written permission of Daniel Carvalho Liedke is strictly forbidden.
  *
- * Purpose: "Show active subagent count" (Settings → Layout, Claude Code only, default off): polls Claude Code session
+ * Purpose: "Show active subagent count" (Settings → Toolbar, Claude Code only, default off): polls Claude Code session
  *          transcripts and shows a live count of running subagents — in the panel toolbar for the terminal, and in
  *          each native chat tab's composer for that tab's own session.
  *

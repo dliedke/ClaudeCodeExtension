@@ -285,7 +285,7 @@
 				     (issue #151 round 9). -->
 				<DockPanel x:Name="RightButtonsRow" Grid.Column="2" Margin="6,0,0,0" LastChildFill="True">
 
-					<!-- Live count of running Claude Code subagents (Settings → Layout, off by default).
+					<!-- Live count of running Claude Code subagents (Settings → Toolbar, off by default).
 					     Docked left of the ◀ arrow so it never scrolls away; collapsed unless at least one
 					     subagent is running. See ClaudeCodeControl.SubagentCount.cs. -->
 					<Border x:Name="SubagentCountBadge" DockPanel.Dock="Left"
@@ -378,7 +378,7 @@
                             Margin="0,0,6,0"/>
 
 						<Button x:Name="SessionHistoryToolbarButton"
-                            Content="📜"
+                            Content="🕘"
                             Width="30"
                             MinWidth="30"
                             FontSize="14"
@@ -515,7 +515,7 @@
 									<MenuItem Header="{local:Loc '♻️  Restart Code Agent'}" x:Name="RestartTerminalMenuItem" Click="RestartTerminalButton_Click"/>
 									<MenuItem Header="{local:Loc '⧉  Detach Terminal to Separate Tab'}" x:Name="DetachTerminalMenuItem" Click="DetachTerminalButton_Click"/>
 									<MenuItem Header="{local:Loc '📄  View Code Changes'}" x:Name="ViewChangesMenuItem" Click="ViewChangesButton_Click"/>
-									<MenuItem Header="{local:Loc '📜  Session History'}" x:Name="SessionHistoryViewMenuItem" Click="SessionHistoryButton_Click" Visibility="Collapsed"/>
+									<MenuItem Header="{local:Loc '🕘  Session History'}" x:Name="SessionHistoryViewMenuItem" Click="SessionHistoryButton_Click" Visibility="Collapsed"/>
 									<MenuItem Header="{local:Loc '📊  Show Usage'}" x:Name="ShowUsageViewMenuItem" Click="ShowUsageViewMenuItem_Click" IsCheckable="True" Visibility="Collapsed"/>
 									<MenuItem Header="{local:Loc '📁  Set Working Directory...'}" x:Name="SetWorkingDirectoryMenuItem" Click="SetWorkingDirectoryMenuItem_Click" ToolTip="{local:Loc 'Set a custom working directory (absolute or relative to solution). Leave empty for default behavior.'}"/>
 									<MenuItem Header="{local:Loc '🛠️  Send Build Errors to Agent'}" x:Name="SendBuildErrorsMenuItem" Click="SendBuildErrorsButton_Click" ToolTip="{local:Loc 'Collect the current build errors and send them to the agent to fix, regardless of the auto-send setting.'}"/>
