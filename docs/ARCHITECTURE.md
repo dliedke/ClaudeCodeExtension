@@ -879,7 +879,7 @@ Antigravity prompt quoting (v180.0): Antigravity is the only adapter whose promp
 
 ## Cross-Cutting Rules
 
-These four rules apply across many files — keep them in mind before editing provider selection, UI captions, terminal focus, chat text, or anything that sends text to the agent.
+These five rules apply across many files — keep them in mind before editing provider selection, UI captions, terminal focus, chat text, anything that sends text to the agent, or a value chosen for performance.
 
 Active provider UI rule (v24.0): provider checkmarks, tool-window captions, model/usage menu visibility, detached-tab caption, and visible-agent "active" labels must use `_currentRunningProvider` when a terminal is alive, falling back to `_settings.SelectedProvider` only before launch. Successful provider launches sync `_settings.SelectedProvider` in memory, but `SaveSettings()` still preserves provider/model/effort fields from disk during normal operation so multiple VS instances do not overwrite each other's selections.
 
@@ -888,6 +888,8 @@ Agent send rule (v82.0): any new code that hands the user's or the extension's t
 Terminal focus rule (v26.0): do not focus the embedded terminal with direct `SetForegroundWindow(terminalHandle)` or bare `SetFocus(terminalHandle)` calls. Use `FocusTerminalForInputAsync()`, `FocusTerminalForInput()`, or `FocusTerminalWindow()` so VS activates the owning tool window, focuses the WinForms host panel, and temporarily joins the VS UI thread with the terminal window thread before setting native focus. Low-level hook focus checks must stay Win32-only and use cached root-window state; do not touch WPF/WinForms controls from the hook thread.
 
 Chat localization rule (v269.0, whole extension since v270.0): every piece of UI text the user reads — chat, panel, menus, toolbar, dialogs, message boxes, tool windows; XAML captions, tooltips, status lines, notices, card buttons — is English wrapped in `L("...")` (`L(fmt, args)` for formats), `N("...")` for static lists translated when shown, or `{local:Loc '...'}` in XAML, and it is translated in every `lang/*.json` in the same change; rewording or removing English text means updating every file too. `test.cmd` fails on a missing or orphaned translation. Text assigned from code must also be redone by `RefreshChatLanguage()` / `ChatTranscriptView.RefreshLanguage()`, or it stays in the old language after a switch. Never wrap what the agent/CLI or the code itself reads (prompts, slash commands, tool/provider/model names, compared strings). Details: *Chat UI Localization*.
+
+Performance values rule (v279.0): the resumed-transcript limits (`ResumedTranscriptMaxMessages`, `ResumedTranscriptMaxToolCards`) and any other value chosen for performance — streaming throttle intervals, the transcript's virtualization cache, caps on rendered content such as `MaxToolResultLength` — change only together with a measurement recorded in `docs/PERFORMANCE.md`: what was measured and how, on which machine, the numbers before and after. Add it as a new dated section and keep the old ones. Twice a value was set by feel (the 200-message cap in v89.0, the 40-card cap in v252.0) and outlived its reason once the transcript was virtualized (#219). `ReplayLimitsMatchTheMeasuredValues` pins the replay limits so a change shows up in review; update it together with the document.
 
 ## Data Models & Settings (ClaudeCodeModels.cs)
 
