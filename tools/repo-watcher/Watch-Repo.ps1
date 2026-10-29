@@ -26,6 +26,11 @@ $StateFile   = Join-Path $Root "state-$Kind.json"
 $LogDir      = Join-Path $Root 'logs'
 $MainLog     = Join-Path $LogDir 'watcher.log'
 $MaxAttempts = 3
+# The watcher can run on several machines against the same repo. Before Claude starts on an item,
+# this run posts a claim comment on it; other machines skip the item while a live claim exists.
+$ClaimMarker = '<!-- repo-watcher-claim -->'
+$ClaimHours  = 4      # longer than the 3-hour task limit, so a crashed run's claim expires
+$claimed     = @{}    # item number -> id of this run's claim comment
 
 New-Item -ItemType Directory -Force $LogDir | Out-Null
 # Every tick logs one line (so Show-RepoWatcher.ps1 shows it's alive); keep the last 2000.
@@ -86,6 +91,32 @@ function Send-Results([string]$resultFile, [int]$exitCode) {
     }
 }
 
+# Claim comments on an item that are still live. A claim older than $ClaimHours belongs to a run
+# that died without cleaning up, so it no longer counts.
+function Get-LiveClaims([int]$number) {
+    $out = Invoke-Gh api --paginate --slurp "repos/$Repo/issues/$number/comments" 2>&1
+    if ($LASTEXITCODE -ne 0) { throw "could not list the comments: $out" }
+    $cutoff = [DateTimeOffset]::UtcNow.AddHours(-$ClaimHours)
+    $pages = $out | Out-String | ConvertFrom-Json
+    foreach ($page in $pages) {
+        foreach ($c in $page) {
+            if (-not $c.body -or -not $c.body.StartsWith($ClaimMarker)) { continue }
+            # Windows PowerShell keeps created_at as text; PowerShell 7 turns it into a DateTime in UTC.
+            $created = if ($c.created_at -is [DateTime]) { [DateTimeOffset][DateTime]::SpecifyKind($c.created_at, 'Utc') }
+                       else { [DateTimeOffset]::Parse($c.created_at, [Globalization.CultureInfo]::InvariantCulture) }
+            if ($created -gt $cutoff) { $c }
+        }
+    }
+}
+
+# Deletes this run's claim on an item, if it has one.
+function Remove-Claim([int]$number) {
+    if (-not $claimed.ContainsKey($number)) { return }
+    Invoke-Gh api -X DELETE "repos/$Repo/issues/comments/$($claimed[$number])" 2>&1 | Out-Null
+    if ($LASTEXITCODE -ne 0) { Write-Log "Could not remove the claim on #$number; it expires in $ClaimHours hours." }
+    $claimed.Remove($number)
+}
+
 # One run at a time across PRs and issues: both edit the repo and publish, and a publish can
 # outlast the polling interval. A busy lock just means this tick is skipped.
 $mutex = New-Object System.Threading.Mutex($false, 'Global\ClaudeCodeExtensionRepoWatcher')
@@ -133,6 +164,33 @@ try {
         exit 0
     }
 
+    # --- Claim the items: skip any that another machine is already working on -------------
+    # Each item gets a claim comment first. The earliest live claim (lowest comment id) wins, so
+    # two machines that claim at the same moment agree on one winner and the other backs off.
+    foreach ($item in $pending) {
+        $number = [int]$item.number
+        $text = "$ClaimMarker I am working on this now: a repo watcher run started " +
+                "$((Get-Date).ToUniversalTime().ToString('yyyy-MM-dd HH:mm')) UTC. Other watchers skip " +
+                "it until this comment is removed when the run ends."
+        try {
+            $posted = Invoke-Gh api -X POST "repos/$Repo/issues/$number/comments" -f "body=$text" 2>&1
+            if ($LASTEXITCODE -ne 0) { throw "could not post the claim: $posted" }
+            $claimed[$number] = [long](($posted | Out-String | ConvertFrom-Json).id)
+            $winner = Get-LiveClaims $number | ForEach-Object { [long]$_.id } | Sort-Object | Select-Object -First 1
+            if ($winner -ne $claimed[$number]) {
+                Remove-Claim $number
+                Write-Log "#$number is already claimed by another watcher; skipped."
+            }
+        }
+        catch {
+            Remove-Claim $number
+            Write-Log "Claim for #$number failed: $($_.Exception.Message)"
+        }
+    }
+    $pending = @($pending | Where-Object { $claimed.ContainsKey([int]$_.number) })
+    if ($pending.Count -eq 0) { exit 0 }
+    $numbers = ($pending | ForEach-Object { "#$($_.number)" }) -join ', '
+
     # --- Work to do: start Claude Code ----------------------------------------------------
     $list   = ($pending | ForEach-Object { "#$($_.number) '$($_.title)' by $($_.author.login)" }) -join '; '
     $runLog = Join-Path $LogDir ("run-{0}-{1:yyyyMMdd-HHmmss}.log" -f $Kind, (Get-Date))
@@ -179,6 +237,7 @@ Keep each file's existing line endings.
     $proc.WaitForExit()
     $exit = $proc.ExitCode
     Remove-Item $promptFile -Force -ErrorAction SilentlyContinue
+    foreach ($number in @($claimed.Keys)) { Remove-Claim $number }
 
     foreach ($item in $pending) {
         $key = Get-Key $item
@@ -206,5 +265,6 @@ catch {
     Write-Log "Error: $($_.Exception.Message)"
 }
 finally {
+    foreach ($number in @($claimed.Keys)) { Remove-Claim $number }
     $mutex.ReleaseMutex()
 }
