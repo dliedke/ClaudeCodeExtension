@@ -113,7 +113,7 @@ namespace ClaudeCodeExtension.Tests
             Assert.IsTrue(vm.WasLeftBlank);
         }
 
-        private static ChatInteractionViewModel QuestionCard(int questionCount)
+        private static ChatInteractionViewModel QuestionCard(int questionCount, string header = "")
         {
             var questions = new List<AgentQuestion>();
             for (int i = 0; i < questionCount; i++)
@@ -121,6 +121,7 @@ namespace ClaudeCodeExtension.Tests
                 questions.Add(new AgentQuestion
                 {
                     Question = "Q" + i + "?",
+                    Header = header,
                     Options = new[] { new AgentQuestionOption { Label = "Yes" } }
                 });
             }
@@ -130,6 +131,23 @@ namespace ClaudeCodeExtension.Tests
                 Kind = AgentInteractionKind.Question,
                 Questions = questions
             });
+        }
+
+        [TestMethod]
+        public void ALoneQuestionsBadgeMovesBesideTheTitle()
+        {
+            ChatInteractionViewModel single = QuestionCard(1, "Fix kick");
+            Assert.AreEqual("Fix kick", single.TitleBadge);
+            Assert.IsTrue(single.HasTitleBadge);
+            Assert.IsFalse(single.Questions[0].ShowHeaderBadge, "Shown once, in the title line.");
+
+            ChatInteractionViewModel several = QuestionCard(2, "Fix kick");
+            Assert.IsFalse(several.HasTitleBadge);
+            Assert.IsTrue(several.Questions[0].ShowHeaderBadge, "Each question keeps its own badge.");
+
+            ChatInteractionViewModel noHeader = QuestionCard(1);
+            Assert.IsFalse(noHeader.HasTitleBadge);
+            Assert.IsFalse(noHeader.Questions[0].ShowHeaderBadge);
         }
 
         [TestMethod]

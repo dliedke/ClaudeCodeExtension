@@ -633,17 +633,24 @@
 		<!-- One question inside a question card -->
 		<DataTemplate x:Key="InteractionQuestionTemplate" DataType="{x:Type local:ChatQuestionViewModel}">
 			<StackPanel Margin="0,0,0,10">
-				<Border Visibility="{Binding HasHeader, Converter={StaticResource BoolToVis}}"
-				        HorizontalAlignment="Left"
-				        Margin="0,0,0,4" Padding="6,1,6,1" CornerRadius="3"
-				        Background="#331C8AE0">
-					<TextBlock Text="{Binding Header}" FontSize="{DynamicResource ChatTinyFontSize}" FontWeight="SemiBold"
-					           Opacity="0.9"
-					           Foreground="{DynamicResource {x:Static vsshell:VsBrushes.WindowTextKey}}"/>
-				</Border>
-
-				<TextBlock Text="{Binding Question}" TextWrapping="Wrap" Margin="0,0,0,6"
-				           FontWeight="SemiBold"/>
+				<!-- Badge inline before the question; wrapped lines stay aligned with the text. -->
+				<Grid Margin="0,0,0,6">
+					<Grid.ColumnDefinitions>
+						<ColumnDefinition Width="Auto"/>
+						<ColumnDefinition Width="*"/>
+					</Grid.ColumnDefinitions>
+					<Border Grid.Column="0"
+					        Visibility="{Binding ShowHeaderBadge, Converter={StaticResource BoolToVis}}"
+					        VerticalAlignment="Top"
+					        Margin="0,1,8,0" Padding="6,1,6,1" CornerRadius="3"
+					        Background="#331C8AE0">
+						<TextBlock Text="{Binding Header}" FontSize="{DynamicResource ChatTinyFontSize}" FontWeight="SemiBold"
+						           Opacity="0.9"
+						           Foreground="{DynamicResource {x:Static vsshell:VsBrushes.WindowTextKey}}"/>
+					</Border>
+					<TextBlock Grid.Column="1" Text="{Binding Question}" TextWrapping="Wrap"
+					           FontWeight="SemiBold"/>
+				</Grid>
 
 				<ItemsControl ItemsSource="{Binding Options}">
 					<ItemsControl.ItemTemplate>
@@ -689,17 +696,23 @@
 		     indented under it, so each answer still reads next to what it answers. -->
 		<DataTemplate x:Key="InteractionAnswerTemplate" DataType="{x:Type local:ChatQuestionViewModel}">
 			<StackPanel Margin="0,0,0,8">
-				<Border Visibility="{Binding HasHeader, Converter={StaticResource BoolToVis}}"
-				        HorizontalAlignment="Left"
-				        Margin="0,0,0,3" Padding="6,1,6,1" CornerRadius="3"
-				        Background="#331C8AE0">
-					<TextBlock Text="{Binding Header}" FontSize="{DynamicResource ChatTinyFontSize}" FontWeight="SemiBold"
-					           Opacity="0.9"
-					           Foreground="{DynamicResource {x:Static vsshell:VsBrushes.WindowTextKey}}"/>
-				</Border>
-
-				<TextBlock Text="{Binding Question}" TextWrapping="Wrap" Opacity="0.75"
-				           FontSize="{DynamicResource ChatSmallFontSize}"/>
+				<Grid>
+					<Grid.ColumnDefinitions>
+						<ColumnDefinition Width="Auto"/>
+						<ColumnDefinition Width="*"/>
+					</Grid.ColumnDefinitions>
+					<Border Grid.Column="0"
+					        Visibility="{Binding ShowHeaderBadge, Converter={StaticResource BoolToVis}}"
+					        VerticalAlignment="Top"
+					        Margin="0,1,8,0" Padding="6,1,6,1" CornerRadius="3"
+					        Background="#331C8AE0">
+						<TextBlock Text="{Binding Header}" FontSize="{DynamicResource ChatTinyFontSize}" FontWeight="SemiBold"
+						           Opacity="0.9"
+						           Foreground="{DynamicResource {x:Static vsshell:VsBrushes.WindowTextKey}}"/>
+					</Border>
+					<TextBlock Grid.Column="1" Text="{Binding Question}" TextWrapping="Wrap" Opacity="0.75"
+					           FontSize="{DynamicResource ChatSmallFontSize}"/>
+				</Grid>
 
 				<Grid Margin="10,3,0,0">
 					<Grid.ColumnDefinitions>
@@ -743,7 +756,19 @@
 						           FontSize="{DynamicResource ChatSmallFontSize}" FontWeight="SemiBold"
 						           VerticalAlignment="Center"
 						           Visibility="{Binding ShowAnswerSummary, Converter={StaticResource BoolToVis}}"/>
-						<TextBlock Text="{Binding Title}" FontWeight="SemiBold" TextWrapping="Wrap"/>
+						<!-- A lone question's header badge sits beside the title; several keep theirs per question. -->
+						<DockPanel>
+							<TextBlock DockPanel.Dock="Left" Text="{Binding Title}" FontWeight="SemiBold" TextWrapping="Wrap"
+							           VerticalAlignment="Center"/>
+							<Border Visibility="{Binding HasTitleBadge, Converter={StaticResource BoolToVis}}"
+							        HorizontalAlignment="Left" VerticalAlignment="Center"
+							        Margin="8,0,0,0" Padding="6,1,6,1" CornerRadius="3"
+							        Background="#331C8AE0">
+								<TextBlock Text="{Binding TitleBadge}" FontSize="{DynamicResource ChatTinyFontSize}" FontWeight="SemiBold"
+								           Opacity="0.9" TextTrimming="CharacterEllipsis"
+								           Foreground="{DynamicResource {x:Static vsshell:VsBrushes.WindowTextKey}}"/>
+							</Border>
+						</DockPanel>
 					</DockPanel>
 
 					<!-- Pending: the actual controls -->
