@@ -418,7 +418,8 @@ namespace ClaudeCodeVS
                     if (found.Count >= count) break;
                 }
 
-                return found;
+                // Shown by last interaction, which the file write time only approximates.
+                return found.OrderByDescending(s => s.LastModified).ToList();
             });
 
             await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
@@ -452,6 +453,7 @@ namespace ClaudeCodeVS
             bool sawCommandInvocation = false;
             string transcriptTitle = null;
             string gitBranch = string.Empty;
+            DateTime? lastInteraction = null;
 
             // Open with FileShare.ReadWrite so we can also peek at the active session
             // that Claude Code itself currently has open for writing.
@@ -489,6 +491,13 @@ namespace ClaudeCodeVS
                     if (!string.IsNullOrEmpty(recordBranch) && recordBranch != "HEAD")
                     {
                         gitBranch = recordBranch;
+                    }
+
+                    // The last prompt or reply is when the conversation was last used; the file's own
+                    // write time is not, since title records and the /resume entrypoint fix write to it too.
+                    if (type == "user" || type == "assistant")
+                    {
+                        lastInteraction = ReadTranscriptRecordTime(obj) ?? lastInteraction;
                     }
 
                     // Checked before the type dispatch: skill expansions land as "assistant" lines and
@@ -558,11 +567,36 @@ namespace ClaudeCodeVS
                 GitBranch = gitBranch,
                 MessageCount = messageCount,
                 TokenCount = tokenCount,
-                LastModified = fi.LastWriteTime,
+                LastModified = lastInteraction ?? fi.LastWriteTime,
                 Cwd = cwd,
                 Provider = provider,
                 TranscriptTitle = transcriptTitle
             };
+        }
+
+        /// <summary>
+        /// The local time of a transcript record's <c>timestamp</c> (ISO 8601, UTC), or null when it
+        /// has none. Json.NET may already have turned the value into a date while parsing the line.
+        /// </summary>
+        internal static DateTime? ReadTranscriptRecordTime(JObject record)
+        {
+            JToken token = record?["timestamp"];
+            if (token == null) return null;
+
+            if (token.Type == JTokenType.Date)
+            {
+                DateTime value = token.Value<DateTime>();
+                return value.Kind == DateTimeKind.Unspecified ? value : value.ToLocalTime();
+            }
+
+            if (token.Type == JTokenType.String &&
+                DateTime.TryParse((string)token, System.Globalization.CultureInfo.InvariantCulture,
+                    System.Globalization.DateTimeStyles.RoundtripKind, out DateTime parsed))
+            {
+                return parsed.Kind == DateTimeKind.Unspecified ? parsed : parsed.ToLocalTime();
+            }
+
+            return null;
         }
 
         /// <summary>
