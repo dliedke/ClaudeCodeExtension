@@ -182,6 +182,8 @@ Pull requests for new features are welcome. Bug fixes too — if you find an iss
 - The Settings window can be resized, a disabled font list no longer turns into a white box, and switching tabs no longer makes the page jump.
 - *Settings → Toolbar* can now move ☰ Tools, ⚡ Custom Commands and ⚙ Settings like the other buttons, hide ☰ Tools, and open *Configure Custom Commands* from the ⚡ row.
 - The chat's 🕘 and the Session History button are now the same toolbar button, with the clock icon everywhere; it stays on for everyone who had it.
+- Every menu of the extension — ☰ Tools, ⚡, 🤖, ⚙, 📎, the prompt box's Cut/Copy/Paste, the chat's ▾ and Copy menus, Session History and On Agent Finish — now has the same modern look as the chat's dropdowns, with the same light shadow, and the effort and usage pop-ups open instantly like the menus.
+- The Claude Code effort slider has *Auto* again as its first stop, which leaves the effort to Claude Code's own default.
 
 ### Version 279.0
 - A resumed conversation in the native chat now shows up to 1000 earlier messages (was 200), with full cards for the last 200 tool calls (was 40).

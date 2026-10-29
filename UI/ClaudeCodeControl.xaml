@@ -192,7 +192,7 @@
                          TextChanged="PromptTextBox_TextChanged"
                          PreviewMouseWheel="PromptTextBox_PreviewMouseWheel">
 					<TextBox.ContextMenu>
-						<ContextMenu>
+						<ContextMenu Style="{StaticResource ModernContextMenuStyle}">
 							<MenuItem Header="{local:Loc 'Cut'}" Command="ApplicationCommands.Cut" InputGestureText="Ctrl+X"
 							          CommandTarget="{Binding PlacementTarget, RelativeSource={RelativeSource AncestorType=ContextMenu}}"/>
 							<MenuItem Header="{local:Loc 'Copy'}" Command="ApplicationCommands.Copy" InputGestureText="Ctrl+C"
@@ -482,7 +482,7 @@
                             Click="AttachDropdownButton_Click"
                             Margin="0,0,6,0">
 								<Button.ContextMenu>
-									<ContextMenu x:Name="AttachContextMenu">
+									<ContextMenu x:Name="AttachContextMenu" Style="{StaticResource ModernContextMenuStyle}">
 										<MenuItem Header="{local:Loc '📎  Attach File...'}" x:Name="AttachFileMenuItem" Click="AttachFileMenuItem_Click"/>
 										<MenuItem Header="{local:Loc '📋  Insert Editor Selection'}" x:Name="InsertSelectionMenuItem" Click="GrabSelectionButton_Click"/>
 										<MenuItem Header="{local:Loc '📄  Insert Active File Path'}" x:Name="InsertActiveFilePathMenuItem" Click="InsertActiveFilePathMenuItem_Click" ToolTip="{local:Loc 'Inserts an @-reference to the file open in the active editor tab, like GitHub Copilot\'s &quot;Active Document&quot; context.'}"/>
@@ -510,7 +510,7 @@
                             Click="ToolsDropdownButton_Click"
                             Margin="0,0,6,0">
 							<Button.ContextMenu>
-								<ContextMenu x:Name="ToolsContextMenu" Opened="ToolsContextMenu_Opened">
+								<ContextMenu x:Name="ToolsContextMenu" Style="{StaticResource ModernContextMenuStyle}" Opened="ToolsContextMenu_Opened">
 									<MenuItem Header="{local:Loc '🔄️  Update Code Agent'}" x:Name="UpdateAgentMenuItem" Click="UpdateAgentButton_Click"/>
 									<MenuItem Header="{local:Loc '♻️  Restart Code Agent'}" x:Name="RestartTerminalMenuItem" Click="RestartTerminalButton_Click"/>
 									<MenuItem Header="{local:Loc '⧉  Detach Terminal to Separate Tab'}" x:Name="DetachTerminalMenuItem" Click="DetachTerminalButton_Click"/>
@@ -539,7 +539,7 @@
                             Click="CustomCommandsButton_Click"
                             Margin="0,0,6,0">
 							<Button.ContextMenu>
-								<ContextMenu x:Name="CustomCommandsContextMenu"/>
+								<ContextMenu x:Name="CustomCommandsContextMenu" Style="{StaticResource ModernContextMenuStyle}"/>
 							</Button.ContextMenu>
 						</Button>
 
@@ -554,7 +554,7 @@
                             Click="ModelDropdownButton_Click"
                             Margin="0,0,6,0">
 							<Button.ContextMenu>
-								<ContextMenu x:Name="ModelContextMenu" Opened="ModelContextMenu_Opened">
+								<ContextMenu x:Name="ModelContextMenu" Style="{StaticResource ModernContextMenuStyle}" Opened="ModelContextMenu_Opened">
 									<!-- Claude-specific items. Not checkable: the CLI owns the active model
 										     (it can be changed with /model in the terminal), so no item is ever shown as selected. -->
 									<MenuItem Header="{local:Loc 'Fable - Most demanding tasks'}" x:Name="FableMenuItem" Click="FableMenuItem_Click"/>
@@ -564,7 +564,7 @@
 									<Separator x:Name="OpusPlanSeparator"/>
 									<MenuItem Header="{local:Loc 'Opus Plan - Opus for planning, Sonnet for execution'}" x:Name="OpusPlanMenuItem" Click="OpusPlanMenuItem_Click"/>
 									<Separator x:Name="EffortSeparator"/>
-									<MenuItem x:Name="EffortSliderMenuItem" StaysOpenOnClick="True">
+									<MenuItem x:Name="EffortSliderMenuItem" StaysOpenOnClick="True" Height="Auto">
 										<MenuItem.Header>
 												<StackPanel Margin="2,3" MinWidth="190">
 													<TextBlock x:Name="EffortSliderLabel" Text="{local:Loc 'Effort (Auto)'}" Margin="0,0,0,5" FontWeight="SemiBold"/>
@@ -596,7 +596,7 @@
                             Click="MenuDropdownButton_Click"
                             Margin="0,0,6,0">
 							<Button.ContextMenu>
-								<ContextMenu x:Name="ProviderContextMenu" Opened="ProviderContextMenu_Opened">
+								<ContextMenu x:Name="ProviderContextMenu" Style="{StaticResource ModernContextMenuStyle}" Opened="ProviderContextMenu_Opened">
 									<MenuItem Header="Claude Code" x:Name="ClaudeCodeMenuItem" Click="ClaudeCodeMenuItem_Click" IsCheckable="True" IsChecked="True"/>
 									<MenuItem Header="Claude Code (WSL)" x:Name="ClaudeCodeWSLMenuItem" Click="ClaudeCodeWSLMenuItem_Click" IsCheckable="True"/>
 									<MenuItem Header="Codex" x:Name="CodexNativeMenuItem" Click="CodexNativeMenuItem_Click" IsCheckable="True"/>

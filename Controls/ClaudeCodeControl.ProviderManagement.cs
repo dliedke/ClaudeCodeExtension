@@ -4029,9 +4029,13 @@ namespace ClaudeCodeVS
         // Effort slider state. The slider's left-to-right order is defined explicitly so it
         // is independent of the EffortLevel enum's integer values — that keeps persisted
         // settings stable as new levels are appended. Mirrors the VS Code effort slider:
-        // Low, Medium, High, Extra High (xhigh), Max, Ultracode (xhigh + workflows).
+        // Low, Medium, High, Extra High (xhigh), Max, Ultracode (xhigh + workflows), with Auto first.
+        // Auto (no --effort flag, the CLI's own default) was on the pre-v42.0 list and was dropped when
+        // the slider replaced it, leaving no way back to the CLI default once a level had been picked;
+        // it is the first stop again since v280.0.
         private static readonly EffortLevel[] _effortSliderOrder =
         {
+            EffortLevel.Auto,
             EffortLevel.Low, EffortLevel.Medium, EffortLevel.High,
             EffortLevel.XHigh, EffortLevel.Max, EffortLevel.Ultracode
         };

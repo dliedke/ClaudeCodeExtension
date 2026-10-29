@@ -1744,6 +1744,7 @@ namespace ClaudeCodeVS
             // One menu for the secondary actions, opened by the list-icon button and by a right-click
             // on a row (issue #95): View / Rename / Delete, then Refresh.
             var listContextMenu = new ContextMenu();
+            ApplyModernMenuStyle(listContextMenu);
             var viewMenuItem = new MenuItem { Header = L("View as Text") };
             viewMenuItem.Click += (s, args) => viewSelected();
             var renameMenuItem = new MenuItem { Header = L("Rename…"), InputGestureText = "F2" };

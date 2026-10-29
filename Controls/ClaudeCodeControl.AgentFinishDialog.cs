@@ -297,6 +297,7 @@ namespace ClaudeCodeVS
             };
 
             var afFollowUpPresetMenu = new ContextMenu();
+            ApplyModernMenuStyle(afFollowUpPresetMenu);
             var generateCommitMessageItem = new MenuItem { Header = L("Generate Commit Message") };
             generateCommitMessageItem.Click += (s, ea) => SetFollowUpText(string.Empty, true);
             afFollowUpPresetMenu.Items.Add(generateCommitMessageItem);

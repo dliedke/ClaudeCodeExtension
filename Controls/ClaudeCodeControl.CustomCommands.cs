@@ -199,6 +199,20 @@ namespace ClaudeCodeVS
         }
 
         /// <summary>
+        /// Gives a menu built in code the look of the composer dropdowns (v280.0, ModernContextMenuStyle in
+        /// ChatStyles.xaml). The style comes from this control's resources, so it also works for menus in
+        /// the dialogs, which do not merge the chat styles themselves; its entries pick up the implicit
+        /// row and separator styles it carries.
+        /// </summary>
+        private void ApplyModernMenuStyle(ContextMenu menu)
+        {
+            if (menu != null && TryFindResource("ModernContextMenuStyle") is Style style)
+            {
+                menu.Style = style;
+            }
+        }
+
+        /// <summary>
         /// Shows the modal dialog for adding, editing, and removing custom commands.
         /// Mutates _settings.CustomCommands in place; caller is responsible for saving.
         /// </summary>

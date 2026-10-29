@@ -73,6 +73,7 @@ namespace ClaudeCodeVS
 
             // Initialize XAML components
             InitializeComponent();
+            UI.EffortSliderStops.Attach(EffortSlider);
 
             // Show or hide the optional "Paste from Clipboard" menu item based on the
             // EnablePasteFromClipboardMenu flag in ClaudeCodeControl.UserInput.cs.

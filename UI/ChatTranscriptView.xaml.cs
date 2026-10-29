@@ -88,6 +88,7 @@ namespace ClaudeCodeVS.UI
         public ChatTranscriptView()
         {
             InitializeComponent();
+            EffortSliderStops.Attach(EffortPopupSlider);
 
             Messages = new ObservableCollection<ChatMessageViewModel>();
             Messages.CollectionChanged += OnMessagesChanged;

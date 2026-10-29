@@ -33,7 +33,11 @@
 							<Grid.ColumnDefinitions>
 								<ColumnDefinition Width="16"/>
 								<ColumnDefinition Width="*"/>
+								<ColumnDefinition Width="Auto"/>
 							</Grid.ColumnDefinitions>
+							<!-- Shortcut ("Ctrl+C") for the menus that list one; empty and zero-wide otherwise. -->
+							<TextBlock Grid.Column="2" Text="{TemplateBinding InputGestureText}"
+							           Margin="0,0,12,0" Opacity="0.6" VerticalAlignment="Center"/>
 							<!-- Selection marker: a dot, not a checkbox square -->
 							<Ellipse x:Name="Marker" Grid.Column="0" Width="5" Height="5"
 							         Visibility="Collapsed"
@@ -68,14 +72,7 @@
 	<!-- Submenu row ("claude-opus ›"), used when a model list is too long for one flat dropdown.
 	     ComposerMenuItemStyle cannot serve here: its template has no Popup, so its children would
 	     never be shown. Same chrome as a normal row, plus the arrow and the child popup. -->
-	<Style x:Key="ComposerSubmenuStyle" TargetType="MenuItem">
-		<Setter Property="Foreground" Value="{DynamicResource {x:Static vsshell:VsBrushes.CommandBarTextActiveKey}}"/>
-		<Setter Property="Background" Value="Transparent"/>
-		<Setter Property="Padding" Value="0"/>
-		<Setter Property="Height" Value="26"/>
-		<Setter Property="Template">
-			<Setter.Value>
-				<ControlTemplate TargetType="MenuItem">
+	<ControlTemplate x:Key="ComposerSubmenuTemplate" TargetType="MenuItem">
 					<Border x:Name="Shell" Background="{TemplateBinding Background}"
 					        CornerRadius="3" Margin="3,0,3,0" SnapsToDevicePixels="True">
 						<Grid>
@@ -94,7 +91,9 @@
 							<Popup Grid.Column="2" Placement="Right" HorizontalOffset="-2"
 							       IsOpen="{TemplateBinding IsSubmenuOpen}"
 							       AllowsTransparency="True" Focusable="False">
-								<Border Background="{DynamicResource {x:Static vsshell:VsBrushes.CommandBarMenuBackgroundGradientKey}}"
+								<Grid Margin="6">
+									<Border CornerRadius="5" Background="{DynamicResource {x:Static vsshell:VsBrushes.WindowKey}}"><Border.Effect><DropShadowEffect BlurRadius="5" ShadowDepth="1" Opacity="0.2"/></Border.Effect></Border>
+								<Border Background="{DynamicResource {x:Static vsshell:VsBrushes.WindowKey}}"
 								        BorderBrush="{DynamicResource {x:Static vsshell:VsBrushes.CommandBarMenuBorderKey}}"
 								        BorderThickness="1" CornerRadius="5" Padding="0,4,0,4"
 								        SnapsToDevicePixels="True">
@@ -103,6 +102,7 @@
 										<StackPanel IsItemsHost="True" KeyboardNavigation.DirectionalNavigation="Cycle"/>
 									</ScrollViewer>
 								</Border>
+								</Grid>
 							</Popup>
 						</Grid>
 					</Border>
@@ -115,10 +115,19 @@
 							<Setter TargetName="Shell" Property="Background"
 							        Value="{DynamicResource {x:Static vsshell:VsBrushes.CommandBarHoverOverSelectedKey}}"/>
 						</Trigger>
+						<Trigger Property="IsEnabled" Value="False">
+							<Setter Property="Foreground"
+							        Value="{DynamicResource {x:Static vsshell:VsBrushes.CommandBarTextInactiveKey}}"/>
+						</Trigger>
 					</ControlTemplate.Triggers>
-				</ControlTemplate>
-			</Setter.Value>
-		</Setter>
+	</ControlTemplate>
+
+	<Style x:Key="ComposerSubmenuStyle" TargetType="MenuItem">
+		<Setter Property="Foreground" Value="{DynamicResource {x:Static vsshell:VsBrushes.CommandBarTextActiveKey}}"/>
+		<Setter Property="Background" Value="Transparent"/>
+		<Setter Property="Padding" Value="0"/>
+		<Setter Property="Height" Value="26"/>
+		<Setter Property="Template" Value="{StaticResource ComposerSubmenuTemplate}"/>
 	</Style>
 
 	<Style x:Key="ComposerMenuSeparatorStyle" TargetType="Separator">
@@ -135,7 +144,7 @@
 	</Style>
 
 	<Style x:Key="ComposerMenuStyle" TargetType="ContextMenu">
-		<Setter Property="Background" Value="{DynamicResource {x:Static vsshell:VsBrushes.CommandBarMenuBackgroundGradientKey}}"/>
+		<Setter Property="Background" Value="{DynamicResource {x:Static vsshell:VsBrushes.WindowKey}}"/>
 		<Setter Property="Foreground" Value="{DynamicResource {x:Static vsshell:VsBrushes.CommandBarTextActiveKey}}"/>
 		<Setter Property="BorderBrush" Value="{DynamicResource {x:Static vsshell:VsBrushes.CommandBarMenuBorderKey}}"/>
 		<Setter Property="BorderThickness" Value="1"/>
@@ -144,6 +153,9 @@
 		<Setter Property="Template">
 			<Setter.Value>
 				<ControlTemplate TargetType="ContextMenu">
+					<!-- Margin for the shadow, which sits on its own layer so the rows keep ClearType. -->
+					<Grid Margin="6">
+						<Border CornerRadius="5" Background="{DynamicResource {x:Static vsshell:VsBrushes.WindowKey}}"><Border.Effect><DropShadowEffect BlurRadius="5" ShadowDepth="1" Opacity="0.2"/></Border.Effect></Border>
 					<Border Background="{TemplateBinding Background}"
 					        BorderBrush="{TemplateBinding BorderBrush}"
 					        BorderThickness="{TemplateBinding BorderThickness}"
@@ -156,9 +168,33 @@
 							<StackPanel IsItemsHost="True" KeyboardNavigation.DirectionalNavigation="Cycle"/>
 						</ScrollViewer>
 					</Border>
+					</Grid>
 				</ControlTemplate>
 			</Setter.Value>
 		</Setter>
+	</Style>
+
+	<!-- Every other menu of the extension (v280.0): the panel toolbar's 📎 ☰ ⚡ 🤖 ⚙, the prompt box's
+	     Cut/Copy/Paste, the chat cards' ▾ menus and the chat text's Copy — same look as the composer
+	     dropdowns. Their entries are declared in XAML or built in code without a style of their own, so
+	     the styles are implicit here: a plain row, a submenu row when the entry has children, a thin
+	     separator. A row whose header is taller than a line (the 🤖 menu's effort slider) sets its own
+	     Height="Auto". -->
+	<Style x:Key="ModernMenuItemStyle" TargetType="MenuItem" BasedOn="{StaticResource ComposerMenuItemStyle}">
+		<Style.Triggers>
+			<Trigger Property="Role" Value="SubmenuHeader">
+				<Setter Property="Template" Value="{StaticResource ComposerSubmenuTemplate}"/>
+			</Trigger>
+		</Style.Triggers>
+	</Style>
+
+	<Style x:Key="ModernContextMenuStyle" TargetType="ContextMenu" BasedOn="{StaticResource ComposerMenuStyle}">
+		<Style.Resources>
+			<Style TargetType="MenuItem" BasedOn="{StaticResource ModernMenuItemStyle}"/>
+			<Style TargetType="Separator" BasedOn="{StaticResource ComposerMenuSeparatorStyle}"/>
+			<Style x:Key="{x:Static MenuItem.SeparatorStyleKey}" TargetType="Separator"
+			       BasedOn="{StaticResource ComposerMenuSeparatorStyle}"/>
+		</Style.Resources>
 	</Style>
 
 	<!-- Header row inside a dropdown ("Windows", "WSL"): not selectable, just groups the entries. -->
@@ -184,8 +220,9 @@
 			</Setter.Value>
 		</Setter>
 		<Style.Triggers>
-			<!-- Top (Max) stop turns purple, like the VS Code "ultracode" cap -->
-			<DataTrigger Binding="{Binding Value, RelativeSource={RelativeSource AncestorType={x:Type Slider}}}" Value="5">
+			<!-- Top stop turns purple, like the VS Code "ultracode" cap. EffortSliderStops flags it in the
+			     slider's Tag, whatever the number of stops (it used to be a fixed Value="5"). -->
+			<DataTrigger Binding="{Binding Tag, RelativeSource={RelativeSource AncestorType={x:Type Slider}}}" Value="Top">
 				<Setter Property="Background" Value="#9B7BD4"/>
 			</DataTrigger>
 		</Style.Triggers>
@@ -237,15 +274,9 @@
 						<!-- Track background pill. Semi-transparent gray so it reads as a
 						     subtle groove on both light and dark menu backgrounds. -->
 						<Border CornerRadius="9" Background="#80808080"/>
-						<!-- Six position dots (sit under the fill/thumb) -->
-						<UniformGrid Rows="1" Columns="6" Margin="11,0">
-							<Ellipse Width="4" Height="4" Fill="#80606060" HorizontalAlignment="Center" VerticalAlignment="Center"/>
-							<Ellipse Width="4" Height="4" Fill="#80606060" HorizontalAlignment="Center" VerticalAlignment="Center"/>
-							<Ellipse Width="4" Height="4" Fill="#80606060" HorizontalAlignment="Center" VerticalAlignment="Center"/>
-							<Ellipse Width="4" Height="4" Fill="#80606060" HorizontalAlignment="Center" VerticalAlignment="Center"/>
-							<Ellipse Width="4" Height="4" Fill="#80606060" HorizontalAlignment="Center" VerticalAlignment="Center"/>
-							<Ellipse Width="4" Height="4" Fill="#80606060" HorizontalAlignment="Center" VerticalAlignment="Center"/>
-						</UniformGrid>
+						<!-- One dot per stop, under the fill/thumb: filled in by EffortSliderStops, which knows
+						     how many stops the agent's slider has. -->
+						<StackPanel x:Name="PART_StopDots" Orientation="Horizontal" ClipToBounds="False"/>
 						<Track x:Name="PART_Track">
 							<Track.DecreaseRepeatButton>
 								<RepeatButton Style="{StaticResource EffortFillButtonStyle}" Command="Slider.DecreaseLarge"/>

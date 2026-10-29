@@ -1515,6 +1515,17 @@ namespace ClaudeCodeVS.UI
             copy.Click += CopySelection_Click;
             ContextMenu = new ContextMenu();
             ContextMenu.Items.Add(copy);
+
+            // The chat's menu look (ChatStyles.xaml), found once the block sits in the chat's tree; where
+            // that style is not available (the GitHub issue view) the stock menu stays.
+            ContextMenuOpening += (s, e) =>
+            {
+                if (ContextMenu != null && ContextMenu.Style == null &&
+                    TryFindResource("ModernContextMenuStyle") is Style menuStyle)
+                {
+                    ContextMenu.Style = menuStyle;
+                }
+            };
         }
 
         /// <summary>Raised when a rendered link is clicked, carrying its URL (or bare file reference).</summary>
