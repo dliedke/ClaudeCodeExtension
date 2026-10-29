@@ -176,6 +176,10 @@ Pull requests for new features are welcome. Bug fixes too — if you find an iss
 
 ## Version History
 
+### Version 286.0
+- A question card with a single question now shows its topic badge beside the card title instead of on a line of its own; with several questions, each badge sits right before its question.
+- Thanks to [@ClaudioCas](https://github.com/ClaudioCas) for this release (#240).
+
 ### Version 285.0
 - Renaming a Claude Code conversation while its chat is still running now sticks: the old name no longer comes back in the tab, Session History or Claude Code's own resume list after the next reply.
 - Thanks to [@ClaudioCas](https://github.com/ClaudioCas) for this release (#239).
