@@ -104,6 +104,14 @@ namespace ClaudeCodeVS
         private bool _isShuttingDown = false;
 
         /// <summary>
+        /// The settings as this window last read them from or wrote them to disk. SaveSettings writes
+        /// only what differs from it, merged over the file's current content, so a window that still
+        /// holds old values in memory never undoes a change another window saved. Null when there is
+        /// no usable snapshot (load failed) — the next save then writes everything.
+        /// </summary>
+        private Newtonsoft.Json.Linq.JObject _settingsOnDisk;
+
+        /// <summary>
         /// Settings properties that represent per-instance state (which provider
         /// and model the user chose in THIS VS window). During normal operation
         /// SaveSettings preserves whatever the disk file already has for these
@@ -261,6 +269,10 @@ namespace ClaudeCodeVS
                     };
                     _settings = JsonConvert.DeserializeObject<ClaudeCodeSettings>(json, loadSettings) ?? new ClaudeCodeSettings();
 
+                    // Snapshot before the fix-ups below, so what they heal counts as a change and
+                    // reaches disk with the next save.
+                    _settingsOnDisk = Newtonsoft.Json.Linq.JObject.FromObject(_settings);
+
                     // Heal settings files already corrupted by the append-on-load bug above:
                     // collapse accumulated duplicate entries while preserving order.
                     DedupePreservingOrder(_settings.VisibleProviders);
@@ -376,6 +388,7 @@ namespace ClaudeCodeVS
             {
                 Debug.WriteLine($"Error loading settings: {ex.Message}");
                 _settings = new ClaudeCodeSettings();
+                _settingsOnDisk = null;
             }
         }
 
@@ -570,6 +583,7 @@ namespace ClaudeCodeVS
 
                 var json = JsonConvert.SerializeObject(_settings, Formatting.Indented);
                 File.WriteAllText(ConfigurationPath, json);
+                _settingsOnDisk = Newtonsoft.Json.Linq.JObject.FromObject(_settings);
             }
             catch (Exception ex)
             {
@@ -625,47 +639,134 @@ namespace ClaudeCodeVS
                     Directory.CreateDirectory(directory);
                 }
 
-                // During normal operation, preserve volatile per-instance fields
-                // (provider, model, effort) from the disk file so that multiple VS
-                // instances do not overwrite each other's selections.  On shutdown
-                // (_isShuttingDown) we write everything so the next launch picks up
-                // this instance's choices.
-                var toSave = Newtonsoft.Json.Linq.JObject.FromObject(_settings);
-
-                if (!_isShuttingDown)
-                {
-                    try
-                    {
-                        if (File.Exists(ConfigurationPath))
-                        {
-                            PreserveVolatileFieldsFromDisk(toSave, File.ReadAllText(ConfigurationPath), volatileFieldJustChanged);
-                        }
-                    }
-                    catch (Exception diskEx)
-                    {
-                        // If the disk file is unreadable or corrupt, just save
-                        // everything — better than losing all settings.
-                        Debug.WriteLine($"Could not read disk settings for merge: {diskEx.Message}");
-                    }
-                }
+                var current = Newtonsoft.Json.Linq.JObject.FromObject(_settings);
 
                 // Max and Ultracode are session-only. Whenever the live level is one of
                 // them, persist the last durable level instead so the next VS launch does
                 // not re-enter a transient effort mode. This matters on shutdown, where
-                // volatile fields above are NOT preserved from disk and the in-memory
+                // volatile fields are NOT preserved from disk and the in-memory
                 // (possibly session-only) value would otherwise be written.
                 if (IsSessionOnlyEffort(_settings.SelectedEffortLevel))
                 {
-                    toSave[nameof(ClaudeCodeSettings.SelectedEffortLevel)] =
+                    current[nameof(ClaudeCodeSettings.SelectedEffortLevel)] =
                         (int)_lastPersistableEffortLevel;
+                }
+
+                // Several VS windows share this file. Write only what this window changed since
+                // it last read or wrote the file, over what is on disk now, so its stale copy of
+                // everything else never undoes another window's save (e.g. a Settings OK there).
+                string diskJson = null;
+                try
+                {
+                    if (File.Exists(ConfigurationPath))
+                    {
+                        diskJson = File.ReadAllText(ConfigurationPath);
+                    }
+                }
+                catch (Exception diskEx)
+                {
+                    Debug.WriteLine($"Could not read disk settings for merge: {diskEx.Message}");
+                }
+
+                var toSave = MergeChangedSettings(current, _settingsOnDisk, diskJson);
+
+                if (_isShuttingDown)
+                {
+                    // On shutdown this window's provider/model/effort win, so the next
+                    // launch picks up this instance's choices.
+                    foreach (var field in VolatileSettingsFields)
+                    {
+                        if (current.TryGetValue(field, out var value))
+                        {
+                            toSave[field] = value.DeepClone();
+                        }
+                    }
+                }
+                else
+                {
+                    // During normal operation the volatile per-instance fields (provider,
+                    // model, effort) keep whatever the file has, so windows do not overwrite
+                    // each other's selections.
+                    PreserveVolatileFieldsFromDisk(toSave, diskJson, volatileFieldJustChanged);
                 }
 
                 var json = SerializeJsonIndented(toSave);
                 File.WriteAllText(ConfigurationPath, json);
+                _settingsOnDisk = current;
             }
             catch (Exception ex)
             {
                 Debug.WriteLine($"Error saving settings: {ex.Message}");
+            }
+        }
+
+        /// <summary>
+        /// What one window writes to the shared settings file: the file's current content
+        /// (<paramref name="diskJson"/>) with every value this window changed since
+        /// <paramref name="snapshot"/> (what it last read or wrote) replaced by its value in
+        /// <paramref name="current"/>. Objects (dictionaries such as session titles or per-solution
+        /// settings) are merged key by key, so two windows adding different keys both keep theirs;
+        /// a key this window removed is removed. Lists are replaced whole. Without a snapshot or a
+        /// readable file the result is <paramref name="current"/> — writing everything this window
+        /// has is better than losing every setting.
+        /// </summary>
+        internal static Newtonsoft.Json.Linq.JObject MergeChangedSettings(
+            Newtonsoft.Json.Linq.JObject current, Newtonsoft.Json.Linq.JObject snapshot, string diskJson)
+        {
+            if (current == null)
+                return null;
+
+            Newtonsoft.Json.Linq.JObject disk = null;
+            if (snapshot != null && !string.IsNullOrWhiteSpace(diskJson))
+            {
+                try
+                {
+                    disk = Newtonsoft.Json.Linq.JObject.Parse(diskJson);
+                }
+                catch (Exception diskEx)
+                {
+                    Debug.WriteLine($"Could not read disk settings for merge: {diskEx.Message}");
+                }
+            }
+
+            if (disk == null)
+                return (Newtonsoft.Json.Linq.JObject)current.DeepClone();
+
+            ApplyChangedValues(disk, current, snapshot);
+            return disk;
+        }
+
+        private static void ApplyChangedValues(
+            Newtonsoft.Json.Linq.JObject target, Newtonsoft.Json.Linq.JObject current, Newtonsoft.Json.Linq.JObject snapshot)
+        {
+            foreach (var property in current.Properties())
+            {
+                snapshot.TryGetValue(property.Name, out var before);
+                target.TryGetValue(property.Name, out var onDisk);
+
+                if (before != null && Newtonsoft.Json.Linq.JToken.DeepEquals(property.Value, before))
+                {
+                    // Unchanged here: keep the file's value, but fill in a field the file lacks.
+                    if (onDisk == null)
+                        target[property.Name] = property.Value.DeepClone();
+                    continue;
+                }
+
+                if (property.Value is Newtonsoft.Json.Linq.JObject currentObj &&
+                    before is Newtonsoft.Json.Linq.JObject beforeObj &&
+                    onDisk is Newtonsoft.Json.Linq.JObject diskObj)
+                {
+                    ApplyChangedValues(diskObj, currentObj, beforeObj);
+                    continue;
+                }
+
+                target[property.Name] = property.Value.DeepClone();
+            }
+
+            foreach (var property in snapshot.Properties())
+            {
+                if (!current.ContainsKey(property.Name))
+                    target.Remove(property.Name);
             }
         }
 

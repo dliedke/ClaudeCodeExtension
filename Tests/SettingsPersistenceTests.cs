@@ -189,6 +189,74 @@ namespace ClaudeCodeExtension.Tests
         }
 
         /// <summary>
+        /// Window A saves "all chats in one window" with Settings OK; window B, which still holds the
+        /// old value in memory, then saves because its splitter moved. B must write its splitter and
+        /// leave A's checkbox alone.
+        /// </summary>
+        [TestMethod]
+        public void MergeChangedSettings_KeepsWhatAnotherWindowSavedAndWritesOnlyThisWindowsChanges()
+        {
+            var snapshot = JObject.FromObject(new ClaudeCodeSettings { ChatTabsInOneWindow = false, SplitterPosition = 200 });
+            var current = JObject.FromObject(new ClaudeCodeSettings { ChatTabsInOneWindow = false, SplitterPosition = 350 });
+            string diskJson = ClaudeCodeControl.SerializeJsonIndented(
+                new ClaudeCodeSettings { ChatTabsInOneWindow = true, SplitterPosition = 200 });
+
+            JObject merged = ClaudeCodeControl.MergeChangedSettings(current, snapshot, diskJson);
+
+            Assert.IsTrue((bool)merged["ChatTabsInOneWindow"], "Another window's saved setting was undone.");
+            Assert.AreEqual(350.0, (double)merged["SplitterPosition"]);
+        }
+
+        /// <summary>
+        /// Dictionaries (session titles, per-solution settings) merge key by key: two windows naming
+        /// different sessions both keep their titles, and a key this window removed goes away.
+        /// </summary>
+        [TestMethod]
+        public void MergeChangedSettings_MergesDictionariesKeyByKey()
+        {
+            var snapshot = JObject.Parse("{ \"SessionCustomTitles\": { \"a\": \"A\", \"gone\": \"G\" } }");
+            var current = JObject.Parse("{ \"SessionCustomTitles\": { \"a\": \"A2\", \"mine\": \"M\" } }");
+            string diskJson = "{ \"SessionCustomTitles\": { \"a\": \"A\", \"gone\": \"G\", \"theirs\": \"T\" } }";
+
+            var titles = (JObject)ClaudeCodeControl.MergeChangedSettings(current, snapshot, diskJson)["SessionCustomTitles"];
+
+            Assert.AreEqual("A2", (string)titles["a"]);
+            Assert.AreEqual("M", (string)titles["mine"]);
+            Assert.AreEqual("T", (string)titles["theirs"]);
+            Assert.IsNull(titles["gone"]);
+        }
+
+        /// <summary>
+        /// A field the file lacks (written by an older version) is filled in from this window, and
+        /// a field only the file knows (a newer version's) survives.
+        /// </summary>
+        [TestMethod]
+        public void MergeChangedSettings_FillsMissingFieldsAndKeepsUnknownOnes()
+        {
+            var snapshot = JObject.Parse("{ \"A\": 1, \"B\": 2 }");
+            var current = JObject.Parse("{ \"A\": 1, \"B\": 2 }");
+
+            JObject merged = ClaudeCodeControl.MergeChangedSettings(current, snapshot, "{ \"A\": 5, \"Future\": true }");
+
+            Assert.AreEqual(5, (int)merged["A"]);
+            Assert.AreEqual(2, (int)merged["B"]);
+            Assert.IsTrue((bool)merged["Future"]);
+        }
+
+        /// <summary>
+        /// No snapshot (the load failed) or an unreadable file: write everything this window has.
+        /// </summary>
+        [TestMethod]
+        public void MergeChangedSettings_WritesEverythingWithoutSnapshotOrReadableFile()
+        {
+            var current = JObject.Parse("{ \"A\": 1 }");
+
+            Assert.AreEqual(1, (int)ClaudeCodeControl.MergeChangedSettings(current, null, "{ \"A\": 9 }")["A"]);
+            Assert.AreEqual(1, (int)ClaudeCodeControl.MergeChangedSettings(current, JObject.Parse("{ \"A\": 9 }"), "{ not json")["A"]);
+            Assert.AreEqual(1, (int)ClaudeCodeControl.MergeChangedSettings(current, JObject.Parse("{ \"A\": 9 }"), null)["A"]);
+        }
+
+        /// <summary>
         /// The terminal is launched as UTF-8, so keeping it there is the default; a user who has an
         /// agent workflow that deliberately switches the console code page can turn it off, and that
         /// choice has to survive a save/load round trip.
