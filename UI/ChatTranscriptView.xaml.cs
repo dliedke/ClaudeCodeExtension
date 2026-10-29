@@ -915,12 +915,6 @@ namespace ClaudeCodeVS.UI
             return null;
         }
 
-        /// <summary>
-        /// Rebuilds the mirrored promoted-toolbar buttons from the panel's own set. Each entry's
-        /// content and tooltip are copied from the panel button that owns it, so there is only one
-        /// place (<c>RefreshToolbarLayout</c>) that decides the glyph or wording — this never drifts
-        /// out of sync with what the panel itself shows.
-        /// </summary>
         /// <summary>The composer's own button for a toolbar id passed to <see cref="SetPromotedButtons"/>, if any.</summary>
         private Button OwnButton(string id)
         {
@@ -943,6 +937,12 @@ namespace ClaudeCodeVS.UI
             return null;
         }
 
+        /// <summary>
+        /// Rebuilds the mirrored promoted-toolbar buttons from the panel's own set. Each entry's
+        /// content and tooltip are copied from the panel button that owns it, so there is only one
+        /// place (<c>RefreshToolbarLayout</c>) that decides the glyph or wording — this never drifts
+        /// out of sync with what the panel itself shows.
+        /// </summary>
         public void SetPromotedButtons(IEnumerable<(string Id, object Content, object ToolTip)> buttons)
         {
             foreach (Button old in ComposerPromotedButtons.Children)

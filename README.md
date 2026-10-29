@@ -58,7 +58,7 @@ Enjoying the extension? [Buy me a coffee](https://www.buymeacoffee.com/dliedke) 
 
 - **Theme aware** — Follows VS dark/light theme automatically, or force dark, light, or a custom background color via *⚙ → Settings → Appearance*. Prompt zoom is persisted across sessions, and native chat zoom (Ctrl+Scroll, Ctrl+0 resets it) is too; set the terminal's console font and size via *⚙ → Settings → Terminal* (Ctrl+Scroll zoom applies for the current session).
 
-- **20 languages support**: English, Simplified Chinese, Japanese, Portuguese (Brazil), Spanish, Korean, German, French, Russian, Traditional Chinese, Indonesian, Turkish, Vietnamese, Polish, Italian, Ukrainian, Arabic, Hindi, Thai and Dutch. Pick one under *⚙ → Settings → Layout → Chat language*, or leave it on Automatic to follow the Visual Studio language.
+- **20 languages support**: English, Simplified Chinese, Japanese, Portuguese (Brazil), Spanish, Korean, German, French, Russian, Traditional Chinese, Indonesian, Turkish, Vietnamese, Polish, Italian, Ukrainian, Arabic, Hindi, Thai and Dutch. Pick one under *⚙ → Settings → Appearance → Language*, or leave it on Automatic to follow the Visual Studio language.
 
 - **Persistent settings** — Layout, provider choice, model, flags, and font sizes all saved to `%LocalAppData%\ClaudeCodeExtension\claudecode-settings.json`.
 
@@ -184,6 +184,7 @@ Pull requests for new features are welcome. Bug fixes too — if you find an iss
 - The chat's 🕘 and the Session History button are now the same toolbar button, with the clock icon everywhere; it stays on for everyone who had it.
 - Every menu of the extension — ☰ Tools, ⚡, 🤖, ⚙, 📎, the prompt box's Cut/Copy/Paste, the chat's ▾ and Copy menus, Session History and On Agent Finish — now has the same modern look as the chat's dropdowns, with the same light shadow, and the effort and usage pop-ups open instantly like the menus.
 - The Claude Code effort slider has *Auto* again as its first stop, which leaves the effort to Claude Code's own default.
+- Thanks to [@Gh61](https://github.com/Gh61) for this release (#235).
 
 ### Version 279.0
 - A resumed conversation in the native chat now shows up to 1000 earlier messages (was 200), with full cards for the last 200 tool calls (was 40).

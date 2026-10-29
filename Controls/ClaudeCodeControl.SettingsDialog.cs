@@ -96,7 +96,7 @@ namespace ClaudeCodeVS
         /// <summary>
         /// Builds and shows the consolidated settings dialog, then applies the
         /// chosen values. The dialog is organized into tabs (On Agent Finish, Prompt, Automation,
-        /// Terminal, Native mode, Toolbar, Appearance, CLI Paths, Backup).Restart-requiring changes (terminal type,
+        /// Terminal, Native mode, Toolbar, Appearance, CLI Paths, Backup). Restart-requiring changes (terminal type,
         /// theme) trigger a single terminal restart at the end if needed.
         /// </summary>
         private async System.Threading.Tasks.Task ShowConsolidatedSettingsDialogAsync()
