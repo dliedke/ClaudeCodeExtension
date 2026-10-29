@@ -1086,5 +1086,10 @@
   "⚙  Settings": "⚙  设置",
   "Always shown, so the settings stay reachable. Drag it to move it.": "始终显示，确保随时可以打开设置。拖动即可移动它。",
   "Configure…": "配置…",
-  "⚠ The ☰ Tools menu is hidden, so the unchecked features above are not available anywhere.": "⚠ ☰ 工具菜单已隐藏，因此上方未勾选的功能在任何地方都无法使用。"
+  "⚠ The ☰ Tools menu is hidden, so the unchecked features above are not available anywhere.": "⚠ ☰ 工具菜单已隐藏，因此上方未勾选的功能在任何地方都无法使用。",
+  "Thinking in the chat:": "聊天中的思考：",
+  "Thinking is the agent's own reasoning and is shown as a collapsed row. An agent sometimes explains its options only there and then asks a question; \"Open when followed by a question\" opens that row together with the question card. Any row can still be opened or closed by clicking it.": "思考是代理自己的推理，显示为折叠的行。代理有时只在那里解释它的选项，然后直接提问；“后面有问题时展开”会把那一行与问题卡片一起展开。任何一行仍可单击来展开或折叠。",
+  "Keep collapsed": "保持折叠",
+  "Open when followed by a question": "后面有问题时展开",
+  "Always open": "始终展开"
 }

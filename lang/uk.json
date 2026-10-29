@@ -1086,5 +1086,10 @@
   "⚙  Settings": "⚙  Налаштування",
   "Always shown, so the settings stay reachable. Drag it to move it.": "Завжди на місці, щоб налаштування лишалися доступними. Перетягніть, щоб перемістити.",
   "Configure…": "Налаштувати…",
-  "⚠ The ☰ Tools menu is hidden, so the unchecked features above are not available anywhere.": "⚠ Меню ☰ «Інструменти» приховано, тож функції без позначки вище недоступні ніде."
+  "⚠ The ☰ Tools menu is hidden, so the unchecked features above are not available anywhere.": "⚠ Меню ☰ «Інструменти» приховано, тож функції без позначки вище недоступні ніде.",
+  "Thinking in the chat:": "Міркування в чаті:",
+  "Thinking is the agent's own reasoning and is shown as a collapsed row. An agent sometimes explains its options only there and then asks a question; \"Open when followed by a question\" opens that row together with the question card. Any row can still be opened or closed by clicking it.": "Міркування — це власні роздуми агента, вони показуються згорнутим рядком. Іноді агент пояснює свої варіанти лише там і одразу ставить запитання; «Відкривати, якщо далі запитання» розгортає цей рядок разом із карткою запитання. Будь-який рядок і далі можна відкрити чи закрити клацанням.",
+  "Keep collapsed": "Залишати згорнутим",
+  "Open when followed by a question": "Відкривати, якщо далі запитання",
+  "Always open": "Завжди відкрито"
 }

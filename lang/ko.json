@@ -1086,5 +1086,10 @@
   "⚙  Settings": "⚙  설정",
   "Always shown, so the settings stay reachable. Drag it to move it.": "설정에 항상 접근할 수 있도록 늘 표시됩니다. 끌어서 옮길 수 있습니다.",
   "Configure…": "구성…",
-  "⚠ The ☰ Tools menu is hidden, so the unchecked features above are not available anywhere.": "⚠ ☰ 도구 메뉴가 숨겨져 있으므로 위에서 선택하지 않은 기능은 어디에서도 사용할 수 없습니다."
+  "⚠ The ☰ Tools menu is hidden, so the unchecked features above are not available anywhere.": "⚠ ☰ 도구 메뉴가 숨겨져 있으므로 위에서 선택하지 않은 기능은 어디에서도 사용할 수 없습니다.",
+  "Thinking in the chat:": "채팅의 사고:",
+  "Thinking is the agent's own reasoning and is shown as a collapsed row. An agent sometimes explains its options only there and then asks a question; \"Open when followed by a question\" opens that row together with the question card. Any row can still be opened or closed by clicking it.": "사고는 에이전트 자신의 추론이며 접힌 행으로 표시됩니다. 에이전트가 선택지를 그곳에서만 설명하고 바로 질문하는 경우가 있습니다. \"질문이 이어지면 열기\"는 그 행을 질문 카드와 함께 엽니다. 어떤 행이든 클릭하여 계속 열거나 닫을 수 있습니다.",
+  "Keep collapsed": "접은 상태 유지",
+  "Open when followed by a question": "질문이 이어지면 열기",
+  "Always open": "항상 열기"
 }

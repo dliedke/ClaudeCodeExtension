@@ -1086,5 +1086,10 @@
   "⚙  Settings": "⚙  Cài đặt",
   "Always shown, so the settings stay reachable. Drag it to move it.": "Luôn hiển thị để luôn truy cập được cài đặt. Kéo để di chuyển.",
   "Configure…": "Cấu hình…",
-  "⚠ The ☰ Tools menu is hidden, so the unchecked features above are not available anywhere.": "⚠ Menu ☰ Công cụ đang ẩn, nên các tính năng bỏ chọn ở trên không dùng được ở đâu cả."
+  "⚠ The ☰ Tools menu is hidden, so the unchecked features above are not available anywhere.": "⚠ Menu ☰ Công cụ đang ẩn, nên các tính năng bỏ chọn ở trên không dùng được ở đâu cả.",
+  "Thinking in the chat:": "Suy nghĩ trong trò chuyện:",
+  "Thinking is the agent's own reasoning and is shown as a collapsed row. An agent sometimes explains its options only there and then asks a question; \"Open when followed by a question\" opens that row together with the question card. Any row can still be opened or closed by clicking it.": "Suy nghĩ là lập luận riêng của tác tử và được hiển thị dưới dạng một hàng thu gọn. Đôi khi tác tử chỉ giải thích các lựa chọn ở đó rồi đặt câu hỏi; \"Mở khi có câu hỏi theo sau\" sẽ mở hàng đó cùng với thẻ câu hỏi. Bạn vẫn có thể mở hoặc đóng bất kỳ hàng nào bằng cách nhấp vào nó.",
+  "Keep collapsed": "Giữ thu gọn",
+  "Open when followed by a question": "Mở khi có câu hỏi theo sau",
+  "Always open": "Luôn mở"
 }

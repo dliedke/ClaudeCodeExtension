@@ -208,6 +208,23 @@ namespace ClaudeCodeVS
     }
 
     /// <summary>
+    /// When the native chat opens a thinking row by itself. Thinking is the agent's working space and
+    /// stays collapsed, but an agent sometimes explains a choice only there and goes straight to a
+    /// question card, leaving the card without its context.
+    /// </summary>
+    public enum ChatThinkingDisplay
+    {
+        /// <summary>Thinking rows stay collapsed until clicked.</summary>
+        Collapsed,
+
+        /// <summary>The thinking row right before a question card opens with the card.</summary>
+        OpenBeforeQuestion,
+
+        /// <summary>Every live thinking row opens once it is finished.</summary>
+        AlwaysOpen
+    }
+
+    /// <summary>
     /// What a chat tab shows in front of its caption while its session works, in the Modern icon
     /// style. The caption is plain text, so only emoji can carry color, and none comes as a blue
     /// animation: the choice is a blue static icon or an animated one in its own colors.
@@ -664,6 +681,13 @@ namespace ClaudeCodeVS
         /// failed. On by default.
         /// </summary>
         public bool ExpandFailedToolCalls { get; set; } = true;
+
+        /// <summary>
+        /// When the native chat opens a thinking row by itself: never (default), only the one right
+        /// before a question card, or every live one once finished. Thinking replayed from a resumed
+        /// transcript always stays collapsed.
+        /// </summary>
+        public ChatThinkingDisplay ChatThinkingDisplay { get; set; } = ChatThinkingDisplay.Collapsed;
 
         /// <summary>
         /// If true, the native chat's live status line always says "Thinking…" instead of rotating

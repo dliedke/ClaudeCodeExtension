@@ -1086,5 +1086,10 @@
   "⚙  Settings": "⚙  Ustawienia",
   "Always shown, so the settings stay reachable. Drag it to move it.": "Zawsze widoczne, aby ustawienia były osiągalne. Przeciągnij, aby przenieść.",
   "Configure…": "Konfiguruj…",
-  "⚠ The ☰ Tools menu is hidden, so the unchecked features above are not available anywhere.": "⚠ Menu ☰ Narzędzia jest ukryte, więc odznaczone funkcje powyżej nie są nigdzie dostępne."
+  "⚠ The ☰ Tools menu is hidden, so the unchecked features above are not available anywhere.": "⚠ Menu ☰ Narzędzia jest ukryte, więc odznaczone funkcje powyżej nie są nigdzie dostępne.",
+  "Thinking in the chat:": "Myślenie w czacie:",
+  "Thinking is the agent's own reasoning and is shown as a collapsed row. An agent sometimes explains its options only there and then asks a question; \"Open when followed by a question\" opens that row together with the question card. Any row can still be opened or closed by clicking it.": "Myślenie to własne rozumowanie agenta, pokazywane jako zwinięty wiersz. Czasem agent wyjaśnia swoje opcje tylko tam, a potem zadaje pytanie; \"Otwórz, gdy następuje pytanie\" otwiera ten wiersz razem z kartą pytania. Każdy wiersz nadal można otworzyć lub zamknąć kliknięciem.",
+  "Keep collapsed": "Pozostaw zwinięte",
+  "Open when followed by a question": "Otwórz, gdy następuje pytanie",
+  "Always open": "Zawsze otwarte"
 }

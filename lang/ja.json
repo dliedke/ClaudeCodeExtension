@@ -1086,5 +1086,10 @@
   "⚙  Settings": "⚙  設定",
   "Always shown, so the settings stay reachable. Drag it to move it.": "設定にいつでも届くよう常に表示されます。ドラッグして移動できます。",
   "Configure…": "構成…",
-  "⚠ The ☰ Tools menu is hidden, so the unchecked features above are not available anywhere.": "⚠ ☰ ツールメニューが非表示のため、上のチェックのない機能はどこからも使えません。"
+  "⚠ The ☰ Tools menu is hidden, so the unchecked features above are not available anywhere.": "⚠ ☰ ツールメニューが非表示のため、上のチェックのない機能はどこからも使えません。",
+  "Thinking in the chat:": "チャットでの思考:",
+  "Thinking is the agent's own reasoning and is shown as a collapsed row. An agent sometimes explains its options only there and then asks a question; \"Open when followed by a question\" opens that row together with the question card. Any row can still be opened or closed by clicking it.": "思考はエージェント自身の推論で、折りたたまれた行として表示されます。エージェントが選択肢をそこでだけ説明してから質問することがあります。「質問が続くときに開く」は、その行を質問カードと一緒に開きます。どの行もクリックすれば開いたり閉じたりできます。",
+  "Keep collapsed": "折りたたんだままにする",
+  "Open when followed by a question": "質問が続くときに開く",
+  "Always open": "常に開く"
 }

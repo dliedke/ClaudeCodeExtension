@@ -1086,5 +1086,10 @@
   "⚙  Settings": "⚙  Ayarlar",
   "Always shown, so the settings stay reachable. Drag it to move it.": "Ayarlara her zaman ulaşılabilsin diye hep görünür. Taşımak için sürükleyin.",
   "Configure…": "Yapılandır…",
-  "⚠ The ☰ Tools menu is hidden, so the unchecked features above are not available anywhere.": "⚠ ☰ Araçlar menüsü gizli, bu yüzden yukarıdaki işaretlenmemiş özellikler hiçbir yerde kullanılamaz."
+  "⚠ The ☰ Tools menu is hidden, so the unchecked features above are not available anywhere.": "⚠ ☰ Araçlar menüsü gizli, bu yüzden yukarıdaki işaretlenmemiş özellikler hiçbir yerde kullanılamaz.",
+  "Thinking in the chat:": "Sohbette düşünme:",
+  "Thinking is the agent's own reasoning and is shown as a collapsed row. An agent sometimes explains its options only there and then asks a question; \"Open when followed by a question\" opens that row together with the question card. Any row can still be opened or closed by clicking it.": "Düşünme, aracının kendi akıl yürütmesidir ve daraltılmış bir satır olarak gösterilir. Bir aracı bazen seçeneklerini yalnızca orada açıklayıp ardından soru sorar; \"Ardından soru gelirse aç\" o satırı soru kartıyla birlikte açar. Her satır tıklanarak yine açılıp kapatılabilir.",
+  "Keep collapsed": "Daraltılmış tut",
+  "Open when followed by a question": "Ardından soru gelirse aç",
+  "Always open": "Her zaman açık"
 }
