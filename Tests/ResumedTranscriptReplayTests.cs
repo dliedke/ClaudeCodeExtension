@@ -181,25 +181,65 @@ namespace ClaudeCodeExtension.Tests
             Assert.IsFalse(replay.Rows.Any(row => row.Text.Contains("late result")));
         }
 
+        private static string Thinking(string thinking, string text = null)
+        {
+            return @"{""type"":""assistant"",""message"":{""content"":[" +
+                   @"{""type"":""thinking"",""thinking"":""" + thinking + @"""}" +
+                   (text == null ? string.Empty : @",{""type"":""text"",""text"":""" + text + @"""}") + "]}}";
+        }
+
         [TestMethod]
-        public void ThinkingPartsAreNotReplayedButTextPartsAre()
+        public void ThinkingIsReplayedAsItsOwnRowBeforeTheReply()
         {
             var replay = Replay(200, 500, 30,
                 User("Explain"),
-                @"{""type"":""assistant"",""message"":{""content"":[" +
-                    @"{""type"":""thinking"",""thinking"":""private reasoning""}," +
-                    @"{""type"":""text"",""text"":""Visible answer.""}]}}",
-                @"{""type"":""assistant"",""message"":{""content"":[" +
-                    @"{""type"":""thinking"",""thinking"":""thinking only""}]}}");
+                Thinking("private reasoning", "Visible answer."),
+                Thinking("thinking only"),
+                @"{""type"":""assistant"",""message"":{""content"":[{""type"":""thinking"",""thinking"":""""}]}}");
 
-            // Thinking dominates a real transcript's size, so it is not replayed. A text part in the
-            // same message still is, and a thinking-only message adds no row at all.
+            // Like the live turn: thinking is its own (collapsed) row ahead of the reply text, a
+            // thinking-only message adds just that row, and empty thinking (what current Claude Code
+            // usually stores) adds nothing.
             CollectionAssert.AreEqual(
-                new[] { ChatMessageKind.User, ChatMessageKind.Assistant },
+                new[] { ChatMessageKind.User, ChatMessageKind.Thinking, ChatMessageKind.Assistant, ChatMessageKind.Thinking },
                 replay.Rows.Select(row => row.Kind).ToArray());
-            Assert.AreEqual("Visible answer.", replay.Rows[1].Text.Trim());
-            Assert.IsFalse(replay.Rows.Any(row => row.Text.Contains("private reasoning")));
-            Assert.IsFalse(replay.Rows.Any(row => row.Text.Contains("thinking only")));
+            Assert.AreEqual("private reasoning", replay.Rows[1].Text);
+            Assert.AreEqual("Visible answer.", replay.Rows[2].Text.Trim());
+            Assert.AreEqual("thinking only", replay.Rows[3].Text);
+            Assert.IsFalse(replay.Rows[2].Text.Contains("private reasoning"), "Thinking must not leak into the reply text.");
+        }
+
+        [TestMethod]
+        public void ThinkingDoesNotCountAsAMessageAndLeavesWithItsReply()
+        {
+            var replay = Replay(2, 500, 30,
+                User("First"),
+                Thinking("old reasoning", "Old answer."),
+                User("Second"),
+                Thinking("new reasoning", "New answer."));
+
+            // Two messages fit. Thinking does not use up the cap, and the oldest reply leaves together
+            // with the thinking that led to it, so the window never opens on orphaned thinking.
+            Assert.AreEqual(2, replay.ShownMessages);
+            Assert.AreEqual(4, replay.TotalMessages);
+            CollectionAssert.AreEqual(
+                new[] { ChatMessageKind.User, ChatMessageKind.Thinking, ChatMessageKind.Assistant },
+                replay.Rows.Select(row => row.Kind).ToArray());
+            Assert.AreEqual("Second", replay.Rows[0].Text);
+            Assert.AreEqual("new reasoning", replay.Rows[1].Text);
+        }
+
+        /// <summary>
+        /// The limits are backed by the measurements in docs/PERFORMANCE.md; a change has to come with a new
+        /// measurement there. This test makes such a change visible in review instead of silent.
+        /// </summary>
+        [TestMethod]
+        public void ReplayLimitsMatchTheMeasuredValues()
+        {
+            Assert.AreEqual(1000, ClaudeCodeControl.ResumedTranscriptMaxMessages,
+                "Changing the message limit needs a measurement recorded in docs/PERFORMANCE.md.");
+            Assert.AreEqual(200, ClaudeCodeControl.ResumedTranscriptMaxToolCards,
+                "Changing the tool card limit needs a measurement recorded in docs/PERFORMANCE.md.");
         }
 
         [TestMethod]
