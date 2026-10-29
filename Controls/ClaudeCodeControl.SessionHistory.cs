@@ -418,7 +418,8 @@ namespace ClaudeCodeVS
                     if (found.Count >= count) break;
                 }
 
-                return found;
+                // Shown by last interaction, which the file write time only approximates.
+                return found.OrderByDescending(s => s.LastModified).ToList();
             });
 
             await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
@@ -453,6 +454,7 @@ namespace ClaudeCodeVS
             bool sawCommandInvocation = false;
             string transcriptTitle = null;
             string gitBranch = string.Empty;
+            DateTime? lastInteraction = null;
 
             // Open with FileShare.ReadWrite so we can also peek at the active session
             // that Claude Code itself currently has open for writing.
@@ -490,6 +492,13 @@ namespace ClaudeCodeVS
                     if (!string.IsNullOrEmpty(recordBranch) && recordBranch != "HEAD")
                     {
                         gitBranch = recordBranch;
+                    }
+
+                    // The last prompt or reply is when the conversation was last used; the file's own
+                    // write time is not, since title records and the /resume entrypoint fix write to it too.
+                    if (type == "user" || type == "assistant")
+                    {
+                        lastInteraction = ReadTranscriptRecordTime(obj) ?? lastInteraction;
                     }
 
                     // Checked before the type dispatch: skill expansions land as "assistant" lines and
@@ -559,11 +568,36 @@ namespace ClaudeCodeVS
                 GitBranch = gitBranch,
                 MessageCount = messageCount,
                 TokenCount = tokenCount,
-                LastModified = fi.LastWriteTime,
+                LastModified = lastInteraction ?? fi.LastWriteTime,
                 Cwd = cwd,
                 Provider = provider,
                 TranscriptTitle = transcriptTitle
             };
+        }
+
+        /// <summary>
+        /// The local time of a transcript record's <c>timestamp</c> (ISO 8601, UTC), or null when it
+        /// has none. Json.NET may already have turned the value into a date while parsing the line.
+        /// </summary>
+        internal static DateTime? ReadTranscriptRecordTime(JObject record)
+        {
+            JToken token = record?["timestamp"];
+            if (token == null) return null;
+
+            if (token.Type == JTokenType.Date)
+            {
+                DateTime value = token.Value<DateTime>();
+                return value.Kind == DateTimeKind.Unspecified ? value : value.ToLocalTime();
+            }
+
+            if (token.Type == JTokenType.String &&
+                DateTime.TryParse((string)token, System.Globalization.CultureInfo.InvariantCulture,
+                    System.Globalization.DateTimeStyles.RoundtripKind, out DateTime parsed))
+            {
+                return parsed.Kind == DateTimeKind.Unspecified ? parsed : parsed.ToLocalTime();
+            }
+
+            return null;
         }
 
         /// <summary>
@@ -2309,7 +2343,8 @@ namespace ClaudeCodeVS
         /// Decides where <paramref name="session"/> goes. A conversation already open in a chat tab is
         /// only brought forward — resuming it again would leave two CLIs writing one transcript. When
         /// the tab the history was opened from already holds a conversation, the user picks between a
-        /// new tab and that tab. Terminal mode has no chat tabs and always resumes in place.
+        /// new tab and that tab; an empty tab with an unsent draft gets a new tab without asking.
+        /// Terminal mode has no chat tabs and always resumes in place.
         /// </summary>
         private HistoryResumeTarget ChooseHistoryResumeTarget(SessionInfo session, NativeChatSessionState targetTab,
             Window owner, out NativeChatSessionState openTab)
@@ -2329,7 +2364,8 @@ namespace ClaudeCodeVS
 
             if (!ChatTabHasConversation(targetTab))
             {
-                return HistoryResumeTarget.CurrentTab;
+                // A draft in the composer is usually a new topic: keep it and open the conversation beside it.
+                return ChatTabHasDraft(targetTab) ? HistoryResumeTarget.NewTab : HistoryResumeTarget.CurrentTab;
             }
 
             bool? newTab = AskResumeInNewTab(session, owner);
@@ -2342,6 +2378,18 @@ namespace ClaudeCodeVS
         {
             ChatTranscriptView transcript = tab != null ? tab.ChatTranscript : ChatTranscript;
             return transcript != null && transcript.Messages.Any(m => m.IsUser);
+        }
+
+        /// <summary>True when the chat tab (null = the main chat) has unsent text or attachments in its composer.</summary>
+        private bool ChatTabHasDraft(NativeChatSessionState tab)
+        {
+            ChatTranscriptView transcript = tab != null ? tab.ChatTranscript : ChatTranscript;
+            if (transcript != null && !string.IsNullOrWhiteSpace(transcript.ComposerText))
+            {
+                return true;
+            }
+
+            return tab != null ? tab.AttachedFiles.Count > 0 : attachedImagePaths.Count > 0;
         }
 
         private async Task ResumeFromHistoryAsync(SessionInfo session, NativeChatSessionState targetTab, string workspaceDir,

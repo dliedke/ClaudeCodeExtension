@@ -176,6 +176,18 @@ Pull requests for new features are welcome. Bug fixes too — if you find an iss
 
 ## Version History
 
+### Version 284.0
+- In native mode, picking a conversation in Session History from an empty chat tab where you already started typing a prompt (or attached files) now opens it in a new tab, so your draft stays where it was.
+- Thanks to [@ClaudioCas](https://github.com/ClaudioCas) for this release (#238).
+
+### Version 283.0
+- Session History and the recent conversations list now show when each Claude Code conversation was last used, so renaming a conversation or opening the list no longer changes its date or moves it to the top.
+- Thanks to [@ClaudioCas](https://github.com/ClaudioCas) for this release (#237).
+
+### Version 282.0
+- Settings saved in one Visual Studio window are no longer undone by another open window: each window now writes only the settings it actually changed.
+- Thanks to [@ClaudioCas](https://github.com/ClaudioCas) for this release (#236).
+
 ### Version 281.0
 - *Hide Prompt Input Box* is now a terminal-mode option only: it no longer shows in the ⚙ menu in native mode, where the prompt box follows the chat tab instead.
 
