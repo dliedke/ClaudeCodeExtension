@@ -426,8 +426,9 @@ namespace ClaudeCodeVS
             foreach (SessionInfo info in recent)
             {
                 // The transcript's own name is the newest (renames here are written to it too).
-                info.CustomTitle = !string.IsNullOrWhiteSpace(info.TranscriptTitle)
-                    ? info.TranscriptTitle
+                string transcriptTitle = CurrentClaudeTranscriptTitle(info.SessionId, info.TranscriptTitle);
+                info.CustomTitle = !string.IsNullOrWhiteSpace(transcriptTitle)
+                    ? transcriptTitle
                     : GetNativeSessionTitle(info.SessionId);
             }
 
@@ -655,6 +656,11 @@ namespace ClaudeCodeVS
                 string path = await FindClaudeTranscriptPathAsync(provider, sessionId);
                 if (path == null) return;
 
+                // The name the transcript had (usually the automatic one) is what a running CLI writes back.
+                string previous = await Task.Run(() => ReadClaudeTranscriptTitle(path));
+                await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
+                MarkClaudeTitleSuperseded(sessionId, previous, title);
+
                 await Task.Run(() => AppendClaudeTitleRecords(path, sessionId, title));
             }
             catch (Exception ex)
@@ -722,29 +728,96 @@ namespace ClaudeCodeVS
         }
 
         /// <summary>
-        /// Keeps the session's saved name (given by hand or generated from the first prompt) readable by
-        /// Claude Code's /resume picker, which only scans the last <see cref="ClaudeTranscriptScanBytes"/>
-        /// of a transcript: when that tail holds no title record, the records are appended again. Called
-        /// after each native turn and when an automatic name is saved; cheap when there is nothing to do.
+        /// Titles renamed away from in this VS session, per session id. A Claude Code process that was
+        /// already running keeps the name it started with and appends it again after every turn, so a
+        /// transcript whose last title is one of these is stale, not a rename made in the CLI.
+        /// </summary>
+        private readonly System.Collections.Concurrent.ConcurrentDictionary<string, System.Collections.Concurrent.ConcurrentDictionary<string, bool>> _claudeSupersededTitles =
+            new System.Collections.Concurrent.ConcurrentDictionary<string, System.Collections.Concurrent.ConcurrentDictionary<string, bool>>(StringComparer.OrdinalIgnoreCase);
+
+        /// <summary>Records that <paramref name="oldTitle"/> was replaced by <paramref name="newTitle"/> here.</summary>
+        private void MarkClaudeTitleSuperseded(string sessionId, string oldTitle, string newTitle)
+        {
+            if (string.IsNullOrEmpty(sessionId)) return;
+
+            var titles = _claudeSupersededTitles.GetOrAdd(sessionId,
+                _ => new System.Collections.Concurrent.ConcurrentDictionary<string, bool>(StringComparer.Ordinal));
+
+            // Renaming back to an earlier name makes that one current again.
+            titles.TryRemove((newTitle ?? string.Empty).Trim(), out _);
+
+            string old = (oldTitle ?? string.Empty).Trim();
+            if (old.Length > 0 && !string.Equals(old, (newTitle ?? string.Empty).Trim(), StringComparison.Ordinal))
+            {
+                titles[old] = true;
+            }
+        }
+
+        /// <summary>The transcript's title, or null when it is one renamed away from here (a stale write).</summary>
+        private string CurrentClaudeTranscriptTitle(string sessionId, string transcriptTitle)
+        {
+            return IsSupersededClaudeTitle(transcriptTitle, GetSupersededClaudeTitles(sessionId)) ? null : transcriptTitle;
+        }
+
+        private ICollection<string> GetSupersededClaudeTitles(string sessionId)
+        {
+            return !string.IsNullOrEmpty(sessionId) && _claudeSupersededTitles.TryGetValue(sessionId, out var titles)
+                ? titles.Keys
+                : (ICollection<string>)Array.Empty<string>();
+        }
+
+        /// <summary>True when <paramref name="transcriptTitle"/> is one of the names renamed away from.</summary>
+        internal static bool IsSupersededClaudeTitle(string transcriptTitle, ICollection<string> supersededTitles)
+        {
+            if (transcriptTitle == null || supersededTitles == null || supersededTitles.Count == 0) return false;
+            return supersededTitles.Contains(transcriptTitle.Trim());
+        }
+
+        /// <summary>
+        /// Whether the saved title has to be appended to the transcript again: the tail has no title
+        /// record (Claude Code's /resume picker only scans the last <see cref="ClaudeTranscriptScanBytes"/>),
+        /// or its last one is a name renamed away from that a running CLI wrote back.
+        /// </summary>
+        internal static bool ShouldAppendSavedClaudeTitle(string transcriptTitle, string savedTitle, ICollection<string> supersededTitles)
+        {
+            if (string.IsNullOrWhiteSpace(savedTitle)) return false;
+            if (transcriptTitle == null) return true;
+
+            return !string.Equals(transcriptTitle.Trim(), savedTitle.Trim(), StringComparison.Ordinal)
+                && IsSupersededClaudeTitle(transcriptTitle, supersededTitles);
+        }
+
+        /// <summary>
+        /// Keeps the session's saved name (given by hand or generated from the first prompt) as the
+        /// transcript's last title record, which is what Claude Code's /resume picker and Session History
+        /// read (see <see cref="ShouldAppendSavedClaudeTitle"/>). Checked again a moment later, because the
+        /// CLI can write its own title record just after the turn ends. Called after each native turn and
+        /// when an automatic name is saved; cheap when there is nothing to do.
         /// </summary>
         private async Task KeepClaudeTitleInTranscriptAsync(AiProvider provider, string sessionId)
         {
             try
             {
                 await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
-                string title = GetNativeSessionTitle(sessionId);
-                if (string.IsNullOrWhiteSpace(title)) return;
-
                 string path = await FindClaudeTranscriptPathAsync(provider, sessionId);
                 if (path == null) return;
 
-                await Task.Run(() =>
+                for (int pass = 0; pass < 2; pass++)
                 {
-                    if (ReadClaudeTranscriptTitle(path) == null)
+                    if (pass > 0) await Task.Delay(3000);
+
+                    await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
+                    string title = GetNativeSessionTitle(sessionId);
+                    var superseded = GetSupersededClaudeTitles(sessionId).ToList();
+
+                    await Task.Run(() =>
                     {
-                        AppendClaudeTitleRecords(path, sessionId, title);
-                    }
-                });
+                        if (ShouldAppendSavedClaudeTitle(ReadClaudeTranscriptTitle(path), title, superseded))
+                        {
+                            AppendClaudeTitleRecords(path, sessionId, title);
+                        }
+                    });
+                }
             }
             catch (Exception ex)
             {
@@ -788,6 +861,9 @@ namespace ClaudeCodeVS
         private bool ApplyTranscriptTitle(string sessionId, string transcriptTitle)
         {
             if (transcriptTitle == null || string.IsNullOrEmpty(sessionId) || _settings == null) return false;
+
+            // A name renamed away from here, written back by a CLI that was still running.
+            if (CurrentClaudeTranscriptTitle(sessionId, transcriptTitle) == null) return false;
 
             if (_settings.SessionCustomTitles == null)
             {
@@ -1706,6 +1782,10 @@ namespace ClaudeCodeVS
                     _settings.SessionCustomTitles =
                         new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
                 }
+
+                // An open chat tab's CLI may still write either old name back.
+                MarkClaudeTitleSuperseded(sel.SessionId, sel.CustomTitle, newTitle);
+                MarkClaudeTitleSuperseded(sel.SessionId, sel.TranscriptTitle, newTitle);
 
                 if (string.IsNullOrEmpty(newTitle))
                 {
