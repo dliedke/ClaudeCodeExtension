@@ -1652,6 +1652,7 @@ namespace ClaudeCodeVS
             SetSessionAutoTitle(sessionId, false);
 
             SaveSettings();
+            MarkClaudeTitleSuperseded(sessionId, currentTitle, newTitle);
 
             // Issue #170: also hand the name to Claude Code so its own /resume picker shows it.
             AiProvider renamedProvider = owner?.SelectedProvider ?? _currentRunningProvider ?? _settings.SelectedProvider;

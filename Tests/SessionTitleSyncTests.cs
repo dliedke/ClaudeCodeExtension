@@ -7,7 +7,8 @@
  * Usage and reproduction in any manner whatsoever without the written permission of Daniel Carvalho Liedke is strictly forbidden.
  *
  * Purpose: Covers the Claude Code transcript sync of issue #170: title records written on rename, titles read
- *          back from the transcript, and the entrypoint rewrite that lists native sessions in the CLI's /resume.
+ *          back from the transcript, the entrypoint rewrite that lists native sessions in the CLI's /resume,
+ *          and keeping a rename over the old name a still-running CLI writes back.
  *
  * *******************************************************************************************************************/
 
@@ -175,6 +176,33 @@ namespace ClaudeCodeExtension.Tests
                 Assert.AreEqual(string.Empty, ClaudeCodeControl.ReadClaudeTranscriptTitle(path));
             }
             finally { File.Delete(path); }
+        }
+
+        [TestMethod]
+        public void ShouldAppendSavedClaudeTitle_RestoresTheRenameOverAStaleCliWrite()
+        {
+            string[] superseded = { "Auto title" };
+
+            // The running CLI wrote its old name back after the rename.
+            Assert.IsTrue(ClaudeCodeControl.ShouldAppendSavedClaudeTitle("Auto title", "My title", superseded));
+            // Already current, or the tail has no title at all.
+            Assert.IsFalse(ClaudeCodeControl.ShouldAppendSavedClaudeTitle("My title", "My title", superseded));
+            Assert.IsTrue(ClaudeCodeControl.ShouldAppendSavedClaudeTitle(null, "My title", superseded));
+            // A name given in the CLI itself is not overwritten.
+            Assert.IsFalse(ClaudeCodeControl.ShouldAppendSavedClaudeTitle("Renamed in CLI", "My title", superseded));
+            // Nothing saved, nothing to write.
+            Assert.IsFalse(ClaudeCodeControl.ShouldAppendSavedClaudeTitle("Auto title", "", superseded));
+        }
+
+        [TestMethod]
+        public void IsSupersededClaudeTitle_MatchesOnlyNamesRenamedAwayFrom()
+        {
+            string[] superseded = { "Auto title" };
+
+            Assert.IsTrue(ClaudeCodeControl.IsSupersededClaudeTitle("Auto title ", superseded));
+            Assert.IsFalse(ClaudeCodeControl.IsSupersededClaudeTitle("Other", superseded));
+            Assert.IsFalse(ClaudeCodeControl.IsSupersededClaudeTitle(null, superseded));
+            Assert.IsFalse(ClaudeCodeControl.IsSupersededClaudeTitle("Auto title", new string[0]));
         }
     }
 }
