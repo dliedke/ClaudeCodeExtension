@@ -128,7 +128,7 @@ try {
     # Field lists are quoted: unquoted a,b,c is an array, and splatting it through Invoke-Gh
     # passes the fields as separate words, which gh rejects ("unknown arguments").
     if ($Kind -eq 'pr') {
-        $json = Invoke-Gh pr list --repo $Repo --state open --json 'number,headRefOid,title,author' 2>&1
+        $json = Invoke-Gh pr list --repo $Repo --state open --json 'number,headRefOid,title,author,isDraft' 2>&1
     } else {
         $json = Invoke-Gh issue list --repo $Repo --state open --limit 100 --json 'number,title,author' 2>&1
     }
@@ -136,6 +136,14 @@ try {
     # Filter blanks: Windows PowerShell turns "[]" into one empty object.
     $items = @(($json | Out-String | ConvertFrom-Json) | Where-Object { $_.number })
     if ($items.Count -eq 0) { Write-Log "No open ${Kind}s."; exit 0 }
+
+    # A draft PR is work in progress: reviewing it now would only judge (or reject) unfinished work.
+    # It is picked up once the author marks it ready, since that run sees it as not yet handled.
+    $drafts = @($items | Where-Object { $_.isDraft })
+    if ($drafts.Count -gt 0) {
+        $items = @($items | Where-Object { -not $_.isDraft })
+        if ($items.Count -eq 0) { Write-Log "$($drafts.Count) open, all drafts."; exit 0 }
+    }
 
     # PRs are keyed by head commit, so new pushes to a handled PR are picked up again.
     # Issues are handled once; follow-up comments or reopens need a manual look.
@@ -206,7 +214,7 @@ Items to handle in this run: $numbers
 
 When you are done, write a JSON array with one entry per item to $resultTarget, for example:
 [{"number": 220, "outcome": "merged", "version": "266.0", "summary": "One user-facing sentence.", "details": "What you changed or checked, or why you rejected it."}]
-outcome is one of: merged, fixed, answered, asked-for-details, deferred, rejected, skipped-unsafe, failed.
+outcome is one of: merged, fixed, answered, asked-for-details, changes-requested, deferred, rejected, skipped-unsafe, failed.
 version is the published version, or null when nothing was published.
 details is a few plain sentences for the maintainer: what was changed, tested and published, what was
 not verified by hand, or the specific reasons for rejecting, deferring or skipping. This is emailed.

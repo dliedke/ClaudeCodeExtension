@@ -166,14 +166,19 @@ Prerequisites: `claude` and `gh` on PATH, `gh auth login` done, and this machine
   titled "Claude repo watcher - PR #N - do not shut down". It streams Claude's steps live and
   keeps the PC from sleeping. It ends with a green "safe to shut down" or a red failure banner
   and closes 5 minutes later (or on a key press). The lock is held until the window closes.
-- **PRs**: review the diff (unsafe ones are skipped and left open) → quality gate (PRs that remove
-  features, change defaults, break saved settings or CLAUDE.md rules, weaken tests, or are too
-  large/mixed to review are rejected with a comment and closed; unsure ones are deferred) → merge
-  → version bump + README credit → build + `test.cmd` (failure reverts the merge) →
-  `publish.cmd` → push → thank and close.
+- **PRs**: drafts are skipped until marked ready. Review the diff (unsafe ones are skipped and
+  left open; changes to the build/publish scripts, CI, the watcher or `.claude` are deferred to the
+  maintainer) → build + `test.cmd` on the PR branch → merge by default: size, bundled changes and
+  reorganizations are no reason to reject, and fixable problems (version, translations, docs,
+  migrations, small bugs) are fixed in a follow-up commit on master. Problems only the author can
+  fix get a changes-requested comment and the PR stays open (re-reviewed on the next push); a PR is
+  closed only when unsafe or unacceptable in any form → version bump + README credit → build +
+  `test.cmd` (failure reverts the merge) → `publish.cmd` → push → thank (listing follow-up fixes)
+  and close.
 - **Issues**: questions are answered, unclear bugs get a request for details, large features are
-  deferred with a comment, and requests that would remove features, change defaults or weaken
-  security/tests are rejected and closed as not planned. Clear bugs and small features get the
+  deferred with a comment, small requests that would change behavior others rely on become
+  opt-in settings, and requests that would remove features or weaken security/tests even as an
+  opt-in are rejected and closed as not planned. Clear bugs and small features get the
   smallest fix on master, a self-review of the diff for regressions, then release, publish, reply
   and close.
 - **Handled once.** `state-pr.json` (keyed by PR number + head commit, so new pushes are
