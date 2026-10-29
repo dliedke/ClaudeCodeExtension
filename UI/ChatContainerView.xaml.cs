@@ -7,11 +7,13 @@
  * Usage and reproduction in any manner whatsoever without the written permission of Daniel Carvalho Liedke is strictly forbidden.
  *
  * Purpose: Content of the single "Claude Code Chat" window: a strip of chat tabs (title with status glyph,
- *          close button, "+") over one host grid per chat, of which only the selected one is shown.
+ *          close button) over one host grid per chat, of which only the selected one is shown; with no chat
+ *          open, a card offering a new chat, today's sessions or the session history.
  *
  * *******************************************************************************************************************/
 
 using System;
+using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Linq;
@@ -64,8 +66,14 @@ namespace ClaudeCodeVS.UI
     {
         private readonly ObservableCollection<ChatContainerTabItem> _tabs = new ObservableCollection<ChatContainerTabItem>();
 
-        /// <summary>The "+" button: start a new chat like the one in the selected tab.</summary>
+        /// <summary>"Start a new chat" on the card shown while no chat is open.</summary>
         public event EventHandler NewChatRequested;
+
+        /// <summary>"Restore today's sessions" on the same card.</summary>
+        public event EventHandler ResumeTodayRequested;
+
+        /// <summary>The Session History icon button beside it.</summary>
+        public event EventHandler SessionHistoryRequested;
 
         /// <summary>A tab became the selected one (by click, keyboard or code).</summary>
         internal event EventHandler<ChatContainerTabItem> TabSelected;
@@ -152,23 +160,104 @@ namespace ClaudeCodeVS.UI
             }
         }
 
+        /// <summary>
+        /// Scrolls just enough to show the tab, but stops on a tab's left edge so the first visible
+        /// tab is never cut (a cut tab reads as a missing one).
+        /// </summary>
         private void BringTabIntoView(ChatContainerTabItem item)
         {
             // After layout: a tab just added has no container yet.
 #pragma warning disable VSTHRD001, VSTHRD110
             Dispatcher.BeginInvoke(DispatcherPriority.Loaded, new Action(() =>
             {
-                if (TabStrip.ItemContainerGenerator.ContainerFromItem(item) is FrameworkElement element)
+                if (!(TabStrip.ItemContainerGenerator.ContainerFromItem(item) is FrameworkElement element))
                 {
-                    element.BringIntoView();
+                    return;
+                }
+
+                Rect bounds = element.TransformToAncestor(TabStrip).TransformBounds(new Rect(element.RenderSize));
+                double offset = TabScroller.HorizontalOffset;
+                double target = GetOffsetToShowTab(GetTabEdges(), bounds.Left, bounds.Right, offset, TabScroller.ViewportWidth);
+                if (Math.Abs(target - offset) > 0.5)
+                {
+                    TabScroller.ScrollToHorizontalOffset(target);
                 }
             }));
 #pragma warning restore VSTHRD001, VSTHRD110
         }
 
+        /// <summary>
+        /// Strip offset that shows the tab spanning <paramref name="tabLeft"/>..<paramref name="tabRight"/>:
+        /// unchanged when it is already in view; its own left edge when it is cut on the left; otherwise
+        /// the first tab edge far enough right to show it whole. A tab wider than the room is shown
+        /// from its own left edge.
+        /// </summary>
+        internal static double GetOffsetToShowTab(IEnumerable<double> tabEdges, double tabLeft, double tabRight,
+                                                  double offset, double viewportWidth)
+        {
+            if (tabLeft < offset)
+            {
+                return tabLeft;
+            }
+
+            if (tabRight > offset + viewportWidth)
+            {
+                double needed = tabRight - viewportWidth;
+                double edge = tabEdges.Where(x => x >= needed - 0.5).DefaultIfEmpty(tabLeft).Min();
+                return Math.Min(edge, tabLeft);
+            }
+
+            return offset;
+        }
+
+        /// <summary>
+        /// Strip offset one whole tab further: the next tab edge right (forward) or left of the
+        /// current offset, clamped to 0..<paramref name="scrollableWidth"/>.
+        /// </summary>
+        internal static double GetOffsetOneTabFurther(IEnumerable<double> tabEdges, double offset,
+                                                      double scrollableWidth, bool forward)
+        {
+            double target = forward
+                ? tabEdges.Where(x => x > offset + 0.5).DefaultIfEmpty(scrollableWidth).Min()
+                : tabEdges.Where(x => x < offset - 0.5).DefaultIfEmpty(0).Max();
+            return Math.Max(0, Math.Min(target, scrollableWidth));
+        }
+
+        /// <summary>Left edge of every tab, in strip coordinates, left to right.</summary>
+        private List<double> GetTabEdges()
+        {
+            var edges = new List<double>();
+            for (int i = 0; i < _tabs.Count; i++)
+            {
+                if (TabStrip.ItemContainerGenerator.ContainerFromIndex(i) is FrameworkElement element)
+                {
+                    edges.Add(element.TransformToAncestor(TabStrip).Transform(new Point(0, 0)).X);
+                }
+            }
+            edges.Sort();
+            return edges;
+        }
+
+        /// <summary>Moves the strip one whole tab: its left edge lands on the previous/next tab's.</summary>
+        private void ScrollTabsByOne(bool forward)
+        {
+            TabScroller.ScrollToHorizontalOffset(
+                GetOffsetOneTabFurther(GetTabEdges(), TabScroller.HorizontalOffset, TabScroller.ScrollableWidth, forward));
+        }
+
+        private void TabScrollLeftButton_Click(object sender, RoutedEventArgs e)
+        {
+            ScrollTabsByOne(forward: false);
+        }
+
+        private void TabScrollRightButton_Click(object sender, RoutedEventArgs e)
+        {
+            ScrollTabsByOne(forward: true);
+        }
+
         private void UpdateEmptyState()
         {
-            EmptyText.Visibility = _tabs.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
+            EmptyCard.Visibility = _tabs.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
         }
 
         private void Tab_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
@@ -292,27 +381,6 @@ namespace ClaudeCodeVS.UI
             menu.IsOpen = true;
         }
 
-        /// <summary>The "+" follows the chat's icon style: VS's green Add icon (Modern) or ✚ (Classic).</summary>
-        internal void SetModernIcons(bool modern)
-        {
-            if (modern)
-            {
-                if (!(NewChatButton.Content is Microsoft.VisualStudio.Imaging.CrispImage))
-                {
-                    NewChatButton.Content = new Microsoft.VisualStudio.Imaging.CrispImage
-                    {
-                        Moniker = Microsoft.VisualStudio.Imaging.KnownMonikers.Add,
-                        Width = 16,
-                        Height = 16
-                    };
-                }
-            }
-            else
-            {
-                NewChatButton.Content = "✚";
-            }
-        }
-
         private void TabClose_Click(object sender, RoutedEventArgs e)
         {
             if ((sender as FrameworkElement)?.DataContext is ChatContainerTabItem item)
@@ -326,14 +394,30 @@ namespace ClaudeCodeVS.UI
             NewChatRequested?.Invoke(this, EventArgs.Empty);
         }
 
+        private void ResumeTodayButton_Click(object sender, RoutedEventArgs e)
+        {
+            ResumeTodayRequested?.Invoke(this, EventArgs.Empty);
+        }
+
+        private void SessionHistoryButton_Click(object sender, RoutedEventArgs e)
+        {
+            SessionHistoryRequested?.Invoke(this, EventArgs.Empty);
+        }
+
         /// <summary>
-        /// The ▾ shows only while the strip is wider than its room: extent and viewport both change
-        /// through ScrollChanged (tabs added/removed, captions changing, the window resized).
+        /// The ▾ and the ◂ ▸ arrows show only while the strip is wider than its room: extent and
+        /// viewport both change through ScrollChanged (tabs added/removed, captions changing, the
+        /// window resized). An arrow is disabled once the strip is at that end.
         /// </summary>
         private void TabScroller_ScrollChanged(object sender, ScrollChangedEventArgs e)
         {
             bool overflowing = TabScroller.ExtentWidth > TabScroller.ViewportWidth + 0.5;
-            TabListButton.Visibility = overflowing ? Visibility.Visible : Visibility.Collapsed;
+            Visibility visibility = overflowing ? Visibility.Visible : Visibility.Collapsed;
+            TabListButton.Visibility = visibility;
+            TabScrollLeftButton.Visibility = visibility;
+            TabScrollRightButton.Visibility = visibility;
+            TabScrollLeftButton.IsEnabled = TabScroller.HorizontalOffset > 0.5;
+            TabScrollRightButton.IsEnabled = TabScroller.HorizontalOffset < TabScroller.ScrollableWidth - 0.5;
         }
 
         /// <summary>Every chat, in strip order, the selected one checked; a click selects it.</summary>
@@ -364,10 +448,13 @@ namespace ClaudeCodeVS.UI
             menu.IsOpen = true;
         }
 
-        /// <summary>The wheel scrolls the strip sideways when there are more tabs than room.</summary>
+        /// <summary>The wheel steps the strip one whole tab per notch, like the ◂ ▸ arrows.</summary>
         private void TabScroller_PreviewMouseWheel(object sender, MouseWheelEventArgs e)
         {
-            TabScroller.ScrollToHorizontalOffset(TabScroller.HorizontalOffset - e.Delta / 3.0);
+            if (e.Delta != 0)
+            {
+                ScrollTabsByOne(forward: e.Delta < 0);
+            }
             e.Handled = true;
         }
 

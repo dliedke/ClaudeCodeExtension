@@ -5,6 +5,8 @@
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:local="clr-namespace:ClaudeCodeVS.UI"
              xmlns:vsshell="clr-namespace:Microsoft.VisualStudio.Shell;assembly=Microsoft.VisualStudio.Shell.15.0"
+             xmlns:imaging="clr-namespace:Microsoft.VisualStudio.Imaging;assembly=Microsoft.VisualStudio.Imaging"
+             xmlns:catalog="clr-namespace:Microsoft.VisualStudio.Imaging;assembly=Microsoft.VisualStudio.ImageCatalog"
              mc:Ignorable="d"
              d:DesignHeight="400" d:DesignWidth="600"
              Background="{DynamicResource {x:Static vsshell:VsBrushes.ToolWindowBackgroundKey}}"
@@ -16,9 +18,14 @@
 		<ResourceDictionary.MergedDictionaries>
 			<!-- The tab menu uses the chat's own menu styles. -->
 			<ResourceDictionary Source="/ClaudeCodeExtension;component/UI/ChatStyles.xaml"/>
+			<!-- The empty window's buttons use the dialogs' rounded VS-themed ones. -->
+			<ResourceDictionary Source="/ClaudeCodeExtension;component/UI/ThemedDialogStyles.xaml"/>
 		</ResourceDictionary.MergedDictionaries>
 
-		<!-- Flat glyph button for the tab strip (✕ on a tab, + at the end of the strip). -->
+		<!-- The chat welcome card's accent (ChatAccentBrush), for the empty window's card. -->
+		<SolidColorBrush x:Key="EmptyAccentBrush" Color="#1C8AE0"/>
+
+		<!-- Flat glyph button for the tab strip (✕ on a tab, ▾ at the end of the strip). -->
 		<Style x:Key="ChatStripButtonStyle" TargetType="Button">
 			<Setter Property="Background" Value="Transparent"/>
 			<Setter Property="BorderThickness" Value="0"/>
@@ -33,6 +40,10 @@
 						<ControlTemplate.Triggers>
 							<Trigger Property="IsMouseOver" Value="True">
 								<Setter TargetName="Bd" Property="Background" Value="{DynamicResource {x:Static vsshell:VsBrushes.FileTabHotGradientTopKey}}"/>
+							</Trigger>
+							<Trigger Property="IsEnabled" Value="False">
+								<Setter Property="Opacity" Value="0.35"/>
+								<Setter Property="Cursor" Value="Arrow"/>
 							</Trigger>
 						</ControlTemplate.Triggers>
 					</ControlTemplate>
@@ -54,15 +65,6 @@
 		        BorderThickness="0,0,0,2"
 		        BorderBrush="{DynamicResource {x:Static vsshell:VsBrushes.FileTabSelectedBackgroundKey}}">
 			<DockPanel LastChildFill="True">
-				<Button x:Name="NewChatButton"
-				        DockPanel.Dock="Right"
-				        Style="{StaticResource ChatStripButtonStyle}"
-				        Foreground="{DynamicResource {x:Static vsshell:VsBrushes.FileTabTextKey}}"
-				        Content="✚"
-				        FontSize="13"
-				        Width="26" Height="24" Margin="2,1,4,1"
-				        ToolTip="{local:Loc 'New chat'}"
-				        Click="NewChatButton_Click"/>
 				<!-- Only while some tabs do not fit: lists every chat, a click brings it forward. -->
 				<Button x:Name="TabListButton"
 				        DockPanel.Dock="Right"
@@ -70,10 +72,29 @@
 				        Foreground="{DynamicResource {x:Static vsshell:VsBrushes.FileTabTextKey}}"
 				        Content="▾"
 				        FontSize="13"
-				        Width="22" Height="24" Margin="2,1,0,1"
+				        Width="22" Height="24" Margin="2,1,4,1"
 				        Visibility="Collapsed"
 				        ToolTip="{local:Loc 'All chats'}"
 				        Click="TabListButton_Click"/>
+				<!-- Also only while overflowing: step the strip one whole tab left or right. -->
+				<Button x:Name="TabScrollRightButton"
+				        DockPanel.Dock="Right"
+				        Style="{StaticResource ChatStripButtonStyle}"
+				        Foreground="{DynamicResource {x:Static vsshell:VsBrushes.FileTabTextKey}}"
+				        Content="▸"
+				        FontSize="13"
+				        Width="18" Height="24" Margin="2,1,0,1"
+				        Visibility="Collapsed"
+				        Click="TabScrollRightButton_Click"/>
+				<Button x:Name="TabScrollLeftButton"
+				        DockPanel.Dock="Left"
+				        Style="{StaticResource ChatStripButtonStyle}"
+				        Foreground="{DynamicResource {x:Static vsshell:VsBrushes.FileTabTextKey}}"
+				        Content="◂"
+				        FontSize="13"
+				        Width="18" Height="24" Margin="2,1,2,1"
+				        Visibility="Collapsed"
+				        Click="TabScrollLeftButton_Click"/>
 				<ScrollViewer x:Name="TabScroller"
 				              HorizontalScrollBarVisibility="Hidden"
 				              VerticalScrollBarVisibility="Disabled"
@@ -136,12 +157,73 @@
 		<!-- One host grid per chat; only the selected one is visible, the others keep their state. -->
 		<Grid x:Name="ContentHost" Grid.Row="1"/>
 
-		<TextBlock x:Name="EmptyText"
-		           Grid.Row="1"
-		           Text="{local:Loc 'No chat is open. Use + to start one.'}"
-		           HorizontalAlignment="Center"
-		           VerticalAlignment="Center"
-		           Opacity="0.6"
-		           FontStyle="Italic"/>
+		<!-- No chat open: a card in the welcome card's style, centered, with the two ways to fill the window. -->
+		<Grid x:Name="EmptyCard"
+		      Grid.Row="1"
+		      HorizontalAlignment="Center"
+		      VerticalAlignment="Center"
+		      Margin="16">
+			<Border BorderBrush="{StaticResource EmptyAccentBrush}"
+			        BorderThickness="1" CornerRadius="4"
+			        Margin="0,8,0,0" Padding="28,18,28,22">
+				<StackPanel MinWidth="240">
+					<!-- Same drawn critter as the chat's welcome card. -->
+					<Viewbox Width="84" Height="60" Margin="0,6,0,12">
+						<Canvas Width="14" Height="10">
+							<Rectangle Canvas.Left="2" Canvas.Top="0" Width="10" Height="1" Fill="{StaticResource EmptyAccentBrush}"/>
+							<Rectangle Canvas.Left="1" Canvas.Top="1" Width="12" Height="5" Fill="{StaticResource EmptyAccentBrush}"/>
+							<Rectangle Canvas.Left="1.6" Canvas.Top="6" Width="1.6" Height="2.6" Fill="{StaticResource EmptyAccentBrush}"/>
+							<Rectangle Canvas.Left="4.6" Canvas.Top="6" Width="1.6" Height="2.6" Fill="{StaticResource EmptyAccentBrush}"/>
+							<Rectangle Canvas.Left="7.8" Canvas.Top="6" Width="1.6" Height="2.6" Fill="{StaticResource EmptyAccentBrush}"/>
+							<Rectangle Canvas.Left="10.8" Canvas.Top="6" Width="1.6" Height="2.6" Fill="{StaticResource EmptyAccentBrush}"/>
+							<Rectangle Canvas.Left="3.6" Canvas.Top="2" Width="1.6" Height="1.8"
+							           Fill="{DynamicResource {x:Static vsshell:VsBrushes.ToolWindowBackgroundKey}}"/>
+							<Rectangle Canvas.Left="8.8" Canvas.Top="2" Width="1.6" Height="1.8"
+							           Fill="{DynamicResource {x:Static vsshell:VsBrushes.ToolWindowBackgroundKey}}"/>
+						</Canvas>
+					</Viewbox>
+
+					<TextBlock Text="{local:Loc 'No chat is open.'}"
+					           HorizontalAlignment="Center"
+					           Opacity="0.75"
+					           Margin="0,0,0,16"/>
+
+					<Button Style="{StaticResource ThemedDialogPrimaryButtonStyle}"
+					        Content="{local:Loc 'Start a new chat'}"
+					        Height="34"
+					        FontSize="13"
+					        Margin="0,0,0,8"
+					        Click="NewChatButton_Click"/>
+					<!-- Session History beside it, icon only: search and resume any past conversation. -->
+					<DockPanel LastChildFill="True">
+						<Button DockPanel.Dock="Right"
+						        Style="{StaticResource ThemedDialogButtonStyle}"
+						        Width="34"
+						        MinWidth="0"
+						        Height="34"
+						        Padding="0"
+						        Margin="8,0,0,0"
+						        ToolTip="{local:Loc 'Session History'}"
+						        Click="SessionHistoryButton_Click">
+							<imaging:CrispImage Width="16" Height="16" Moniker="{x:Static catalog:KnownMonikers.History}"/>
+						</Button>
+						<Button Style="{StaticResource ThemedDialogButtonStyle}"
+						        Content="{local:Loc 'Restore today\'s sessions'}"
+						        Height="34"
+						        FontSize="13"
+						        Click="ResumeTodayButton_Click"/>
+					</DockPanel>
+				</StackPanel>
+			</Border>
+
+			<!-- Caption sitting on the frame, like the welcome card's. -->
+			<Border HorizontalAlignment="Left" VerticalAlignment="Top"
+			        Margin="12,0,0,0" Padding="5,0,5,0"
+			        Background="{DynamicResource {x:Static vsshell:VsBrushes.ToolWindowBackgroundKey}}">
+				<TextBlock Text="Claude Code"
+				           FontWeight="SemiBold"
+				           Foreground="{StaticResource EmptyAccentBrush}"/>
+			</Border>
+		</Grid>
 	</Grid>
 </UserControl>

@@ -44,22 +44,31 @@ namespace ClaudeCodeVS
             _view = new ChatContainerView();
             _view.TabSelected += (s, item) => FindTab(item)?.RaiseActivated();
             _view.TabCloseRequested += (s, item) => ((IChatTabHost)FindTab(item))?.Close();
-            _view.NewChatRequested += OnViewNewChatRequested;
+            _view.NewChatRequested += (s, e) => Forward(NewChatRequested, e);
+            _view.ResumeTodayRequested += (s, e) => Forward(ResumeTodayRequested, e);
+            _view.SessionHistoryRequested += (s, e) => Forward(SessionHistoryRequested, e);
             Content = _view;
         }
 
-        /// <summary>The "+" in the tab strip; <see cref="SelectedTranscript"/> says which chat it was next to.</summary>
+        /// <summary>"Start a new chat" on the empty window.</summary>
         internal event EventHandler NewChatRequested;
+
+        /// <summary>"Restore today's sessions" on the empty window.</summary>
+        internal event EventHandler ResumeTodayRequested;
+
+        /// <summary>The Session History icon button on the empty window.</summary>
+        internal event EventHandler SessionHistoryRequested;
 
         /// <summary>
         /// VS restores this window with its layout, before the Claude Code panel — which runs the chats —
-        /// has loaded. Nothing is listening then, so "+" opens the panel, which starts the chat here.
+        /// has loaded. Nothing is listening then, so the empty window's buttons open the panel instead,
+        /// which starts a chat here.
         /// </summary>
-        private void OnViewNewChatRequested(object sender, EventArgs e)
+        private void Forward(EventHandler handler, EventArgs e)
         {
-            if (NewChatRequested != null)
+            if (handler != null)
             {
-                NewChatRequested(this, e);
+                handler(this, e);
                 return;
             }
 
@@ -75,9 +84,6 @@ namespace ClaudeCodeVS
         }
 
         internal ChatTranscriptView SelectedTranscript => _view.SelectedTranscript;
-
-        /// <summary>Follows Settings → chat icon style (Modern / Classic) for the "+".</summary>
-        internal void SetModernIcons(bool modern) => _view.SetModernIcons(modern);
 
         /// <summary>
         /// The inner tab for one chat, created on first use. <paramref name="windowId"/> plays the same
@@ -159,20 +165,10 @@ namespace ClaudeCodeVS
         {
             ThreadHelper.ThrowIfNotOnUIThread();
 
-            // The window's own "+" replaces the composer's ✚ while a chat lives here.
-            foreach (ChatTranscriptView leaving in Item.Host.Children.OfType<ChatTranscriptView>())
-            {
-                leaving.ShowNewChatAction = true;
-            }
-
             Item.Host.Children.Clear();
             if (content != null)
             {
                 Item.Host.Children.Add(content);
-                if (content is ChatTranscriptView arriving)
-                {
-                    arriving.ShowNewChatAction = false;
-                }
             }
         }
 

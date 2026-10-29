@@ -271,9 +271,11 @@ namespace ClaudeCodeVS
                 _chatContainer = container;
                 container.NewChatRequested += (s, e) =>
                     OnComposerNewChatRequested((object)container.SelectedTranscript ?? ChatTranscript, EventArgs.Empty);
+                container.ResumeTodayRequested += (s, e) =>
+                    StartSessionHistoryTask(ResumeTodaysSessionsAsync, "claudecode/chatcontainer/resumetoday");
+                container.SessionHistoryRequested += (s, e) =>
+                    StartSessionHistoryTask(ShowSessionHistoryDialogAsync, "claudecode/chatcontainer/sessionhistory");
             }
-
-            container.SetModernIcons(_settings?.ChatIconStyle == ChatIconStyle.Modern);
 
             return container.GetOrCreateTab(windowId);
         }
@@ -1085,13 +1087,20 @@ namespace ClaudeCodeVS
         /// <summary>
         /// Tab caption for a chat: the session's title (custom or automatic) when it has one, so several
         /// open chats are distinguishable from the tab strip alone — the agent's name in front of it
-        /// left no room for the title once VS truncated the tab (v259.0). Untitled: the agent's name.
+        /// left no room for the title once VS truncated the tab (v259.0). Untitled: the agent's name, or
+        /// "New conversation" for an inner tab of the single chat window.
         /// </summary>
         private string BuildChatTabCaption(AiProvider? provider, string sessionTitle)
         {
             if (!string.IsNullOrWhiteSpace(sessionTitle))
             {
                 return sessionTitle.Trim();
+            }
+
+            // The host kind is fixed at the first chat tab; before that, the setting decides it.
+            if (_chatTabsInOneWindow ?? (_settings?.ChatTabsInOneWindow == true))
+            {
+                return L("New conversation");
             }
 
             string name = GetProviderDisplayName(provider);
