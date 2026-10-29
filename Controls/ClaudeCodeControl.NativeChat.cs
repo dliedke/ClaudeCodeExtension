@@ -2744,18 +2744,38 @@ namespace ClaudeCodeVS
                     return;
                 }
 
-                // Drop the oldest message with the thinking that led to it, then the tool calls that
-                // belonged to it, so the replay never opens on cards or thinking whose message is gone.
-                while (_window.First != null && _window.First.Value.Kind == ChatMessageKind.Thinking)
+                // Drop the oldest message with the thinking that led to it, then the tool calls and
+                // thinking that followed it, up to the thinking that leads into the next message — so the
+                // replay never opens on cards or thinking whose message is gone. Thinking can sit between
+                // tool calls, so stopping at the first thinking row would leave cards behind and remove a
+                // card in place of the next message, overcounting the messages shown.
+                while (_window.First != null && !IsMessage(_window.First.Value))
                 {
                     RemoveFirst();
                 }
 
                 RemoveFirst();
-                while (_window.First != null && _window.First.Value.Kind == ChatMessageKind.ToolCall)
+
+                LinkedListNode<ResumedTranscriptRow> keepFrom = _window.First;
+                while (keepFrom != null && !IsMessage(keepFrom.Value))
+                {
+                    keepFrom = keepFrom.Next;
+                }
+
+                while (keepFrom != null && keepFrom.Previous != null && keepFrom.Previous.Value.Kind == ChatMessageKind.Thinking)
+                {
+                    keepFrom = keepFrom.Previous;
+                }
+
+                while (keepFrom != null && _window.First != keepFrom)
                 {
                     RemoveFirst();
                 }
+            }
+
+            private static bool IsMessage(ResumedTranscriptRow row)
+            {
+                return row.Kind != ChatMessageKind.ToolCall && row.Kind != ChatMessageKind.Thinking;
             }
 
             /// <summary>

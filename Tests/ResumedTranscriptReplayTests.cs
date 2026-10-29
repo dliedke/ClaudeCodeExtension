@@ -229,6 +229,37 @@ namespace ClaudeCodeExtension.Tests
             Assert.AreEqual("new reasoning", replay.Rows[1].Text);
         }
 
+        [TestMethod]
+        public void ThinkingBetweenToolCallsLeavesWithTheMessageBeforeIt()
+        {
+            string[] lines =
+            {
+                User("First"),
+                Thinking("plan A"),
+                Read("t1", "a.cs"),
+                Result("t1", "x"),
+                Thinking("plan B", "Old answer."),
+                User("Second"),
+                AssistantText("New answer.")
+            };
+
+            // Dropping "First" also drops the thinking and the card that followed it; only the thinking
+            // right before the next message stays with that message.
+            var replay = Replay(3, 500, 30, lines);
+            Assert.AreEqual(3, replay.ShownMessages);
+            CollectionAssert.AreEqual(
+                new[] { ChatMessageKind.Thinking, ChatMessageKind.Assistant, ChatMessageKind.User, ChatMessageKind.Assistant },
+                replay.Rows.Select(row => row.Kind).ToArray());
+            Assert.AreEqual("plan B", replay.Rows[0].Text);
+
+            // The message count stays exact, so the cap holds.
+            replay = Replay(2, 500, 30, lines);
+            Assert.AreEqual(2, replay.ShownMessages);
+            CollectionAssert.AreEqual(
+                new[] { ChatMessageKind.User, ChatMessageKind.Assistant },
+                replay.Rows.Select(row => row.Kind).ToArray());
+        }
+
         /// <summary>
         /// The limits are backed by the measurements in docs/PERFORMANCE.md; a change has to come with a new
         /// measurement there. This test makes such a change visible in review instead of silent.
