@@ -176,6 +176,10 @@ Pull requests for new features are welcome. Bug fixes too — if you find an iss
 
 ## Version History
 
+### Version 285.0
+- Renaming a Claude Code conversation while its chat is still running now sticks: the old name no longer comes back in the tab, Session History or Claude Code's own resume list after the next reply.
+- Thanks to [@ClaudioCas](https://github.com/ClaudioCas) for this release (#239).
+
 ### Version 284.0
 - In native mode, picking a conversation in Session History from an empty chat tab where you already started typing a prompt (or attached files) now opens it in a new tab, so your draft stays where it was.
 - Thanks to [@ClaudioCas](https://github.com/ClaudioCas) for this release (#238).
