@@ -7,7 +7,8 @@
  * Usage and reproduction in any manner whatsoever without the written permission of Daniel Carvalho Liedke is strictly forbidden.
  *
  * Purpose: Covers the Claude Code transcript sync of issue #170: title records written on rename, titles read
- *          back from the transcript, and the entrypoint rewrite that lists native sessions in the CLI's /resume.
+ *          back from the transcript, the entrypoint rewrite that lists native sessions in the CLI's /resume,
+ *          and the record timestamps Session History shows as a conversation's last-used time.
  *
  * *******************************************************************************************************************/
 
@@ -175,6 +176,27 @@ namespace ClaudeCodeExtension.Tests
                 Assert.AreEqual(string.Empty, ClaudeCodeControl.ReadClaudeTranscriptTitle(path));
             }
             finally { File.Delete(path); }
+        }
+
+        [TestMethod]
+        public void ReadTranscriptRecordTime_ReturnsTheRecordTimestampInLocalTime()
+        {
+            var expected = new System.DateTime(2026, 10, 29, 17, 33, 5, System.DateTimeKind.Utc).ToLocalTime();
+
+            // As Json.NET parses a line by default (the value becomes a date)…
+            JObject parsed = JObject.Parse("{\"type\":\"user\",\"timestamp\":\"2026-10-29T17:33:05.000Z\"}");
+            Assert.AreEqual(expected, ClaudeCodeControl.ReadTranscriptRecordTime(parsed));
+
+            // …and with the value kept as text.
+            var raw = new JObject { ["type"] = "user", ["timestamp"] = "2026-10-29T17:33:05.000Z" };
+            Assert.AreEqual(expected, ClaudeCodeControl.ReadTranscriptRecordTime(raw));
+        }
+
+        [TestMethod]
+        public void ReadTranscriptRecordTime_IsNullWithoutATimestamp()
+        {
+            Assert.IsNull(ClaudeCodeControl.ReadTranscriptRecordTime(JObject.Parse("{\"type\":\"custom-title\"}")));
+            Assert.IsNull(ClaudeCodeControl.ReadTranscriptRecordTime(new JObject { ["timestamp"] = "not a date" }));
         }
     }
 }
