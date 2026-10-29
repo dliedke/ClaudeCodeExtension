@@ -128,6 +128,37 @@ namespace ClaudeCodeVS.UI
         }
     }
 
+    /// <summary>Which thinking row the chat opens by itself (see <c>ChatThinkingDisplay</c>).</summary>
+    public static class ChatThinkingRows
+    {
+        /// <summary>
+        /// The thinking row a question card arriving now follows, or null. Walking back from the end,
+        /// only a still running tool call is skipped — the question's own <c>AskUserQuestion</c> row,
+        /// answered only with the card. Anything else first (a reply, a finished tool, a prompt) means
+        /// the card already has its context or the thinking was about something else.
+        /// </summary>
+        public static ChatMessageViewModel FindBeforeQuestion(IList<ChatMessageViewModel> messages)
+        {
+            if (messages == null)
+            {
+                return null;
+            }
+
+            for (int i = messages.Count - 1; i >= 0; i--)
+            {
+                ChatMessageViewModel row = messages[i];
+                if (row == null || (row.Kind == ChatMessageKind.ToolCall && row.IsRunning))
+                {
+                    continue;
+                }
+
+                return row.Kind == ChatMessageKind.Thinking ? row : null;
+            }
+
+            return null;
+        }
+    }
+
     /// <summary>
     /// One row of the chat transcript.
     /// <para>

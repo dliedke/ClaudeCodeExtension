@@ -2870,6 +2870,18 @@ namespace ClaudeCodeVS
                 FinishStreamingMessages();
             }
 
+            // An agent sometimes explains its options only in its thinking and goes straight to the
+            // question: open that row, or the card arrives without the reasoning behind it.
+            if (request.Kind == AgentInteractionKind.Question &&
+                _settings?.ChatThinkingDisplay == ChatThinkingDisplay.OpenBeforeQuestion)
+            {
+                ChatMessageViewModel thinking = ChatThinkingRows.FindBeforeQuestion(transcript.Messages);
+                if (thinking != null)
+                {
+                    thinking.IsExpanded = true;
+                }
+            }
+
             var interaction = new ChatInteractionViewModel(request);
             transcript.AddInteraction(interaction);
             SetChatTabStatus(owner, ChatTabStatus.WaitingForUser);
@@ -3270,7 +3282,7 @@ namespace ClaudeCodeVS
 
             if (_streamingThinkingMessage != null)
             {
-                _streamingThinkingMessage.Complete();
+                CompleteThinkingRow(_streamingThinkingMessage);
                 _streamingThinkingMessage = null;
             }
         }
@@ -3905,8 +3917,23 @@ namespace ClaudeCodeVS
 
             if (session.StreamingThinkingMessage != null)
             {
-                session.StreamingThinkingMessage.Complete();
+                CompleteThinkingRow(session.StreamingThinkingMessage);
                 session.StreamingThinkingMessage = null;
+            }
+        }
+
+        /// <summary>
+        /// Closes a live thinking row and, with "Always open", opens it. Only once finished: the row's
+        /// body renders from <c>RenderedText</c>, which stays empty while the thinking streams. Thinking
+        /// replayed from a resumed transcript does not pass here and stays collapsed.
+        /// </summary>
+        private void CompleteThinkingRow(ChatMessageViewModel thinking)
+        {
+            thinking.Complete();
+
+            if (_settings?.ChatThinkingDisplay == ChatThinkingDisplay.AlwaysOpen)
+            {
+                thinking.IsExpanded = true;
             }
         }
 

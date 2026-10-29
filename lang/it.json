@@ -1086,5 +1086,10 @@
   "⚙  Settings": "⚙  Impostazioni",
   "Always shown, so the settings stay reachable. Drag it to move it.": "Sempre visibile, così le impostazioni restano raggiungibili. Trascinalo per spostarlo.",
   "Configure…": "Configura…",
-  "⚠ The ☰ Tools menu is hidden, so the unchecked features above are not available anywhere.": "⚠ Il menu ☰ Strumenti è nascosto, quindi le funzioni deselezionate qui sopra non sono disponibili da nessuna parte."
+  "⚠ The ☰ Tools menu is hidden, so the unchecked features above are not available anywhere.": "⚠ Il menu ☰ Strumenti è nascosto, quindi le funzioni deselezionate qui sopra non sono disponibili da nessuna parte.",
+  "Thinking in the chat:": "Ragionamento nella chat:",
+  "Thinking is the agent's own reasoning and is shown as a collapsed row. An agent sometimes explains its options only there and then asks a question; \"Open when followed by a question\" opens that row together with the question card. Any row can still be opened or closed by clicking it.": "Il ragionamento è il pensiero dell'agente e viene mostrato come una riga compressa. A volte un agente spiega le sue opzioni solo lì e poi fa una domanda; \"Apri quando è seguito da una domanda\" apre quella riga insieme alla scheda della domanda. Ogni riga si può comunque aprire o chiudere con un clic.",
+  "Keep collapsed": "Mantieni compresso",
+  "Open when followed by a question": "Apri quando è seguito da una domanda",
+  "Always open": "Sempre aperto"
 }

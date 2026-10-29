@@ -1086,5 +1086,10 @@
   "⚙  Settings": "⚙  सेटिंग्स",
   "Always shown, so the settings stay reachable. Drag it to move it.": "हमेशा दिखता है, ताकि सेटिंग्स तक पहुँच बनी रहे। इसे खिसकाने के लिए खींचें।",
   "Configure…": "कॉन्फ़िगर करें…",
-  "⚠ The ☰ Tools menu is hidden, so the unchecked features above are not available anywhere.": "⚠ ☰ टूल्स मेनू छिपा है, इसलिए ऊपर की अचयनित सुविधाएँ कहीं उपलब्ध नहीं हैं।"
+  "⚠ The ☰ Tools menu is hidden, so the unchecked features above are not available anywhere.": "⚠ ☰ टूल्स मेनू छिपा है, इसलिए ऊपर की अचयनित सुविधाएँ कहीं उपलब्ध नहीं हैं।",
+  "Thinking in the chat:": "चैट में सोच:",
+  "Thinking is the agent's own reasoning and is shown as a collapsed row. An agent sometimes explains its options only there and then asks a question; \"Open when followed by a question\" opens that row together with the question card. Any row can still be opened or closed by clicking it.": "सोच एजेंट का अपना तर्क है और एक संकुचित पंक्ति के रूप में दिखाई जाती है। कभी-कभी एजेंट अपने विकल्प केवल वहीं समझाता है और फिर प्रश्न पूछता है; \"प्रश्न आने पर खोलें\" उस पंक्ति को प्रश्न कार्ड के साथ खोलता है। किसी भी पंक्ति को क्लिक करके अब भी खोला या बंद किया जा सकता है।",
+  "Keep collapsed": "संकुचित रखें",
+  "Open when followed by a question": "प्रश्न आने पर खोलें",
+  "Always open": "हमेशा खुला"
 }

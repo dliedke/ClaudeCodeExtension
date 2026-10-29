@@ -1086,5 +1086,10 @@
   "⚙  Settings": "⚙  การตั้งค่า",
   "Always shown, so the settings stay reachable. Drag it to move it.": "แสดงเสมอเพื่อให้เข้าถึงการตั้งค่าได้ตลอด ลากเพื่อย้ายตำแหน่ง",
   "Configure…": "กำหนดค่า…",
-  "⚠ The ☰ Tools menu is hidden, so the unchecked features above are not available anywhere.": "⚠ เมนูเครื่องมือ ☰ ถูกซ่อนอยู่ ฟีเจอร์ที่ไม่ได้เลือกด้านบนจึงใช้ไม่ได้จากที่ใดเลย"
+  "⚠ The ☰ Tools menu is hidden, so the unchecked features above are not available anywhere.": "⚠ เมนูเครื่องมือ ☰ ถูกซ่อนอยู่ ฟีเจอร์ที่ไม่ได้เลือกด้านบนจึงใช้ไม่ได้จากที่ใดเลย",
+  "Thinking in the chat:": "การคิดในแชท:",
+  "Thinking is the agent's own reasoning and is shown as a collapsed row. An agent sometimes explains its options only there and then asks a question; \"Open when followed by a question\" opens that row together with the question card. Any row can still be opened or closed by clicking it.": "การคิดคือการให้เหตุผลของเอเจนต์เองและแสดงเป็นแถวที่ยุบไว้ บางครั้งเอเจนต์อธิบายตัวเลือกไว้เฉพาะตรงนั้นแล้วจึงถามคำถาม \"เปิดเมื่อมีคำถามตามมา\" จะเปิดแถวนั้นพร้อมกับการ์ดคำถาม ยังคงคลิกเพื่อเปิดหรือปิดแถวใดก็ได้",
+  "Keep collapsed": "ยุบไว้เสมอ",
+  "Open when followed by a question": "เปิดเมื่อมีคำถามตามมา",
+  "Always open": "เปิดเสมอ"
 }

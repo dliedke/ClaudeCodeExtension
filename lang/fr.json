@@ -1086,5 +1086,10 @@
   "⚙  Settings": "⚙  Paramètres",
   "Always shown, so the settings stay reachable. Drag it to move it.": "Toujours affiché, pour que les paramètres restent accessibles. Faites-le glisser pour le déplacer.",
   "Configure…": "Configurer…",
-  "⚠ The ☰ Tools menu is hidden, so the unchecked features above are not available anywhere.": "⚠ Le menu ☰ Outils est masqué, les fonctions décochées ci-dessus ne sont donc disponibles nulle part."
+  "⚠ The ☰ Tools menu is hidden, so the unchecked features above are not available anywhere.": "⚠ Le menu ☰ Outils est masqué, les fonctions décochées ci-dessus ne sont donc disponibles nulle part.",
+  "Thinking in the chat:": "Réflexion dans le chat :",
+  "Thinking is the agent's own reasoning and is shown as a collapsed row. An agent sometimes explains its options only there and then asks a question; \"Open when followed by a question\" opens that row together with the question card. Any row can still be opened or closed by clicking it.": "La réflexion est le raisonnement propre de l'agent et s'affiche sous forme de ligne réduite. Un agent n'explique parfois ses options que là, puis pose une question ; « Ouvrir quand une question suit » ouvre cette ligne avec la carte de question. Toute ligne peut toujours être ouverte ou fermée d'un clic.",
+  "Keep collapsed": "Garder réduit",
+  "Open when followed by a question": "Ouvrir quand une question suit",
+  "Always open": "Toujours ouvert"
 }

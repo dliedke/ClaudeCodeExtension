@@ -638,6 +638,34 @@ namespace ClaudeCodeVS
                 _settings.ExpandFailedToolCalls, themeFg);
             nativeDisplaySection.Children.Add(expandFailedToolsCheck);
 
+            var thinkingRow = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(4, 4, 0, 4) };
+            thinkingRow.Children.Add(new TextBlock
+            {
+                Text = L("Thinking in the chat:"),
+                Foreground = themeFg,
+                VerticalAlignment = VerticalAlignment.Center,
+                Margin = new Thickness(0, 0, 8, 0)
+            });
+            var thinkingCombo = MakeThemedComboBox(comboRes, themeFg);
+            thinkingCombo.Width = 260;
+            thinkingCombo.ToolTip = MakeToolTip(
+                L("Thinking is the agent's own reasoning and is shown as a collapsed row. An agent sometimes explains its options only there and then asks a question; " +
+                  "\"Open when followed by a question\" opens that row together with the question card. Any row can still be opened or closed by clicking it."));
+            foreach (var (mode, label) in new[]
+            {
+                (ChatThinkingDisplay.Collapsed, L("Keep collapsed")),
+                (ChatThinkingDisplay.OpenBeforeQuestion, L("Open when followed by a question")),
+                (ChatThinkingDisplay.AlwaysOpen, L("Always open"))
+            })
+            {
+                var item = new ComboBoxItem { Content = label, Tag = mode };
+                if (comboRes["cbi"] is Style cbiStyle) item.Style = cbiStyle;
+                if (mode == _settings.ChatThinkingDisplay) item.IsSelected = true;
+                thinkingCombo.Items.Add(item);
+            }
+            thinkingRow.Children.Add(thinkingCombo);
+            nativeDisplaySection.Children.Add(thinkingRow);
+
             var plainWorkingStatusCheck = MakeCheckBox(
                 L("Plain working status (always \"Thinking…\")"),
                 L("While the agent works, the status line always says \"Thinking…\" instead of rotating through playful words like \"Pondering…\" or \"Noodling…\". The spinner and the clock still show it is working."),
@@ -1759,6 +1787,10 @@ namespace ClaudeCodeVS
             _settings.AutoTitleChatTabsWithAi = autoTitleAiCheck.IsChecked == true;
             _settings.ShowChatTokenCounts     = showTokenCountsCheck.IsChecked == true;
             _settings.ExpandFailedToolCalls   = expandFailedToolsCheck.IsChecked == true;
+            if ((thinkingCombo.SelectedItem as ComboBoxItem)?.Tag is ChatThinkingDisplay thinkingDisplay)
+            {
+                _settings.ChatThinkingDisplay = thinkingDisplay;
+            }
             _settings.PlainChatWorkingStatus  = plainWorkingStatusCheck.IsChecked == true;
             UI.ChatTranscriptView.PlainWorkingStatus = _settings.PlainChatWorkingStatus;
 

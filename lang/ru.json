@@ -1086,5 +1086,10 @@
   "⚙  Settings": "⚙  Настройки",
   "Always shown, so the settings stay reachable. Drag it to move it.": "Всегда на месте, чтобы настройки оставались доступны. Перетащите, чтобы переместить.",
   "Configure…": "Настроить…",
-  "⚠ The ☰ Tools menu is hidden, so the unchecked features above are not available anywhere.": "⚠ Меню ☰ «Инструменты» скрыто, поэтому функции без флажка выше недоступны нигде."
+  "⚠ The ☰ Tools menu is hidden, so the unchecked features above are not available anywhere.": "⚠ Меню ☰ «Инструменты» скрыто, поэтому функции без флажка выше недоступны нигде.",
+  "Thinking in the chat:": "Размышления в чате:",
+  "Thinking is the agent's own reasoning and is shown as a collapsed row. An agent sometimes explains its options only there and then asks a question; \"Open when followed by a question\" opens that row together with the question card. Any row can still be opened or closed by clicking it.": "Размышление — это собственные рассуждения агента, они показываются свёрнутой строкой. Иногда агент объясняет свои варианты только там и сразу задаёт вопрос; «Открывать, если следует вопрос» раскрывает эту строку вместе с карточкой вопроса. Любую строку по-прежнему можно открыть или закрыть щелчком.",
+  "Keep collapsed": "Оставлять свёрнутым",
+  "Open when followed by a question": "Открывать, если следует вопрос",
+  "Always open": "Всегда открыто"
 }

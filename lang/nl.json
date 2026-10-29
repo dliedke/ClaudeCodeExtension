@@ -1086,5 +1086,10 @@
   "⚙  Settings": "⚙  Instellingen",
   "Always shown, so the settings stay reachable. Drag it to move it.": "Altijd zichtbaar, zodat de instellingen bereikbaar blijven. Sleep om hem te verplaatsen.",
   "Configure…": "Configureren…",
-  "⚠ The ☰ Tools menu is hidden, so the unchecked features above are not available anywhere.": "⚠ Het menu ☰ Hulpmiddelen is verborgen, dus de uitgevinkte functies hierboven zijn nergens beschikbaar."
+  "⚠ The ☰ Tools menu is hidden, so the unchecked features above are not available anywhere.": "⚠ Het menu ☰ Hulpmiddelen is verborgen, dus de uitgevinkte functies hierboven zijn nergens beschikbaar.",
+  "Thinking in the chat:": "Denken in de chat:",
+  "Thinking is the agent's own reasoning and is shown as a collapsed row. An agent sometimes explains its options only there and then asks a question; \"Open when followed by a question\" opens that row together with the question card. Any row can still be opened or closed by clicking it.": "Denken is de eigen redenering van de agent en wordt als ingeklapte regel getoond. Soms legt een agent zijn opties alleen daar uit en stelt dan een vraag; \"Openen als er een vraag volgt\" opent die regel samen met de vraagkaart. Elke regel kan nog steeds met een klik worden geopend of gesloten.",
+  "Keep collapsed": "Ingeklapt laten",
+  "Open when followed by a question": "Openen als er een vraag volgt",
+  "Always open": "Altijd open"
 }

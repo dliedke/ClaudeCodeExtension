@@ -1086,5 +1086,10 @@
   "⚙  Settings": "⚙  الإعدادات",
   "Always shown, so the settings stay reachable. Drag it to move it.": "يظهر دائمًا، لتبقى الإعدادات في المتناول. اسحبه لنقله.",
   "Configure…": "تكوين…",
-  "⚠ The ☰ Tools menu is hidden, so the unchecked features above are not available anywhere.": "⚠ قائمة الأدوات ☰ مخفية، لذا لا تتوفر الميزات غير المحددة أعلاه في أي مكان."
+  "⚠ The ☰ Tools menu is hidden, so the unchecked features above are not available anywhere.": "⚠ قائمة الأدوات ☰ مخفية، لذا لا تتوفر الميزات غير المحددة أعلاه في أي مكان.",
+  "Thinking in the chat:": "التفكير في الدردشة:",
+  "Thinking is the agent's own reasoning and is shown as a collapsed row. An agent sometimes explains its options only there and then asks a question; \"Open when followed by a question\" opens that row together with the question card. Any row can still be opened or closed by clicking it.": "التفكير هو استدلال الوكيل نفسه ويظهر كصف مطوي. أحيانًا يشرح الوكيل خياراته هناك فقط ثم يطرح سؤالًا؛ يفتح \"فتح عند اتباعه بسؤال\" ذلك الصف مع بطاقة السؤال. لا يزال من الممكن فتح أي صف أو إغلاقه بالنقر عليه.",
+  "Keep collapsed": "إبقاؤه مطويًا",
+  "Open when followed by a question": "فتح عند اتباعه بسؤال",
+  "Always open": "مفتوح دائمًا"
 }
