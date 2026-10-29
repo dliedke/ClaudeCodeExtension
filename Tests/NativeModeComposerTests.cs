@@ -85,12 +85,16 @@ namespace ClaudeCodeExtension.Tests
         }
 
         [TestMethod]
-        public void ShouldHidePromptBox_ExplicitSettingAlwaysHidesIt()
+        public void ShouldHidePromptBox_ExplicitSettingHidesItInTerminalModeOnly()
         {
-            // hidePromptPanel=true must win no matter what native mode/auto-hide say.
             Assert.IsTrue(ClaudeCodeControl.ShouldHidePromptBox(true, false, false, false));
-            Assert.IsTrue(ClaudeCodeControl.ShouldHidePromptBox(true, true, true, false));
-            Assert.IsTrue(ClaudeCodeControl.ShouldHidePromptBox(true, true, false, true));
+            Assert.IsTrue(ClaudeCodeControl.ShouldHidePromptBox(true, false, true, true));
+
+            // Native mode ignores it (its ⚙ menu entry is hidden there): a chat docked in the panel
+            // still types into this box, and the chat-in-tab case follows the auto-hide setting alone.
+            Assert.IsFalse(ClaudeCodeControl.ShouldHidePromptBox(true, true, false, true));
+            Assert.IsFalse(ClaudeCodeControl.ShouldHidePromptBox(true, true, true, false));
+            Assert.IsTrue(ClaudeCodeControl.ShouldHidePromptBox(true, true, true, true));
         }
 
         [TestMethod]

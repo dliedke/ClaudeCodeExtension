@@ -176,6 +176,9 @@ Pull requests for new features are welcome. Bug fixes too — if you find an iss
 
 ## Version History
 
+### Version 281.0
+- *Hide Prompt Input Box* is now a terminal-mode option only: it no longer shows in the ⚙ menu in native mode, where the prompt box follows the chat tab instead.
+
 ### Version 280.0
 - Settings has a new *Native mode* tab next to *Terminal*: each mode's settings live on its own tab, a banner shows which mode is in use, and its button switches to the other one.
 - The *Layout* tab is gone: its options moved to *Terminal*, *Native mode*, *Prompt* (usage bars) and *Toolbar* (subagent count), and the language to *Appearance* (formerly *Theme*).

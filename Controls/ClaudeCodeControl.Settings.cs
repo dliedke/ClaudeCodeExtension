@@ -1447,14 +1447,15 @@ namespace ClaudeCodeVS
 
         /// <summary>
         /// Pure decision behind <see cref="ApplyPromptPanelHiddenState"/>, split out so it is testable
-        /// without a WPF tree. The explicit "Hide prompt input box" setting always wins; the native-mode
-        /// auto-hide only kicks in once the chat has actually left for its own tab, because a chat still
-        /// docked in the panel relies on the same prompt box to type into (its own composer only shows
-        /// the action row there).
+        /// without a WPF tree. The explicit "Hide prompt input box" setting is terminal-only: native mode
+        /// ignores it (its ⚙ menu entry is hidden there too, so it could not be turned back on). The
+        /// native-mode auto-hide only kicks in once the chat has actually left for its own tab, because a
+        /// chat still docked in the panel relies on the same prompt box to type into (its own composer
+        /// only shows the action row there).
         /// </summary>
         internal static bool ShouldHidePromptBox(bool hidePromptPanel, bool nativeActive, bool chatInTab, bool autoHideInNative)
         {
-            return hidePromptPanel || (nativeActive && chatInTab && autoHideInNative);
+            return nativeActive ? chatInTab && autoHideInNative : hidePromptPanel;
         }
 
         /// <summary>

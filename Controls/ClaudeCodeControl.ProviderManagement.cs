@@ -4524,6 +4524,9 @@ namespace ClaudeCodeVS
             ChangeAccountNativeMenuItem.Visibility = showChangeAccountNative ? Visibility.Visible : Visibility.Collapsed;
             ChangeAccountNativeSeparator.Visibility = showChangeAccountNative ? Visibility.Visible : Visibility.Collapsed;
 
+            // Terminal-only: native mode decides the prompt box from where the chat is drawn instead.
+            HidePromptPanelMenuItem.Visibility = IsNativeModeActive ? Visibility.Collapsed : Visibility.Visible;
+
             // Update checkbox state from settings
             if (_settings != null)
             {
