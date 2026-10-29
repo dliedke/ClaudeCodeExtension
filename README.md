@@ -176,6 +176,12 @@ Pull requests for new features are welcome. Bug fixes too — if you find an iss
 
 ## Version History
 
+### Version 288.0
+- With *Show all chats in one window*, the empty window now offers *Start a new chat*, *Restore today's sessions* and a Session History button instead of a plain hint.
+- An untitled chat in that window is captioned *New conversation*, and when the tabs don't fit, ◂ ▸ arrows and the mouse wheel step one whole tab without cutting the first one.
+- The window's "+" is gone: the chat's own new-chat button and the ⋯ menu's *New chat session* are shown again in every chat of the window.
+- Thanks to [@ClaudioCas](https://github.com/ClaudioCas) for this release (#242).
+
 ### Version 287.0
 - New *Thinking in the chat* option in *Settings → Native mode*: keep the agent's thinking collapsed (default, as before), open the thinking right before a question card, or always open it once finished.
 - Thanks to [@ClaudioCas](https://github.com/ClaudioCas) for this release (#241).
