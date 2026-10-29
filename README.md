@@ -176,6 +176,10 @@ Pull requests for new features are welcome. Bug fixes too — if you find an iss
 
 ## Version History
 
+### Version 282.0
+- Settings saved in one Visual Studio window are no longer undone by another open window: each window now writes only the settings it actually changed.
+- Thanks to [@ClaudioCas](https://github.com/ClaudioCas) for this release (#236).
+
 ### Version 281.0
 - *Hide Prompt Input Box* is now a terminal-mode option only: it no longer shows in the ⚙ menu in native mode, where the prompt box follows the chat tab instead.
 
