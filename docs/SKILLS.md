@@ -181,6 +181,12 @@ Prerequisites: `claude` and `gh` on PATH, `gh auth login` done, and this machine
   to 3 times. To re-run an item, delete its key from the state file.
 - **Repo busy = wait.** A run is skipped while the clone is off `master` or has uncommitted
   changes, so the watcher never commits your work in progress. PR and issue runs share one lock.
+- **Several machines.** The same repo can be watched from more than one PC. Before Claude starts
+  on an item, the run posts an "I am working on it" comment (marked `<!-- repo-watcher-claim -->`);
+  the earliest live claim wins and the other PCs skip that item without marking it handled. The
+  comment is deleted when the run ends. A claim older than 4 hours (a run that died) is ignored.
+  Not covered: each PC keeps its own state file, and two runs publishing at the exact same moment
+  can still pick the same version number.
 - **Installed copy.** The installer copies the scripts to `%USERPROFILE%\.claude\repo-watcher`
   and the tasks run that copy, so a merged PR can't change what the agent runs. Re-run the
   installer after editing anything in `tools/repo-watcher/`.
