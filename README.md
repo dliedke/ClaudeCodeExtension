@@ -176,6 +176,10 @@ Pull requests for new features are welcome. Bug fixes too — if you find an iss
 
 ## Version History
 
+### Version 287.0
+- New *Thinking in the chat* option in *Settings → Native mode*: keep the agent's thinking collapsed (default, as before), open the thinking right before a question card, or always open it once finished.
+- Thanks to [@ClaudioCas](https://github.com/ClaudioCas) for this release (#241).
+
 ### Version 286.0
 - A question card with a single question now shows its topic badge beside the card title instead of on a line of its own; with several questions, each badge sits right before its question.
 - Thanks to [@ClaudioCas](https://github.com/ClaudioCas) for this release (#240).
