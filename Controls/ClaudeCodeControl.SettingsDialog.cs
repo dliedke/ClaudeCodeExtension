@@ -473,7 +473,10 @@ namespace ClaudeCodeVS
             // rest of the dialog already listens to (terminal type, On Agent Finish, OK).
             var nativeModeCheck = new CheckBox { IsChecked = _settings.UseNativeMode };
 
-            ModeBanner terminalBanner = MakeModeBanner(L("Use the terminal"), null, dialog, themeBg, themeFg);
+            // The Terminal tab's banner has a second button (v292.0): in native mode it docks the chat into
+            // the panel or moves it back to its own tab, because the panel layout settings on this tab
+            // (prompt panel position, toolbar alignment) also apply while the chat is docked.
+            ModeBanner terminalBanner = MakeModeBanner(L("Use the terminal"), null, dialog, themeBg, themeFg, secondaryCaption: L("Attach chat to Panel"));
             ModeBanner nativeBanner = MakeModeBanner(L("Use native mode"),
                 L("The panel shows the conversation with the agent as a chat, driven by the agent's own structured protocol instead of a console window. Answers stream in, tool calls and their results are shown as collapsible cards, and token usage and cost are reported for each turn.\n\nAgents without a structured channel keep using the embedded terminal automatically."),
                 dialog, themeBg, themeFg);
@@ -494,7 +497,9 @@ namespace ClaudeCodeVS
                 page.Children.Add(section);
                 return section;
             }
-            var terminalPanelSection = AddSection(terminalStack);   // prompt panel position, prompt box
+            var terminalPanelSection = AddSection(terminalStack);   // prompt panel position, toolbar alignment — the panel's layout, in use with the chat docked too
+            var terminalOnlySection = AddSection(terminalStack);    // "the rest is terminal only" notice (native mode, chat docked)
+            var terminalPromptSection = AddSection(terminalStack);  // prompt box
             var terminalTypeSection = AddSection(terminalStack);    // terminal type, fonts, encoding
             var nativeTabsSection = AddSection(nativeStack);
             var nativeWindowSection = AddSection(nativeStack);
@@ -505,18 +510,61 @@ namespace ClaudeCodeVS
             nativeWindowSection.Children.Add(MakeSectionHeader(L("Chat window"), themeFg));
             nativeDisplaySection.Children.Add(MakeSectionHeader(L("Chat display"), themeFg));
 
+            // Below the panel layout settings while the chat is docked in native mode: everything from
+            // here down needs the embedded terminal.
+            ModeBanner terminalOnlyNotice = MakeModeBanner(L("Use the terminal"), null, dialog, themeBg, themeFg);
+            terminalOnlyNotice.Root.Margin = new Thickness(0, 10, 0, 6);
+            terminalOnlyNotice.Switch.Click += (s, e) => nativeModeCheck.IsChecked = false;
+            terminalOnlySection.Children.Add(terminalOnlyNotice.Root);
+
             void SyncModeBanners()
             {
                 bool native = nativeModeCheck.IsChecked == true;
-                terminalBanner.Show(!native, L("The embedded terminal is in use."),
-                    L("Native mode is in use, so these settings do not apply right now."));
+                TerminalTabState state = ResolveTerminalTabState(native, _chatIsInTab, IsNativeModeActive);
+
+                terminalBanner.Show(state.BannerActive,
+                    state.ChatDocked
+                        ? L("Native mode is in use with the chat docked in the panel.")
+                        : L("The embedded terminal is in use."),
+                    L("Native mode is in use and the chat is in its own tab, so these settings do not apply right now."));
+                // With the chat docked, *Use the terminal* lives in the notice below; the banner keeps only
+                // the way out of that state (see ResolveTerminalTabState).
+                terminalBanner.Switch.Visibility = state.TerminalSwitchVisible ? Visibility.Visible : Visibility.Collapsed;
+                terminalBanner.Secondary.Visibility = state.ToggleVisible ? Visibility.Visible : Visibility.Collapsed;
+                terminalBanner.Secondary.Content = state.ChatDocked ? L("Detach chat to Tab") : L("Attach chat to Panel");
+
                 nativeBanner.Show(native, L("Native mode is in use."),
                     L("The embedded terminal is in use, so these settings do not apply right now."));
-                terminalStack.IsEnabled = !native;
+
+                terminalPanelSection.IsEnabled = state.LayoutEnabled;
+                terminalOnlyNotice.Show(false, string.Empty, L("The settings below apply to the embedded terminal only."));
+                terminalOnlySection.Visibility = state.NoticeVisible ? Visibility.Visible : Visibility.Collapsed;
+                terminalPromptSection.IsEnabled = state.TerminalOnlyEnabled;
+                terminalTypeSection.IsEnabled = state.TerminalOnlyEnabled;
                 nativeStack.IsEnabled = native;
             }
             nativeModeCheck.Checked += (s, e) => SyncModeBanners();
             nativeModeCheck.Unchecked += (s, e) => SyncModeBanners();
+
+            // Dock / undock the live chat right from the dialog, then redo the banner for the new state.
+            terminalBanner.Secondary.Click += (s, e) =>
+            {
+#pragma warning disable VSSDK007, VSTHRD110
+                _ = ThreadHelper.JoinableTaskFactory.RunAsync(async () =>
+                {
+                    try
+                    {
+                        await ToggleChatTabAsync();
+                    }
+                    catch (Exception ex)
+                    {
+                        Debug.WriteLine($"Error toggling the chat tab from Settings: {ex.Message}");
+                    }
+                    await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
+                    SyncModeBanners();
+                });
+#pragma warning restore VSSDK007, VSTHRD110
+            };
             SyncModeBanners();
 
             // General options that used to sit on the Layout tab; added to their tabs when those are built.
@@ -562,14 +610,14 @@ namespace ClaudeCodeVS
                 _settings.ToolbarButtonsRightAligned, themeFg);
             terminalPanelSection.Children.Add(toolbarRightAlignCheck);
 
-            terminalPanelSection.Children.Add(MakeSectionHeader(L("Prompt input box"), themeFg));
+            terminalPromptSection.Children.Add(MakeSectionHeader(L("Prompt input box"), themeFg));
             var hidePromptPanelCheck = MakeCheckBox(
                 L("Hide prompt input box (terminal only)"),
                 L("Collapses the multi-line prompt text box so the terminal fills the space it occupied. " +
                 "The controls row (Send/Attach, Restart, Model, and this ⚙ menu), file chips, and usage bars " +
                 "stay visible so you can turn it back on here or from the ⚙ menu."),
                 origHidePromptPanel, themeFg);
-            terminalPanelSection.Children.Add(hidePromptPanelCheck);
+            terminalPromptSection.Children.Add(hidePromptPanelCheck);
 
             var autoHidePromptInNativeCheck = MakeCheckBox(
                 L("Hide prompt box while the native chat is in its own tab"),
@@ -2024,6 +2072,9 @@ namespace ClaudeCodeVS
             public TextBlock Message { get; set; }
             public Button Switch { get; set; }
 
+            /// <summary>Optional second button left of <see cref="Switch"/> (the Terminal tab's dock/undock); null when not requested.</summary>
+            public Button Secondary { get; set; }
+
             public void Show(bool active, string activeText, string inactiveText)
             {
                 Root.BorderBrush = active ? ActiveBorder : InactiveBorder;
@@ -2040,7 +2091,67 @@ namespace ClaudeCodeVS
             }
         }
 
-        private ModeBanner MakeModeBanner(string switchCaption, string switchTooltip, Window dialog, Brush themeBg, Brush themeFg)
+        /// <summary>
+        /// The Terminal tab in its three situations (v292.0):
+        /// <list type="bullet">
+        /// <item>Terminal in use — green banner with the (disabled) *Use the terminal* button; everything live.</item>
+        /// <item>Native mode, chat in its own tab — amber banner with *Attach chat to Panel* above *Use the
+        /// terminal*; nothing on the tab applies, so everything is disabled and there is no notice.</item>
+        /// <item>Native mode, chat docked in the panel — green banner: the panel layout settings (prompt
+        /// panel position, toolbar alignment) apply to the docked chat and are live. The banner keeps only
+        /// *Detach chat to Tab*: that state is reached on purpose (⧉) or from this very button, and the
+        /// banner is the one place that always offers the way back out of it. *Use the terminal* moves to
+        /// the amber notice below the layout settings, which fences off the prompt-box and terminal-type
+        /// sections as terminal-only (disabled).</item>
+        /// </list>
+        /// The attach/detach button needs a live native chat; without one it is hidden.
+        /// </summary>
+        internal readonly struct TerminalTabState
+        {
+            public TerminalTabState(bool chatDocked, bool bannerActive, bool terminalSwitchVisible, bool toggleVisible,
+                bool layoutEnabled, bool terminalOnlyEnabled, bool noticeVisible)
+            {
+                ChatDocked = chatDocked;
+                BannerActive = bannerActive;
+                TerminalSwitchVisible = terminalSwitchVisible;
+                ToggleVisible = toggleVisible;
+                LayoutEnabled = layoutEnabled;
+                TerminalOnlyEnabled = terminalOnlyEnabled;
+                NoticeVisible = noticeVisible;
+            }
+
+            public bool ChatDocked { get; }
+            /// <summary>Green (what is on this tab is in use) rather than amber.</summary>
+            public bool BannerActive { get; }
+            /// <summary>*Use the terminal* in the top banner (it moves to the notice while the chat is docked).</summary>
+            public bool TerminalSwitchVisible { get; }
+            /// <summary>The attach/detach button in the top banner.</summary>
+            public bool ToggleVisible { get; }
+            public bool LayoutEnabled { get; }
+            public bool TerminalOnlyEnabled { get; }
+            public bool NoticeVisible { get; }
+        }
+
+        internal static TerminalTabState ResolveTerminalTabState(bool nativeMode, bool chatInOwnTab, bool chatRunning)
+        {
+            if (!nativeMode)
+            {
+                return new TerminalTabState(chatDocked: false, bannerActive: true, terminalSwitchVisible: true, toggleVisible: false,
+                    layoutEnabled: true, terminalOnlyEnabled: true, noticeVisible: false);
+            }
+
+            bool docked = !chatInOwnTab;
+            return new TerminalTabState(
+                chatDocked: docked,
+                bannerActive: docked,
+                terminalSwitchVisible: !docked,
+                toggleVisible: chatRunning,
+                layoutEnabled: docked,
+                terminalOnlyEnabled: false,
+                noticeVisible: docked);
+        }
+
+        private ModeBanner MakeModeBanner(string switchCaption, string switchTooltip, Window dialog, Brush themeBg, Brush themeFg, string secondaryCaption = null)
         {
             var message = new TextBlock
             {
@@ -2066,8 +2177,34 @@ namespace ClaudeCodeVS
             else { switchButton.Background = themeBg; switchButton.Foreground = themeFg; switchButton.BorderBrush = themeFg; }
 
             var row = new DockPanel { LastChildFill = true };
-            DockPanel.SetDock(switchButton, Dock.Right);
-            row.Children.Add(switchButton);
+
+            Button secondaryButton = null;
+            if (secondaryCaption != null)
+            {
+                // Two buttons stack vertically (secondary on top) so the message keeps its width.
+                secondaryButton = new Button
+                {
+                    Content = secondaryCaption,
+                    Height = 28,
+                    MinWidth = 150,
+                    Padding = new Thickness(12, 0, 12, 0),
+                    Margin = new Thickness(0, 0, 0, 6)
+                };
+                if (buttonStyle != null) secondaryButton.Style = buttonStyle;
+                else { secondaryButton.Background = themeBg; secondaryButton.Foreground = themeFg; secondaryButton.BorderBrush = themeFg; }
+
+                var buttons = new StackPanel { Orientation = Orientation.Vertical, VerticalAlignment = VerticalAlignment.Center };
+                buttons.Children.Add(secondaryButton);
+                buttons.Children.Add(switchButton);
+                DockPanel.SetDock(buttons, Dock.Right);
+                row.Children.Add(buttons);
+            }
+            else
+            {
+                DockPanel.SetDock(switchButton, Dock.Right);
+                row.Children.Add(switchButton);
+            }
+
             row.Children.Add(message);
 
             var root = new Border
@@ -2079,7 +2216,7 @@ namespace ClaudeCodeVS
                 Child = row
             };
 
-            return new ModeBanner { Root = root, Message = message, Switch = switchButton };
+            return new ModeBanner { Root = root, Message = message, Switch = switchButton, Secondary = secondaryButton };
         }
 
         /// <summary>

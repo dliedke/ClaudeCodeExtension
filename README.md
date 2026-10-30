@@ -176,6 +176,10 @@ Pull requests for new features are welcome. Bug fixes too — if you find an iss
 
 ## Version History
 
+### Version 292.0
+- *Settings → Terminal* now tells the two native mode situations apart: with the chat docked in the panel, the prompt panel position and toolbar alignment stay editable and a note marks the rest as terminal-only; with the chat in its own tab everything is greyed out as before.
+- The banner on that tab gained *Attach chat to Panel* / *Detach chat to Tab*, so the chat can be moved between the panel and its own tab right from Settings.
+
 ### Version 291.0
 - The 📎 Attach and 🤖 Model buttons of the terminal toolbar can now be dragged into any position in *Settings → Toolbar* like the other buttons, and they no longer jump along when ☰ or ⚙ is moved. Both are terminal-only and say so in the list.
 - *Align the toolbar buttons to the right edge* moved from *Settings → Toolbar* to *Settings → Terminal* (its own *Toolbar alignment* section), since it only applies to the terminal toolbar.
