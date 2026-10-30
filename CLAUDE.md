@@ -6,7 +6,7 @@ Visual Studio Extension (VSIX) for VS 2022/2026 — integrates AI code assistant
 
 - Author: Daniel Carvalho Liedke (dliedke@gmail.com) | License: MIT
 - Repository: https://github.com/dliedke/ClaudeCodeExtension
-- Current Version: 281.0 | Target Framework: .NET Framework 4.7.2
+- Current Version: 290.0 | Target Framework: .NET Framework 4.7.2
 
 Step-by-step procedures for recurring tasks (release, Exp-hive debugging, publish, adding a
 provider/setting/UI file) live in `docs/SKILLS.md`. Short build/style brief for non-Claude agents: `docs/AGENTS.md`.
@@ -26,6 +26,7 @@ Versioning scheme (since 11.0): each release bumps the MAJOR version by one — 
    - Avoid: code/file/class/method names, internal selectors, file paths, constants, line numbers, JS snippets, framework jargon (`CoreWebView2`, `INPUT_RECORD`, `NavigationCompleted`, etc.), step-by-step "how it works" explanations, and PR-description-style root-cause analysis.
    - Keep: what the user gets ("auto-confirms proxy block screens"), opt-in/opt-out status, and the menu/setting name they interact with.
    - Technical details belong in commit messages and `docs/ARCHITECTURE.md`, not in release notes.
+   - Merging a contributor PR: besides the "Thanks to [@login](https://github.com/login) for this release (#N)." line in the version entry, update the author's PR count in README's `## Thank You, Contributors` list (add a `1 PR` row for a first-time contributor). Keep the list sorted by PR count descending, ties alphabetical (case-insensitive); the owner `dliedke` is not listed. Counts include every PR the author opened (open, closed or merged) — recount with `gh pr list --state all --limit 1000 --json author`.
    - Other README sections (Features, Supported AI Providers, System Requirements, Settings & Menus, etc.): Edits MUST be minimal. Update only the exact line/bullet affected by the change. Do not rewrite paragraphs, expand explanations, add subsections, reorder content, or restructure tables. If a new provider/setting needs a row, add one row. If a feature description needs a word change, change the word. README is reference doc — keep it slim to avoid file bloat.
 
 ---

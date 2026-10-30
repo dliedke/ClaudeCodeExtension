@@ -125,6 +125,20 @@ namespace ClaudeCodeExtension.Tests
         }
 
         [TestMethod]
+        public void TitleParse_PrefersTheStructuredTitleOverTheResultText()
+        {
+            string output = new JObject
+            {
+                ["type"] = "result",
+                ["is_error"] = false,
+                ["result"] = "Ano pane, zkusím to najít",
+                ["structured_output"] = new JObject { ["title"] = "Hledání chyby v přihlášení" }
+            }.ToString(Newtonsoft.Json.Formatting.None);
+
+            Assert.AreEqual("Hledání chyby v přihlášení", SessionTitleGenerator.ParseOutput(output));
+        }
+
+        [TestMethod]
         public void TitleParse_ReturnsEmptyOnErrorOrNoResult()
         {
             string error = new JObject { ["type"] = "result", ["is_error"] = true, ["result"] = "Not logged in" }
@@ -150,7 +164,7 @@ namespace ClaudeCodeExtension.Tests
         {
             string args = ClaudeCommandBuilder.GetSessionTitleArguments(new ClaudeSessionOptions { ExecutablePath = "claude" });
 
-            StringAssert.StartsWith(args, "--print --model \"haiku\" --output-format json");
+            StringAssert.StartsWith(args, "--print --model \"haiku\" --output-format json --json-schema ");
             StringAssert.Contains(args, "--tools \"\"");
             StringAssert.Contains(args, "--no-session-persistence");
             Assert.IsFalse(args.Contains("stream-json"));

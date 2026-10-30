@@ -23,7 +23,7 @@ For each PR that you merge:
 1. Merge it on GitHub, then pull master locally.
 2. Fix the group B problems on master in a follow-up commit. Keep the fixes minimal and don't rewrite the author's work in your own style.
 3. Bump the major version (Properties/AssemblyInfo.cs, source.extension.vsixmanifest, README.md Version History) if the PR didn't, following CLAUDE.md. If several PRs claim the same version number, renumber so each release gets its own version. Your follow-up fixes ship in the same version as the PR.
-4. Credit the PR author in the README version entry: "Thanks to [@login](https://github.com/login) for this release (#N)."
+4. Credit the PR author in the README version entry: "Thanks to [@login](https://github.com/login) for this release (#N)." Also update the author's PR count in the README's "Thank You, Contributors" list, following CLAUDE.md.
 5. Build Release and run test.cmd. If either fails and you can't fix it with certainty, stop: do not publish. Revert the merge on master (git revert -m 1), push the revert, comment on the PR with the failure and what the author can do, reopen it if GitHub closed it, and report it as failed.
 6. Run publish.cmd and confirm it succeeded.
 7. Commit and push with only the human author: no Co-Authored-By lines and no references to Claude, Anthropic or any AI model in the commit message.
