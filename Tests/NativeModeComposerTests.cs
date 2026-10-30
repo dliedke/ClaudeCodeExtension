@@ -692,6 +692,39 @@ namespace ClaudeCodeExtension.Tests
         }
 
         /// <summary>
+        /// v289.0: parallel session tabs (<c>_nativeSessions</c>) have their own composer, always in
+        /// <c>ComposerMode.Full</c>. Feeding only the default <c>ChatTranscript</c> left every later
+        /// tab showing ⚡ with an empty menu.
+        /// </summary>
+        [TestMethod]
+        public void RefreshCustomCommandsButton_FeedsHasAnyIntoEveryParallelSessionTab()
+        {
+            string body = ExtractMethodBody(
+                RepositoryLayout.ReadText("Controls", "ClaudeCodeControl.CustomCommands.cs"),
+                "private void RefreshCustomCommandsButton()");
+
+            StringAssert.Contains(body, "_nativeSessions.Values",
+                "The ⚡ has-items flag must reach the parallel session tabs, not just the default one.");
+            StringAssert.Contains(body, "sessionTranscript.SetCustomCommandsMenuHasItems(hasAny)",
+                "Every parallel tab's composer ⚡ must follow the same rule as the panel's own ⚡.");
+        }
+
+        /// <summary>
+        /// v289.0: the ⚡ flag defaults to true and a newly created tab is not covered by any later
+        /// refresh, so it must be seeded from the configured commands when the tab is created.
+        /// </summary>
+        [TestMethod]
+        public void CreateAndRegisterSession_SeedsTheCustomCommandsFlagOnTheNewTab()
+        {
+            string body = ExtractMethodBody(
+                RepositoryLayout.ReadText("Controls", "ClaudeCodeControl.NativeMode.cs"),
+                "internal NativeChatSessionState CreateAndRegisterSession(");
+
+            StringAssert.Contains(body, "transcript.SetCustomCommandsMenuHasItems(_settings?.CustomCommands?.Count > 0)",
+                "A new tab must not show ⚡ when no custom commands are configured.");
+        }
+
+        /// <summary>
         /// "The tools menu should not appear in case there are no items" — the composer's ☰ mirror
         /// must track the same <c>anyInDropdown</c> computation the panel's own ☰ uses, not just the
         /// composer mode.
@@ -719,6 +752,8 @@ namespace ClaudeCodeExtension.Tests
                 "The panel's own ☰ must follow the combined rule.");
             StringAssert.Contains(body, "ChatTranscript?.SetToolsMenuHasItems(showTools)",
                 "The composer's ☰ mirror must collapse under the same condition as the panel's own ☰.");
+            StringAssert.Contains(body, "sessionTranscript.SetToolsMenuHasItems(showTools)",
+                "Every parallel session tab's composer ☰ must follow the same rule as the default tab's.");
         }
 
         /// <summary>

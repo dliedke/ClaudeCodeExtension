@@ -3958,6 +3958,9 @@ namespace ClaudeCodeVS
             var transcript = new ChatTranscriptView();
             transcript.UseModernIcons = _settings?.ChatIconStyle == ChatIconStyle.Modern;
             transcript.CompactToolbar = _settings?.CompactChatToolbar == true;
+            // The ⚡ flag defaults to true and nothing else refreshes it for a new tab — seed it here
+            // so a tab opened with no custom commands configured does not show an empty ⚡ menu.
+            transcript.SetCustomCommandsMenuHasItems(_settings?.CustomCommands?.Count > 0);
 
             // Bundle into session state with window ID. AgentSession is attached below, once this
             // tab's own launch-option snapshot exists for CreateAgentSession to read (v163.0): a

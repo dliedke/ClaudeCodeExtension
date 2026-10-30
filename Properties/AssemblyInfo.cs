@@ -44,6 +44,7 @@ using System.Runtime.InteropServices;
 [assembly: AssemblyVersion("290.0.0.0")]
 [assembly: AssemblyFileVersion("290.0.0.0")]
 
+
 // Exposes internal helpers to the test project so the pure logic (path encoding, git status
 // parsing, WSL command building, prompt formatting) can be tested without a running Visual Studio.
 // The alternative would be extracting those helpers out of the large partial classes, which is a
