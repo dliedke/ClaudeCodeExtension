@@ -174,7 +174,27 @@ Pull requests for new features are welcome. Bug fixes too — if you find an iss
 - Bump the version by one major number (e.g. 236.0 → 237.0) in `Properties/AssemblyInfo.cs` and `source.extension.vsixmanifest`, and add a short `### Version X.0` entry at the top of Version History in this README. See `CLAUDE.md` for details.
 - The extension's original developer reviews the PR and publishes the new version to the Marketplace.
 
-## Version History
+## Thank You, Contributors
+
+A huge thank you to every developer who took the time to improve this extension with pull requests. Your features, fixes and ideas made it better for everyone!
+
+- [@Gh61](https://github.com/Gh61) — 20 PRs
+- [@ClaudioCas](https://github.com/ClaudioCas) — 13 PRs
+- [@rbuss93](https://github.com/rbuss93) — 9 PRs
+- [@MartinWooChina](https://github.com/MartinWooChina) — 6 PRs
+- [@metman-oss](https://github.com/metman-oss) — 6 PRs
+- [@karpach-relativity](https://github.com/karpach-relativity) — 4 PRs
+- [@Ocrosoft](https://github.com/Ocrosoft) — 3 PRs
+- [@adrian-schmidt-foehre-mint](https://github.com/adrian-schmidt-foehre-mint) — 1 PR
+- [@ArgoZhang](https://github.com/ArgoZhang) — 1 PR
+- [@atim0r](https://github.com/atim0r) — 1 PR
+- [@CholmesFr](https://github.com/CholmesFr) — 1 PR
+- [@devStoner2024](https://github.com/devStoner2024) — 1 PR
+- [@fooberichu150](https://github.com/fooberichu150) — 1 PR
+- [@iwiwb](https://github.com/iwiwb) — 1 PR
+- [@NeilN1](https://github.com/NeilN1) — 1 PR
+- [@osjimenez](https://github.com/osjimenez) — 1 PR
+- [@wluisdev](https://github.com/wluisdev) — 1 PR
 
 ### Version 292.0
 - *Settings → Terminal* now tells the two native mode situations apart: with the chat docked in the panel, the prompt panel position and toolbar alignment stay editable and a note marks the rest as terminal-only; with the chat in its own tab everything is greyed out as before.
@@ -186,11 +206,11 @@ Pull requests for new features are welcome. Bug fixes too — if you find an iss
 - The terminal toolbar no longer leaves an empty gap before its first button; the scroll arrows only take room once the buttons stop fitting.
 
 ### Version 290.0
-- The chat toolbar no longer flickers while a chat tab is resized: it shortens its captions without flashing and only widens them again once there is clearly room.
-- The ⚡ ☰ ⚙ buttons and promoted toolbar buttons now stay at the right edge of the chat toolbar instead of jumping around when the captions change.
+- New *Thank You, Contributors* section in this README, listing every developer who contributed pull requests, sorted by number of PRs.
 
 ### Version 289.0
-- The ⚡ custom commands button no longer appears in the second and later chat tabs when no custom commands are configured.
+- Automatic chat tab titles now always name the conversation, instead of sometimes showing a reply to the first prompt (such as "Sure, I'll look for it").
+- Thanks to [@Gh61](https://github.com/Gh61) for this release (#243).
 
 ### Version 288.0
 - With *Show all chats in one window*, the empty window now offers *Start a new chat*, *Restore today's sessions* and a Session History button instead of a plain hint.
