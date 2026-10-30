@@ -450,7 +450,7 @@ namespace ClaudeCodeVS.UI
             // Docked in the panel the row has far less width than it does in a tab, and the switch
             // between the two does not always change the row's own width — so the tier is re-picked
             // here rather than waiting for a resize that may never come.
-            QueueComposerDensityRefresh();
+            RefreshComposerDensity();
         }
 
         /// <summary>
@@ -501,7 +501,7 @@ namespace ClaudeCodeVS.UI
                 }
             }
 
-            QueueComposerDensityRefresh();
+            RefreshComposerDensity();
         }
 
         private bool _compactToolbar;
@@ -525,7 +525,7 @@ namespace ClaudeCodeVS.UI
                 _compactToolbar = value;
                 ApplyToolbarLayout();
                 ApplyComposerDensity(_composerDensity);
-                QueueComposerDensityRefresh();
+                RefreshComposerDensity();
             }
         }
 
@@ -547,11 +547,6 @@ namespace ClaudeCodeVS.UI
             Grid.SetColumnSpan(ComposerActionRow, compact ? 2 : 1);
             ComposerActionRow.Margin = compact ? new Thickness(-4, 4, -4, 0) : new Thickness(0, 0, 0, 4);
 
-            // Stretched, so the mirrors docked right land at the box's right edge; the classic row
-            // keeps its left alignment (see the note on ComposerActionsScroller in the XAML).
-            ComposerActionsScroller.HorizontalAlignment = compact ? HorizontalAlignment.Stretch : HorizontalAlignment.Left;
-            DockPanel.SetDock(ComposerMirrorGroup, compact ? Dock.Right : Dock.Left);
-
             // ✚ leads the compact row; the classic row keeps it after ↻, where it has always been.
             int newChatIndex = compact ? 0 : ComposerEssentialGroup.Children.IndexOf(ComposerClearButton) + 1;
             if (ComposerEssentialGroup.Children.IndexOf(ComposerNewChatButton) != newChatIndex)
@@ -560,7 +555,6 @@ namespace ClaudeCodeVS.UI
                 newChatIndex = compact ? 0 : ComposerEssentialGroup.Children.IndexOf(ComposerClearButton) + 1;
                 ComposerEssentialGroup.Children.Insert(newChatIndex, ComposerNewChatButton);
             }
-            ComposerMirrorSeparator.Visibility = compact ? Visibility.Collapsed : Visibility.Visible;
         }
 
         /// <summary>
@@ -597,7 +591,7 @@ namespace ClaudeCodeVS.UI
             // rather than only on resize — switching from "Ask" to "Skip permissions" is a resize as far
             // as this row is concerned.
             ApplyComposerDensity(_composerDensity);
-            QueueComposerDensityRefresh();
+            RefreshComposerDensity();
         }
 
         /// <summary>
@@ -639,7 +633,7 @@ namespace ClaudeCodeVS.UI
 
             // Fewer selectors may mean the full captions fit again, so this can widen the row as well
             // as narrow it — the refresh always starts from the roomiest tier.
-            QueueComposerDensityRefresh();
+            RefreshComposerDensity();
         }
 
         #region Composer density
@@ -669,7 +663,15 @@ namespace ClaudeCodeVS.UI
         };
 
         private ComposerDensity _composerDensity = ComposerDensity.Full;
-        private bool _composerDensityRefreshQueued;
+
+        /// <summary>
+        /// Extra room a wider tier needs before the row climbs back to it. Without it a tab resized
+        /// around a tier's edge flipped captions and folded buttons on every pixel.
+        /// </summary>
+        internal const double ComposerDensityHysteresis = 24;
+
+        /// <summary>Room kept for the ▶ scroll arrow (9 pt glyph + 4 px padding each side, about 19 px).</summary>
+        private const double ComposerScrollArrowReserve = 20;
 
         private string _providerLabel = L("Agent");
         private string _modelLabel = L("Model");
@@ -689,35 +691,7 @@ namespace ClaudeCodeVS.UI
                 return;
             }
 
-            QueueComposerDensityRefresh();
-        }
-
-        /// <summary>
-        /// Defers the tier decision to the end of the current layout pass. The refresh measures the
-        /// button row itself, which cannot be done from inside the arrange it would be reacting to, and
-        /// several of its triggers (labels, availability, mode) fire in a burst when the agent changes
-        /// — the queue collapses those into one pass.
-        /// </summary>
-        private void QueueComposerDensityRefresh()
-        {
-            if (_composerDensityRefreshQueued)
-            {
-                return;
-            }
-
-            _composerDensityRefreshQueued = true;
-
-            // Loaded priority so the row has been arranged (and therefore has an ActualWidth to
-            // measure against) before the tier is picked. The VS threading helpers cannot express a
-            // dispatcher priority, so the WPF dispatcher is the right tool here — every caller is
-            // already on the UI thread.
-#pragma warning disable VSTHRD001, VSTHRD110
-            Dispatcher.BeginInvoke(new Action(() =>
-            {
-                _composerDensityRefreshQueued = false;
-                RefreshComposerDensity();
-            }), System.Windows.Threading.DispatcherPriority.Loaded);
-#pragma warning restore VSTHRD001, VSTHRD110
+            RefreshComposerDensity();
         }
 
         /// <summary>
@@ -726,6 +700,10 @@ namespace ClaudeCodeVS.UI
         /// clipped off the edge. The mirrored config buttons are deliberately not measured: they sit
         /// after the essentials in the same scroller and are meant to be what scrolls out of view, so
         /// promoting a row of toolbar buttons must not cost the selectors their captions.
+        ///
+        /// Runs synchronously, never queued: SizeChanged is raised after arrange but before the frame
+        /// is rendered, so a tier picked here is laid out in the same frame. The earlier Loaded-priority
+        /// queue ran after the render, so every resize painted one frame with the old tier first.
         /// </summary>
         private void RefreshComposerDensity()
         {
@@ -734,30 +712,79 @@ namespace ClaudeCodeVS.UI
                 return;
             }
 
-            double available = ComposerActionRow.ActualWidth - 2;
+            // With mirrors in the row, ▶ is shown whenever they overflow, and the essentials must fit
+            // beside it — otherwise the selectors end up under the arrow. Without mirrors the arrow only
+            // appears once the essentials themselves overflow, which the tiers are there to prevent.
+            bool mirrorsShown = ComposerPromotedButtons.Visibility == Visibility.Visible &&
+                ComposerPromotedButtons.Children.OfType<UIElement>().Any(c => c.Visibility == Visibility.Visible);
+            double available = ComposerActionRow.ActualWidth - 2 - (mirrorsShown ? ComposerScrollArrowReserve : 0);
             if (available <= 0)
             {
                 return;
             }
 
-            foreach (ComposerDensity density in _composerDensityOrder)
+            // The picker stops right after measuring the tier it returns, so that tier is left applied.
+            PickComposerDensityTier((int)_composerDensity, _composerDensityOrder.Length, available, tier =>
             {
-                ApplyComposerDensity(density);
+                ApplyComposerDensity(_composerDensityOrder[tier]);
+
+                // Measure() returns the cached size of any element that is not marked dirty and gets
+                // the same constraint as last time, and WPF only propagates dirtiness upward during
+                // its own layout pass — not inside a synchronous Measure call like this one. A new
+                // caption dirties the TextBlock deep inside the button's template, but the
+                // ContentPresenter and Border between it and the button stay clean and hand back the
+                // previous tier's width. The whole subtree has to be dirtied, or every tier after the
+                // first is measured with the caption of the one before it (seen in a trace as
+                // "Full=421.7 Compact=421.7" and the row flipping Full↔Tight on every pixel).
+                InvalidateMeasureTree(ComposerEssentialGroup);
 
                 // Unconstrained width on purpose: the group's own natural width is what has to be
                 // compared against the row, and the ScrollViewer above it measures with infinity too,
                 // so this asks exactly the question the scroller will answer.
                 ComposerEssentialGroup.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
-
-                if (ComposerEssentialGroup.DesiredSize.Width <= available)
-                {
-                    break;
-                }
-            }
+                return ComposerEssentialGroup.DesiredSize.Width;
+            });
 
             // The measurements above ran against a constraint the layout system did not ask for; drop
             // them so the next real pass measures the group the way its parent wants it.
             ComposerEssentialGroup.InvalidateMeasure();
+        }
+
+        /// <summary>Marks <paramref name="root"/> and every visual descendant for a fresh measure.</summary>
+        private static void InvalidateMeasureTree(UIElement root)
+        {
+            root.InvalidateMeasure();
+
+            int count = VisualTreeHelper.GetChildrenCount(root);
+            for (int i = 0; i < count; i++)
+            {
+                if (VisualTreeHelper.GetChild(root, i) is UIElement child)
+                {
+                    InvalidateMeasureTree(child);
+                }
+            }
+        }
+
+        /// <summary>
+        /// Walks the tiers widest first (index 0) and returns the first whose width fits
+        /// <paramref name="available"/>, or the last tier when none does. A tier wider than
+        /// <paramref name="currentTier"/> must fit with <see cref="ComposerDensityHysteresis"/> to spare,
+        /// so the row only climbs back once there is clearly room. <paramref name="measureTier"/> applies
+        /// a tier and returns its width; it is called for every tier up to and including the returned one.
+        /// </summary>
+        internal static int PickComposerDensityTier(int currentTier, int tierCount, double available, Func<int, double> measureTier)
+        {
+            for (int tier = 0; tier < tierCount - 1; tier++)
+            {
+                double needed = measureTier(tier) + (tier < currentTier ? ComposerDensityHysteresis : 0);
+                if (needed <= available)
+                {
+                    return tier;
+                }
+            }
+
+            measureTier(tierCount - 1);
+            return tierCount - 1;
         }
 
         private void ApplyComposerDensity(ComposerDensity density)
@@ -891,6 +918,41 @@ namespace ClaudeCodeVS.UI
             return null;
         }
 
+        private bool _promotedButtonsApplied;
+        private List<(string Id, object Content, object ToolTip)> _promotedButtonsShown;
+
+        /// <summary>
+        /// True when two <see cref="SetPromotedButtons"/> requests would build the same row: same ids in
+        /// the same order with equal content and tooltips. Null (terminal mode's default order) only
+        /// matches null.
+        /// </summary>
+        internal static bool SamePromotedButtons(
+            IReadOnlyList<(string Id, object Content, object ToolTip)> a,
+            IReadOnlyList<(string Id, object Content, object ToolTip)> b)
+        {
+            if (a == null || b == null)
+            {
+                return a == null && b == null;
+            }
+
+            if (a.Count != b.Count)
+            {
+                return false;
+            }
+
+            for (int i = 0; i < a.Count; i++)
+            {
+                if (!string.Equals(a[i].Id, b[i].Id, StringComparison.Ordinal) ||
+                    !Equals(a[i].Content, b[i].Content) ||
+                    !Equals(a[i].ToolTip, b[i].ToolTip))
+                {
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
         /// <summary>The composer's own button for a toolbar id passed to <see cref="SetPromotedButtons"/>, if any.</summary>
         private Button OwnButton(string id)
         {
@@ -921,6 +983,19 @@ namespace ClaudeCodeVS.UI
         /// </summary>
         public void SetPromotedButtons(IEnumerable<(string Id, object Content, object ToolTip)> buttons)
         {
+            // RefreshToolbarLayout runs on every ☰ open, workspace change and settings save. Rebuilding
+            // an unchanged set recreated every mirror button, which flashed the row and dropped the
+            // Modern icons for a frame — so the row is only rebuilt when the set actually changed.
+            List<(string Id, object Content, object ToolTip)> requested = buttons?.ToList();
+            if (_promotedButtonsApplied && SamePromotedButtons(_promotedButtonsShown, requested))
+            {
+                return;
+            }
+
+            _promotedButtonsApplied = true;
+            _promotedButtonsShown = requested;
+            buttons = requested;
+
             foreach (Button old in ComposerPromotedButtons.Children)
             {
                 if (OwnButtonId(old) == null)
@@ -1888,7 +1963,7 @@ namespace ClaudeCodeVS.UI
 
             if (previous != ComposerSubagentBadge.Visibility)
             {
-                QueueComposerDensityRefresh();
+                RefreshComposerDensity();
             }
         }
 
@@ -1903,7 +1978,7 @@ namespace ClaudeCodeVS.UI
             ComposerUsageButton.Visibility = visible ? Visibility.Visible : Visibility.Collapsed;
             if (previous != ComposerUsageButton.Visibility)
             {
-                QueueComposerDensityRefresh();
+                RefreshComposerDensity();
             }
 
             if (!visible)

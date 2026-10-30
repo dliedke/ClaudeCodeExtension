@@ -1439,17 +1439,13 @@
 					        Visibility="Collapsed"
 					        Click="ComposerActionsScrollLeftButton_Click"/>
 
-					<!-- HorizontalAlignment="Left": Grid.Column="1" is Star-width, so it always claims its
-					     full proportional share of the row even when the buttons are narrower than that
-					     share — at the default Stretch alignment the unused slack rendered as a visible gap
-					     inside the row. Left-aligning shrinks the scroller to its content's own width and
-					     pins it against the left edge, so the slack lands on the far right instead, off past
-					     the scroll arrows where nothing sits next to it. This is the mirror image of the
-					     classic-mode toolbar's RightButtonsScroller fix (issue #151 round 8): there the fixed
-					     group is docked to the row's right, so the scroller to its left needed
-					     HorizontalAlignment="Right" to close the gap on that side instead. -->
+					<!-- Stretched across the row, with ComposerMirrorGroup docked right: the slack sits
+					     between the selectors and the mirrors, so the mirrors keep their place at the right
+					     edge when the essentials change width (density tier, a longer caption) instead of
+					     being pushed along behind them. Once the row overflows, the content is measured at
+					     its natural width and the mirrors simply follow the essentials in scroll order. -->
 					<ScrollViewer x:Name="ComposerActionsScroller" Grid.Column="1"
-					              HorizontalAlignment="Left"
+					              HorizontalAlignment="Stretch"
 					              HorizontalScrollBarVisibility="Hidden" VerticalScrollBarVisibility="Disabled"
 					              PreviewMouseWheel="ComposerActionsScroller_PreviewMouseWheel"
 					              ScrollChanged="ComposerActionsScroller_ScrollChanged">
@@ -1599,13 +1595,10 @@
 									           FontSize="{DynamicResource ChatSmallFontSize}"
 									           Foreground="{DynamicResource {x:Static vsshell:VsBrushes.ToolWindowTextKey}}"/>
 								</Border>
-
-								<Rectangle x:Name="ComposerMirrorSeparator" DockPanel.Dock="Left"
-								           Width="1" Margin="4,4,6,4" Opacity="0.25"
-								           Fill="{DynamicResource {x:Static vsshell:VsBrushes.WindowTextKey}}"/>
 							</DockPanel>
 
-							<DockPanel x:Name="ComposerMirrorGroup" DockPanel.Dock="Left" LastChildFill="False">
+							<DockPanel x:Name="ComposerMirrorGroup" DockPanel.Dock="Right" LastChildFill="False"
+							           Margin="8,0,0,0">
 								<!-- Mirrors of the panel's own config surfaces (⚙/☰/⚡ and whatever the user promoted
 								     to the toolbar): native mode hides most of the panel's toolbar in favor of these,
 								     since the panel's prompt box is auto-collapsed once the chat is in this tab. Every

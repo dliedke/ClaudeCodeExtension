@@ -640,6 +640,171 @@ namespace ClaudeCodeExtension.Tests
             }
         }
 
+        /// <summary>Tier widths for the picker tests: Full, Compact, Tight.</summary>
+        private static readonly double[] TierWidths = { 400, 300, 200 };
+
+        [TestMethod]
+        public void PickComposerDensityTier_PicksTheWidestTierThatFits()
+        {
+            Assert.AreEqual(0, ChatTranscriptView.PickComposerDensityTier(0, 3, 450, t => TierWidths[t]));
+            Assert.AreEqual(1, ChatTranscriptView.PickComposerDensityTier(0, 3, 350, t => TierWidths[t]));
+            Assert.AreEqual(2, ChatTranscriptView.PickComposerDensityTier(0, 3, 250, t => TierWidths[t]));
+        }
+
+        [TestMethod]
+        public void PickComposerDensityTier_FallsBackToTheNarrowestTierWhenNothingFits()
+        {
+            Assert.AreEqual(2, ChatTranscriptView.PickComposerDensityTier(0, 3, 50, t => TierWidths[t]));
+        }
+
+        /// <summary>
+        /// The flicker fix (B): going down a tier needs no margin, climbing back needs
+        /// <see cref="ChatTranscriptView.ComposerDensityHysteresis"/> to spare, so a tab resized around
+        /// a tier's edge stops flipping on every pixel.
+        /// </summary>
+        [TestMethod]
+        public void PickComposerDensityTier_ClimbsBackOnlyWithHysteresisToSpare()
+        {
+            double margin = ChatTranscriptView.ComposerDensityHysteresis;
+
+            Assert.AreEqual(1, ChatTranscriptView.PickComposerDensityTier(0, 3, 399, t => TierWidths[t]),
+                "Dropping a tier happens as soon as the current one stops fitting.");
+            Assert.AreEqual(1, ChatTranscriptView.PickComposerDensityTier(1, 3, 400, t => TierWidths[t]),
+                "Exactly fitting is not enough to climb back from Compact to Full.");
+            Assert.AreEqual(1, ChatTranscriptView.PickComposerDensityTier(1, 3, 400 + margin - 1, t => TierWidths[t]));
+            Assert.AreEqual(0, ChatTranscriptView.PickComposerDensityTier(1, 3, 400 + margin, t => TierWidths[t]));
+            Assert.AreEqual(1, ChatTranscriptView.PickComposerDensityTier(2, 3, 300 + margin, t => TierWidths[t]),
+                "Tight climbs to Compact with the margin, but not further without it for Full.");
+            Assert.AreEqual(2, ChatTranscriptView.PickComposerDensityTier(2, 3, 300, t => TierWidths[t]));
+        }
+
+        /// <summary>The caller relies on the last measured tier being the one returned (it is left applied).</summary>
+        [TestMethod]
+        public void PickComposerDensityTier_LastMeasuredTierIsTheReturnedOne()
+        {
+            foreach (double available in new[] { 50.0, 250, 350, 450 })
+            {
+                foreach (int current in new[] { 0, 1, 2 })
+                {
+                    int lastMeasured = -1;
+                    int picked = ChatTranscriptView.PickComposerDensityTier(current, 3, available, t =>
+                    {
+                        lastMeasured = t;
+                        return TierWidths[t];
+                    });
+
+                    Assert.AreEqual(picked, lastMeasured, $"available={available}, current={current}");
+                }
+            }
+        }
+
+        /// <summary>
+        /// The flicker fix (A): the tier is picked synchronously from SizeChanged, inside the same frame.
+        /// The former Loaded-priority queue ran after the render, so every resize painted the old tier first.
+        /// </summary>
+        [TestMethod]
+        public void ComposerDensity_IsPickedInTheSameFrameNotQueuedAfterRender()
+        {
+            string cs = ChatTranscriptCode;
+
+            string sizeChanged = ExtractMethodBody(cs, "private void ComposerActionRow_SizeChanged(object sender, SizeChangedEventArgs e)");
+            StringAssert.Contains(sizeChanged, "RefreshComposerDensity();");
+
+            string refresh = ExtractMethodBody(cs, "private void RefreshComposerDensity()");
+            Assert.IsFalse(refresh.Contains("BeginInvoke"), "The tier must not be deferred to a later dispatcher pass.");
+            Assert.IsFalse(cs.Contains("QueueComposerDensityRefresh"), "The deferred refresh must not come back.");
+            StringAssert.Contains(refresh, "PickComposerDensityTier((int)_composerDensity,",
+                "The current tier must feed the hysteresis.");
+        }
+
+        /// <summary>
+        /// The flicker root cause, seen in a per-button trace: Measure() hands back the cached size of
+        /// every clean element, and a new caption only dirties the TextBlock deep inside the button's
+        /// template — the ContentPresenter and Border above it stayed clean, so each tier was measured
+        /// with the previous tier's captions ("Full=421.7 Compact=421.7", "Full=341" measured from Tight)
+        /// and the row flipped Full↔Tight 700+ times in one resize. Dirtying only the group and its direct
+        /// children was not enough; the whole subtree must be dirtied before each tier is measured.
+        /// </summary>
+        [TestMethod]
+        public void ComposerDensity_InvalidatesTheWholeSubtreeBeforeMeasuringEachTier()
+        {
+            string cs = ChatTranscriptCode;
+            string refresh = ExtractMethodBody(cs, "private void RefreshComposerDensity()");
+
+            int apply = refresh.IndexOf("ApplyComposerDensity(_composerDensityOrder[tier]);", System.StringComparison.Ordinal);
+            int invalidate = refresh.IndexOf("InvalidateMeasureTree(ComposerEssentialGroup);", System.StringComparison.Ordinal);
+            int measure = refresh.IndexOf("ComposerEssentialGroup.Measure(", System.StringComparison.Ordinal);
+            Assert.IsTrue(apply >= 0 && invalidate > apply && measure > invalidate,
+                "Each tier must be applied, then the whole group subtree invalidated, then measured.");
+
+            string tree = ExtractMethodBody(cs, "private static void InvalidateMeasureTree(UIElement root)");
+            StringAssert.Contains(tree, "root.InvalidateMeasure();");
+            StringAssert.Contains(tree, "VisualTreeHelper.GetChild(root, i)");
+            StringAssert.Contains(tree, "InvalidateMeasureTree(child);",
+                "Visual descendants (template Border, ContentPresenter, TextBlock) must be dirtied too, not just the direct children.");
+        }
+
+        /// <summary>With mirrors in the row ▶ is shown, so the essentials must fit beside it, not under it.</summary>
+        [TestMethod]
+        public void ComposerDensity_KeepsRoomForTheScrollArrowWhenMirrorsAreShown()
+        {
+            string refresh = ExtractMethodBody(ChatTranscriptCode, "private void RefreshComposerDensity()");
+            StringAssert.Contains(refresh, "(mirrorsShown ? ComposerScrollArrowReserve : 0)");
+        }
+
+        /// <summary>
+        /// The flicker fix (C): the mirrored config buttons are docked right in both layouts, so a change
+        /// in the essentials' width (density tier, longer caption) no longer pushes them sideways.
+        /// </summary>
+        [TestMethod]
+        public void ComposerMirrors_StayDockedRightInBothLayouts()
+        {
+            string xaml = ChatTranscriptXaml;
+
+            int mirrorIdx = xaml.IndexOf("x:Name=\"ComposerMirrorGroup\"", System.StringComparison.Ordinal);
+            string mirrorTag = xaml.Substring(mirrorIdx, xaml.IndexOf(">", mirrorIdx, System.StringComparison.Ordinal) - mirrorIdx);
+            StringAssert.Contains(mirrorTag, "DockPanel.Dock=\"Right\"");
+
+            int scrollerIdx = xaml.IndexOf("x:Name=\"ComposerActionsScroller\"", System.StringComparison.Ordinal);
+            string scrollerTag = xaml.Substring(scrollerIdx, xaml.IndexOf(">", scrollerIdx, System.StringComparison.Ordinal) - scrollerIdx);
+            StringAssert.Contains(scrollerTag, "HorizontalAlignment=\"Stretch\"",
+                "The scroller must span the row, or there is no right edge for the mirrors to dock to.");
+
+            string layout = ExtractMethodBody(ChatTranscriptCode, "private void ApplyToolbarLayout()");
+            Assert.IsFalse(layout.Contains("SetDock(ComposerMirrorGroup"),
+                "The classic layout must not move the mirrors back behind the essentials.");
+            Assert.IsFalse(layout.Contains("ComposerActionsScroller.HorizontalAlignment"),
+                "The classic layout must not shrink the scroller back to its content.");
+        }
+
+        [TestMethod]
+        public void SamePromotedButtons_ComparesIdsContentAndTooltipsInOrder()
+        {
+            var tooltip = new object();
+            var a = new[] { ("ViewChanges", (object)"📄", tooltip), ("ToolsMenu", (object)null, (object)null) };
+
+            Assert.IsTrue(ChatTranscriptView.SamePromotedButtons(a, new[] { ("ViewChanges", (object)"📄", tooltip), ("ToolsMenu", (object)null, (object)null) }));
+            Assert.IsFalse(ChatTranscriptView.SamePromotedButtons(a, new[] { ("ToolsMenu", (object)null, (object)null), ("ViewChanges", (object)"📄", tooltip) }),
+                "A new order must rebuild the row.");
+            Assert.IsFalse(ChatTranscriptView.SamePromotedButtons(a, new[] { ("ViewChanges", (object)"📄", (object)"other"), ("ToolsMenu", (object)null, (object)null) }),
+                "A new tooltip (language switch) must rebuild the row.");
+            Assert.IsFalse(ChatTranscriptView.SamePromotedButtons(a, new[] { ("ViewChanges", (object)"📄", tooltip) }));
+            Assert.IsTrue(ChatTranscriptView.SamePromotedButtons(null, null));
+            Assert.IsFalse(ChatTranscriptView.SamePromotedButtons(a, null), "Terminal mode's default order is a change too.");
+        }
+
+        /// <summary>The flicker fix (D): an unchanged set must not recreate the mirror buttons.</summary>
+        [TestMethod]
+        public void SetPromotedButtons_SkipsTheRebuildWhenNothingChanged()
+        {
+            string body = ExtractMethodBody(ChatTranscriptCode,
+                "public void SetPromotedButtons(IEnumerable<(string Id, object Content, object ToolTip)> buttons)");
+
+            int guard = body.IndexOf("SamePromotedButtons(_promotedButtonsShown, requested)", System.StringComparison.Ordinal);
+            int clear = body.IndexOf("ComposerPromotedButtons.Children.Clear();", System.StringComparison.Ordinal);
+            Assert.IsTrue(guard >= 0 && clear > guard, "The unchanged-set check must run before the row is cleared.");
+        }
+
         /// <summary>
         /// Issue #151 follow-up: the composer's mirrored config buttons (⚙/☰/⚡ and the promoted-
         /// toolbar mirrors) are redundant while the chat is still docked in the panel — the panel's
