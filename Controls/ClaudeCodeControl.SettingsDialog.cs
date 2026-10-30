@@ -1675,12 +1675,8 @@ namespace ClaudeCodeVS
             bool newShowSubagentCount = showSubagentCountCheck.IsChecked == true;
             int newAutoRefresh = autoRefreshCheck.IsChecked == true ? 60 : 0;
             var newToolbarOrder = ReadToolbarRowOrder(toolbarRowsPanel);
-            // Only features are "promoted"; ☰ ⚡ ⚙ have a position in the order but no promotion state.
-            var newVisibleToolbarButtons = newToolbarOrder
-                .Where(b => IsToolbarFeature(b) && toolbarButtonChecks.TryGetValue(b, out var c) && c.IsChecked == true)
-                .ToList();
-            bool newShowToolsMenu = !toolbarButtonChecks.TryGetValue(ToolbarButton.ToolsMenu, out var toolsMenuCheck) ||
-                                    toolsMenuCheck.IsChecked == true;
+            var (newVisibleToolbarButtons, newShowToolsMenu) = ResolveToolbarSelection(newToolbarOrder,
+                toolbarButtonChecks.ToDictionary(kv => kv.Key, kv => kv.Value.IsChecked == true));
 
             // ---- Validate Windows Terminal availability before persisting ----
             // Skipped under native mode: the block above already pinned the type to Command Prompt.
@@ -2125,7 +2121,7 @@ namespace ClaudeCodeVS
         }
 
         /// <summary>Display label + tooltip for each configurable toolbar feature.</summary>
-        private static (string Label, string Tip) ToolbarFeatureMeta(ToolbarButton id)
+        internal static (string Label, string Tip) ToolbarFeatureMeta(ToolbarButton id)
         {
             switch (id)
             {
@@ -2474,12 +2470,27 @@ namespace ClaudeCodeVS
         }
 
         /// <summary>Reads the current feature order from the Toolbar tab's rows (top to bottom).</summary>
-        private static List<ToolbarButton> ReadToolbarRowOrder(StackPanel rowsPanel)
+        internal static List<ToolbarButton> ReadToolbarRowOrder(StackPanel rowsPanel)
         {
             return rowsPanel.Children.OfType<Border>()
                 .Where(b => b.Tag is ToolbarButton)
                 .Select(b => (ToolbarButton)b.Tag)
                 .ToList();
+        }
+
+        /// <summary>
+        /// Turns the Toolbar tab's rows and checkboxes into the settings saved on OK. Only features are
+        /// "promoted"; ☰ ⚡ ⚙ have a position in the order but no promotion state, and ☰ stays shown
+        /// unless its own checkbox is cleared.
+        /// </summary>
+        internal static (List<ToolbarButton> VisibleButtons, bool ShowToolsMenu) ResolveToolbarSelection(
+            IEnumerable<ToolbarButton> rowOrder, IReadOnlyDictionary<ToolbarButton, bool> isChecked)
+        {
+            var visible = rowOrder
+                .Where(b => IsToolbarFeature(b) && isChecked.TryGetValue(b, out bool c) && c)
+                .ToList();
+            bool showToolsMenu = !isChecked.TryGetValue(ToolbarButton.ToolsMenu, out bool tools) || tools;
+            return (visible, showToolsMenu);
         }
 
         /// <summary>
