@@ -193,7 +193,17 @@ namespace ClaudeCodeVS
         CustomCommands,
 
         /// <summary>⚙ Settings / code agent selection. Always shown.</summary>
-        Settings
+        Settings,
+
+        // v291.0: the two remaining panel-only controls, so nothing in the toolbar is outside the order
+        // any more. Appended for the same ordinal reason. Shown by the mode, never promoted: 📎 goes with
+        // the panel's prompt box, 🤖 with the embedded terminal.
+
+        /// <summary>📎 Attach / Insert Content menu of the panel's prompt box.</summary>
+        AttachMenu,
+
+        /// <summary>🤖 Model / effort / permissions menu of the embedded terminal.</summary>
+        ModelMenu
     }
 
     /// <summary>

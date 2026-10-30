@@ -549,6 +549,19 @@ namespace ClaudeCodeVS
             terminalPanelSection.Children.Add(leftRadio);
             terminalPanelSection.Children.Add(rightRadio);
 
+            // Lives here, not on the Toolbar tab (v291.0): it only moves the panel's button strip, which
+            // the chat tab replaces in native mode — so this tab's "does not apply right now" banner
+            // and greying are the right context for it.
+            terminalPanelSection.Children.Add(MakeSectionHeader(L("Toolbar alignment"), themeFg));
+            var toolbarRightAlignCheck = MakeCheckBox(
+                L("Align the toolbar buttons to the right edge"),
+                L("By default the button strip starts on the left, next to the scroll arrow. Turn this on to " +
+                "push it to the right edge of the row instead, the way the feature buttons sat before the " +
+                "toolbar became a single scrollable strip. Scrolling when the buttons no longer fit is " +
+                "unaffected either way."),
+                _settings.ToolbarButtonsRightAligned, themeFg);
+            terminalPanelSection.Children.Add(toolbarRightAlignCheck);
+
             terminalPanelSection.Children.Add(MakeSectionHeader(L("Prompt input box"), themeFg));
             var hidePromptPanelCheck = MakeCheckBox(
                 L("Hide prompt input box (terminal only)"),
@@ -1375,7 +1388,7 @@ namespace ClaudeCodeVS
 
             // ========================= Toolbar tab =========================
             var toolbarStack = AddTab(L("Toolbar"));
-            var toolbarTab = BuildToolbarButtonsTabContent(toolbarStack, themeFg, dialog);
+            var toolbarTab = BuildToolbarButtonsTabContent(toolbarStack, themeFg, dialog, nativeModeCheck);
             var toolbarButtonChecks = toolbarTab.Checks;
             var toolbarRowsPanel = toolbarTab.RowsPanel;
 
@@ -1388,17 +1401,6 @@ namespace ClaudeCodeVS
             object toolbarTabItem = tabs.Items[tabs.Items.Count - 1];
             tabs.Items.Remove(toolbarTabItem);
             tabs.Items.Insert(appearanceTabIndex, toolbarTabItem);
-
-            toolbarStack.Children.Add(MakeSectionHeader(L("Alignment"), themeFg));
-
-            var toolbarRightAlignCheck = MakeCheckBox(
-                L("Align the toolbar buttons to the right edge"),
-                L("By default the button strip starts on the left, next to the scroll arrow. Turn this on to " +
-                "push it to the right edge of the row instead, the way the feature buttons sat before the " +
-                "toolbar became a single scrollable strip. Scrolling when the buttons no longer fit is " +
-                "unaffected either way."),
-                _settings.ToolbarButtonsRightAligned, themeFg);
-            toolbarStack.Children.Add(toolbarRightAlignCheck);
 
             // ========================= CLI Paths tab =========================
             var cliPathsStack = AddTab(L("CLI Paths"));
@@ -2140,6 +2142,8 @@ namespace ClaudeCodeVS
                 case ToolbarButton.ToolsMenu: return (L("☰  Tools menu"), L("The dropdown with every feature that is not a button. It hides by itself when it would be empty. Unchecked, it is never shown, and the unchecked features are not available anywhere."));
                 case ToolbarButton.CustomCommands: return (L("⚡  Custom Commands"), L("Shown whenever at least one custom command exists; the checkbox only shows whether one does. Configure… adds, edits or removes them."));
                 case ToolbarButton.Settings: return (L("⚙  Settings"), L("Always shown, so the settings stay reachable. Drag it to move it."));
+                case ToolbarButton.AttachMenu: return (L("📎  Attach / Insert Content"), L("Attach a file or insert the editor selection into the panel's prompt box. Terminal only: in native mode the chat has its own 📎. The checkbox only shows whether it is shown right now. Drag it to move it."));
+                case ToolbarButton.ModelMenu: return (L("🤖  Model"), L("Model, effort and permission menu of the embedded terminal. Terminal only: in native mode the chat's own selectors take its place. The checkbox only shows whether it is shown right now. Drag it to move it."));
                 default: return (id.ToString(), string.Empty);
             }
         }
@@ -2152,8 +2156,12 @@ namespace ClaudeCodeVS
         /// checkboxes keyed by feature, for collection on OK. See RefreshToolbarLayout /
         /// ReorderToolbarControls.
         /// </summary>
-        private (StackPanel RowsPanel, Dictionary<ToolbarButton, CheckBox> Checks) BuildToolbarButtonsTabContent(StackPanel stack, Brush themeFg, Window settingsDialog)
+        private (StackPanel RowsPanel, Dictionary<ToolbarButton, CheckBox> Checks) BuildToolbarButtonsTabContent(StackPanel stack, Brush themeFg, Window settingsDialog, CheckBox nativeModeCheck)
         {
+            // 📎 and 🤖 (v291.0) are terminal-only, so their read-only checkboxes follow the dialog's own
+            // mode switch rather than a saved setting.
+            bool PanelOnlyControlShown() => nativeModeCheck.IsChecked != true;
+
             stack.Children.Add(MakeSectionHeader(L("One-click toolbar buttons"), themeFg));
             stack.Children.Add(new TextBlock
             {
@@ -2234,17 +2242,27 @@ namespace ClaudeCodeVS
                     case ToolbarButton.ToolsMenu: isChecked = _settings.ShowToolsMenuButton; break;
                     case ToolbarButton.CustomCommands: isChecked = _settings.CustomCommands?.Count > 0; break;
                     case ToolbarButton.Settings: isChecked = true; break;
+                    case ToolbarButton.AttachMenu:
+                    case ToolbarButton.ModelMenu: isChecked = PanelOnlyControlShown(); break;
                     default: isChecked = current.Contains(id); break;
                 }
 
                 var cb = MakeCheckBox(meta.Label, meta.Tip, isChecked, themeFg);
                 cb.VerticalAlignment = VerticalAlignment.Center;
-                if (id == ToolbarButton.CustomCommands || id == ToolbarButton.Settings)
+                if (id == ToolbarButton.CustomCommands || id == ToolbarButton.Settings || IsPanelOnlyToolbarControl(id))
                 {
                     cb.IsEnabled = false;
                     ToolTipService.SetShowOnDisabled(cb, true);
                 }
                 checks[id] = cb;
+
+                if (IsPanelOnlyToolbarControl(id))
+                {
+                    CheckBox panelOnlyCheck = cb;
+                    RoutedEventHandler syncPanelOnly = (s, ea) => panelOnlyCheck.IsChecked = PanelOnlyControlShown();
+                    nativeModeCheck.Checked += syncPanelOnly;
+                    nativeModeCheck.Unchecked += syncPanelOnly;
+                }
 
                 var grip = new TextBlock
                 {
@@ -2302,6 +2320,22 @@ namespace ClaudeCodeVS
                     };
                     Grid.SetColumn(configureButton, 2);
                     grid.Children.Add(configureButton);
+                }
+                else if (IsPanelOnlyToolbarControl(id))
+                {
+                    // Says at a glance why the checkbox cannot be changed; the tooltip has the detail.
+                    var modeNote = new TextBlock
+                    {
+                        Text = L("Terminal only"),
+                        FontSize = 11,
+                        Opacity = 0.6,
+                        Foreground = themeFg,
+                        VerticalAlignment = VerticalAlignment.Center,
+                        Margin = new Thickness(8, 0, 4, 0),
+                        ToolTip = MakeToolTip(meta.Tip)
+                    };
+                    Grid.SetColumn(modeNote, 2);
+                    grid.Children.Add(modeNote);
                 }
 
                 // Transparent background so the whole row is hit-testable; events bubble to the panel.

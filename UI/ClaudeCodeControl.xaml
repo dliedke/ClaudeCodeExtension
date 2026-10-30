@@ -303,7 +303,7 @@
 					        Style="{StaticResource IconButtonStyle}"
 					        Content="◀" Width="16" MinWidth="16" FontSize="9" Padding="0"
 					        ToolTip="{local:Loc 'Scroll left'}"
-					        Visibility="Hidden"
+					        Visibility="Collapsed"
 					        Click="RightButtonsScrollLeftButton_Click"
 					        Margin="0,0,4,0"/>
 
@@ -311,7 +311,7 @@
 					        Style="{StaticResource IconButtonStyle}"
 					        Content="▶" Width="16" MinWidth="16" FontSize="9" Padding="0"
 					        ToolTip="{local:Loc 'Scroll right'}"
-					        Visibility="Hidden"
+					        Visibility="Collapsed"
 					        Click="RightButtonsScrollRightButton_Click"
 					        Margin="4,0,6,0"/>
 

@@ -31,12 +31,6 @@ namespace ClaudeCodeExtension.Tests
         private static readonly XNamespace XamlNs = "http://schemas.microsoft.com/winfx/2006/xaml";
         private static readonly XNamespace WpfNs = "http://schemas.microsoft.com/winfx/2006/xaml/presentation";
 
-        /// <summary>
-        /// Panel toolbar buttons that are deliberately not in <see cref="ToolbarButton"/>: they have no
-        /// position of their own and travel with a neighbour (ReorderToolbarControls' keep-before pairs).
-        /// </summary>
-        private static readonly string[] NonConfigurablePanelButtons = { "AttachDropdownButton", "ModelDropdownButton" };
-
         private static ToolbarButton[] AllToolbarButtons =>
             Enum.GetValues(typeof(ToolbarButton)).Cast<ToolbarButton>().ToArray();
 
@@ -99,19 +93,13 @@ namespace ClaudeCodeExtension.Tests
             List<string> xamlButtons = ChildNames(FindByName(ControlXaml, "RightButtonsPanel"), "Button");
             Assert.IsTrue(xamlButtons.Count > 0, "RightButtonsPanel has no Button children; update this guard to the new layout.");
 
-            foreach (string name in NonConfigurablePanelButtons)
-            {
-                CollectionAssert.Contains(xamlButtons, name,
-                    $"{name} is no longer in the toolbar; drop it from NonConfigurablePanelButtons.");
-            }
-
-            var unmapped = xamlButtons
-                .Where(n => !mapping.Values.Contains(n) && !NonConfigurablePanelButtons.Contains(n))
-                .ToList();
+            // v291.0: 📎 and 🤖 joined the order, so there is no exception left — every button in the
+            // strip is a ToolbarButton.
+            var unmapped = xamlButtons.Where(n => !mapping.Values.Contains(n)).ToList();
             Assert.AreEqual(0, unmapped.Count,
                 "These toolbar buttons are not in the ToolbarButton enum, so the Toolbar settings tab cannot move or hide them: " +
                 string.Join(", ", unmapped) + ". Add a ToolbarButton value (plus DefaultToolbarButtonOrder, GetToolbarButtonControl, " +
-                "ToolbarFeatureMeta), or list it in NonConfigurablePanelButtons with a reason.");
+                "ToolbarFeatureMeta).");
 
             var missingFromXaml = mapping.Values.Where(n => !xamlButtons.Contains(n)).ToList();
             Assert.AreEqual(0, missingFromXaml.Count,
@@ -156,6 +144,8 @@ namespace ClaudeCodeExtension.Tests
         /// <summary>
         /// The chat composer mirrors the toolbar: ☰ ⚡ ⚙ are its own buttons slotted in by id, and every
         /// promoted feature (Restart excepted — the composer has its own ↻) needs a Modern-style icon.
+        /// 📎 and 🤖 are panel-only (the composer has its own 📎 and its selectors replace 🤖), so
+        /// RefreshToolbarLayout must leave them out of the mirror list instead.
         /// </summary>
         [TestMethod]
         public void ChatComposer_HasACounterpartForEveryToolbarButton()
@@ -164,10 +154,19 @@ namespace ClaudeCodeExtension.Tests
             string ownButton = ExtractMethodBody(cs, "private Button OwnButton(string id)");
             string moniker = ExtractMethodBody(cs, "private static bool TryGetPromotedMoniker(string id, out ImageMoniker moniker)");
 
-            foreach (ToolbarButton id in AllToolbarButtons.Where(b => !ClaudeCodeControl.IsToolbarFeature(b)))
+            foreach (ToolbarButton id in AllToolbarButtons.Where(b => !ClaudeCodeControl.IsToolbarFeature(b) && !ClaudeCodeControl.IsPanelOnlyToolbarControl(b)))
             {
                 StringAssert.Contains(ownButton, $"case \"{id}\":", $"The composer has no own button for {id}.");
             }
+
+            foreach (ToolbarButton id in AllToolbarButtons.Where(ClaudeCodeControl.IsPanelOnlyToolbarControl))
+            {
+                Assert.IsFalse(ownButton.Contains($"case \"{id}\":"), $"{id} is panel-only and must not get a composer button.");
+            }
+
+            string layout = ExtractMethodBody(ProviderManagementSource, "private void RefreshToolbarLayout()");
+            StringAssert.Contains(layout, "if (IsPanelOnlyToolbarControl(id)) continue;",
+                "Panel-only controls must be skipped before the mirror list is built, or the composer gets a blank button for them.");
 
             foreach (ToolbarButton id in Features.Where(b => b != ToolbarButton.RestartAgent))
             {
@@ -187,17 +186,60 @@ namespace ClaudeCodeExtension.Tests
         }
 
         [TestMethod]
-        public void NormalizeToolbarOrder_KeepsTheSavedOrderAndAppendsMissingButtonsInDefaultOrder()
+        public void NormalizeToolbarOrder_KeepsTheSavedRelativeOrder()
         {
             var saved = new[] { ToolbarButton.Settings, ToolbarButton.GitHubIssues, ToolbarButton.UpdateAgent };
 
             List<ToolbarButton> order = ClaudeCodeControl.NormalizeToolbarOrder(saved);
 
-            CollectionAssert.AreEqual(saved, order.Take(3).ToList());
-            CollectionAssert.AreEqual(
-                ClaudeCodeControl.DefaultToolbarButtonOrder.Where(b => !saved.Contains(b)).ToList(),
-                order.Skip(3).ToList(),
-                "Buttons the saved order lacks (e.g. added in a newer version) follow in default order.");
+            CollectionAssert.AreEquivalent(AllToolbarButtons, order, "Every button exactly once.");
+            CollectionAssert.AreEqual(saved, order.Where(saved.Contains).ToList(),
+                "The buttons the user ordered keep their relative order.");
+        }
+
+        /// <summary>
+        /// A button the saved order lacks (added in a newer version) lands right before the first of its
+        /// default successors the user kept — not at the end. Successor, not predecessor, on purpose:
+        /// that is what keeps 📎 next to ☰ and 🤖 next to ⚙ for a user who had moved ☰/⚙ before v291.0.
+        /// </summary>
+        [TestMethod]
+        public void NormalizeToolbarOrder_SlotsMissingButtonsBeforeTheirFirstKeptDefaultSuccessor()
+        {
+            // The user kept only three buttons, with ⚙ ahead of ☰.
+            var saved = new[] { ToolbarButton.GitHubIssues, ToolbarButton.Settings, ToolbarButton.ToolsMenu };
+
+            List<ToolbarButton> order = ClaudeCodeControl.NormalizeToolbarOrder(saved);
+
+            CollectionAssert.AreEqual(new[]
+            {
+                // Every feature that precedes GitHubIssues by default slots in before it, in default order…
+                ToolbarButton.UpdateAgent, ToolbarButton.DetachTerminal, ToolbarButton.RestartAgent,
+                ToolbarButton.ViewChanges, ToolbarButton.SessionHistory, ToolbarButton.ShowUsage,
+                ToolbarButton.SetWorkingDirectory, ToolbarButton.SendBuildErrors,
+                ToolbarButton.GenerateCommitMessage, ToolbarButton.GenerateCommitMessageAndPush,
+                ToolbarButton.RecommendModel, ToolbarButton.GitHubIssues,
+                // …⚡ and 🤖 before ⚙ (their first kept successor), 📎 before ☰.
+                ToolbarButton.CustomCommands, ToolbarButton.ModelMenu, ToolbarButton.Settings,
+                ToolbarButton.AttachMenu, ToolbarButton.ToolsMenu
+            }, order);
+        }
+
+        /// <summary>
+        /// v291.0 added 📎 and 🤖 to the order. A pre-v291 saved order (… 📎 ☰ ⚡ 🤖 ⚙ was the implicit
+        /// layout) must keep looking the same: 📎 right before ☰, 🤖 right before ⚙.
+        /// </summary>
+        [TestMethod]
+        public void NormalizeToolbarOrder_KeepsAPreV291LayoutUnchanged()
+        {
+            var saved = ClaudeCodeControl.DefaultToolbarButtonOrder
+                .Where(b => !ClaudeCodeControl.IsPanelOnlyToolbarControl(b))
+                .Reverse()
+                .ToArray();
+
+            List<ToolbarButton> order = ClaudeCodeControl.NormalizeToolbarOrder(saved);
+
+            Assert.AreEqual(order.IndexOf(ToolbarButton.ToolsMenu) - 1, order.IndexOf(ToolbarButton.AttachMenu), "📎 sits right before ☰.");
+            Assert.AreEqual(order.IndexOf(ToolbarButton.Settings) - 1, order.IndexOf(ToolbarButton.ModelMenu), "🤖 sits right before ⚙.");
         }
 
         [TestMethod]
@@ -208,8 +250,18 @@ namespace ClaudeCodeExtension.Tests
             List<ToolbarButton> order = ClaudeCodeControl.NormalizeToolbarOrder(saved);
 
             CollectionAssert.AreEquivalent(AllToolbarButtons, order, "Every button exactly once, nothing else.");
-            Assert.AreEqual(ToolbarButton.ViewChanges, order[0]);
-            Assert.AreEqual(ToolbarButton.ToolsMenu, order[1]);
+            Assert.IsTrue(order.IndexOf(ToolbarButton.ViewChanges) < order.IndexOf(ToolbarButton.ToolsMenu));
+        }
+
+        [TestMethod]
+        public void DefaultToolbarOrder_KeepsAttachBeforeToolsAndModelBeforeSettings()
+        {
+            var order = ClaudeCodeControl.DefaultToolbarButtonOrder.ToList();
+
+            Assert.AreEqual(order.IndexOf(ToolbarButton.ToolsMenu) - 1, order.IndexOf(ToolbarButton.AttachMenu),
+                "The default layout stays … 📎 ☰ ⚡ 🤖 ⚙.");
+            Assert.AreEqual(order.IndexOf(ToolbarButton.Settings) - 1, order.IndexOf(ToolbarButton.ModelMenu));
+            Assert.AreEqual(order.IndexOf(ToolbarButton.CustomCommands) - 1, order.IndexOf(ToolbarButton.ToolsMenu));
         }
 
         #endregion
@@ -320,7 +372,7 @@ namespace ClaudeCodeExtension.Tests
         #region Reordering the panel and the ☰ menu
 
         [TestMethod]
-        public void ApplyToolbarButtonOrder_FollowsTheOrderAndKeepsAttachAndModelBeforeTheirAnchors()
+        public void ApplyToolbarButtonOrder_FollowsTheOrderAndSkipsNullsAndForeignControls()
         {
             RunOnSta(() =>
             {
@@ -329,20 +381,17 @@ namespace ClaudeCodeExtension.Tests
                 var f3 = new Button { Name = "f3" };
                 var attach = new Button { Name = "attach" };
                 var tools = new Button { Name = "tools" };
-                var custom = new Button { Name = "custom" };
-                var model = new Button { Name = "model" };
                 var settings = new Button { Name = "settings" };
                 var panel = new StackPanel();
-                foreach (var b in new[] { f1, f2, f3, attach, tools, custom, model, settings }) panel.Children.Add(b);
+                foreach (var b in new[] { f1, f2, f3, attach, tools, settings }) panel.Children.Add(b);
 
                 ClaudeCodeControl.ApplyToolbarButtonOrder(panel,
-                    new UIElement[] { f2, settings, null, f1, new Button(), tools, custom, f3 },
-                    new[] { ((UIElement)attach, (UIElement)tools), ((UIElement)model, (UIElement)settings) });
+                    new UIElement[] { f2, settings, null, attach, f1, new Button(), tools, f3 });
 
                 CollectionAssert.AreEqual(
-                    new[] { "f2", "model", "settings", "f1", "attach", "tools", "custom", "f3" },
+                    new[] { "f2", "settings", "attach", "f1", "tools", "f3" },
                     panel.Children.OfType<Button>().Select(b => b.Name).ToList(),
-                    "Nulls and controls outside the panel are skipped; 📎 stays before ☰ and 🤖 before ⚙.");
+                    "The order is applied as given; nulls and controls outside the panel are skipped.");
             });
         }
 
@@ -372,10 +421,75 @@ namespace ClaudeCodeExtension.Tests
             StringAssert.Contains(body, "var order = GetEffectiveToolbarOrder();");
             StringAssert.Contains(body, "GetToolbarButtonControl(b)");
             StringAssert.Contains(body, "GetToolbarMenuItemControl(b)");
-            StringAssert.Contains(body, "(System.Windows.UIElement)AttachDropdownButton, (System.Windows.UIElement)ToolsDropdownButton",
-                "📎 must keep travelling with ☰.");
-            StringAssert.Contains(body, "(System.Windows.UIElement)ModelDropdownButton, (System.Windows.UIElement)MenuDropdownButton",
-                "🤖 must keep travelling with ⚙.");
+            Assert.IsFalse(body.Contains("KeepBefore"),
+                "v291.0: 📎 and 🤖 are in the order themselves; nothing may be moved next to a neighbour behind the user's back.");
+        }
+
+        #endregion
+
+        #region Panel-only controls and the alignment switch (v291.0)
+
+        [TestMethod]
+        public void PanelOnlyControls_AreAttachAndModelAndNeverFeatures()
+        {
+            CollectionAssert.AreEquivalent(new[] { ToolbarButton.AttachMenu, ToolbarButton.ModelMenu },
+                AllToolbarButtons.Where(ClaudeCodeControl.IsPanelOnlyToolbarControl).ToList());
+            Assert.IsFalse(ClaudeCodeControl.IsToolbarFeature(ToolbarButton.AttachMenu));
+            Assert.IsFalse(ClaudeCodeControl.IsToolbarFeature(ToolbarButton.ModelMenu));
+        }
+
+        /// <summary>
+        /// 📎 and 🤖 rows can be dragged but not switched: their checkbox shows whether the current mode
+        /// shows them, and follows the dialog's own terminal/native switch live.
+        /// </summary>
+        [TestMethod]
+        public void SettingsToolbarTab_PanelOnlyRowsAreReadOnlyAndFollowTheModeSwitch()
+        {
+            string body = ExtractMethodBody(
+                RepositoryLayout.ReadText("Controls", "ClaudeCodeControl.SettingsDialog.cs"),
+                "private (StackPanel RowsPanel, Dictionary<ToolbarButton, CheckBox> Checks) BuildToolbarButtonsTabContent(");
+
+            StringAssert.Contains(body, "IsPanelOnlyToolbarControl(id))", "Panel-only rows must be recognised.");
+            StringAssert.Contains(body, "if (id == ToolbarButton.CustomCommands || id == ToolbarButton.Settings || IsPanelOnlyToolbarControl(id))",
+                "Their checkbox must be disabled like ⚡'s and ⚙'s.");
+            StringAssert.Contains(body, "nativeModeCheck.Checked += syncPanelOnly;");
+            StringAssert.Contains(body, "nativeModeCheck.Unchecked += syncPanelOnly;");
+            StringAssert.Contains(body, "Text = L(\"Terminal only\"),", "Both rows carry the same mode note.");
+            StringAssert.Contains(body, "bool PanelOnlyControlShown() => nativeModeCheck.IsChecked != true;",
+                "Both are shown exactly when the embedded terminal is in use.");
+        }
+
+        /// <summary>
+        /// 📎 used to stay on the panel toolbar in native mode while the chat was docked in the panel,
+        /// next to the composer's own 📎 in the action row — a duplicate. Terminal only since v291.0.
+        /// </summary>
+        [TestMethod]
+        public void RefreshToolbarLayout_HidesTheAttachButtonInNativeMode()
+        {
+            string body = ExtractMethodBody(ProviderManagementSource, "private void RefreshToolbarLayout()");
+
+            StringAssert.Contains(body, "AttachDropdownButton.Visibility = hasConsole ? Visibility.Visible : Visibility.Collapsed;");
+            Assert.IsFalse(body.Contains("AttachDropdownButton.Visibility = Visibility.Visible;"),
+                "📎 must not be forced visible regardless of the mode.");
+        }
+
+        /// <summary>
+        /// The alignment switch only moves the panel's button strip, which native mode replaces with the
+        /// chat tab — so it belongs on the Terminal tab (greyed out in native mode), not on Toolbar.
+        /// </summary>
+        [TestMethod]
+        public void ToolbarAlignmentSwitch_LivesOnTheTerminalTab()
+        {
+            string cs = RepositoryLayout.ReadText("Controls", "ClaudeCodeControl.SettingsDialog.cs");
+
+            StringAssert.Contains(cs, "terminalPanelSection.Children.Add(toolbarRightAlignCheck);");
+            Assert.IsFalse(cs.Contains("toolbarStack.Children.Add(toolbarRightAlignCheck);"),
+                "The switch must not be on the Toolbar tab any more.");
+            Assert.IsFalse(cs.Contains("L(\"Alignment\")"), "The Toolbar tab's Alignment header went with it.");
+
+            int header = cs.IndexOf("terminalPanelSection.Children.Add(MakeSectionHeader(L(\"Toolbar alignment\"), themeFg));", System.StringComparison.Ordinal);
+            int check = cs.IndexOf("terminalPanelSection.Children.Add(toolbarRightAlignCheck);", System.StringComparison.Ordinal);
+            Assert.IsTrue(header >= 0 && header < check, "A lone checkbox under the position radios was easy to miss; it gets its own header.");
         }
 
         #endregion
