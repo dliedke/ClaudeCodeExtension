@@ -374,7 +374,9 @@ namespace ClaudeCodeVS.Agents
         /// <summary>
         /// One-shot <c>--print</c> that names a chat tab (<see cref="SessionTitleGenerator"/>): the
         /// low-cost model, no tools, no MCP servers, nothing saved to the session history. The request
-        /// comes over stdin.
+        /// comes over stdin and the answer is forced into <see cref="SessionTitleGenerator.JsonSchema"/>.
+        /// Run outside the workspace (see <c>GenerateAiChatTitleAsync</c>) so no project CLAUDE.md pulls
+        /// the model into answering the request.
         /// </summary>
         public static string GetSessionTitleArguments(ClaudeSessionOptions options)
         {
@@ -385,6 +387,7 @@ namespace ClaudeCodeVS.Agents
             var flags = new StringBuilder("--print");
             flags.Append(" --model ").Append(QuoteArgument(SessionTitleGenerator.TitleModel, isWsl));
             flags.Append(" --output-format json");
+            flags.Append(" --json-schema ").Append(QuoteArgument(SessionTitleGenerator.JsonSchema, isWsl));
             flags.Append(" --system-prompt ").Append(QuoteArgument(SessionTitleGenerator.SystemPrompt, isWsl));
             flags.Append(" --tools ").Append(QuoteArgument(string.Empty, isWsl));
             flags.Append(" --strict-mcp-config --no-session-persistence --disable-slash-commands");

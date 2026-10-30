@@ -443,15 +443,18 @@ namespace ClaudeCodeVS
         /// the resolved Windows executable (custom path included) otherwise. Returns stdout plus stderr
         /// (as Error) once the CLI exits; stdout is null when it failed to run or timed out (Error says
         /// why) and both are null when <paramref name="cancellationToken"/> fired first.
+        /// <paramref name="inWorkspace"/> false runs it in the temp folder instead, out of reach of the
+        /// project's CLAUDE.md.
         /// </summary>
         private async Task<(string Output, string Error)> RunClaudeOneShotAsync(
             AiProvider provider,
             Func<ClaudeSessionOptions, string> buildArguments,
             string request,
             int timeoutMs,
-            CancellationToken cancellationToken)
+            CancellationToken cancellationToken,
+            bool inWorkspace = true)
         {
-            string workspace = await GetWorkspaceDirectoryAsync();
+            string workspace = inWorkspace ? await GetWorkspaceDirectoryAsync() : null;
             if (string.IsNullOrWhiteSpace(workspace) || !Directory.Exists(workspace))
             {
                 workspace = Path.GetTempPath();
