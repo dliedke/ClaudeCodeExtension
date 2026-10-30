@@ -176,6 +176,10 @@ Pull requests for new features are welcome. Bug fixes too — if you find an iss
 
 ## Version History
 
+### Version 290.0
+- The chat toolbar no longer flickers while a chat tab is resized: it shortens its captions without flashing and only widens them again once there is clearly room.
+- The ⚡ ☰ ⚙ buttons and promoted toolbar buttons now stay at the right edge of the chat toolbar instead of jumping around when the captions change.
+
 ### Version 289.0
 - The ⚡ custom commands button no longer appears in the second and later chat tabs when no custom commands are configured.
 
