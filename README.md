@@ -178,7 +178,7 @@ Pull requests for new features are welcome. Bug fixes too — if you find an iss
 
 A huge thank you to every developer who took the time to improve this extension with pull requests. Your features, fixes and ideas made it better for everyone!
 
-- [@Gh61](https://github.com/Gh61) — 20 PRs
+- [@Gh61](https://github.com/Gh61) — 21 PRs
 - [@ClaudioCas](https://github.com/ClaudioCas) — 13 PRs
 - [@rbuss93](https://github.com/rbuss93) — 9 PRs
 - [@MartinWooChina](https://github.com/MartinWooChina) — 6 PRs
@@ -196,9 +196,12 @@ A huge thank you to every developer who took the time to improve this extension 
 - [@osjimenez](https://github.com/osjimenez) — 1 PR
 - [@wluisdev](https://github.com/wluisdev) — 1 PR
 
+## Version History
+
 ### Version 292.0
 - *Settings → Terminal* now tells the two native mode situations apart: with the chat docked in the panel, the prompt panel position and toolbar alignment stay editable and a note marks the rest as terminal-only; with the chat in its own tab everything is greyed out as before.
 - The banner on that tab gained *Attach chat to Panel* / *Detach chat to Tab*, so the chat can be moved between the panel and its own tab right from Settings.
+- Thanks to [@Gh61](https://github.com/Gh61) for this release (#248).
 
 ### Version 291.0
 - The 📎 Attach and 🤖 Model buttons of the terminal toolbar can now be dragged into any position in *Settings → Toolbar* like the other buttons, and they no longer jump along when ☰ or ⚙ is moved. Both are terminal-only and say so in the list.
