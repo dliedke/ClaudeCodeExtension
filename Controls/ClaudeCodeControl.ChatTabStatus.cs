@@ -343,7 +343,8 @@ namespace ClaudeCodeVS
                     ClaudeCommandBuilder.GetSessionTitleArguments,
                     SessionTitleGenerator.BuildRequest(prompt),
                     SessionTitleTimeoutMs,
-                    CancellationToken.None);
+                    CancellationToken.None,
+                    inWorkspace: false);
 
                 title = SessionTitleGenerator.ParseOutput(output);
                 if (title.Length == 0)
