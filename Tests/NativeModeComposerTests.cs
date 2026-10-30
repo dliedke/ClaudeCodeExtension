@@ -1212,11 +1212,16 @@ namespace ClaudeCodeExtension.Tests
             StringAssert.Contains(cs, "private void RightButtonsScrollRightButton_Click(object sender, RoutedEventArgs e)");
             StringAssert.Contains(cs, "private void RightButtonsScroller_ScrollChanged(object sender, ScrollChangedEventArgs e)");
 
+            // v291.0: while nothing scrolls both arrow slots collapse, so the strip sits flush against
+            // its aligned edge — the reserved (Hidden) ◀ slot read as an unexplained gap before the
+            // first button. Both arrows still come and go together (round 9).
             string scrollChangedBody = ExtractMethodBody(cs,
                 "private void RightButtonsScroller_ScrollChanged(object sender, ScrollChangedEventArgs e)");
-            StringAssert.Contains(scrollChangedBody, "Visibility.Hidden",
-                "Arrow buttons must toggle Hidden, not Collapsed, so the row's own footprint never changes " +
-                "size when an arrow appears or disappears (same reasoning as the composer's action row, round 6).");
+            StringAssert.Contains(scrollChangedBody, "Visibility arrows = canScroll ? Visibility.Visible : Visibility.Collapsed;",
+                "Arrow slots must collapse while there is nothing to scroll, not stay Hidden and reserve a gap.");
+            Assert.IsFalse(scrollChangedBody.Contains("Visibility.Hidden"), "No arrow slot may be reserved any more.");
+            Assert.IsFalse(scrollChangedBody.Contains("ToolbarButtonsRightAligned"),
+                "Both sides behave alike now; the alignment no longer decides which slot is reserved.");
         }
 
         /// <summary>
@@ -1345,12 +1350,11 @@ namespace ClaudeCodeExtension.Tests
                 RepositoryLayout.ReadText("Controls", "ClaudeCodeControl.ProviderManagement.cs"),
                 "private void RightButtonsScroller_ScrollChanged(object sender, ScrollChangedEventArgs e)");
 
-            StringAssert.Contains(body, "RightButtonsScrollLeftButton.Visibility = arrows",
+            StringAssert.Contains(body, "RightButtonsScrollLeftButton.Visibility = arrows;",
                 "Both arrows must share one visibility decision so neither ever appears alone.");
-            // Since #162 the right arrow may also collapse (right-aligned strip with nothing to scroll),
-            // but whenever it is shown it still takes the shared "arrows" decision.
-            StringAssert.Contains(body, "RightButtonsScrollRightButton.Visibility =");
-            StringAssert.Contains(body, ": arrows;");
+            // v291.0: both slots collapse while nothing scrolls (no reserved gap on either side), and
+            // both take the same shared decision again.
+            StringAssert.Contains(body, "RightButtonsScrollRightButton.Visibility = arrows;");
             StringAssert.Contains(body, "RightButtonsScrollLeftButton.IsEnabled",
                 "The direction with nowhere to go must be disabled rather than hidden.");
             StringAssert.Contains(body, "RightButtonsScrollRightButton.IsEnabled");
@@ -1377,9 +1381,11 @@ namespace ClaudeCodeExtension.Tests
                 "RefreshToolbarLayout collapses it for the detached chat, it must also restore it here, " +
                 "or the button is gone for good (issue #151 round 10).");
 
-            StringAssert.Contains(body, "AttachDropdownButton.Visibility = Visibility.Visible",
+            // v291.0: restored per its own rule — 📎 is terminal-only now, so it comes back only when
+            // there is a console; in native mode (chat docked) the composer's action row has its own 📎.
+            StringAssert.Contains(body, "AttachDropdownButton.Visibility = hasConsole ? Visibility.Visible : Visibility.Collapsed;",
                 "📎 Attach is collapsed with the prompt box in the detached state and has no other " +
-                "Visibility authority — it must be restored explicitly.");
+                "Visibility authority — it must be restored explicitly (for the terminal).");
             StringAssert.Contains(body, "RefreshCustomCommandsButton()",
                 "⚡ must be re-evaluated (it hides when no custom commands exist), not forced Visible.");
             StringAssert.Contains(body, "ShouldShowSendButton",

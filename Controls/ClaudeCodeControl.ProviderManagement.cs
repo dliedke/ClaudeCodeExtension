@@ -2449,13 +2449,6 @@ namespace ClaudeCodeVS
                 RightButtonsScroller.HorizontalAlignment = _settings.ToolbarButtonsRightAligned
                     ? System.Windows.HorizontalAlignment.Right
                     : System.Windows.HorizontalAlignment.Left;
-
-                // Whether the right arrow keeps its slice depends on the alignment, and a plain
-                // alignment change produces no scroll event of its own.
-                if (RightButtonsScrollLeftButton != null && RightButtonsScrollRightButton != null)
-                {
-                    RightButtonsScroller_ScrollChanged(RightButtonsScroller, null);
-                }
             }
 
             var promoted = _settings.VisibleToolbarButtons
@@ -2609,7 +2602,10 @@ namespace ClaudeCodeVS
                 // which is how the classic terminal panel lost its ⚙ Settings/Agent button (and the 📎
                 // attach button) with no way left to reach either.
                 if (MenuDropdownButton != null) MenuDropdownButton.Visibility = Visibility.Visible;
-                if (AttachDropdownButton != null) AttachDropdownButton.Visibility = Visibility.Visible;
+
+                // 📎 is terminal-only since v291.0: with the chat docked in the panel its action row
+                // already carries the composer's own 📎, so the panel's copy was a duplicate.
+                if (AttachDropdownButton != null) AttachDropdownButton.Visibility = hasConsole ? Visibility.Visible : Visibility.Collapsed;
 
                 // Each of these two has its own rule, so defer rather than forcing Visible: ▶ Send is
                 // for send-with-Enter-off only, and ⚡ hides when no custom commands are configured.
@@ -2667,6 +2663,10 @@ namespace ClaudeCodeVS
                     foreach (ToolbarButton id in GetEffectiveToolbarOrder())
                     {
                         if (id == ToolbarButton.RestartAgent) continue;
+
+                        // 📎 and 🤖 have no mirror: the composer's own 📎 sits among the session
+                        // actions and its selectors stand in for the 🤖 menu.
+                        if (IsPanelOnlyToolbarControl(id)) continue;
 
                         // The composer has its own ☰ ⚡ ⚙ and 🕘 (Session History, which also targets the
                         // tab it is clicked in); they are passed by id only, at their configured place in
@@ -2742,24 +2742,39 @@ namespace ClaudeCodeVS
             ToolbarButton.SetWorkingDirectory, ToolbarButton.SendBuildErrors,
             ToolbarButton.GenerateCommitMessage, ToolbarButton.GenerateCommitMessageAndPush,
             ToolbarButton.RecommendModel, ToolbarButton.GitHubIssues,
-            ToolbarButton.ToolsMenu, ToolbarButton.CustomCommands, ToolbarButton.Settings
+            ToolbarButton.AttachMenu, ToolbarButton.ToolsMenu, ToolbarButton.CustomCommands,
+            ToolbarButton.ModelMenu, ToolbarButton.Settings
         };
 
         /// <summary>
         /// A feature that is either a toolbar button or a ☰ Tools entry, as opposed to the toolbar's own
-        /// ☰ ⚡ ⚙, which only have a position.
+        /// 📎 ☰ ⚡ 🤖 ⚙, which only have a position.
         /// </summary>
         internal static bool IsToolbarFeature(ToolbarButton b)
-            => b != ToolbarButton.ToolsMenu && b != ToolbarButton.CustomCommands && b != ToolbarButton.Settings;
+            => b != ToolbarButton.ToolsMenu && b != ToolbarButton.CustomCommands && b != ToolbarButton.Settings
+               && !IsPanelOnlyToolbarControl(b);
 
         /// <summary>
-        /// Returns the configured feature order, completed with any features missing from the saved
-        /// list (appended in default order) and stripped of unknowns/duplicates — so it always
-        /// contains exactly the seven features in a valid order.
+        /// 📎 and 🤖 exist only on the panel: the chat tab's composer has its own 📎 among the session
+        /// actions and its selectors replace the 🤖 menu, so neither is mirrored there (v291.0).
+        /// </summary>
+        internal static bool IsPanelOnlyToolbarControl(ToolbarButton b)
+            => b == ToolbarButton.AttachMenu || b == ToolbarButton.ModelMenu;
+
+        /// <summary>
+        /// Returns the configured order, completed with any buttons missing from the saved list and
+        /// stripped of unknowns/duplicates — so it always contains every <see cref="ToolbarButton"/>
+        /// exactly once in a valid order.
         /// </summary>
         private System.Collections.Generic.List<ToolbarButton> GetEffectiveToolbarOrder()
             => NormalizeToolbarOrder(_settings?.ToolbarButtonOrder);
 
+        /// <summary>
+        /// A button the saved order lacks (added in a newer version) is slotted in where the default
+        /// order has it: right before the first of its default successors the user kept, or at the end
+        /// when none follows. Appending it blindly moved 📎 and 🤖 from their places to the end of every
+        /// existing user's toolbar when they joined the order in v291.0.
+        /// </summary>
         internal static System.Collections.Generic.List<ToolbarButton> NormalizeToolbarOrder(
             System.Collections.Generic.IEnumerable<ToolbarButton> saved)
         {
@@ -2770,8 +2785,24 @@ namespace ClaudeCodeVS
                     if (System.Array.IndexOf(DefaultToolbarButtonOrder, b) >= 0 && !order.Contains(b))
                         order.Add(b);
             }
-            foreach (var b in DefaultToolbarButtonOrder)
-                if (!order.Contains(b)) order.Add(b);
+
+            for (int i = 0; i < DefaultToolbarButtonOrder.Length; i++)
+            {
+                ToolbarButton missing = DefaultToolbarButtonOrder[i];
+                if (order.Contains(missing)) continue;
+
+                int insertAt = order.Count;
+                for (int j = i + 1; j < DefaultToolbarButtonOrder.Length; j++)
+                {
+                    int successorAt = order.IndexOf(DefaultToolbarButtonOrder[j]);
+                    if (successorAt >= 0)
+                    {
+                        insertAt = successorAt;
+                        break;
+                    }
+                }
+                order.Insert(insertAt, missing);
+            }
             return order;
         }
 
@@ -2794,6 +2825,8 @@ namespace ClaudeCodeVS
                 case ToolbarButton.ToolsMenu: return ToolsDropdownButton;
                 case ToolbarButton.CustomCommands: return CustomCommandsButton;
                 case ToolbarButton.Settings: return MenuDropdownButton;
+                case ToolbarButton.AttachMenu: return AttachDropdownButton;
+                case ToolbarButton.ModelMenu: return ModelDropdownButton;
                 default: return null;
             }
         }
@@ -2832,15 +2865,10 @@ namespace ClaudeCodeVS
 
             if (RightButtonsPanel != null)
             {
-                // 📎 and 🤖 are not in the order; they travel with their neighbours, so the default
-                // layout stays what it always was (… 📎 ☰ ⚡ 🤖 ⚙) wherever ☰ and ⚙ are moved.
+                // Every button in the strip is in the order (📎 and 🤖 included since v291.0), so this
+                // is the whole layout — nothing is kept next to a neighbour behind the user's back.
                 ApplyToolbarButtonOrder(RightButtonsPanel,
-                    order.Select(b => (System.Windows.UIElement)GetToolbarButtonControl(b)).ToList(),
-                    new[]
-                    {
-                        ((System.Windows.UIElement)AttachDropdownButton, (System.Windows.UIElement)ToolsDropdownButton),
-                        ((System.Windows.UIElement)ModelDropdownButton, (System.Windows.UIElement)MenuDropdownButton)
-                    });
+                    order.Select(b => (System.Windows.UIElement)GetToolbarButtonControl(b)).ToList());
             }
 
             if (ToolsContextMenu != null)
@@ -2852,11 +2880,10 @@ namespace ClaudeCodeVS
 
         /// <summary>
         /// Moves <paramref name="ordered"/> (nulls and controls not in the panel skipped) to the front of
-        /// <paramref name="panel"/> in that order, then puts each follower right before its anchor.
+        /// <paramref name="panel"/> in that order.
         /// </summary>
         internal static void ApplyToolbarButtonOrder(System.Windows.Controls.Panel panel,
-            System.Collections.Generic.IReadOnlyList<System.Windows.UIElement> ordered,
-            System.Collections.Generic.IEnumerable<(System.Windows.UIElement Follower, System.Windows.UIElement Anchor)> keepBefore)
+            System.Collections.Generic.IReadOnlyList<System.Windows.UIElement> ordered)
         {
             for (int i = ordered.Count - 1; i >= 0; i--)
             {
@@ -2864,14 +2891,6 @@ namespace ClaudeCodeVS
                 if (btn == null || !panel.Children.Contains(btn)) continue;
                 panel.Children.Remove(btn);
                 panel.Children.Insert(0, btn);
-            }
-
-            foreach (var (follower, anchor) in keepBefore)
-            {
-                if (follower == null || anchor == null ||
-                    !panel.Children.Contains(follower) || !panel.Children.Contains(anchor)) continue;
-                panel.Children.Remove(follower);
-                panel.Children.Insert(panel.Children.IndexOf(anchor), follower);
             }
         }
 
@@ -2922,25 +2941,24 @@ namespace ClaudeCodeVS
         // slice reserved either way — only the buttons underneath scroll, the toolbar's own
         // footprint never changes.
         //
-        // Issue #151 round 9: both arrows now show together as soon as the row can scroll at all,
+        // Issue #151 round 9: both arrows show together as soon as the row can scroll at all,
         // greyed out at each end instead of vanishing. Hiding the one that has nowhere to go left
         // a single lone arrow on screen, which reads as decoration rather than as "there is more
         // over here" — the reporter didn't recognize the row as scrollable at all.
+        //
+        // v291.0: while nothing scrolls, both arrow slots collapse, so the strip sits flush against
+        // whichever edge it is aligned to. The left slot used to stay Hidden (reserved) so the strip
+        // would not shift when the arrows appeared, but that reserved slice read as an unexplained
+        // gap before the first button; the right-aligned strip had already given up its ▶ slice for
+        // the same reason, so this just makes the two sides behave alike. The one-slot shift when
+        // the row starts to scroll is the price, as it already was on the right.
         private void RightButtonsScroller_ScrollChanged(object sender, ScrollChangedEventArgs e)
         {
             bool canScroll = RightButtonsScroller.ScrollableWidth > 0.5;
-            Visibility arrows = canScroll ? Visibility.Visible : Visibility.Hidden;
+            Visibility arrows = canScroll ? Visibility.Visible : Visibility.Collapsed;
 
             RightButtonsScrollLeftButton.Visibility = arrows;
-
-            // A Hidden arrow still reserves its slice of the row. On the right that slice is
-            // exactly the gap a right-aligned strip is supposed to remove, so collapse it while
-            // there is nothing to scroll. The left arrow stays Hidden either way, so the strip
-            // never shifts sideways as the arrows come and go.
-            RightButtonsScrollRightButton.Visibility =
-                !canScroll && _settings != null && _settings.ToolbarButtonsRightAligned
-                    ? Visibility.Collapsed
-                    : arrows;
+            RightButtonsScrollRightButton.Visibility = arrows;
 
             RightButtonsScrollLeftButton.IsEnabled = canScroll && RightButtonsScroller.HorizontalOffset > 0.5;
             RightButtonsScrollRightButton.IsEnabled = canScroll

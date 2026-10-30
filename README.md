@@ -176,6 +176,11 @@ Pull requests for new features are welcome. Bug fixes too — if you find an iss
 
 ## Version History
 
+### Version 291.0
+- The 📎 Attach and 🤖 Model buttons of the terminal toolbar can now be dragged into any position in *Settings → Toolbar* like the other buttons, and they no longer jump along when ☰ or ⚙ is moved. Both are terminal-only and say so in the list.
+- *Align the toolbar buttons to the right edge* moved from *Settings → Toolbar* to *Settings → Terminal* (its own *Toolbar alignment* section), since it only applies to the terminal toolbar.
+- The terminal toolbar no longer leaves an empty gap before its first button; the scroll arrows only take room once the buttons stop fitting.
+
 ### Version 290.0
 - The chat toolbar no longer flickers while a chat tab is resized: it shortens its captions without flashing and only widens them again once there is clearly room.
 - The ⚡ ☰ ⚙ buttons and promoted toolbar buttons now stay at the right edge of the chat toolbar instead of jumping around when the captions change.
