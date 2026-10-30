@@ -178,6 +178,7 @@ Pull requests for new features are welcome. Bug fixes too — if you find an iss
 
 ### Version 289.0
 - Automatic chat tab titles now always name the conversation, instead of sometimes showing a reply to the first prompt (such as "Sure, I'll look for it").
+- Thanks to [@Gh61](https://github.com/Gh61) for this release (#243).
 
 ### Version 288.0
 - With *Show all chats in one window*, the empty window now offers *Start a new chat*, *Restore today's sessions* and a Session History button instead of a plain hint.
