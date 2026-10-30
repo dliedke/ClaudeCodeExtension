@@ -2465,8 +2465,7 @@ namespace ClaudeCodeVS
             void Apply(ToolbarButton id, bool constraintOk,
                 System.Windows.Controls.Button button, System.Windows.Controls.MenuItem menuItem)
             {
-                bool asButton = constraintOk && promoted.Contains(id);
-                bool asMenu = constraintOk && !asButton;
+                (bool asButton, bool asMenu) = ResolveToolbarPlacement(constraintOk, promoted.Contains(id));
                 if (button != null) button.Visibility = asButton ? Visibility.Visible : Visibility.Collapsed;
                 if (menuItem != null) menuItem.Visibility = asMenu ? Visibility.Visible : Visibility.Collapsed;
             }
@@ -2723,10 +2722,20 @@ namespace ClaudeCodeVS
             => item != null && item.Visibility == Visibility.Visible;
 
         /// <summary>
+        /// Where one feature shows: its own toolbar button when promoted, otherwise a ☰ Tools entry —
+        /// never both, and neither only when the feature does not apply at all (<paramref name="constraintOk"/>).
+        /// </summary>
+        internal static (bool AsButton, bool AsMenu) ResolveToolbarPlacement(bool constraintOk, bool promoted)
+        {
+            bool asButton = constraintOk && promoted;
+            return (asButton, constraintOk && !asButton);
+        }
+
+        /// <summary>
         /// Default left-to-right order of the toolbar: the configurable features, then the toolbar's own
         /// ☰ ⚡ ⚙ (movable since v280.0, in the order they had before).
         /// </summary>
-        private static readonly ToolbarButton[] DefaultToolbarButtonOrder =
+        internal static readonly ToolbarButton[] DefaultToolbarButtonOrder =
         {
             ToolbarButton.UpdateAgent, ToolbarButton.DetachTerminal, ToolbarButton.RestartAgent,
             ToolbarButton.ViewChanges, ToolbarButton.SessionHistory, ToolbarButton.ShowUsage,
@@ -2749,9 +2758,12 @@ namespace ClaudeCodeVS
         /// contains exactly the seven features in a valid order.
         /// </summary>
         private System.Collections.Generic.List<ToolbarButton> GetEffectiveToolbarOrder()
+            => NormalizeToolbarOrder(_settings?.ToolbarButtonOrder);
+
+        internal static System.Collections.Generic.List<ToolbarButton> NormalizeToolbarOrder(
+            System.Collections.Generic.IEnumerable<ToolbarButton> saved)
         {
             var order = new System.Collections.Generic.List<ToolbarButton>();
-            var saved = _settings?.ToolbarButtonOrder;
             if (saved != null)
             {
                 foreach (var b in saved)
@@ -2820,36 +2832,59 @@ namespace ClaudeCodeVS
 
             if (RightButtonsPanel != null)
             {
-                for (int i = order.Count - 1; i >= 0; i--)
-                {
-                    var btn = GetToolbarButtonControl(order[i]);
-                    if (btn == null || !RightButtonsPanel.Children.Contains(btn)) continue;
-                    RightButtonsPanel.Children.Remove(btn);
-                    RightButtonsPanel.Children.Insert(0, btn);
-                }
-
                 // 📎 and 🤖 are not in the order; they travel with their neighbours, so the default
                 // layout stays what it always was (… 📎 ☰ ⚡ 🤖 ⚙) wherever ☰ and ⚙ are moved.
-                void KeepBefore(System.Windows.UIElement follower, System.Windows.UIElement anchor)
-                {
-                    if (follower == null || anchor == null ||
-                        !RightButtonsPanel.Children.Contains(follower) || !RightButtonsPanel.Children.Contains(anchor)) return;
-                    RightButtonsPanel.Children.Remove(follower);
-                    RightButtonsPanel.Children.Insert(RightButtonsPanel.Children.IndexOf(anchor), follower);
-                }
-                KeepBefore(AttachDropdownButton, ToolsDropdownButton);
-                KeepBefore(ModelDropdownButton, MenuDropdownButton);
+                ApplyToolbarButtonOrder(RightButtonsPanel,
+                    order.Select(b => (System.Windows.UIElement)GetToolbarButtonControl(b)).ToList(),
+                    new[]
+                    {
+                        ((System.Windows.UIElement)AttachDropdownButton, (System.Windows.UIElement)ToolsDropdownButton),
+                        ((System.Windows.UIElement)ModelDropdownButton, (System.Windows.UIElement)MenuDropdownButton)
+                    });
             }
 
             if (ToolsContextMenu != null)
             {
-                for (int i = order.Count - 1; i >= 0; i--)
-                {
-                    var item = GetToolbarMenuItemControl(order[i]);
-                    if (item == null || !ToolsContextMenu.Items.Contains(item)) continue;
-                    ToolsContextMenu.Items.Remove(item);
-                    ToolsContextMenu.Items.Insert(0, item);
-                }
+                ApplyToolsMenuOrder(ToolsContextMenu,
+                    order.Select(b => (object)GetToolbarMenuItemControl(b)).ToList());
+            }
+        }
+
+        /// <summary>
+        /// Moves <paramref name="ordered"/> (nulls and controls not in the panel skipped) to the front of
+        /// <paramref name="panel"/> in that order, then puts each follower right before its anchor.
+        /// </summary>
+        internal static void ApplyToolbarButtonOrder(System.Windows.Controls.Panel panel,
+            System.Collections.Generic.IReadOnlyList<System.Windows.UIElement> ordered,
+            System.Collections.Generic.IEnumerable<(System.Windows.UIElement Follower, System.Windows.UIElement Anchor)> keepBefore)
+        {
+            for (int i = ordered.Count - 1; i >= 0; i--)
+            {
+                var btn = ordered[i];
+                if (btn == null || !panel.Children.Contains(btn)) continue;
+                panel.Children.Remove(btn);
+                panel.Children.Insert(0, btn);
+            }
+
+            foreach (var (follower, anchor) in keepBefore)
+            {
+                if (follower == null || anchor == null ||
+                    !panel.Children.Contains(follower) || !panel.Children.Contains(anchor)) continue;
+                panel.Children.Remove(follower);
+                panel.Children.Insert(panel.Children.IndexOf(anchor), follower);
+            }
+        }
+
+        /// <summary>Moves <paramref name="ordered"/> (nulls and foreign items skipped) to the front of the menu in that order.</summary>
+        internal static void ApplyToolsMenuOrder(System.Windows.Controls.ItemsControl menu,
+            System.Collections.Generic.IReadOnlyList<object> ordered)
+        {
+            for (int i = ordered.Count - 1; i >= 0; i--)
+            {
+                var item = ordered[i];
+                if (item == null || !menu.Items.Contains(item)) continue;
+                menu.Items.Remove(item);
+                menu.Items.Insert(0, item);
             }
         }
 
