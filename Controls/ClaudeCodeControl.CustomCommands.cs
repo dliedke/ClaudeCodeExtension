@@ -20,6 +20,7 @@ using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
 using Microsoft.VisualStudio.Shell;
+using ClaudeCodeVS.UI;
 using static ClaudeCodeVS.UI.Loc;
 
 namespace ClaudeCodeVS
@@ -56,6 +57,21 @@ namespace ClaudeCodeVS
                 // gated only on composer mode, not on whether any commands actually exist — keep it
                 // in sync with the panel's own gate so it never offers an empty menu.
                 ChatTranscript?.SetCustomCommandsMenuHasItems(hasAny);
+
+                // Parallel session tabs (_nativeSessions) have their own composer — mirror the flag
+                // there too, otherwise every tab after the first shows ⚡ with an empty menu.
+                List<ChatTranscriptView> parallelTranscripts;
+                lock (_sessionLock)
+                {
+                    parallelTranscripts = _nativeSessions.Values
+                        .Select(s => s.ChatTranscript)
+                        .Where(t => t != null)
+                        .ToList();
+                }
+                foreach (ChatTranscriptView sessionTranscript in parallelTranscripts)
+                {
+                    sessionTranscript.SetCustomCommandsMenuHasItems(hasAny);
+                }
 
                 var menu = CustomCommandsButton.ContextMenu;
                 if (menu == null) return;
