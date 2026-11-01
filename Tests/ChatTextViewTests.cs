@@ -188,6 +188,25 @@ namespace ClaudeCodeExtension.Tests
             });
         }
 
+        /// <summary>
+        /// Transcript hyperlinks remain mouse-clickable but must not enter WPF keyboard focus
+        /// navigation. A focused hyperlink can request its virtualized message container to be brought
+        /// into view, which couples an immediate file citation click to the outer transcript scroll.
+        /// </summary>
+        [TestMethod]
+        public void TranscriptLinksDoNotTakeKeyboardFocus()
+        {
+            RunOnSta(() =>
+            {
+                FlowDocument document = MarkdownFlowRenderer.BuildPlain("see https://example.com", null);
+                Hyperlink link = document.Blocks.OfType<Paragraph>().Single()
+                    .Inlines.OfType<Hyperlink>().Single();
+
+                Assert.IsFalse(link.Focusable,
+                    "Transcript citations must not take focus and trigger an outer ScrollViewer bring-into-view pass.");
+            });
+        }
+
         [TestMethod]
         public void PlainTextLinksAreHyperlinks()
         {

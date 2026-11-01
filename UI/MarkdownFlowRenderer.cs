@@ -1395,6 +1395,13 @@ namespace ClaudeCodeVS.UI
                 TextDecorations = TextDecorations.Underline,
                 ToolTip = url,
                 Tag = url,
+                // Transcript links are action links, not keyboard-navigation targets. WPF Hyperlink
+                // participates in focus navigation by default; when it receives focus inside the
+                // virtualized transcript, the outer ItemsControl can process RequestBringIntoView and
+                // move the chat to the containing answer before LinkClicked opens the file. Keeping the
+                // link clickable while disabling focus removes that coupling at the source. This applies
+                // to both local file citations and http(s) links; click handling remains unchanged.
+                Focusable = false,
                 Cursor = Cursors.Hand
             };
             link.Inlines.Add(new Run(string.IsNullOrEmpty(label) ? url : label));
