@@ -1103,5 +1103,14 @@
   "Thinking is the agent's own reasoning and is shown as a collapsed row. An agent sometimes explains its options only there and then asks a question; \"Open when followed by a question\" opens that row together with the question card. Any row can still be opened or closed by clicking it.": "思考はエージェント自身の推論で、折りたたまれた行として表示されます。エージェントが選択肢をそこでだけ説明してから質問することがあります。「質問が続くときに開く」は、その行を質問カードと一緒に開きます。どの行もクリックすれば開いたり閉じたりできます。",
   "Keep collapsed": "折りたたんだままにする",
   "Open when followed by a question": "質問が続くときに開く",
-  "Always open": "常に開く"
+  "Always open": "常に開く",
+  "When a new chat opens, show:": "新しいチャットを開いたときに表示:",
+  "Nothing": "なし",
+  "Tips only": "ヒントのみ",
+  "Recent conversations only": "最近の会話のみ",
+  "Recent conversations + tips": "最近の会話 + ヒント",
+  "What the welcome card of a new chat shows beside the agent, model and folder. Recent conversations are listed for Claude Code only. With \"Recent conversations + tips\" the tips stay behind a \"Show tips\" link while there are conversations to list.": "新しいチャットのウェルカムカードで、エージェント、モデル、フォルダーの横に表示する内容です。最近の会話は Claude Code の場合のみ表示されます。「最近の会話 + ヒント」では、表示する会話がある間、ヒントは「ヒントを表示」リンクの後ろに隠れます。",
+  "Search settings…": "設定を検索…",
+  "Finds a setting in any tab by its name, its description or its choices. Ctrl+F jumps here, Esc clears the search.": "名前、説明、選択肢から任意のタブの設定を見つけます。Ctrl+F でここに移動し、Esc で検索をクリアします。",
+  "No setting matches the search.": "検索に一致する設定はありません。"
 }

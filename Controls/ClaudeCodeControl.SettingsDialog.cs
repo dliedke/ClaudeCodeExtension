@@ -167,13 +167,65 @@ namespace ClaudeCodeVS
             try { dialog.Owner = Application.Current?.MainWindow; } catch { }
 
             var rootGrid = new Grid { Margin = new Thickness(14) };
+            rootGrid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
             rootGrid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
             rootGrid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
 
             var tabs = new TabControl { Background = themeBg, BorderBrush = themeFg };
             if (tabRes["tabControl"] is Style tabCtrlStyle) tabs.Style = tabCtrlStyle;
-            Grid.SetRow(tabs, 0);
+            Grid.SetRow(tabs, 1);
             rootGrid.Children.Add(tabs);
+
+            // Search across every tab (Ctrl+F): matches captions, tooltips and choices in the language
+            // shown (and in English), hides what does not match and the tabs left empty.
+            var settingsSearch = new UI.SettingsSearchFilter(tabs);
+            var searchBox = new TextBox
+            {
+                Style = UI.ThemedDialog.LoadStyle("ThemedDialogSearchBoxStyle"),
+                Tag = L("Search settings…"),
+                ToolTip = MakeToolTip(L("Finds a setting in any tab by its name, its description or its choices. Ctrl+F jumps here, Esc clears the search.")),
+                Margin = new Thickness(0, 0, 0, 8)
+            };
+            var noMatchText = new TextBlock
+            {
+                Text = L("No setting matches the search."),
+                Foreground = themeFg,
+                Opacity = 0.75,
+                Margin = new Thickness(4, 12, 0, 0),
+                VerticalAlignment = VerticalAlignment.Top,
+                Visibility = Visibility.Collapsed
+            };
+            Grid.SetRow(searchBox, 0);
+            Grid.SetRow(noMatchText, 1);
+            rootGrid.Children.Add(searchBox);
+            rootGrid.Children.Add(noMatchText);
+
+            void ApplySettingsSearch()
+            {
+                bool any = settingsSearch.Apply(searchBox.Text) > 0;
+                tabs.Visibility = any ? Visibility.Visible : Visibility.Hidden;
+                noMatchText.Visibility = any ? Visibility.Collapsed : Visibility.Visible;
+            }
+
+            searchBox.TextChanged += (s, ea) => ApplySettingsSearch();
+            searchBox.PreviewKeyDown += (s, ea) =>
+            {
+                // Esc empties the search first; only an empty box lets it close the dialog.
+                if (ea.Key == Key.Escape && searchBox.Text.Length > 0)
+                {
+                    searchBox.Clear();
+                    ea.Handled = true;
+                }
+            };
+            dialog.PreviewKeyDown += (s, ea) =>
+            {
+                if (ea.Key == Key.F && Keyboard.Modifiers == ModifierKeys.Control)
+                {
+                    searchBox.Focus();
+                    searchBox.SelectAll();
+                    ea.Handled = true;
+                }
+            };
 
             // Helper: build a scrollable tab page and return its content stack.
             StackPanel AddTab(string header)
@@ -727,6 +779,35 @@ namespace ClaudeCodeVS
             thinkingRow.Children.Add(thinkingCombo);
             nativeDisplaySection.Children.Add(thinkingRow);
 
+            var welcomeContentRow = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(4, 4, 0, 4) };
+            welcomeContentRow.Children.Add(new TextBlock
+            {
+                Text = L("When a new chat opens, show:"),
+                Foreground = themeFg,
+                VerticalAlignment = VerticalAlignment.Center,
+                Margin = new Thickness(0, 0, 8, 0)
+            });
+            var welcomeContentCombo = MakeThemedComboBox(comboRes, themeFg);
+            welcomeContentCombo.Width = 260;
+            welcomeContentCombo.ToolTip = MakeToolTip(
+                L("What the welcome card of a new chat shows beside the agent, model and folder. Recent conversations are listed for Claude Code only. " +
+                  "With \"Recent conversations + tips\" the tips stay behind a \"Show tips\" link while there are conversations to list."));
+            foreach (var (content, label) in new[]
+            {
+                (WelcomeCardContent.Nothing, L("Nothing")),
+                (WelcomeCardContent.TipsOnly, L("Tips only")),
+                (WelcomeCardContent.RecentOnly, L("Recent conversations only")),
+                (WelcomeCardContent.RecentAndTips, L("Recent conversations + tips"))
+            })
+            {
+                var item = new ComboBoxItem { Content = label, Tag = content };
+                if (comboRes["cbi"] is Style cbiStyle) item.Style = cbiStyle;
+                if (content == _settings.WelcomeCardContent) item.IsSelected = true;
+                welcomeContentCombo.Items.Add(item);
+            }
+            welcomeContentRow.Children.Add(welcomeContentCombo);
+            nativeDisplaySection.Children.Add(welcomeContentRow);
+
             var plainWorkingStatusCheck = MakeCheckBox(
                 L("Plain working status (always \"Thinking…\")"),
                 L("While the agent works, the status line always says \"Thinking…\" instead of rotating through playful words like \"Pondering…\" or \"Noodling…\". The spinner and the clock still show it is working."),
@@ -783,6 +864,10 @@ namespace ClaudeCodeVS
                 {
                     languagePreviewed = true;
                     PreviewChatLanguage(pickedCode, dialog);
+                    searchBox.Tag = L("Search settings…");
+                    searchBox.ToolTip = MakeToolTip(L("Finds a setting in any tab by its name, its description or its choices. Ctrl+F jumps here, Esc clears the search."));
+                    noMatchText.Text = L("No setting matches the search.");
+                    ApplySettingsSearch();
                 }
             };
             chatLanguageRow.Children.Add(chatLanguageCombo);
@@ -1472,7 +1557,7 @@ namespace ClaudeCodeVS
             buttonPanel.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
             buttonPanel.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
             buttonPanel.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-            Grid.SetRow(buttonPanel, 1);
+            Grid.SetRow(buttonPanel, 2);
 
             Style buttonStyle = GetDialogButtonStyle();
 
@@ -1836,6 +1921,12 @@ namespace ClaudeCodeVS
             if ((thinkingCombo.SelectedItem as ComboBoxItem)?.Tag is ChatThinkingDisplay thinkingDisplay)
             {
                 _settings.ChatThinkingDisplay = thinkingDisplay;
+            }
+            if ((welcomeContentCombo.SelectedItem as ComboBoxItem)?.Tag is WelcomeCardContent welcomeContent &&
+                welcomeContent != _settings.WelcomeCardContent)
+            {
+                _settings.WelcomeCardContent = welcomeContent;
+                RefreshOpenWelcomeCards();
             }
             _settings.PlainChatWorkingStatus  = plainWorkingStatusCheck.IsChecked == true;
             UI.ChatTranscriptView.PlainWorkingStatus = _settings.PlainChatWorkingStatus;
@@ -2255,7 +2346,9 @@ namespace ClaudeCodeVS
                 FontWeight = FontWeights.SemiBold,
                 FontSize = 13,
                 Foreground = fg,
-                Margin = new Thickness(0, 12, 0, 6)
+                Margin = new Thickness(0, 12, 0, 6),
+                // The Settings search keeps a header with the settings under it.
+                Tag = UI.SettingsSearch.SectionHeaderTag
             };
         }
 

@@ -1103,5 +1103,14 @@
   "Thinking is the agent's own reasoning and is shown as a collapsed row. An agent sometimes explains its options only there and then asks a question; \"Open when followed by a question\" opens that row together with the question card. Any row can still be opened or closed by clicking it.": "Denken is de eigen redenering van de agent en wordt als ingeklapte regel getoond. Soms legt een agent zijn opties alleen daar uit en stelt dan een vraag; \"Openen als er een vraag volgt\" opent die regel samen met de vraagkaart. Elke regel kan nog steeds met een klik worden geopend of gesloten.",
   "Keep collapsed": "Ingeklapt laten",
   "Open when followed by a question": "Openen als er een vraag volgt",
-  "Always open": "Altijd open"
+  "Always open": "Altijd open",
+  "When a new chat opens, show:": "Bij het openen van een nieuwe chat tonen:",
+  "Nothing": "Niets",
+  "Tips only": "Alleen tips",
+  "Recent conversations only": "Alleen recente gesprekken",
+  "Recent conversations + tips": "Recente gesprekken + tips",
+  "What the welcome card of a new chat shows beside the agent, model and folder. Recent conversations are listed for Claude Code only. With \"Recent conversations + tips\" the tips stay behind a \"Show tips\" link while there are conversations to list.": "Wat de welkomstkaart van een nieuwe chat naast de agent, het model en de map toont. Recente gesprekken worden alleen voor Claude Code weergegeven. Met \"Recente gesprekken + tips\" blijven de tips achter de link \"Tips weergeven\" zolang er gesprekken te tonen zijn.",
+  "Search settings…": "Instellingen zoeken…",
+  "Finds a setting in any tab by its name, its description or its choices. Ctrl+F jumps here, Esc clears the search.": "Vindt een instelling op elk tabblad op naam, beschrijving of keuzes. Ctrl+F springt hierheen, Esc wist de zoekopdracht.",
+  "No setting matches the search.": "Geen instelling komt overeen met de zoekopdracht."
 }

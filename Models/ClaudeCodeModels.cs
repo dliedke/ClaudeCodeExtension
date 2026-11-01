@@ -235,6 +235,24 @@ namespace ClaudeCodeVS
     }
 
     /// <summary>
+    /// What the right-hand column of the native chat's welcome card shows when a new conversation opens.
+    /// </summary>
+    public enum WelcomeCardContent
+    {
+        /// <summary>Neither: the card shows only the agent, model and workspace.</summary>
+        Nothing,
+
+        /// <summary>The getting-started tips only; the recent conversations are not read.</summary>
+        TipsOnly,
+
+        /// <summary>The workspace's recent conversations only, with no tips (not even when there are none).</summary>
+        RecentOnly,
+
+        /// <summary>Recent conversations with the tips behind a "Show tips" link, or the tips when there are none.</summary>
+        RecentAndTips
+    }
+
+    /// <summary>
     /// What a chat tab shows in front of its caption while its session works, in the Modern icon
     /// style. The caption is plain text, so only emoji can carry color, and none comes as a blue
     /// animation: the choice is a blue static icon or an animated one in its own colors.
@@ -704,6 +722,13 @@ namespace ClaudeCodeVS
         /// through playful verbs ("Pondering…", "Noodling…"). Off by default.
         /// </summary>
         public bool PlainChatWorkingStatus { get; set; }
+
+        /// <summary>
+        /// What the welcome card of a new native chat shows beside the agent details: nothing, the tips,
+        /// the recent conversations, or both. Default <see cref="WelcomeCardContent.RecentAndTips"/>
+        /// (the behavior before the setting existed).
+        /// </summary>
+        public WelcomeCardContent WelcomeCardContent { get; set; } = WelcomeCardContent.RecentAndTips;
 
         /// <summary>
         /// If true, the native chat's toolbar sits inside the message box, under the text: the session

@@ -1103,5 +1103,14 @@
   "Thinking is the agent's own reasoning and is shown as a collapsed row. An agent sometimes explains its options only there and then asks a question; \"Open when followed by a question\" opens that row together with the question card. Any row can still be opened or closed by clicking it.": "Myślenie to własne rozumowanie agenta, pokazywane jako zwinięty wiersz. Czasem agent wyjaśnia swoje opcje tylko tam, a potem zadaje pytanie; \"Otwórz, gdy następuje pytanie\" otwiera ten wiersz razem z kartą pytania. Każdy wiersz nadal można otworzyć lub zamknąć kliknięciem.",
   "Keep collapsed": "Pozostaw zwinięte",
   "Open when followed by a question": "Otwórz, gdy następuje pytanie",
-  "Always open": "Zawsze otwarte"
+  "Always open": "Zawsze otwarte",
+  "When a new chat opens, show:": "Po otwarciu nowego czatu pokaż:",
+  "Nothing": "Nic",
+  "Tips only": "Tylko wskazówki",
+  "Recent conversations only": "Tylko ostatnie rozmowy",
+  "Recent conversations + tips": "Ostatnie rozmowy + wskazówki",
+  "What the welcome card of a new chat shows beside the agent, model and folder. Recent conversations are listed for Claude Code only. With \"Recent conversations + tips\" the tips stay behind a \"Show tips\" link while there are conversations to list.": "Co karta powitalna nowego czatu pokazuje obok agenta, modelu i folderu. Ostatnie rozmowy są wyświetlane tylko dla Claude Code. Przy opcji „Ostatnie rozmowy + wskazówki” wskazówki są ukryte za linkiem „Pokaż wskazówki”, dopóki są rozmowy do wyświetlenia.",
+  "Search settings…": "Szukaj ustawień…",
+  "Finds a setting in any tab by its name, its description or its choices. Ctrl+F jumps here, Esc clears the search.": "Znajduje ustawienie na dowolnej karcie po nazwie, opisie lub opcjach. Ctrl+F przenosi tutaj, Esc czyści wyszukiwanie.",
+  "No setting matches the search.": "Żadne ustawienie nie pasuje do wyszukiwania."
 }

@@ -1103,5 +1103,14 @@
   "Thinking is the agent's own reasoning and is shown as a collapsed row. An agent sometimes explains its options only there and then asks a question; \"Open when followed by a question\" opens that row together with the question card. Any row can still be opened or closed by clicking it.": "التفكير هو استدلال الوكيل نفسه ويظهر كصف مطوي. أحيانًا يشرح الوكيل خياراته هناك فقط ثم يطرح سؤالًا؛ يفتح \"فتح عند اتباعه بسؤال\" ذلك الصف مع بطاقة السؤال. لا يزال من الممكن فتح أي صف أو إغلاقه بالنقر عليه.",
   "Keep collapsed": "إبقاؤه مطويًا",
   "Open when followed by a question": "فتح عند اتباعه بسؤال",
-  "Always open": "مفتوح دائمًا"
+  "Always open": "مفتوح دائمًا",
+  "When a new chat opens, show:": "عند فتح محادثة جديدة، اعرض:",
+  "Nothing": "لا شيء",
+  "Tips only": "التلميحات فقط",
+  "Recent conversations only": "المحادثات الأخيرة فقط",
+  "Recent conversations + tips": "المحادثات الأخيرة + التلميحات",
+  "What the welcome card of a new chat shows beside the agent, model and folder. Recent conversations are listed for Claude Code only. With \"Recent conversations + tips\" the tips stay behind a \"Show tips\" link while there are conversations to list.": "ما تعرضه بطاقة الترحيب في المحادثة الجديدة بجانب الوكيل والنموذج والمجلد. تُعرض المحادثات الأخيرة لـ Claude Code فقط. مع \"المحادثات الأخيرة + التلميحات\" تبقى التلميحات خلف رابط \"إظهار التلميحات\" ما دامت هناك محادثات لعرضها.",
+  "Search settings…": "البحث في الإعدادات…",
+  "Finds a setting in any tab by its name, its description or its choices. Ctrl+F jumps here, Esc clears the search.": "يعثر على إعداد في أي علامة تبويب حسب اسمه أو وصفه أو خياراته. Ctrl+F ينقلك إلى هنا، وEsc يمسح البحث.",
+  "No setting matches the search.": "لا يوجد إعداد يطابق البحث."
 }

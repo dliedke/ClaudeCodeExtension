@@ -1103,5 +1103,14 @@
   "Thinking is the agent's own reasoning and is shown as a collapsed row. An agent sometimes explains its options only there and then asks a question; \"Open when followed by a question\" opens that row together with the question card. Any row can still be opened or closed by clicking it.": "การคิดคือการให้เหตุผลของเอเจนต์เองและแสดงเป็นแถวที่ยุบไว้ บางครั้งเอเจนต์อธิบายตัวเลือกไว้เฉพาะตรงนั้นแล้วจึงถามคำถาม \"เปิดเมื่อมีคำถามตามมา\" จะเปิดแถวนั้นพร้อมกับการ์ดคำถาม ยังคงคลิกเพื่อเปิดหรือปิดแถวใดก็ได้",
   "Keep collapsed": "ยุบไว้เสมอ",
   "Open when followed by a question": "เปิดเมื่อมีคำถามตามมา",
-  "Always open": "เปิดเสมอ"
+  "Always open": "เปิดเสมอ",
+  "When a new chat opens, show:": "เมื่อเปิดแชทใหม่ ให้แสดง:",
+  "Nothing": "ไม่แสดงอะไร",
+  "Tips only": "เฉพาะเคล็ดลับ",
+  "Recent conversations only": "เฉพาะการสนทนาล่าสุด",
+  "Recent conversations + tips": "การสนทนาล่าสุด + เคล็ดลับ",
+  "What the welcome card of a new chat shows beside the agent, model and folder. Recent conversations are listed for Claude Code only. With \"Recent conversations + tips\" the tips stay behind a \"Show tips\" link while there are conversations to list.": "สิ่งที่การ์ดต้อนรับของแชทใหม่แสดงถัดจากเอเจนต์ โมเดล และโฟลเดอร์ การสนทนาล่าสุดจะแสดงสำหรับ Claude Code เท่านั้น เมื่อเลือก \"การสนทนาล่าสุด + เคล็ดลับ\" เคล็ดลับจะอยู่หลังลิงก์ \"แสดงเคล็ดลับ\" ตราบใดที่ยังมีการสนทนาให้แสดง",
+  "Search settings…": "ค้นหาการตั้งค่า…",
+  "Finds a setting in any tab by its name, its description or its choices. Ctrl+F jumps here, Esc clears the search.": "ค้นหาการตั้งค่าในทุกแท็บจากชื่อ คำอธิบาย หรือตัวเลือก Ctrl+F เพื่อมาที่นี่ Esc เพื่อล้างการค้นหา",
+  "No setting matches the search.": "ไม่มีการตั้งค่าที่ตรงกับการค้นหา"
 }

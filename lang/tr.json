@@ -1103,5 +1103,14 @@
   "Thinking is the agent's own reasoning and is shown as a collapsed row. An agent sometimes explains its options only there and then asks a question; \"Open when followed by a question\" opens that row together with the question card. Any row can still be opened or closed by clicking it.": "Düşünme, aracının kendi akıl yürütmesidir ve daraltılmış bir satır olarak gösterilir. Bir aracı bazen seçeneklerini yalnızca orada açıklayıp ardından soru sorar; \"Ardından soru gelirse aç\" o satırı soru kartıyla birlikte açar. Her satır tıklanarak yine açılıp kapatılabilir.",
   "Keep collapsed": "Daraltılmış tut",
   "Open when followed by a question": "Ardından soru gelirse aç",
-  "Always open": "Her zaman açık"
+  "Always open": "Her zaman açık",
+  "When a new chat opens, show:": "Yeni bir sohbet açıldığında göster:",
+  "Nothing": "Hiçbir şey",
+  "Tips only": "Yalnızca ipuçları",
+  "Recent conversations only": "Yalnızca son konuşmalar",
+  "Recent conversations + tips": "Son konuşmalar + ipuçları",
+  "What the welcome card of a new chat shows beside the agent, model and folder. Recent conversations are listed for Claude Code only. With \"Recent conversations + tips\" the tips stay behind a \"Show tips\" link while there are conversations to list.": "Yeni bir sohbetin karşılama kartının ajan, model ve klasörün yanında gösterdikleri. Son konuşmalar yalnızca Claude Code için listelenir. \"Son konuşmalar + ipuçları\" seçiliyken, listelenecek konuşma olduğu sürece ipuçları \"İpuçlarını göster\" bağlantısının arkasında kalır.",
+  "Search settings…": "Ayarlarda ara…",
+  "Finds a setting in any tab by its name, its description or its choices. Ctrl+F jumps here, Esc clears the search.": "Herhangi bir sekmedeki ayarı adına, açıklamasına veya seçeneklerine göre bulur. Ctrl+F buraya gelir, Esc aramayı temizler.",
+  "No setting matches the search.": "Aramayla eşleşen ayar yok."
 }

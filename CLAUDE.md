@@ -171,6 +171,7 @@ ClaudeCodeExtension/
 │   ├── Loc.cs / LocExtension.cs         # UI localization (whole extension): L("English")/N("English") + {local:Loc '...'}, lang/<culture>.json (pure, unit-tested)
 │   ├── SessionListPresentation.cs       # Session History / welcome card recent list: cleaned first-prompt preview, date groups (pure, unit-tested)
 │   ├── WelcomeCardLayout.cs             # Welcome card layout rule: tips stack once taller than 120 % of the left column width, account email line break (pure, unit-tested)
+│   ├── SettingsSearch.cs                # Settings dialog search: accent/case-insensitive matching (localized + English) and the tab/section/hint filter
 │   ├── HostedWindowBounds.cs            # Detects a native child window (Usage WebView2) drifted from its WPF slot (pure)
 │   ├── MarkdownFlowRenderer.cs          # Markdown → FlowDocument + the MarkdownBlock control
 │   └── DiffViewerControl.xaml(.cs)

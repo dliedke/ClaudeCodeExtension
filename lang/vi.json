@@ -1103,5 +1103,14 @@
   "Thinking is the agent's own reasoning and is shown as a collapsed row. An agent sometimes explains its options only there and then asks a question; \"Open when followed by a question\" opens that row together with the question card. Any row can still be opened or closed by clicking it.": "Suy nghĩ là lập luận riêng của tác tử và được hiển thị dưới dạng một hàng thu gọn. Đôi khi tác tử chỉ giải thích các lựa chọn ở đó rồi đặt câu hỏi; \"Mở khi có câu hỏi theo sau\" sẽ mở hàng đó cùng với thẻ câu hỏi. Bạn vẫn có thể mở hoặc đóng bất kỳ hàng nào bằng cách nhấp vào nó.",
   "Keep collapsed": "Giữ thu gọn",
   "Open when followed by a question": "Mở khi có câu hỏi theo sau",
-  "Always open": "Luôn mở"
+  "Always open": "Luôn mở",
+  "When a new chat opens, show:": "Khi mở cuộc trò chuyện mới, hiển thị:",
+  "Nothing": "Không gì cả",
+  "Tips only": "Chỉ mẹo",
+  "Recent conversations only": "Chỉ cuộc trò chuyện gần đây",
+  "Recent conversations + tips": "Cuộc trò chuyện gần đây + mẹo",
+  "What the welcome card of a new chat shows beside the agent, model and folder. Recent conversations are listed for Claude Code only. With \"Recent conversations + tips\" the tips stay behind a \"Show tips\" link while there are conversations to list.": "Những gì thẻ chào mừng của cuộc trò chuyện mới hiển thị bên cạnh tác tử, mô hình và thư mục. Cuộc trò chuyện gần đây chỉ được liệt kê cho Claude Code. Với \"Cuộc trò chuyện gần đây + mẹo\", mẹo nằm sau liên kết \"Hiển thị mẹo\" khi còn cuộc trò chuyện để liệt kê.",
+  "Search settings…": "Tìm cài đặt…",
+  "Finds a setting in any tab by its name, its description or its choices. Ctrl+F jumps here, Esc clears the search.": "Tìm một cài đặt trong bất kỳ thẻ nào theo tên, mô tả hoặc các lựa chọn của nó. Ctrl+F chuyển đến đây, Esc xóa tìm kiếm.",
+  "No setting matches the search.": "Không có cài đặt nào khớp với tìm kiếm."
 }

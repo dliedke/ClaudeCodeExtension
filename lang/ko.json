@@ -1103,5 +1103,14 @@
   "Thinking is the agent's own reasoning and is shown as a collapsed row. An agent sometimes explains its options only there and then asks a question; \"Open when followed by a question\" opens that row together with the question card. Any row can still be opened or closed by clicking it.": "사고는 에이전트 자신의 추론이며 접힌 행으로 표시됩니다. 에이전트가 선택지를 그곳에서만 설명하고 바로 질문하는 경우가 있습니다. \"질문이 이어지면 열기\"는 그 행을 질문 카드와 함께 엽니다. 어떤 행이든 클릭하여 계속 열거나 닫을 수 있습니다.",
   "Keep collapsed": "접은 상태 유지",
   "Open when followed by a question": "질문이 이어지면 열기",
-  "Always open": "항상 열기"
+  "Always open": "항상 열기",
+  "When a new chat opens, show:": "새 채팅을 열 때 표시:",
+  "Nothing": "없음",
+  "Tips only": "팁만",
+  "Recent conversations only": "최근 대화만",
+  "Recent conversations + tips": "최근 대화 + 팁",
+  "What the welcome card of a new chat shows beside the agent, model and folder. Recent conversations are listed for Claude Code only. With \"Recent conversations + tips\" the tips stay behind a \"Show tips\" link while there are conversations to list.": "새 채팅의 환영 카드가 에이전트, 모델, 폴더 옆에 표시하는 내용입니다. 최근 대화는 Claude Code에서만 표시됩니다. \"최근 대화 + 팁\"을 선택하면 표시할 대화가 있는 동안 팁은 \"팁 표시\" 링크 뒤에 숨겨집니다.",
+  "Search settings…": "설정 검색…",
+  "Finds a setting in any tab by its name, its description or its choices. Ctrl+F jumps here, Esc clears the search.": "이름, 설명 또는 선택 항목으로 모든 탭의 설정을 찾습니다. Ctrl+F로 여기로 이동하고 Esc로 검색을 지웁니다.",
+  "No setting matches the search.": "검색과 일치하는 설정이 없습니다."
 }

@@ -1103,5 +1103,14 @@
   "Thinking is the agent's own reasoning and is shown as a collapsed row. An agent sometimes explains its options only there and then asks a question; \"Open when followed by a question\" opens that row together with the question card. Any row can still be opened or closed by clicking it.": "Размышление — это собственные рассуждения агента, они показываются свёрнутой строкой. Иногда агент объясняет свои варианты только там и сразу задаёт вопрос; «Открывать, если следует вопрос» раскрывает эту строку вместе с карточкой вопроса. Любую строку по-прежнему можно открыть или закрыть щелчком.",
   "Keep collapsed": "Оставлять свёрнутым",
   "Open when followed by a question": "Открывать, если следует вопрос",
-  "Always open": "Всегда открыто"
+  "Always open": "Всегда открыто",
+  "When a new chat opens, show:": "При открытии нового чата показывать:",
+  "Nothing": "Ничего",
+  "Tips only": "Только подсказки",
+  "Recent conversations only": "Только недавние разговоры",
+  "Recent conversations + tips": "Недавние разговоры + подсказки",
+  "What the welcome card of a new chat shows beside the agent, model and folder. Recent conversations are listed for Claude Code only. With \"Recent conversations + tips\" the tips stay behind a \"Show tips\" link while there are conversations to list.": "Что приветственная карточка нового чата показывает рядом с агентом, моделью и папкой. Недавние разговоры перечисляются только для Claude Code. В режиме «Недавние разговоры + подсказки» подсказки скрыты за ссылкой «Показать подсказки», пока есть разговоры для списка.",
+  "Search settings…": "Поиск настроек…",
+  "Finds a setting in any tab by its name, its description or its choices. Ctrl+F jumps here, Esc clears the search.": "Находит настройку на любой вкладке по названию, описанию или вариантам. Ctrl+F переходит сюда, Esc очищает поиск.",
+  "No setting matches the search.": "Нет настроек, соответствующих поиску."
 }

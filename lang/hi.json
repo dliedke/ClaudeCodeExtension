@@ -1103,5 +1103,14 @@
   "Thinking is the agent's own reasoning and is shown as a collapsed row. An agent sometimes explains its options only there and then asks a question; \"Open when followed by a question\" opens that row together with the question card. Any row can still be opened or closed by clicking it.": "सोच एजेंट का अपना तर्क है और एक संकुचित पंक्ति के रूप में दिखाई जाती है। कभी-कभी एजेंट अपने विकल्प केवल वहीं समझाता है और फिर प्रश्न पूछता है; \"प्रश्न आने पर खोलें\" उस पंक्ति को प्रश्न कार्ड के साथ खोलता है। किसी भी पंक्ति को क्लिक करके अब भी खोला या बंद किया जा सकता है।",
   "Keep collapsed": "संकुचित रखें",
   "Open when followed by a question": "प्रश्न आने पर खोलें",
-  "Always open": "हमेशा खुला"
+  "Always open": "हमेशा खुला",
+  "When a new chat opens, show:": "नई चैट खुलने पर दिखाएँ:",
+  "Nothing": "कुछ नहीं",
+  "Tips only": "केवल सुझाव",
+  "Recent conversations only": "केवल हाल की बातचीत",
+  "Recent conversations + tips": "हाल की बातचीत + सुझाव",
+  "What the welcome card of a new chat shows beside the agent, model and folder. Recent conversations are listed for Claude Code only. With \"Recent conversations + tips\" the tips stay behind a \"Show tips\" link while there are conversations to list.": "नई चैट का स्वागत कार्ड एजेंट, मॉडल और फ़ोल्डर के साथ क्या दिखाता है। हाल की बातचीत केवल Claude Code के लिए सूचीबद्ध होती है। \"हाल की बातचीत + सुझाव\" के साथ, जब तक सूची में बातचीत हैं, सुझाव \"सुझाव दिखाएँ\" लिंक के पीछे रहते हैं।",
+  "Search settings…": "सेटिंग खोजें…",
+  "Finds a setting in any tab by its name, its description or its choices. Ctrl+F jumps here, Esc clears the search.": "किसी भी टैब में सेटिंग को उसके नाम, विवरण या विकल्पों से ढूँढता है। Ctrl+F यहाँ लाता है, Esc खोज साफ़ करता है।",
+  "No setting matches the search.": "खोज से कोई सेटिंग मेल नहीं खाती।"
 }

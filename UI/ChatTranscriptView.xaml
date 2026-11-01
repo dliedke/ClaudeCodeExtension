@@ -1057,14 +1057,22 @@
 			     every row at once, which is what made a long session take most of a minute to appear.
 			     The welcome card sits above the list instead of inside its scroll content so the list
 			     can keep that scroll owner; it is only shown while the list is empty. -->
-			<Grid>
+			<Grid x:Name="TranscriptArea">
 				<Grid.RowDefinitions>
 					<RowDefinition Height="Auto"/>
 					<RowDefinition Height="*"/>
 				</Grid.RowDefinitions>
+				<!-- Own scroll viewer, capped at the transcript's height: the Auto row measures the card
+				     with unlimited height, so a card taller than a short tab (recent conversations plus
+				     the expanded tips) was simply cut off at the bottom with no way to reach the rest. -->
+				<ScrollViewer x:Name="WelcomeScroll" Grid.Row="0"
+				              Focusable="False"
+				              VerticalScrollBarVisibility="Auto"
+				              HorizontalScrollBarVisibility="Disabled"
+				              MaxHeight="{Binding ActualHeight, ElementName=TranscriptArea}">
 				<!-- Empty state of a fresh conversation: what is running, where, and what the chat can
 				     do. Filled by ShowWelcome and dropped as soon as the user sends the first prompt. -->
-				<Grid x:Name="WelcomeBanner" Grid.Row="0" Visibility="Collapsed" Margin="10,10,10,12">
+				<Grid x:Name="WelcomeBanner" Visibility="Collapsed" Margin="10,10,10,12">
 					<Border BorderBrush="{StaticResource ChatAccentBrush}"
 					        BorderThickness="1" CornerRadius="4"
 					        Margin="0,8,0,0" Padding="14,14,14,12">
@@ -1160,13 +1168,19 @@
 											</DataTemplate>
 										</ItemsControl.ItemTemplate>
 									</ItemsControl>
-									<TextBlock Margin="0,4,0,0" FontSize="{DynamicResource ChatSmallFontSize}">
-										<Hyperlink Click="WelcomeAllSessions_Click"
-										           Foreground="{DynamicResource ChatLinkAccentBrush}"><Run Text="{local:Loc 'All sessions…'}"/></Hyperlink>
-										<Run Text="  ·  "/>
-										<Hyperlink Click="WelcomeTipsToggle_Click"
-										           Foreground="{DynamicResource ChatLinkAccentBrush}"><Run x:Name="WelcomeTipsToggleText"/></Hyperlink>
-									</TextBlock>
+									<!-- Two text blocks so the tips link (and its separator) can be hidden when the
+									     card is set to show the recent conversations only. -->
+									<StackPanel Orientation="Horizontal" Margin="0,4,0,0">
+										<TextBlock FontSize="{DynamicResource ChatSmallFontSize}">
+											<Hyperlink Click="WelcomeAllSessions_Click"
+											           Foreground="{DynamicResource ChatLinkAccentBrush}"><Run Text="{local:Loc 'All sessions…'}"/></Hyperlink>
+										</TextBlock>
+										<TextBlock x:Name="WelcomeTipsToggleBlock" FontSize="{DynamicResource ChatSmallFontSize}">
+											<Run Text="   ·  "/>
+											<Hyperlink Click="WelcomeTipsToggle_Click"
+											           Foreground="{DynamicResource ChatLinkAccentBrush}"><Run x:Name="WelcomeTipsToggleText"/></Hyperlink>
+										</TextBlock>
+									</StackPanel>
 								</StackPanel>
 
 								<StackPanel x:Name="WelcomeTipsSection">
@@ -1202,6 +1216,7 @@
 						           Foreground="{StaticResource ChatAccentBrush}"/>
 					</Border>
 				</Grid>
+				</ScrollViewer>
 
 				<ItemsControl x:Name="MessagesList" Grid.Row="1"
 				              VirtualizingPanel.IsVirtualizing="True"

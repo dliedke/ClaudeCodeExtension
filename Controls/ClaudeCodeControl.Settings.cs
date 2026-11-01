@@ -227,6 +227,41 @@ namespace ClaudeCodeVS
         }
 
         /// <summary>
+        /// Redraws every welcome card still on screen (main chat and parallel tabs), so a new
+        /// <see cref="ClaudeCodeSettings.WelcomeCardContent"/> choice shows at once instead of from the next chat.
+        /// </summary>
+        private void RefreshOpenWelcomeCards()
+        {
+            ThreadHelper.ThrowIfNotOnUIThread();
+
+            try
+            {
+                if (ChatTranscript != null && IsNativeModeActive && ChatTranscript.IsWelcomeVisible)
+                {
+                    ShowChatWelcome(ChatTranscript, null);
+                }
+
+                List<NativeChatSessionState> sessions;
+                lock (_sessionLock)
+                {
+                    sessions = new List<NativeChatSessionState>(_nativeSessions.Values);
+                }
+
+                foreach (NativeChatSessionState session in sessions)
+                {
+                    if (session.ChatTranscript != null && session.ChatTranscript.IsWelcomeVisible)
+                    {
+                        ShowChatWelcome(session.ChatTranscript, session.WorkspaceOverride ?? session.StartedWorkspace);
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"Welcome card refresh failed: {ex.Message}");
+            }
+        }
+
+        /// <summary>
         /// Reads only <see cref="ClaudeCodeSettings.ChatLanguage"/> straight from the settings file, for
         /// the constructor: the full <see cref="LoadSettings"/> runs after the XAML is already built. The
         /// package also calls it at startup, so command text and restored tool windows come up translated.

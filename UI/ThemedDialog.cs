@@ -62,6 +62,30 @@ namespace ClaudeCodeVS.UI
         /// <summary>One of the styles of ThemedDialogStyles.xaml (null when not loaded).</summary>
         public static Style GetStyle(Window window, string key) => window.TryFindResource(key) as Style;
 
+        private static ResourceDictionary _styles;
+
+        /// <summary>
+        /// One of the styles of ThemedDialogStyles.xaml for a window that does not use
+        /// <see cref="PrepareResources"/> (the Settings dialog keeps its own look). Null when it cannot load.
+        /// </summary>
+        public static Style LoadStyle(string key)
+        {
+            try
+            {
+                if (_styles == null)
+                {
+                    _styles = new ResourceDictionary { Source = StylesUri };
+                }
+
+                return _styles[key] as Style;
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"ThemedDialog.LoadStyle({key}): {ex.Message}");
+                return null;
+            }
+        }
+
         /// <summary>
         /// Replaces the Windows title bar with one drawn in the IDE theme: the window's title on the left,
         /// ✕ on the right, dragging and (for resizable windows) resizing and double-click maximize kept by

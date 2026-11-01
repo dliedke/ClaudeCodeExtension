@@ -150,6 +150,39 @@ namespace ClaudeCodeVS.UI
             return L(_previousToEnglish.TryGetValue(shown, out string english) ? english : shown);
         }
 
+        /// <summary>Translation → English of the active language, built on first use by <see cref="English"/>.</summary>
+        private static Dictionary<string, string> _currentToEnglish;
+
+        /// <summary>
+        /// The English text <paramref name="shown"/> is the translation of in the active language, or null
+        /// when it is not a whole translated string (English already, formatted, or user text). Lets the
+        /// Settings search also find a setting by its English name.
+        /// </summary>
+        public static string English(string shown)
+        {
+            if (string.IsNullOrEmpty(shown))
+            {
+                return null;
+            }
+
+            Dictionary<string, string> map = _currentToEnglish;
+            if (map == null)
+            {
+                map = new Dictionary<string, string>(StringComparer.Ordinal);
+                foreach (KeyValuePair<string, string> pair in _strings)
+                {
+                    if (!string.IsNullOrEmpty(pair.Value) && !map.ContainsKey(pair.Value))
+                    {
+                        map.Add(pair.Value, pair.Key);
+                    }
+                }
+
+                _currentToEnglish = map;
+            }
+
+            return map.TryGetValue(shown, out string english) ? english : null;
+        }
+
         /// <summary>
         /// Switches the language. <paramref name="setting"/> is a culture code, <see cref="AutomaticLanguage"/>
         /// (the Visual Studio UI language) or empty (same as automatic).
@@ -297,6 +330,7 @@ namespace ClaudeCodeVS.UI
             _previousToEnglish = previousToEnglish;
             Language = string.IsNullOrEmpty(code) ? EnglishLanguage : code;
             _strings = strings;
+            _currentToEnglish = null;
 
             try
             {

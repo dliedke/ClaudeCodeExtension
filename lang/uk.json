@@ -1103,5 +1103,14 @@
   "Thinking is the agent's own reasoning and is shown as a collapsed row. An agent sometimes explains its options only there and then asks a question; \"Open when followed by a question\" opens that row together with the question card. Any row can still be opened or closed by clicking it.": "Міркування — це власні роздуми агента, вони показуються згорнутим рядком. Іноді агент пояснює свої варіанти лише там і одразу ставить запитання; «Відкривати, якщо далі запитання» розгортає цей рядок разом із карткою запитання. Будь-який рядок і далі можна відкрити чи закрити клацанням.",
   "Keep collapsed": "Залишати згорнутим",
   "Open when followed by a question": "Відкривати, якщо далі запитання",
-  "Always open": "Завжди відкрито"
+  "Always open": "Завжди відкрито",
+  "When a new chat opens, show:": "Під час відкриття нового чату показувати:",
+  "Nothing": "Нічого",
+  "Tips only": "Лише підказки",
+  "Recent conversations only": "Лише нещодавні розмови",
+  "Recent conversations + tips": "Нещодавні розмови + підказки",
+  "What the welcome card of a new chat shows beside the agent, model and folder. Recent conversations are listed for Claude Code only. With \"Recent conversations + tips\" the tips stay behind a \"Show tips\" link while there are conversations to list.": "Що вітальна картка нового чату показує поруч з агентом, моделлю та папкою. Нещодавні розмови показуються лише для Claude Code. У режимі «Нещодавні розмови + підказки» підказки сховані за посиланням «Показати підказки», доки є розмови для списку.",
+  "Search settings…": "Пошук налаштувань…",
+  "Finds a setting in any tab by its name, its description or its choices. Ctrl+F jumps here, Esc clears the search.": "Знаходить налаштування на будь-якій вкладці за назвою, описом або варіантами. Ctrl+F переходить сюди, Esc очищає пошук.",
+  "No setting matches the search.": "Немає налаштувань, що відповідають пошуку."
 }

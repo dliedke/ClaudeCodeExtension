@@ -1103,5 +1103,14 @@
   "Thinking is the agent's own reasoning and is shown as a collapsed row. An agent sometimes explains its options only there and then asks a question; \"Open when followed by a question\" opens that row together with the question card. Any row can still be opened or closed by clicking it.": "Il ragionamento è il pensiero dell'agente e viene mostrato come una riga compressa. A volte un agente spiega le sue opzioni solo lì e poi fa una domanda; \"Apri quando è seguito da una domanda\" apre quella riga insieme alla scheda della domanda. Ogni riga si può comunque aprire o chiudere con un clic.",
   "Keep collapsed": "Mantieni compresso",
   "Open when followed by a question": "Apri quando è seguito da una domanda",
-  "Always open": "Sempre aperto"
+  "Always open": "Sempre aperto",
+  "When a new chat opens, show:": "All'apertura di una nuova chat, mostra:",
+  "Nothing": "Niente",
+  "Tips only": "Solo suggerimenti",
+  "Recent conversations only": "Solo conversazioni recenti",
+  "Recent conversations + tips": "Conversazioni recenti + suggerimenti",
+  "What the welcome card of a new chat shows beside the agent, model and folder. Recent conversations are listed for Claude Code only. With \"Recent conversations + tips\" the tips stay behind a \"Show tips\" link while there are conversations to list.": "Cosa mostra la scheda di benvenuto di una nuova chat accanto ad agente, modello e cartella. Le conversazioni recenti sono elencate solo per Claude Code. Con \"Conversazioni recenti + suggerimenti\" i suggerimenti restano dietro il link \"Mostra suggerimenti\" finché ci sono conversazioni da elencare.",
+  "Search settings…": "Cerca impostazioni…",
+  "Finds a setting in any tab by its name, its description or its choices. Ctrl+F jumps here, Esc clears the search.": "Trova un'impostazione in qualsiasi scheda dal nome, dalla descrizione o dalle opzioni. Ctrl+F porta qui, Esc cancella la ricerca.",
+  "No setting matches the search.": "Nessuna impostazione corrisponde alla ricerca."
 }

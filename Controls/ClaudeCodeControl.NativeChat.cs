@@ -2152,6 +2152,7 @@ namespace ClaudeCodeVS
             AiProvider? provider = GetActiveOrSelectedProvider();
             string directory = string.IsNullOrWhiteSpace(workspace) ? _lastWorkspaceDirectory : workspace;
 
+            transcript.WelcomeContent = _settings.WelcomeCardContent;
             transcript.ShowWelcome(
                 BuildWelcomeTitle(provider),
                 BuildWelcomeFacts(provider, directory),
@@ -2191,7 +2192,10 @@ namespace ClaudeCodeVS
             NativeChatSessionState owner = ResolveSessionFromSender(transcript);
             AiProvider? provider = owner != null ? owner.SelectedProvider : GetActiveOrSelectedProvider();
 
-            if (!IsClaudeCodeSessionHistoryProvider(provider) || string.IsNullOrWhiteSpace(workspace))
+            // Not read at all when the card is set to leave the recent conversations out.
+            bool listsRecent = _settings.WelcomeCardContent == WelcomeCardContent.RecentOnly ||
+                               _settings.WelcomeCardContent == WelcomeCardContent.RecentAndTips;
+            if (!listsRecent || !IsClaudeCodeSessionHistoryProvider(provider) || string.IsNullOrWhiteSpace(workspace))
             {
                 transcript.SetWelcomeRecentSessions(null);
                 return;

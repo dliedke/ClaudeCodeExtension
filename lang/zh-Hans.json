@@ -1103,5 +1103,14 @@
   "Thinking is the agent's own reasoning and is shown as a collapsed row. An agent sometimes explains its options only there and then asks a question; \"Open when followed by a question\" opens that row together with the question card. Any row can still be opened or closed by clicking it.": "思考是代理自己的推理，显示为折叠的行。代理有时只在那里解释它的选项，然后直接提问；“后面有问题时展开”会把那一行与问题卡片一起展开。任何一行仍可单击来展开或折叠。",
   "Keep collapsed": "保持折叠",
   "Open when followed by a question": "后面有问题时展开",
-  "Always open": "始终展开"
+  "Always open": "始终展开",
+  "When a new chat opens, show:": "打开新聊天时显示：",
+  "Nothing": "无",
+  "Tips only": "仅提示",
+  "Recent conversations only": "仅最近的对话",
+  "Recent conversations + tips": "最近的对话 + 提示",
+  "What the welcome card of a new chat shows beside the agent, model and folder. Recent conversations are listed for Claude Code only. With \"Recent conversations + tips\" the tips stay behind a \"Show tips\" link while there are conversations to list.": "新聊天的欢迎卡片在智能体、模型和文件夹旁边显示的内容。最近的对话仅对 Claude Code 列出。选择“最近的对话 + 提示”时，只要有可列出的对话，提示就会收在“显示提示”链接后面。",
+  "Search settings…": "搜索设置…",
+  "Finds a setting in any tab by its name, its description or its choices. Ctrl+F jumps here, Esc clears the search.": "按名称、说明或选项在任意选项卡中查找设置。Ctrl+F 跳到这里，Esc 清除搜索。",
+  "No setting matches the search.": "没有与搜索匹配的设置。"
 }

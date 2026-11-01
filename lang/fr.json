@@ -1103,5 +1103,14 @@
   "Thinking is the agent's own reasoning and is shown as a collapsed row. An agent sometimes explains its options only there and then asks a question; \"Open when followed by a question\" opens that row together with the question card. Any row can still be opened or closed by clicking it.": "La réflexion est le raisonnement propre de l'agent et s'affiche sous forme de ligne réduite. Un agent n'explique parfois ses options que là, puis pose une question ; « Ouvrir quand une question suit » ouvre cette ligne avec la carte de question. Toute ligne peut toujours être ouverte ou fermée d'un clic.",
   "Keep collapsed": "Garder réduit",
   "Open when followed by a question": "Ouvrir quand une question suit",
-  "Always open": "Toujours ouvert"
+  "Always open": "Toujours ouvert",
+  "When a new chat opens, show:": "À l'ouverture d'un nouveau chat, afficher :",
+  "Nothing": "Rien",
+  "Tips only": "Astuces uniquement",
+  "Recent conversations only": "Conversations récentes uniquement",
+  "Recent conversations + tips": "Conversations récentes + astuces",
+  "What the welcome card of a new chat shows beside the agent, model and folder. Recent conversations are listed for Claude Code only. With \"Recent conversations + tips\" the tips stay behind a \"Show tips\" link while there are conversations to list.": "Ce que la carte d'accueil d'un nouveau chat affiche à côté de l'agent, du modèle et du dossier. Les conversations récentes ne sont listées que pour Claude Code. Avec « Conversations récentes + astuces », les astuces restent derrière le lien « Afficher les astuces » tant qu'il y a des conversations à lister.",
+  "Search settings…": "Rechercher un paramètre…",
+  "Finds a setting in any tab by its name, its description or its choices. Ctrl+F jumps here, Esc clears the search.": "Trouve un paramètre dans n'importe quel onglet par son nom, sa description ou ses choix. Ctrl+F vient ici, Échap efface la recherche.",
+  "No setting matches the search.": "Aucun paramètre ne correspond à la recherche."
 }

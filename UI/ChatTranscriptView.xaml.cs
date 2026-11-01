@@ -1602,7 +1602,12 @@ namespace ClaudeCodeVS.UI
             // panels with the constraints it actually gives them.
             WelcomeBannerContent.InvalidateMeasure();
 
-            bool stacked = WelcomeCardLayout.ShouldStack(cardWidth, leftWidth, tipsHeight,
+            // An empty right column (the card set to show neither tips nor recent conversations)
+            // keeps the side-by-side layout without the divider: the facts stay on the left at
+            // their natural width instead of being centred across the whole card.
+            bool rightColumnEmpty = WelcomeTipsPanel.Visibility != Visibility.Visible;
+            WelcomeDivider.Visibility = rightColumnEmpty ? Visibility.Collapsed : Visibility.Visible;
+            bool stacked = !rightColumnEmpty && WelcomeCardLayout.ShouldStack(cardWidth, leftWidth, tipsHeight,
                 WelcomeRecentPanel.Visibility == Visibility.Visible);
             if (_welcomeStacked == stacked)
             {
@@ -1655,6 +1660,28 @@ namespace ClaudeCodeVS.UI
         public event EventHandler SessionHistoryRequested;
 
         private bool _welcomeTipsExpanded;
+        private bool _welcomeHasRecentSessions;
+        private WelcomeCardContent _welcomeContent = WelcomeCardContent.RecentAndTips;
+
+        /// <summary>
+        /// What the card's right-hand column shows (Settings → native chat). Set before
+        /// <see cref="ShowWelcome"/>; changing it re-applies the column at once.
+        /// </summary>
+        public WelcomeCardContent WelcomeContent
+        {
+            get { return _welcomeContent; }
+            set
+            {
+                if (_welcomeContent == value)
+                {
+                    return;
+                }
+
+                _welcomeContent = value;
+                ApplyWelcomeTipsVisibility();
+                QueueWelcomeLayoutRefresh();
+            }
+        }
 
         /// <summary>
         /// Fills the welcome card's recent list. With conversations to show, they take the right-hand
@@ -1663,20 +1690,39 @@ namespace ClaudeCodeVS.UI
         /// </summary>
         public void SetWelcomeRecentSessions(IList<WelcomeRecentSession> sessions)
         {
-            bool any = sessions != null && sessions.Count > 0;
+            _welcomeHasRecentSessions = sessions != null && sessions.Count > 0;
 
-            WelcomeRecentList.ItemsSource = any ? sessions : null;
-            WelcomeRecentPanel.Visibility = any ? Visibility.Visible : Visibility.Collapsed;
+            WelcomeRecentList.ItemsSource = _welcomeHasRecentSessions ? sessions : null;
             ApplyWelcomeTipsVisibility();
             QueueWelcomeLayoutRefresh();
         }
 
         private void ApplyWelcomeTipsVisibility()
         {
-            bool hasRecent = WelcomeRecentPanel.Visibility == Visibility.Visible;
+            bool hasRecent = _welcomeHasRecentSessions &&
+                (_welcomeContent == WelcomeCardContent.RecentOnly || _welcomeContent == WelcomeCardContent.RecentAndTips);
 
-            WelcomeTipsSection.Visibility = !hasRecent || _welcomeTipsExpanded ? Visibility.Visible : Visibility.Collapsed;
+            bool showTips;
+            switch (_welcomeContent)
+            {
+                case WelcomeCardContent.TipsOnly:
+                    showTips = true;
+                    break;
+                case WelcomeCardContent.RecentAndTips:
+                    showTips = !hasRecent || _welcomeTipsExpanded;
+                    break;
+                default:
+                    showTips = false;
+                    break;
+            }
+
+            WelcomeRecentPanel.Visibility = hasRecent ? Visibility.Visible : Visibility.Collapsed;
+            WelcomeTipsSection.Visibility = showTips ? Visibility.Visible : Visibility.Collapsed;
             WelcomeTipsSection.Margin = hasRecent ? new Thickness(0, 10, 0, 0) : new Thickness(0);
+            WelcomeTipsPanel.Visibility = hasRecent || showTips ? Visibility.Visible : Visibility.Collapsed;
+            WelcomeTipsToggleBlock.Visibility = _welcomeContent == WelcomeCardContent.RecentAndTips
+                ? Visibility.Visible
+                : Visibility.Collapsed;
             WelcomeTipsToggleText.Text = _welcomeTipsExpanded ? L("Hide tips") : L("Show tips");
         }
 
