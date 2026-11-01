@@ -1386,6 +1386,9 @@ namespace ClaudeCodeVS.UI
         /// <see cref="FlowDocumentScrollViewer"/>, which has no public text hit-test API, so the old
         /// Run.Tag plus mouse-position hit-testing is gone. <see cref="MarkdownBlock"/> handles
         /// <see cref="Hyperlink.Click"/> and raises its own <see cref="MarkdownBlock.LinkClicked"/> event.
+        /// Not focusable: a Hyperlink focuses itself on mouse down, and the focus raises a
+        /// RequestBringIntoView that scrolled the virtualized transcript away from where the reader
+        /// was before the click landed, so the link only opened on a second click (#250).
         /// </summary>
         private static Inline BuildLink(string label, string url, MarkdownStyleOptions options)
         {
@@ -1401,8 +1404,8 @@ namespace ClaudeCodeVS.UI
                 // move the chat to the containing answer before LinkClicked opens the file. Keeping the
                 // link clickable while disabling focus removes that coupling at the source. This applies
                 // to both local file citations and http(s) links; click handling remains unchanged.
-                Focusable = false,
-                Cursor = Cursors.Hand
+                Cursor = Cursors.Hand,
+                Focusable = false
             };
             link.Inlines.Add(new Run(string.IsNullOrEmpty(label) ? url : label));
             return link;

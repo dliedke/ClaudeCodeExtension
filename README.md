@@ -199,8 +199,8 @@ A huge thank you to every developer who took the time to improve this extension 
 ## Version History
 
 ### Version 293.0
-- Fixed first-click navigation for code citations in the native chat transcript. Markdown links remain clickable and preserve their existing file/web dispatch, but are now excluded from WPF keyboard focus navigation. This prevents a focused `Hyperlink` from issuing `RequestBringIntoView` through the virtualized transcript `ScrollViewer`, which previously moved the reader to a recent answer before the citation handler opened the referenced file. The fix is source-level and performance-safe: it removes the focus/scroll coupling without adding timers, polling, offset restoration, or extra layout passes. Added a regression test for the non-focusable link invariant.
-- Final validation: the complete automated suite passed with 1,041 tests passed, 0 failed and 0 skipped on November 1, 2026, using the existing extension build artifact with `dotnet test Tests\ClaudeCodeExtension.Tests.csproj --no-restore -p:BuildProjectReferences=false --verbosity minimal`. Manual EXP validation on November 1, 2026 confirmed that a scrolled-back local code citation opens on the first click without moving the transcript, and ordinary web links continue to open normally.
+- Clicking a file reference in an earlier answer of the native chat now opens the file on the first click, and the chat stays where you scrolled instead of jumping to a recent answer.
+- Thanks to [@fanyu99](https://github.com/fanyu99) for reporting (#250).
 
 ### Version 292.0
 - *Settings → Terminal* now tells the two native mode situations apart: with the chat docked in the panel, the prompt panel position and toolbar alignment stay editable and a note marks the rest as terminal-only; with the chat in its own tab everything is greyed out as before.

@@ -221,6 +221,24 @@ namespace ClaudeCodeExtension.Tests
         }
 
         /// <summary>
+        /// A focused link asks the transcript to bring it into view, which scrolled a long chat away
+        /// from the reader before the first click opened the file (#250).
+        /// </summary>
+        [TestMethod]
+        public void TranscriptLinksDoNotTakeKeyboardFocus()
+        {
+            RunOnSta(() =>
+            {
+                List<Block> blocks = MarkdownFlowRenderer.BuildBlockList(
+                    "see `Foo.cpp:28` and [docs](https://example.com)", null);
+                Hyperlink[] links = blocks.OfType<Paragraph>().Single().Inlines.OfType<Hyperlink>().ToArray();
+
+                Assert.AreEqual(2, links.Length);
+                Assert.IsTrue(links.All(link => !link.Focusable));
+            });
+        }
+
+        /// <summary>
         /// A file reference or URL inside a code span becomes a link. Casting that link to Run threw,
         /// and the catch-all fallback then showed the whole reply as one paragraph of raw markdown.
         /// </summary>
