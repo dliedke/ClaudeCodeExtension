@@ -198,6 +198,10 @@ A huge thank you to every developer who took the time to improve this extension 
 
 ## Version History
 
+### Version 293.0
+- Clicking a file reference in an earlier answer of the native chat now opens the file on the first click, and the chat stays where you scrolled instead of jumping to a recent answer.
+- Thanks to [@fanyu99](https://github.com/fanyu99) for reporting (#250).
+
 ### Version 292.0
 - *Settings → Terminal* now tells the two native mode situations apart: with the chat docked in the panel, the prompt panel position and toolbar alignment stay editable and a note marks the rest as terminal-only; with the chat in its own tab everything is greyed out as before.
 - The banner on that tab gained *Attach chat to Panel* / *Detach chat to Tab*, so the chat can be moved between the panel and its own tab right from Settings.
