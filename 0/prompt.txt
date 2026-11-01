@@ -1,0 +1,32 @@
+quando mostra as dicas, não tem scroll pra ver
+
+---
+
+Files attached:
+  - C:\Temp\Windows\ClaudeCodeVS_Session\d3087f55-769b-455f-8cbf-a4bcdfc029dd\image_1.png
+
+---
+
+Faça configurável pra mostrar quando abrir novo AI agent:
+
+Nada
+Só dicas
+Só recentes
+Recentes + Dicas
+
+Deixe padrão como está hoje
+
+---
+
+como já tem bastante settings, podia ter um search das settings, considerando claro a localização
+
+---
+
+Files attached:
+  - C:\Temp\Windows\ClaudeCodeVS_Session\f52a20ed-0bfc-4528-9bf1-c62201d715b6\image_1.png
+
+Quando é nada, acho melhor alinhar a esquerda
+
+---
+
+Run unit tests if present, publish, commit and push code changes but keep only the human author and no references to AI model.
