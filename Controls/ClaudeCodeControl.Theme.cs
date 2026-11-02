@@ -356,7 +356,10 @@ namespace ClaudeCodeVS
             VsBrushes.CommandBarTextActiveKey,
             VsBrushes.CommandBarTextInactiveKey,
             VsBrushes.CommandBarMenuBorderKey,
-            VsBrushes.CommandBarMenuSeparatorKey
+            VsBrushes.CommandBarMenuSeparatorKey,
+            // Background of the user's own prompt bubble in the native chat; its text already follows
+            // the forced WindowTextKey.
+            VsBrushes.CommandBarMenuBackgroundGradientKey
         };
 
         /// <summary>
@@ -457,6 +460,7 @@ namespace ClaudeCodeVS
                 this.Resources[VsBrushes.CommandBarTextInactiveKey]   = grayText;
                 this.Resources[VsBrushes.CommandBarMenuBorderKey]     = toolBorder;
                 this.Resources[VsBrushes.CommandBarMenuSeparatorKey]  = toolBorder;
+                this.Resources[VsBrushes.CommandBarMenuBackgroundGradientKey] = windowBg;
             }
             catch (Exception ex)
             {

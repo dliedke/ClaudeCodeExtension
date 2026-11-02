@@ -98,6 +98,14 @@ namespace ClaudeCodeVS.UI
                 var content = window.Content as UIElement;
                 window.Content = null;
 
+                // A dialog that sets its own colors (the panel's forced Dark / Light / Custom theme) gets
+                // a title bar on that background, so title and ✕ must follow its Foreground, not the IDE's.
+                if (window.ReadLocalValue(Window.ForegroundProperty) != DependencyProperty.UnsetValue)
+                {
+                    window.Resources[EnvironmentColors.MainWindowActiveCaptionTextBrushKey] = window.Foreground;
+                    window.Resources[EnvironmentColors.MainWindowButtonActiveGlyphBrushKey] = window.Foreground;
+                }
+
                 bool resizable = window.ResizeMode == ResizeMode.CanResize || window.ResizeMode == ResizeMode.CanResizeWithGrip;
                 WindowChrome.SetWindowChrome(window, new WindowChrome
                 {
