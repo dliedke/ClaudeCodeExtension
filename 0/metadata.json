@@ -1,0 +1,39 @@
+{
+  "cli_version": "0.12.2",
+  "checkpoint_id": "01M6E2TVENPJWAKSXATJ5R6G1M",
+  "session_id": "b9dc43b6-0618-4b09-ae16-5957cc6d72bd",
+  "strategy": "manual-commit",
+  "created_at": "2026-11-02T12:13:08.3403454Z",
+  "branch": "master",
+  "checkpoints_count": 1,
+  "files_touched": [
+    "Properties/AssemblyInfo.cs",
+    "README.md",
+    "source.extension.vsixmanifest"
+  ],
+  "agent": "Claude Code",
+  "model": "claude-opus-5-5",
+  "turn_id": "27ae2d5d40e1",
+  "compact_transcript_start": 0,
+  "token_usage": {
+    "input_tokens": 38,
+    "cache_creation_tokens": 46783,
+    "cache_read_tokens": 1027661,
+    "output_tokens": 5325,
+    "api_call_count": 19
+  },
+  "redaction": {
+    "replacements": 0,
+    "layers": {
+      "betterleaks": 0,
+      "connection_string": 0,
+      "credential_key": 0,
+      "credential_value": 0,
+      "credentialed_uri": 0,
+      "entropy": 0,
+      "key_context": 0,
+      "provider_token": 0,
+      "shell_stdin": 0
+    }
+  }
+}
