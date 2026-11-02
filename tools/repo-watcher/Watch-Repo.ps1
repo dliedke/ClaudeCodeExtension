@@ -161,6 +161,38 @@ try {
 
     $pending = @($items | Where-Object { -not $state.handled.ContainsKey((Get-Key $_)) })
     if ($pending.Count -eq 0) { Write-Log "$($items.Count) open, all handled."; exit 0 }
+
+    # --- Issues: PRs go first -------------------------------------------------------------
+    # People often open an issue and then send a PR that fixes it. The PR run reviews, merges and
+    # publishes the PR and then comments on and closes the issue, so the issue run must not fix it
+    # on its own. Issues wait while any ready PR is still unreviewed, and an issue that an open PR
+    # (draft or not) closes or mentions is left to the PR run.
+    if ($Kind -eq 'issue') {
+        $prJson = Invoke-Gh pr list --repo $Repo --state open --json 'number,headRefOid,isDraft,title,body,closingIssuesReferences' 2>&1
+        if ($LASTEXITCODE -ne 0) { Write-Log "gh failed: $prJson"; exit 0 }
+        $prs = @(($prJson | Out-String | ConvertFrom-Json) | Where-Object { $_.number })
+
+        $prHandled = @{}
+        $prStateFile = Join-Path $Root 'state-pr.json'
+        if (Test-Path $prStateFile) {
+            foreach ($p in (Get-Content $prStateFile -Raw | ConvertFrom-Json).handled.PSObject.Properties) { $prHandled[$p.Name] = $true }
+        }
+        $prsWaiting = @($prs | Where-Object { -not $_.isDraft -and -not $prHandled.ContainsKey("$($_.number):$($_.headRefOid)") })
+        if ($prsWaiting.Count -gt 0) {
+            Write-Log ("Issues wait: PR {0} not reviewed yet (PRs go first)." -f (($prsWaiting | ForEach-Object { "#$($_.number)" }) -join ', '))
+            exit 0
+        }
+
+        $linked = @{}   # issue number -> PR number
+        foreach ($pr in $prs) {
+            foreach ($ref in @($pr.closingIssuesReferences)) { if ($ref.number) { $linked[[int]$ref.number] = $pr.number } }
+            foreach ($m in [regex]::Matches("$($pr.title)`n$($pr.body)", '(?<![\w/&])#(\d+)\b')) { $linked[[int]$m.Groups[1].Value] = $pr.number }
+        }
+        $byPr = @($pending | Where-Object { $linked.ContainsKey([int]$_.number) })
+        foreach ($item in $byPr) { Write-Log "#$($item.number) is addressed by open PR #$($linked[[int]$item.number]); left to the PR run." }
+        $pending = @($pending | Where-Object { -not $linked.ContainsKey([int]$_.number) })
+        if ($pending.Count -eq 0) { exit 0 }
+    }
     $numbers = ($pending | ForEach-Object { "#$($_.number)" }) -join ', '
 
     # --- Don't touch the repo while you're working in it ----------------------------------

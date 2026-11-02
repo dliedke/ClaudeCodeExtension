@@ -174,7 +174,11 @@ Prerequisites: `claude` and `gh` on PATH, `gh auth login` done, and this machine
   fix get a changes-requested comment and the PR stays open (re-reviewed on the next push); a PR is
   closed only when unsafe or unacceptable in any form → version bump + README credit → build +
   `test.cmd` (failure reverts the merge) → `publish.cmd` → push → thank (listing follow-up fixes)
-  and close.
+  and close → comment on and close the issues the PR fixes (linked, named, or clearly the same
+  problem), only after the publish.
+- **PRs first.** The issue run waits while any ready PR is still unreviewed, and skips (without
+  marking handled) every issue an open PR closes or mentions by number, so an issue that someone
+  also sent a PR for is closed by the PR run after review, merge and publish.
 - **Issues**: questions are answered, unclear bugs get a request for details, large features are
   deferred with a comment, small requests that would change behavior others rely on become
   opt-in settings, and requests that would remove features or weaken security/tests even as an
