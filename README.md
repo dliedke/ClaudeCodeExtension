@@ -180,7 +180,7 @@ A huge thank you to every developer who took the time to improve this extension 
 
 - [@Gh61](https://github.com/Gh61) — 21 PRs
 - [@ClaudioCas](https://github.com/ClaudioCas) — 13 PRs
-- [@rbuss93](https://github.com/rbuss93) — 11 PRs
+- [@rbuss93](https://github.com/rbuss93) — 12 PRs
 - [@MartinWooChina](https://github.com/MartinWooChina) — 6 PRs
 - [@metman-oss](https://github.com/metman-oss) — 6 PRs
 - [@karpach-relativity](https://github.com/karpach-relativity) — 4 PRs
@@ -197,6 +197,10 @@ A huge thank you to every developer who took the time to improve this extension 
 - [@wluisdev](https://github.com/wluisdev) — 1 PR
 
 ## Version History
+
+### Version 297.0
+- Switching the forced theme back to Automatic while chats are open in the window that holds all chats now also restores the chat link colors, instead of leaving the dark-theme blue on a light background.
+- Thanks to [@rbuss93](https://github.com/rbuss93) for this release (#257).
 
 ### Version 296.0
 - With a forced Dark, Light or Custom theme, native chats in their own tabs and the window that holds all chats now use the forced colors too, instead of staying in the IDE's theme.
