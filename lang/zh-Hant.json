@@ -1112,5 +1112,7 @@
   "What the welcome card of a new chat shows beside the agent, model and folder. Recent conversations are listed for Claude Code only. With \"Recent conversations + tips\" the tips stay behind a \"Show tips\" link while there are conversations to list.": "新聊天的歡迎卡片在代理程式、模型和資料夾旁邊顯示的內容。最近的對話僅對 Claude Code 列出。選擇「最近的對話 + 提示」時，只要有可列出的對話，提示就會收在「顯示提示」連結後面。",
   "Search settings…": "搜尋設定…",
   "Finds a setting in any tab by its name, its description or its choices. Ctrl+F jumps here, Esc clears the search.": "依名稱、說明或選項在任何索引標籤中尋找設定。Ctrl+F 跳到這裡，Esc 清除搜尋。",
-  "No setting matches the search.": "沒有符合搜尋的設定。"
+  "No setting matches the search.": "沒有符合搜尋的設定。",
+  "Match Claude Code's theme to the terminal background": "讓 Claude Code 的佈景主題配合終端機背景",
+  "Claude Code colors its text from its own theme (/theme), not from the terminal it runs in. A light Claude Code theme inside a dark terminal, or the reverse, makes some text unreadable - for example the question of a multiple-choice prompt.\n\nWhile this is on, Claude Code is started in the embedded terminal with the dark or light theme that suits the background whenever its own theme does not; a daltonized or ANSI theme keeps its variant. This applies to that launch only - Claude Code's settings file is not changed. Skipped when the extra launch arguments already contain --settings.": "Claude Code 依據自身的佈景主題 (/theme) 為文字著色，而不是依據其執行所在的終端機。在深色終端機中使用淺色 Claude Code 佈景主題(或相反)會讓部分文字無法閱讀 - 例如多選提示中的問題。\n\n啟用此選項時，只要 Claude Code 自身的佈景主題與背景不相符，內嵌終端機中的 Claude Code 就會以符合背景的深色或淺色佈景主題啟動；daltonized 或 ANSI 佈景主題會保留其變體。這只適用於該次啟動 - 不會變更 Claude Code 的設定檔。若額外的啟動引數已包含 --settings，則略過。"
 }

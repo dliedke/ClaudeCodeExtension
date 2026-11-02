@@ -1144,6 +1144,14 @@ namespace ClaudeCodeVS
         public bool SkipThemeRestartPrompt { get; set; } = false;
 
         /// <summary>
+        /// When true, Claude Code in the embedded terminal is started with the theme that suits the
+        /// terminal's background whenever its own theme (<c>/theme</c>) does not. Claude Code colors text
+        /// from that setting and cannot see the background, so a light theme in a dark terminal drew
+        /// some text black on black. Applies to that launch only; the CLI's settings file is not changed.
+        /// </summary>
+        public bool MatchClaudeThemeToTerminal { get; set; } = true;
+
+        /// <summary>
         /// User-defined custom commands surfaced in the toolbar custom-commands
         /// dropdown. Empty list hides the dropdown button entirely.
         /// </summary>
