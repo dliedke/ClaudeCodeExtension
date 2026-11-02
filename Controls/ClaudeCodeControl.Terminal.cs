@@ -5986,7 +5986,12 @@ namespace ClaudeCodeVS
             return wanted == theme ? null : wanted;
         }
 
-        /// <summary>Appends <c>--settings {"theme":…}</c> for <paramref name="theme"/>; no-op when it is null.</summary>
+        /// <summary>
+        /// Appends <c>--settings {"theme":…}</c> for <paramref name="theme"/>; no-op when it is null. Under WSL the
+        /// command ends up inside <c>bash -lic "…"</c> (<see cref="BuildWslLaunchCommand"/>), where a double quote
+        /// of the JSON would close that string and the CLI would get <c>{theme:dark}</c>. Bash's <c>$'…'</c> form
+        /// spells the quotes as <c>\x22</c> instead.
+        /// </summary>
         internal static string BuildClaudeThemeArgument(string baseCommand, string theme, bool isWsl)
         {
             if (string.IsNullOrEmpty(theme))
@@ -5994,7 +5999,9 @@ namespace ClaudeCodeVS
                 return baseCommand;
             }
 
-            return baseCommand + " --settings " + QuoteProviderArgument("{\"theme\":\"" + theme + "\"}", isWsl);
+            return isWsl
+                ? baseCommand + " --settings $'{\\x22theme\\x22:\\x22" + theme + "\\x22}'"
+                : baseCommand + " --settings " + QuoteForWindowsCommandArgument("{\"theme\":\"" + theme + "\"}");
         }
 
         /// <summary>

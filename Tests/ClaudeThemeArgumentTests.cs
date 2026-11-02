@@ -84,8 +84,23 @@ namespace ClaudeCodeExtension.Tests
                 ClaudeCodeControl.BuildClaudeThemeArgument("claude", "dark", isWsl: false));
 
             Assert.AreEqual(
-                "claude --settings '{\"theme\":\"light-daltonized\"}'",
+                @"claude --settings $'{\x22theme\x22:\x22light-daltonized\x22}'",
                 ClaudeCodeControl.BuildClaudeThemeArgument("claude", "light-daltonized", isWsl: true));
+        }
+
+        /// <summary>
+        /// Under WSL the whole command sits inside <c>bash -lic "…"</c>. A double quote of the JSON closed
+        /// that string early, so the CLI received <c>{theme:dark}</c>; the only double quotes left must be
+        /// the two around the bash command.
+        /// </summary>
+        [TestMethod]
+        public void BuildClaudeThemeArgument_KeepsTheWslLaunchCommandInOneQuotedString()
+        {
+            string command = ClaudeCodeControl.BuildWslLaunchCommand("/mnt/c/work",
+                ClaudeCodeControl.BuildClaudeThemeArgument("claude", "dark", isWsl: true));
+
+            Assert.AreEqual(2, command.Split('"').Length - 1, command);
+            Assert.IsTrue(command.EndsWith("\"", System.StringComparison.Ordinal), command);
         }
 
         [TestMethod]
