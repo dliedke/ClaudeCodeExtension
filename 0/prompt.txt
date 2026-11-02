@@ -1,0 +1,7 @@
+No repo-watcher vamos sempre rodar primeiro o PR e depois os issues, porque as pessoas logam issue e mandam PR pra arrumar, daí nesses casos sempre bota um comentário no issue e fecha depois que o PR já foi feito review, merge e publish
+
+Já roda o install pra trocar os horarios dos serviços
+
+---
+
+sim
