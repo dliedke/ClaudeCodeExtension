@@ -274,6 +274,22 @@ namespace ClaudeCodeExtension.Tests
         }
 
         /// <summary>
+        /// Matching Claude Code's theme to the terminal is on by default; turning it off has to survive a
+        /// save/load round trip.
+        /// </summary>
+        [TestMethod]
+        public void MatchClaudeThemeToTerminal_DefaultsToOnAndRoundTrips()
+        {
+            Assert.IsTrue(new ClaudeCodeSettings().MatchClaudeThemeToTerminal);
+
+            var settings = new ClaudeCodeSettings { MatchClaudeThemeToTerminal = false };
+
+            string json = ClaudeCodeControl.SerializeJsonIndented(settings);
+
+            Assert.IsFalse((bool)JObject.Parse(json)["MatchClaudeThemeToTerminal"]);
+        }
+
+        /// <summary>
         /// Issue #151/v170.0: a settings file saved by an older build has no
         /// <see cref="ClaudeCodeSettings.AutoHidePromptInNativeMode"/> property at all, and the
         /// feature it gates (auto-collapsing the panel's prompt box once native mode's chat has

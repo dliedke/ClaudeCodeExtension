@@ -5886,6 +5886,14 @@ namespace ClaudeCodeVS
                 }
             }
 
+            // Claude Code colors its text from its own theme setting and cannot see the terminal's
+            // background: a light theme in the dark terminal drew a multiple-choice question black on
+            // black. Launch it with the theme that suits the background, for this session only.
+            if (_settings?.MatchClaudeThemeToTerminal != false)
+            {
+                baseCommand = BuildClaudeThemeArgument(baseCommand, GetClaudeThemeForTerminal(isWsl), isWsl);
+            }
+
             // User-configured extra flags (Settings → CLI Paths → "Extra launch arguments").
             baseCommand = AppendExtraLaunchArgs(
                 baseCommand, isWsl ? AiProvider.ClaudeCodeWSL : AiProvider.ClaudeCode);
@@ -5926,6 +5934,114 @@ namespace ClaudeCodeVS
             }
 
             return $"{baseCommand} --effort {level.ToString().ToLowerInvariant()}";
+        }
+
+        /// <summary>
+        /// The Claude Code theme to launch with in the embedded terminal, or null when the configured one
+        /// already suits the background or the user's own launch arguments pass <c>--settings</c> (two of
+        /// them would compete). WSL reads no settings from the distro and gets the plain dark/light pair.
+        /// </summary>
+        private string GetClaudeThemeForTerminal(bool isWsl)
+        {
+            string extra = GetExtraLaunchArgs(isWsl ? AiProvider.ClaudeCodeWSL : AiProvider.ClaudeCode);
+            if (extra.IndexOf("--settings", StringComparison.OrdinalIgnoreCase) >= 0)
+            {
+                return null;
+            }
+
+            string configured = isWsl ? null : ReadConfiguredClaudeTheme();
+            return ResolveClaudeThemeForTerminal(configured, Brightness(GetTerminalBackgroundColor()) > 150);
+        }
+
+        /// <summary>
+        /// The theme that suits a light or dark background, keeping the variant of the configured one
+        /// (<c>-daltonized</c>, <c>-ansi</c>). Null when the configured theme already suits it, or when it
+        /// is one this does not know (<c>auto</c>, a theme added later) and is left to the CLI. No
+        /// configured theme means the CLI's default, dark.
+        /// </summary>
+        internal static string ResolveClaudeThemeForTerminal(string configuredTheme, bool lightBackground)
+        {
+            string theme = string.IsNullOrWhiteSpace(configuredTheme) ? "dark" : configuredTheme.Trim().ToLowerInvariant();
+
+            string variant;
+            if (theme.StartsWith("dark", StringComparison.Ordinal))
+            {
+                variant = theme.Substring(4);
+            }
+            else if (theme.StartsWith("light", StringComparison.Ordinal))
+            {
+                variant = theme.Substring(5);
+            }
+            else
+            {
+                return null;
+            }
+
+            if (variant.Length > 0 && variant != "-daltonized" && variant != "-ansi")
+            {
+                return null;
+            }
+
+            string wanted = (lightBackground ? "light" : "dark") + variant;
+            return wanted == theme ? null : wanted;
+        }
+
+        /// <summary>Appends <c>--settings {"theme":…}</c> for <paramref name="theme"/>; no-op when it is null.</summary>
+        internal static string BuildClaudeThemeArgument(string baseCommand, string theme, bool isWsl)
+        {
+            if (string.IsNullOrEmpty(theme))
+            {
+                return baseCommand;
+            }
+
+            return baseCommand + " --settings " + QuoteProviderArgument("{\"theme\":\"" + theme + "\"}", isWsl);
+        }
+
+        /// <summary>
+        /// The theme in the CLI's user settings (<c>settings.json</c> in the config dir), or in
+        /// <c>~/.claude.json</c> where older CLI versions kept it. Null when neither has one.
+        /// </summary>
+        private static string ReadConfiguredClaudeTheme()
+        {
+            string userProfile = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+            foreach (string path in new[]
+            {
+                Path.Combine(GetClaudeConfigDir(), "settings.json"),
+                Path.Combine(userProfile, ".claude.json")
+            })
+            {
+                try
+                {
+                    if (File.Exists(path))
+                    {
+                        string theme = ReadClaudeThemeSetting(File.ReadAllText(path));
+                        if (theme != null)
+                        {
+                            return theme;
+                        }
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Debug.WriteLine($"Reading the Claude Code theme from {path} failed: {ex.Message}");
+                }
+            }
+
+            return null;
+        }
+
+        /// <summary>The top-level <c>theme</c> of a Claude Code settings file; null when absent or unreadable.</summary>
+        internal static string ReadClaudeThemeSetting(string json)
+        {
+            try
+            {
+                string theme = (string)JObject.Parse(json ?? string.Empty)["theme"];
+                return string.IsNullOrWhiteSpace(theme) ? null : theme;
+            }
+            catch (Exception)
+            {
+                return null;
+            }
         }
 
         private static string QuoteProviderArgument(string value, bool isWsl)

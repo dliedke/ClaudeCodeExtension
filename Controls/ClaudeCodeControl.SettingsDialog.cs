@@ -136,6 +136,7 @@ namespace ClaudeCodeVS
             ThemePreference origThemePref     = _settings.SelectedThemePreference;
             int  origCustomColorArgb          = _settings.CustomThemeColorArgb;
             bool origSkipThemePrompt          = _settings.SkipThemeRestartPrompt;
+            bool origMatchClaudeTheme         = _settings.MatchClaudeThemeToTerminal;
             string origDefaultNativeColor     = _settings.DefaultNativeSessionColor ?? string.Empty;
             bool origShowInlineBars           = _settings.ShowInlineUsageBars;
             bool origShowSubagentCount        = _settings.ShowSubagentCount;
@@ -1420,6 +1421,19 @@ namespace ClaudeCodeVS
             customRow.Children.Add(pickButton);
             themeStack.Children.Add(customRow);
 
+            var matchClaudeThemeCheck = MakeCheckBox(
+                L("Match Claude Code's theme to the terminal background"),
+                L("Claude Code colors its text from its own theme (/theme), not from the terminal it runs in. A light " +
+                "Claude Code theme inside a dark terminal, or the reverse, makes some text unreadable - for example " +
+                "the question of a multiple-choice prompt.\n\n" +
+                "While this is on, Claude Code is started in the embedded terminal with the dark or light theme that " +
+                "suits the background whenever its own theme does not; a daltonized or ANSI theme keeps its variant. " +
+                "This applies to that launch only - Claude Code's settings file is not changed. Skipped when the extra " +
+                "launch arguments already contain --settings."),
+                origMatchClaudeTheme, themeFg);
+            matchClaudeThemeCheck.Margin = new Thickness(4, 10, 0, 0);
+            themeStack.Children.Add(matchClaudeThemeCheck);
+
             var skipPromptCheck = MakeCheckBox(
                 L("Don't ask to restart the AI agent when the theme changes"),
                 L("Suppresses the \"Theme changed. Restart the AI code agent?\" pop-up. Useful when Visual Studio automatically switches themes (for example, the debugging theme triggered by F5)."),
@@ -1793,6 +1807,7 @@ namespace ClaudeCodeVS
                 }
             }
             bool newSkipThemePrompt = skipPromptCheck.IsChecked == true;
+            bool newMatchClaudeTheme = matchClaudeThemeCheck.IsChecked == true;
 
             // Invalid hex keeps the previous default; the built-in blue is stored as empty.
             string newDefaultNativeColor = origDefaultNativeColor;
@@ -1899,6 +1914,7 @@ namespace ClaudeCodeVS
             _settings.SelectedThemePreference = newThemePref;
             _settings.CustomThemeColorArgb    = newCustomColorArgb;
             _settings.SkipThemeRestartPrompt  = newSkipThemePrompt;
+            _settings.MatchClaudeThemeToTerminal = newMatchClaudeTheme;
             _settings.DefaultNativeSessionColor = newDefaultNativeColor;
             _settings.ShowInlineUsageBars    = newShowInlineBars;
             _settings.ShowSubagentCount      = newShowSubagentCount;
@@ -2093,7 +2109,14 @@ namespace ClaudeCodeVS
             // Toggling native mode swaps the whole transport, so the agent has to be relaunched for the
             // panel to change from terminal to chat (or back).
             bool nativeModeChanged = _settings.UseNativeMode != origUseNativeMode;
-            bool needsRestart = terminalTypeChanged || activeCliPathChanged || consoleFontChanged || nativeModeChanged || activeLaunchArgsChanged;
+            // The theme argument rides on the launch command, so toggling it only matters when the running
+            // Claude Code terminal would get a different one.
+            bool claudeThemeArgChanged = newMatchClaudeTheme != origMatchClaudeTheme
+                && !_settings.UseNativeMode
+                && (_settings.SelectedProvider == AiProvider.ClaudeCode || _settings.SelectedProvider == AiProvider.ClaudeCodeWSL)
+                && GetClaudeThemeForTerminal(_settings.SelectedProvider == AiProvider.ClaudeCodeWSL) != null;
+            bool needsRestart = terminalTypeChanged || activeCliPathChanged || consoleFontChanged || nativeModeChanged || activeLaunchArgsChanged
+                || claudeThemeArgChanged;
 
             // For theme changes, ask the user (respecting the skip-prompt opt-out
             // and the same "agent color already matches" short-circuit used elsewhere)
