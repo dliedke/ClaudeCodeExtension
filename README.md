@@ -180,7 +180,7 @@ A huge thank you to every developer who took the time to improve this extension 
 
 - [@Gh61](https://github.com/Gh61) — 21 PRs
 - [@ClaudioCas](https://github.com/ClaudioCas) — 13 PRs
-- [@rbuss93](https://github.com/rbuss93) — 9 PRs
+- [@rbuss93](https://github.com/rbuss93) — 10 PRs
 - [@MartinWooChina](https://github.com/MartinWooChina) — 6 PRs
 - [@metman-oss](https://github.com/metman-oss) — 6 PRs
 - [@karpach-relativity](https://github.com/karpach-relativity) — 4 PRs
@@ -197,6 +197,10 @@ A huge thank you to every developer who took the time to improve this extension 
 - [@wluisdev](https://github.com/wluisdev) — 1 PR
 
 ## Version History
+
+### Version 295.0
+- With a forced Dark, Light or Custom theme, the dropdown menus, the native chat's effort and usage popups, your own prompt bubble in the chat and the title bar of the Session History, Rename Session and Resume Conversation dialogs now use the forced colors instead of staying unreadable in the IDE's colors.
+- Thanks to [@rbuss93](https://github.com/rbuss93) for this release (#253).
 
 ### Version 294.0
 - The native chat welcome card now scrolls when it is taller than the chat, so the tips shown under the recent conversations can be read on a short tab.
