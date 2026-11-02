@@ -156,6 +156,15 @@ namespace ClaudeCodeVS.UI
 
         private void OnVSColorThemeChanged(ThemeChangedEventArgs e)
         {
+            RefreshThemeColors();
+        }
+
+        /// <summary>
+        /// Re-derives the link accent and the icon background from this view's theme brushes, after VS
+        /// or the panel's forced theme changed them.
+        /// </summary>
+        internal void RefreshThemeColors()
+        {
             ApplyLinkAccentForTheme();
             ApplyImageThemeBackground();
         }

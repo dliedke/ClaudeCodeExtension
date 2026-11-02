@@ -85,6 +85,9 @@ namespace ClaudeCodeVS
 
         internal ChatTranscriptView SelectedTranscript => _view.SelectedTranscript;
 
+        /// <summary>The window's content, for the panel's forced theme.</summary>
+        internal ChatContainerView View => _view;
+
         /// <summary>
         /// The inner tab for one chat, created on first use. <paramref name="windowId"/> plays the same
         /// role as the instance id of <see cref="NativeChatToolWindow"/>: 0 is the main chat.

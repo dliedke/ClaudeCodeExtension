@@ -11,9 +11,12 @@
  * *******************************************************************************************************************/
 
 using System;
+using System.Collections.Generic;
 using System.Diagnostics;
+using System.Linq;
 using System.Windows;
 using System.Windows.Media;
+using ClaudeCodeVS.UI;
 using Microsoft.VisualStudio.PlatformUI;
 using Microsoft.VisualStudio.Shell;
 using Microsoft.VisualStudio.Shell.Interop;
@@ -359,7 +362,14 @@ namespace ClaudeCodeVS
             VsBrushes.CommandBarMenuSeparatorKey,
             // Background of the user's own prompt bubble in the native chat; its text already follows
             // the forced WindowTextKey.
-            VsBrushes.CommandBarMenuBackgroundGradientKey
+            VsBrushes.CommandBarMenuBackgroundGradientKey,
+            // Tab strip of the window that holds all chats (ChatContainerView.xaml).
+            VsBrushes.FileTabChannelBackgroundKey,
+            VsBrushes.FileTabTextKey,
+            VsBrushes.FileTabHotGradientTopKey,
+            VsBrushes.FileTabHotTextKey,
+            VsBrushes.FileTabSelectedBackgroundKey,
+            VsBrushes.FileTabSelectedTextKey
         };
 
         /// <summary>
@@ -367,7 +377,8 @@ namespace ClaudeCodeVS
         /// When Dark or Light is forced, the VS brush resource keys are overridden
         /// in this control's Resources dictionary so all child WPF elements pick up
         /// the forced colors via DynamicResource. When Automatic, overrides are
-        /// removed so VS's native theme resources take effect.
+        /// removed so VS's native theme resources take effect. Chats in their own tabs get the same
+        /// overrides (<see cref="ApplyForcedThemeToChats"/>).
         /// </summary>
         private void ApplyForcedThemeResources()
         {
@@ -382,6 +393,7 @@ namespace ClaudeCodeVS
                     {
                         this.Resources.Remove(key);
                     }
+                    ApplyForcedThemeToChats();
                     return;
                 }
 
@@ -461,11 +473,79 @@ namespace ClaudeCodeVS
                 this.Resources[VsBrushes.CommandBarMenuBorderKey]     = toolBorder;
                 this.Resources[VsBrushes.CommandBarMenuSeparatorKey]  = toolBorder;
                 this.Resources[VsBrushes.CommandBarMenuBackgroundGradientKey] = windowBg;
+                this.Resources[VsBrushes.FileTabChannelBackgroundKey] = toolBg;
+                this.Resources[VsBrushes.FileTabTextKey]              = windowFg;
+                this.Resources[VsBrushes.FileTabHotGradientTopKey]    = hoverBg;
+                this.Resources[VsBrushes.FileTabHotTextKey]           = windowFg;
+                this.Resources[VsBrushes.FileTabSelectedBackgroundKey] = selectedBg;
+                this.Resources[VsBrushes.FileTabSelectedTextKey]      = windowFg;
+
+                ApplyForcedThemeToChats();
             }
             catch (Exception ex)
             {
                 Debug.WriteLine($"Error applying forced theme resources: {ex.Message}");
             }
+        }
+
+        /// <summary>
+        /// The chats can sit in their own VS tabs, outside this control, where its resources do not reach.
+        /// Every transcript and the shared chat window therefore get a copy of the same overrides.
+        /// </summary>
+        private void ApplyForcedThemeToChats()
+        {
+            var targets = new List<FrameworkElement>();
+            if (ChatTranscript != null)
+            {
+                targets.Add(ChatTranscript);
+            }
+
+            lock (_sessionLock)
+            {
+                targets.AddRange(_nativeSessions.Values.Select(s => s.ChatTranscript).Where(t => t != null));
+            }
+
+            if (_chatContainer != null)
+            {
+                targets.Add(_chatContainer.View);
+            }
+
+            foreach (FrameworkElement target in targets.Distinct())
+            {
+                CopyForcedThemeResources(target);
+            }
+        }
+
+        /// <summary>Gives <paramref name="target"/> this control's current overrides, or removes them under Automatic.</summary>
+        private void CopyForcedThemeResources(FrameworkElement target)
+        {
+            CopyForcedThemeResources(this.Resources, target);
+        }
+
+        /// <summary>
+        /// Copies the forced-theme keys present in <paramref name="overrides"/> to <paramref name="target"/>
+        /// and removes the ones that are not, so the target falls back to the IDE theme for those.
+        /// </summary>
+        internal static void CopyForcedThemeResources(ResourceDictionary overrides, FrameworkElement target)
+        {
+            if (overrides == null || target == null)
+            {
+                return;
+            }
+
+            foreach (var key in _themeResourceKeys)
+            {
+                if (overrides.Contains(key))
+                {
+                    target.Resources[key] = overrides[key];
+                }
+                else
+                {
+                    target.Resources.Remove(key);
+                }
+            }
+
+            (target as ChatTranscriptView)?.RefreshThemeColors();
         }
 
         #endregion
