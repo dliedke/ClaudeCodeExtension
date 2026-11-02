@@ -269,6 +269,7 @@ namespace ClaudeCodeVS
             if (!ReferenceEquals(_chatContainer, container))
             {
                 _chatContainer = container;
+                CopyForcedThemeResources(container.View);
                 container.NewChatRequested += (s, e) =>
                     OnComposerNewChatRequested((object)container.SelectedTranscript ?? ChatTranscript, EventArgs.Empty);
                 container.ResumeTodayRequested += (s, e) =>

@@ -3956,6 +3956,7 @@ namespace ClaudeCodeVS
 
             // Create new transcript UI
             var transcript = new ChatTranscriptView();
+            CopyForcedThemeResources(transcript);
             transcript.UseModernIcons = _settings?.ChatIconStyle == ChatIconStyle.Modern;
             transcript.CompactToolbar = _settings?.CompactChatToolbar == true;
             // The ⚡ flag defaults to true and nothing else refreshes it for a new tab — seed it here

@@ -7,8 +7,9 @@
  * Usage and reproduction in any manner whatsoever without the written permission of Daniel Carvalho Liedke is strictly forbidden.
  *
  * Purpose: A forced Dark / Light / Custom theme only recolors what it overrides. Every VS brush key the panel
- *          and its chat draw with must therefore be on the override list, or that part keeps the VS theme's
- *          color, and the dialogs the panel opens in its theme colors must not draw on them with IDE colors.
+ *          and its chats draw with must therefore be on the override list, or that part keeps the VS theme's
+ *          color; chats in their own tabs must get the overrides too, and the dialogs the panel opens in its
+ *          theme colors must not draw on them with IDE colors.
  *
  * *******************************************************************************************************************/
 
@@ -19,6 +20,7 @@ using System.Threading;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
+using ClaudeCodeVS;
 using ClaudeCodeVS.UI;
 using Microsoft.VisualStudio.PlatformUI;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
@@ -28,10 +30,13 @@ namespace ClaudeCodeExtension.Tests
     [TestClass]
     public class ForcedThemeResourceTests
     {
-        /// <summary>Hosted inside the panel, so a forced theme reaches them through its resources.</summary>
-        private static readonly string[] PanelXamlFiles =
+        /// <summary>
+        /// The panel, and the chats with the window that holds them all, which get a copy of the panel's
+        /// overrides when they sit in their own VS tabs.
+        /// </summary>
+        private static readonly string[] ThemedXamlFiles =
         {
-            "ChatStyles.xaml", "ClaudeCodeControl.xaml", "ChatTranscriptView.xaml"
+            "ChatStyles.xaml", "ClaudeCodeControl.xaml", "ChatTranscriptView.xaml", "ChatContainerView.xaml"
         };
 
         /// <summary>
@@ -46,17 +51,17 @@ namespace ClaudeCodeExtension.Tests
         /// under light text: both drew with VS brush keys a forced theme did not override.
         /// </summary>
         [TestMethod]
-        public void EveryVsBrushUsedInThePanel_IsOverriddenByAForcedTheme()
+        public void EveryVsBrushUsedInThePanelAndChats_IsOverriddenByAForcedTheme()
         {
             string theme = RepositoryLayout.ReadText("Controls", "ClaudeCodeControl.Theme.cs");
 
-            var used = PanelXamlFiles
+            var used = ThemedXamlFiles
                 .SelectMany(f => Regex.Matches(RepositoryLayout.ReadText("UI", f), @"VsBrushes\.(\w+Key)").Cast<Match>())
                 .Select(m => m.Groups[1].Value)
                 .Distinct()
                 .Except(SelectionOnlyKeys)
                 .ToList();
-            Assert.IsTrue(used.Count > 0, "The panel XAML should reference VS brush keys.");
+            Assert.IsTrue(used.Count > 0, "The themed XAML should reference VS brush keys.");
 
             int listStart = theme.IndexOf("_themeResourceKeys = new object[]", StringComparison.Ordinal);
             int listEnd = theme.IndexOf("};", listStart, StringComparison.Ordinal);
@@ -72,6 +77,45 @@ namespace ClaudeCodeExtension.Tests
                 StringAssert.Contains(theme, "this.Resources[VsBrushes." + key + "]",
                     key + " is on the override list but never assigned a forced color.");
             }
+        }
+
+        /// <summary>
+        /// A chat in its own VS tab is outside the panel, so the panel's resources never reached it: with
+        /// the extension on Dark in a light IDE the chat tab stayed light. It now gets a copy of the
+        /// overrides, and loses them again under Automatic.
+        /// </summary>
+        [TestMethod]
+        public void ForcedThemeOverrides_AreCopiedToAChatOutsideThePanel_AndRemovedUnderAutomatic()
+        {
+            RunOnSta(() =>
+            {
+                var dark = new SolidColorBrush(Color.FromRgb(30, 30, 30));
+                var panel = new ResourceDictionary { [Microsoft.VisualStudio.Shell.VsBrushes.WindowKey] = dark };
+                var chat = new Border();
+
+                ClaudeCodeControl.CopyForcedThemeResources(panel, chat);
+                Assert.AreSame(dark, chat.Resources[Microsoft.VisualStudio.Shell.VsBrushes.WindowKey]);
+
+                ClaudeCodeControl.CopyForcedThemeResources(new ResourceDictionary(), chat);
+                Assert.IsFalse(chat.Resources.Contains(Microsoft.VisualStudio.Shell.VsBrushes.WindowKey),
+                    "Under Automatic the chat must fall back to the IDE theme.");
+            });
+        }
+
+        /// <summary>Every place a chat can end up outside the panel gets the overrides.</summary>
+        [TestMethod]
+        public void EveryChatHost_ReceivesTheForcedTheme()
+        {
+            string theme = RepositoryLayout.ReadText("Controls", "ClaudeCodeControl.Theme.cs");
+            string nativeMode = RepositoryLayout.ReadText("Controls", "ClaudeCodeControl.NativeMode.cs");
+            string nativeChat = RepositoryLayout.ReadText("Controls", "ClaudeCodeControl.NativeChat.cs");
+
+            Assert.IsTrue(Regex.IsMatch(nativeMode, @"new ChatTranscriptView\(\);\s+CopyForcedThemeResources\(transcript\);"),
+                "A parallel chat's transcript must get the overrides when it is created.");
+            StringAssert.Contains(nativeChat, "CopyForcedThemeResources(container.View);",
+                "The window that holds all chats must get the overrides.");
+            Assert.AreEqual(2, Regex.Matches(theme, @"ApplyForcedThemeToChats\(\);").Count,
+                "Both the forced and the Automatic branch must pass the change on to the chats.");
         }
 
         /// <summary>
