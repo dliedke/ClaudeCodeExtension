@@ -510,42 +510,47 @@ namespace ClaudeCodeVS
                 targets.Add(_chatContainer.View);
             }
 
-            foreach (FrameworkElement target in targets.Distinct())
-            {
-                CopyForcedThemeResources(target);
-            }
+            CopyForcedThemeResources(this.Resources, targets.Distinct().ToList());
         }
 
         /// <summary>Gives <paramref name="target"/> this control's current overrides, or removes them under Automatic.</summary>
         private void CopyForcedThemeResources(FrameworkElement target)
         {
-            CopyForcedThemeResources(this.Resources, target);
+            CopyForcedThemeResources(this.Resources, new[] { target });
         }
 
         /// <summary>
-        /// Copies the forced-theme keys present in <paramref name="overrides"/> to <paramref name="target"/>
-        /// and removes the ones that are not, so the target falls back to the IDE theme for those.
+        /// Copies the forced-theme keys present in <paramref name="overrides"/> to every target and removes
+        /// the ones that are not, so the targets fall back to the IDE theme for those. Views that derive
+        /// colors from these keys recompute only afterwards: a transcript inside the chat window would
+        /// otherwise still find the window's old values.
         /// </summary>
-        internal static void CopyForcedThemeResources(ResourceDictionary overrides, FrameworkElement target)
+        internal static void CopyForcedThemeResources(ResourceDictionary overrides, IList<FrameworkElement> targets)
         {
-            if (overrides == null || target == null)
+            if (overrides == null || targets == null)
             {
                 return;
             }
 
-            foreach (var key in _themeResourceKeys)
+            foreach (FrameworkElement target in targets.Where(t => t != null))
             {
-                if (overrides.Contains(key))
+                foreach (var key in _themeResourceKeys)
                 {
-                    target.Resources[key] = overrides[key];
-                }
-                else
-                {
-                    target.Resources.Remove(key);
+                    if (overrides.Contains(key))
+                    {
+                        target.Resources[key] = overrides[key];
+                    }
+                    else
+                    {
+                        target.Resources.Remove(key);
+                    }
                 }
             }
 
-            (target as ChatTranscriptView)?.RefreshThemeColors();
+            foreach (IForcedThemeAware view in targets.OfType<IForcedThemeAware>())
+            {
+                view.RefreshThemeColors();
+            }
         }
 
         #endregion

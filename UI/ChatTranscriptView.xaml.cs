@@ -35,7 +35,7 @@ namespace ClaudeCodeVS.UI
     /// The conversation view for native mode. Owns only presentation: the parent control feeds it
     /// messages and it never talks to an agent session directly.
     /// </summary>
-    public partial class ChatTranscriptView : UserControl
+    public partial class ChatTranscriptView : UserControl, IForcedThemeAware
     {
         // 2 device-independent pixels of slack: the scroll offset rarely lands exactly on the extent,
         // and requiring equality would leave auto-scroll permanently off.
@@ -163,7 +163,7 @@ namespace ClaudeCodeVS.UI
         /// Re-derives the link accent and the icon background from this view's theme brushes, after VS
         /// or the panel's forced theme changed them.
         /// </summary>
-        internal void RefreshThemeColors()
+        public void RefreshThemeColors()
         {
             ApplyLinkAccentForTheme();
             ApplyImageThemeBackground();
@@ -3355,5 +3355,14 @@ namespace ClaudeCodeVS.UI
         {
             return Binding.DoNothing;
         }
+    }
+
+    /// <summary>
+    /// A view that computes colors from the theme brushes it finds. Told to recompute once the panel's
+    /// forced theme has been copied to every chat, not while an enclosing chat window still holds the old values.
+    /// </summary>
+    internal interface IForcedThemeAware
+    {
+        void RefreshThemeColors();
     }
 }
