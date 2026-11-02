@@ -93,13 +93,46 @@ namespace ClaudeCodeExtension.Tests
                 var panel = new ResourceDictionary { [Microsoft.VisualStudio.Shell.VsBrushes.WindowKey] = dark };
                 var chat = new Border();
 
-                ClaudeCodeControl.CopyForcedThemeResources(panel, chat);
+                ClaudeCodeControl.CopyForcedThemeResources(panel, new FrameworkElement[] { chat });
                 Assert.AreSame(dark, chat.Resources[Microsoft.VisualStudio.Shell.VsBrushes.WindowKey]);
 
-                ClaudeCodeControl.CopyForcedThemeResources(new ResourceDictionary(), chat);
+                ClaudeCodeControl.CopyForcedThemeResources(new ResourceDictionary(), new FrameworkElement[] { chat });
                 Assert.IsFalse(chat.Resources.Contains(Microsoft.VisualStudio.Shell.VsBrushes.WindowKey),
                     "Under Automatic the chat must fall back to the IDE theme.");
             });
+        }
+
+        /// <summary>
+        /// A transcript in the window that holds all chats derives its link color from WindowKey. Switching
+        /// to Automatic refreshed it before the enclosing window had lost its copy, so it still found the
+        /// dark value and kept the light-on-dark link blue on the IDE's light background.
+        /// </summary>
+        [TestMethod]
+        public void ThemeAwareViews_RecomputeOnlyAfterEveryTargetHasTheNewValues()
+        {
+            RunOnSta(() =>
+            {
+                var dark = new SolidColorBrush(Color.FromRgb(30, 30, 30));
+                var forced = new ResourceDictionary { [Microsoft.VisualStudio.Shell.VsBrushes.WindowKey] = dark };
+                var transcript = new ProbeView();
+                var container = new Border { Child = transcript };
+
+                ClaudeCodeControl.CopyForcedThemeResources(forced, new FrameworkElement[] { transcript, container });
+                Assert.AreSame(dark, transcript.SeenWindowBrush);
+
+                // Transcripts come before the container in the list, as in ApplyForcedThemeToChats.
+                ClaudeCodeControl.CopyForcedThemeResources(new ResourceDictionary(), new FrameworkElement[] { transcript, container });
+                Assert.IsNull(transcript.SeenWindowBrush,
+                    "The view recomputed while the enclosing chat window still held the forced color.");
+            });
+        }
+
+        private sealed class ProbeView : Border, IForcedThemeAware
+        {
+            public object SeenWindowBrush { get; private set; }
+
+            public void RefreshThemeColors() =>
+                SeenWindowBrush = TryFindResource(Microsoft.VisualStudio.Shell.VsBrushes.WindowKey);
         }
 
         /// <summary>Every place a chat can end up outside the panel gets the overrides.</summary>
