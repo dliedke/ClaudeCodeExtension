@@ -349,7 +349,14 @@ namespace ClaudeCodeVS
             VsBrushes.CommandBarHoverOverSelectedKey,
             VsBrushes.CommandBarSelectedKey,
             VsBrushes.CommandBarSelectedBorderKey,
-            VsBrushes.GrayTextKey
+            VsBrushes.GrayTextKey,
+            // The dropdown menus (ChatStyles.xaml) draw their text, disabled text, border and
+            // separators with these. Left out, a forced theme kept the VS theme's values for them -
+            // black text on the forced dark background when VS itself runs a light theme.
+            VsBrushes.CommandBarTextActiveKey,
+            VsBrushes.CommandBarTextInactiveKey,
+            VsBrushes.CommandBarMenuBorderKey,
+            VsBrushes.CommandBarMenuSeparatorKey
         };
 
         /// <summary>
@@ -446,6 +453,10 @@ namespace ClaudeCodeVS
                 this.Resources[VsBrushes.CommandBarSelectedKey]       = selectedBg;
                 this.Resources[VsBrushes.CommandBarSelectedBorderKey] = selectedBorder;
                 this.Resources[VsBrushes.GrayTextKey]                 = grayText;
+                this.Resources[VsBrushes.CommandBarTextActiveKey]     = windowFg;
+                this.Resources[VsBrushes.CommandBarTextInactiveKey]   = grayText;
+                this.Resources[VsBrushes.CommandBarMenuBorderKey]     = toolBorder;
+                this.Resources[VsBrushes.CommandBarMenuSeparatorKey]  = toolBorder;
             }
             catch (Exception ex)
             {
