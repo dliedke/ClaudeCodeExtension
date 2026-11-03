@@ -1983,9 +1983,13 @@ namespace ClaudeCodeVS
         /// sign-in (<see cref="TryRedirectToUsage"/>). Unlike Sign out, the rest of the profile
         /// (e.g. the Google session) is kept, so Google sign-in offers the accounts it knows.
         /// claude.ai's account switcher was used before, but its add-account flow locks the e-mail
-        /// and greys out "Continue with Google".
+        /// and greys out "Continue with Google". That flow's state outlives a plain /logout in the
+        /// persistent profile (a fresh profile showed Google enabled, the long-lived one kept it
+        /// greyed), so claude.ai's own cookies and storage are cleared first — Google's are kept.
         /// </summary>
-        private void SwitchAccountButton_Click(object sender, RoutedEventArgs e)
+#pragma warning disable VSTHRD100 // async void Click handler is required by WPF
+        private async void SwitchAccountButton_Click(object sender, RoutedEventArgs e)
+#pragma warning restore VSTHRD100
         {
             try
             {
@@ -1993,9 +1997,7 @@ namespace ClaudeCodeVS
                 if (core == null)
                 {
                     // No live page to log out of: sign the profile out instead.
-#pragma warning disable VSTHRD110 // fire-and-forget: click handler; failures are logged inside
-                    _ = SignOutAsync();
-#pragma warning restore VSTHRD110
+                    await SignOutAsync();
                     return;
                 }
 
@@ -2003,11 +2005,46 @@ namespace ClaudeCodeVS
                 // The shared cookie copy would sign a rebuilt view straight back in as this account.
                 try { if (File.Exists(SharedCookiePath)) File.Delete(SharedCookiePath); } catch { }
                 _lastCookieSaveUtc = DateTime.MinValue;
+                await ClearClaudeSiteDataAsync(core);
+                if (WebView?.CoreWebView2 != core) return; // view torn down while clearing
                 core.Navigate(LogoutUrl);
             }
             catch (Exception ex)
             {
                 Debug.WriteLine("ClaudeUsageControl: Switch Account failed: " + ex);
+            }
+        }
+
+        /// <summary>
+        /// Clears claude.ai's (and anthropic.com's) cookies and site storage only, leaving every
+        /// other site — notably the Google session used by "Continue with Google" — untouched.
+        /// </summary>
+        private static async Task ClearClaudeSiteDataAsync(CoreWebView2 core)
+        {
+            try
+            {
+                var cm = core.CookieManager;
+                foreach (var c in await cm.GetCookiesAsync(null))
+                {
+                    if (ClaudeUsagePage.IsClaudeSiteCookieDomain(c.Domain)) cm.DeleteCookie(c);
+                }
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine("ClaudeUsageControl: deleting claude.ai cookies failed: " + ex);
+            }
+
+            foreach (var origin in ClaudeUsagePage.ClaudeSiteOrigins)
+            {
+                try
+                {
+                    await core.CallDevToolsProtocolMethodAsync("Storage.clearDataForOrigin",
+                        JsonConvert.SerializeObject(new { origin, storageTypes = "all" }));
+                }
+                catch (Exception ex)
+                {
+                    Debug.WriteLine("ClaudeUsageControl: clearing " + origin + " storage failed: " + ex);
+                }
             }
         }
 

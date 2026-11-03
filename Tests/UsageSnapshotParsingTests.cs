@@ -149,6 +149,24 @@ namespace ClaudeCodeExtension.Tests
             StringAssert.Contains(ControlSource, "core.Navigate(LogoutUrl);");
             Assert.IsFalse(ControlSource.Contains("user-menu-button"), "The account menu is no longer opened.");
             Assert.IsTrue(ClaudeUsagePage.IsAuthPath("/logout"), "The post-login redirect must treat /logout as a sign-out.");
+            StringAssert.Contains(ControlSource, "await ClearClaudeSiteDataAsync(core);",
+                "Switch Account must clear claude.ai's leftover add-account state before logging out.");
+        }
+
+        /// <summary>
+        /// Switch Account clears only claude.ai/anthropic.com cookies; Google's sign-in cookies stay.
+        /// </summary>
+        [TestMethod]
+        public void SwitchAccount_ClearsOnlyClaudeSiteCookies()
+        {
+            Assert.IsTrue(ClaudeUsagePage.IsClaudeSiteCookieDomain("claude.ai"));
+            Assert.IsTrue(ClaudeUsagePage.IsClaudeSiteCookieDomain(".claude.ai"));
+            Assert.IsTrue(ClaudeUsagePage.IsClaudeSiteCookieDomain("a-cdn.claude.ai"));
+            Assert.IsTrue(ClaudeUsagePage.IsClaudeSiteCookieDomain(".anthropic.com"));
+            Assert.IsFalse(ClaudeUsagePage.IsClaudeSiteCookieDomain("accounts.google.com"));
+            Assert.IsFalse(ClaudeUsagePage.IsClaudeSiteCookieDomain(".google.com"));
+            Assert.IsFalse(ClaudeUsagePage.IsClaudeSiteCookieDomain("notclaude.ai"));
+            Assert.IsFalse(ClaudeUsagePage.IsClaudeSiteCookieDomain(null));
         }
 
         [TestMethod]
