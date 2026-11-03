@@ -48,6 +48,9 @@ namespace ClaudeCodeVS.UI
 
         /// <summary>"Updated 2:15 PM" or "Not updated since 2:15 PM"; empty when there is no snapshot.</summary>
         public string UpdatedText { get; set; } = string.Empty;
+
+        /// <summary>E-mail of the claude.ai account the plan limits belong to; empty when unknown.</summary>
+        public string AccountEmail { get; set; } = string.Empty;
     }
 
     /// <summary>Pure formatting and geometry behind the usage button; no WPF elements are created here.</summary>

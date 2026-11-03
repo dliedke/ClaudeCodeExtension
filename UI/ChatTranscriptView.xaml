@@ -1813,6 +1813,11 @@
 					        Content="{local:Loc 'See detailed breakdown'}"
 					        ToolTip="{local:Loc 'Open the Claude Usage tab'}"
 					        Click="UsageDetailsButton_Click"/>
+
+					<!-- "Account: name@example.com" — the claude.ai account the plan limits belong to. -->
+					<TextBlock x:Name="UsageAccountText" Margin="0,10,0,0" Visibility="Collapsed"
+					           FontSize="{DynamicResource ChatSmallFontSize}" Opacity="0.6"
+					           TextTrimming="CharacterEllipsis"/>
 				</StackPanel>
 			</Border>
 			</Grid>

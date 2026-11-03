@@ -202,6 +202,7 @@ namespace ClaudeCodeVS.UI
 
         // The latest snapshot's "Updated 2:15 PM" line, shown again once the refresh is over.
         private string _usageUpdatedText = string.Empty;
+        private string _usageAccountEmail = string.Empty;
 
         /// <summary>Raised by the popup's "See detailed breakdown". The parent opens the Claude Usage tab.</summary>
         public event EventHandler UsageDetailsRequested;
@@ -501,6 +502,7 @@ namespace ClaudeCodeVS.UI
             }
 
             ShowUsageUpdatedText();
+            ShowUsageAccountText();
 
             foreach (ChatInteractionViewModel card in Messages.OfType<ChatInteractionViewModel>())
             {
@@ -2074,6 +2076,16 @@ namespace ClaudeCodeVS.UI
 
             _usageUpdatedText = data.UpdatedText ?? string.Empty;
             ShowUsageUpdatedText();
+
+            _usageAccountEmail = data.AccountEmail ?? string.Empty;
+            ShowUsageAccountText();
+        }
+
+        /// <summary>"Account: name@example.com" at the bottom of the popup; hidden when the e-mail is unknown.</summary>
+        private void ShowUsageAccountText()
+        {
+            UsageAccountText.Text = string.IsNullOrEmpty(_usageAccountEmail) ? string.Empty : L("Account: {0}", _usageAccountEmail);
+            UsageAccountText.Visibility = string.IsNullOrEmpty(_usageAccountEmail) ? Visibility.Collapsed : Visibility.Visible;
         }
 
         /// <summary>

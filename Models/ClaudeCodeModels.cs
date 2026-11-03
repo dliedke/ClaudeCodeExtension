@@ -10,6 +10,8 @@
  *
  * *******************************************************************************************************************/
 
+using System;
+
 namespace ClaudeCodeVS
 {
     /// <summary>
@@ -1320,6 +1322,12 @@ namespace ClaudeCodeVS
         public string UsageCreditsBalance { get; set; } = "";
 
         /// <summary>
+        /// E-mail address of the claude.ai account whose usage this is. Empty when it could not be
+        /// read, and in snapshots cached by older versions.
+        /// </summary>
+        public string AccountEmail { get; set; } = "";
+
+        /// <summary>
         /// true only when the usage-credits balance was read and is zero. Fable needs credits, so
         /// it is not offered then; an empty or unreadable balance keeps it offered.
         /// </summary>
@@ -1342,6 +1350,37 @@ namespace ClaudeCodeVS
             }
 
             return sawDigit;
+        }
+    }
+
+    /// <summary>
+    /// Recognizes the claude.ai pages the Claude Usage tab deals with. Pure, so it can be tested
+    /// without a WebView2.
+    /// </summary>
+    public static class ClaudeUsagePage
+    {
+        /// <summary>
+        /// true on the usage view: the old <c>/settings/usage</c> route, and the settings dialog
+        /// claude.ai now opens over another page, addressed by the fragment
+        /// (<c>/new#settings/usage</c>).
+        /// </summary>
+        public static bool IsUsagePage(Uri uri)
+        {
+            if (uri == null || !uri.IsAbsoluteUri) return false;
+            if (!uri.Host.Equals("claude.ai", StringComparison.OrdinalIgnoreCase)) return false;
+            if ((uri.AbsolutePath ?? "").StartsWith("/settings/usage", StringComparison.OrdinalIgnoreCase)) return true;
+            string fragment = (uri.Fragment ?? "").TrimStart('#');
+            return fragment.StartsWith("settings/usage", StringComparison.OrdinalIgnoreCase);
+        }
+
+        /// <summary>true on claude.ai's sign-in and sign-out paths.</summary>
+        public static bool IsAuthPath(string path)
+        {
+            if (string.IsNullOrEmpty(path)) return false;
+            return path.StartsWith("/login", StringComparison.OrdinalIgnoreCase) ||
+                   path.StartsWith("/logout", StringComparison.OrdinalIgnoreCase) ||
+                   path.StartsWith("/magic-link", StringComparison.OrdinalIgnoreCase) ||
+                   path.StartsWith("/auth", StringComparison.OrdinalIgnoreCase);
         }
     }
 }

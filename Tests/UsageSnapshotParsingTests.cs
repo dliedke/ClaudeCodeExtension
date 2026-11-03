@@ -102,5 +102,51 @@ namespace ClaudeCodeExtension.Tests
             Assert.IsFalse(ClaudeCodeControl.IsUsageSnapshotStale("", now));
             Assert.IsFalse(ClaudeCodeControl.IsUsageSnapshotStale("not a date", now));
         }
+
+        /// <summary>
+        /// claude.ai turned settings into a dialog: /settings/usage now lands on /new#settings/usage.
+        /// The tab read /new as a post-login landing and navigated back to the usage URL on every
+        /// load — a reload every few seconds that also undid Switch Account.
+        /// </summary>
+        [TestMethod]
+        public void UsagePage_RecognizesTheSettingsDialogFragment()
+        {
+            Assert.IsTrue(ClaudeUsagePage.IsUsagePage(new Uri("https://claude.ai/settings/usage")));
+            Assert.IsTrue(ClaudeUsagePage.IsUsagePage(new Uri("https://claude.ai/new#settings/usage")));
+            Assert.IsTrue(ClaudeUsagePage.IsUsagePage(new Uri("https://claude.ai/chat/abc#settings/usage")));
+            Assert.IsFalse(ClaudeUsagePage.IsUsagePage(new Uri("https://claude.ai/new")));
+            Assert.IsFalse(ClaudeUsagePage.IsUsagePage(new Uri("https://claude.ai/new#settings/general")));
+            Assert.IsFalse(ClaudeUsagePage.IsUsagePage(new Uri("https://example.com/settings/usage")));
+            Assert.IsFalse(ClaudeUsagePage.IsUsagePage(null));
+        }
+
+        [TestMethod]
+        public void UsagePage_AuthPaths()
+        {
+            Assert.IsTrue(ClaudeUsagePage.IsAuthPath("/login"));
+            Assert.IsTrue(ClaudeUsagePage.IsAuthPath("/logout"));
+            Assert.IsTrue(ClaudeUsagePage.IsAuthPath("/magic-link"));
+            Assert.IsFalse(ClaudeUsagePage.IsAuthPath("/new"));
+            Assert.IsFalse(ClaudeUsagePage.IsAuthPath("/"));
+            Assert.IsFalse(ClaudeUsagePage.IsAuthPath(null));
+        }
+
+        /// <summary>The redirect must leave the usage view alone however claude.ai addresses it.</summary>
+        [TestMethod]
+        public void Redirect_SkipsTheUsageView()
+        {
+            StringAssert.Contains(ControlSource, "if (ClaudeUsagePage.IsUsagePage(uri))");
+            StringAssert.Contains(ControlSource, "if (_switchAccountMode && !_sawSignedOutPage)");
+        }
+
+        [TestMethod]
+        public void Snapshot_CarriesTheAccountEmail()
+        {
+            StringAssert.Contains(ControlSource, "AccountEmail: accountEmail");
+            var snap = JsonConvert.DeserializeObject<UsageSnapshot>("{\"SessionPercent\":5,\"AccountEmail\":\"a@b.c\"}");
+            Assert.AreEqual("a@b.c", snap.AccountEmail);
+            Assert.AreEqual("", JsonConvert.DeserializeObject<UsageSnapshot>("{\"SessionPercent\":5}").AccountEmail,
+                "Snapshots cached before the field existed read as empty.");
+        }
     }
 }

@@ -198,6 +198,11 @@ A huge thank you to every developer who took the time to improve this extension 
 
 ## Version History
 
+### Version 300.0
+- Claude Usage no longer reloads itself every few seconds, and *Switch Account* works again: it opens the claude.ai account menu and returns to the usage view once you switch or sign in again.
+- The Claude Usage view now fills the whole tab and scrolls to the end of the page.
+- The usage popup in the chat composer shows the e-mail of the claude.ai account the limits belong to.
+
 ### Version 299.0
 - Pasting a screenshot from a clipboard that carries no transparency information (for example a shared clipboard from a virtual machine) no longer attaches a blank, fully transparent image.
 - Thanks to [@Morzilla](https://github.com/Morzilla) for reporting (#260).

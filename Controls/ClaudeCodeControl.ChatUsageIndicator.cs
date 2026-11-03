@@ -120,6 +120,7 @@ namespace ClaudeCodeVS
                 data.ExtraPercent = ChatUsageIndicator.ClampPercent(snap.ExtraUsagePercent);
                 data.ExtraSpent = snap.ExtraUsageSpent ?? string.Empty;
                 data.ExtraReset = snap.ExtraUsageReset ?? string.Empty;
+                data.AccountEmail = snap.AccountEmail ?? string.Empty;
             }
 
             data.UpdatedText = FormatUsageUpdatedText(snap != null ? _settings?.LastUsageTimestamp : null);
