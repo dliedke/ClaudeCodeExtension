@@ -707,7 +707,7 @@
   "Show all fonts (including proportional ones)": "Tüm yazı tiplerini göster (orantılılar dahil)",
   "Show inline usage bars": "Satır içi kullanım çubuklarını göster",
   "Show the chat tab (reopens it if it was closed or hidden)": "Sohbet sekmesini göster (kapatıldıysa veya gizlendiyse yeniden açar)",
-  "Show the claude.ai account switcher (e.g. swap between Team and Personal accounts)": "claude.ai hesap seçiciyi göster (ör. ekip ve kişisel arasında geçiş)",
+  "Log out of claude.ai to sign in with another account": "Başka bir hesapla oturum açmak için claude.ai oturumunu kapat",
   "Show the mini session/weekly usage bars in the prompt panel. Only applies when a Claude Code provider is active.": "İstem panelinde oturum/hafta mini kullanım çubuklarını gösterir. Yalnızca Claude Code sağlayıcısı etkinken çalışır.",
   "Show the session status on each chat tab": "Her sohbet sekmesinde oturum durumunu göster",
   "Show token counts in the chat": "Sohbette token sayısını göster",

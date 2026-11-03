@@ -35,6 +35,20 @@ namespace ClaudeCodeExtension.Tests
             Assert.AreEqual("acc-1/org-1", ClaudeCodeControl.ParseClaudeAccountId(json));
         }
 
+        /// <summary>The composer usage popup shows the CLI's own account, not the usage page's login.</summary>
+        [TestMethod]
+        public void ParseClaudeAccountEmail_ReadsTheCliAccount()
+        {
+            Assert.AreEqual("a@example.com", ClaudeCodeControl.ParseClaudeAccountEmail(
+                "{\"oauthAccount\":{\"accountUuid\":\"acc-1\",\"emailAddress\":\" a@example.com \"}}"));
+            Assert.IsNull(ClaudeCodeControl.ParseClaudeAccountEmail("{\"oauthAccount\":{\"accountUuid\":\"acc-1\"}}"));
+            Assert.IsNull(ClaudeCodeControl.ParseClaudeAccountEmail("{\"numStartups\":3}"));
+            Assert.IsNull(ClaudeCodeControl.ParseClaudeAccountEmail("not json"));
+            Assert.IsNull(ClaudeCodeControl.ParseClaudeAccountEmail(null));
+            StringAssert.Contains(RepositoryLayout.ReadText("Controls", "ClaudeCodeControl.ChatUsageIndicator.cs"),
+                "data.AccountEmail = GetClaudeCliAccountEmail(provider)");
+        }
+
         [TestMethod]
         public void ParseClaudeAccountId_FallsBackToTheEmailAddress()
         {

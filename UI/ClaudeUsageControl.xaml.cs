@@ -100,25 +100,8 @@ namespace ClaudeCodeVS
         /// </summary>
         private bool _sawSignedOutPage;
 
-        /// <summary>
-        /// Page Switch Account opens: the account menu lives in the app's sidebar, which the usage
-        /// view (a settings dialog over the app) covers.
-        /// </summary>
-        private const string SwitchAccountUrl = "https://claude.ai/new";
-
-        /// <summary>
-        /// Switch Account is in progress: the page sits outside the usage view on purpose, so
-        /// <see cref="TryRedirectToUsage"/> leaves it alone and <see cref="Reload"/> does not
-        /// disturb it while the user is looking. Ends when the account changes, when the usage view
-        /// is back, or after <see cref="SwitchAccountTimeout"/>.
-        /// </summary>
-        private bool _switchAccountMode;
-        private bool _switchAccountMenuPending;
-        private bool _switchAccountPollBusy;
-        private string _switchAccountBaseline;
-        private DateTime _switchAccountStartedUtc;
-        private DispatcherTimer _switchAccountTimer;
-        private static readonly TimeSpan SwitchAccountTimeout = TimeSpan.FromMinutes(10);
+        /// <summary>Target of claude.ai's own "Log out" menu item, opened by Switch Account.</summary>
+        private const string LogoutUrl = "https://claude.ai/logout";
 
         /// <summary>
         /// Set by <see cref="SignOutAsync"/> when no WebView2 instance was alive to sign out: the
@@ -1092,7 +1075,6 @@ namespace ClaudeCodeVS
             if (TryHandleUrlBlock()) return;
             TryRestoreTrim();
             TryRedirectToUsage();
-            TryOpenAccountMenu();
 
             // WebView2 hosted in WPF doesn't render its mouse cursor until
             // the control gains focus for the first time. Without this the
@@ -1251,14 +1233,6 @@ namespace ClaudeCodeVS
                     return;
                 }
 
-                // Switch Account parked the page on /new for the account menu. Stay there until the
-                // account changes (the switch poll handles that) or a sign-out/sign-in completes.
-                if (_switchAccountMode && !_sawSignedOutPage)
-                {
-                    _redirectDebounceTimer?.Stop();
-                    return;
-                }
-
                 bool isPostAuthLanding =
                     path.Equals("/new", StringComparison.OrdinalIgnoreCase) ||
                     path.Equals("/chats", StringComparison.OrdinalIgnoreCase) ||
@@ -1325,7 +1299,6 @@ namespace ClaudeCodeVS
                 // One shot per sign-out: if this navigate lands back where it came from (session
                 // gone after all), nothing re-arms the root landing and we stop rather than loop.
                 _sawSignedOutPage = false;
-                EndSwitchAccountMode();
                 _lastRedirectAttemptUtc = DateTime.UtcNow;
                 core.Navigate(UsageUrl);
             }
@@ -1906,15 +1879,6 @@ namespace ClaudeCodeVS
             {
                 var core = WebView?.CoreWebView2;
                 if (core == null) return false;
-                if (_switchAccountMode)
-                {
-                    // The user is picking an account in the menu on screen: a reload would close it.
-                    if (IsVisible && !_hostedOffscreen) return true;
-                    // Nobody is looking any more — go back to the usage view so the scrape works.
-                    EndSwitchAccountMode();
-                    core.Navigate(UsageUrl);
-                    return true;
-                }
                 core.Reload();
                 return true;
             }
@@ -1974,11 +1938,9 @@ namespace ClaudeCodeVS
 
         private void RefreshButton_Click(object sender, RoutedEventArgs e)
         {
-            // Refresh is the documented way back to the focused usage view after Switch Account
-            // reveals the native claude.ai menu — Reload() alone would just reload whatever page
-            // the account switch left us on (e.g. /new), not bring the usage view back, so
-            // explicitly navigate there whenever we're not on it already.
-            EndSwitchAccountMode();
+            // Refresh is the way back to the usage view from any other claude.ai page — Reload()
+            // alone would just reload whatever page the user moved to (e.g. /new), so navigate
+            // there explicitly whenever we're not on it already.
             var core = WebView?.CoreWebView2;
             if (core != null &&
                 Uri.TryCreate(core.Source, UriKind.Absolute, out var uri) &&
@@ -2015,217 +1977,37 @@ namespace ClaudeCodeVS
         }
 
         /// <summary>
-        /// Opens claude.ai's own account menu (switch organization, log out) in the embedded view.
-        /// The usage view is a settings dialog over the app that covers the sidebar holding that
-        /// menu, so the page is first moved to <see cref="SwitchAccountUrl"/>, and the menu is
-        /// opened once it has loaded (<see cref="TryOpenAccountMenu"/>). While the switch is in
-        /// progress nothing navigates the page away. The usage view comes back by itself once
-        /// the account changes (<see cref="OnSwitchAccountTimerTick"/>) or after a sign-out and
-        /// sign-in (<see cref="TryRedirectToUsage"/>); Refresh brings it back at any time.
+        /// Switch Account does what claude.ai's own "Log out" menu item does — opens
+        /// <see cref="LogoutUrl"/> — and leaves the page on the login screen, where the user signs
+        /// in with whichever account they want. The usage view comes back by itself after the
+        /// sign-in (<see cref="TryRedirectToUsage"/>). Unlike Sign out, the rest of the profile
+        /// (e.g. the Google session) is kept, so Google sign-in offers the accounts it knows.
+        /// claude.ai's account switcher was used before, but its add-account flow locks the e-mail
+        /// and greys out "Continue with Google".
         /// </summary>
         private void SwitchAccountButton_Click(object sender, RoutedEventArgs e)
-        {
-#pragma warning disable VSTHRD110 // fire-and-forget: click handler; failures are logged inside
-            _ = BeginSwitchAccountAsync();
-#pragma warning restore VSTHRD110
-        }
-
-        private async Task BeginSwitchAccountAsync()
         {
             try
             {
                 var core = WebView?.CoreWebView2;
-                if (core == null) return;
+                if (core == null)
+                {
+                    // No live page to log out of: sign the profile out instead.
+#pragma warning disable VSTHRD110 // fire-and-forget: click handler; failures are logged inside
+                    _ = SignOutAsync();
+#pragma warning restore VSTHRD110
+                    return;
+                }
 
                 _redirectDebounceTimer?.Stop();
-                bool alreadyOffUsage = _switchAccountMode &&
-                    Uri.TryCreate(core.Source, UriKind.Absolute, out var current) &&
-                    !ClaudeUsagePage.IsUsagePage(current);
-
-                if (!_switchAccountMode)
-                {
-                    _switchAccountBaseline = await ReadAccountSignatureAsync();
-                    core = WebView?.CoreWebView2;
-                    if (core == null) return;
-                }
-
-                _switchAccountMode = true;
-                _switchAccountStartedUtc = DateTime.UtcNow;
-                _switchAccountMenuPending = true;
-                if (_switchAccountTimer == null)
-                {
-                    _switchAccountTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(2) };
-                    _switchAccountTimer.Tick += OnSwitchAccountTimerTick;
-                }
-                _switchAccountTimer.Start();
-
-                if (alreadyOffUsage)
-                {
-                    // Pressed again while the page is already out of the usage view (the menu was
-                    // closed by a click elsewhere): just open the menu again.
-                    TryOpenAccountMenu();
-                }
-                else
-                {
-                    core.Navigate(SwitchAccountUrl);
-                }
+                // The shared cookie copy would sign a rebuilt view straight back in as this account.
+                try { if (File.Exists(SharedCookiePath)) File.Delete(SharedCookiePath); } catch { }
+                _lastCookieSaveUtc = DateTime.MinValue;
+                core.Navigate(LogoutUrl);
             }
             catch (Exception ex)
             {
                 Debug.WriteLine("ClaudeUsageControl: Switch Account failed: " + ex);
-            }
-        }
-
-        /// <summary>
-        /// Clicks the account menu button once the Switch Account page has loaded. Polls a few
-        /// seconds because the sidebar renders after the page itself; when the button never shows
-        /// up (e.g. a sidebar collapsed in a narrow panel) the page stays put for the user.
-        /// </summary>
-        private void TryOpenAccountMenu()
-        {
-            try
-            {
-                if (!_switchAccountMode || !_switchAccountMenuPending) return;
-                var core = WebView?.CoreWebView2;
-                if (core == null) return;
-                if (!Uri.TryCreate(core.Source, UriKind.Absolute, out var uri)) return;
-                if (!uri.Host.Equals("claude.ai", StringComparison.OrdinalIgnoreCase)) return;
-                if (ClaudeUsagePage.IsUsagePage(uri) || ClaudeUsagePage.IsAuthPath(uri.AbsolutePath)) return;
-                _switchAccountMenuPending = false;
-
-                string js = @"
-(function(){
-  window.__claudeSuppressTrim = true;
-  var selectors = [
-    '[data-testid=""user-menu-button""]',
-    'button[data-testid*=""user-menu"" i]',
-    'button[data-testid*=""account-menu"" i]',
-    'button[aria-label*=""profile menu"" i]',
-    'button[aria-label*=""user menu"" i]',
-    'button[aria-label*=""account menu"" i]'
-  ];
-  var attempts = 0;
-  function tryOpen(){
-    attempts++;
-    for (var i = 0; i < selectors.length; i++) {
-      var el = document.querySelector(selectors[i]);
-      if (el) { el.click(); return; }
-    }
-    if (attempts < 40) setTimeout(tryOpen, 200);
-  }
-  tryOpen();
-})();";
-#pragma warning disable VSTHRD110 // ExecuteScriptAsync fire-and-forget is intentional
-                _ = core.ExecuteScriptAsync(js);
-#pragma warning restore VSTHRD110
-            }
-            catch (Exception ex)
-            {
-                Debug.WriteLine("ClaudeUsageControl: open account menu failed: " + ex);
-            }
-        }
-
-        /// <summary>
-        /// Watches a Switch Account in progress. Picking another organization in claude.ai's menu
-        /// may not navigate at all, so the change is read from the cookies (session key and active
-        /// organization) rather than from the URL.
-        /// </summary>
-        private void OnSwitchAccountTimerTick(object sender, EventArgs e)
-        {
-#pragma warning disable VSTHRD110 // fire-and-forget: timer tick; failures are logged inside
-            _ = PollSwitchAccountAsync();
-#pragma warning restore VSTHRD110
-        }
-
-        private async Task PollSwitchAccountAsync()
-        {
-            if (_switchAccountPollBusy) return;
-            _switchAccountPollBusy = true;
-            try
-            {
-                if (!_switchAccountMode)
-                {
-                    _switchAccountTimer?.Stop();
-                    return;
-                }
-
-                var core = WebView?.CoreWebView2;
-                if (core == null || !Uri.TryCreate(core.Source, UriKind.Absolute, out var uri))
-                {
-                    EndSwitchAccountMode();
-                    return;
-                }
-
-                if (ClaudeUsagePage.IsUsagePage(uri))
-                {
-                    EndSwitchAccountMode();
-                    return;
-                }
-
-                // Signing in: the post-login landing is handled by TryRedirectToUsage.
-                if (ClaudeUsagePage.IsAuthPath(uri.AbsolutePath)) return;
-
-                if (DateTime.UtcNow - _switchAccountStartedUtc > SwitchAccountTimeout)
-                {
-                    EndSwitchAccountMode();
-                    _lastRedirectAttemptUtc = DateTime.UtcNow;
-                    core.Navigate(UsageUrl);
-                    return;
-                }
-
-                string signature = await ReadAccountSignatureAsync();
-                if (!_switchAccountMode) return;
-                if (signature == null || _switchAccountBaseline == null) return;
-                if (string.Equals(signature, _switchAccountBaseline, StringComparison.Ordinal)) return;
-
-                core = WebView?.CoreWebView2;
-                if (core == null) return;
-                EndSwitchAccountMode();
-                _lastRedirectAttemptUtc = DateTime.UtcNow;
-                core.Navigate(UsageUrl);
-            }
-            catch (Exception ex)
-            {
-                Debug.WriteLine("ClaudeUsageControl: switch account poll failed: " + ex);
-            }
-            finally
-            {
-                _switchAccountPollBusy = false;
-            }
-        }
-
-        private void EndSwitchAccountMode()
-        {
-            _switchAccountMode = false;
-            _switchAccountMenuPending = false;
-            _switchAccountBaseline = null;
-            _switchAccountTimer?.Stop();
-        }
-
-        /// <summary>
-        /// Identifies the signed-in account and organization from the claude.ai cookies, so a
-        /// switch can be noticed without knowing how claude.ai performs it. Null when signed out.
-        /// </summary>
-        private async Task<string> ReadAccountSignatureAsync()
-        {
-            try
-            {
-                var cm = WebView?.CoreWebView2?.CookieManager;
-                if (cm == null) return null;
-                var cookies = await cm.GetCookiesAsync("https://claude.ai");
-                string session = null, org = null;
-                foreach (var c in cookies)
-                {
-                    if (string.Equals(c.Name, "sessionKey", StringComparison.Ordinal)) session = c.Value;
-                    else if (string.Equals(c.Name, "lastActiveOrg", StringComparison.Ordinal)) org = c.Value;
-                }
-                if (string.IsNullOrEmpty(session)) return null;
-                return session + "|" + (org ?? "");
-            }
-            catch (Exception ex)
-            {
-                Debug.WriteLine("ClaudeUsageControl: account signature read failed: " + ex);
-                return null;
             }
         }
 
@@ -2242,7 +2024,6 @@ namespace ClaudeCodeVS
             try
             {
                 _redirectDebounceTimer?.Stop();
-                EndSwitchAccountMode();
                 try { if (File.Exists(SharedCookiePath)) File.Delete(SharedCookiePath); } catch { }
                 // The next account's first scrape saves its cookies right away instead of waiting
                 // out the throttle with no shared copy on disk.

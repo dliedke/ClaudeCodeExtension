@@ -707,7 +707,7 @@
   "Show all fonts (including proportional ones)": "Hiện tất cả phông chữ (kể cả phông chữ tỷ lệ)",
   "Show inline usage bars": "Hiện thanh mức sử dụng nội tuyến",
   "Show the chat tab (reopens it if it was closed or hidden)": "Hiện tab trò chuyện (mở lại nếu đã đóng hoặc bị ẩn)",
-  "Show the claude.ai account switcher (e.g. swap between Team and Personal accounts)": "Hiện bộ chuyển tài khoản claude.ai (ví dụ chuyển giữa tài khoản Team và cá nhân)",
+  "Log out of claude.ai to sign in with another account": "Đăng xuất khỏi claude.ai để đăng nhập bằng tài khoản khác",
   "Show the mini session/weekly usage bars in the prompt panel. Only applies when a Claude Code provider is active.": "Hiện các thanh mức sử dụng phiên/tuần thu nhỏ trong bảng lời nhắc. Chỉ áp dụng khi nhà cung cấp Claude Code đang hoạt động.",
   "Show the session status on each chat tab": "Hiện trạng thái phiên trên mỗi tab trò chuyện",
   "Show token counts in the chat": "Hiện số token trong cuộc trò chuyện",

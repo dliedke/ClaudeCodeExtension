@@ -25,6 +25,7 @@ using Microsoft.VisualStudio.Shell.Interop;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 using System;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Text;
@@ -73,6 +74,9 @@ namespace ClaudeCodeVS
 
         // "side|account" this window saw on its previous check, to notice a switch another window handled.
         private string _usageAccountSeen;
+
+        // E-mail the Claude CLI is signed in with, per side ("windows"/"wsl"), refreshed on every account check.
+        private readonly Dictionary<string, string> _claudeCliAccountEmails = new Dictionary<string, string>(StringComparer.Ordinal);
 
         /// <summary>
         /// Restores the cached usage snapshot (if any) so the inline bars
@@ -1010,7 +1014,50 @@ namespace ClaudeCodeVS
 
             if (string.IsNullOrEmpty(path)) return null;
             // ~/.claude.json grows to megabytes with per-project history — parse it off the UI thread.
-            return await Task.Run(() => ReadClaudeAccountIdFromFile(path));
+            var account = await Task.Run(() =>
+            {
+                string json = ReadClaudeJsonFile(path);
+                return Tuple.Create(ParseClaudeAccountId(json), ParseClaudeAccountEmail(json));
+            });
+
+            // The usage popup shows this e-mail: the account Claude Code itself runs under, not
+            // whichever account the usage page happens to be signed in to.
+            string side = GetUsageAccountSide(isWsl);
+            if (_claudeCliAccountEmails.TryGetValue(side, out string previous) ? previous != account.Item2 : account.Item2 != null)
+            {
+                _claudeCliAccountEmails[side] = account.Item2;
+                await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
+                RefreshChatUsageIndicators();
+            }
+            return account.Item1;
+        }
+
+        /// <summary>
+        /// The CLI's account e-mail as last read for the active provider's side (Windows or WSL),
+        /// or null before the first read or while signed out.
+        /// </summary>
+        private string GetClaudeCliAccountEmail(AiProvider? provider)
+        {
+            string side = GetUsageAccountSide(provider == AiProvider.ClaudeCodeWSL);
+            return _claudeCliAccountEmails.TryGetValue(side, out string email) ? email : null;
+        }
+
+        private static string ReadClaudeJsonFile(string path)
+        {
+            try
+            {
+                if (!File.Exists(path)) return null;
+                using (var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete))
+                using (var reader = new StreamReader(stream, Encoding.UTF8))
+                {
+                    return reader.ReadToEnd();
+                }
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine("ReadClaudeJsonFile failed: " + ex.Message);
+                return null;
+            }
         }
 
         /// <summary>
@@ -1028,24 +1075,6 @@ namespace ClaudeCodeVS
         }
 
         private static string GetUsageAccountSide(bool isWsl) => isWsl ? "wsl" : "windows";
-
-        internal static string ReadClaudeAccountIdFromFile(string path)
-        {
-            try
-            {
-                if (!File.Exists(path)) return null;
-                using (var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete))
-                using (var reader = new StreamReader(stream, Encoding.UTF8))
-                {
-                    return ParseClaudeAccountId(reader.ReadToEnd());
-                }
-            }
-            catch (Exception ex)
-            {
-                Debug.WriteLine("ReadClaudeAccountIdFromFile failed: " + ex.Message);
-                return null;
-            }
-        }
 
         /// <summary>
         /// Identifies the account the CLI is signed in to from the contents of its
@@ -1070,6 +1099,25 @@ namespace ClaudeCodeVS
 
                 string email = (string)account["emailAddress"];
                 return string.IsNullOrWhiteSpace(email) ? null : email;
+            }
+            catch
+            {
+                return null;
+            }
+        }
+
+        /// <summary>
+        /// E-mail address of the account the CLI is signed in to (<c>oauthAccount.emailAddress</c>
+        /// of its <c>.claude.json</c>). Null when signed out, missing or unreadable.
+        /// </summary>
+        internal static string ParseClaudeAccountEmail(string claudeJson)
+        {
+            if (string.IsNullOrWhiteSpace(claudeJson)) return null;
+            try
+            {
+                if (!(JObject.Parse(claudeJson)["oauthAccount"] is JObject account)) return null;
+                string email = ((string)account["emailAddress"])?.Trim();
+                return string.IsNullOrEmpty(email) ? null : email;
             }
             catch
             {

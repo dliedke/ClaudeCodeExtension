@@ -707,7 +707,7 @@
   "Show all fonts (including proportional ones)": "顯示所有字型（包括比例字型）",
   "Show inline usage bars": "顯示內嵌用量列",
   "Show the chat tab (reopens it if it was closed or hidden)": "顯示聊天索引標籤（若已關閉或隱藏則重新開啟）",
-  "Show the claude.ai account switcher (e.g. swap between Team and Personal accounts)": "顯示 claude.ai 帳戶切換器（例如在 Team 與個人帳戶之間切換）",
+  "Log out of claude.ai to sign in with another account": "登出 claude.ai，以便使用其他帳戶登入",
   "Show the mini session/weekly usage bars in the prompt panel. Only applies when a Claude Code provider is active.": "在提示面板中顯示迷你工作階段/每週用量列。僅在 Claude Code 提供者作用中時適用。",
   "Show the session status on each chat tab": "在每個聊天索引標籤上顯示工作階段狀態",
   "Show token counts in the chat": "在聊天中顯示權杖數",

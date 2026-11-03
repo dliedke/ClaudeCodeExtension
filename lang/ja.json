@@ -707,7 +707,7 @@
   "Show all fonts (including proportional ones)": "すべてのフォントを表示 (プロポーショナルフォントを含む)",
   "Show inline usage bars": "インライン使用量バーを表示",
   "Show the chat tab (reopens it if it was closed or hidden)": "チャットタブを表示 (閉じていたり非表示の場合は再度開きます)",
-  "Show the claude.ai account switcher (e.g. swap between Team and Personal accounts)": "claude.ai のアカウント切り替えを表示 (例: Team と個人アカウントの切り替え)",
+  "Log out of claude.ai to sign in with another account": "claude.ai からログアウトして別のアカウントでサインイン",
   "Show the mini session/weekly usage bars in the prompt panel. Only applies when a Claude Code provider is active.": "プロンプトパネルに小さなセッション/週間の使用量バーを表示します。Claude Code のプロバイダーがアクティブな場合のみ適用されます。",
   "Show the session status on each chat tab": "各チャットタブにセッションの状態を表示する",
   "Show token counts in the chat": "チャットにトークン数を表示する",

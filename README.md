@@ -198,6 +198,10 @@ A huge thank you to every developer who took the time to improve this extension 
 
 ## Version History
 
+### Version 301.0
+- *Switch Account* in Claude Usage now simply logs out of claude.ai, so you can sign in with any account, including with "Continue with Google".
+- The usage popup in the chat composer now shows the account Claude Code itself is signed in with.
+
 ### Version 300.0
 - Claude Usage no longer reloads itself every few seconds, and *Switch Account* works again: it opens the claude.ai account menu and returns to the usage view once you switch or sign in again.
 - The Claude Usage view now fills the whole tab and scrolls to the end of the page.

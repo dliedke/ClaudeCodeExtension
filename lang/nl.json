@@ -707,7 +707,7 @@
   "Show all fonts (including proportional ones)": "Alle lettertypen tonen (ook proportionele)",
   "Show inline usage bars": "Ingebouwde gebruiksbalken tonen",
   "Show the chat tab (reopens it if it was closed or hidden)": "Het chattabblad tonen (opent het opnieuw als het gesloten of verborgen was)",
-  "Show the claude.ai account switcher (e.g. swap between Team and Personal accounts)": "De accountkiezer van claude.ai tonen (bijv. wisselen tussen Team- en persoonlijk account)",
+  "Log out of claude.ai to sign in with another account": "Afmelden bij claude.ai om met een ander account aan te melden",
   "Show the mini session/weekly usage bars in the prompt panel. Only applies when a Claude Code provider is active.": "Toont de mini-gebruiksbalken voor sessie/week in het promptpaneel. Geldt alleen als een Claude Code-provider actief is.",
   "Show the session status on each chat tab": "Sessiestatus op elk chattabblad tonen",
   "Show token counts in the chat": "Aantal tokens in de chat tonen",

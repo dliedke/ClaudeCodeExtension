@@ -707,7 +707,7 @@
   "Show all fonts (including proportional ones)": "แสดงฟอนต์ทั้งหมด (รวมถึงแบบสัดส่วน)",
   "Show inline usage bars": "แสดงแถบการใช้งานแบบอินไลน์",
   "Show the chat tab (reopens it if it was closed or hidden)": "แสดงแท็บแชท (เปิดอีกครั้งหากถูกปิดหรือซ่อน)",
-  "Show the claude.ai account switcher (e.g. swap between Team and Personal accounts)": "แสดงตัวสลับบัญชี claude.ai (เช่น สลับระหว่างบัญชี Team และบัญชีส่วนตัว)",
+  "Log out of claude.ai to sign in with another account": "ออกจากระบบ claude.ai เพื่อลงชื่อเข้าใช้ด้วยบัญชีอื่น",
   "Show the mini session/weekly usage bars in the prompt panel. Only applies when a Claude Code provider is active.": "แสดงแถบการใช้งานเซสชัน/รายสัปดาห์ขนาดเล็กในแผงพรอมต์ ใช้เฉพาะเมื่อผู้ให้บริการ Claude Code ใช้งานอยู่",
   "Show the session status on each chat tab": "แสดงสถานะเซสชันบนแท็บแชทแต่ละแท็บ",
   "Show token counts in the chat": "แสดงจำนวนโทเค็นในแชท",

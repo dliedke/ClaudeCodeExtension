@@ -707,7 +707,7 @@
   "Show all fonts (including proportional ones)": "إظهار كل الخطوط (بما فيها النسبية)",
   "Show inline usage bars": "إظهار أشرطة الاستخدام المضمنة",
   "Show the chat tab (reopens it if it was closed or hidden)": "إظهار علامة تبويب الدردشة (يعيد فتحها إذا كانت مغلقة أو مخفية)",
-  "Show the claude.ai account switcher (e.g. swap between Team and Personal accounts)": "إظهار مبدّل حسابات claude.ai (مثل التبديل بين حسابي Team والشخصي)",
+  "Log out of claude.ai to sign in with another account": "تسجيل الخروج من claude.ai لتسجيل الدخول بحساب آخر",
   "Show the mini session/weekly usage bars in the prompt panel. Only applies when a Claude Code provider is active.": "اعرض أشرطة الاستخدام المصغّرة للجلسة/الأسبوع في لوحة الموجّه. يسري فقط عندما يكون موفّر Claude Code نشطًا.",
   "Show the session status on each chat tab": "إظهار حالة الجلسة على كل علامة تبويب دردشة",
   "Show token counts in the chat": "إظهار عدد الرموز المميزة في الدردشة",

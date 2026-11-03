@@ -707,7 +707,7 @@
   "Show all fonts (including proportional ones)": "Mostrar todas as fontes (inclusive as proporcionais)",
   "Show inline usage bars": "Mostrar barras de uso embutidas",
   "Show the chat tab (reopens it if it was closed or hidden)": "Mostrar a aba de chat (reabre se estiver fechada ou oculta)",
-  "Show the claude.ai account switcher (e.g. swap between Team and Personal accounts)": "Mostrar o seletor de contas do claude.ai (ex.: alternar entre contas Team e Personal)",
+  "Log out of claude.ai to sign in with another account": "Sair do claude.ai para entrar com outra conta",
   "Show the mini session/weekly usage bars in the prompt panel. Only applies when a Claude Code provider is active.": "Mostra as mini barras de uso da sessão/semana no painel de prompt. Só se aplica quando um provedor Claude Code está ativo.",
   "Show the session status on each chat tab": "Mostrar o status da sessão em cada aba de chat",
   "Show token counts in the chat": "Mostrar a contagem de tokens no chat",

@@ -707,7 +707,7 @@
   "Show all fonts (including proportional ones)": "모든 글꼴 표시 (비례 글꼴 포함)",
   "Show inline usage bars": "인라인 사용량 막대 표시",
   "Show the chat tab (reopens it if it was closed or hidden)": "채팅 탭 표시 (닫혔거나 숨겨진 경우 다시 열기)",
-  "Show the claude.ai account switcher (e.g. swap between Team and Personal accounts)": "claude.ai 계정 전환기 표시 (예: Team과 개인 계정 간 전환)",
+  "Log out of claude.ai to sign in with another account": "다른 계정으로 로그인하려면 claude.ai에서 로그아웃",
   "Show the mini session/weekly usage bars in the prompt panel. Only applies when a Claude Code provider is active.": "프롬프트 패널에 작은 세션/주간 사용량 막대를 표시합니다. Claude Code 공급자가 활성일 때만 적용됩니다.",
   "Show the session status on each chat tab": "각 채팅 탭에 세션 상태 표시",
   "Show token counts in the chat": "채팅에 토큰 수 표시",

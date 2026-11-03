@@ -136,7 +136,19 @@ namespace ClaudeCodeExtension.Tests
         public void Redirect_SkipsTheUsageView()
         {
             StringAssert.Contains(ControlSource, "if (ClaudeUsagePage.IsUsagePage(uri))");
-            StringAssert.Contains(ControlSource, "if (_switchAccountMode && !_sawSignedOutPage)");
+        }
+
+        /// <summary>
+        /// Switch Account opens claude.ai's own "Log out" link. Its old path, claude.ai's account
+        /// switcher, starts an add-account flow that locks the e-mail and greys out Google sign-in.
+        /// </summary>
+        [TestMethod]
+        public void SwitchAccount_OpensTheLogoutLink()
+        {
+            StringAssert.Contains(ControlSource, "private const string LogoutUrl = \"https://claude.ai/logout\";");
+            StringAssert.Contains(ControlSource, "core.Navigate(LogoutUrl);");
+            Assert.IsFalse(ControlSource.Contains("user-menu-button"), "The account menu is no longer opened.");
+            Assert.IsTrue(ClaudeUsagePage.IsAuthPath("/logout"), "The post-login redirect must treat /logout as a sign-out.");
         }
 
         [TestMethod]

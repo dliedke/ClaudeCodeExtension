@@ -707,7 +707,7 @@
   "Show all fonts (including proportional ones)": "सभी फ़ॉन्ट दिखाएँ (आनुपातिक सहित)",
   "Show inline usage bars": "इनलाइन उपयोग बार दिखाएँ",
   "Show the chat tab (reopens it if it was closed or hidden)": "चैट टैब दिखाएँ (बंद या छिपा हो तो फिर से खोलता है)",
-  "Show the claude.ai account switcher (e.g. swap between Team and Personal accounts)": "claude.ai खाता स्विचर दिखाएँ (जैसे Team और व्यक्तिगत खातों के बीच बदलें)",
+  "Log out of claude.ai to sign in with another account": "दूसरे खाते से साइन इन करने के लिए claude.ai से लॉग आउट करें",
   "Show the mini session/weekly usage bars in the prompt panel. Only applies when a Claude Code provider is active.": "प्रॉम्प्ट पैनल में छोटे सत्र/साप्ताहिक उपयोग बार दिखाएँ। केवल तब लागू होता है जब Claude Code प्रदाता सक्रिय हो।",
   "Show the session status on each chat tab": "हर चैट टैब पर सत्र की स्थिति दिखाएँ",
   "Show token counts in the chat": "चैट में टोकन संख्या दिखाएँ",

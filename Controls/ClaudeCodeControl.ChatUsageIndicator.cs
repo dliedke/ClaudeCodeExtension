@@ -120,8 +120,11 @@ namespace ClaudeCodeVS
                 data.ExtraPercent = ChatUsageIndicator.ClampPercent(snap.ExtraUsagePercent);
                 data.ExtraSpent = snap.ExtraUsageSpent ?? string.Empty;
                 data.ExtraReset = snap.ExtraUsageReset ?? string.Empty;
-                data.AccountEmail = snap.AccountEmail ?? string.Empty;
             }
+
+            // The account Claude Code itself is signed in to (the CLI's .claude.json), not the usage page's
+            // own claude.ai login, which can be a different account.
+            data.AccountEmail = GetClaudeCliAccountEmail(provider) ?? string.Empty;
 
             data.UpdatedText = FormatUsageUpdatedText(snap != null ? _settings?.LastUsageTimestamp : null);
             return data;
