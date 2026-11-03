@@ -1977,15 +1977,12 @@ namespace ClaudeCodeVS
         }
 
         /// <summary>
-        /// Switch Account does what claude.ai's own "Log out" menu item does — opens
-        /// <see cref="LogoutUrl"/> — and leaves the page on the login screen, where the user signs
-        /// in with whichever account they want. The usage view comes back by itself after the
-        /// sign-in (<see cref="TryRedirectToUsage"/>). Unlike Sign out, the rest of the profile
-        /// (e.g. the Google session) is kept, so Google sign-in offers the accounts it knows.
-        /// claude.ai's account switcher was used before, but its add-account flow locks the e-mail
-        /// and greys out "Continue with Google". That flow's state outlives a plain /logout in the
-        /// persistent profile (a fresh profile showed Google enabled, the long-lived one kept it
-        /// greyed), so claude.ai's own cookies and storage are cleared first — Google's are kept.
+        /// Switch Account wipes the whole scraper profile (cookies, storage, cache — every site,
+        /// Google included) and then opens <see cref="LogoutUrl"/>, leaving the page on the login
+        /// screen. The usage view comes back by itself after the sign-in
+        /// (<see cref="TryRedirectToUsage"/>). Only a profile as clean as a brand-new one keeps
+        /// "Continue with Google" enabled: v301 (plain /logout) and v302 (claude.ai data only)
+        /// both left it greyed in the long-lived profile, while a fresh profile never showed it.
         /// </summary>
 #pragma warning disable VSTHRD100 // async void Click handler is required by WPF
         private async void SwitchAccountButton_Click(object sender, RoutedEventArgs e)
@@ -2005,46 +2002,13 @@ namespace ClaudeCodeVS
                 // The shared cookie copy would sign a rebuilt view straight back in as this account.
                 try { if (File.Exists(SharedCookiePath)) File.Delete(SharedCookiePath); } catch { }
                 _lastCookieSaveUtc = DateTime.MinValue;
-                await ClearClaudeSiteDataAsync(core);
+                await ClearSessionDataAsync(core, wholeProfile: true);
                 if (WebView?.CoreWebView2 != core) return; // view torn down while clearing
                 core.Navigate(LogoutUrl);
             }
             catch (Exception ex)
             {
                 Debug.WriteLine("ClaudeUsageControl: Switch Account failed: " + ex);
-            }
-        }
-
-        /// <summary>
-        /// Clears claude.ai's (and anthropic.com's) cookies and site storage only, leaving every
-        /// other site — notably the Google session used by "Continue with Google" — untouched.
-        /// </summary>
-        private static async Task ClearClaudeSiteDataAsync(CoreWebView2 core)
-        {
-            try
-            {
-                var cm = core.CookieManager;
-                foreach (var c in await cm.GetCookiesAsync(null))
-                {
-                    if (ClaudeUsagePage.IsClaudeSiteCookieDomain(c.Domain)) cm.DeleteCookie(c);
-                }
-            }
-            catch (Exception ex)
-            {
-                Debug.WriteLine("ClaudeUsageControl: deleting claude.ai cookies failed: " + ex);
-            }
-
-            foreach (var origin in ClaudeUsagePage.ClaudeSiteOrigins)
-            {
-                try
-                {
-                    await core.CallDevToolsProtocolMethodAsync("Storage.clearDataForOrigin",
-                        JsonConvert.SerializeObject(new { origin, storageTypes = "all" }));
-                }
-                catch (Exception ex)
-                {
-                    Debug.WriteLine("ClaudeUsageControl: clearing " + origin + " storage failed: " + ex);
-                }
             }
         }
 
@@ -2091,11 +2055,13 @@ namespace ClaudeCodeVS
         /// a "Continue with Google" sign-in keeps its own session there and would otherwise sign the
         /// page straight back in as the previous account.
         /// </summary>
-        private static async Task ClearSessionDataAsync(CoreWebView2 core)
+        private static async Task ClearSessionDataAsync(CoreWebView2 core, bool wholeProfile = false)
         {
             try
             {
-                await core.Profile.ClearBrowsingDataAsync(CoreWebView2BrowsingDataKinds.AllSite);
+                await core.Profile.ClearBrowsingDataAsync(wholeProfile
+                    ? CoreWebView2BrowsingDataKinds.AllProfile
+                    : CoreWebView2BrowsingDataKinds.AllSite);
                 return;
             }
             catch (Exception ex)

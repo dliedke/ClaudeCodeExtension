@@ -198,6 +198,9 @@ A huge thank you to every developer who took the time to improve this extension 
 
 ## Version History
 
+### Version 303.0
+- *Switch Account* in Claude Usage now fully resets the embedded browser before the login screen, so "Continue with Google" is no longer greyed out (you sign in to Google again there).
+
 ### Version 302.0
 - *Switch Account* in Claude Usage no longer leaves "Continue with Google" greyed out in an installation that had used the old account switcher; your Google sign-in is kept.
 

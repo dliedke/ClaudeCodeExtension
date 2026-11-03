@@ -1382,20 +1382,5 @@ namespace ClaudeCodeVS
                    path.StartsWith("/magic-link", StringComparison.OrdinalIgnoreCase) ||
                    path.StartsWith("/auth", StringComparison.OrdinalIgnoreCase);
         }
-
-        /// <summary>Origins whose stored data Switch Account clears (claude.ai's own sign-in state).</summary>
-        public static readonly string[] ClaudeSiteOrigins = { "https://claude.ai", "https://www.claude.ai", "https://anthropic.com", "https://www.anthropic.com" };
-
-        /// <summary>
-        /// True for a cookie domain that belongs to claude.ai or anthropic.com (with or without the
-        /// leading dot, any subdomain). Google's own cookies (accounts.google.com) are not matched.
-        /// </summary>
-        public static bool IsClaudeSiteCookieDomain(string domain)
-        {
-            if (string.IsNullOrWhiteSpace(domain)) return false;
-            string d = domain.Trim().TrimStart('.').ToLowerInvariant();
-            return d == "claude.ai" || d.EndsWith(".claude.ai", StringComparison.Ordinal) ||
-                   d == "anthropic.com" || d.EndsWith(".anthropic.com", StringComparison.Ordinal);
-        }
     }
 }
