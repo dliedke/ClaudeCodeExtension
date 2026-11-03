@@ -1,0 +1,69 @@
+{
+  "cli_version": "0.12.2",
+  "checkpoint_id": "01M6GKA77M6876T0XKBK06FM5E",
+  "strategy": "manual-commit",
+  "branch": "master",
+  "checkpoints_count": 2,
+  "files_touched": [
+    "Controls/ClaudeCodeControl.ChatUsageIndicator.cs",
+    "Models/ClaudeCodeModels.cs",
+    "Properties/AssemblyInfo.cs",
+    "README.md",
+    "Tests/UsageSnapshotParsingTests.cs",
+    "UI/ChatTranscriptView.xaml",
+    "UI/ChatTranscriptView.xaml.cs",
+    "UI/ChatUsageIndicator.cs",
+    "UI/ClaudeUsageControl.xaml.cs",
+    "docs/ARCHITECTURE.md",
+    "lang/ar.json",
+    "lang/de.json",
+    "lang/es.json",
+    "lang/fr.json",
+    "lang/hi.json",
+    "lang/id.json",
+    "lang/it.json",
+    "lang/ja.json",
+    "lang/ko.json",
+    "lang/nl.json",
+    "lang/pl.json",
+    "lang/pt-BR.json",
+    "lang/ru.json",
+    "lang/th.json",
+    "lang/tr.json",
+    "lang/uk.json",
+    "lang/vi.json",
+    "lang/zh-Hans.json",
+    "lang/zh-Hant.json",
+    "source.extension.vsixmanifest"
+  ],
+  "sessions": [
+    {
+      "metadata": "/0/metadata.json",
+      "transcript": "/0/full.jsonl",
+      "compact_transcript": "/0/transcript.jsonl",
+      "content_hash": "/0/content_hash.txt",
+      "prompt": "/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 172,
+    "cache_creation_tokens": 207677,
+    "cache_read_tokens": 9288082,
+    "output_tokens": 57438,
+    "api_call_count": 80
+  },
+  "redaction": {
+    "replacements": 2,
+    "layers": {
+      "betterleaks": 0,
+      "connection_string": 0,
+      "credential_key": 0,
+      "credential_value": 0,
+      "credentialed_uri": 0,
+      "entropy": 2,
+      "key_context": 0,
+      "provider_token": 0,
+      "shell_stdin": 0
+    }
+  }
+}
