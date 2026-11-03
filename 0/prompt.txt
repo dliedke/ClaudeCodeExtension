@@ -1,0 +1,4 @@
+Files attached:
+  - C:\Temp\Windows\ClaudeCodeVS_Session\617d5273-9f20-4f7c-9180-49bff2f3b7e6\image_1.png
+
+No teste (versao do EXP) ta funcionando, na versão publicada não , o que será? pode arrumar e publicar nova versão com fix?
