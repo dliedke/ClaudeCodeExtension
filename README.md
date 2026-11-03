@@ -198,6 +198,10 @@ A huge thank you to every developer who took the time to improve this extension 
 
 ## Version History
 
+### Version 299.0
+- Pasting a screenshot from a clipboard that carries no transparency information (for example a shared clipboard from a virtual machine) no longer attaches a blank, fully transparent image.
+- Thanks to [@Morzilla](https://github.com/Morzilla) for reporting (#260).
+
 ### Version 298.0
 - Claude Code in the embedded terminal now starts with a dark or light theme that suits the terminal background when its own theme would leave text unreadable, for that launch only; on by default, turn it off with *Match Claude Code's theme to the terminal background* in *⚙ → Settings → Appearance*.
 - Thanks to [@rbuss93](https://github.com/rbuss93) for this release (#259).

@@ -106,6 +106,39 @@ namespace ClaudeCodeVS.UI
         }
 
         /// <summary>
+        /// Returns an opaque copy of a 32-bit clipboard image whose alpha channel is zero on every
+        /// pixel, or the image itself otherwise (issue #260). WPF's Clipboard.GetImage() builds a
+        /// Bgra32 bitmap from opaque 24-bit DIB sources (e.g. Looking Glass shared clipboards) with
+        /// alpha 0 everywhere, so the saved PNG came out fully transparent while the colors were
+        /// intact. A picture that is truly invisible everywhere is never what the user meant to paste.
+        /// </summary>
+        public static BitmapSource MakeOpaqueIfAlphaEmpty(BitmapSource image)
+        {
+            if (image == null) return null;
+            if (image.Format != PixelFormats.Bgra32 && image.Format != PixelFormats.Pbgra32) return image;
+
+            int width = image.PixelWidth;
+            int height = image.PixelHeight;
+            if (width <= 0 || height <= 0) return image;
+
+            int stride = width * 4;
+            var pixels = new byte[stride * height];
+            image.CopyPixels(pixels, stride, 0);
+
+            for (int i = 3; i < pixels.Length; i += 4)
+            {
+                if (pixels[i] != 0) return image;
+            }
+
+            // Bgr32 has the same byte layout and ignores the fourth byte, so the colors are kept as-is.
+            double dpiX = image.DpiX > 0 ? image.DpiX : 96;
+            double dpiY = image.DpiY > 0 ? image.DpiY : 96;
+            var opaque = BitmapSource.Create(width, height, dpiX, dpiY, PixelFormats.Bgr32, null, pixels, stride);
+            opaque.Freeze();
+            return opaque;
+        }
+
+        /// <summary>
         /// Gives <paramref name="target"/> — the whole chip or card, not just the picture inside it, so
         /// hovering its border or the empty band around a wide screenshot also works — a large preview
         /// of the image as its tooltip.

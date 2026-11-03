@@ -116,6 +116,9 @@ namespace ClaudeCodeVS
                     }
                 }
 
+                // Some clipboards (24-bit sources) decode with alpha 0 on every pixel (#260).
+                image = UI.ImagePreview.MakeOpaqueIfAlphaEmpty(image);
+
                 if (image != null)
                 {
                     // Ensure temp directory exists
