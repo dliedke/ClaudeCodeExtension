@@ -1,0 +1,12 @@
+Update repo-watcher to always get latest code of ClaudeCodeExtension before working on PR or issues
+
+---
+
+Files attached:
+  - C:\Temp\Windows\ClaudeCodeVS_Session\51da2a5e-6660-4513-9f65-13baa2c759c1\image_1.png
+
+Auto assign issues to me and bug label
+
+---
+
+yes
