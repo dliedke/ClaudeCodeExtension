@@ -190,6 +190,11 @@ Prerequisites: `claude` and `gh` on PATH, `gh auth login` done, and this machine
   to 3 times. To re-run an item, delete its key from the state file.
 - **Repo busy = wait.** A run is skipped while the clone is off `master` or has uncommitted
   changes, so the watcher never commits your work in progress. PR and issue runs share one lock.
+- **Assignee and label.** Every check assigns open issues that have no assignee to `dliedke`
+  (`-Assignee` on `Watch-Repo.ps1`); Claude adds the `bug` label to the issues that report a bug.
+- **Latest code first.** Before claiming anything, the run fast-forwards `master` to
+  `origin/master` (`git fetch` + `merge --ff-only`); if that fails (offline, or local master
+  diverged) the tick is skipped. Claude also pulls again before each item.
 - **Several machines.** The same repo can be watched from more than one PC. Before Claude starts
   on an item, the run posts an "I am working on it" comment (marked `<!-- repo-watcher-claim -->`);
   the earliest live claim wins and the other PCs skip that item without marking it handled. The

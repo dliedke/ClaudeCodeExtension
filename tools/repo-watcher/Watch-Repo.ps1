@@ -9,6 +9,7 @@ param(
     [string]$Repo    = 'dliedke/ClaudeCodeExtension',
     [Parameter(Mandatory)][string]$RepoDir,
     [Parameter(Mandatory)][string]$Claude,
+    [string]$Assignee = 'dliedke',   # open issues with no assignee are assigned to this login
     [switch]$Wsl
 )
 
@@ -130,12 +131,22 @@ try {
     if ($Kind -eq 'pr') {
         $json = Invoke-Gh pr list --repo $Repo --state open --json 'number,headRefOid,title,author,isDraft' 2>&1
     } else {
-        $json = Invoke-Gh issue list --repo $Repo --state open --limit 100 --json 'number,title,author' 2>&1
+        $json = Invoke-Gh issue list --repo $Repo --state open --limit 100 --json 'number,title,author,assignees' 2>&1
     }
     if ($LASTEXITCODE -ne 0) { Write-Log "gh failed: $json"; exit 0 }
     # Filter blanks: Windows PowerShell turns "[]" into one empty object.
     $items = @(($json | Out-String | ConvertFrom-Json) | Where-Object { $_.number })
     if ($items.Count -eq 0) { Write-Log "No open ${Kind}s."; exit 0 }
+
+    # Every open issue nobody is assigned to goes to the maintainer, including the ones left to the
+    # PR run and the ones already handled. Done here with gh (no tokens); a failure is only logged.
+    if ($Kind -eq 'issue') {
+        foreach ($item in @($items | Where-Object { @($_.assignees | Where-Object { $_.login }).Count -eq 0 })) {
+            $out = Invoke-Gh issue edit $item.number --repo $Repo --add-assignee $Assignee 2>&1
+            if ($LASTEXITCODE -eq 0) { Write-Log "#$($item.number) assigned to $Assignee." }
+            else { Write-Log "Could not assign #$($item.number) to ${Assignee}: $out" }
+        }
+    }
 
     # A draft PR is work in progress: reviewing it now would only judge (or reject) unfinished work.
     # It is picked up once the author marks it ready, since that run sees it as not yet handled.
@@ -203,6 +214,27 @@ try {
             $numbers, $branch, [bool]$dirty)
         exit 0
     }
+
+    # --- Start from the latest code ---------------------------------------------------------
+    # The clone may be days behind (other PCs, the maintainer, earlier merges on GitHub). Claude must
+    # review and fix against the current master, so fast-forward to origin/master first. This runs
+    # before any claim is posted: a failed pull (offline, or local master diverged from origin) just
+    # skips this tick and leaves nothing on GitHub.
+    # git writes progress ("From github.com:...") to stderr even on success; under 'Stop', Windows
+    # PowerShell turns that redirected stderr into a terminating error, so relax it for these calls.
+    $ErrorActionPreference = 'Continue'
+    # "$_" keeps git's own text; the error records would add PowerShell's position info to the log.
+    $fetch = (& git -C $RepoDir fetch origin master 2>&1 | ForEach-Object { "$_" }) -join ' '
+    $fetchExit = $LASTEXITCODE
+    $ff = if ($fetchExit -eq 0) { (& git -C $RepoDir merge --ff-only origin/master 2>&1 | ForEach-Object { "$_" }) -join ' ' }
+    $ffExit = $LASTEXITCODE
+    $ErrorActionPreference = 'Stop'
+    if ($fetchExit -ne 0) { Write-Log "$numbers waiting, but git fetch failed; will retry: $fetch"; exit 0 }
+    if ($ffExit -ne 0) {
+        Write-Log "$numbers waiting, but local master can't fast-forward to origin/master (diverged?); fix it by hand: $ff"
+        exit 0
+    }
+    Write-Log ("Repo at origin/master {0}." -f (& git -C $RepoDir rev-parse --short HEAD).Trim())
 
     # --- Claim the items: skip any that another machine is already working on -------------
     # Each item gets a claim comment first. The earliest live claim (lowest comment id) wins, so
