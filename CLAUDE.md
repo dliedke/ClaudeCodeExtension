@@ -165,6 +165,7 @@ ClaudeCodeExtension/
 │   ├── GlyphIcon.cs                     # Ink-centering of icon-only buttons (attached property, pure math unit-tested)
 │   ├── EffortSliderStops.cs             # Effort pill slider: one stop dot per position + top-stop flag, for any stop count (pure math unit-tested)
 │   ├── ComposerLabels.cs                # Short composer selector captions for narrow chat tabs (pure)
+│   ├── ScrollArrows.cs                  # ◀/▶ toolbar scroll arrow overflow rule (pure, unit-tested)
 │   ├── ChatTabStatus.cs                 # Chat tab status glyph + title from the first prompt (pure, unit-tested)
 │   ├── PromptAttachments.cs             # Splits the "Files attached:" block out of a sent prompt for the chat bubble (pure, unit-tested)
 │   ├── ImagePreview.cs                  # Attachment thumbnails + hover preview, shared by composer chips/cards and the chat bubble strip
