@@ -136,6 +136,7 @@
     <Compile Include="UI\EffortSliderStops.cs" />
     <Compile Include="UI\HostedWindowBounds.cs" />
     <Compile Include="UI\ComposerLabels.cs" />
+    <Compile Include="UI\ScrollArrows.cs" />
     <Compile Include="UI\ChatTabStatus.cs" />
     <Compile Include="UI\PromptAttachments.cs" />
     <Compile Include="UI\ImagePreview.cs" />

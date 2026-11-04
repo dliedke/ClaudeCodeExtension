@@ -198,6 +198,9 @@ A huge thank you to every developer who took the time to improve this extension 
 
 ## Version History
 
+### Version 304.0
+- The ◀ ▶ scroll arrows in the panel toolbar and the chat composer now disappear as soon as the buttons fit without them, so you no longer have to drag the window wider and back again, and they no longer stay after Visual Studio starts or a new chat tab opens.
+
 ### Version 303.0
 - *Switch Account* in Claude Usage now fully resets the embedded browser before the login screen, so "Continue with Google" is no longer greyed out (you sign in to Google again there).
 

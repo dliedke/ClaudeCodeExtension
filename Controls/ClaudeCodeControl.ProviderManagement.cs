@@ -2952,9 +2952,17 @@ namespace ClaudeCodeVS
         // gap before the first button; the right-aligned strip had already given up its ▶ slice for
         // the same reason, so this just makes the two sides behave alike. The one-slot shift when
         // the row starts to scroll is the price, as it already was on the right.
+        //
+        // v304.0: whether the row overflows is judged against the room it would have without the
+        // arrows. The arrows' own slots used to count, so once they showed up the row had to be
+        // widened by their width before they went away again, and a toolbar first laid out narrow
+        // (VS start) kept them after reaching its full width.
         private void RightButtonsScroller_ScrollChanged(object sender, ScrollChangedEventArgs e)
         {
-            bool canScroll = RightButtonsScroller.ScrollableWidth > 0.5;
+            bool canScroll = ScrollArrows.ContentOverflows(
+                RightButtonsScroller.ExtentWidth,
+                RightButtonsScroller.ViewportWidth,
+                ScrollArrows.ShownWidth(RightButtonsScrollLeftButton) + ScrollArrows.ShownWidth(RightButtonsScrollRightButton));
             Visibility arrows = canScroll ? Visibility.Visible : Visibility.Collapsed;
 
             RightButtonsScrollLeftButton.Visibility = arrows;
