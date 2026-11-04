@@ -1829,9 +1829,15 @@ namespace ClaudeCodeVS.UI
         // already bounded by ComposerBar. Hidden was tried first, but it reserves an arrow-sized
         // blank gap next to the scroller even when that arrow isn't needed, which read as dead
         // space between the fixed selectors and the mirrored buttons (or after the last one).
+        //
+        // v304.0: the overflow is judged against the room the row would have without the arrows, so
+        // a shown arrow no longer keeps itself shown (see ScrollArrows).
         private void ComposerActionsScroller_ScrollChanged(object sender, ScrollChangedEventArgs e)
         {
-            bool canScroll = ComposerActionsScroller.ScrollableWidth > 0.5;
+            bool canScroll = ScrollArrows.ContentOverflows(
+                ComposerActionsScroller.ExtentWidth,
+                ComposerActionsScroller.ViewportWidth,
+                ScrollArrows.ShownWidth(ComposerActionsScrollLeftButton) + ScrollArrows.ShownWidth(ComposerActionsScrollRightButton));
             ComposerActionsScrollLeftButton.Visibility = canScroll && ComposerActionsScroller.HorizontalOffset > 0.5
                 ? Visibility.Visible
                 : Visibility.Collapsed;
