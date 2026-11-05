@@ -2915,17 +2915,22 @@ namespace ClaudeCodeVS.UI
                 return;
             }
 
-            // A tool card's diff pane is a real, deliberately scrollable control. Keep the wheel
-            // there while it can still move; at its edge, fall through to the conversation.
-            ScrollViewer nested = FindAncestorScrollViewer(e.OriginalSource as DependencyObject);
-            if (nested != null && !ReferenceEquals(nested, transcript) &&
-                nested.VerticalScrollBarVisibility != ScrollBarVisibility.Disabled)
+            // A card's own pane (a tool card's diff, the plan review box) is a real, deliberately
+            // scrollable control. Keep the wheel there while it can still move; at its edge, fall
+            // through to the conversation. The pane is scrolled here rather than left to WPF: over the
+            // plan's text the markdown viewer's own (disabled) scroller would swallow the wheel, so
+            // the plan box only scrolled with the pointer on its scrollbar (issue #262).
+            ScrollViewer nested = FindVerticalScrollTarget(e.OriginalSource as DependencyObject, transcript);
+            if (nested != null)
             {
                 bool canScroll = e.Delta < 0
                     ? nested.VerticalOffset < nested.ScrollableHeight - 0.5
                     : nested.VerticalOffset > 0.5;
                 if (canScroll)
                 {
+                    nested.ScrollToVerticalOffset(VerticalWheelTarget(nested.VerticalOffset,
+                        nested.ScrollableHeight, nested.ViewportHeight, e.Delta, SystemParameters.WheelScrollLines));
+                    e.Handled = true;
                     return;
                 }
             }
@@ -2933,15 +2938,45 @@ namespace ClaudeCodeVS.UI
             // From here on the wheel moves the transcript itself, not a card's own pane.
             NoteReaderScrolled();
 
-            double lines = SystemParameters.WheelScrollLines;
-            double amount = lines < 0
-                ? transcript.ViewportHeight
-                : Math.Max(1, lines) * 16.0 * (e.Delta / 120.0);
-            double target = Math.Max(0.0,
-                Math.Min(transcript.ScrollableHeight, transcript.VerticalOffset - amount));
-
-            transcript.ScrollToVerticalOffset(target);
+            transcript.ScrollToVerticalOffset(VerticalWheelTarget(transcript.VerticalOffset,
+                transcript.ScrollableHeight, transcript.ViewportHeight, e.Delta, SystemParameters.WheelScrollLines));
             e.Handled = true;
+        }
+
+        /// <summary>
+        /// Vertical offset after one wheel step: 16 px per wheel line (a page when Windows is set to
+        /// scroll a screen at a time), wheel down moves down, clamped to the scrollable height.
+        /// </summary>
+        internal static double VerticalWheelTarget(double offset, double scrollableHeight, double viewportHeight,
+            int delta, int wheelScrollLines)
+        {
+            double amount = wheelScrollLines < 0
+                ? viewportHeight * Math.Sign(delta)
+                : Math.Max(1, wheelScrollLines) * 16.0 * (delta / 120.0);
+            return Math.Max(0.0, Math.Min(scrollableHeight, offset - amount));
+        }
+
+        /// <summary>
+        /// The closest scroller under the pointer, below the transcript, that has something to scroll
+        /// vertically, or null. Scrollers with their vertical bar disabled are skipped: every
+        /// <see cref="MarkdownBlock"/> and code block has one, sized to its content, and stopping there
+        /// sent the wheel to the conversation instead of the plan review box around the text.
+        /// </summary>
+        internal static ScrollViewer FindVerticalScrollTarget(DependencyObject source, ScrollViewer transcript)
+        {
+            while (source != null && !ReferenceEquals(source, transcript))
+            {
+                if (source is ScrollViewer candidate &&
+                    candidate.VerticalScrollBarVisibility != ScrollBarVisibility.Disabled &&
+                    candidate.ScrollableHeight > 0.5)
+                {
+                    return candidate;
+                }
+
+                source = GetParent(source);
+            }
+
+            return null;
         }
 
         private void Transcript_PreviewMouseDown(object sender, MouseButtonEventArgs e)
@@ -3063,21 +3098,6 @@ namespace ClaudeCodeVS.UI
             double lines = wheelScrollLines <= 0 ? 3 : wheelScrollLines;
             double target = offset - lines * 16.0 * (delta / 120.0);
             return Math.Max(0.0, Math.Min(scrollableWidth, target));
-        }
-
-        private static ScrollViewer FindAncestorScrollViewer(DependencyObject source)
-        {
-            while (source != null)
-            {
-                if (source is ScrollViewer viewer)
-                {
-                    return viewer;
-                }
-
-                source = GetParent(source);
-            }
-
-            return null;
         }
 
         private static DependencyObject GetParent(DependencyObject source)

@@ -452,8 +452,9 @@ namespace ClaudeCodeExtension.Tests
             string cs = ChatTranscriptCode;
             StringAssert.Contains(cs, "MessagesList.AddHandler(PreviewMouseWheelEvent");
             StringAssert.Contains(cs, "private void Transcript_PreviewMouseWheel(");
-            StringAssert.Contains(cs, "nested.VerticalScrollBarVisibility != ScrollBarVisibility.Disabled");
-            StringAssert.Contains(cs, "transcript.ScrollToVerticalOffset(target);");
+            StringAssert.Contains(cs, "candidate.VerticalScrollBarVisibility != ScrollBarVisibility.Disabled");
+            StringAssert.Contains(cs, "nested.ScrollToVerticalOffset(VerticalWheelTarget(");
+            StringAssert.Contains(cs, "transcript.ScrollToVerticalOffset(VerticalWheelTarget(");
         }
 
         /// <summary>

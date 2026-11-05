@@ -426,6 +426,56 @@ namespace ClaudeCodeExtension.Tests
         }
 
         [TestMethod]
+        public void WheelStepMovesSixteenPixelsPerLineAndStaysInRange()
+        {
+            // Wheel down (negative delta) scrolls down, by 16 px per wheel line.
+            Assert.AreEqual(148.0, ChatTranscriptView.VerticalWheelTarget(100, 1000, 300, -120, 3));
+            Assert.AreEqual(52.0, ChatTranscriptView.VerticalWheelTarget(100, 1000, 300, 120, 3));
+
+            Assert.AreEqual(0.0, ChatTranscriptView.VerticalWheelTarget(10, 1000, 300, 120, 3), "not past the top");
+            Assert.AreEqual(1000.0, ChatTranscriptView.VerticalWheelTarget(990, 1000, 300, -120, 3), "not past the bottom");
+            Assert.AreEqual(400.0, ChatTranscriptView.VerticalWheelTarget(100, 1000, 300, -120, -1), "page-scroll setting: a page down");
+            Assert.AreEqual(0.0, ChatTranscriptView.VerticalWheelTarget(100, 1000, 300, 120, -1), "page-scroll setting: a page up");
+        }
+
+        [TestMethod]
+        public void WheelOverThePlanTextFindsThePlanBoxNotTheMarkdownViewer()
+        {
+            RunOnSta(() =>
+            {
+                // transcript > plan box (taller content than its height) > markdown viewer whose own
+                // scroller is disabled and sized to its content (issue #262)
+                var text = new Border { Width = 100, Height = 900 };
+                var markdown = new ScrollViewer
+                {
+                    VerticalScrollBarVisibility = ScrollBarVisibility.Disabled,
+                    HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
+                    Content = text
+                };
+                var planBox = new ScrollViewer
+                {
+                    Height = 200,
+                    VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
+                    Content = markdown
+                };
+                var transcript = new ScrollViewer { Width = 400, Height = 300, Content = planBox };
+
+                transcript.Measure(new Size(400, 300));
+                transcript.Arrange(new Rect(0, 0, 400, 300));
+                transcript.UpdateLayout();
+
+                Assert.AreSame(planBox, ChatTranscriptView.FindVerticalScrollTarget(text, transcript));
+                Assert.IsNull(ChatTranscriptView.FindVerticalScrollTarget(transcript, transcript),
+                    "the transcript itself is never a nested target");
+
+                planBox.Height = 2000;
+                transcript.UpdateLayout();
+                Assert.IsNull(ChatTranscriptView.FindVerticalScrollTarget(text, transcript),
+                    "a box with nothing to scroll leaves the wheel to the transcript");
+            });
+        }
+
+        [TestMethod]
         public void ScrollingAwayStopsFollowingAndScrollingBackReArmsIt()
         {
             Assert.IsFalse(ChatTranscriptView.ResolveFollowingAfterScroll(
