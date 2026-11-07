@@ -1,0 +1,19 @@
+Update readme.md to remove my email, change:
+
+"For licensing inquiries or permission requests, please contact the author at dliedke@gmail.com."
+
+"For licensing inquiries or permission requests, please contact the author by creating a github issue."
+
+Then check if my email is in any other place in the project
+
+---
+
+remove from Claude.md
+
+---
+
+update version and publish
+
+---
+
+yes
