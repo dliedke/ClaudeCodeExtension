@@ -198,6 +198,9 @@ A huge thank you to every developer who took the time to improve this extension 
 
 ## Version History
 
+### Version 306.0
+- The licensing contact line now points to GitHub issues instead of an email address.
+
 ### Version 305.0
 - The mouse wheel now scrolls the plan review box in native chat anywhere over the plan text, not only over its scrollbar; at the end of the plan it goes back to scrolling the conversation.
 - Thanks to [@lpowca](https://github.com/lpowca) for reporting (#262).
@@ -1761,7 +1764,7 @@ This extension is provided free of charge under the MIT License.
 - **No Third-Party Access**: Data is only accessible to the configured model provider
 
 ### Contact
-For licensing inquiries or permission requests, please contact the author at dliedke@gmail.com.
+For licensing inquiries or permission requests, please contact the author by creating a github issue.
 
 ---
 

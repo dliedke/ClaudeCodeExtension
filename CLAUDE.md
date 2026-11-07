@@ -4,7 +4,7 @@
 
 Visual Studio Extension (VSIX) for VS 2022/2026 — integrates AI code assistants (Claude Code, OpenAI Codex, Cursor Agent, Open Code, Devin, PI, Google Antigravity, Reasonix, Qwen Code, and Grok) via a native chat tab driven by each CLI's headless protocol ("native mode", default since v179.0) or an embedded terminal (Win32 `SetParent` interop).
 
-- Author: Daniel Carvalho Liedke (dliedke@gmail.com) | License: MIT
+- Author: Daniel Carvalho Liedke | License: MIT
 - Repository: https://github.com/dliedke/ClaudeCodeExtension
 - Current Version: 290.0 | Target Framework: .NET Framework 4.7.2
 
