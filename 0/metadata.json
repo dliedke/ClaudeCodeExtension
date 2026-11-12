@@ -1,0 +1,50 @@
+{
+  "cli_version": "0.12.2",
+  "checkpoint_id": "01M78YG43HZ3PCV4HXR1BQH55R",
+  "session_id": "8b637fe9-8d7b-4598-8f72-f6c3dada97e6",
+  "strategy": "manual-commit",
+  "created_at": "2026-11-12T22:36:52.3247861Z",
+  "branch": "master",
+  "checkpoints_count": 1,
+  "files_touched": [
+    "Controls/ClaudeCodeControl.Settings.cs",
+    "Controls/ClaudeCodeControl.TerminalIO.cs",
+    "Models/ClaudeCodeModels.cs",
+    "Properties/AssemblyInfo.cs",
+    "README.md",
+    "Tests/SettingsPersistenceTests.cs",
+    "Tests/TerminalPayloadTests.cs",
+    "docs/ARCHITECTURE.md",
+    "source.extension.vsixmanifest"
+  ],
+  "agent": "Claude Code",
+  "model": "claude-opus-5-5",
+  "turn_id": "b74a16f272a6",
+  "checkpoint_transcript_start": 477,
+  "transcript_lines_at_start": 477,
+  "compact_transcript_start": 55,
+  "token_usage": {
+    "input_tokens": 130,
+    "cache_creation_tokens": 144457,
+    "cache_read_tokens": 6590260,
+    "output_tokens": 45636,
+    "api_call_count": 63
+  },
+  "redaction": {
+    "replacements": 30,
+    "layers": {
+      "betterleaks": 0,
+      "connection_string": 0,
+      "credential_key": 0,
+      "credential_value": 14,
+      "credentialed_uri": 0,
+      "entropy": 16,
+      "key_context": 0,
+      "provider_token": 0,
+      "shell_stdin": 0
+    }
+  },
+  "session_metrics": {
+    "turn_count": 2
+  }
+}
