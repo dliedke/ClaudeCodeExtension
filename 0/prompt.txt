@@ -1,0 +1,7 @@
+For issue https://github.com/dliedke/ClaudeCodeExtension/issues/264
+
+if git pull from extension has uncommited or conflicts with changes, what happens? is it supossed to fix all issues?
+
+---
+
+let's improve, publish new version and close this issue
