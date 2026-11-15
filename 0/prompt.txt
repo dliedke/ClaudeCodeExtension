@@ -1,0 +1,9 @@
+Na tela do Claude Usage ta brabo pra fazer o login com o Google, os logins não ficam salvos e tem que fazer login umas 3x pra funcionar, eu to achando que o logout automático ficou ruim, vamos tirar ele pra ver se arruma isso
+
+---
+
+Não, eu desloguei, loguei, desloguei e não aparece mais a conta lá, tem que ficar as contas que eu já tinha pra logar mais facil. Botar toda vez o login, senha e autorizar 2FA não é a idéia
+
+---
+
+Run unit tests if present, publish, commit and push code changes but keep only the human author and no references to AI model.
