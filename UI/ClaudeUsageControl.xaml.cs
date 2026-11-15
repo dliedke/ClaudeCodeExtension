@@ -1977,12 +1977,11 @@ namespace ClaudeCodeVS
         }
 
         /// <summary>
-        /// Switch Account wipes the whole scraper profile (cookies, storage, cache — every site,
-        /// Google included) and then opens <see cref="LogoutUrl"/>, leaving the page on the login
-        /// screen. The usage view comes back by itself after the sign-in
-        /// (<see cref="TryRedirectToUsage"/>). Only a profile as clean as a brand-new one keeps
-        /// "Continue with Google" enabled: v301 (plain /logout) and v302 (claude.ai data only)
-        /// both left it greyed in the long-lived profile, while a fresh profile never showed it.
+        /// Switch Account clears claude.ai's own sign-in data and then opens <see cref="LogoutUrl"/>,
+        /// leaving the page on the login screen. The usage view comes back by itself after the
+        /// sign-in (<see cref="TryRedirectToUsage"/>). Google's session is kept so "Continue with
+        /// Google" still offers the accounts already used — wiping the whole profile (v303) made
+        /// every sign-in start from e-mail, password and 2FA again.
         /// </summary>
 #pragma warning disable VSTHRD100 // async void Click handler is required by WPF
         private async void SwitchAccountButton_Click(object sender, RoutedEventArgs e)
@@ -2002,7 +2001,7 @@ namespace ClaudeCodeVS
                 // The shared cookie copy would sign a rebuilt view straight back in as this account.
                 try { if (File.Exists(SharedCookiePath)) File.Delete(SharedCookiePath); } catch { }
                 _lastCookieSaveUtc = DateTime.MinValue;
-                await ClearSessionDataAsync(core, wholeProfile: true);
+                await ClearSessionDataAsync(core);
                 if (WebView?.CoreWebView2 != core) return; // view torn down while clearing
                 core.Navigate(LogoutUrl);
             }
@@ -2051,37 +2050,52 @@ namespace ClaudeCodeVS
         }
 
         /// <summary>
-        /// Clears cookies and site storage of the scraper profile. All sites, not only claude.ai:
-        /// a "Continue with Google" sign-in keeps its own session there and would otherwise sign the
-        /// page straight back in as the previous account.
+        /// Clears claude.ai's (and anthropic.com's) cookies and site storage only. Every other site —
+        /// notably Google's session and its remembered accounts — is kept, so signing back in is
+        /// one click on the account instead of e-mail, password and 2FA.
         /// </summary>
-        private static async Task ClearSessionDataAsync(CoreWebView2 core, bool wholeProfile = false)
+        private static async Task ClearSessionDataAsync(CoreWebView2 core)
         {
             try
             {
-                await core.Profile.ClearBrowsingDataAsync(wholeProfile
-                    ? CoreWebView2BrowsingDataKinds.AllProfile
-                    : CoreWebView2BrowsingDataKinds.AllSite);
-                return;
-            }
-            catch (Exception ex)
-            {
-                Debug.WriteLine("ClaudeUsageControl: ClearBrowsingDataAsync failed, deleting cookies instead: " + ex);
-            }
-
-            try
-            {
                 var cm = core.CookieManager;
-                foreach (var domain in new[] { "https://claude.ai", "https://anthropic.com" })
+                foreach (var c in await cm.GetCookiesAsync(null))
                 {
-                    foreach (var c in await cm.GetCookiesAsync(domain)) cm.DeleteCookie(c);
+                    if (IsClaudeSiteCookieDomain(c.Domain)) cm.DeleteCookie(c);
                 }
             }
             catch (Exception ex)
             {
                 // Must not escape into InitializeWebViewAsync, whose catch-all reports a missing runtime.
-                Debug.WriteLine("ClaudeUsageControl: deleting cookies failed: " + ex);
+                Debug.WriteLine("ClaudeUsageControl: deleting claude.ai cookies failed: " + ex);
             }
+
+            foreach (var origin in ClaudeSiteOrigins)
+            {
+                try
+                {
+                    await core.CallDevToolsProtocolMethodAsync("Storage.clearDataForOrigin",
+                        JsonConvert.SerializeObject(new { origin, storageTypes = "all" }));
+                }
+                catch (Exception ex)
+                {
+                    Debug.WriteLine("ClaudeUsageControl: clearing " + origin + " storage failed: " + ex);
+                }
+            }
+        }
+
+        private static readonly string[] ClaudeSiteOrigins =
+        {
+            "https://claude.ai", "https://www.claude.ai", "https://anthropic.com", "https://www.anthropic.com", "https://console.anthropic.com"
+        };
+
+        /// <summary>True for a claude.ai or anthropic.com cookie domain (with or without a leading dot, any subdomain).</summary>
+        internal static bool IsClaudeSiteCookieDomain(string domain)
+        {
+            if (string.IsNullOrWhiteSpace(domain)) return false;
+            string d = domain.Trim().TrimStart('.').ToLowerInvariant();
+            return d == "claude.ai" || d.EndsWith(".claude.ai", StringComparison.Ordinal) ||
+                   d == "anthropic.com" || d.EndsWith(".anthropic.com", StringComparison.Ordinal);
         }
 
 #pragma warning disable VSTHRD100 // async void Click handler is required by WPF

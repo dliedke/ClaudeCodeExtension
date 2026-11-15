@@ -198,6 +198,10 @@ A huge thank you to every developer who took the time to improve this extension 
 
 ## Version History
 
+### Version 310.0
+- The Claude Usage page no longer signs itself out when it thinks the Claude Code account changed, so a Google sign-in there now sticks. Change Account and the page's own Sign Out / Switch Account still sign it out.
+- Signing out of the Claude Usage page keeps your Google accounts, so signing back in is one click on the account instead of e-mail, password and 2FA again.
+
 ### Version 309.0
 - **Pull from git before the first prompt** is now off by default, and is turned off once for existing installs. If you want it, turn it back on in *⚙ → Settings... → Automation*.
 - Multi-line prompts sent to Claude Code through the Command Prompt terminal no longer show stray `[200~` and `[201~` text on Windows 11 24H2 and later.

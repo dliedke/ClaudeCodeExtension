@@ -149,8 +149,9 @@ namespace ClaudeCodeExtension.Tests
             StringAssert.Contains(ControlSource, "core.Navigate(LogoutUrl);");
             Assert.IsFalse(ControlSource.Contains("user-menu-button"), "The account menu is no longer opened.");
             Assert.IsTrue(ClaudeUsagePage.IsAuthPath("/logout"), "The post-login redirect must treat /logout as a sign-out.");
-            StringAssert.Contains(ControlSource, "await ClearSessionDataAsync(core, wholeProfile: true);",
-                "Switch Account must leave the profile as clean as a new one, or Google sign-in stays greyed.");
+            StringAssert.Contains(ControlSource, "await ClearSessionDataAsync(core);");
+            Assert.IsFalse(ControlSource.Contains("ClearBrowsingDataAsync"),
+                "Signing out must keep Google's remembered accounts: no profile-wide wipe.");
         }
 
         [TestMethod]

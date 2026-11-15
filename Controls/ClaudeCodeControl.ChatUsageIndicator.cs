@@ -210,11 +210,7 @@ namespace ClaudeCodeVS
             _indicatorScrapeTcs = scraped;
             try
             {
-                // A switch handled here means the page was signed out and the user is asked to sign in again.
-                if (await SyncUsageWithClaudeAccountAsync())
-                {
-                    return;
-                }
+                await RefreshClaudeCliAccountAsync();
 
                 // A visible tab's reload returns at once; wait for the page to post the new figures.
                 // The off-screen path below already waits for them itself.
