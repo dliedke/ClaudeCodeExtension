@@ -1,0 +1,10 @@
+Files attached:
+  - C:\Temp\Windows\ClaudeCodeVS_Session\17d968bf-433f-4c79-b1fb-3d63381baeb8\image_1.png
+
+---
+
+Run unit tests if present, publish, commit and push code changes but keep only the human author and no references to AI model.
+
+---
+
+and create email reply please
