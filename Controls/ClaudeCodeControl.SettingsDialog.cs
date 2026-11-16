@@ -108,6 +108,7 @@ namespace ClaudeCodeVS
             // Snapshot the current values so we can detect what changed on OK.
             bool origSendWithEnter            = _settings.SendWithEnter;
             bool origSendWithCtrlEnter        = _settings.SendWithCtrlEnter;
+            bool origSendButtonInToolbar      = _settings.SendButtonInToolbar;
             bool origSendLargeAsFile          = _settings.SendLargePromptsAsFile;
             bool origDisableClipboardSend     = _settings.DisableClipboardSend;
             bool origSendSelectionRefOnly     = _settings.SendSelectionReferenceOnly;
@@ -282,6 +283,18 @@ namespace ClaudeCodeVS
             promptStack.Children.Add(sendEnterRadio);
             promptStack.Children.Add(sendCtrlEnterRadio);
             promptStack.Children.Add(sendButtonRadio);
+
+            // Where the ▶ Send button sits in "Button only" mode: the prompt box corner (default since
+            // v227.0) or the toolbar strip with the other buttons, as before.
+            var sendButtonInToolbarCheck = MakeCheckBox(
+                L("Show the Send button in the toolbar instead of the prompt box"),
+                L("Places the Send button with the other toolbar buttons, as in earlier versions. Applies to the prompt box above the terminal when \"Button only\" is selected."),
+                origSendButtonInToolbar, themeFg);
+            sendButtonInToolbarCheck.Margin = new Thickness(20, sendButtonInToolbarCheck.Margin.Top, sendButtonInToolbarCheck.Margin.Right, sendButtonInToolbarCheck.Margin.Bottom);
+            sendButtonInToolbarCheck.IsEnabled = sendButtonRadio.IsChecked == true;
+            sendButtonRadio.Checked += (s, e) => sendButtonInToolbarCheck.IsEnabled = true;
+            sendButtonRadio.Unchecked += (s, e) => sendButtonInToolbarCheck.IsEnabled = false;
+            promptStack.Children.Add(sendButtonInToolbarCheck);
 
             promptStack.Children.Add(MakeSectionHeader(L("Prompt sending"), themeFg));
 
@@ -1854,6 +1867,7 @@ namespace ClaudeCodeVS
             // ---- Apply settings ----
             _settings.SendWithEnter           = newSendWithEnter;
             _settings.SendWithCtrlEnter       = newSendWithCtrlEnter;
+            _settings.SendButtonInToolbar     = sendButtonInToolbarCheck.IsChecked == true;
             _settings.SendLargePromptsAsFile  = newSendLargeAsFile;
             _settings.DisableClipboardSend    = newDisableClipboardSend;
             _settings.SendSelectionReferenceOnly = newSendSelectionRefOnly;
@@ -2013,6 +2027,7 @@ namespace ClaudeCodeVS
                     : Visibility.Collapsed;
             }
 
+            ApplySendButtonPlacement();
             ApplyChatSendKeySettings();
 
             // Apply prompt font size immediately

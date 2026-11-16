@@ -123,6 +123,8 @@
   "Build errors": "Buildfouten",
   "Build solution": "Oplossing bouwen",
   "Button only — Enter inserts a newline, click Send to submit": "Alleen de knop — Enter voegt een nieuwe regel in, klik op Verzenden om te verzenden",
+  "Show the Send button in the toolbar instead of the prompt box": "Verzendknop in de werkbalk tonen in plaats van in het promptvak",
+  "Places the Send button with the other toolbar buttons, as in earlier versions. Applies to the prompt box above the terminal when \"Button only\" is selected.": "Plaatst de verzendknop bij de andere werkbalkknoppen, zoals in eerdere versies. Geldt voor het promptvak boven de terminal wanneer \"Alleen knop\" is geselecteerd.",
   "By default the button strip starts on the left, next to the scroll arrow. Turn this on to push it to the right edge of the row instead, the way the feature buttons sat before the toolbar became a single scrollable strip. Scrolling when the buttons no longer fit is unaffected either way.": "Standaard begint de knoppenstrook links, naast de scrollpijl. Schakel dit in om hem naar de rechterrand van de rij te duwen, waar de functieknoppen stonden voordat de werkbalk één scrollbare strook werd. Scrollen wanneer de knoppen niet passen verandert in geen van beide gevallen.",
   "CLI Path Not Found": "CLI-pad niet gevonden",
   "CLI Paths": "CLI-paden",

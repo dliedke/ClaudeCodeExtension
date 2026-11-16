@@ -123,6 +123,8 @@
   "Build errors": "ビルドエラー",
   "Build solution": "ソリューションのビルド",
   "Button only — Enter inserts a newline, click Send to submit": "ボタンのみ — Enter で改行、送信ボタンで送信",
+  "Show the Send button in the toolbar instead of the prompt box": "送信ボタンをプロンプト ボックスではなくツールバーに表示する",
+  "Places the Send button with the other toolbar buttons, as in earlier versions. Applies to the prompt box above the terminal when \"Button only\" is selected.": "以前のバージョンと同様に、送信ボタンをツールバーの他のボタンと並べて配置します。「ボタンのみ」を選択しているときの、ターミナル上のプロンプト ボックスに適用されます。",
   "By default the button strip starts on the left, next to the scroll arrow. Turn this on to push it to the right edge of the row instead, the way the feature buttons sat before the toolbar became a single scrollable strip. Scrolling when the buttons no longer fit is unaffected either way.": "既定では、ボタン列はスクロール矢印の隣の左側から始まります。オンにすると、ツールバーが 1 本のスクロール可能な列になる前の機能ボタンのように、行の右端に寄せます。ボタンが収まらないときのスクロールはどちらでも変わりません。",
   "CLI Path Not Found": "CLI パスが見つかりません",
   "CLI Paths": "CLI パス",

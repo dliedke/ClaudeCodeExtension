@@ -2876,6 +2876,9 @@ namespace ClaudeCodeVS
                 ApplyToolsMenuOrder(ToolsContextMenu,
                     order.Select(b => (object)GetToolbarMenuItemControl(b)).ToList());
             }
+
+            // ▶ Send is not in the order; when it sits in the strip, put it back just left of 📎.
+            ApplySendButtonPlacement();
         }
 
         /// <summary>

@@ -123,6 +123,8 @@
   "Build errors": "Erros de build",
   "Build solution": "Compilar a solução",
   "Button only — Enter inserts a newline, click Send to submit": "Só o botão — Enter insere uma nova linha, clique em Enviar para enviar",
+  "Show the Send button in the toolbar instead of the prompt box": "Mostrar o botão Enviar na barra de ferramentas em vez da caixa de prompt",
+  "Places the Send button with the other toolbar buttons, as in earlier versions. Applies to the prompt box above the terminal when \"Button only\" is selected.": "Coloca o botão Enviar junto com os outros botões da barra de ferramentas, como nas versões anteriores. Vale para a caixa de prompt acima do terminal quando \"Só o botão\" está selecionado.",
   "By default the button strip starts on the left, next to the scroll arrow. Turn this on to push it to the right edge of the row instead, the way the feature buttons sat before the toolbar became a single scrollable strip. Scrolling when the buttons no longer fit is unaffected either way.": "Por padrão, a faixa de botões começa à esquerda, ao lado da seta de rolagem. Ative para empurrá-la para a borda direita da linha, como os botões de recursos ficavam antes de a barra de ferramentas virar uma única faixa rolável. A rolagem quando os botões não cabem não muda em nenhum dos casos.",
   "CLI Path Not Found": "Caminho da CLI não encontrado",
   "CLI Paths": "Caminhos da CLI",

@@ -123,6 +123,8 @@
   "Build errors": "Lỗi build",
   "Build solution": "Build solution",
   "Button only — Enter inserts a newline, click Send to submit": "Chỉ nút — Enter xuống dòng, bấm Gửi để gửi",
+  "Show the Send button in the toolbar instead of the prompt box": "Hiển thị nút Gửi trên thanh công cụ thay vì trong ô lời nhắc",
+  "Places the Send button with the other toolbar buttons, as in earlier versions. Applies to the prompt box above the terminal when \"Button only\" is selected.": "Đặt nút Gửi cùng các nút khác trên thanh công cụ, như ở các phiên bản trước. Áp dụng cho ô lời nhắc phía trên terminal khi chọn \"Chỉ nút\".",
   "By default the button strip starts on the left, next to the scroll arrow. Turn this on to push it to the right edge of the row instead, the way the feature buttons sat before the toolbar became a single scrollable strip. Scrolling when the buttons no longer fit is unaffected either way.": "Theo mặc định, dải nút bắt đầu ở bên trái, cạnh mũi tên cuộn. Bật tùy chọn này để đẩy nó sang mép phải của hàng, giống như vị trí các nút tính năng trước khi thanh công cụ trở thành một dải cuộn duy nhất. Việc cuộn khi các nút không còn vừa vẫn không bị ảnh hưởng.",
   "CLI Path Not Found": "Không tìm thấy đường dẫn CLI",
   "CLI Paths": "Đường dẫn CLI",

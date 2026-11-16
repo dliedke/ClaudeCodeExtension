@@ -544,6 +544,13 @@ namespace ClaudeCodeVS
         public bool SendWithCtrlEnter { get; set; } = false;
 
         /// <summary>
+        /// If true, the panel's ▶ Send button ("Button only" mode) sits in the toolbar strip just left
+        /// of 📎, where it lived before v227.0, instead of the bottom-right corner of the prompt box.
+        /// The native chat composer's own Send button is not affected.
+        /// </summary>
+        public bool SendButtonInToolbar { get; set; } = false;
+
+        /// <summary>
         /// If true, prompts above ~1 KB are written to a temp file and only a file reference
         /// (`Prompt content saved to: &lt;path&gt;`) is pasted into the terminal. This avoids the
         /// conhost INPUT_RECORD buffer overflow that truncates the front of large pastes and

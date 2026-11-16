@@ -123,6 +123,8 @@
   "Build errors": "Build-Fehler",
   "Build solution": "Projektmappe erstellen",
   "Button only — Enter inserts a newline, click Send to submit": "Nur die Schaltfläche — Enter fügt eine neue Zeile ein, Senden klicken zum Absenden",
+  "Show the Send button in the toolbar instead of the prompt box": "Senden-Schaltfläche in der Symbolleiste statt im Eingabefeld anzeigen",
+  "Places the Send button with the other toolbar buttons, as in earlier versions. Applies to the prompt box above the terminal when \"Button only\" is selected.": "Platziert die Senden-Schaltfläche wie in früheren Versionen bei den anderen Symbolleisten-Schaltflächen. Gilt für das Eingabefeld über dem Terminal, wenn „Nur die Schaltfläche“ ausgewählt ist.",
   "By default the button strip starts on the left, next to the scroll arrow. Turn this on to push it to the right edge of the row instead, the way the feature buttons sat before the toolbar became a single scrollable strip. Scrolling when the buttons no longer fit is unaffected either way.": "Standardmäßig beginnt die Schaltflächenleiste links neben dem Scrollpfeil. Aktiviere dies, um sie an den rechten Rand der Zeile zu schieben, wo die Funktionsschaltflächen saßen, bevor die Symbolleiste eine einzige scrollbare Leiste wurde. Das Scrollen bei zu wenig Platz ändert sich in keinem Fall.",
   "CLI Path Not Found": "CLI-Pfad nicht gefunden",
   "CLI Paths": "CLI-Pfade",

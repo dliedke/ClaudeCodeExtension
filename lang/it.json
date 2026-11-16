@@ -123,6 +123,8 @@
   "Build errors": "Errori di compilazione",
   "Build solution": "Compila la soluzione",
   "Button only — Enter inserts a newline, click Send to submit": "Solo il pulsante — Invio inserisce una nuova riga, fai clic su Invia per inviare",
+  "Show the Send button in the toolbar instead of the prompt box": "Mostra il pulsante Invia nella barra degli strumenti invece che nella casella del prompt",
+  "Places the Send button with the other toolbar buttons, as in earlier versions. Applies to the prompt box above the terminal when \"Button only\" is selected.": "Colloca il pulsante Invia insieme agli altri pulsanti della barra degli strumenti, come nelle versioni precedenti. Si applica alla casella del prompt sopra il terminale quando è selezionato «Solo pulsante».",
   "By default the button strip starts on the left, next to the scroll arrow. Turn this on to push it to the right edge of the row instead, the way the feature buttons sat before the toolbar became a single scrollable strip. Scrolling when the buttons no longer fit is unaffected either way.": "Per impostazione predefinita la striscia di pulsanti parte da sinistra, accanto alla freccia di scorrimento. Attivalo per spingerla al bordo destro della riga, dove stavano i pulsanti delle funzioni prima che la barra degli strumenti diventasse un'unica striscia scorrevole. Lo scorrimento quando i pulsanti non entrano non cambia in nessun caso.",
   "CLI Path Not Found": "Percorso della CLI non trovato",
   "CLI Paths": "Percorsi della CLI",

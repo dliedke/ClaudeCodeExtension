@@ -123,6 +123,8 @@
   "Build errors": "生成错误",
   "Build solution": "生成解决方案",
   "Button only — Enter inserts a newline, click Send to submit": "仅按钮———Enter 插入换行，单击“发送”提交",
+  "Show the Send button in the toolbar instead of the prompt box": "在工具栏而不是提示框中显示发送按钮",
+  "Places the Send button with the other toolbar buttons, as in earlier versions. Applies to the prompt box above the terminal when \"Button only\" is selected.": "像早期版本一样，将发送按钮与其他工具栏按钮放在一起。选择“仅按钮”时，适用于终端上方的提示框。",
   "By default the button strip starts on the left, next to the scroll arrow. Turn this on to push it to the right edge of the row instead, the way the feature buttons sat before the toolbar became a single scrollable strip. Scrolling when the buttons no longer fit is unaffected either way.": "默认情况下，按钮条从左侧滚动箭头旁开始。启用此项可将其推到行的右边缘，就像工具栏变成单个可滚动按钮条之前功能按钮的位置。按钮放不下时的滚动行为不受影响。",
   "CLI Path Not Found": "未找到 CLI 路径",
   "CLI Paths": "CLI 路径",

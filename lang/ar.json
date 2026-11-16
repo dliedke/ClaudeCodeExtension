@@ -123,6 +123,8 @@
   "Build errors": "أخطاء البناء",
   "Build solution": "بناء الحل",
   "Button only — Enter inserts a newline, click Send to submit": "الزر فقط — Enter يدرج سطرًا جديدًا، وانقر إرسال للإرسال",
+  "Show the Send button in the toolbar instead of the prompt box": "إظهار زر الإرسال في شريط الأدوات بدلاً من مربع المطالبة",
+  "Places the Send button with the other toolbar buttons, as in earlier versions. Applies to the prompt box above the terminal when \"Button only\" is selected.": "يضع زر الإرسال مع أزرار شريط الأدوات الأخرى، كما في الإصدارات السابقة. ينطبق على مربع المطالبة أعلى الطرفية عند تحديد \"الزر فقط\".",
   "By default the button strip starts on the left, next to the scroll arrow. Turn this on to push it to the right edge of the row instead, the way the feature buttons sat before the toolbar became a single scrollable strip. Scrolling when the buttons no longer fit is unaffected either way.": "افتراضيًا يبدأ شريط الأزرار من اليسار بجوار سهم التمرير. فعّل هذا الخيار لدفعه إلى الحافة اليمنى من الصف، كما كانت أزرار الميزات قبل أن يصبح شريط الأدوات شريطًا واحدًا قابلًا للتمرير. لا يتأثر التمرير عندما لا تتسع الأزرار في الحالتين.",
   "CLI Path Not Found": "لم يُعثر على مسار CLI",
   "CLI Paths": "مسارات CLI",

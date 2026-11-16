@@ -140,7 +140,7 @@ Then choose it via *⚙ → Settings... → Terminal*.
 - Pick an AI provider, *Configure Visible Code Agents...*
 - Provider-specific flags: Claude *Skip Permissions* and *Start in Plan Mode*, Codex *Approval Never*, Cursor *Yolo Mode*, Devin *Dangerous Mode*, Antigravity *Skip Permissions*, Qwen Code *Yolo Mode*, Grok *Always Approve*
 - *Hide Prompt Input Box*, *Configure Custom Commands...*, *Settings...*, About
-- *Settings...* opens the consolidated dialog with tabs for On Agent Finish, Prompt (send key, large prompts, clipboard, selection as reference, last prompt, font size, @ file picker, usage bars), Automation (auto-open Changes, track agent changes for review, pull before sending, TFVC checkout, auto-send build and runtime errors, Install Caveman, Install latest OpenPets), Terminal (prompt panel position, prompt box, terminal type, encoding, fonts), Native mode (chat tabs, chat window, chat display, icons, chat font), Toolbar (incl. subagent count, ☰/⚡/⚙ position), Appearance (language, theme), CLI Paths (including extra launch arguments), and Backup (save/load all settings to a file)
+- *Settings...* opens the consolidated dialog with tabs for On Agent Finish, Prompt (send key, Send button position, large prompts, clipboard, selection as reference, last prompt, font size, @ file picker, usage bars), Automation (auto-open Changes, track agent changes for review, pull before sending, TFVC checkout, auto-send build and runtime errors, Install Caveman, Install latest OpenPets), Terminal (prompt panel position, prompt box, terminal type, encoding, fonts), Native mode (chat tabs, chat window, chat display, icons, chat font), Toolbar (incl. subagent count, ☰/⚡/⚙ position), Appearance (language, theme), CLI Paths (including extra launch arguments), and Backup (save/load all settings to a file)
 
 **☰ Tools dropdown**: Holds *Update Code Agent*, *Restart Code Agent*, *Detach/Attach Terminal*, *View Code Changes*, *Session History*, *Show Usage*, *Set Working Directory...*, *Send Build Errors to Agent*, *Generate Commit Message*, *Generate Commit Message, Commit and Push*, *Recommend AI Model*, and *GitHub Issues*. Promote any of these to one-click toolbar buttons — and reorder them by dragging — via *⚙ → Settings... → Toolbar*; promoted features leave the dropdown, which hides once they all become buttons.
 
@@ -197,6 +197,9 @@ A huge thank you to every developer who took the time to improve this extension 
 - [@wluisdev](https://github.com/wluisdev) — 1 PR
 
 ## Version History
+
+### Version 311.0
+- **Send button in the toolbar**: a new option in *⚙ → Settings... → Prompt* puts the Send button back with the other toolbar buttons, as before version 227.0, instead of in the corner of the prompt box ("Button only" send mode, off by default).
 
 ### Version 310.0
 - The Claude Usage page no longer signs itself out when it thinks the Claude Code account changed, so a Google sign-in there now sticks. Change Account and the page's own Sign Out / Switch Account still sign it out.

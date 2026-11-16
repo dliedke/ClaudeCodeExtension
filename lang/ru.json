@@ -123,6 +123,8 @@
   "Build errors": "Ошибки сборки",
   "Build solution": "Собрать решение",
   "Button only — Enter inserts a newline, click Send to submit": "Только кнопка — Enter вставляет новую строку, нажмите «Отправить», чтобы отправить",
+  "Show the Send button in the toolbar instead of the prompt box": "Показывать кнопку «Отправить» на панели инструментов, а не в поле запроса",
+  "Places the Send button with the other toolbar buttons, as in earlier versions. Applies to the prompt box above the terminal when \"Button only\" is selected.": "Размещает кнопку «Отправить» рядом с другими кнопками панели инструментов, как в прежних версиях. Действует для поля запроса над терминалом, когда выбран режим «Только кнопка».",
   "By default the button strip starts on the left, next to the scroll arrow. Turn this on to push it to the right edge of the row instead, the way the feature buttons sat before the toolbar became a single scrollable strip. Scrolling when the buttons no longer fit is unaffected either way.": "По умолчанию полоса кнопок начинается слева, рядом со стрелкой прокрутки. Включите, чтобы сдвинуть её к правому краю строки, где были кнопки функций до того, как панель инструментов стала единой прокручиваемой полосой. Прокрутка, когда кнопки не помещаются, в любом случае не меняется.",
   "CLI Path Not Found": "Путь к CLI не найден",
   "CLI Paths": "Пути к CLI",

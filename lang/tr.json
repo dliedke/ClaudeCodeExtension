@@ -123,6 +123,8 @@
   "Build errors": "Derleme hataları",
   "Build solution": "Çözümü derle",
   "Button only — Enter inserts a newline, click Send to submit": "Yalnızca düğme — Enter yeni satır ekler, göndermek için Gönder'e tıklayın",
+  "Show the Send button in the toolbar instead of the prompt box": "Gönder düğmesini istem kutusu yerine araç çubuğunda göster",
+  "Places the Send button with the other toolbar buttons, as in earlier versions. Applies to the prompt box above the terminal when \"Button only\" is selected.": "Gönder düğmesini önceki sürümlerdeki gibi diğer araç çubuğu düğmelerinin yanına yerleştirir. \"Yalnızca düğme\" seçiliyken terminalin üstündeki istem kutusu için geçerlidir.",
   "By default the button strip starts on the left, next to the scroll arrow. Turn this on to push it to the right edge of the row instead, the way the feature buttons sat before the toolbar became a single scrollable strip. Scrolling when the buttons no longer fit is unaffected either way.": "Varsayılan olarak düğme şeridi solda, kaydırma okunun yanında başlar. Araç çubuğu tek kaydırılabilir şerit olmadan önce özellik düğmelerinin bulunduğu satırın sağ kenarına itmek için açın. Düğmeler sığmadığında kaydırma her iki durumda da değişmez.",
   "CLI Path Not Found": "CLI yolu bulunamadı",
   "CLI Paths": "CLI Yolları",

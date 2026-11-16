@@ -123,6 +123,8 @@
   "Build errors": "बिल्ड त्रुटियाँ",
   "Build solution": "सॉल्यूशन बिल्ड करें",
   "Button only — Enter inserts a newline, click Send to submit": "केवल बटन — Enter नई पंक्ति डालता है, सबमिट करने के लिए भेजें पर क्लिक करें",
+  "Show the Send button in the toolbar instead of the prompt box": "भेजें बटन को प्रॉम्प्ट बॉक्स के बजाय टूलबार में दिखाएँ",
+  "Places the Send button with the other toolbar buttons, as in earlier versions. Applies to the prompt box above the terminal when \"Button only\" is selected.": "पिछले संस्करणों की तरह भेजें बटन को टूलबार के अन्य बटनों के साथ रखता है। \"केवल बटन\" चुने होने पर टर्मिनल के ऊपर वाले प्रॉम्प्ट बॉक्स पर लागू होता है।",
   "By default the button strip starts on the left, next to the scroll arrow. Turn this on to push it to the right edge of the row instead, the way the feature buttons sat before the toolbar became a single scrollable strip. Scrolling when the buttons no longer fit is unaffected either way.": "डिफ़ॉल्ट रूप से बटन पट्टी बाईं ओर, स्क्रॉल तीर के पास से शुरू होती है। इसे चालू करने पर पट्टी पंक्ति के दाएँ किनारे पर चली जाती है, जैसे टूलबार के एक स्क्रॉल करने योग्य पट्टी बनने से पहले फ़ीचर बटन रहते थे। बटन न समाने पर स्क्रॉलिंग किसी भी स्थिति में अप्रभावित रहती है।",
   "CLI Path Not Found": "CLI पथ नहीं मिला",
   "CLI Paths": "CLI पथ",

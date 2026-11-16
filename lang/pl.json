@@ -123,6 +123,8 @@
   "Build errors": "Błędy kompilacji",
   "Build solution": "Kompiluj rozwiązanie",
   "Button only — Enter inserts a newline, click Send to submit": "Tylko przycisk — Enter wstawia nowy wiersz, kliknij Wyślij, aby wysłać",
+  "Show the Send button in the toolbar instead of the prompt box": "Pokazuj przycisk Wyślij na pasku narzędzi zamiast w polu promptu",
+  "Places the Send button with the other toolbar buttons, as in earlier versions. Applies to the prompt box above the terminal when \"Button only\" is selected.": "Umieszcza przycisk Wyślij razem z pozostałymi przyciskami paska narzędzi, jak we wcześniejszych wersjach. Dotyczy pola promptu nad terminalem, gdy wybrano „Tylko przycisk”.",
   "By default the button strip starts on the left, next to the scroll arrow. Turn this on to push it to the right edge of the row instead, the way the feature buttons sat before the toolbar became a single scrollable strip. Scrolling when the buttons no longer fit is unaffected either way.": "Domyślnie pasek przycisków zaczyna się po lewej, obok strzałki przewijania. Włącz, aby przesunąć go do prawej krawędzi wiersza, gdzie były przyciski funkcji, zanim pasek narzędzi stał się jednym przewijanym paskiem. Przewijanie, gdy przyciski się nie mieszczą, w żadnym wypadku się nie zmienia.",
   "CLI Path Not Found": "Nie znaleziono ścieżki CLI",
   "CLI Paths": "Ścieżki CLI",

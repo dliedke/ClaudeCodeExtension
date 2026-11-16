@@ -166,6 +166,53 @@ namespace ClaudeCodeVS
         private bool ShouldShowSendButton =>
             _settings != null && !_settings.SendWithEnter && !_settings.SendWithCtrlEnter;
 
+        /// <summary>
+        /// Puts the panel's ▶ Send button where Settings → Prompt says: the bottom-right corner of the
+        /// prompt box (default since v227.0) or the toolbar strip just left of 📎 (where it was before).
+        /// One button is moved rather than two kept in sync, so every IsEnabled/Visibility write keeps
+        /// working wherever it sits. Idempotent; must run after ReorderToolbarControls, whose ordering
+        /// would otherwise leave the button (not part of the toolbar order) at the tail of the strip.
+        /// </summary>
+        private void ApplySendButtonPlacement()
+        {
+            ThreadHelper.ThrowIfNotOnUIThread();
+
+            if (SendPromptButton == null || PromptBoxGrid == null || RightButtonsPanel == null)
+                return;
+
+            bool inToolbar = _settings?.SendButtonInToolbar == true;
+            var currentParent = SendPromptButton.Parent as System.Windows.Controls.Panel;
+
+            try
+            {
+                currentParent?.Children.Remove(SendPromptButton);
+
+                if (inToolbar)
+                {
+                    int attachIndex = AttachDropdownButton != null ? RightButtonsPanel.Children.IndexOf(AttachDropdownButton) : -1;
+                    if (attachIndex >= 0)
+                        RightButtonsPanel.Children.Insert(attachIndex, SendPromptButton);
+                    else
+                        RightButtonsPanel.Children.Add(SendPromptButton);
+
+                    System.Windows.Controls.Grid.SetColumn(SendPromptButton, 0);
+                    SendPromptButton.VerticalAlignment = VerticalAlignment.Top;
+                    SendPromptButton.Margin = new Thickness(0, 0, 6, 0);
+                }
+                else
+                {
+                    PromptBoxGrid.Children.Add(SendPromptButton);
+                    System.Windows.Controls.Grid.SetColumn(SendPromptButton, 1);
+                    SendPromptButton.VerticalAlignment = VerticalAlignment.Bottom;
+                    SendPromptButton.Margin = new Thickness(4, 0, 0, 0);
+                }
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"ApplySendButtonPlacement failed: {ex.Message}");
+            }
+        }
+
 #pragma warning disable VSTHRD100 // Avoid async void methods
         private async void SendButton_Click(object sender, RoutedEventArgs e)
 #pragma warning restore VSTHRD100 // Avoid async void methods

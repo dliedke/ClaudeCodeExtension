@@ -169,7 +169,7 @@
 				<GroupBox.Header>
 					<TextBlock Text="{local:Loc 'Prompt / Paste Image'}" Opacity="0.93"/>
 				</GroupBox.Header>
-				<Grid Background="{DynamicResource {x:Static vsshell:VsBrushes.WindowKey}}">
+				<Grid x:Name="PromptBoxGrid" Background="{DynamicResource {x:Static vsshell:VsBrushes.WindowKey}}">
 					<Grid.ColumnDefinitions>
 						<ColumnDefinition Width="*"/>
 						<ColumnDefinition Width="Auto"/>
@@ -220,7 +220,9 @@
 					           FontSize="{Binding FontSize, ElementName=PromptTextBox}"
 					           Foreground="{DynamicResource {x:Static vsshell:VsBrushes.WindowTextKey}}"/>
 					<!-- Send button (visible only while Enter does not send), tucked into the bottom-right
-					     corner of the prompt box like the chat composer's. -->
+					     corner of the prompt box like the chat composer's. "Show the Send button in the
+					     toolbar" (Settings → Prompt) re-parents it into RightButtonsPanel, left of 📎
+					     (ApplySendButtonPlacement). -->
 					<Button x:Name="SendPromptButton" Grid.Column="1"
 					        Content="▶"
 					        Width="30"

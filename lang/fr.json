@@ -123,6 +123,8 @@
   "Build errors": "Erreurs de build",
   "Build solution": "Générer la solution",
   "Button only — Enter inserts a newline, click Send to submit": "Bouton uniquement — Entrée insère une nouvelle ligne, cliquez sur Envoyer pour envoyer",
+  "Show the Send button in the toolbar instead of the prompt box": "Afficher le bouton Envoyer dans la barre d’outils au lieu de la zone de prompt",
+  "Places the Send button with the other toolbar buttons, as in earlier versions. Applies to the prompt box above the terminal when \"Button only\" is selected.": "Place le bouton Envoyer avec les autres boutons de la barre d’outils, comme dans les versions précédentes. S’applique à la zone de prompt au-dessus du terminal lorsque « Bouton uniquement » est sélectionné.",
   "By default the button strip starts on the left, next to the scroll arrow. Turn this on to push it to the right edge of the row instead, the way the feature buttons sat before the toolbar became a single scrollable strip. Scrolling when the buttons no longer fit is unaffected either way.": "Par défaut, la bande de boutons commence à gauche, à côté de la flèche de défilement. Activez cette option pour la pousser vers le bord droit de la ligne, là où se trouvaient les boutons de fonctions avant que la barre d'outils ne devienne une seule bande défilante. Le défilement quand les boutons ne tiennent pas ne change dans aucun cas.",
   "CLI Path Not Found": "Chemin de la CLI introuvable",
   "CLI Paths": "Chemins de la CLI",

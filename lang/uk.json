@@ -123,6 +123,8 @@
   "Build errors": "Помилки збирання",
   "Build solution": "Зібрати рішення",
   "Button only — Enter inserts a newline, click Send to submit": "Лише кнопка — Enter вставляє новий рядок, натисніть «Надіслати», щоб надіслати",
+  "Show the Send button in the toolbar instead of the prompt box": "Показувати кнопку «Надіслати» на панелі інструментів, а не в полі запиту",
+  "Places the Send button with the other toolbar buttons, as in earlier versions. Applies to the prompt box above the terminal when \"Button only\" is selected.": "Розміщує кнопку «Надіслати» поруч з іншими кнопками панелі інструментів, як у попередніх версіях. Діє для поля запиту над терміналом, коли вибрано режим «Лише кнопка».",
   "By default the button strip starts on the left, next to the scroll arrow. Turn this on to push it to the right edge of the row instead, the way the feature buttons sat before the toolbar became a single scrollable strip. Scrolling when the buttons no longer fit is unaffected either way.": "За замовчуванням смуга кнопок починається ліворуч, поруч зі стрілкою прокручування. Увімкніть, щоб посунути її до правого краю рядка, де були кнопки функцій до того, як панель інструментів стала єдиною прокручуваною смугою. Прокручування, коли кнопки не вміщуються, у будь-якому разі не змінюється.",
   "CLI Path Not Found": "Шлях до CLI не знайдено",
   "CLI Paths": "Шляхи до CLI",

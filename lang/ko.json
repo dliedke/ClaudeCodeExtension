@@ -123,6 +123,8 @@
   "Build errors": "빌드 오류",
   "Build solution": "솔루션 빌드",
   "Button only — Enter inserts a newline, click Send to submit": "단추만 — Enter는 줄 바꿈, 보내기를 클릭하여 제출",
+  "Show the Send button in the toolbar instead of the prompt box": "보내기 단추를 프롬프트 상자 대신 도구 모음에 표시",
+  "Places the Send button with the other toolbar buttons, as in earlier versions. Applies to the prompt box above the terminal when \"Button only\" is selected.": "이전 버전처럼 보내기 단추를 다른 도구 모음 단추와 함께 배치합니다. \"단추만\"을 선택한 경우 터미널 위의 프롬프트 상자에 적용됩니다.",
   "By default the button strip starts on the left, next to the scroll arrow. Turn this on to push it to the right edge of the row instead, the way the feature buttons sat before the toolbar became a single scrollable strip. Scrolling when the buttons no longer fit is unaffected either way.": "기본적으로 단추 줄은 왼쪽 스크롤 화살표 옆에서 시작합니다. 이 옵션을 켜면 도구 모음이 하나의 스크롤 가능한 줄이 되기 전처럼 기능 단추를 행의 오른쪽 가장자리로 밀어 둡니다. 단추가 다 들어가지 않을 때의 스크롤은 어느 쪽이든 영향을 받지 않습니다.",
   "CLI Path Not Found": "CLI 경로를 찾을 수 없음",
   "CLI Paths": "CLI 경로",

@@ -123,6 +123,8 @@
   "Build errors": "Error build",
   "Build solution": "Build solution",
   "Button only — Enter inserts a newline, click Send to submit": "Hanya tombol — Enter menyisipkan baris baru, klik Kirim untuk mengirim",
+  "Show the Send button in the toolbar instead of the prompt box": "Tampilkan tombol Kirim di toolbar, bukan di kotak prompt",
+  "Places the Send button with the other toolbar buttons, as in earlier versions. Applies to the prompt box above the terminal when \"Button only\" is selected.": "Menempatkan tombol Kirim bersama tombol toolbar lainnya, seperti di versi sebelumnya. Berlaku untuk kotak prompt di atas terminal saat \"Hanya tombol\" dipilih.",
   "By default the button strip starts on the left, next to the scroll arrow. Turn this on to push it to the right edge of the row instead, the way the feature buttons sat before the toolbar became a single scrollable strip. Scrolling when the buttons no longer fit is unaffected either way.": "Secara default, deretan tombol dimulai di kiri, di samping panah gulir. Aktifkan ini untuk mendorongnya ke tepi kanan baris, seperti posisi tombol fitur sebelum toolbar menjadi satu deretan yang dapat digulir. Pengguliran saat tombol tidak lagi muat tidak terpengaruh.",
   "CLI Path Not Found": "Path CLI Tidak Ditemukan",
   "CLI Paths": "Path CLI",
