@@ -198,6 +198,10 @@ A huge thank you to every developer who took the time to improve this extension 
 
 ## Version History
 
+### Version 312.0
+- **Generate Commit Message** now finds the Git Changes window in any Visual Studio language and opens it when it is closed or behind another tab.
+- The message is only reported as filled when it really landed in the commit box; otherwise it is copied to the clipboard, so it can no longer end up in the wrong text box.
+
 ### Version 311.0
 - **Send button in the toolbar**: a new option in *⚙ → Settings... → Prompt* puts the Send button back with the other toolbar buttons, as before version 227.0, instead of in the corner of the prompt box ("Button only" send mode, off by default).
 

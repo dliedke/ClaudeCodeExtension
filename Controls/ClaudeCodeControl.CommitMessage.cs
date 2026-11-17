@@ -589,17 +589,35 @@ namespace ClaudeCodeVS
 
         #region Git Changes window automation (best-effort)
 
+        /// <summary>
+        /// Tool window GUID of Visual Studio's Git Changes window. Language-independent (measured on
+        /// VS 18: the tab's automation id is <c>TAB_ST:0:0:{guid}</c> and the pane's <c>ST:0:0:{guid}</c>),
+        /// unlike the window caption, which is localized.
+        /// </summary>
+        private static readonly Guid GitChangesToolWindowGuid = new Guid("1c64b9c2-e352-428e-a56d-0ace190b99a6");
+
+        /// <summary>Automation id of the commit message box inside the Git Changes window (measured on VS 18).</summary>
+        private const string GitChangesCommitBoxAutomationId = "commentTextBox";
+
+        /// <summary>
+        /// Commands that open the Git Changes window, tried in order. <c>View.GitWindow</c> is confirmed
+        /// to exist on VS 18 (View > Git Changes); the earlier guesses (<c>Team.Git.Changes</c>,
+        /// <c>View.GitChanges</c>) do not exist.
+        /// </summary>
         private static readonly string[] GitChangesCommandCandidates =
         {
-            "Team.Git.Changes",
-            "View.GitChanges"
+            "View.GitWindow",
+            "Team.Git.GoToGitChanges"
         };
+
+        /// <summary>How long the Git Changes content is polled for after the window is shown.</summary>
+        private const int GitChangesLocateTimeoutMs = 3000;
 
         /// <summary>
         /// Best-effort fill of the Git Changes tool window's commit message box via UI Automation —
         /// there is no supported Visual Studio API to read or write it. Returns false on any failure
-        /// (window/field not found, automation exception), letting the caller fall back to the
-        /// clipboard rather than leaving the user with no way to get the generated message.
+        /// (window/field not found, value not taken, automation exception), letting the caller fall
+        /// back to the clipboard rather than leaving the user with no way to get the generated message.
         /// </summary>
         private async Task<bool> TryFillGitChangesCommitMessageAsync(string message)
         {
@@ -612,31 +630,41 @@ namespace ClaudeCodeVS
 
                 IntPtr mainHwnd = (IntPtr)dte.MainWindow.HWnd;
 
-                if (!IsGitChangesWindowOpen(dte))
-                {
-                    if (!TryOpenGitChangesWindow(dte))
-                    {
-                        return false;
-                    }
-
-                    await Task.Delay(400);
-                    await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
-                }
+                // Shown even when already open: a background tab has no content in the automation tree.
+                if (!ShowGitChangesWindow(dte)) return false;
 
                 var root = System.Windows.Automation.AutomationElement.FromHandle(mainHwnd);
                 if (root == null) return false;
 
-                var container = FindDescendantByNameContains(root, "Git Changes", 6000) ?? root;
-                var editElement = FindCommitMessageEditElement(container);
+                System.Windows.Automation.AutomationElement editElement;
+                var deadline = DateTime.UtcNow.AddMilliseconds(GitChangesLocateTimeoutMs);
+                while (true)
+                {
+                    editElement = FindGitChangesCommitBox(root);
+                    if (editElement != null || DateTime.UtcNow >= deadline) break;
+
+                    await Task.Delay(250);
+                    await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
+                }
+
                 if (editElement == null) return false;
 
                 if (!(editElement.GetCurrentPattern(System.Windows.Automation.ValuePattern.Pattern)
-                        is System.Windows.Automation.ValuePattern valuePattern))
+                        is System.Windows.Automation.ValuePattern valuePattern) ||
+                    valuePattern.Current.IsReadOnly)
                 {
                     return false;
                 }
 
                 valuePattern.SetValue(message);
+
+                // Read back: a SetValue the control silently ignored must not count as success.
+                if (!CommitTextMatches(message, valuePattern.Current.Value))
+                {
+                    Debug.WriteLine("TryFillGitChangesCommitMessageAsync: value did not stick, falling back to clipboard");
+                    return false;
+                }
+
                 SetForegroundWindow(mainHwnd);
                 return true;
             }
@@ -647,38 +675,21 @@ namespace ClaudeCodeVS
             }
         }
 
-        /// <summary>Checks whether a Git Changes window is already open, and brings it to front if so.</summary>
-        private static bool IsGitChangesWindowOpen(EnvDTE.DTE dte)
+        /// <summary>
+        /// Opens or brings the Git Changes window to front, language-independently: the existing frame
+        /// by tool window GUID, else the View command, else a forced create of the same GUID.
+        /// </summary>
+        private static bool ShowGitChangesWindow(EnvDTE.DTE dte)
         {
             ThreadHelper.ThrowIfNotOnUIThread();
 
-            try
+            var shell = Package.GetGlobalService(typeof(Microsoft.VisualStudio.Shell.Interop.SVsUIShell))
+                as Microsoft.VisualStudio.Shell.Interop.IVsUIShell;
+
+            if (TryShowGitChangesFrame(shell, Microsoft.VisualStudio.Shell.Interop.__VSFINDTOOLWIN.FTW_fFindFirst))
             {
-                foreach (EnvDTE.Window window in dte.Windows)
-                {
-                    string caption;
-                    try { caption = window.Caption; } catch { continue; }
-
-                    if (!string.IsNullOrEmpty(caption) &&
-                        caption.IndexOf("Git Changes", StringComparison.OrdinalIgnoreCase) >= 0)
-                    {
-                        try { window.Visible = true; window.Activate(); } catch { }
-                        return true;
-                    }
-                }
+                return true;
             }
-            catch (Exception ex)
-            {
-                Debug.WriteLine($"IsGitChangesWindowOpen error: {ex.Message}");
-            }
-
-            return false;
-        }
-
-        /// <summary>Tries each candidate command name until one opens the Git Changes window.</summary>
-        private static bool TryOpenGitChangesWindow(EnvDTE.DTE dte)
-        {
-            ThreadHelper.ThrowIfNotOnUIThread();
 
             foreach (string command in GitChangesCommandCandidates)
             {
@@ -689,7 +700,94 @@ namespace ClaudeCodeVS
                 }
                 catch (Exception ex)
                 {
-                    Debug.WriteLine($"TryOpenGitChangesWindow: '{command}' failed: {ex.Message}");
+                    Debug.WriteLine($"ShowGitChangesWindow: '{command}' failed: {ex.Message}");
+                }
+            }
+
+            return TryShowGitChangesFrame(shell, Microsoft.VisualStudio.Shell.Interop.__VSFINDTOOLWIN.FTW_fForceCreate);
+        }
+
+        private static bool TryShowGitChangesFrame(
+            Microsoft.VisualStudio.Shell.Interop.IVsUIShell shell,
+            Microsoft.VisualStudio.Shell.Interop.__VSFINDTOOLWIN flags)
+        {
+            ThreadHelper.ThrowIfNotOnUIThread();
+            if (shell == null) return false;
+
+            try
+            {
+                Guid guid = GitChangesToolWindowGuid;
+                if (shell.FindToolWindow((uint)flags, ref guid, out var frame) == Microsoft.VisualStudio.VSConstants.S_OK &&
+                    frame != null)
+                {
+                    return frame.Show() == Microsoft.VisualStudio.VSConstants.S_OK;
+                }
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"TryShowGitChangesFrame({flags}) error: {ex.Message}");
+            }
+
+            return false;
+        }
+
+        /// <summary>
+        /// Finds the commit message box. First by its automation id (preferring one inside the Git
+        /// Changes pane), then — should a future VS rename it — the tallest visible Edit inside the pane
+        /// located by its tool window GUID. Never searches the whole IDE for "the tallest Edit": that
+        /// picked this extension's own chat composer (taller than the commit box) whenever the pane
+        /// lookup failed, e.g. on a non-English VS where the "Git Changes" caption did not match.
+        /// </summary>
+        private static System.Windows.Automation.AutomationElement FindGitChangesCommitBox(
+            System.Windows.Automation.AutomationElement root)
+        {
+            try
+            {
+                var byId = root.FindAll(
+                    System.Windows.Automation.TreeScope.Descendants,
+                    new System.Windows.Automation.PropertyCondition(
+                        System.Windows.Automation.AutomationElement.AutomationIdProperty,
+                        GitChangesCommitBoxAutomationId));
+
+                System.Windows.Automation.AutomationElement firstUsable = null;
+                foreach (System.Windows.Automation.AutomationElement candidate in byId)
+                {
+                    if (!IsUsableEdit(candidate)) continue;
+                    if (IsInsideGitChangesPane(candidate)) return candidate;
+                    if (firstUsable == null) firstUsable = candidate;
+                }
+
+                if (firstUsable != null) return firstUsable;
+
+                var pane = FindGitChangesPane(root);
+                return pane == null ? null : FindTallestUsableEdit(pane);
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"FindGitChangesCommitBox error: {ex.Message}");
+                return null;
+            }
+        }
+
+        /// <summary>Whether an automation id names the Git Changes tool window (pane "ST:..{guid}", tab "TAB_ST:..{guid}").</summary>
+        private static bool IdNamesGitChangesWindow(string automationId) =>
+            !string.IsNullOrEmpty(automationId) &&
+            automationId.IndexOf(GitChangesToolWindowGuid.ToString(), StringComparison.OrdinalIgnoreCase) >= 0;
+
+        private static bool IsInsideGitChangesPane(System.Windows.Automation.AutomationElement element)
+        {
+            var walker = System.Windows.Automation.TreeWalker.ControlViewWalker;
+            var current = element;
+            for (int depth = 0; depth < 16 && current != null; depth++)
+            {
+                try
+                {
+                    current = walker.GetParent(current);
+                    if (current != null && IdNamesGitChangesWindow(current.Current.AutomationId)) return true;
+                }
+                catch
+                {
+                    return false;
                 }
             }
 
@@ -697,15 +795,13 @@ namespace ClaudeCodeVS
         }
 
         /// <summary>
-        /// Breadth-first search for the first descendant whose Name contains <paramref name="substring"/>,
-        /// bounded by <paramref name="maxNodes"/> so a miss on an unfamiliar VS version degrades to "not
-        /// found" quickly instead of walking the entire main window's automation tree.
+        /// Bounded breadth-first search for the Git Changes pane by tool window GUID, skipping the tab
+        /// header (whose id carries the same GUID but holds no content). Bounded so a miss degrades to
+        /// "not found" quickly instead of walking the entire main window's automation tree.
         /// </summary>
-        private static System.Windows.Automation.AutomationElement FindDescendantByNameContains(
-            System.Windows.Automation.AutomationElement root, string substring, int maxNodes)
+        private static System.Windows.Automation.AutomationElement FindGitChangesPane(
+            System.Windows.Automation.AutomationElement root, int maxNodes = 6000)
         {
-            if (root == null) return null;
-
             var queue = new System.Collections.Generic.Queue<System.Windows.Automation.AutomationElement>();
             queue.Enqueue(root);
             int visited = 0;
@@ -715,10 +811,10 @@ namespace ClaudeCodeVS
                 System.Windows.Automation.AutomationElement current = queue.Dequeue();
                 visited++;
 
-                string name;
-                try { name = current.Current.Name; } catch { name = null; }
+                string id;
+                try { id = current.Current.AutomationId; } catch { id = null; }
 
-                if (!string.IsNullOrEmpty(name) && name.IndexOf(substring, StringComparison.OrdinalIgnoreCase) >= 0)
+                if (IdNamesGitChangesWindow(id) && !id.StartsWith("TAB_", StringComparison.OrdinalIgnoreCase))
                 {
                     return current;
                 }
@@ -737,48 +833,61 @@ namespace ClaudeCodeVS
         }
 
         /// <summary>
-        /// Picks the commit message box among the container's Edit descendants. WPF exposes no reliable
-        /// "is multiline" automation property here, so the tallest Edit control is used as a heuristic —
-        /// the multiline commit box is visually taller than the single-line file filter box in the same window.
+        /// Tallest visible, enabled Edit in the pane — the multiline commit box is taller than the
+        /// single-line file filter box in the same window (WPF exposes no "is multiline" property).
         /// </summary>
-        private static System.Windows.Automation.AutomationElement FindCommitMessageEditElement(
+        private static System.Windows.Automation.AutomationElement FindTallestUsableEdit(
             System.Windows.Automation.AutomationElement container)
+        {
+            var condition = new System.Windows.Automation.AndCondition(
+                new System.Windows.Automation.PropertyCondition(
+                    System.Windows.Automation.AutomationElement.ControlTypeProperty,
+                    System.Windows.Automation.ControlType.Edit),
+                new System.Windows.Automation.PropertyCondition(
+                    System.Windows.Automation.AutomationElement.IsValuePatternAvailableProperty, true));
+
+            System.Windows.Automation.AutomationElement best = null;
+            double bestHeight = -1;
+
+            foreach (System.Windows.Automation.AutomationElement candidate in
+                     container.FindAll(System.Windows.Automation.TreeScope.Descendants, condition))
+            {
+                if (!IsUsableEdit(candidate)) continue;
+
+                double height;
+                try { height = candidate.Current.BoundingRectangle.Height; }
+                catch { continue; }
+
+                if (height > bestHeight)
+                {
+                    bestHeight = height;
+                    best = candidate;
+                }
+            }
+
+            return best;
+        }
+
+        /// <summary>Rejects hidden, disabled or zero-size controls — writing into those shows the user nothing.</summary>
+        private static bool IsUsableEdit(System.Windows.Automation.AutomationElement element)
         {
             try
             {
-                var condition = new System.Windows.Automation.AndCondition(
-                    new System.Windows.Automation.PropertyCondition(
-                        System.Windows.Automation.AutomationElement.ControlTypeProperty,
-                        System.Windows.Automation.ControlType.Edit),
-                    new System.Windows.Automation.PropertyCondition(
-                        System.Windows.Automation.AutomationElement.IsValuePatternAvailableProperty, true));
-
-                System.Windows.Automation.AutomationElementCollection candidates =
-                    container.FindAll(System.Windows.Automation.TreeScope.Descendants, condition);
-
-                System.Windows.Automation.AutomationElement best = null;
-                double bestHeight = -1;
-
-                foreach (System.Windows.Automation.AutomationElement candidate in candidates)
-                {
-                    double height;
-                    try { height = candidate.Current.BoundingRectangle.Height; }
-                    catch { continue; }
-
-                    if (height > bestHeight)
-                    {
-                        bestHeight = height;
-                        best = candidate;
-                    }
-                }
-
-                return best;
+                var info = element.Current;
+                return !info.IsOffscreen && info.IsEnabled &&
+                       !info.BoundingRectangle.IsEmpty && info.BoundingRectangle.Height > 0;
             }
-            catch (Exception ex)
+            catch
             {
-                Debug.WriteLine($"FindCommitMessageEditElement error: {ex.Message}");
-                return null;
+                return false;
             }
+        }
+
+        /// <summary>Compares the written message with the box's read-back value, ignoring line-ending and edge whitespace differences.</summary>
+        private static bool CommitTextMatches(string written, string readBack)
+        {
+            string Normalize(string s) => (s ?? string.Empty).Replace("\r\n", "\n").Replace('\r', '\n').Trim();
+            return string.Equals(Normalize(written), Normalize(readBack), StringComparison.Ordinal);
         }
 
         #endregion
