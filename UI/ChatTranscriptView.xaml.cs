@@ -2031,8 +2031,8 @@ namespace ClaudeCodeVS.UI
         }
 
         /// <summary>
-        /// Shows the ring and fills the popup. The ring fills with the context window in use, or with the
-        /// session limit when no turn has reported a context window yet. Null or not visible hides the button.
+        /// Shows the ring and fills the popup. The ring reflects the session limit when plan usage is available.
+        /// Null or not visible hides the button.
         /// </summary>
         public void SetUsageIndicator(ChatUsageIndicatorData data)
         {
@@ -2051,9 +2051,7 @@ namespace ClaudeCodeVS.UI
                 return;
             }
 
-            int ringPercent = data.HasContext
-                ? ChatUsageIndicator.ClampPercent(data.ContextPercent)
-                : data.HasPlanUsage ? ChatUsageIndicator.ClampPercent(data.SessionPercent) : -1;
+            int ringPercent = data.HasPlanUsage ? ChatUsageIndicator.ClampPercent(data.SessionPercent) : -1;
             ComposerUsageRingArc.Data = ringPercent < 0
                 ? null
                 : ChatUsageIndicator.RingArc(ringPercent / 100.0, 7, 6);

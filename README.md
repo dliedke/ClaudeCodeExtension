@@ -198,6 +198,10 @@ A huge thank you to every developer who took the time to improve this extension 
 
 ## Version History
 
+### Version 313.0
+
+- The Claude Code usage ring now shows the current session limit.
+
 ### Version 312.0
 - **Generate Commit Message** now finds the Git Changes window in any Visual Studio language and opens it when it is closed or behind another tab.
 - The message is only reported as filled when it really landed in the commit box; otherwise it is copied to the clipboard, so it can no longer end up in the wrong text box.
