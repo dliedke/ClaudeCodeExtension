@@ -198,6 +198,10 @@ A huge thank you to every developer who took the time to improve this extension 
 
 ## Version History
 
+### Version 314.0
+- Approving a plan now really carries it out in Accept edits, as the permission selector shows, instead of asking before every edit.
+- Once the approved plan is carried out, the chat goes back to Plan mode, so your next request is planned again (#210).
+
 ### Version 313.0
 
 - The Claude Code usage ring now shows the current session limit.

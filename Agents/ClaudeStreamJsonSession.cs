@@ -361,12 +361,17 @@ namespace ClaudeCodeVS.Agents
         }
 
         /// <summary>
-        /// Hands the pending plan-exit mode to the plan approval that is about to carry it, once, and
-        /// keeps the launch options in step the same way <see cref="SetPermissionModeAsync"/> does.
+        /// Hands the plan-exit mode to the plan approval that is about to carry it — the pending pick,
+        /// once, or <c>acceptEdits</c> for a session the extension put in plan mode (see
+        /// <see cref="ClaudeCommandBuilder.ResolvePlanApprovalMode"/>) — and keeps the launch options in
+        /// step the same way <see cref="SetPermissionModeAsync"/> does.
         /// </summary>
         private string TakePendingPlanExitMode()
         {
-            string mode = Interlocked.Exchange(ref _pendingPlanExitMode, null);
+            string mode = ClaudeCommandBuilder.ResolvePlanApprovalMode(
+                Interlocked.Exchange(ref _pendingPlanExitMode, null),
+                _options.PermissionMode,
+                _options.DangerouslySkipPermissions);
             if (mode != null)
             {
                 RememberPermissionMode(mode);

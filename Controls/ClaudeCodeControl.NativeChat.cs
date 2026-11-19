@@ -5739,31 +5739,33 @@ namespace ClaudeCodeVS
         }
 
         /// <summary>
-        /// Called when a panel turn ends: "Approve and skip permissions" on a plan card skips the
-        /// prompts for that plan only (issue #210) — before, the conversation stayed in Skip
-        /// permissions for good. The turn that carried the plan out is over, so the override goes back
-        /// to what it was before the approval and the running session follows, live where it can.
-        /// A permission pick made since then replaced the override and is left alone.
+        /// Called when a panel turn ends: approving a plan out of Plan mode — into Accept edits, or
+        /// with "Approve and skip permissions" — holds for that plan only (issue #210); before, the
+        /// conversation stayed in the approved mode for good. The turn that carried the plan out is
+        /// over, so the override goes back to what it was before the approval (normally Plan mode)
+        /// and the running session follows, live where it can. A permission pick made since then
+        /// replaced the override and is left alone.
         /// </summary>
-        private void RestoreNativeModeAfterSkippedPlan()
+        private void RestoreNativeModeAfterApprovedPlan()
         {
             ThreadHelper.ThrowIfNotOnUIThread();
 
-            if (!_nativeSkipPlanRestorePending)
+            if (!_nativePlanRestorePending)
             {
                 return;
             }
 
-            _nativeSkipPlanRestorePending = false;
+            _nativePlanRestorePending = false;
 
-            if (_nativePlanExitChoice != ClaudePermissionChoice.SkipPermissions ||
+            if (!_nativePlanRestoreFrom.HasValue || _nativePlanExitChoice != _nativePlanRestoreFrom ||
                 !(_agentSession is ClaudeStreamJsonSession))
             {
                 return;
             }
 
-            _nativePlanExitChoice = _nativeSkipPlanRestoreChoice;
-            _nativeSkipPlanRestoreChoice = null;
+            _nativePlanExitChoice = _nativePlanRestoreChoice;
+            _nativePlanRestoreChoice = null;
+            _nativePlanRestoreFrom = null;
             UpdateChatComposerState();
 
             string notice = L("🤖 Plan carried out — back to {0}", GetClaudePermissionLabel(
@@ -5777,26 +5779,27 @@ namespace ClaudeCodeVS
 #pragma warning restore VSSDK007
         }
 
-        /// <summary>The parallel-tab counterpart of <see cref="RestoreNativeModeAfterSkippedPlan"/>.</summary>
-        private void RestoreSessionModeAfterSkippedPlan(NativeChatSessionState session)
+        /// <summary>The parallel-tab counterpart of <see cref="RestoreNativeModeAfterApprovedPlan"/>.</summary>
+        private void RestoreSessionModeAfterApprovedPlan(NativeChatSessionState session)
         {
             ThreadHelper.ThrowIfNotOnUIThread();
 
-            if (!session.SkipPlanRestorePending)
+            if (!session.PlanRestorePending)
             {
                 return;
             }
 
-            session.SkipPlanRestorePending = false;
+            session.PlanRestorePending = false;
 
-            if (session.PlanExitChoice != ClaudePermissionChoice.SkipPermissions ||
+            if (!session.PlanRestoreFrom.HasValue || session.PlanExitChoice != session.PlanRestoreFrom ||
                 !(session.AgentSession is ClaudeStreamJsonSession))
             {
                 return;
             }
 
-            session.PlanExitChoice = session.SkipPlanRestoreChoice;
-            session.SkipPlanRestoreChoice = null;
+            session.PlanExitChoice = session.PlanRestoreChoice;
+            session.PlanRestoreChoice = null;
+            session.PlanRestoreFrom = null;
             UpdateChatComposerState(session);
 
             string notice = L("🤖 Plan carried out — back to {0}", GetClaudePermissionLabel(GetNativeClaudePermissionChoice(session)));

@@ -158,12 +158,15 @@ namespace ClaudeCodeVS
         public ClaudePermissionChoice? PlanExitChoice { get; set; }
 
         /// <summary>
-        /// Set when this tab's plan was approved with "Approve and skip permissions": the skip is for
-        /// that plan only (issue #210), so the end of the turn puts <see cref="PlanExitChoice"/> back to
-        /// <see cref="SkipPlanRestoreChoice"/> — the mode the conversation was in before the approval.
+        /// Set when this tab's plan was approved out of Plan mode: the mode the approval moved to
+        /// (<see cref="PlanRestoreFrom"/> — Accept edits, or Skip permissions) is for that plan only
+        /// (issue #210), so the end of the turn puts <see cref="PlanExitChoice"/> back to
+        /// <see cref="PlanRestoreChoice"/> — the mode the conversation was in before the approval,
+        /// normally Plan mode again.
         /// </summary>
-        public bool SkipPlanRestorePending { get; set; }
-        public ClaudePermissionChoice? SkipPlanRestoreChoice { get; set; }
+        public bool PlanRestorePending { get; set; }
+        public ClaudePermissionChoice? PlanRestoreChoice { get; set; }
+        public ClaudePermissionChoice? PlanRestoreFrom { get; set; }
 
         /// <summary>
         /// A permission pick that waits for this tab's plan to end (issue #193): the notice to show
