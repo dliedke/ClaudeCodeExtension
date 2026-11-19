@@ -356,6 +356,36 @@ namespace ClaudeCodeExtension.Tests
         }
 
         [TestMethod]
+        public void ClaudeParser_KeepsSubagentMessagesOutOfTheTranscript()
+        {
+            // Shapes recorded from CLI 2.1.328 with two background Explore agents: their tool calls,
+            // thinking and reports arrive complete, tagged with the Agent call's id. Shown, they piled
+            // up below a pending question or plan card and pushed it out of view.
+            var parser = new ClaudeStreamParser(expectDeltas: true);
+
+            List<AgentEvent> events = ParseAll(parser,
+                "{\"type\":\"assistant\",\"parent_tool_use_id\":\"toolu_agent\",\"message\":{\"id\":\"s1\",\"model\":\"claude-haiku-5-5\"," +
+                "\"content\":[{\"type\":\"thinking\",\"thinking\":\"look\"},{\"type\":\"tool_use\",\"id\":\"toolu_read\",\"name\":\"Read\",\"input\":{\"file_path\":\"a.js\"}}]," +
+                "\"usage\":{\"input_tokens\":5,\"output_tokens\":7}}}",
+                "{\"type\":\"user\",\"parent_tool_use_id\":\"toolu_agent\",\"message\":{\"role\":\"user\"," +
+                "\"content\":[{\"type\":\"tool_result\",\"tool_use_id\":\"toolu_read\",\"content\":\"code\"}]}}",
+                "{\"type\":\"assistant\",\"parent_tool_use_id\":\"toolu_agent\",\"message\":{\"id\":\"s2\",\"model\":\"claude-haiku-5-5\"," +
+                "\"content\":[{\"type\":\"text\",\"text\":\"A very long research report.\"}]}}",
+                "{\"type\":\"stream_event\",\"parent_tool_use_id\":\"toolu_agent\",\"event\":{\"type\":\"content_block_delta\"," +
+                "\"delta\":{\"type\":\"text_delta\",\"text\":\"streamed by a subagent\"}}}",
+                "{\"type\":\"assistant\",\"parent_tool_use_id\":null,\"message\":{\"id\":\"m1\",\"model\":\"claude-opus-5-5\"," +
+                "\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_q\",\"name\":\"AskUserQuestion\",\"input\":{}}]}}");
+
+            // Only the subagent's usage and the main agent's own tool call come through.
+            Assert.AreEqual(1, events.Count(e => e.Kind == AgentEventKind.UsageUpdated));
+            Assert.IsFalse(events.Any(e => e.Kind == AgentEventKind.AssistantText ||
+                                           e.Kind == AgentEventKind.Thinking ||
+                                           e.Kind == AgentEventKind.ToolCallCompleted));
+            AgentEvent toolCall = events.Single(e => e.Kind == AgentEventKind.ToolCallStarted);
+            Assert.AreEqual("toolu_q", toolCall.ToolCallId);
+        }
+
+        [TestMethod]
         public void ClaudeParser_StatusLineUsesTheLastMainAssistantUsageWhenIterationsAreEmpty()
         {
             // Anthropic-compatible gateways can leave usage.iterations empty (measured against a

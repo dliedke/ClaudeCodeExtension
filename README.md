@@ -198,6 +198,9 @@ A huge thank you to every developer who took the time to improve this extension 
 
 ## Version History
 
+### Version 315.0
+- Background agents no longer flood the chat with their own steps and reports, which could bury a question or plan card so it looked like no Approve button had appeared.
+
 ### Version 314.0
 - Approving a plan now really carries it out in Accept edits, as the permission selector shows, instead of asking before every edit.
 - Once the approved plan is carried out, the chat goes back to Plan mode, so your next request is planned again (#210).
