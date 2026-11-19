@@ -257,6 +257,32 @@ namespace ClaudeCodeVS.Agents
                 target != ClaudePermissionChoice.PlanMode;
         }
 
+        /// <summary>
+        /// The mode a plain "Approve" on a plan card moves the session to, or null to leave it to the
+        /// CLI. A pick made while the agent was planning wins (issue #193). Otherwise, when the
+        /// extension put the session in plan mode (launched or switched there), the approval carries
+        /// <c>acceptEdits</c> — the mode the composer shows for the approved plan. Measured on CLI
+        /// 2.1.328: an approval without a mode returns the session to its pre-plan mode, which for a
+        /// session launched in plan is <c>default</c>, so every edit after the approval asked for
+        /// permission while the selector read "Accept edits" (issue #210 follow-up). A plan the agent
+        /// entered on its own (any other launch mode) is left to the CLI, which returns to that mode —
+        /// the one the selector already shows.
+        /// </summary>
+        /// <param name="pendingMode">A mode picked while planning, or null.</param>
+        /// <param name="sessionMode">The mode the extension last launched or switched the session to.</param>
+        /// <param name="skipPermissions">Whether the extension last put the session in bypass.</param>
+        public static string ResolvePlanApprovalMode(string pendingMode, string sessionMode, bool skipPermissions)
+        {
+            if (!string.IsNullOrWhiteSpace(pendingMode))
+            {
+                return pendingMode;
+            }
+
+            return !skipPermissions && string.Equals(sessionMode, "plan", StringComparison.Ordinal)
+                ? "acceptEdits"
+                : null;
+        }
+
         /// <summary>Executable to hand to <see cref="System.Diagnostics.ProcessStartInfo"/>.</summary>
         public static string GetFileName(ClaudeSessionOptions options)
         {

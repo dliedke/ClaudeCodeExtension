@@ -256,12 +256,15 @@ namespace ClaudeCodeVS
         private ClaudePermissionChoice? _nativePlanExitChoice;
 
         /// <summary>
-        /// Set when the panel's plan was approved with "Approve and skip permissions": the skip is for
-        /// that plan only (issue #210), so the end of the turn puts <see cref="_nativePlanExitChoice"/>
-        /// back to the value saved here — the mode the conversation was in before the approval.
+        /// Set when the panel's plan was approved out of Plan mode: the mode the approval moved to
+        /// (<see cref="_nativePlanRestoreFrom"/> — Accept edits, or Skip permissions) is for that plan
+        /// only (issue #210), so the end of the turn puts <see cref="_nativePlanExitChoice"/> back to
+        /// <see cref="_nativePlanRestoreChoice"/> — the mode the conversation was in before the
+        /// approval, normally Plan mode again.
         /// </summary>
-        private bool _nativeSkipPlanRestorePending;
-        private ClaudePermissionChoice? _nativeSkipPlanRestoreChoice;
+        private bool _nativePlanRestorePending;
+        private ClaudePermissionChoice? _nativePlanRestoreChoice;
+        private ClaudePermissionChoice? _nativePlanRestoreFrom;
 
         /// <summary>
         /// A permission pick that waits for the panel agent's plan to end (issue #193): the notice to
@@ -2963,8 +2966,12 @@ namespace ClaudeCodeVS
             // for this conversation only: the saved choice stays Plan mode, so Restart and new chats
             // plan again instead of silently starting in Accept edits (#181). "Approve and skip
             // permissions" already switched the running CLI to bypass (#163) — no relaunch here, that
-            // would stop the agent mid-plan, the very thing the plan card option exists to avoid. That
-            // skip lasts for this plan only: the end of the turn switches back (#210).
+            // would stop the agent mid-plan, the very thing the plan card option exists to avoid. A
+            // plain approval carried acceptEdits to the CLI the same way (see
+            // ClaudeCommandBuilder.ResolvePlanApprovalMode) — without it the CLI fell back to its
+            // pre-plan mode, "default", and asked before every edit while the selector read Accept
+            // edits. Either mode lasts for this plan only: the end of the turn switches back to Plan
+            // mode (#210).
             if (interaction.IsPlanReview && interaction.WasAccepted)
             {
                 bool planning = owner != null
@@ -2977,27 +2984,21 @@ namespace ClaudeCodeVS
 
                 if (exitChoice.HasValue)
                 {
-                    // Skipping is for this plan only (#210): remember the mode to come back to once
-                    // the turn that carries the plan out ends.
-                    bool restoreAfterTurn = interaction.WasApprovedAndSkippedPermissions;
-
+                    // The approved mode is for this plan only (#210): remember the mode to come back
+                    // to once the turn that carries the plan out ends.
                     if (owner != null)
                     {
-                        if (restoreAfterTurn)
-                        {
-                            owner.SkipPlanRestorePending = true;
-                            owner.SkipPlanRestoreChoice = owner.PlanExitChoice;
-                        }
+                        owner.PlanRestorePending = true;
+                        owner.PlanRestoreChoice = owner.PlanExitChoice;
+                        owner.PlanRestoreFrom = exitChoice;
                         owner.PlanExitChoice = exitChoice;
                         UpdateChatComposerState(owner);
                     }
                     else
                     {
-                        if (restoreAfterTurn)
-                        {
-                            _nativeSkipPlanRestorePending = true;
-                            _nativeSkipPlanRestoreChoice = _nativePlanExitChoice;
-                        }
+                        _nativePlanRestorePending = true;
+                        _nativePlanRestoreChoice = _nativePlanExitChoice;
+                        _nativePlanRestoreFrom = exitChoice;
                         _nativePlanExitChoice = exitChoice;
                         UpdateChatComposerState();
                     }
@@ -3202,8 +3203,8 @@ namespace ClaudeCodeVS
             // A permission pick that waited for the plan to end (#193) and no plan approval carried.
             ApplyDeferredNativePermissionSwitch();
 
-            // "Approve and skip permissions" skipped them for that plan only (#210).
-            RestoreNativeModeAfterSkippedPlan();
+            // An approved plan left Plan mode for that plan only (#210).
+            RestoreNativeModeAfterApprovedPlan();
 
             FireNativeAgentFinish(finishConfig, agentEvent);
         }
@@ -3883,8 +3884,8 @@ namespace ClaudeCodeVS
             // A permission pick that waited for the plan to end (#193) and no plan approval carried.
             ApplyDeferredSessionPermissionSwitch(session);
 
-            // "Approve and skip permissions" skipped them for that plan only (#210).
-            RestoreSessionModeAfterSkippedPlan(session);
+            // An approved plan left Plan mode for that plan only (#210).
+            RestoreSessionModeAfterApprovedPlan(session);
 
             FireNativeAgentFinish(finishConfig, agentEvent);
         }

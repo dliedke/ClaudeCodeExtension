@@ -140,9 +140,10 @@ namespace ClaudeCodeVS.Agents
         /// <summary>
         /// Asked when a plan is approved (the <c>ExitPlanMode</c> card): the mode the session should
         /// move to with the approval, or null to leave it to the CLI. Set by the session for a
-        /// permission pick made while the agent was still planning (issue #193) — riding on the allow,
-        /// the CLI applies it in the same step, so the work after the plan never starts in the wrong
-        /// mode.
+        /// permission pick made while the agent was still planning (issue #193), and for the
+        /// <c>acceptEdits</c> a plain approval of an extension-chosen Plan mode stands for (#210) —
+        /// riding on the allow, the CLI applies it in the same step, so the work after the plan never
+        /// starts in the wrong mode.
         /// </summary>
         public Func<string> PlanExitModeProvider { get; set; }
 

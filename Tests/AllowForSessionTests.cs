@@ -245,6 +245,25 @@ namespace ClaudeCodeExtension.Tests
         }
 
         [TestMethod]
+        public void PlainPlanApproval_CarriesAcceptEditsOnlyOutOfAnExtensionChosenPlanMode()
+        {
+            // #210 follow-up: without a mode the CLI went back to "default" and asked before every
+            // edit while the selector read Accept edits.
+            Assert.AreEqual("acceptEdits", ClaudeCommandBuilder.ResolvePlanApprovalMode(null, "plan", false));
+
+            // A pick made while planning wins (#193).
+            Assert.AreEqual("manual", ClaudeCommandBuilder.ResolvePlanApprovalMode("manual", "plan", false));
+            Assert.AreEqual("auto", ClaudeCommandBuilder.ResolvePlanApprovalMode("auto", "acceptEdits", false));
+
+            // The agent entered plan mode on its own: the CLI returns to the mode the selector shows.
+            Assert.IsNull(ClaudeCommandBuilder.ResolvePlanApprovalMode(null, "manual", false));
+            Assert.IsNull(ClaudeCommandBuilder.ResolvePlanApprovalMode(null, "acceptEdits", false));
+
+            // Bypass leaves a stale "plan" behind in the launch options; it must not count.
+            Assert.IsNull(ClaudeCommandBuilder.ResolvePlanApprovalMode(null, "plan", true));
+        }
+
+        [TestMethod]
         public void AllowForSession_RunsTheBookkeepingCallbackThenAllowsTheCall()
         {
             List<KeyValuePair<string, object>> sent;
