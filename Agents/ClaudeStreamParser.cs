@@ -236,6 +236,13 @@ namespace ClaudeCodeVS.Agents
 
         private IReadOnlyList<AgentEvent> ParseStreamEvent(JObject root)
         {
+            // Subagents are not streamed today (measured on CLI 2.1.328), but if they ever are, their
+            // deltas must stay out of the main reply for the same reason as in ParseAssistant.
+            if (root["parent_tool_use_id"]?.Type == JTokenType.String)
+            {
+                return Empty;
+            }
+
             var inner = root["event"] as JObject;
             if (inner == null)
             {
@@ -332,6 +339,19 @@ namespace ClaudeCodeVS.Agents
             if (!string.IsNullOrEmpty(messageModel) && isMain)
             {
                 _lastMainModel = messageModel;
+            }
+
+            // A subagent's own messages (its tool calls, thinking and final report) stay out of the
+            // transcript, as in the CLI, which shows only the Agent row: the report reaches the
+            // conversation as that row's result. Measured on CLI 2.1.325/2.1.328 they arrive complete,
+            // never streamed, so nothing filtered them. A background agent's dozens of Read/Grep rows
+            // and its long report then landed below a question or plan card raised meanwhile, pushed
+            // the card out of view and looked like the agent was still working (or like the plan with
+            // no buttons). Only its usage is kept, as before.
+            if (!isMain)
+            {
+                AgentUsage subagentUsage = ReadUsage(root["message"]?["usage"] as JObject);
+                return subagentUsage != null ? One(AgentEvent.UsageUpdated(subagentUsage)) : Empty;
             }
 
             // Measured: "Not logged in", a failed API call or an exhausted plan arrives as a synthetic
@@ -444,6 +464,12 @@ namespace ClaudeCodeVS.Agents
             // prompts we send never come back to us.
             var content = root["message"]?["content"] as JArray;
             if (content == null)
+            {
+                return Empty;
+            }
+
+            // A subagent's tool results belong to calls ParseAssistant never showed.
+            if (root["parent_tool_use_id"]?.Type == JTokenType.String)
             {
                 return Empty;
             }
