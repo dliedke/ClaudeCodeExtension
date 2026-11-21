@@ -861,6 +861,11 @@
 							        Click="InteractionAllowMenu_Click">
 								<Button.ContextMenu>
 									<ContextMenu Style="{StaticResource ModernContextMenuStyle}">
+										<!-- Issue #268: carry the plan out asking before every tool, file edits included. -->
+										<MenuItem Header="{local:Loc 'Approve in Manual mode'}" Tag="manual"
+										          ToolTip="{local:Loc 'Approve the plan and ask for permission before every tool, file edits included'}"
+										          Visibility="{Binding CanApproveInManualMode, Converter={StaticResource BoolToVis}}"
+										          Click="InteractionApprovePlan_Click"/>
 										<MenuItem Header="{local:Loc 'Approve and switch model'}">
 											<MenuItem Header="Opus" Tag="Opus" Click="InteractionApprovePlan_Click"/>
 											<MenuItem Header="Sonnet" Tag="Sonnet" Click="InteractionApprovePlan_Click"/>
@@ -878,6 +883,7 @@
 							<Button DockPanel.Dock="Right"
 							        Style="{StaticResource InteractionPrimaryStyle}"
 							        Content="{Binding SubmitCaption}"
+							        ToolTip="{Binding SubmitToolTip}"
 							        Click="InteractionSubmit_Click"/>
 							<!-- Plan review only, and only when the session can still switch into bypass (issue #163). -->
 							<Button DockPanel.Dock="Right"

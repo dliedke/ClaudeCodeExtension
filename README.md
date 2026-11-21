@@ -198,6 +198,12 @@ A huge thank you to every developer who took the time to improve this extension 
 
 ## Version History
 
+### Version 316.0
+- "Keep planning" on a plan card with no feedback now stops the agent and waits for your next message instead of opening a question card.
+- Plan cards can now approve in Manual mode (▾ menu), so the agent carries out the plan but asks before every tool, file edits included; the Approve button's tooltip now says it continues in Accept edits.
+- New *Settings → Automation → Return to Plan mode after an approved plan* option (on by default): turn it off to stay in the mode you approved the plan with.
+- Thanks to [@zhangzikai](https://github.com/zhangzikai) for the suggestions (#268).
+
 ### Version 315.0
 - Background agents no longer flood the chat with their own steps and reports, which could bury a question or plan card so it looked like no Approve button had appeared.
 

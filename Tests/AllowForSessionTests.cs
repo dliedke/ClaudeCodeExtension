@@ -146,8 +146,9 @@ namespace ClaudeCodeExtension.Tests
         }
 
         [TestMethod]
-        public void KeepPlanning_WithoutFeedbackAsksWhatToChange()
+        public void KeepPlanning_WithoutFeedbackWaitsForTheUser()
         {
+            // Issue #268: no question card after an empty "Keep planning" — the agent waits instead.
             List<KeyValuePair<string, object>> sent;
             ClaudeStreamParser parser = NewParser(out sent);
 
@@ -155,8 +156,48 @@ namespace ClaudeCodeExtension.Tests
             card.PlanFeedback = "   ";
             card.Reject();
 
-            StringAssert.Contains(JsonConvert.SerializeObject(sent[0].Value), "Ask what to change before doing any work.");
+            string payload = JsonConvert.SerializeObject(sent[0].Value);
+            StringAssert.Contains(payload, "Do not ask questions");
+            StringAssert.Contains(payload, "wait for the user");
             Assert.AreEqual("Plan rejected.", card.Outcome);
+        }
+
+        [TestMethod]
+        public void ApprovePlanInManualMode_CarriesManualAndDropsAPickMadeWhilePlanning()
+        {
+            // Issue #268: the plan card can approve into Manual mode (ask before every tool).
+            List<KeyValuePair<string, object>> sent;
+            ClaudeStreamParser parser = NewParser(out sent);
+            bool asked = false;
+            parser.PlanExitModeProvider = () => { asked = true; return "auto"; };
+
+            AgentInteractionRequest request = ParsePlanReview(parser);
+            string applied = null;
+            request.OnApproveWithMode = mode => applied = mode;
+
+            var card = new ClaudeCodeVS.UI.ChatInteractionViewModel(request);
+            Assert.IsTrue(card.CanApproveInManualMode);
+            card.ApprovePlan(skipPermissions: false, manualMode: true, model: null);
+
+            Assert.IsFalse(asked);
+            Assert.AreEqual("manual", applied);
+            Assert.IsTrue(card.WasApprovedInManualMode);
+            Assert.IsFalse(card.WasApprovedAndSkippedPermissions);
+            StringAssert.Contains(JsonConvert.SerializeObject(sent[0].Value), "\"mode\":\"manual\"");
+        }
+
+        [TestMethod]
+        public void ApprovePlanInManualMode_WithoutTheSessionCallbackIsAPlainApproval()
+        {
+            List<KeyValuePair<string, object>> sent;
+            ClaudeStreamParser parser = NewParser(out sent);
+
+            var card = new ClaudeCodeVS.UI.ChatInteractionViewModel(ParsePlanReview(parser));
+            Assert.IsFalse(card.CanApproveInManualMode);
+            card.ApprovePlan(skipPermissions: false, manualMode: true, model: null);
+
+            Assert.IsFalse(card.WasApprovedInManualMode);
+            Assert.IsFalse(JsonConvert.SerializeObject(sent[0].Value).Contains("setMode"));
         }
 
         [TestMethod]

@@ -728,6 +728,14 @@ namespace ClaudeCodeVS
         public bool ExpandFailedToolCalls { get; set; } = true;
 
         /// <summary>
+        /// If true (default), a Claude Code native chat goes back to Plan mode once the turn that
+        /// carried out an approved plan ends (issue #210). False keeps the conversation in the mode the
+        /// plan was approved with — Accept edits, Manual or Skip permissions (issue #268). New chats
+        /// and Restart still start in the saved choice either way.
+        /// </summary>
+        public bool ReturnToPlanModeAfterPlan { get; set; } = true;
+
+        /// <summary>
         /// When the native chat opens a thinking row by itself: never (default), only the one right
         /// before a question card, or every live one once finished. Thinking replayed from a resumed
         /// transcript always stays collapsed.

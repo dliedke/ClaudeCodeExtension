@@ -446,6 +446,14 @@ namespace ClaudeCodeVS
                 _settings.AutoTfvcCheckout, themeFg);
             automationStack.Children.Add(autoTfvcCheckoutCheck);
 
+            automationStack.Children.Add(MakeSectionHeader(L("Plan mode"), themeFg));
+
+            var returnToPlanModeCheck = MakeCheckBox(
+                L("Return to Plan mode after an approved plan (Claude Code, native mode)"),
+                L("Once the agent has carried out a plan you approved, the chat goes back to Plan mode, so the next request is planned first too. Turn this off to stay in the mode you approved the plan with (Accept edits, Manual mode or Skip permissions) for the rest of the conversation. New chats always start in the mode chosen in the chat's permission selector."),
+                _settings.ReturnToPlanModeAfterPlan, themeFg);
+            automationStack.Children.Add(returnToPlanModeCheck);
+
             automationStack.Children.Add(MakeSectionHeader(L("Build errors"), themeFg));
 
             var autoSendBuildErrorsCheck = MakeCheckBox(
@@ -1948,6 +1956,7 @@ namespace ClaudeCodeVS
             _settings.AutoTitleChatTabsWithAi = autoTitleAiCheck.IsChecked == true;
             _settings.ShowChatTokenCounts     = showTokenCountsCheck.IsChecked == true;
             _settings.ExpandFailedToolCalls   = expandFailedToolsCheck.IsChecked == true;
+            _settings.ReturnToPlanModeAfterPlan = returnToPlanModeCheck.IsChecked == true;
             if ((thinkingCombo.SelectedItem as ComboBoxItem)?.Tag is ChatThinkingDisplay thinkingDisplay)
             {
                 _settings.ChatThinkingDisplay = thinkingDisplay;

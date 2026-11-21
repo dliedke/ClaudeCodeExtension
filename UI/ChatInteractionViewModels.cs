@@ -377,6 +377,15 @@ namespace ClaudeCodeVS.UI
             get { return IsPlanReview && _request.CanApproveAndSkipPermissions; }
         }
 
+        /// <summary>
+        /// True when this plan card can also be approved into Manual mode, which asks before every
+        /// tool call (issue #268) — the plain approval carries on in Accept edits.
+        /// </summary>
+        public bool CanApproveInManualMode
+        {
+            get { return IsPlanReview && _request.CanApproveWithMode; }
+        }
+
         public string AllowForSessionCaption
         {
             get
@@ -439,6 +448,20 @@ namespace ClaudeCodeVS.UI
         }
 
         /// <summary>
+        /// Tooltip of the accept button: for a plan card it names the mode the plain approval carries
+        /// on in, so it is not mistaken for skipping permissions (issue #268). Null for other cards.
+        /// </summary>
+        public string SubmitToolTip
+        {
+            get
+            {
+                return IsPlanReview
+                    ? L("Approve the plan and continue in Accept edits (or the mode you picked while it was planning): file edits go through, other tools still ask. Manual mode and more options are under ▾.")
+                    : null;
+            }
+        }
+
+        /// <summary>
         /// What the user wants changed in the plan, typed in the plan card (issue #221). Sent with
         /// "Keep planning" so the agent revises the plan instead of asking what to change.
         /// </summary>
@@ -494,6 +517,7 @@ namespace ClaudeCodeVS.UI
         {
             RaisePropertyChanged(nameof(Title));
             RaisePropertyChanged(nameof(SubmitCaption));
+            RaisePropertyChanged(nameof(SubmitToolTip));
             RaisePropertyChanged(nameof(RejectCaption));
             RaisePropertyChanged(nameof(AllowForSessionCaption));
 
@@ -517,6 +541,9 @@ namespace ClaudeCodeVS.UI
 
         /// <summary>True when the plan was approved with the switch to skip-permissions.</summary>
         public bool WasApprovedAndSkippedPermissions { get; private set; }
+
+        /// <summary>True when the plan was approved into Manual mode (issue #268).</summary>
+        public bool WasApprovedInManualMode { get; private set; }
 
         /// <summary>The model the plan was approved with, or null when the approval left the model alone.</summary>
         public ClaudeModel? ApprovedModel { get; private set; }
@@ -600,13 +627,27 @@ namespace ClaudeCodeVS.UI
         /// </summary>
         public void ApprovePlan(bool skipPermissions, ClaudeModel? model)
         {
+            ApprovePlan(skipPermissions, false, model);
+        }
+
+        /// <summary>
+        /// <see cref="ApprovePlan(bool, ClaudeModel?)"/> with the Manual mode choice (issue #268):
+        /// the agent carries out the plan but asks before every tool call, file edits included.
+        /// </summary>
+        public void ApprovePlan(bool skipPermissions, bool manualMode, ClaudeModel? model)
+        {
             if (!IsPending || !IsPlanReview) return;
 
             bool skipping = skipPermissions && CanApproveAndSkipPermissions;
+            bool manual = !skipping && manualMode && CanApproveInManualMode;
 
             if (skipping)
             {
                 _request.AllowAndSkipPermissions();
+            }
+            else if (manual)
+            {
+                _request.AllowWithMode("manual");
             }
             else
             {
@@ -615,6 +656,7 @@ namespace ClaudeCodeVS.UI
 
             var details = new List<string>();
             if (skipping) details.Add(L("without permission prompts"));
+            if (manual) details.Add(L("in Manual mode"));
             if (model.HasValue) details.Add(L("on {0}", model.Value));
 
             Outcome = details.Count == 0
@@ -623,6 +665,7 @@ namespace ClaudeCodeVS.UI
 
             WasAccepted = true;
             WasApprovedAndSkippedPermissions = skipping;
+            WasApprovedInManualMode = manual;
             ApprovedModel = model;
             IsPending = false;
         }
@@ -645,12 +688,14 @@ namespace ClaudeCodeVS.UI
 
         /// <summary>
         /// The reason sent back to the agent when the plan is rejected: with the user's feedback it asks
-        /// for a revised plan, without it the agent asks what to change before doing any work.
+        /// for a revised plan; without it the agent stops and waits for the user's next message instead
+        /// of opening a question card (issue #268).
         /// </summary>
         internal static string BuildPlanRejectionMessage(string feedback)
         {
             return string.IsNullOrWhiteSpace(feedback)
-                ? "The user rejected the plan. Ask what to change before doing any work."
+                ? "The user rejected the plan and will say what to change in their next message. " +
+                  "Do not ask questions and do not do any work: end your turn now and wait for the user."
                 : "The user rejected the plan and wants these changes:\n" + feedback.Trim() +
                   "\n\nRevise the plan accordingly and present it again for approval before doing any work.";
         }

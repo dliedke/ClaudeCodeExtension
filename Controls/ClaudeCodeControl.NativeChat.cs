@@ -5815,10 +5815,10 @@ namespace ClaudeCodeVS
         /// <summary>
         /// A plan was approved while a permission pick was waiting for it: plain "Approve" already
         /// carried the pick to the CLI (<see cref="ClaudeStreamJsonSession.PendingPlanExitMode"/>), so
-        /// only the notice remains; "Approve and skip permissions" chose its own mode and the pick is
-        /// dropped. Either way nothing is left for the end of the turn.
+        /// only the notice remains; "Approve and skip permissions" and "Approve in Manual mode" chose
+        /// their own mode and the pick is dropped. Either way nothing is left for the end of the turn.
         /// </summary>
-        private void CompleteDeferredPermissionSwitchOnPlanApproval(NativeChatSessionState owner, bool approvedIntoSkip)
+        private void CompleteDeferredPermissionSwitchOnPlanApproval(NativeChatSessionState owner, bool approvedIntoOwnMode)
         {
             ThreadHelper.ThrowIfNotOnUIThread();
 
@@ -5846,7 +5846,7 @@ namespace ClaudeCodeVS
                 claudeSession.PendingPlanExitMode = null;
             }
 
-            if (!approvedIntoSkip)
+            if (!approvedIntoOwnMode)
             {
                 if (owner != null)
                 {

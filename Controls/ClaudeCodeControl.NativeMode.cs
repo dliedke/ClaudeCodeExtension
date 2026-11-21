@@ -2980,32 +2980,37 @@ namespace ClaudeCodeVS
 
                 ClaudePermissionChoice? exitChoice = interaction.WasApprovedAndSkippedPermissions
                     ? ClaudePermissionChoice.SkipPermissions
+                    : interaction.WasApprovedInManualMode ? ClaudePermissionChoice.ManualMode
                     : planning ? ClaudePermissionChoice.AcceptEdits : (ClaudePermissionChoice?)null;
+
+                // The approved mode is for this plan only (#210) unless the user turned the return
+                // to Plan mode off (#268): then the conversation stays in it, as before #210.
+                bool returnToPlan = _settings?.ReturnToPlanModeAfterPlan != false;
 
                 if (exitChoice.HasValue)
                 {
-                    // The approved mode is for this plan only (#210): remember the mode to come back
-                    // to once the turn that carries the plan out ends.
+                    // Remember the mode to come back to once the turn that carries the plan out ends.
                     if (owner != null)
                     {
-                        owner.PlanRestorePending = true;
-                        owner.PlanRestoreChoice = owner.PlanExitChoice;
-                        owner.PlanRestoreFrom = exitChoice;
+                        owner.PlanRestorePending = returnToPlan;
+                        owner.PlanRestoreChoice = returnToPlan ? owner.PlanExitChoice : null;
+                        owner.PlanRestoreFrom = returnToPlan ? exitChoice : null;
                         owner.PlanExitChoice = exitChoice;
                         UpdateChatComposerState(owner);
                     }
                     else
                     {
-                        _nativePlanRestorePending = true;
-                        _nativePlanRestoreChoice = _nativePlanExitChoice;
-                        _nativePlanRestoreFrom = exitChoice;
+                        _nativePlanRestorePending = returnToPlan;
+                        _nativePlanRestoreChoice = returnToPlan ? _nativePlanExitChoice : null;
+                        _nativePlanRestoreFrom = returnToPlan ? exitChoice : null;
                         _nativePlanExitChoice = exitChoice;
                         UpdateChatComposerState();
                     }
                 }
 
                 // A mode picked while the agent was planning was waiting for exactly this (#193).
-                CompleteDeferredPermissionSwitchOnPlanApproval(owner, interaction.WasApprovedAndSkippedPermissions);
+                CompleteDeferredPermissionSwitchOnPlanApproval(owner,
+                    interaction.WasApprovedAndSkippedPermissions || interaction.WasApprovedInManualMode);
             }
 
             if (interaction.IsPlanReview && interaction.ApprovedModel.HasValue)

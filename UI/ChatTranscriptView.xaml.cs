@@ -2691,8 +2691,8 @@ namespace ClaudeCodeVS.UI
         }
 
         /// <summary>
-        /// The plan card's extra approvals. <c>Tag</c> is <c>skip</c>, a <see cref="ClaudeModel"/> name,
-        /// or <c>skip:&lt;model&gt;</c>, so one handler covers every menu entry.
+        /// The plan card's extra approvals. <c>Tag</c> is <c>skip</c>, <c>manual</c>, a
+        /// <see cref="ClaudeModel"/> name, or <c>skip:&lt;model&gt;</c>, so one handler covers every menu entry.
         /// </summary>
         private void InteractionApprovePlan_Click(object sender, RoutedEventArgs e)
         {
@@ -2701,12 +2701,13 @@ namespace ClaudeCodeVS.UI
 
             string tag = (sender as FrameworkElement)?.Tag as string ?? string.Empty;
             bool skip = tag.StartsWith("skip", StringComparison.Ordinal);
-            string modelName = tag.Contains(":") ? tag.Substring(tag.IndexOf(':') + 1) : (skip ? string.Empty : tag);
+            bool manual = string.Equals(tag, "manual", StringComparison.Ordinal);
+            string modelName = tag.Contains(":") ? tag.Substring(tag.IndexOf(':') + 1) : (skip || manual ? string.Empty : tag);
 
             ClaudeModel parsed;
             ClaudeModel? model = Enum.TryParse(modelName, out parsed) ? parsed : (ClaudeModel?)null;
 
-            interaction.ApprovePlan(skip, model);
+            interaction.ApprovePlan(skip, manual, model);
 
             if (!interaction.IsPending)
             {

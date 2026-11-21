@@ -699,6 +699,17 @@ namespace ClaudeCodeVS.Agents
                         };
                     }
 
+                    // ...or into a mode the card picks itself ("Approve in Manual mode", issue #268),
+                    // which replaces any pick made while planning.
+                    if (interaction != null && interaction.Kind == AgentInteractionKind.PlanReview)
+                    {
+                        interaction.OnApproveWithMode = delegate (string mode)
+                        {
+                            Interlocked.Exchange(ref _pendingPlanExitMode, null);
+                            RememberPermissionMode(mode);
+                        };
+                    }
+
                     // Tracked so an interrupt or a dispose can deny it: a control request left
                     // unanswered blocks the CLI forever, and the process would never exit.
                     lock (_pendingInteractions)

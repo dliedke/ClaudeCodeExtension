@@ -305,6 +305,24 @@ namespace ClaudeCodeVS.Agents
         public bool SkipPermissionsRequested { get; private set; }
 
         /// <summary>
+        /// Set by the session for a <see cref="AgentInteractionKind.PlanReview"/> that can be approved
+        /// into a mode of the user's choosing (issue #268: "Approve in Manual mode"). Receives the CLI
+        /// permission mode so the session can keep its own launch options in step.
+        /// </summary>
+        public Action<string> OnApproveWithMode { get; set; }
+
+        public bool CanApproveWithMode
+        {
+            get { return Kind == AgentInteractionKind.PlanReview && OnApproveWithMode != null; }
+        }
+
+        /// <summary>
+        /// The CLI permission mode the approval asked to leave plan mode into, or null for the default
+        /// choice. Read by the transport when it builds the allow response.
+        /// </summary>
+        public string RequestedExitMode { get; private set; }
+
+        /// <summary>
         /// Lets the tool run. <paramref name="answers"/> maps question text to the chosen label and is
         /// only meaningful for <see cref="AgentInteractionKind.Question"/>; pass null otherwise.
         /// </summary>
@@ -360,6 +378,30 @@ namespace ClaudeCodeVS.Agents
             {
                 try { apply(); }
                 catch (Exception ex) { Debug.WriteLine($"AllowAndSkipPermissions bookkeeping failed: {ex.Message}"); }
+            }
+
+            Allow(null);
+        }
+
+        /// <summary>
+        /// Approves the plan and moves the running session to <paramref name="mode"/> (a CLI permission
+        /// mode such as <c>manual</c>) in the same answer. Falls back to a plain
+        /// <see cref="Allow(IDictionary{string,string})"/> when the interaction was not marked eligible.
+        /// </summary>
+        public void AllowWithMode(string mode)
+        {
+            Action<string> apply = OnApproveWithMode;
+
+            lock (_gate)
+            {
+                if (_answered) return;
+                RequestedExitMode = apply != null && !string.IsNullOrWhiteSpace(mode) ? mode : null;
+            }
+
+            if (RequestedExitMode != null)
+            {
+                try { apply(RequestedExitMode); }
+                catch (Exception ex) { Debug.WriteLine($"AllowWithMode bookkeeping failed: {ex.Message}"); }
             }
 
             Allow(null);

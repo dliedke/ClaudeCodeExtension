@@ -775,6 +775,12 @@ namespace ClaudeCodeVS.Agents
                 {
                     exitMode = "bypassPermissions";
                 }
+                else if (interaction != null && !string.IsNullOrEmpty(interaction.RequestedExitMode))
+                {
+                    // "Approve in Manual mode" (issue #268) chose its own mode; a pick made while
+                    // planning was already dropped by the session.
+                    exitMode = interaction.RequestedExitMode;
+                }
                 else if (interaction != null && interaction.Kind == AgentInteractionKind.PlanReview)
                 {
                     exitMode = PlanExitModeProvider?.Invoke();
