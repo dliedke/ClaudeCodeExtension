@@ -1,0 +1,3 @@
+work on this, commit push, publish reply to user
+
+https://github.com/dliedke/ClaudeCodeExtension/issues/268
