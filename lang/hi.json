@@ -126,6 +126,8 @@
   "Build errors": "बिल्ड त्रुटियाँ",
   "Build solution": "सॉल्यूशन बिल्ड करें",
   "Button only — Enter inserts a newline, click Send to submit": "केवल बटन — Enter नई पंक्ति डालता है, सबमिट करने के लिए भेजें पर क्लिक करें",
+  "Turn \"- \" at the start of a line into a bullet (•)": "पंक्ति की शुरुआत में \"- \" को बुलेट (•) में बदलें",
+  "When enabled, typing \"- \" or \"* \" at the start of a line in the prompt box makes it a bullet, as in Claude.ai. A new line continues the list and a new line on an empty bullet ends it. Press Backspace right after the bullet to keep the \"- \" instead.": "सक्षम होने पर, प्रॉम्प्ट बॉक्स में किसी पंक्ति की शुरुआत में \"- \" या \"* \" टाइप करने से वह बुलेट बन जाती है, जैसे Claude.ai में। नई पंक्ति सूची जारी रखती है और खाली बुलेट पर नई पंक्ति उसे समाप्त करती है। इसके बजाय \"- \" रखने के लिए बुलेट के तुरंत बाद Backspace दबाएँ।",
   "in Manual mode": "मैन्युअल मोड में",
   "Once the agent has carried out a plan you approved, the chat goes back to Plan mode, so the next request is planned first too. Turn this off to stay in the mode you approved the plan with (Accept edits, Manual mode or Skip permissions) for the rest of the conversation. New chats always start in the mode chosen in the chat's permission selector.": "जब एजेंट आपकी स्वीकृत योजना पूरी कर लेता है, तो चैट योजना मोड पर लौट आती है, ताकि अगला अनुरोध भी पहले योजनाबद्ध हो। बाकी बातचीत में उसी मोड में बने रहने के लिए इसे बंद करें जिससे आपने योजना स्वीकृत की थी (बदलाव स्वीकार करें, मैन्युअल मोड या अनुमतियाँ छोड़ें)। नई चैट हमेशा चैट के अनुमति चयनकर्ता में चुने गए मोड में शुरू होती हैं।",
   "Return to Plan mode after an approved plan (Claude Code, native mode)": "स्वीकृत योजना के बाद योजना मोड पर लौटें (Claude Code, नेटिव मोड)",

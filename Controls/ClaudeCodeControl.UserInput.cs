@@ -629,9 +629,14 @@ namespace ClaudeCodeVS
                     if (shift || ctrl)
                     {
                         // Shift+Enter or Ctrl+Enter: insert newline at caret
-                        int caret = PromptTextBox.CaretIndex;
+                        // The caret goes after whatever the insert left selected: the "\n", or nothing
+                        // when the bullet-list rules (issue #269) already continued/ended the list and
+                        // placed the caret themselves.
                         PromptTextBox.SelectedText = "\n";
-                        PromptTextBox.CaretIndex = caret + 1;
+                        if (PromptTextBox.SelectionLength > 0)
+                        {
+                            PromptTextBox.CaretIndex = PromptTextBox.SelectionStart + PromptTextBox.SelectionLength;
+                        }
                         e.Handled = true;
                         return;
                     }

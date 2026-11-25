@@ -583,6 +583,13 @@ namespace ClaudeCodeVS
         public bool KeepLastPromptVisible { get; set; } = false;
 
         /// <summary>
+        /// When true, typing "- " or "* " at the start of a line in the prompt box (panel and chat
+        /// composer) turns it into a "• " bullet, as Claude.ai does; a new line continues the list.
+        /// The bullet is sent as typed. Default false (opt-in). Issue #269, see UI/PromptBulletLists.cs.
+        /// </summary>
+        public bool AutoBulletPromptLists { get; set; } = false;
+
+        /// <summary>
         /// "@" file picker on/off. When false, typing "@" in the prompt is plain text: no popup and
         /// no workspace indexing. Default true. See ClaudeCodeControl.AtMention.cs.
         /// </summary>

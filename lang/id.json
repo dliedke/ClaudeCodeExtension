@@ -126,6 +126,8 @@
   "Build errors": "Error build",
   "Build solution": "Build solution",
   "Button only — Enter inserts a newline, click Send to submit": "Hanya tombol — Enter menyisipkan baris baru, klik Kirim untuk mengirim",
+  "Turn \"- \" at the start of a line into a bullet (•)": "Ubah \"- \" di awal baris menjadi poin (•)",
+  "When enabled, typing \"- \" or \"* \" at the start of a line in the prompt box makes it a bullet, as in Claude.ai. A new line continues the list and a new line on an empty bullet ends it. Press Backspace right after the bullet to keep the \"- \" instead.": "Jika diaktifkan, mengetik \"- \" atau \"* \" di awal baris pada kotak prompt menjadikannya poin, seperti di Claude.ai. Baris baru melanjutkan daftar dan baris baru pada poin kosong mengakhirinya. Tekan Backspace tepat setelah poin untuk tetap memakai \"- \".",
   "in Manual mode": "dalam mode manual",
   "Once the agent has carried out a plan you approved, the chat goes back to Plan mode, so the next request is planned first too. Turn this off to stay in the mode you approved the plan with (Accept edits, Manual mode or Skip permissions) for the rest of the conversation. New chats always start in the mode chosen in the chat's permission selector.": "Setelah agen menjalankan rencana yang Anda setujui, chat kembali ke mode rencana, sehingga permintaan berikutnya juga direncanakan lebih dulu. Matikan ini untuk tetap berada di mode yang Anda pakai saat menyetujui rencana (Terima suntingan, Mode manual, atau Lewati izin) selama sisa percakapan. Chat baru selalu dimulai dalam mode yang dipilih di pemilih izin chat.",
   "Return to Plan mode after an approved plan (Claude Code, native mode)": "Kembali ke mode rencana setelah rencana disetujui (Claude Code, mode native)",

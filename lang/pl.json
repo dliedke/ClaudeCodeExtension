@@ -126,6 +126,8 @@
   "Build errors": "Błędy kompilacji",
   "Build solution": "Kompiluj rozwiązanie",
   "Button only — Enter inserts a newline, click Send to submit": "Tylko przycisk — Enter wstawia nowy wiersz, kliknij Wyślij, aby wysłać",
+  "Turn \"- \" at the start of a line into a bullet (•)": "Zamieniaj \"- \" na początku wiersza na punktor (•)",
+  "When enabled, typing \"- \" or \"* \" at the start of a line in the prompt box makes it a bullet, as in Claude.ai. A new line continues the list and a new line on an empty bullet ends it. Press Backspace right after the bullet to keep the \"- \" instead.": "Po włączeniu wpisanie \"- \" lub \"* \" na początku wiersza w polu promptu zamienia go na punktor, jak w Claude.ai. Nowy wiersz kontynuuje listę, a nowy wiersz na pustym punktorze ją kończy. Naciśnij Backspace zaraz po punktorze, aby zachować \"- \".",
   "in Manual mode": "w trybie ręcznym",
   "Once the agent has carried out a plan you approved, the chat goes back to Plan mode, so the next request is planned first too. Turn this off to stay in the mode you approved the plan with (Accept edits, Manual mode or Skip permissions) for the rest of the conversation. New chats always start in the mode chosen in the chat's permission selector.": "Gdy agent wykona zatwierdzony przez Ciebie plan, czat wraca do trybu planowania, więc kolejne polecenie też jest najpierw planowane. Wyłącz to, aby do końca rozmowy pozostać w trybie, w którym zatwierdzono plan (Akceptuj edycje, Tryb ręczny lub Pomijaj uprawnienia). Nowe czaty zawsze zaczynają w trybie wybranym w selektorze uprawnień czatu.",
   "Return to Plan mode after an approved plan (Claude Code, native mode)": "Wracaj do trybu planowania po zatwierdzonym planie (Claude Code, tryb natywny)",

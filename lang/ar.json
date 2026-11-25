@@ -126,6 +126,8 @@
   "Build errors": "أخطاء البناء",
   "Build solution": "بناء الحل",
   "Button only — Enter inserts a newline, click Send to submit": "الزر فقط — Enter يدرج سطرًا جديدًا، وانقر إرسال للإرسال",
+  "Turn \"- \" at the start of a line into a bullet (•)": "تحويل \"- \" في بداية السطر إلى نقطة تعداد (•)",
+  "When enabled, typing \"- \" or \"* \" at the start of a line in the prompt box makes it a bullet, as in Claude.ai. A new line continues the list and a new line on an empty bullet ends it. Press Backspace right after the bullet to keep the \"- \" instead.": "عند التمكين، تؤدي كتابة \"- \" أو \"* \" في بداية سطر في مربع المطالبة إلى تحويله إلى نقطة تعداد، كما في Claude.ai. السطر الجديد يكمل القائمة، والسطر الجديد على نقطة فارغة ينهيها. اضغط Backspace مباشرة بعد النقطة للإبقاء على \"- \" بدلاً منها.",
   "in Manual mode": "في الوضع اليدوي",
   "Once the agent has carried out a plan you approved, the chat goes back to Plan mode, so the next request is planned first too. Turn this off to stay in the mode you approved the plan with (Accept edits, Manual mode or Skip permissions) for the rest of the conversation. New chats always start in the mode chosen in the chat's permission selector.": "بعد أن ينفذ الوكيل خطة وافقت عليها، تعود المحادثة إلى وضع التخطيط، فيُخطَّط للطلب التالي أولًا أيضًا. أوقف هذا الخيار للبقاء في الوضع الذي وافقت به على الخطة (قبول التعديلات أو الوضع اليدوي أو تخطي الأذونات) لبقية المحادثة. تبدأ المحادثات الجديدة دائمًا في الوضع المختار في محدد الأذونات الخاص بالمحادثة.",
   "Return to Plan mode after an approved plan (Claude Code, native mode)": "العودة إلى وضع التخطيط بعد خطة تمت الموافقة عليها (Claude Code، الوضع الأصلي)",

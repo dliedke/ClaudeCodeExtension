@@ -126,6 +126,8 @@
   "Build errors": "建置錯誤",
   "Build solution": "建置方案",
   "Button only — Enter inserts a newline, click Send to submit": "僅按鈕———Enter 插入換行，按一下「傳送」送出",
+  "Turn \"- \" at the start of a line into a bullet (•)": "將行首的「- 」轉換為項目符號 (•)",
+  "When enabled, typing \"- \" or \"* \" at the start of a line in the prompt box makes it a bullet, as in Claude.ai. A new line continues the list and a new line on an empty bullet ends it. Press Backspace right after the bullet to keep the \"- \" instead.": "啟用後，在提示方塊的行首輸入 \"- \" 或 \"* \" 會將該行變為項目符號，與 Claude.ai 相同。換行會繼續清單，在空項目上換行會結束清單。在項目符號後立即按 Backspace 可改為保留 \"- \"。",
   "in Manual mode": "以手動模式",
   "Once the agent has carried out a plan you approved, the chat goes back to Plan mode, so the next request is planned first too. Turn this off to stay in the mode you approved the plan with (Accept edits, Manual mode or Skip permissions) for the rest of the conversation. New chats always start in the mode chosen in the chat's permission selector.": "代理執行完你核准的計畫後，聊天會回到計畫模式，下一個要求也會先做計畫。關閉此項後，在本次對話的其餘部分維持你核准計畫時所用的模式（接受編輯、手動模式或略過權限）。新聊天一律以聊天權限選擇器中所選的模式開始。",
   "Return to Plan mode after an approved plan (Claude Code, native mode)": "核准的計畫執行完後返回計畫模式（Claude Code，原生模式）",

@@ -89,6 +89,7 @@ namespace ClaudeCodeVS.UI
         {
             InitializeComponent();
             EffortSliderStops.Attach(EffortPopupSlider);
+            PromptBulletLists.Attach(ComposerInput);
 
             Messages = new ObservableCollection<ChatMessageViewModel>();
             Messages.CollectionChanged += OnMessagesChanged;

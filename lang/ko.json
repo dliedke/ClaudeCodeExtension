@@ -126,6 +126,8 @@
   "Build errors": "빌드 오류",
   "Build solution": "솔루션 빌드",
   "Button only — Enter inserts a newline, click Send to submit": "단추만 — Enter는 줄 바꿈, 보내기를 클릭하여 제출",
+  "Turn \"- \" at the start of a line into a bullet (•)": "줄 시작의 \"- \"를 글머리 기호(•)로 바꾸기",
+  "When enabled, typing \"- \" or \"* \" at the start of a line in the prompt box makes it a bullet, as in Claude.ai. A new line continues the list and a new line on an empty bullet ends it. Press Backspace right after the bullet to keep the \"- \" instead.": "사용하면 프롬프트 상자에서 줄 시작에 \"- \" 또는 \"* \"를 입력할 때 Claude.ai처럼 글머리 기호가 됩니다. 새 줄을 넣으면 목록이 이어지고, 빈 글머리 기호에서 새 줄을 넣으면 목록이 끝납니다. 대신 \"- \"를 유지하려면 글머리 기호 바로 뒤에서 Backspace를 누르세요.",
   "in Manual mode": "수동 모드로",
   "Once the agent has carried out a plan you approved, the chat goes back to Plan mode, so the next request is planned first too. Turn this off to stay in the mode you approved the plan with (Accept edits, Manual mode or Skip permissions) for the rest of the conversation. New chats always start in the mode chosen in the chat's permission selector.": "승인한 계획을 에이전트가 수행하고 나면 채팅이 계획 모드로 돌아가 다음 요청도 먼저 계획됩니다. 끄면 대화의 나머지 동안 계획을 승인한 모드(편집 수락, 수동 모드 또는 권한 건너뛰기)를 유지합니다. 새 채팅은 항상 채팅의 권한 선택기에서 고른 모드로 시작합니다.",
   "Return to Plan mode after an approved plan (Claude Code, native mode)": "승인한 계획 실행 후 계획 모드로 돌아가기 (Claude Code, 네이티브 모드)",

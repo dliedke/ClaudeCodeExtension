@@ -334,6 +334,12 @@ namespace ClaudeCodeVS
                 origKeepLastPromptVisible, themeFg);
             promptStack.Children.Add(keepLastPromptCheck);
 
+            var autoBulletCheck = MakeCheckBox(
+                L("Turn \"- \" at the start of a line into a bullet (•)"),
+                L("When enabled, typing \"- \" or \"* \" at the start of a line in the prompt box makes it a bullet, as in Claude.ai. A new line continues the list and a new line on an empty bullet ends it. Press Backspace right after the bullet to keep the \"- \" instead."),
+                _settings.AutoBulletPromptLists, themeFg);
+            promptStack.Children.Add(autoBulletCheck);
+
             // Prompt font size
             promptStack.Children.Add(MakeSectionHeader(L("Prompt font size"), themeFg));
             promptStack.Children.Add(new TextBlock
@@ -1881,7 +1887,8 @@ namespace ClaudeCodeVS
             _settings.SendSelectionReferenceOnly = newSendSelectionRefOnly;
             _settings.KeepLastPromptVisible   = newKeepLastPromptVisible;
             UpdateLastPromptHint();
-            _settings.AtMentionEnabled = atMentionEnabledCheck.IsChecked == true;
+            _settings.AutoBulletPromptLists   = autoBulletCheck.IsChecked == true;
+            _settings.AtMentionEnabled =atMentionEnabledCheck.IsChecked == true;
             _settings.AtMentionFileTypes = (atFileTypesBox.Text ?? string.Empty).Trim();
             _settings.AtMentionExcludedFolders = (atExcludedFoldersBox.Text ?? string.Empty).Trim();
             _settings.AutoSendBuildErrorsToAgent = newAutoSendBuildErrors;

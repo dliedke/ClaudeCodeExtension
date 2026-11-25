@@ -126,6 +126,8 @@
   "Build errors": "ข้อผิดพลาดของบิลด์",
   "Build solution": "บิลด์โซลูชัน",
   "Button only — Enter inserts a newline, click Send to submit": "ปุ่มเท่านั้น — Enter ขึ้นบรรทัดใหม่ คลิก ส่ง เพื่อส่ง",
+  "Turn \"- \" at the start of a line into a bullet (•)": "เปลี่ยน \"- \" ที่ต้นบรรทัดเป็นสัญลักษณ์หัวข้อย่อย (•)",
+  "When enabled, typing \"- \" or \"* \" at the start of a line in the prompt box makes it a bullet, as in Claude.ai. A new line continues the list and a new line on an empty bullet ends it. Press Backspace right after the bullet to keep the \"- \" instead.": "เมื่อเปิดใช้ การพิมพ์ \"- \" หรือ \"* \" ที่ต้นบรรทัดในช่องพรอมต์จะทำให้บรรทัดนั้นเป็นหัวข้อย่อย เหมือนใน Claude.ai ขึ้นบรรทัดใหม่จะต่อรายการ และขึ้นบรรทัดใหม่บนหัวข้อย่อยที่ว่างจะจบรายการ กด Backspace ทันทีหลังสัญลักษณ์เพื่อคง \"- \" ไว้แทน",
   "in Manual mode": "ในโหมดด้วยตนเอง",
   "Once the agent has carried out a plan you approved, the chat goes back to Plan mode, so the next request is planned first too. Turn this off to stay in the mode you approved the plan with (Accept edits, Manual mode or Skip permissions) for the rest of the conversation. New chats always start in the mode chosen in the chat's permission selector.": "เมื่อเอเจนต์ทำตามแผนที่คุณอนุมัติเสร็จ แชตจะกลับสู่โหมดวางแผน เพื่อให้คำขอถัดไปถูกวางแผนก่อนเช่นกัน ปิดตัวเลือกนี้เพื่ออยู่ในโหมดที่คุณใช้อนุมัติแผน (ยอมรับการแก้ไข โหมดด้วยตนเอง หรือข้ามการขอสิทธิ์) ตลอดการสนทนาที่เหลือ แชตใหม่จะเริ่มในโหมดที่เลือกไว้ในตัวเลือกสิทธิ์ของแชตเสมอ",
   "Return to Plan mode after an approved plan (Claude Code, native mode)": "กลับสู่โหมดวางแผนหลังแผนที่อนุมัติแล้ว (Claude Code, โหมดเนทีฟ)",

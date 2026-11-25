@@ -134,6 +134,7 @@
     <Compile Include="UI\ChatUsageIndicator.cs" />
     <Compile Include="UI\GlyphIcon.cs" />
     <Compile Include="UI\EffortSliderStops.cs" />
+    <Compile Include="UI\PromptBulletLists.cs" />
     <Compile Include="UI\HostedWindowBounds.cs" />
     <Compile Include="UI\ComposerLabels.cs" />
     <Compile Include="UI\ScrollArrows.cs" />

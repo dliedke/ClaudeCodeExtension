@@ -126,6 +126,8 @@
   "Build errors": "Derleme hataları",
   "Build solution": "Çözümü derle",
   "Button only — Enter inserts a newline, click Send to submit": "Yalnızca düğme — Enter yeni satır ekler, göndermek için Gönder'e tıklayın",
+  "Turn \"- \" at the start of a line into a bullet (•)": "Satır başındaki \"- \" ifadesini madde işaretine (•) dönüştür",
+  "When enabled, typing \"- \" or \"* \" at the start of a line in the prompt box makes it a bullet, as in Claude.ai. A new line continues the list and a new line on an empty bullet ends it. Press Backspace right after the bullet to keep the \"- \" instead.": "Etkinleştirildiğinde, istem kutusunda satır başına \"- \" veya \"* \" yazmak satırı Claude.ai'deki gibi madde işaretine dönüştürür. Yeni satır listeyi sürdürür, boş bir madde işaretinde yeni satır ise listeyi bitirir. Bunun yerine \"- \" kalması için madde işaretinden hemen sonra Backspace tuşuna basın.",
   "in Manual mode": "manuel modda",
   "Once the agent has carried out a plan you approved, the chat goes back to Plan mode, so the next request is planned first too. Turn this off to stay in the mode you approved the plan with (Accept edits, Manual mode or Skip permissions) for the rest of the conversation. New chats always start in the mode chosen in the chat's permission selector.": "Ajan onayladığın bir planı uyguladıktan sonra sohbet plan moduna döner, böylece sonraki istek de önce planlanır. Sohbetin geri kalanında planı onayladığın modda (Düzenlemeleri kabul et, Manuel mod veya İzinleri atla) kalmak için bunu kapat. Yeni sohbetler her zaman sohbetin izin seçicisinde seçilen modda başlar.",
   "Return to Plan mode after an approved plan (Claude Code, native mode)": "Onaylanan plandan sonra plan moduna dön (Claude Code, yerel mod)",

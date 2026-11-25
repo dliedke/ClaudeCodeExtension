@@ -126,6 +126,8 @@
   "Build errors": "ビルドエラー",
   "Build solution": "ソリューションのビルド",
   "Button only — Enter inserts a newline, click Send to submit": "ボタンのみ — Enter で改行、送信ボタンで送信",
+  "Turn \"- \" at the start of a line into a bullet (•)": "行頭の「- 」を箇条書き (•) に変換する",
+  "When enabled, typing \"- \" or \"* \" at the start of a line in the prompt box makes it a bullet, as in Claude.ai. A new line continues the list and a new line on an empty bullet ends it. Press Backspace right after the bullet to keep the \"- \" instead.": "有効にすると、プロンプト ボックスの行頭で \"- \" または \"* \" を入力すると、Claude.ai と同様にその行が箇条書きになります。改行するとリストが続き、空の項目で改行するとリストが終わります。\"- \" のままにするには、箇条書き記号の直後に Backspace を押します。",
   "in Manual mode": "手動モードで",
   "Once the agent has carried out a plan you approved, the chat goes back to Plan mode, so the next request is planned first too. Turn this off to stay in the mode you approved the plan with (Accept edits, Manual mode or Skip permissions) for the rest of the conversation. New chats always start in the mode chosen in the chat's permission selector.": "承認したプランをエージェントが実行し終えると、チャットはプラン モードに戻り、次の依頼もまずプランから始まります。オフにすると、会話の残りの間はプランを承認したときのモード (編集を承認、手動モード、許可をスキップ) のままになります。新しいチャットは常にチャットの許可セレクターで選んだモードで始まります。",
   "Return to Plan mode after an approved plan (Claude Code, native mode)": "承認したプランの実行後にプラン モードへ戻る (Claude Code、ネイティブ モード)",

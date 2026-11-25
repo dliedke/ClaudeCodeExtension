@@ -198,6 +198,11 @@ A huge thank you to every developer who took the time to improve this extension 
 
 ## Version History
 
+### Version 317.0
+- New *Settings → Prompt → Turn "- " at the start of a line into a bullet (•)* option (off by default): typing "- " or "* " at the start of a line in the prompt box makes a bullet, as in Claude.ai, and a new line continues the list.
+- A new line on an empty bullet ends the list, and Backspace right after the bullet keeps the "- " instead.
+- Thanks to [@lpowca](https://github.com/lpowca) for the suggestion (#269).
+
 ### Version 316.0
 - "Keep planning" on a plan card with no feedback now stops the agent and waits for your next message instead of opening a question card.
 - Plan cards can now approve in Manual mode (▾ menu), so the agent carries out the plan but asks before every tool, file edits included; the Approve button's tooltip now says it continues in Accept edits.

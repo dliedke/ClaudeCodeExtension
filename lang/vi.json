@@ -126,6 +126,8 @@
   "Build errors": "Lỗi build",
   "Build solution": "Build solution",
   "Button only — Enter inserts a newline, click Send to submit": "Chỉ nút — Enter xuống dòng, bấm Gửi để gửi",
+  "Turn \"- \" at the start of a line into a bullet (•)": "Chuyển \"- \" ở đầu dòng thành dấu đầu dòng (•)",
+  "When enabled, typing \"- \" or \"* \" at the start of a line in the prompt box makes it a bullet, as in Claude.ai. A new line continues the list and a new line on an empty bullet ends it. Press Backspace right after the bullet to keep the \"- \" instead.": "Khi bật, gõ \"- \" hoặc \"* \" ở đầu dòng trong ô prompt sẽ biến dòng đó thành dấu đầu dòng, như trong Claude.ai. Xuống dòng sẽ tiếp tục danh sách và xuống dòng ở một mục trống sẽ kết thúc danh sách. Nhấn Backspace ngay sau dấu đầu dòng để giữ lại \"- \".",
   "in Manual mode": "ở chế độ thủ công",
   "Once the agent has carried out a plan you approved, the chat goes back to Plan mode, so the next request is planned first too. Turn this off to stay in the mode you approved the plan with (Accept edits, Manual mode or Skip permissions) for the rest of the conversation. New chats always start in the mode chosen in the chat's permission selector.": "Khi tác tử đã thực hiện xong kế hoạch bạn duyệt, cuộc trò chuyện quay lại chế độ kế hoạch, nên yêu cầu tiếp theo cũng được lập kế hoạch trước. Tắt mục này để giữ chế độ bạn đã dùng khi duyệt kế hoạch (Chấp nhận chỉnh sửa, Chế độ thủ công hoặc Bỏ qua quyền) cho phần còn lại của cuộc trò chuyện. Cuộc trò chuyện mới luôn bắt đầu ở chế độ được chọn trong bộ chọn quyền của cuộc trò chuyện.",
   "Return to Plan mode after an approved plan (Claude Code, native mode)": "Quay lại chế độ kế hoạch sau khi kế hoạch được duyệt (Claude Code, chế độ gốc)",

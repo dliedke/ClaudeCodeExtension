@@ -75,6 +75,11 @@ namespace ClaudeCodeVS
             InitializeComponent();
             UI.EffortSliderStops.Attach(EffortSlider);
 
+            // "- " at the start of a line → "• " (issue #269, opt-in). The chat composers attach
+            // themselves; the setting is read live on every keystroke.
+            UI.PromptBulletLists.IsEnabled = () => _settings?.AutoBulletPromptLists == true;
+            UI.PromptBulletLists.Attach(PromptTextBox);
+
             // Show or hide the optional "Paste from Clipboard" menu item based on the
             // EnablePasteFromClipboardMenu flag in ClaudeCodeControl.UserInput.cs.
             // The flag is OFF by default — flip it to true to expose the entry.
