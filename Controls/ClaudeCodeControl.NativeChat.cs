@@ -1603,6 +1603,11 @@ namespace ClaudeCodeVS
             newSession.SessionCts = new CancellationTokenSource();
             await newSession.AgentSession.StartAsync(workspace, newSession.SessionCts.Token);
 
+            // A GitHub issue tab never pulls (it works in its own worktree), so it must not re-arm
+            // the pull for the solution's other tabs either.
+            if (string.IsNullOrEmpty(newSession.WorkspaceOverride))
+                RearmAutoPull("new chat tab");
+
             newSession.ChatTranscript.SetStatus(L("Ready."));
             // Show welcome card in the new session, not the global one
             ShowChatWelcome(newSession.ChatTranscript, workspace);
@@ -6391,6 +6396,7 @@ namespace ClaudeCodeVS
                 // a fresh-start card in the middle of one would read as if it had been thrown away.
                 if (forceNewSession)
                 {
+                    RearmAutoPull("new chat");
                     ShowChatWelcome(workspace);
                 }
             }
@@ -6571,6 +6577,8 @@ namespace ClaudeCodeVS
                 // away. The caller (OnComposerClearChatRequested) already cleared the transcript.
                 if (forceNewSession)
                 {
+                    if (string.IsNullOrEmpty(session.WorkspaceOverride))
+                        RearmAutoPull("new chat");
                     ShowChatWelcome(transcript, workspace);
                 }
             }

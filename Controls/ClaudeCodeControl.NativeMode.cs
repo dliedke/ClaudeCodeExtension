@@ -550,6 +550,7 @@ namespace ClaudeCodeVS
                 _nativeSessionCts = new CancellationTokenSource();
                 _agentSession = session;
                 session.Received += OnAgentEventReceived;
+                RearmAutoPull("native agent session started");
 
                 // A fresh launch has nothing to migrate a title from, but a rename made before the
                 // first turn (still the throwaway seed id) must still survive the id being confirmed —

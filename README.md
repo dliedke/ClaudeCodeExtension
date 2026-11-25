@@ -198,6 +198,9 @@ A huge thank you to every developer who took the time to improve this extension 
 
 ## Version History
 
+### Version 318.0
+- *Pull from git before sending* now runs again on the first prompt of every new AI session (agent start, provider switch, New chat, new chat tab), not only once per solution.
+
 ### Version 317.0
 - New *Settings → Prompt → Turn "- " at the start of a line into a bullet (•)* option (off by default): typing "- " or "* " at the start of a line in the prompt box makes a bullet, as in Claude.ai, and a new line continues the list.
 - A new line on an empty bullet ends the list, and Backspace right after the bullet keeps the "- " instead.

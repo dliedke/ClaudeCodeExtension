@@ -1195,6 +1195,9 @@ namespace ClaudeCodeVS
                 _lastTerminalLaunchWorkspaceDirectory = workspaceDir;
                 _lastWorkspaceDirectory = workspaceDir;
 
+                if (provider.HasValue)
+                    RearmAutoPull("terminal agent session started");
+
                 // Stop the agent-finish watcher and clear any stale notification before tearing
                 // the old terminal down. Its 1-second console-attach tick can otherwise overlap
                 // the teardown/relaunch below and leave VS attached to the dying console — the

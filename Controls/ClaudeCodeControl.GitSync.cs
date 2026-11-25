@@ -111,17 +111,31 @@ namespace ClaudeCodeVS
 
         /// <summary>
         /// The repository the pre-prompt pull has already run for. The network pull happens once per
-        /// repository per session, not on every send: by the second prompt the working tree normally
+        /// repository per AI session, not on every send: by the second prompt the working tree normally
         /// holds the agent's own uncommitted edits, and pulling on top of those is exactly what
         /// produces autostash-restore conflicts — paid for on every prompt, in latency, for code that
         /// usually has not moved. Keyed by root rather than a plain bool so opening another solution
-        /// re-arms it.
+        /// re-arms it; starting a new AI session re-arms it too (<see cref="RearmAutoPull"/>).
         /// </summary>
         private string _autoPulledRepositoryRoot;
 
         #endregion
 
         #region Public entry point
+
+        /// <summary>
+        /// Lets the next prompt pull again. Called whenever a new AI session starts (agent launch,
+        /// provider switch, "New chat", a new chat tab), so each fresh conversation begins on the
+        /// latest remote code instead of whatever was pulled for an earlier session.
+        /// </summary>
+        private void RearmAutoPull(string reason)
+        {
+            if (_autoPulledRepositoryRoot == null)
+                return;
+
+            _autoPulledRepositoryRoot = null;
+            Debug.WriteLine($"Auto git pull re-armed: {reason}");
+        }
 
         /// <summary>
         /// Runs the pre-prompt `git pull` when the setting allows it. Safe to call on the UI thread:
